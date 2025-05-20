@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -48,7 +48,7 @@ const Admin = () => {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
   const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<'component' | 'variation' | 'token'>('component');
   const [formData, setFormData] = useState<FormData>({
@@ -88,7 +88,7 @@ const Admin = () => {
     } catch (error) {
       console.error('Error fetching components:', error);
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
