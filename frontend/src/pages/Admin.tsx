@@ -30,7 +30,6 @@ interface Token {
   type: string;
   defaultValue: string | null;
   designSystemId: number;
-  value?: string;
 }
 
 interface FormData {
@@ -39,7 +38,6 @@ interface FormData {
   type?: string;
   defaultValue?: string;
   tokenId?: number;
-  value?: string;
 }
 
 const Admin = () => {
@@ -58,6 +56,8 @@ const Admin = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingItem, setEditingItem] = useState<Component | Variation | Token | null>(null);
 
   useEffect(() => {
     fetchComponents();
@@ -120,6 +120,8 @@ const Admin = () => {
 
   const handleAdd = (type: 'component' | 'variation' | 'token') => {
     setDialogType(type);
+    setIsEditMode(false);
+    setEditingItem(null);
     setFormData({
       name: '',
       description: '',
@@ -129,57 +131,117 @@ const Admin = () => {
     setIsDialogOpen(true);
   };
 
+  const handleEdit = (type: 'component' | 'variation' | 'token', item: Component | Variation | Token) => {
+    setDialogType(type);
+    setIsEditMode(true);
+    setEditingItem(item);
+    setFormData({
+      name: item.name,
+      description: 'description' in item ? item.description || '' : '',
+      type: 'type' in item ? item.type : '',
+      defaultValue: 'defaultValue' in item ? item.defaultValue || '' : '',
+    });
+    setIsDialogOpen(true);
+  };
+
   const handleSubmit = async () => {
     try {
       let response;
-      switch (dialogType) {
-        case 'component':
-          response = await fetch('http://localhost:3001/api/components', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: formData.name,
-              description: formData.description,
-              designSystemId: 1, // TODO: Get from context or props
-            }),
-          });
-          const newComponent = await response.json();
-          setComponents([...components, newComponent]);
-          break;
+      if (isEditMode && editingItem) {
+        switch (dialogType) {
+          case 'component':
+            response = await fetch(`http://localhost:3001/api/components/${editingItem.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                description: formData.description,
+              }),
+            });
+            const updatedComponent = await response.json();
+            setComponents(components.map(c => c.id === updatedComponent.id ? updatedComponent : c));
+            break;
 
-        case 'variation':
-          if (!selectedComponent) return;
-          response = await fetch('http://localhost:3001/api/variations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: formData.name,
-              description: formData.description,
-              componentId: selectedComponent.id,
-            }),
-          });
-          const newVariation = await response.json();
-          setVariations([...variations, newVariation]);
-          break;
+          case 'variation':
+            response = await fetch(`http://localhost:3001/api/variations/${editingItem.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                description: formData.description,
+                componentId: selectedComponent?.id,
+              }),
+            });
+            const updatedVariation = await response.json();
+            setVariations(variations.map(v => v.id === updatedVariation.id ? updatedVariation : v));
+            break;
 
-        case 'token':
-          response = await fetch('http://localhost:3001/api/tokens', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: formData.name,
-              type: formData.type,
-              defaultValue: formData.defaultValue,
-              variationId: selectedVariation?.id,
-            }),
-          });
-          const newToken = await response.json();
-          setTokens([...tokens, newToken]);
-          break;
+          case 'token':
+            response = await fetch(`http://localhost:3001/api/tokens/${editingItem.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                type: formData.type,
+                defaultValue: formData.defaultValue,
+                variationId: selectedVariation?.id,
+              }),
+            });
+            const updatedToken = await response.json();
+            setTokens(tokens.map(t => t.id === updatedToken.id ? updatedToken : t));
+            break;
+        }
+      } else {
+        switch (dialogType) {
+          case 'component':
+            response = await fetch('http://localhost:3001/api/components', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                description: formData.description,
+              }),
+            });
+            const newComponent = await response.json();
+            setComponents([...components, newComponent]);
+            break;
+
+          case 'variation':
+            if (!selectedComponent) return;
+            response = await fetch('http://localhost:3001/api/variations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                description: formData.description,
+                componentId: selectedComponent.id,
+              }),
+            });
+            const newVariation = await response.json();
+            setVariations([...variations, newVariation]);
+            break;
+
+          case 'token':
+            response = await fetch('http://localhost:3001/api/tokens', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                type: formData.type,
+                defaultValue: formData.defaultValue,
+                variationId: selectedVariation?.id,
+              }),
+            });
+            const newToken = await response.json();
+            setTokens([...tokens, newToken]);
+            break;
+        }
       }
       setIsDialogOpen(false);
+      setIsEditMode(false);
+      setEditingItem(null);
     } catch (error) {
-      console.error('Error creating item:', error);
+      console.error('Error saving item:', error);
     }
   };
 
@@ -257,7 +319,7 @@ const Admin = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Add New {dialogType.charAt(0).toUpperCase() + dialogType.slice(1)}
+              {isEditMode ? 'Edit' : 'Add New'} {dialogType.charAt(0).toUpperCase() + dialogType.slice(1)}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -299,10 +361,14 @@ const Admin = () => {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsDialogOpen(false);
+              setIsEditMode(false);
+              setEditingItem(null);
+            }}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit}>Create</Button>
+            <Button onClick={handleSubmit}>{isEditMode ? 'Save' : 'Create'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -352,22 +418,34 @@ const Admin = () => {
               onClick={() => handleComponentSelect(component.id)}
             >
               <div className="flex justify-between items-start">
-                <div
-                  className="flex-1"
-                  >
+                <div className="flex-1">
                   <h3 className="font-medium">{component.name}</h3>
                   {component.description && (
                     <p className="text-sm text-gray-500">{component.description}</p>
                   )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="opacity-0 group-hover:opacity-100"
-                  onClick={() => handleDelete('component', component.id)}
-                >
-                  Delete
-                </Button>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit('component', component);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete('component', component.id);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
@@ -416,22 +494,34 @@ const Admin = () => {
                 onClick={() => setSelectedVariation(variation)}
               >
                 <div className="flex justify-between items-start">
-                  <div
-                    className="flex-1"
-                  >
+                  <div className="flex-1">
                     <h3 className="font-medium">{variation.name}</h3>
                     {variation.description && (
                       <p className="text-sm text-gray-500">{variation.description}</p>
                     )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100"
-                    onClick={() => handleDelete('variation', variation.id)}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEdit('variation', variation);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete('variation', variation.id);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -482,14 +572,22 @@ const Admin = () => {
                     <p className="text-sm text-gray-500">Type: {token.type}</p>
                     <p className="text-sm text-gray-500 mt-1">Default Value: {token.defaultValue || 'Not set'}</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-0 group-hover:opacity-100"
-                    onClick={() => handleDelete('token', token.id)}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit('token', token)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete('token', token.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

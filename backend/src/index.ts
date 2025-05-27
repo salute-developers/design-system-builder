@@ -213,6 +213,78 @@ app.delete('/api/tokens/:id', async (req, res) => {
   }
 });
 
+// Update component
+app.put('/api/components/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const updatedComponent = await db.update(components)
+      .set({
+        name,
+        description,
+        updatedAt: new Date(),
+      })
+      .where(eq(components.id, parseInt(id)))
+      .returning();
+    res.json(updatedComponent[0]);
+  } catch (error) {
+    console.error('Error updating component:', error);
+    res.status(500).json({ error: 'Failed to update component' });
+  }
+});
+
+// Update variation
+app.put('/api/variations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, componentId } = req.body;
+    if (!name || !componentId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const updatedVariation = await db.update(variations)
+      .set({
+        name,
+        description,
+        componentId,
+        updatedAt: new Date(),
+      })
+      .where(eq(variations.id, parseInt(id)))
+      .returning();
+    res.json(updatedVariation[0]);
+  } catch (error) {
+    console.error('Error updating variation:', error);
+    res.status(500).json({ error: 'Failed to update variation' });
+  }
+});
+
+// Update token
+app.put('/api/tokens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, value, variationId } = req.body;
+    if (!name || !type || !value || !variationId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const updatedToken = await db.update(tokens)
+      .set({
+        name,
+        type,
+        defaultValue: value,
+        variationId,
+        updatedAt: new Date(),
+      })
+      .where(eq(tokens.id, parseInt(id)))
+      .returning();
+    res.json(updatedToken[0]);
+  } catch (error) {
+    console.error('Error updating token:', error);
+    res.status(500).json({ error: 'Failed to update token' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 }); 
