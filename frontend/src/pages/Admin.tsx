@@ -314,7 +314,7 @@ const Admin = () => {
   };
 
   const renderDialog = () => {
-    return (
+  return (
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -357,8 +357,8 @@ const Admin = () => {
                     placeholder="Enter default value"
                   />
                 </div>
-              </>
-            )}
+            </>
+          )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
