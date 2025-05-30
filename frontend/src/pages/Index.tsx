@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
+import { getApiUrl } from '../config/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -62,7 +63,7 @@ const Index = () => {
 
   const fetchDesignSystems = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/design-systems');
+      const response = await fetch(getApiUrl('designSystems'));
       const data = await response.json();
       setDesignSystems(data);
     } catch (error) {
@@ -72,7 +73,7 @@ const Index = () => {
 
   const fetchAvailableComponents = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/components/available');
+      const response = await fetch(getApiUrl('components') + '/available');
       const data = await response.json();
       setAvailableComponents(data);
     } catch (error) {
@@ -102,7 +103,7 @@ const Index = () => {
     try {
       let response;
       if (isEditMode && selectedDesignSystem) {
-        response = await fetch(`http://localhost:3001/api/design-systems/${selectedDesignSystem.id}`, {
+        response = await fetch(getApiUrl('designSystems') + `/${selectedDesignSystem.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
@@ -110,7 +111,7 @@ const Index = () => {
         const updatedDesignSystem = await response.json();
         setDesignSystems(designSystems.map(ds => ds.id === updatedDesignSystem.id ? updatedDesignSystem : ds));
       } else {
-        response = await fetch('http://localhost:3001/api/design-systems', {
+        response = await fetch(getApiUrl('designSystems'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
@@ -130,7 +131,7 @@ const Index = () => {
     if (!confirm('Are you sure you want to delete this design system?')) return;
 
     try {
-      await fetch(`http://localhost:3001/api/design-systems/${id}`, { method: 'DELETE' });
+      await fetch(getApiUrl('designSystems') + `/${id}`, { method: 'DELETE' });
       setDesignSystems(designSystems.filter(ds => ds.id !== id));
       if (selectedDesignSystem?.id === id) {
         setSelectedDesignSystem(null);
@@ -142,7 +143,7 @@ const Index = () => {
 
   const handleSelect = async (id: number) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/design-systems/${id}`);
+      const response = await fetch(getApiUrl('designSystems') + `/${id}`);
       const designSystem: DesignSystem = await response.json();
       setSelectedDesignSystem(designSystem);
     } catch (error) {
@@ -181,7 +182,7 @@ const Index = () => {
     if (!selectedDesignSystem || !selectedComponentId) return;
 
     try {
-      const response = await fetch('http://localhost:3001/api/design-systems/components', {
+      const response = await fetch(getApiUrl('designSystems') + '/components', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -207,7 +208,7 @@ const Index = () => {
   const handleAddVariation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:3001/api/variations', {
+      const response = await fetch(getApiUrl('variations'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newVariation),
@@ -232,7 +233,7 @@ const Index = () => {
     if (!selectedDesignSystem) return;
 
     try {
-      const response = await fetch('http://localhost:3001/api/variation-values', {
+      const response = await fetch(getApiUrl('variationValues'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -282,7 +283,7 @@ const Index = () => {
     if (!editingVariationValue) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/variation-values/${editingVariationValue.id}`, {
+      const response = await fetch(getApiUrl('variationValues') + `/${editingVariationValue.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
