@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 // Pages
 import Index from './pages/Index';
 import Admin from './pages/Admin';
+import DesignSystem from './pages/DesignSystem';
 
 function App() {
   return (
@@ -15,7 +16,7 @@ function App() {
                 Design System Builder
               </Link>
               <div className="space-x-4">
-                <Link to="/" className="text-foreground hover:text-primary">
+                <Link to="/design-system" className="text-foreground hover:text-primary">
                   Home
                 </Link>
                 <Link to="/admin" className="text-foreground hover:text-primary">
@@ -30,6 +31,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/design-system" element={<DesignSystem />} />
           </Routes>
         </main>
       </div>
