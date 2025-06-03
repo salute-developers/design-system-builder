@@ -4,9 +4,9 @@ export const apiConfig = {
   baseUrl: API_BASE_URL,
   endpoints: {
     designSystems: '/api/design-systems',
-    components: '/api/components',
-    variations: '/api/variations',
-    tokens: '/api/tokens',
+    components: '/admin-api/components',
+    variations: '/admin-api/variations',
+    tokens: '/admin-api/tokens',
     variationValues: '/api/variation-values',
   },
 };

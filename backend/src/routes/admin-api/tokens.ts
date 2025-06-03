@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../db';
-import { tokens } from '../db/schema';
+import { db } from '../../db';
+import { tokens } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -26,6 +26,20 @@ router.get('/variation/:id', async (req, res) => {
     const { id } = req.params;
     const variationTokens = await db.query.tokens.findMany({
       where: eq(tokens.variationId, parseInt(id))
+    });
+    res.json(variationTokens);
+  } catch (error) {
+    console.error('Error fetching variation tokens:', error);
+    res.status(500).json({ error: 'Failed to fetch variation tokens' });
+  }
+});
+
+// Get tokens for a specific variation by ID
+router.get('/:variationId/tokens', async (req, res) => {
+  try {
+    const { variationId } = req.params;
+    const variationTokens = await db.query.tokens.findMany({
+      where: eq(tokens.variationId, parseInt(variationId))
     });
     res.json(variationTokens);
   } catch (error) {

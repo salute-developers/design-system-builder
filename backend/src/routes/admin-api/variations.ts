@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { db } from '../db';
-import { variations, tokens } from '../db/schema';
+import { db } from '../../db';
+import { variations, tokens } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -109,6 +109,27 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting variation:', error);
     res.status(500).json({ error: 'Failed to delete variation' });
+  }
+});
+
+// Get tokens for a specific variation by ID
+router.get('/:id/tokens', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const variationId = parseInt(id);
+    
+    // Validate that id is a valid number
+    if (isNaN(variationId)) {
+      return res.status(400).json({ error: 'Invalid variation ID' });
+    }
+
+    const variationTokens = await db.query.tokens.findMany({
+      where: eq(tokens.variationId, variationId)
+    });
+    res.json(variationTokens);
+  } catch (error) {
+    console.error('Error fetching variation tokens:', error);
+    res.status(500).json({ error: 'Failed to fetch variation tokens' });
   }
 });
 
