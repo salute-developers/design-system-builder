@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createVariationsRouter } from '../variations';
@@ -7,7 +7,13 @@ import { variations, components, designSystems } from '../../../db/schema';
 
 const app = express();
 app.use(express.json());
-app.use('/admin-api/variations', createVariationsRouter(testDb));
+
+let router: ReturnType<typeof createVariationsRouter>;
+
+beforeAll(() => {
+  router = createVariationsRouter(testDb);
+  app.use('/admin-api/variations', router);
+});
 
 describe('Variations API', () => {
   let componentId: number;

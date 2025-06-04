@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createTokensRouter } from '../tokens';
@@ -7,7 +7,13 @@ import { tokens, variations, components, designSystems } from '../../../db/schem
 
 const app = express();
 app.use(express.json());
-app.use('/admin-api/tokens', createTokensRouter(testDb));
+
+let router: ReturnType<typeof createTokensRouter>;
+
+beforeAll(() => {
+  router = createTokensRouter(testDb);
+  app.use('/admin-api/tokens', router);
+});
 
 describe('Tokens API', () => {
   let variationId: number;

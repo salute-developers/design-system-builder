@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createDesignSystemsRouter } from '../design-systems';
@@ -7,7 +7,13 @@ import { designSystems } from '../../../db/schema';
 
 const app = express();
 app.use(express.json());
-app.use('/api/design-systems', createDesignSystemsRouter(testDb));
+
+let router: ReturnType<typeof createDesignSystemsRouter>;
+
+beforeAll(() => {
+  router = createDesignSystemsRouter(testDb);
+  app.use('/api/design-systems', router);
+});
 
 describe('Design Systems API', () => {
   beforeEach(async () => {

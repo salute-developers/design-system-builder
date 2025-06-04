@@ -1,8 +1,9 @@
 import { afterEach, beforeAll } from 'vitest';
 import { setupTestDb } from './db';
 import * as schema from '../db/schema';
+import { Database } from '../db/types';
 
-let testDb: ReturnType<typeof setupTestDb> extends Promise<infer T> ? T : never;
+let testDb: Database;
 
 beforeAll(async () => {
   testDb = await setupTestDb();

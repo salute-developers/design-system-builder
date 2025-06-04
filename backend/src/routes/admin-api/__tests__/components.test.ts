@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createComponentsRouter } from '../components';
@@ -8,7 +8,13 @@ import { eq } from 'drizzle-orm';
 
 const app = express();
 app.use(express.json());
-app.use('/admin-api/components', createComponentsRouter(testDb));
+
+let router: ReturnType<typeof createComponentsRouter>;
+
+beforeAll(() => {
+  router = createComponentsRouter(testDb);
+  app.use('/admin-api/components', router);
+});
 
 describe('Components API', () => {
   let designSystemId: number;
