@@ -1,19 +1,20 @@
 import { Router } from 'express';
-import designSystemsRouter from './api/design-systems';
-import variationValuesRouter from './api/variation-values';
-import componentsRouter from './admin-api/components';
-import variationsRouter from './admin-api/variations';
-import tokensRouter from './admin-api/tokens';
+import { createDesignSystemsRouter } from './api/design-systems';
+import { createVariationValuesRouter } from './api/variation-values';
+import { createComponentsRouter } from './admin-api/components';
+import { createVariationsRouter } from './admin-api/variations';
+import { createTokensRouter } from './admin-api/tokens';
+import { db } from '../db';
 
 const router = Router();
 
 // Mount routes under 'api' namespace
-router.use('/api/design-systems', designSystemsRouter);
-router.use('/api/variation-values', variationValuesRouter);
+router.use('/api/design-systems', createDesignSystemsRouter(db));
+router.use('/api/variation-values', createVariationValuesRouter(db));
 
 // Mount routes under 'admin-api' namespace
-router.use('/admin-api/components', componentsRouter);
-router.use('/admin-api/variations', variationsRouter);
-router.use('/admin-api/tokens', tokensRouter);
+router.use('/admin-api/components', createComponentsRouter(db));
+router.use('/admin-api/variations', createVariationsRouter(db));
+router.use('/admin-api/tokens', createTokensRouter(db));
 
 export default router; 

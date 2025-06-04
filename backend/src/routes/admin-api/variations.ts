@@ -1,136 +1,146 @@
-import { Router } from 'express';
-import { db } from '../../db';
-import { variations, tokens } from '../../db/schema';
+import { Router, Request, Response } from 'express';
+import { variations, components, tokens } from '../../db/schema';
 import { eq } from 'drizzle-orm';
+import * as schema from '../../db/schema';
+import { Database } from '../../db/types';
 
-const router = Router();
+interface CreateVariationRequest {
+  componentId: number;
+  name: string;
+  description?: string;
+  tokens?: Array<{
+    name: string;
+    type: string;
+    defaultValue: string;
+  }>;
+}
 
-// Get all variations
-router.get('/', async (req, res) => {
-  try {
-    const allVariations = await db.query.variations.findMany({
-      with: {
-        tokens: true
+interface UpdateVariationRequest {
+  name: string;
+  description?: string;
+  tokens?: Array<{
+    id?: number;
+    name: string;
+    type: string;
+    defaultValue: string;
+  }>;
+}
+
+export function createVariationsRouter(db: Database) {
+  const router = Router();
+
+  // Get all variations
+  router.get('/', async (req: Request, res: Response) => {
+    try {
+      const allVariations = await db.select().from(variations);
+      res.json(allVariations);
+    } catch (error) {
+      console.error('Error fetching variations:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get variation by ID
+  router.get('/:id', async (req: Request, res: Response) => {
+    try {
+      const [variation] = await db.select().from(variations).where(eq(variations.id, parseInt(req.params.id)));
+      if (!variation) {
+        return res.status(404).json({ error: 'Variation not found' });
       }
-    });
-    res.json(allVariations);
-  } catch (error) {
-    console.error('Error fetching variations:', error);
-    res.status(500).json({ error: 'Failed to fetch variations' });
-  }
-});
-
-// Create new variation
-router.post('/', async (req, res) => {
-  try {
-    const { componentId, name, description, tokens: newTokens } = req.body;
-    if (!componentId || !name) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      res.json(variation);
+    } catch (error) {
+      console.error('Error fetching variation:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-    const variation = await db.insert(variations).values({
-      componentId,
-      name,
-      description,
-    }).returning();
+  });
 
-    // If tokens are provided, create them
-    if (newTokens && Array.isArray(newTokens)) {
-      const tokenInserts = newTokens.map(t => ({
-        variationId: variation[0].id,
-        name: t.name,
-        type: t.type,
-        value: t.value
-      }));
-      await db.insert(tokens).values(tokenInserts);
-    }
+  // Create a new variation
+  router.post('/', async (req: Request, res: Response) => {
+    try {
+      const { name, description, componentId } = req.body;
 
-    // Return the variation with its tokens
-    const variationWithTokens = await db.query.variations.findFirst({
-      where: eq(variations.id, variation[0].id),
-      with: {
-        tokens: true
+      if (!name || !componentId) {
+        return res.status(400).json({ error: 'Name and componentId are required' });
       }
-    });
 
-    res.json(variationWithTokens);
-  } catch (error) {
-    console.error('Error creating variation:', error);
-    res.status(500).json({ error: 'Failed to create variation' });
-  }
-});
+      // Check if component exists
+      const [component] = await db.select().from(components).where(eq(components.id, componentId));
+      if (!component) {
+        return res.status(400).json({ error: 'Component not found' });
+      }
 
-// Update variation
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const variationId = parseInt(id);
-    
-    // Validate that id is a valid number
-    if (isNaN(variationId)) {
-      return res.status(400).json({ error: 'Invalid variation ID' });
+      const [variation] = await db.insert(variations)
+        .values({ name, description, componentId })
+        .returning();
+
+      res.status(201).json(variation);
+    } catch (error) {
+      console.error('Error creating variation:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
+  });
 
-    const { name, description, componentId } = req.body;
-    if (!name || !componentId) {
-      return res.status(400).json({ error: 'Missing required fields' });
+  // Update variation
+  router.put('/:id', async (req: Request, res: Response) => {
+    try {
+      const { name, description } = req.body;
+      const id = parseInt(req.params.id);
+
+      const [variation] = await db.select().from(variations).where(eq(variations.id, id));
+      if (!variation) {
+        return res.status(404).json({ error: 'Variation not found' });
+      }
+
+      const [updated] = await db.update(variations)
+        .set({ name, description })
+        .where(eq(variations.id, id))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating variation:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-    const updatedVariation = await db.update(variations)
-      .set({
-        name,
-        description,
-        componentId,
-        updatedAt: new Date(),
-      })
-      .where(eq(variations.id, variationId))
-      .returning();
-    res.json(updatedVariation[0]);
-  } catch (error) {
-    console.error('Error updating variation:', error);
-    res.status(500).json({ error: 'Failed to update variation' });
-  }
-});
+  });
 
-// Delete variation
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const variationId = parseInt(id);
-    
-    // Validate that id is a valid number
-    if (isNaN(variationId)) {
-      return res.status(400).json({ error: 'Invalid variation ID' });
+  // Delete variation
+  router.delete('/:id', async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+
+      const [variation] = await db.select().from(variations).where(eq(variations.id, id));
+      if (!variation) {
+        return res.status(404).json({ error: 'Variation not found' });
+      }
+
+      await db.delete(variations).where(eq(variations.id, id));
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting variation:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
+  });
 
-    // First delete all tokens
-    await db.delete(tokens).where(eq(tokens.variationId, variationId));
-    // Then delete the variation
-    await db.delete(variations).where(eq(variations.id, variationId));
-    res.json({ message: 'Variation and all related data deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting variation:', error);
-    res.status(500).json({ error: 'Failed to delete variation' });
-  }
-});
+  // Get tokens for a specific variation by ID
+  router.get('/:id/tokens', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const variationId = parseInt(id);
+      
+      // Validate that id is a valid number
+      if (isNaN(variationId)) {
+        return res.status(400).json({ error: 'Invalid variation ID' });
+      }
 
-// Get tokens for a specific variation by ID
-router.get('/:id/tokens', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const variationId = parseInt(id);
-    
-    // Validate that id is a valid number
-    if (isNaN(variationId)) {
-      return res.status(400).json({ error: 'Invalid variation ID' });
+      const variationTokens = await db.query.tokens.findMany({
+        where: eq(tokens.variationId, variationId)
+      });
+      res.json(variationTokens);
+    } catch (error) {
+      console.error('Error fetching variation tokens:', error);
+      res.status(500).json({ error: 'Failed to fetch variation tokens' });
     }
+  });
 
-    const variationTokens = await db.query.tokens.findMany({
-      where: eq(tokens.variationId, variationId)
-    });
-    res.json(variationTokens);
-  } catch (error) {
-    console.error('Error fetching variation tokens:', error);
-    res.status(500).json({ error: 'Failed to fetch variation tokens' });
-  }
-});
-
-export default router; 
+  return router;
+} 

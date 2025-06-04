@@ -1,4 +1,4 @@
-import { pgTable, serial, text, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // version: text('version').notNull(),
@@ -142,3 +142,20 @@ export const tokenValuesRelations = relations(tokenValues, ({ one }) => ({
     references: [tokens.id],
   }),
 }));
+
+export const schema = {
+  tokens,
+  variations,
+  components,
+  designSystems,
+  designSystemComponents,
+  variationValues,
+  tokenValues,
+  designSystemsRelations,
+  componentsRelations,
+  designSystemComponentsRelations,
+  variationsRelations,
+  tokensRelations,
+  variationValuesRelations,
+  tokenValuesRelations,
+};
