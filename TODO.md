@@ -29,6 +29,7 @@
 ## Current Priorities 🔄
 
 ### High Priority
+
 - [ ] **Authentication and Authorization System**
   - Add user accounts and login system
   - Role-based access control (Admin, Designer, Developer)
@@ -55,10 +56,13 @@
   - Request compression middleware
 
 - [ ] **Enhanced Documentation**
+  - Seed database for local development 
   - API documentation with Swagger/OpenAPI
   - Interactive API explorer
-  - Component library documentation
-  - Video tutorials for common workflows
+
+
+- [] Shoud Empty fields should be NULL, instead of EMPTY STRING? it hapens while creating new tokens
+
 
 ### Low Priority
 - [ ] **Monitoring & Production Readiness**

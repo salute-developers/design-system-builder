@@ -138,22 +138,60 @@ export function createComponentsRouter(db: Database) {
   router.put('/:id', async (req: Request<{ id: string }, {}, UpdateComponentRequest>, res: Response) => {
     try {
       const { id } = req.params;
+      const componentId = parseInt(id);
       const { name, description } = req.body;
+      
+      if (isNaN(componentId)) {
+        return res.status(400).json({ error: 'Invalid component ID' });
+      }
+      
       if (!name) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      const updatedComponent = await db.update(components)
+
+      // Check if component exists
+      const [existingComponent] = await db.select().from(components).where(eq(components.id, componentId));
+      if (!existingComponent) {
+        return res.status(404).json({ error: 'Component not found' });
+      }
+
+      const [updatedComponent] = await db.update(components)
         .set({
           name,
           description,
-          updatedAt: sql`(datetime('now'))`,
+          updatedAt: sql`now()`,
         })
-        .where(eq(components.id, parseInt(id)))
+        .where(eq(components.id, componentId))
         .returning();
-      res.json(updatedComponent[0]);
+      res.json(updatedComponent);
     } catch (error) {
       console.error('Error updating component:', error);
       res.status(500).json({ error: 'Failed to update component' });
+    }
+  });
+
+  // Delete component
+  router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const componentId = parseInt(id);
+      
+      if (isNaN(componentId)) {
+        return res.status(400).json({ error: 'Invalid component ID' });
+      }
+
+      // Check if component exists
+      const [component] = await db.select().from(components).where(eq(components.id, componentId));
+      if (!component) {
+        return res.status(404).json({ error: 'Component not found' });
+      }
+
+      // Delete component (cascade will handle related records)
+      await db.delete(components).where(eq(components.id, componentId));
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting component:', error);
+      res.status(500).json({ error: 'Failed to delete component' });
     }
   });
 

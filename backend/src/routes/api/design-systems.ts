@@ -116,7 +116,7 @@ export function createDesignSystemsRouter(db: Database) {
         .set({
           name,
           description,
-          updatedAt: sql`(datetime('now'))`,
+          updatedAt: sql`now()`,
         })
         .where(eq(designSystems.id, designSystemId))
         .returning();

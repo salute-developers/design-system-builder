@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createComponentsRouter } from '../components';
 import { testDb } from '../../../test/setup';
-import { components, designSystems, designSystemComponents } from '../../../db/schema';
+import { components, designSystems, designSystemComponents, tokens, variations, tokenVariations } from '../../../db/schema';
 import { eq } from 'drizzle-orm';
 
 const app = express();
@@ -18,6 +18,16 @@ beforeAll(() => {
 
 describe('Components API', () => {
   let designSystemId: number;
+
+  beforeEach(async () => {
+    // Clear tables in proper order due to foreign key constraints
+    await testDb.delete(tokenVariations);
+    await testDb.delete(tokens);
+    await testDb.delete(variations);
+    await testDb.delete(designSystemComponents);
+    await testDb.delete(components);
+    await testDb.delete(designSystems);
+  });
 
   describe('GET /admin-api/components', () => {
     it('should return empty array when no components exist', async () => {
@@ -110,6 +120,128 @@ describe('Components API', () => {
 
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('error', 'Design system not found');
+    });
+  });
+
+  describe('GET /admin-api/components/:id', () => {
+    it('should return component by id', async () => {
+      // Create a test component
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Description',
+      }).returning();
+
+      const response = await request(app).get(`/admin-api/components/${component.id}`);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('name', 'Test Component');
+      expect(response.body).toHaveProperty('description', 'Test Description');
+      expect(response.body).toHaveProperty('id', component.id);
+    });
+
+    it('should return 404 for non-existent component', async () => {
+      const response = await request(app).get('/admin-api/components/999');
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Component not found');
+    });
+
+    it('should return 400 for invalid component ID', async () => {
+      const response = await request(app).get('/admin-api/components/invalid');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid component ID');
+    });
+  });
+
+  describe('PUT /admin-api/components/:id', () => {
+    it('should update component', async () => {
+      // Create a test component
+      const [component] = await testDb.insert(components).values({
+        name: 'Original Component',
+        description: 'Original Description',
+      }).returning();
+
+      const updateData = {
+        name: 'Updated Component',
+        description: 'Updated Description',
+      };
+
+      const response = await request(app)
+        .put(`/admin-api/components/${component.id}`)
+        .send(updateData);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('name', updateData.name);
+      expect(response.body).toHaveProperty('description', updateData.description);
+      expect(response.body).toHaveProperty('id', component.id);
+      expect(response.body).toHaveProperty('updatedAt');
+    });
+
+    it('should return 400 when name is missing', async () => {
+      // Create a test component
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Description',
+      }).returning();
+
+      const response = await request(app)
+        .put(`/admin-api/components/${component.id}`)
+        .send({ description: 'Updated Description' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Missing required fields');
+    });
+
+    it('should return 404 when trying to update non-existent component', async () => {
+      const response = await request(app)
+        .put('/admin-api/components/999')
+        .send({ name: 'Updated Component', description: 'Updated Description' });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Component not found');
+    });
+
+    it('should return 400 for invalid component ID in update', async () => {
+      const response = await request(app)
+        .put('/admin-api/components/invalid')
+        .send({ name: 'Updated Component', description: 'Updated Description' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid component ID');
+    });
+  });
+
+  describe('DELETE /admin-api/components/:id', () => {
+    it('should delete component', async () => {
+      // Create a test component
+      const [component] = await testDb.insert(components).values({
+        name: 'To Delete',
+        description: 'Will be deleted',
+      }).returning();
+
+      const response = await request(app)
+        .delete(`/admin-api/components/${component.id}`);
+
+      expect(response.status).toBe(204);
+
+      // Verify component was deleted
+      const getResponse = await request(app)
+        .get(`/admin-api/components/${component.id}`);
+      expect(getResponse.status).toBe(404);
+    });
+
+    it('should return 404 for non-existent component', async () => {
+      const response = await request(app)
+        .delete('/admin-api/components/999');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Component not found');
+    });
+
+    it('should return 400 for invalid component ID', async () => {
+      const response = await request(app)
+        .delete('/admin-api/components/invalid');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid component ID');
     });
   });
 }); 
