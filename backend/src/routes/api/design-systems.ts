@@ -48,7 +48,11 @@ export function createDesignSystemsRouter(db: Database) {
                 with: {
                   variations: {
                     with: {
-                      tokens: true
+                      tokenVariations: {
+                        with: {
+                          token: true
+                        }
+                      }
                     }
                   }
                 }
