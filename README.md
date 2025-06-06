@@ -1,14 +1,19 @@
 # Design System Builder
 
-A web application for managing and building design systems. This application allows you to create and manage components, variations, tokens, and design systems.
+A modern web application for managing and building design systems. This application allows you to create and manage components, variations, tokens, and their relationships with an intuitive admin interface.
 
 ## Features
 
-- Create and manage Design Systems
-- Manage Components with their Variations
-- Define Tokens and their values
-- Admin interface for managing all entities
-- Modern UI built with Material-UI
+- **Component Management**: Create and organize UI components
+- **Variation System**: Define different states/types for each component  
+- **Token System**: Manage design tokens (colors, spacing, typography, etc.) with platform-specific parameters
+- **Token Assignment**: Flexible many-to-many assignment of tokens to variations
+- **Cross-Platform Support**: Define platform-specific parameters for Android XML, Jetpack Compose, iOS, and Web
+- **Admin Interface**: Clean, modern three-panel UI for efficient workflow
+- **Real-time Updates**: Live UI updates with proper state management
+- **Search & Filtering**: Independent search functionality for components, variations, and tokens
+- **Visual Indicators**: Clear indication of unassigned tokens and current assignments
+- **Multi-Selection**: Bulk token assignment capabilities
 
 ## Prerequisites
 
@@ -55,41 +60,119 @@ This will start both the backend (port 3001) and frontend (port 5173) servers.
 ## Project Structure
 
 - `/backend` - Node.js backend with Express and Drizzle ORM
-- `/frontend` - React frontend with TypeScript and Material-UI
+- `/frontend` - React frontend with TypeScript and shadcn/ui
+- `/docs` - Documentation including database schema
+
+## Admin Interface
+
+The admin interface provides a streamlined workflow:
+
+1. **Components Panel (1/3)**: Browse and manage UI components
+2. **Tokens & Variations Tabs (2/3)**: Manage component tokens and variations
+3. **Token Assignment**: Assign component tokens to specific variations
+
+### Key Features:
+- **Linear Workflow**: Components → Variations → Tokens
+- **Independent Search**: Separate search for components, tokens, and variations
+- **Visual Feedback**: Unassigned tokens are highlighted in orange
+- **Multi-Token Assignment**: Select multiple tokens for bulk assignment
+- **Platform Parameters**: Define token values for XML, Compose, iOS, and Web
 
 ## API Endpoints
 
-### Design Systems
-- GET `/api/design-systems` - Get all design systems
-- POST `/api/design-systems` - Create a new design system
-
-### Components
-- GET `/api/components` - Get all components
-- POST `/api/components` - Create a new component
-- DELETE `/api/components/:id` - Delete a component
+### Admin API (Components Management)
+- `GET /admin-api/components` - Get all components with variations and tokens
+- `POST /admin-api/components` - Create a new component
+- `PUT /admin-api/components/:id` - Update a component
+- `DELETE /admin-api/components/:id` - Delete a component
+- `GET /admin-api/components/:id` - Get component details with relations
 
 ### Variations
-- GET `/api/variations` - Get all variations
-- POST `/api/variations` - Create a new variation
-- DELETE `/api/variations/:id` - Delete a variation
+- `GET /admin-api/variations` - Get all variations
+- `POST /admin-api/variations` - Create a new variation
+- `PUT /admin-api/variations/:id` - Update a variation
+- `DELETE /admin-api/variations/:id` - Delete a variation
+- `GET /admin-api/variations/:id/tokens` - Get tokens assigned to variation
 
 ### Tokens
-- GET `/api/tokens` - Get all tokens
-- POST `/api/tokens` - Create a new token
-- DELETE `/api/tokens/:id` - Delete a token
+- `GET /admin-api/tokens` - Get all tokens
+- `POST /admin-api/tokens` - Create a new token
+- `PUT /admin-api/tokens/:id` - Update a token
+- `DELETE /admin-api/tokens/:id` - Delete a token
+
+### Token Assignment
+- `POST /admin-api/tokens/:tokenId/variations/:variationId` - Assign token to variation
+- `DELETE /admin-api/tokens/:tokenId/variations/:variationId` - Remove token from variation
+
+### Design Systems API (Future/Extended)
+- `GET /api/design-systems` - Get all design systems
+- `POST /api/design-systems` - Create a new design system
+
+## Database Architecture
+
+The system uses a sophisticated many-to-many relationship model:
+
+- **Components** have many **Tokens** (component-level tokens)
+- **Components** have many **Variations** (component states/types)
+- **Tokens** can be assigned to multiple **Variations** (via junction table)
+- **Variations** can use multiple **Tokens** (flexible assignment)
+
+This architecture ensures design system principles are maintained while providing maximum flexibility for token reuse.
 
 ## Technologies Used
 
-- Backend:
-  - Node.js
-  - Express
-  - Drizzle ORM
-  - PostgreSQL
-  - TypeScript
+### Backend:
+- Node.js with Express
+- Drizzle ORM with PostgreSQL
+- TypeScript
+- Vitest for testing
 
-- Frontend:
-  - React
-  - TypeScript
-  - Material-UI
-  - React Router
-  - Axios 
+### Frontend:
+- React 18 with TypeScript
+- shadcn/ui component library
+- Tailwind CSS for styling
+- React Router for navigation
+- Axios for API communication
+
+### Development:
+- Concurrent development servers
+- Hot reload for both frontend and backend
+- Type-safe database schema
+- Comprehensive test suite
+
+## Testing
+
+Run the backend test suite:
+```bash
+cd backend
+npm test
+```
+
+The project includes comprehensive tests covering:
+- Database operations
+- API endpoints
+- CRUD operations
+- Relationship integrity
+- Error handling
+
+## Development Commands
+
+```bash
+# Install all dependencies
+npm run install:all
+
+# Start both servers
+npm run dev
+
+# Backend only
+cd backend && npm run dev
+
+# Frontend only  
+cd frontend && npm run dev
+
+# Run tests
+cd backend && npm test
+
+# Database migrations
+cd backend && npm run generate && npm run migrate
+``` 

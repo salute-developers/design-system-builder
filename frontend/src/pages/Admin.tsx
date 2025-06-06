@@ -89,6 +89,7 @@ const Admin = () => {
   const [selectedVariationForAssignment, setSelectedVariationForAssignment] = useState<Variation | null>(null);
   const [availableTokensForAssignment, setAvailableTokensForAssignment] = useState<Token[]>([]);
   const [selectedTokensForAssignment, setSelectedTokensForAssignment] = useState<number[]>([]);
+  const [dialogFilterTerm, setDialogFilterTerm] = useState('');
 
   useEffect(() => {
     fetchComponents();
@@ -401,25 +402,44 @@ const Admin = () => {
   };
 
   const handleAssignToken = async (variationId: number) => {
-    // Get available tokens that are not already assigned to this variation
     const variation = variations.find(v => v.id === variationId);
-    const assignedTokenIds = variation?.tokenVariations?.map(tv => tv.token.id) || [];
-    const available = tokens.filter(token => !assignedTokenIds.includes(token.id));
+    const currentlyAssignedTokenIds = variation?.tokenVariations?.map(tv => tv.token.id) || [];
     
-    setAvailableTokensForAssignment(available);
+    // Show all tokens, not just available ones
+    setAvailableTokensForAssignment(tokens);
     setSelectedVariationForAssignment(variation || null);
-    setSelectedTokensForAssignment([]);
+    // Pre-select currently assigned tokens
+    setSelectedTokensForAssignment(currentlyAssignedTokenIds);
+    setDialogFilterTerm('');
     setIsAssignTokenDialogOpen(true);
   };
 
   const handleConfirmTokenAssignment = async () => {
-    if (selectedTokensForAssignment.length === 0 || !selectedVariationForAssignment) return;
+    if (!selectedVariationForAssignment) return;
 
     try {
-      for (const tokenId of selectedTokensForAssignment) {
-        await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${selectedVariationForAssignment.id}`, {
+      const variation = selectedVariationForAssignment;
+      const currentlyAssignedTokenIds = variation.tokenVariations?.map(tv => tv.token.id) || [];
+      const newlySelectedTokenIds = selectedTokensForAssignment;
+
+      // Find tokens to add (selected but not currently assigned)
+      const tokensToAdd = newlySelectedTokenIds.filter(id => !currentlyAssignedTokenIds.includes(id));
+      
+      // Find tokens to remove (currently assigned but not selected)
+      const tokensToRemove = currentlyAssignedTokenIds.filter(id => !newlySelectedTokenIds.includes(id));
+
+      // Add new tokens
+      for (const tokenId of tokensToAdd) {
+        await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Remove unselected tokens
+      for (const tokenId of tokensToRemove) {
+        await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
+          method: 'DELETE',
         });
       }
       
@@ -428,8 +448,9 @@ const Admin = () => {
       setIsAssignTokenDialogOpen(false);
       setSelectedTokensForAssignment([]);
       setSelectedVariationForAssignment(null);
+      setDialogFilterTerm('');
     } catch (error) {
-      console.error('Error assigning tokens:', error);
+      console.error('Error updating token assignments:', error);
     }
   };
 
@@ -840,7 +861,7 @@ const Admin = () => {
                           size="sm"
                           onClick={() => handleAssignToken(variation.id)}
                         >
-                          Add Tokens
+                          Assign Tokens
                         </Button>
                         <Button
                           variant="ghost"
@@ -906,12 +927,30 @@ const Admin = () => {
       <Dialog open={isAssignTokenDialogOpen} onOpenChange={setIsAssignTokenDialogOpen}>
         <DialogContent className="max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Assign Tokens to Variation</DialogTitle>
+            <DialogTitle>Manage Tokens for Variation</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto space-y-4 py-4">
             <p className="text-sm text-gray-600">
-              Select tokens to assign to <strong>{selectedVariationForAssignment?.name}</strong>:
+              Select which tokens should be assigned to <strong>{selectedVariationForAssignment?.name}</strong>:
             </p>
+            
+            {/* Filter Input */}
+            <div className="relative">
+              <Input
+                placeholder="Filter tokens..."
+                value={dialogFilterTerm}
+                onChange={(e) => setDialogFilterTerm(e.target.value)}
+                className="pr-8"
+              />
+              {dialogFilterTerm && (
+                <button
+                  onClick={() => setDialogFilterTerm('')}
+                  className="absolute right-2 top-1 text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
             
             {availableTokensForAssignment.length > 0 ? (
               <>
@@ -919,10 +958,11 @@ const Admin = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSelectedTokensForAssignment(availableTokensForAssignment.map(t => t.id))}
-                    disabled={selectedTokensForAssignment.length === availableTokensForAssignment.length}
+                    onClick={() => setSelectedTokensForAssignment(
+                      filterItems(availableTokensForAssignment, dialogFilterTerm).map(t => t.id)
+                    )}
                   >
-                    Select All
+                    Select All{dialogFilterTerm ? ' Filtered' : ''}
                   </Button>
                   <Button
                     variant="outline"
@@ -934,35 +974,48 @@ const Admin = () => {
                   </Button>
                 </div>
                 <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-3">
-                  {availableTokensForAssignment.map((token) => (
-                    <label key={token.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                      <input
-                        type="checkbox"
-                        checked={selectedTokensForAssignment.includes(token.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedTokensForAssignment([...selectedTokensForAssignment, token.id]);
-                          } else {
-                            setSelectedTokensForAssignment(selectedTokensForAssignment.filter(id => id !== token.id));
-                          }
-                        }}
-                        className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{token.name}</div>
-                        <div className="text-xs text-gray-500">
-                          Type: {token.type} | Default: {token.defaultValue || 'Not set'}
+                  {filterItems(availableTokensForAssignment, dialogFilterTerm).map((token) => {
+                    const isCurrentlyAssigned = selectedVariationForAssignment?.tokenVariations?.some(tv => tv.token.id === token.id) || false;
+                    return (
+                      <label key={token.id} className="flex items-start space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedTokensForAssignment.includes(token.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTokensForAssignment([...selectedTokensForAssignment, token.id]);
+                            } else {
+                              setSelectedTokensForAssignment(selectedTokensForAssignment.filter(id => id !== token.id));
+                            }
+                          }}
+                          className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{token.name}</span>
+                            {isCurrentlyAssigned && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Currently Assigned
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Type: {token.type} | Default: {token.defaultValue || 'Not set'}
+                          </div>
+                          {token.description && (
+                            <div className="text-xs text-gray-400 mt-1">{token.description}</div>
+                          )}
                         </div>
-                        {token.description && (
-                          <div className="text-xs text-gray-400 mt-1">{token.description}</div>
-                        )}
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </div>
+                {filterItems(availableTokensForAssignment, dialogFilterTerm).length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No tokens match your filter.</p>
+                )}
               </>
             ) : (
-              <p className="text-sm text-gray-500">All tokens are already assigned to this variation.</p>
+              <p className="text-sm text-gray-500">No tokens available for this component.</p>
             )}
             
             {selectedTokensForAssignment.length > 0 && (
@@ -994,10 +1047,9 @@ const Admin = () => {
               Cancel
             </Button>
             <Button 
-              onClick={handleConfirmTokenAssignment} 
-              disabled={selectedTokensForAssignment.length === 0}
+              onClick={handleConfirmTokenAssignment}
             >
-              Assign {selectedTokensForAssignment.length} Token{selectedTokensForAssignment.length === 1 ? '' : 's'}
+              Update Assignment
             </Button>
           </DialogFooter>
         </DialogContent>
