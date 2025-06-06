@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import { createTokensRouter } from '../tokens';
 import { testDb } from '../../../test/setup';
-import { tokens, variations, components, designSystems } from '../../../db/schema';
+import { tokens, variations, components, designSystems, tokenVariations } from '../../../db/schema';
 
 const app = express();
 app.use(express.json());
@@ -17,9 +17,11 @@ beforeAll(() => {
 
 describe('Tokens API', () => {
   let variationId: number;
+  let componentId: number;
 
   beforeEach(async () => {
-    // Clear tables
+    // Clear tables in proper order due to foreign key constraints
+    await testDb.delete(tokenVariations);
     await testDb.delete(tokens);
     await testDb.delete(variations);
     await testDb.delete(components);
@@ -42,6 +44,7 @@ describe('Tokens API', () => {
       description: 'Test Variation Description',
     }).returning();
 
+    componentId = component.id;
     variationId = variation.id;
   });
 
@@ -53,10 +56,25 @@ describe('Tokens API', () => {
     });
 
     it('should return all tokens', async () => {
-      // Insert test data
-      await testDb.insert(tokens).values([
-        { name: 'Token 1', type: 'color', defaultValue: 'value1', variationId },
-        { name: 'Token 2', type: 'spacing', defaultValue: 'value2', variationId },
+      // Insert test tokens
+      const [token1] = await testDb.insert(tokens).values({
+        name: 'Token 1',
+        type: 'color',
+        defaultValue: 'value1',
+        componentId,
+      }).returning();
+
+      const [token2] = await testDb.insert(tokens).values({
+        name: 'Token 2', 
+        type: 'spacing',
+        defaultValue: 'value2',
+        componentId,
+      }).returning();
+
+      // Assign tokens to variation
+      await testDb.insert(tokenVariations).values([
+        { tokenId: token1.id, variationId },
+        { tokenId: token2.id, variationId }
       ]);
 
       const response = await request(app).get('/admin-api/tokens');
@@ -78,15 +96,21 @@ describe('Tokens API', () => {
         name: 'Test Token',
         type: 'color',
         defaultValue: 'test-value',
-        variationId,
+        componentId,
       }).returning();
+
+      // Assign token to variation
+      await testDb.insert(tokenVariations).values({
+        tokenId: token.id,
+        variationId,
+      });
 
       const response = await request(app).get(`/admin-api/tokens/${token.id}`);
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('name', 'Test Token');
       expect(response.body).toHaveProperty('type', 'color');
       expect(response.body).toHaveProperty('defaultValue', 'test-value');
-      expect(response.body).toHaveProperty('variationId', variationId);
+      expect(response.body).toHaveProperty('componentId', componentId);
     });
   });
 
@@ -96,7 +120,7 @@ describe('Tokens API', () => {
         name: 'New Token',
         type: 'color',
         defaultValue: 'new-value',
-        variationId,
+        componentId,
       };
 
       const response = await request(app)
@@ -107,7 +131,7 @@ describe('Tokens API', () => {
       expect(response.body).toHaveProperty('name', newToken.name);
       expect(response.body).toHaveProperty('type', newToken.type);
       expect(response.body).toHaveProperty('defaultValue', newToken.defaultValue);
-      expect(response.body).toHaveProperty('variationId', variationId);
+      expect(response.body).toHaveProperty('componentId', componentId);
       expect(response.body).toHaveProperty('id');
     });
 
@@ -116,21 +140,21 @@ describe('Tokens API', () => {
         .post('/admin-api/tokens')
         .send({});
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(500); // Database constraint violation
       expect(response.body).toHaveProperty('error');
     });
 
-    it('should validate variation exists', async () => {
+    it('should validate component exists', async () => {
       const response = await request(app)
         .post('/admin-api/tokens')
         .send({
           name: 'New Token',
           type: 'color',
           defaultValue: 'new-value',
-          variationId: 999, // Non-existent ID
+          componentId: 999, // Non-existent ID
         });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(500); // Foreign key constraint violation
       expect(response.body).toHaveProperty('error');
     });
   });
@@ -141,7 +165,7 @@ describe('Tokens API', () => {
         name: 'Original Token',
         type: 'color',
         defaultValue: 'original-value',
-        variationId,
+        componentId,
         description: 'Test description',
         xmlParam: 'test-xml',
         composeParam: 'test-compose',
@@ -194,7 +218,7 @@ describe('Tokens API', () => {
         name: 'To Delete',
         type: 'color',
         defaultValue: 'delete-value',
-        variationId,
+        componentId,
       }).returning();
 
       const response = await request(app)

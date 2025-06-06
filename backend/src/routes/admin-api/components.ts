@@ -36,9 +36,14 @@ export function createComponentsRouter(db: Database) {
         with: {
           variations: {
             with: {
-              tokens: true
+              tokenVariations: {
+                with: {
+                  token: true
+                }
+              }
             }
-          }
+          },
+          tokens: true
         }
       });
       res.json(allComponents);
@@ -60,8 +65,15 @@ export function createComponentsRouter(db: Database) {
         where: eq(components.id, componentId),
         with: {
           variations: {
-            with: { tokens: true }
-          }
+            with: {
+              tokenVariations: {
+                with: {
+                  token: true
+                }
+              }
+            }
+          },
+          tokens: true
         }
       });
       if (!component) {
@@ -69,6 +81,7 @@ export function createComponentsRouter(db: Database) {
       }
       res.json(component);
     } catch (error) {
+      console.error('Error fetching component:', error);
       res.status(500).json({ error: 'Failed to fetch component' });
     }
   });

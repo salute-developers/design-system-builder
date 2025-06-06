@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, integer } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, integer, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // version: text('version').notNull(),
@@ -46,7 +46,6 @@ export const variations = pgTable('variations', {
 export const tokens = pgTable('tokens', {
   id: serial('id').primaryKey(),
   componentId: integer('component_id').references(() => components.id),
-  variationId: integer('variation_id').references(() => variations.id),
   name: text('name').notNull(),
   type: text('type').notNull(),
   defaultValue: text('default_value'),
@@ -81,6 +80,17 @@ export const tokenValues = pgTable('token_values', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Token-Variation junction table for many-to-many relationship
+export const tokenVariations = pgTable('token_variations', {
+  id: serial('id').primaryKey(),
+  tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'cascade' }).notNull(),
+  variationId: integer('variation_id').references(() => variations.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  uniqueTokenVariation: unique().on(table.tokenId, table.variationId),
+}));
+
 // Relations
 export const designSystemsRelations = relations(designSystems, ({ many }) => ({
   components: many(designSystemComponents),
@@ -111,8 +121,8 @@ export const variationsRelations = relations(variations, ({ one, many }) => ({
     references: [components.id],
     relationName: 'componentVariations',
   }),
-  tokens: many(tokens),
   variationValues: many(variationValues),
+  tokenVariations: many(tokenVariations),
 }));
 
 export const tokensRelations = relations(tokens, ({ one, many }) => ({
@@ -120,11 +130,8 @@ export const tokensRelations = relations(tokens, ({ one, many }) => ({
     fields: [tokens.componentId],
     references: [components.id],
   }),
-  variation: one(variations, {
-    fields: [tokens.variationId],
-    references: [variations.id],
-  }),
   tokenValues: many(tokenValues),
+  tokenVariations: many(tokenVariations),
 }));
 
 export const variationValuesRelations = relations(variationValues, ({ one, many }) => ({
@@ -151,5 +158,16 @@ export const tokenValuesRelations = relations(tokenValues, ({ one }) => ({
   token: one(tokens, {
     fields: [tokenValues.tokenId],
     references: [tokens.id],
+  }),
+}));
+
+export const tokenVariationsRelations = relations(tokenVariations, ({ one }) => ({
+  token: one(tokens, {
+    fields: [tokenVariations.tokenId],
+    references: [tokens.id],
+  }),
+  variation: one(variations, {
+    fields: [tokenVariations.variationId],
+    references: [variations.id],
   }),
 }));

@@ -132,10 +132,17 @@ export function createVariationsRouter(db: Database) {
         return res.status(400).json({ error: 'Invalid variation ID' });
       }
 
-      const variationTokens = await db.query.tokens.findMany({
-        where: eq(tokens.variationId, variationId)
+      // Query tokens through the tokenVariations junction table
+      const variationTokens = await db.query.tokenVariations.findMany({
+        where: eq(schema.tokenVariations.variationId, variationId),
+        with: {
+          token: true
+        }
       });
-      res.json(variationTokens);
+      
+      // Extract just the token data
+      const tokens = variationTokens.map(tv => tv.token);
+      res.json(tokens);
     } catch (error) {
       console.error('Error fetching variation tokens:', error);
       res.status(500).json({ error: 'Failed to fetch variation tokens' });

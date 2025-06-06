@@ -39,7 +39,6 @@ export interface Variation {
 export interface Token {
   id: number;
   componentId?: number;
-  variationId?: number;
   name: string;
   type: string;
   defaultValue: string | null;
@@ -48,6 +47,14 @@ export interface Token {
   composeParam: string | null;
   iosParam: string | null;
   webParam: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TokenVariation {
+  id: number;
+  tokenId: number;
+  variationId: number;
   createdAt: string;
   updatedAt: string;
 }

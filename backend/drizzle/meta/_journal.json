@@ -29,6 +29,20 @@
       "when": 1749214622286,
       "tag": "0003_tricky_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1749221971799,
+      "tag": "0004_boring_kinsey_walden",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1749223884180,
+      "tag": "0005_sour_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

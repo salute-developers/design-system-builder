@@ -27,6 +27,7 @@ interface Variation {
 
 interface Token {
   id: number;
+  componentId?: number;
   name: string;
   type: string;
   defaultValue: string | null;
@@ -35,7 +36,6 @@ interface Token {
   composeParam: string | null;
   iosParam: string | null;
   webParam: string | null;
-  designSystemId: number;
 }
 
 interface FormData {
@@ -47,7 +47,6 @@ interface FormData {
   composeParam?: string;
   iosParam?: string;
   webParam?: string;
-  tokenId?: number;
 }
 
 const Admin = () => {
@@ -56,7 +55,6 @@ const Admin = () => {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
   const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
-  // const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogType, setDialogType] = useState<'component' | 'variation' | 'token'>('component');
   const [formData, setFormData] = useState<FormData>({
@@ -97,8 +95,6 @@ const Admin = () => {
       setComponents(data);
     } catch (error) {
       console.error('Error fetching components:', error);
-    } finally {
-      // setIsLoading(false);
     }
   };
 
@@ -207,7 +203,7 @@ const Admin = () => {
                 composeParam: formData.composeParam,
                 iosParam: formData.iosParam,
                 webParam: formData.webParam,
-                variationId: selectedVariation?.id,
+                componentId: selectedComponent?.id,
               }),
             });
             const updatedToken = await response.json();
@@ -257,10 +253,19 @@ const Admin = () => {
                 composeParam: formData.composeParam,
                 iosParam: formData.iosParam,
                 webParam: formData.webParam,
-                variationId: selectedVariation?.id,
+                componentId: selectedComponent?.id,
               }),
             });
             const newToken = await response.json();
+            
+            // Assign the new token to the selected variation
+            if (selectedVariation && response.ok) {
+              await fetch(getApiUrl('tokens') + `/${newToken.id}/variations/${selectedVariation.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              });
+            }
+            
             setTokens([...tokens, newToken]);
             break;
         }

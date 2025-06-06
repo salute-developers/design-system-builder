@@ -1,11 +1,10 @@
 import { Router, Request, Response } from 'express';
 import * as schema from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { Database } from '../../db/types';
 
 interface CreateTokenRequest {
   componentId?: number;
-  variationId?: number;
   name: string;
   type: string;
   defaultValue: string;
@@ -17,11 +16,10 @@ interface CreateTokenRequest {
 }
 
 interface UpdateTokenRequest {
+  componentId?: number;
   name: string;
   type: string;
   defaultValue: string;
-  componentId?: number;
-  variationId?: number;
   description?: string;
   xmlParam?: string;
   composeParam?: string;
@@ -61,101 +59,46 @@ export function createTokensRouter(db: Database) {
   router.get('/variation/:id', async (req: Request<{ id: string }>, res: Response) => {
     try {
       const { id } = req.params;
-      const variationTokens = await db.query.tokens.findMany({
-        where: eq(schema.tokens.variationId, parseInt(id))
+      const variationTokens = await db.query.tokenVariations.findMany({
+        where: eq(schema.tokenVariations.variationId, parseInt(id)),
+        with: {
+          token: true
+        }
       });
-      res.json(variationTokens);
+      const tokens = variationTokens.map(tv => tv.token);
+      res.json(tokens);
     } catch (error) {
       console.error('Error fetching variation tokens:', error);
       res.status(500).json({ error: 'Failed to fetch variation tokens' });
-    }
-  });
-
-  // Get tokens for a specific variation by ID
-  router.get('/:variationId/tokens', async (req: Request<{ variationId: string }>, res: Response) => {
-    try {
-      const { variationId } = req.params;
-      const variationTokens = await db.query.tokens.findMany({
-        where: eq(schema.tokens.variationId, parseInt(variationId))
-      });
-      res.json(variationTokens);
-    } catch (error) {
-      console.error('Error fetching variation tokens:', error);
-      res.status(500).json({ error: 'Failed to fetch variation tokens' });
-    }
-  });
-
-  // Get tokens for a specific component
-  router.get('/component/:id', async (req: Request<{ id: string }>, res: Response) => {
-    try {
-      const { id } = req.params;
-      const componentTokens = await db.query.tokens.findMany({
-        where: eq(schema.tokens.componentId, parseInt(id))
-      });
-      res.json(componentTokens);
-    } catch (error) {
-      console.error('Error fetching component tokens:', error);
-      res.status(500).json({ error: 'Failed to fetch component tokens' });
-    }
-  });
-
-  // Get tokens for a specific component by ID (alternative endpoint)
-  router.get('/component/:componentId/tokens', async (req: Request<{ componentId: string }>, res: Response) => {
-    try {
-      const { componentId } = req.params;
-      const componentTokens = await db.query.tokens.findMany({
-        where: eq(schema.tokens.componentId, parseInt(componentId))
-      });
-      res.json(componentTokens);
-    } catch (error) {
-      console.error('Error fetching component tokens:', error);
-      res.status(500).json({ error: 'Failed to fetch component tokens' });
     }
   });
 
   // Create a new token
   router.post('/', async (req: Request, res: Response) => {
     try {
-      const { name, type, defaultValue, componentId, variationId, description, xmlParam, composeParam, iosParam, webParam } = req.body;
+      const { 
+        componentId, 
+        name, 
+        type, 
+        defaultValue, 
+        description, 
+        xmlParam, 
+        composeParam, 
+        iosParam, 
+        webParam 
+      }: CreateTokenRequest = req.body;
 
-      if (!name || !type || !defaultValue) {
-        return res.status(400).json({ error: 'Name, type, and defaultValue are required' });
-      }
-
-      if (!componentId && !variationId) {
-        return res.status(400).json({ error: 'Either componentId or variationId must be provided' });
-      }
-
-      // Check if component exists (if componentId provided)
-      if (componentId) {
-        const [component] = await db.select().from(schema.components).where(eq(schema.components.id, componentId));
-        if (!component) {
-          return res.status(400).json({ error: 'Component not found' });
-        }
-      }
-
-      // Check if variation exists (if variationId provided)
-      if (variationId) {
-        const [variation] = await db.select().from(schema.variations).where(eq(schema.variations.id, variationId));
-        if (!variation) {
-          return res.status(400).json({ error: 'Variation not found' });
-        }
-      }
-
-      const [token] = await db.insert(schema.tokens)
-        .values({ 
-          name, 
-          type, 
-          defaultValue, 
-          componentId,
-          variationId,
-          description,
-          xmlParam,
-          composeParam,
-          iosParam,
-          webParam
-        })
-        .returning();
+      const [token] = await db.insert(schema.tokens).values({
+        componentId,
+        name,
+        type,
+        defaultValue,
+        description,
+        xmlParam,
+        composeParam,
+        iosParam,
+        webParam,
+      }).returning();
 
       res.status(201).json(token);
     } catch (error) {
@@ -167,7 +110,17 @@ export function createTokensRouter(db: Database) {
   // Update token
   router.put('/:id', async (req: Request, res: Response) => {
     try {
-      const { name, type, defaultValue, componentId, variationId, description, xmlParam, composeParam, iosParam, webParam } = req.body;
+      const { 
+        componentId, 
+        name, 
+        type, 
+        defaultValue, 
+        description, 
+        xmlParam, 
+        composeParam, 
+        iosParam, 
+        webParam 
+      }: UpdateTokenRequest = req.body;
       const id = parseInt(req.params.id);
 
       const [token] = await db.select().from(schema.tokens).where(eq(schema.tokens.id, id));
@@ -175,22 +128,17 @@ export function createTokensRouter(db: Database) {
         return res.status(404).json({ error: 'Token not found' });
       }
 
-      if (!componentId && !variationId) {
-        return res.status(400).json({ error: 'Either componentId or variationId must be provided' });
-      }
-
       const [updated] = await db.update(schema.tokens)
         .set({ 
+          componentId, 
           name, 
           type, 
-          defaultValue,
-          componentId,
-          variationId,
-          description,
-          xmlParam,
-          composeParam,
-          iosParam,
-          webParam
+          defaultValue, 
+          description, 
+          xmlParam, 
+          composeParam, 
+          iosParam, 
+          webParam 
         })
         .where(eq(schema.tokens.id, id))
         .returning();
@@ -216,6 +164,56 @@ export function createTokensRouter(db: Database) {
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting token:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Assign token to variation
+  router.post('/:tokenId/variations/:variationId', async (req: Request, res: Response) => {
+    try {
+      const tokenId = parseInt(req.params.tokenId);
+      const variationId = parseInt(req.params.variationId);
+
+      // Check if assignment already exists
+      const existing = await db.query.tokenVariations.findFirst({
+        where: (tokenVariations, { and, eq }) => and(
+          eq(tokenVariations.tokenId, tokenId),
+          eq(tokenVariations.variationId, variationId)
+        )
+      });
+
+      if (existing) {
+        return res.status(400).json({ error: 'Token already assigned to this variation' });
+      }
+
+      const [assignment] = await db.insert(schema.tokenVariations)
+        .values({ tokenId, variationId })
+        .returning();
+
+      res.status(201).json(assignment);
+    } catch (error) {
+      console.error('Error assigning token to variation:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Remove token from variation
+  router.delete('/:tokenId/variations/:variationId', async (req: Request, res: Response) => {
+    try {
+      const tokenId = parseInt(req.params.tokenId);
+      const variationId = parseInt(req.params.variationId);
+
+      await db.delete(schema.tokenVariations)
+        .where(
+          and(
+            eq(schema.tokenVariations.tokenId, tokenId),
+            eq(schema.tokenVariations.variationId, variationId)
+          )
+        );
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error removing token from variation:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
