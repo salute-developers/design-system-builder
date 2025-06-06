@@ -498,26 +498,32 @@ const Index = () => {
                                   onChange={(e) => setNewVariationValue({ ...newVariationValue, description: e.target.value })}
                                 />
                               </div>
-                              {variation.tokens.map((token: Token) => (
-                                <div key={token.id}>
-                                  <Label htmlFor={`token-${token.id}`}>{token.name}</Label>
-                                  <Input
-                                    id={`token-${token.id}`}
-                                    value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || ''}
-                                    onChange={(e) => {
-                                      const tokenValues = [...newVariationValue.tokenValues];
-                                      const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
-                                      if (existingIndex >= 0) {
-                                        tokenValues[existingIndex] = { tokenId: token.id, value: e.target.value };
-                                      } else {
-                                        tokenValues.push({ tokenId: token.id, value: e.target.value });
-                                      }
-                                      setNewVariationValue({ ...newVariationValue, tokenValues });
-                                    }}
-                                    required
-                                  />
-                                </div>
-                              ))}
+                              {(() => {
+                                // Get tokens from either tokens array or tokenVariations
+                                const availableTokens = variation.tokens || 
+                                  (variation.tokenVariations?.map(tv => tv.token).filter(Boolean) as Token[]) || [];
+                                
+                                return availableTokens.map((token: Token) => (
+                                  <div key={token.id}>
+                                    <Label htmlFor={`token-${token.id}`}>{token.name}</Label>
+                                    <Input
+                                      id={`token-${token.id}`}
+                                      value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || ''}
+                                      onChange={(e) => {
+                                        const tokenValues = [...newVariationValue.tokenValues];
+                                        const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
+                                        if (existingIndex >= 0) {
+                                          tokenValues[existingIndex] = { tokenId: token.id, value: e.target.value };
+                                        } else {
+                                          tokenValues.push({ tokenId: token.id, value: e.target.value });
+                                        }
+                                        setNewVariationValue({ ...newVariationValue, tokenValues });
+                                      }}
+                                      required
+                                    />
+                                  </div>
+                                ));
+                              })()}
                               <div className="flex gap-2">
                                 <Button 
                                   type="submit"

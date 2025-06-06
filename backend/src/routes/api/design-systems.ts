@@ -127,5 +127,75 @@ export function createDesignSystemsRouter(db: Database) {
     }
   });
 
+  // Delete design system
+  router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const designSystemId = parseInt(id);
+      
+      // Validate that id is a valid number
+      if (isNaN(designSystemId)) {
+        return res.status(400).json({ error: 'Invalid design system ID' });
+      }
+
+      // Check if design system exists
+      const [system] = await db.select().from(designSystems).where(eq(designSystems.id, designSystemId));
+      if (!system) {
+        return res.status(404).json({ error: 'Design system not found' });
+      }
+
+      // Delete design system (cascade will handle related records)
+      await db.delete(designSystems).where(eq(designSystems.id, designSystemId));
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting design system:', error);
+      res.status(500).json({ error: 'Failed to delete design system' });
+    }
+  });
+
+  // Add component to design system
+  router.post('/components', async (req: Request, res: Response) => {
+    try {
+      const { designSystemId, componentId } = req.body;
+
+      if (!designSystemId || !componentId) {
+        return res.status(400).json({ error: 'Design system ID and component ID are required' });
+      }
+
+      // Validate that the design system exists
+      const [designSystem] = await db.select().from(designSystems).where(eq(designSystems.id, designSystemId));
+      if (!designSystem) {
+        return res.status(404).json({ error: 'Design system not found' });
+      }
+
+      // Validate that the component exists  
+      const [component] = await db.select().from(schema.components).where(eq(schema.components.id, componentId));
+      if (!component) {
+        return res.status(404).json({ error: 'Component not found' });
+      }
+
+      // Check if the relationship already exists
+      const [existing] = await db.select().from(designSystemComponents)
+        .where(and(
+          eq(designSystemComponents.designSystemId, designSystemId),
+          eq(designSystemComponents.componentId, componentId)
+        ));
+
+      if (existing) {
+        return res.status(409).json({ error: 'Component is already part of this design system' });
+      }
+
+      // Create the relationship
+      const [relationship] = await db.insert(designSystemComponents)
+        .values({ designSystemId, componentId })
+        .returning();
+
+      res.status(201).json(relationship);
+    } catch (error) {
+      console.error('Error adding component to design system:', error);
+      res.status(500).json({ error: 'Failed to add component to design system' });
+    }
+  });
+
   return router;
 } 

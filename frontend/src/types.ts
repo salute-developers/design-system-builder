@@ -33,7 +33,8 @@ export interface Variation {
   description: string | null;
   createdAt: string;
   updatedAt: string;
-  tokens: Token[];
+  tokens?: Token[];
+  tokenVariations?: TokenVariation[];
 }
 
 export interface Token {
@@ -57,6 +58,7 @@ export interface TokenVariation {
   variationId: number;
   createdAt: string;
   updatedAt: string;
+  token?: Token;
 }
 
 export interface VariationValue {

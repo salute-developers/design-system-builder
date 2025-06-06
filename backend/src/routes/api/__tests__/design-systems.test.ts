@@ -3,7 +3,7 @@ import request from 'supertest';
 import express from 'express';
 import { createDesignSystemsRouter } from '../design-systems';
 import { testDb } from '../../../test/setup';
-import { designSystems } from '../../../db/schema';
+import { designSystems, components } from '../../../db/schema';
 
 const app = express();
 app.use(express.json());
@@ -19,6 +19,7 @@ describe('Design Systems API', () => {
   beforeEach(async () => {
     // Clear the design systems table before each test
     await testDb.delete(designSystems);
+    await testDb.delete(components);
   });
 
   describe('GET /api/design-systems', () => {
@@ -66,6 +67,107 @@ describe('Design Systems API', () => {
         .send({});
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/design-systems/components', () => {
+    it('should add a component to a design system', async () => {
+      // Create test design system and component
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Component Description'
+      }).returning();
+
+      const response = await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: designSystem.id,
+          componentId: component.id
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('designSystemId', designSystem.id);
+      expect(response.body).toHaveProperty('componentId', component.id);
+    });
+
+    it('should validate required fields', async () => {
+      const response = await request(app)
+        .post('/api/design-systems/components')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Design system ID and component ID are required');
+    });
+
+    it('should return 404 for non-existent design system', async () => {
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Component Description'
+      }).returning();
+
+      const response = await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: 999,
+          componentId: component.id
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Design system not found');
+    });
+
+    it('should return 404 for non-existent component', async () => {
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const response = await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: designSystem.id,
+          componentId: 999
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Component not found');
+    });
+
+    it('should return 409 for duplicate component assignment', async () => {
+      // Create test design system and component
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Component Description'
+      }).returning();
+
+      // Add component to design system first time
+      await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: designSystem.id,
+          componentId: component.id
+        });
+
+      // Try to add the same component again
+      const response = await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: designSystem.id,
+          componentId: component.id
+        });
+
+      expect(response.status).toBe(409);
+      expect(response.body).toHaveProperty('error', 'Component is already part of this design system');
     });
   });
 }); 
