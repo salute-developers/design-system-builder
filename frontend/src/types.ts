@@ -42,6 +42,11 @@ export interface Token {
   name: string;
   type: string;
   defaultValue: string | null;
+  description: string | null;
+  xmlParam: string | null;
+  composeParam: string | null;
+  iosParam: string | null;
+  webParam: string | null;
   createdAt: string;
   updatedAt: string;
 }

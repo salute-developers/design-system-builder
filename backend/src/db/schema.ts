@@ -49,6 +49,11 @@ export const tokens = pgTable('tokens', {
   name: text('name').notNull(),
   type: text('type').notNull(),
   defaultValue: text('default_value'),
+  description: text('description'),
+  xmlParam: text('xml_param'),
+  composeParam: text('compose_param'),
+  iosParam: text('ios_param'),
+  webParam: text('web_param'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -142,20 +147,3 @@ export const tokenValuesRelations = relations(tokenValues, ({ one }) => ({
     references: [tokens.id],
   }),
 }));
-
-export const schema = {
-  tokens,
-  variations,
-  components,
-  designSystems,
-  designSystemComponents,
-  variationValues,
-  tokenValues,
-  designSystemsRelations,
-  componentsRelations,
-  designSystemComponentsRelations,
-  variationsRelations,
-  tokensRelations,
-  variationValuesRelations,
-  tokenValuesRelations,
-};

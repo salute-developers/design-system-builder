@@ -142,12 +142,22 @@ describe('Tokens API', () => {
         type: 'color',
         defaultValue: 'original-value',
         variationId,
+        description: 'Test description',
+        xmlParam: 'test-xml',
+        composeParam: 'test-compose',
+        iosParam: 'test-ios',
+        webParam: 'test-web'
       }).returning();
 
       const update = {
         name: 'Updated Token',
         type: 'spacing',
         defaultValue: 'updated-value',
+        description: 'Updated description',
+        xmlParam: 'updated-xml',
+        composeParam: 'updated-compose',
+        iosParam: 'updated-ios',
+        webParam: 'updated-web'
       };
 
       const response = await request(app)
@@ -158,6 +168,11 @@ describe('Tokens API', () => {
       expect(response.body).toHaveProperty('name', update.name);
       expect(response.body).toHaveProperty('type', update.type);
       expect(response.body).toHaveProperty('defaultValue', update.defaultValue);
+      expect(response.body).toHaveProperty('description', update.description);
+      expect(response.body).toHaveProperty('xmlParam', update.xmlParam);
+      expect(response.body).toHaveProperty('composeParam', update.composeParam);
+      expect(response.body).toHaveProperty('iosParam', update.iosParam);
+      expect(response.body).toHaveProperty('webParam', update.webParam);
     });
 
     it('should return 404 for non-existent token', async () => {

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { schema } from '../../db/schema';
+import * as schema from '../../db/schema';
 import { eq } from 'drizzle-orm';
 import { Database } from '../../db/types';
 
@@ -8,6 +8,11 @@ interface CreateTokenRequest {
   name: string;
   type: string;
   defaultValue: string;
+  description?: string;
+  xmlParam?: string;
+  composeParam?: string;
+  iosParam?: string;
+  webParam?: string;
 }
 
 interface UpdateTokenRequest {
@@ -15,6 +20,11 @@ interface UpdateTokenRequest {
   type: string;
   defaultValue: string;
   variationId: number;
+  description?: string;
+  xmlParam?: string;
+  composeParam?: string;
+  iosParam?: string;
+  webParam?: string;
 }
 
 export function createTokensRouter(db: Database) {
@@ -76,7 +86,7 @@ export function createTokensRouter(db: Database) {
   // Create a new token
   router.post('/', async (req: Request, res: Response) => {
     try {
-      const { name, type, defaultValue, variationId } = req.body;
+      const { name, type, defaultValue, variationId, description, xmlParam, composeParam, iosParam, webParam } = req.body;
 
       if (!name || !type || !defaultValue || !variationId) {
         return res.status(400).json({ error: 'Name, type, defaultValue, and variationId are required' });
@@ -89,7 +99,17 @@ export function createTokensRouter(db: Database) {
       }
 
       const [token] = await db.insert(schema.tokens)
-        .values({ name, type, defaultValue, variationId })
+        .values({ 
+          name, 
+          type, 
+          defaultValue, 
+          variationId,
+          description,
+          xmlParam,
+          composeParam,
+          iosParam,
+          webParam
+        })
         .returning();
 
       res.status(201).json(token);
@@ -102,7 +122,7 @@ export function createTokensRouter(db: Database) {
   // Update token
   router.put('/:id', async (req: Request, res: Response) => {
     try {
-      const { name, type, defaultValue } = req.body;
+      const { name, type, defaultValue, description, xmlParam, composeParam, iosParam, webParam } = req.body;
       const id = parseInt(req.params.id);
 
       const [token] = await db.select().from(schema.tokens).where(eq(schema.tokens.id, id));
@@ -111,7 +131,16 @@ export function createTokensRouter(db: Database) {
       }
 
       const [updated] = await db.update(schema.tokens)
-        .set({ name, type, defaultValue })
+        .set({ 
+          name, 
+          type, 
+          defaultValue,
+          description,
+          xmlParam,
+          composeParam,
+          iosParam,
+          webParam
+        })
         .where(eq(schema.tokens.id, id))
         .returning();
 

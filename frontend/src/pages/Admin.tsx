@@ -30,6 +30,11 @@ interface Token {
   name: string;
   type: string;
   defaultValue: string | null;
+  description: string | null;
+  xmlParam: string | null;
+  composeParam: string | null;
+  iosParam: string | null;
+  webParam: string | null;
   designSystemId: number;
 }
 
@@ -38,6 +43,10 @@ interface FormData {
   description: string;
   type?: string;
   defaultValue?: string;
+  xmlParam?: string;
+  composeParam?: string;
+  iosParam?: string;
+  webParam?: string;
   tokenId?: number;
 }
 
@@ -128,6 +137,10 @@ const Admin = () => {
       description: '',
       type: '',
       defaultValue: '',
+      xmlParam: '',
+      composeParam: '',
+      iosParam: '',
+      webParam: '',
     });
     setIsDialogOpen(true);
   };
@@ -141,6 +154,10 @@ const Admin = () => {
       description: 'description' in item ? item.description || '' : '',
       type: 'type' in item ? item.type : '',
       defaultValue: 'defaultValue' in item ? item.defaultValue || '' : '',
+      xmlParam: 'xmlParam' in item ? item.xmlParam || '' : '',
+      composeParam: 'composeParam' in item ? item.composeParam || '' : '',
+      iosParam: 'iosParam' in item ? item.iosParam || '' : '',
+      webParam: 'webParam' in item ? item.webParam || '' : '',
     });
     setIsDialogOpen(true);
   };
@@ -185,6 +202,11 @@ const Admin = () => {
                 name: formData.name,
                 type: formData.type,
                 defaultValue: formData.defaultValue,
+                description: formData.description,
+                xmlParam: formData.xmlParam,
+                composeParam: formData.composeParam,
+                iosParam: formData.iosParam,
+                webParam: formData.webParam,
                 variationId: selectedVariation?.id,
               }),
             });
@@ -230,6 +252,11 @@ const Admin = () => {
                 name: formData.name,
                 type: formData.type,
                 defaultValue: formData.defaultValue,
+                description: formData.description,
+                xmlParam: formData.xmlParam,
+                composeParam: formData.composeParam,
+                iosParam: formData.iosParam,
+                webParam: formData.webParam,
                 variationId: selectedVariation?.id,
               }),
             });
@@ -358,8 +385,40 @@ const Admin = () => {
                     placeholder="Enter default value"
                   />
                 </div>
-            </>
-          )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">XML Parameter</label>
+                  <Input
+                    value={formData.xmlParam}
+                    onChange={(e) => setFormData({ ...formData, xmlParam: e.target.value })}
+                    placeholder="Enter XML parameter"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Compose Parameter</label>
+                  <Input
+                    value={formData.composeParam}
+                    onChange={(e) => setFormData({ ...formData, composeParam: e.target.value })}
+                    placeholder="Enter Compose parameter"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">iOS Parameter</label>
+                  <Input
+                    value={formData.iosParam}
+                    onChange={(e) => setFormData({ ...formData, iosParam: e.target.value })}
+                    placeholder="Enter iOS parameter"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Web Parameter</label>
+                  <Input
+                    value={formData.webParam}
+                    onChange={(e) => setFormData({ ...formData, webParam: e.target.value })}
+                    placeholder="Enter Web parameter"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -572,6 +631,15 @@ const Admin = () => {
                     <h3 className="font-medium">{token.name}</h3>
                     <p className="text-sm text-gray-500">Type: {token.type}</p>
                     <p className="text-sm text-gray-500 mt-1">Default Value: {token.defaultValue || 'Not set'}</p>
+                    {token.description && (
+                      <p className="text-sm text-gray-500 mt-1">Description: {token.description}</p>
+                    )}
+                    <div className="mt-2 text-xs text-gray-400 space-y-1">
+                      {token.xmlParam && <div>XML: {token.xmlParam}</div>}
+                      {token.composeParam && <div>Compose: {token.composeParam}</div>}
+                      {token.iosParam && <div>iOS: {token.iosParam}</div>}
+                      {token.webParam && <div>Web: {token.webParam}</div>}
+                    </div>
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100">
                     <Button

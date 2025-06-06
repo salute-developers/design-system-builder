@@ -15,6 +15,13 @@
       "when": 1748352209505,
       "tag": "0001_familiar_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1749205926369,
+      "tag": "0002_dry_boomerang",
+      "breakpoints": true
     }
   ]
 }
