@@ -21,7 +21,20 @@ export function createComponentsRouter(db: Database) {
   // Get all components
   router.get('/', async (req: Request, res: Response) => {
     try {
-      const allComponents = await db.select().from(components);
+      const allComponents = await db.query.components.findMany({
+        with: {
+          variations: {
+            with: {
+              tokenVariations: {
+                with: {
+                  token: true
+                }
+              }
+            }
+          },
+          tokens: true
+        }
+      });
       res.json(allComponents);
     } catch (error) {
       console.error('Error fetching components:', error);
