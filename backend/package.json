@@ -10,6 +10,7 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
+    "seed": "ts-node src/db/seed.ts",
     "test": "vitest --run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch"

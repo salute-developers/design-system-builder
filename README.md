@@ -4,16 +4,17 @@ A modern web application for managing and building design systems. This applicat
 
 ## Features
 
-- **Component Management**: Create and organize UI components
+- **Component Management**: Create and organize UI components with cascade delete support
 - **Variation System**: Define different states/types for each component  
 - **Token System**: Manage design tokens (colors, spacing, typography, etc.) with platform-specific parameters
-- **Token Assignment**: Flexible many-to-many assignment of tokens to variations
+- **Smart Token Assignment**: Intelligent token-to-variation assignment based on configuration structure
 - **Cross-Platform Support**: Define platform-specific parameters for Android XML, Jetpack Compose, iOS, and Web
 - **Admin Interface**: Clean, modern three-panel UI for efficient workflow
 - **Real-time Updates**: Live UI updates with proper state management
 - **Search & Filtering**: Independent search functionality for components, variations, and tokens
 - **Visual Indicators**: Clear indication of unassigned tokens and current assignments
 - **Multi-Selection**: Bulk token assignment capabilities
+- **Database Integrity**: Proper foreign key constraints with cascade delete for data consistency
 
 ## Prerequisites
 
@@ -50,7 +51,14 @@ A modern web application for managing and building design systems. This applicat
    npm run migrate
    ```
 
-5. Start the development servers:
+5. (Optional) Seed the database with sample components:
+   ```bash
+   cd backend
+   npm run seed
+   ```
+   This will create Button, IconButton, and Link components with proper variations and tokens matching web configuration structure.
+
+6. Start the development servers:
    ```bash
    npm run dev
    ```
@@ -110,12 +118,24 @@ The admin interface provides a streamlined workflow:
 
 ## Database Architecture
 
-The system uses a sophisticated many-to-many relationship model:
+The system uses a sophisticated many-to-many relationship model with proper cascade delete:
 
 - **Components** have many **Tokens** (component-level tokens)
 - **Components** have many **Variations** (component states/types)
 - **Tokens** can be assigned to multiple **Variations** (via junction table)
 - **Variations** can use multiple **Tokens** (flexible assignment)
+
+### Database Integrity Features:
+- **Cascade Delete**: Deleting a component automatically removes all related variations, tokens, and assignments
+- **Foreign Key Constraints**: Ensures referential integrity across all relationships
+- **Smart Seeding**: Seed script creates components with tokens properly assigned to relevant variations
+
+### Token-Variation Assignment Logic:
+The system intelligently assigns tokens to variations based on their purpose:
+- **View tokens** (colors, appearance) → assigned to `view` variations
+- **Size tokens** (dimensions, spacing) → assigned to `size` variations  
+- **Typography tokens** (fonts) → assigned to all variations
+- **State tokens** (disabled, focused) → assigned to their specific variations
 
 This architecture ensures design system principles are maintained while providing maximum flexibility for token reuse.
 
@@ -175,4 +195,16 @@ cd backend && npm test
 
 # Database migrations
 cd backend && npm run generate && npm run migrate
-``` 
+
+# Seed database with sample data
+cd backend && npm run seed
+```
+
+## Recent Improvements
+
+### v1.1.0 - Database Integrity & Smart Seeding
+- **Fixed Foreign Key Constraints**: Added cascade delete to all relationships for proper data cleanup
+- **Component Deletion**: Components can now be safely deleted with all related data automatically removed
+- **Smart Token Assignment**: Seed script now properly assigns tokens to relevant variations based on web config structure
+- **Enhanced Testing**: Added comprehensive CRUD tests for all components operations
+- **Optional Token Values**: Made `defaultValue` optional for tokens in both frontend and API 

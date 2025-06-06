@@ -26,8 +26,8 @@ export const components = pgTable('components', {
 // Design System Components junction table
 export const designSystemComponents = pgTable('design_system_components', {
   id: serial('id').primaryKey(),
-  designSystemId: integer('design_system_id').references(() => designSystems.id).notNull(),
-  componentId: integer('component_id').references(() => components.id).notNull(),
+  designSystemId: integer('design_system_id').references(() => designSystems.id, { onDelete: 'cascade' }).notNull(),
+  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }).notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -35,7 +35,7 @@ export const designSystemComponents = pgTable('design_system_components', {
 // Variation table
 export const variations = pgTable('variations', {
   id: serial('id').primaryKey(),
-  componentId: integer('component_id').references(() => components.id).notNull(),
+  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
   description: text('description'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -45,7 +45,7 @@ export const variations = pgTable('variations', {
 // Token table
 export const tokens = pgTable('tokens', {
   id: serial('id').primaryKey(),
-  componentId: integer('component_id').references(() => components.id),
+  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   type: text('type').notNull(),
   defaultValue: text('default_value'),
@@ -61,9 +61,9 @@ export const tokens = pgTable('tokens', {
 // Variation Value table
 export const variationValues = pgTable('variation_values', {
   id: serial('id').primaryKey(),
-  designSystemId: integer('design_system_id').references(() => designSystems.id).notNull(),
-  componentId: integer('component_id').references(() => components.id).notNull(),
-  variationId: integer('variation_id').references(() => variations.id).notNull(),
+  designSystemId: integer('design_system_id').references(() => designSystems.id, { onDelete: 'cascade' }).notNull(),
+  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }).notNull(),
+  variationId: integer('variation_id').references(() => variations.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
   description: text('description'),
   createdAt: timestamp('created_at').defaultNow(),
@@ -73,8 +73,8 @@ export const variationValues = pgTable('variation_values', {
 // Token Value table
 export const tokenValues = pgTable('token_values', {
   id: serial('id').primaryKey(),
-  variationValueId: integer('variation_value_id').references(() => variationValues.id).notNull(),
-  tokenId: integer('token_id').references(() => tokens.id).notNull(),
+  variationValueId: integer('variation_value_id').references(() => variationValues.id, { onDelete: 'cascade' }).notNull(),
+  tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'cascade' }).notNull(),
   value: text('value').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
