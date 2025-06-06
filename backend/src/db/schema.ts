@@ -45,7 +45,8 @@ export const variations = pgTable('variations', {
 // Token table
 export const tokens = pgTable('tokens', {
   id: serial('id').primaryKey(),
-  variationId: integer('variation_id').references(() => variations.id).notNull(),
+  componentId: integer('component_id').references(() => components.id),
+  variationId: integer('variation_id').references(() => variations.id),
   name: text('name').notNull(),
   type: text('type').notNull(),
   defaultValue: text('default_value'),
@@ -90,6 +91,7 @@ export const componentsRelations = relations(components, ({ many }) => ({
   designSystems: many(designSystemComponents),
   variations: many(variations, { relationName: 'componentVariations' }),
   variationValues: many(variationValues),
+  tokens: many(tokens),
 }));
 
 export const designSystemComponentsRelations = relations(designSystemComponents, ({ one }) => ({
@@ -114,6 +116,10 @@ export const variationsRelations = relations(variations, ({ one, many }) => ({
 }));
 
 export const tokensRelations = relations(tokens, ({ one, many }) => ({
+  component: one(components, {
+    fields: [tokens.componentId],
+    references: [components.id],
+  }),
   variation: one(variations, {
     fields: [tokens.variationId],
     references: [variations.id],

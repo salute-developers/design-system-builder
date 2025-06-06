@@ -38,7 +38,8 @@ export interface Variation {
 
 export interface Token {
   id: number;
-  variationId: number;
+  componentId?: number;
+  variationId?: number;
   name: string;
   type: string;
   defaultValue: string | null;
