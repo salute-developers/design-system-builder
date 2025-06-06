@@ -146,9 +146,6 @@ const Admin = () => {
       if (!formData.type?.trim()) {
         errors.type = 'Type is required';
       }
-      if (!formData.defaultValue?.trim()) {
-        errors.defaultValue = 'Default value is required';
-      }
       if (!formData.componentId) {
         errors.componentId = 'Component is required';
       }
@@ -528,14 +525,12 @@ const Admin = () => {
                   {formErrors.type && <p className="text-sm text-red-500">{formErrors.type}</p>}
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Default Value</label>
+                  <label className="text-sm font-medium">Default Value (Optional)</label>
                   <Input
                     value={formData.defaultValue}
                     onChange={(e) => setFormData({ ...formData, defaultValue: e.target.value })}
-                    placeholder="Enter default value"
-                    className={formErrors.defaultValue ? 'border-red-500' : ''}
+                    placeholder="Enter default value (optional)"
                   />
-                  {formErrors.defaultValue && <p className="text-sm text-red-500">{formErrors.defaultValue}</p>}
                 </div>
                 
                 {/* Platform Parameters Section */}

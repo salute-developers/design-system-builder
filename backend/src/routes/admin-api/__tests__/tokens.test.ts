@@ -135,6 +135,27 @@ describe('Tokens API', () => {
       expect(response.body).toHaveProperty('id');
     });
 
+    it('should create a new token without defaultValue (optional)', async () => {
+      const newToken = {
+        name: 'Token Without Default',
+        type: 'color',
+        componentId,
+        description: 'Token without default value'
+      };
+
+      const response = await request(app)
+        .post('/admin-api/tokens')
+        .send(newToken);
+
+      expect(response.status).toBe(201);
+      expect(response.body).toHaveProperty('name', newToken.name);
+      expect(response.body).toHaveProperty('type', newToken.type);
+      expect(response.body).toHaveProperty('defaultValue', null);
+      expect(response.body).toHaveProperty('componentId', componentId);
+      expect(response.body).toHaveProperty('description', newToken.description);
+      expect(response.body).toHaveProperty('id');
+    });
+
     it('should validate required fields', async () => {
       const response = await request(app)
         .post('/admin-api/tokens')

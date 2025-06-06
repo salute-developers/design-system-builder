@@ -7,7 +7,7 @@ interface CreateTokenRequest {
   componentId?: number;
   name: string;
   type: string;
-  defaultValue: string;
+  defaultValue?: string;
   description?: string;
   xmlParam?: string;
   composeParam?: string;
@@ -19,7 +19,7 @@ interface UpdateTokenRequest {
   componentId?: number;
   name: string;
   type: string;
-  defaultValue: string;
+  defaultValue?: string;
   description?: string;
   xmlParam?: string;
   composeParam?: string;
