@@ -81,13 +81,18 @@ export function createVariationValuesRouter(db: Database) {
       }).returning();
 
       // If token values are provided, create them
-      if (newTokenValues && Array.isArray(newTokenValues)) {
-        const tokenValueInserts = newTokenValues.map(tv => ({
-          variationValueId: variationValue.id,
-          tokenId: tv.tokenId,
-          value: tv.value
-        }));
-        await db.insert(tokenValues).values(tokenValueInserts);
+      if (newTokenValues && Array.isArray(newTokenValues) && newTokenValues.length > 0) {
+        const tokenValueInserts = newTokenValues
+          .filter(tv => tv.tokenId && tv.value) // Filter out invalid entries
+          .map(tv => ({
+            variationValueId: variationValue.id,
+            tokenId: tv.tokenId,
+            value: tv.value
+          }));
+        
+        if (tokenValueInserts.length > 0) {
+          await db.insert(tokenValues).values(tokenValueInserts);
+        }
       }
 
       res.status(201).json(variationValue);
@@ -124,13 +129,19 @@ export function createVariationValuesRouter(db: Database) {
       if (updatedTokenValues && Array.isArray(updatedTokenValues)) {
         // First delete existing token values
         await db.delete(tokenValues).where(eq(tokenValues.variationValueId, parseInt(id)));
-        // Then insert new token values
-        const tokenValueInserts = updatedTokenValues.map(tv => ({
-          variationValueId: parseInt(id),
-          tokenId: tv.tokenId,
-          value: tv.value
-        }));
-        await db.insert(tokenValues).values(tokenValueInserts);
+        
+        // Then insert new token values only if there are valid values
+        const tokenValueInserts = updatedTokenValues
+          .filter(tv => tv.tokenId && tv.value) // Filter out invalid entries
+          .map(tv => ({
+            variationValueId: parseInt(id),
+            tokenId: tv.tokenId,
+            value: tv.value
+          }));
+        
+        if (tokenValueInserts.length > 0) {
+          await db.insert(tokenValues).values(tokenValueInserts);
+        }
       }
 
       res.status(200).json(updated);

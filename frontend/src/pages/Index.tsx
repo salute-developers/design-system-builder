@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { cn } from '../lib/utils';
 import { getApiUrl } from '../config/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -12,8 +11,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import {
+  DesignSystemsPanel,
+  ComponentsPanel,
+  VariationsPanel,
+  VariationValuesPanel,
+} from '../components/panels';
 import type { DesignSystem, Variation, Token, VariationValue } from '../types';
 
 interface FormData {
@@ -30,6 +33,8 @@ interface AvailableComponent {
 const Index = () => {
   const [designSystems, setDesignSystems] = useState<DesignSystem[]>([]);
   const [selectedDesignSystem, setSelectedDesignSystem] = useState<DesignSystem | null>(null);
+  const [selectedComponent, setSelectedComponent] = useState<any>(null);
+  const [selectedVariation, setSelectedVariation] = useState<Variation | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -37,14 +42,10 @@ const Index = () => {
     description: '',
   });
   const [searchTerm, setSearchTerm] = useState('');
+  const [componentSearchTerm, setComponentSearchTerm] = useState('');
+  const [variationSearchTerm, setVariationSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [newVariation, setNewVariation] = useState({
-    componentId: '',
-    name: '',
-    description: '',
-    tokens: [{ name: '', type: 'color', defaultValue: '' }],
-  });
   const [newVariationValue, setNewVariationValue] = useState({
     componentId: '',
     variationId: '',
@@ -53,8 +54,12 @@ const Index = () => {
     tokenValues: [] as { tokenId: number; value: string }[],
   });
   const [availableComponents, setAvailableComponents] = useState<AvailableComponent[]>([]);
-  const [selectedComponentId, setSelectedComponentId] = useState<string>('');
+  const [selectedComponentIds, setSelectedComponentIds] = useState<number[]>([]);
+  const [showAddComponentsDialog, setShowAddComponentsDialog] = useState(false);
   const [editingVariationValue, setEditingVariationValue] = useState<VariationValue | null>(null);
+  const [showEditVariationValueDialog, setShowEditVariationValueDialog] = useState(false);
+  const [showEditTokenValuesDialog, setShowEditTokenValuesDialog] = useState(false);
+  const [editingTokenValues, setEditingTokenValues] = useState<VariationValue | null>(null);
 
   useEffect(() => {
     fetchDesignSystems();
@@ -171,61 +176,110 @@ const Index = () => {
     });
   };
 
-  const filterItems = <T extends { name: string }>(items: T[]) => {
+  const handleAddComponent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDesignSystem || selectedComponentIds.length === 0) return;
+
+    try {
+      // Add components one by one (could be optimized with a batch endpoint later)
+      const promises = selectedComponentIds.map(componentId =>
+        fetch(getApiUrl('designSystems') + '/components', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            designSystemId: selectedDesignSystem.id,
+            componentId: componentId,
+          }),
+        })
+      );
+
+      const responses = await Promise.all(promises);
+      
+      // Check if any failed
+      const failedResponses = responses.filter(response => !response.ok);
+      if (failedResponses.length > 0) {
+        throw new Error(`Failed to add ${failedResponses.length} component(s) to design system`);
+      }
+
+      // Refresh the design system data to show the new components
+      await handleSelect(selectedDesignSystem.id);
+      
+      // Reset the form and close dialog
+      setSelectedComponentIds([]);
+      setShowAddComponentsDialog(false);
+    } catch (error) {
+      console.error('Error adding components to design system:', error);
+    }
+  };
+
+  // Helper function to get components not already in the design system
+  const getAvailableComponentsForSelection = () => {
+    if (!selectedDesignSystem) return availableComponents;
+    
+    const existingComponentIds = selectedDesignSystem.components.map(
+      dsComponent => dsComponent.component.id
+    );
+    
+    return availableComponents.filter(
+      component => !existingComponentIds.includes(component.id)
+    );
+  };
+
+  // Handle individual component selection
+  const handleComponentToggle = (componentId: number, checked: boolean) => {
+    if (checked) {
+      setSelectedComponentIds([...selectedComponentIds, componentId]);
+    } else {
+      setSelectedComponentIds(selectedComponentIds.filter(id => id !== componentId));
+    }
+  };
+
+  // Handle select all components
+  const handleSelectAllComponents = () => {
+    const availableForSelection = getAvailableComponentsForSelection();
+    setSelectedComponentIds(availableForSelection.map(component => component.id));
+  };
+
+  // Handle deselect all components
+  const handleDeselectAllComponents = () => {
+    setSelectedComponentIds([]);
+  };
+
+  // Helper functions for four-panel filtering
+  const filterDesignSystems = (items: DesignSystem[]) => {
     return items.filter(item =>
       item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 
-  const handleAddComponent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedDesignSystem || !selectedComponentId) return;
-
-    try {
-      const response = await fetch(getApiUrl('designSystems') + '/components', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          designSystemId: selectedDesignSystem.id,
-          componentId: parseInt(selectedComponentId),
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add component to design system');
-      }
-
-      // Refresh the design system data to show the new component
-      await handleSelect(selectedDesignSystem.id);
-      
-      // Reset the form
-      setSelectedComponentId('');
-    } catch (error) {
-      console.error('Error adding component to design system:', error);
-    }
+  const filterComponents = (components: any[]) => {
+    return components.filter((component: any) =>
+      component.component.name.toLowerCase().includes(componentSearchTerm.toLowerCase())
+    );
   };
 
-  const handleAddVariation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(getApiUrl('variations'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newVariation),
-      });
-      if (!response.ok) throw new Error('Failed to add variation');
-      if (selectedDesignSystem) {
-        await handleSelect(selectedDesignSystem.id);
-      }
-      setNewVariation({
-        componentId: '',
-        name: '',
-        description: '',
-        tokens: [{ name: '', type: 'color', defaultValue: '' }],
-      });
-    } catch (error) {
-      console.error('Error adding variation:', error);
-    }
+  const filterVariations = (variations: Variation[]) => {
+    return variations.filter(variation =>
+      variation.name.toLowerCase().includes(variationSearchTerm.toLowerCase())
+    );
+  };
+
+  // Handle variation selection in the third panel
+  const handleVariationSelect = (variation: Variation) => {
+    setSelectedVariation(variation);
+  };
+
+  // Handle component selection in the second panel
+  const handleComponentSelect = (component: any) => {
+    setSelectedComponent(component);
+    setSelectedVariation(null); // Reset variation when component changes
+  };
+
+  // Reset selections when design system changes
+  const handleDesignSystemSelect = async (id: number) => {
+    setSelectedComponent(null);
+    setSelectedVariation(null);
+    await handleSelect(id);
   };
 
   const handleAddVariationValue = async (e: React.FormEvent) => {
@@ -262,20 +316,6 @@ const Index = () => {
       console.error('Error adding variation value:', error);
       alert(error instanceof Error ? error.message : 'Failed to add variation value');
     }
-  };
-
-  const handleEditVariationValue = (variationValue: VariationValue) => {
-    setEditingVariationValue(variationValue);
-    setNewVariationValue({
-      componentId: variationValue.componentId.toString(),
-      variationId: variationValue.variationId.toString(),
-      name: variationValue.name,
-      description: variationValue.description || '',
-      tokenValues: variationValue.tokenValues.map(tv => ({
-        tokenId: tv.tokenId,
-        value: tv.value
-      }))
-    });
   };
 
   const handleUpdateVariationValue = async (e: React.FormEvent) => {
@@ -321,293 +361,320 @@ const Index = () => {
     }
   };
 
+  // Dialog handler functions
+  const handleOpenEditVariationValueDialog = (variationValue: VariationValue) => {
+    setEditingVariationValue(variationValue);
+    setNewVariationValue({
+      componentId: variationValue.componentId.toString(),
+      variationId: variationValue.variationId.toString(),
+      name: variationValue.name,
+      description: variationValue.description || '',
+      tokenValues: variationValue.tokenValues.map(tv => ({
+        tokenId: tv.tokenId,
+        value: tv.value
+      }))
+    });
+    setShowEditVariationValueDialog(true);
+  };
+
+  const handleOpenAddVariationValueDialog = () => {
+    setEditingVariationValue(null);
+    
+    // Get all tokens connected to the current variation and initialize with empty values
+    const availableTokens = selectedVariation?.tokens || 
+      (selectedVariation?.tokenVariations?.map(tv => tv.token).filter(Boolean) as Token[]) || [];
+    
+    const emptyTokenValues = availableTokens.map(token => ({
+      tokenId: token.id,
+      value: ''
+    }));
+    
+    setNewVariationValue({
+      componentId: selectedComponent?.component.id.toString() || '',
+      variationId: selectedVariation?.id.toString() || '',
+      name: '',
+      description: '',
+      tokenValues: emptyTokenValues
+    });
+    setShowEditVariationValueDialog(true);
+  };
+
+  const handleOpenEditTokenValuesDialog = (variationValue: VariationValue) => {
+    setEditingTokenValues(variationValue);
+    
+    // Get all tokens connected to the current variation
+    const availableTokens = selectedVariation?.tokens || 
+      (selectedVariation?.tokenVariations?.map(tv => tv.token).filter(Boolean) as Token[]) || [];
+    
+    // Create token values array including current values and placeholders for tokens without values
+    const allTokenValues = availableTokens.map(token => {
+      const existingValue = variationValue.tokenValues.find(tv => tv.tokenId === token.id);
+      return {
+        tokenId: token.id,
+        value: existingValue?.value || ''
+      };
+    });
+    
+    setNewVariationValue({
+      componentId: variationValue.componentId.toString(),
+      variationId: variationValue.variationId.toString(),
+      name: variationValue.name,
+      description: variationValue.description || '',
+      tokenValues: allTokenValues
+    });
+    setShowEditTokenValuesDialog(true);
+  };
+
+  const handleUpdateVariationValueFromDialog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVariationValue) return;
+
+    try {
+      const response = await fetch(getApiUrl('variationValues') + `/${editingVariationValue.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newVariationValue.name,
+          description: newVariationValue.description,
+          tokenValues: newVariationValue.tokenValues
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.missingFields) {
+          throw new Error(`Missing required fields: ${errorData.missingFields.join(', ')}`);
+        }
+        throw new Error('Failed to update variation value');
+      }
+
+      // Refresh the design system data
+      if (selectedDesignSystem) {
+        await handleSelect(selectedDesignSystem.id);
+      }
+
+      // Close dialog and reset form
+      setShowEditVariationValueDialog(false);
+      setEditingVariationValue(null);
+      setNewVariationValue({
+        componentId: '',
+        variationId: '',
+        name: '',
+        description: '',
+        tokenValues: []
+      });
+    } catch (error) {
+      console.error('Error updating variation value:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update variation value');
+    }
+  };
+
+  const handleUpdateTokenValuesFromDialog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTokenValues) return;
+
+    try {
+      const response = await fetch(getApiUrl('variationValues') + `/${editingTokenValues.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingTokenValues.name,
+          description: editingTokenValues.description,
+          tokenValues: newVariationValue.tokenValues
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        if (errorData.missingFields) {
+          throw new Error(`Missing required fields: ${errorData.missingFields.join(', ')}`);
+        }
+        throw new Error('Failed to update token values');
+      }
+
+      // Refresh the design system data
+      if (selectedDesignSystem) {
+        await handleSelect(selectedDesignSystem.id);
+      }
+
+      // Close dialog and reset form
+      setShowEditTokenValuesDialog(false);
+      setEditingTokenValues(null);
+      setNewVariationValue({
+        componentId: '',
+        variationId: '',
+        name: '',
+        description: '',
+        tokenValues: []
+      });
+    } catch (error) {
+      console.error('Error updating token values:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update token values');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Design Systems Panel */}
-      <div className="w-1/3 p-4 border-r border-gray-200 bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Design Systems</h2>
-          <Button onClick={handleAdd}>Add</Button>
-        </div>
-        <div className="mb-4">
-          <Input
-            placeholder="Search design systems..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="mb-2"
-          />
-          <div className="flex gap-2">
-            <Button
-              variant={sortBy === 'name' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleSort('name')}
-            >
-              Sort by Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </Button>
-            <Button
-              variant={sortBy === 'id' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleSort('id')}
-            >
-              Sort by ID {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </Button>
-          </div>
-        </div>
-        <div className="space-y-2">
-          {filterItems(sortItems(designSystems)).map((designSystem) => (
-            <div
-              key={designSystem.id}
-              className={cn(
-                'p-3 rounded cursor-pointer hover:bg-gray-50 group',
-                selectedDesignSystem?.id === designSystem.id && 'bg-blue-50 border border-blue-200'
-              )}
-              onClick={() => handleSelect(designSystem.id)}
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="font-medium">{designSystem.name}</h3>
-                  {designSystem.description && (
-                    <p className="text-sm text-gray-500">{designSystem.description}</p>
-                  )}
-                </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(designSystem);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(designSystem.id);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Panel 1: Design Systems */}
+      <DesignSystemsPanel
+        designSystems={designSystems}
+        selectedDesignSystem={selectedDesignSystem}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onSelect={handleDesignSystemSelect}
+        onSort={handleSort}
+        filterDesignSystems={filterDesignSystems}
+        sortItems={sortItems}
+      />
 
-      {/* Selected Design System Details */}
+      {/* Panel 2: Components */}
       {selectedDesignSystem && (
-        <div className="flex-1 p-4 overflow-y-auto">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-2xl font-bold mb-4">{selectedDesignSystem.name}</h1>
-            <p className="mb-6">{selectedDesignSystem.description}</p>
-
-            {/* Add Component Form */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Add Component to Design System</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleAddComponent} className="space-y-4">
-                  <div>
-                    <Label htmlFor="componentSelect">Select Component</Label>
-                    <Select value={selectedComponentId} onValueChange={setSelectedComponentId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a component" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableComponents.map((component) => (
-                          <SelectItem key={component.id} value={component.id.toString()}>
-                            {component.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" disabled={!selectedComponentId}>
-                    Add Component
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Components List */}
-            <div className="space-y-6">
-              {selectedDesignSystem.components.map((designSystemComponent) => (
-                <Card key={designSystemComponent.id}>
-                  <CardHeader>
-                    <CardTitle>{designSystemComponent.component.name}</CardTitle>
-                    <p>{designSystemComponent.component.description}</p>
-                  </CardHeader>
-                  <CardContent>
-                    {/* Add Variation Form */}
-                    <form onSubmit={handleAddVariation} className="space-y-4 mb-6">
-                      <div>
-                        <Label htmlFor="variationName">Variation Name</Label>
-                        <Input
-                          id="variationName"
-                          value={newVariation.name}
-                          onChange={(e) => setNewVariation({ ...newVariation, name: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="variationDescription">Description</Label>
-                        <Textarea
-                          id="variationDescription"
-                          value={newVariation.description}
-                          onChange={(e) => setNewVariation({ ...newVariation, description: e.target.value })}
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        onClick={() => setNewVariation({ ...newVariation, componentId: designSystemComponent.component.id.toString() })}
-                      >
-                        Add Variation
-                      </Button>
-                    </form>
-
-                    {/* Variations List */}
-                    <div className="space-y-4">
-                      {designSystemComponent.component.variations.map((variation: Variation) => (
-                        <Card key={variation.id}>
-                          <CardHeader>
-                            <CardTitle>{variation.name}</CardTitle>
-                            <p>{variation.description}</p>
-                          </CardHeader>
-                          <CardContent>
-                            {/* Add Variation Value Form */}
-                            <form onSubmit={editingVariationValue ? handleUpdateVariationValue : handleAddVariationValue} className="space-y-4">
-                              <div>
-                                <Label htmlFor="variationValueName">Value Name</Label>
-                                <Input
-                                  id="variationValueName"
-                                  value={newVariationValue.name}
-                                  onChange={(e) => setNewVariationValue({ ...newVariationValue, name: e.target.value })}
-                                  required
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor="variationValueDescription">Description</Label>
-                                <Textarea
-                                  id="variationValueDescription"
-                                  value={newVariationValue.description}
-                                  onChange={(e) => setNewVariationValue({ ...newVariationValue, description: e.target.value })}
-                                />
-                              </div>
-                              {(() => {
-                                // Get tokens from either tokens array or tokenVariations
-                                const availableTokens = variation.tokens || 
-                                  (variation.tokenVariations?.map(tv => tv.token).filter(Boolean) as Token[]) || [];
-                                
-                                return availableTokens.map((token: Token) => (
-                                  <div key={token.id}>
-                                    <Label htmlFor={`token-${token.id}`}>{token.name}</Label>
-                                    <Input
-                                      id={`token-${token.id}`}
-                                      value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || ''}
-                                      onChange={(e) => {
-                                        const tokenValues = [...newVariationValue.tokenValues];
-                                        const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
-                                        if (existingIndex >= 0) {
-                                          tokenValues[existingIndex] = { tokenId: token.id, value: e.target.value };
-                                        } else {
-                                          tokenValues.push({ tokenId: token.id, value: e.target.value });
-                                        }
-                                        setNewVariationValue({ ...newVariationValue, tokenValues });
-                                      }}
-                                      required
-                                    />
-                                  </div>
-                                ));
-                              })()}
-                              <div className="flex gap-2">
-                                <Button 
-                                  type="submit"
-                                  onClick={() => {
-                                    if (!editingVariationValue) {
-                                      setNewVariationValue({
-                                        ...newVariationValue,
-                                        componentId: designSystemComponent.component.id.toString(),
-                                        variationId: variation.id.toString()
-                                      });
-                                    }
-                                  }}
-                                >
-                                  {editingVariationValue ? 'Update' : 'Add'} Variation Value
-                                </Button>
-                                {editingVariationValue && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingVariationValue(null);
-                                      setNewVariationValue({
-                                        componentId: '',
-                                        variationId: '',
-                                        name: '',
-                                        description: '',
-                                        tokenValues: []
-                                      });
-                                    }}
-                                  >
-                                    Cancel
-                                  </Button>
-                                )}
-                              </div>
-                            </form>
-
-                            {/* Variation Values List */}
-                            <div className="mt-4">
-                              <h4 className="font-semibold mb-2">Variation Values</h4>
-                              {selectedDesignSystem.variationValues
-                                .filter(vv => vv.variationId === variation.id)
-                                .map((variationValue) => (
-                                  <Card key={variationValue.id} className="mb-2">
-                                    <CardHeader>
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <CardTitle>{variationValue.name}</CardTitle>
-                                          <p>{variationValue.description}</p>
-                                        </div>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => handleEditVariationValue(variationValue)}
-                                        >
-                                          Edit
-                                        </Button>
-                                      </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                      <div className="space-y-2">
-                                        {variationValue.tokenValues.map((tokenValue) => (
-                                          <div key={tokenValue.id} className="flex items-center gap-2">
-                                            <span className="font-medium">{tokenValue.token.name}:</span>
-                                            <span>{tokenValue.value}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                ))}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ComponentsPanel
+          selectedDesignSystem={selectedDesignSystem}
+          selectedComponent={selectedComponent}
+          componentSearchTerm={componentSearchTerm}
+          setComponentSearchTerm={setComponentSearchTerm}
+          onShowAddComponentsDialog={() => setShowAddComponentsDialog(true)}
+          onComponentSelect={handleComponentSelect}
+          filterComponents={filterComponents}
+        />
       )}
 
-      {/* Add/Edit Dialog */}
+      {/* Panel 3: Variations */}
+      {selectedComponent && (
+        <VariationsPanel
+          selectedComponent={selectedComponent}
+          selectedVariation={selectedVariation}
+          selectedDesignSystem={selectedDesignSystem}
+          variationSearchTerm={variationSearchTerm}
+          setVariationSearchTerm={setVariationSearchTerm}
+          onVariationSelect={handleVariationSelect}
+          filterVariations={filterVariations}
+        />
+      )}
+
+      {/* Panel 4: Variation Values */}
+      {selectedVariation && selectedDesignSystem && (
+        <VariationValuesPanel
+          selectedVariation={selectedVariation}
+          selectedDesignSystem={selectedDesignSystem}
+          selectedComponent={selectedComponent}
+          editingVariationValue={editingVariationValue}
+          newVariationValue={newVariationValue}
+          setNewVariationValue={setNewVariationValue}
+          setEditingVariationValue={setEditingVariationValue}  
+          onOpenEditVariationValueDialog={handleOpenEditVariationValueDialog}
+          onOpenAddVariationValueDialog={handleOpenAddVariationValueDialog}
+          onOpenEditTokenValuesDialog={handleOpenEditTokenValuesDialog}
+          onUpdateVariationValue={handleUpdateVariationValue}
+          onAddVariationValue={handleAddVariationValue}
+        />
+      )}
+
+      {/* Add Components Dialog */}
+      <Dialog open={showAddComponentsDialog} onOpenChange={setShowAddComponentsDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Components to Design System</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <form onSubmit={handleAddComponent} className="space-y-4">
+              <div className="flex gap-1">
+                <div className="flex justify-between items-center mb-3">
+                  <Label>Select Components</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllComponents}
+                      disabled={getAvailableComponentsForSelection().length === 0}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAllComponents}
+                      disabled={selectedComponentIds.length === 0}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
+                
+                {getAvailableComponentsForSelection().length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4">
+                    All available components have been added to this design system.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-48 overflow-y-auto border rounded-md p-3">
+                    {getAvailableComponentsForSelection().map((component) => (
+                      <div key={component.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`component-${component.id}`}
+                          checked={selectedComponentIds.includes(component.id)}
+                          onChange={(e) => handleComponentToggle(component.id, e.target.checked)}
+                          className="h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <Label
+                          htmlFor={`component-${component.id}`}
+                          className="flex-1 cursor-pointer"
+                        >
+                          <div className="flex gap-1">
+                            <div className="font-medium">{component.name}</div>
+                            {component.description && (
+                              <div className="text-sm text-gray-500">{component.description}</div>
+                            )}
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {selectedComponentIds.length > 0 && (
+                <div className="text-sm text-gray-600">
+                  {selectedComponentIds.length} component(s) selected
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <Button 
+                  type="submit" 
+                  disabled={selectedComponentIds.length === 0}
+                  onClick={() => {
+                    // The form submission will handle the addition
+                    // and we'll close the dialog after success
+                  }}
+                >
+                  Add {selectedComponentIds.length > 0 ? `${selectedComponentIds.length} ` : ''}Component{selectedComponentIds.length !== 1 ? 's' : ''}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddComponentsDialog(false);
+                    setSelectedComponentIds([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add/Edit Design System Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -645,8 +712,149 @@ const Index = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit/Add Variation Value Dialog */}
+      <Dialog open={showEditVariationValueDialog} onOpenChange={setShowEditVariationValueDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingVariationValue ? 'Edit' : 'Add'} Variation Value</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <form onSubmit={editingVariationValue ? handleUpdateVariationValueFromDialog : handleAddVariationValue} className="space-y-4">
+              <div>
+                <Label htmlFor="dialogVariationValueName">Value Name</Label>
+                <Input
+                  id="dialogVariationValueName"
+                  value={newVariationValue.name}
+                  onChange={(e) => setNewVariationValue({ ...newVariationValue, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="dialogVariationValueDescription">Description</Label>
+                <Textarea
+                  id="dialogVariationValueDescription"
+                  value={newVariationValue.description}
+                  onChange={(e) => setNewVariationValue({ ...newVariationValue, description: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button type="submit">{editingVariationValue ? 'Update' : 'Add'} Value</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditVariationValueDialog(false);
+                    setEditingVariationValue(null);
+                    setNewVariationValue({
+                      componentId: '',
+                      variationId: '',
+                      name: '',
+                      description: '',
+                      tokenValues: []
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Token Values Dialog */}
+      <Dialog open={showEditTokenValuesDialog} onOpenChange={setShowEditTokenValuesDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Token Values</DialogTitle>
+            {editingTokenValues && (
+              <p className="text-sm text-gray-600">
+                Editing tokens for: {editingTokenValues.name}
+              </p>
+            )}
+          </DialogHeader>
+          <div className="py-4">
+            <form onSubmit={handleUpdateTokenValuesFromDialog} className="space-y-4">
+              {selectedVariation && editingTokenValues && (() => {
+                // Get tokens from the selected variation
+                const availableTokens = selectedVariation.tokens || 
+                  (selectedVariation.tokenVariations?.map(tv => tv.token).filter(Boolean) as Token[]) || [];
+                
+                if (availableTokens.length === 0) {
+                  return (
+                    <div className="text-sm text-gray-500 py-4">
+                      No tokens are connected to this variation.
+                    </div>
+                  );
+                }
+                
+                return availableTokens.map((token: Token) => {
+                  // Find the current value for this token from the editingTokenValues
+                  const currentTokenValue = editingTokenValues.tokenValues.find(tv => tv.tokenId === token.id);
+                  const currentValue = currentTokenValue?.value || '';
+                  
+                  return (
+                    <div key={token.id} className="space-y-2">
+                      <Label htmlFor={`dialog-token-${token.id}`}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{token.name}</span>
+                          {token.description && (
+                            <span className="text-xs text-gray-500">{token.description}</span>
+                          )}
+                          {token.defaultValue && (
+                            <span className="text-xs text-gray-400">Default: {token.defaultValue}</span>
+                          )}
+                        </div>
+                      </Label>
+                      <Input
+                        id={`dialog-token-${token.id}`}
+                        value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || currentValue}
+                        onChange={(e) => {
+                          const tokenValues = [...newVariationValue.tokenValues];
+                          const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
+                          if (existingIndex >= 0) {
+                            tokenValues[existingIndex] = { tokenId: token.id, value: e.target.value };
+                          } else {
+                            tokenValues.push({ tokenId: token.id, value: e.target.value });
+                          }
+                          setNewVariationValue({ ...newVariationValue, tokenValues });
+                        }}
+                        placeholder={token.defaultValue || `Enter ${token.name} value`}
+                        required
+                      />
+                    </div>
+                  );
+                });
+              })()}
+              <div className="flex gap-2">
+                <Button type="submit" disabled={!selectedVariation || !editingTokenValues}>
+                  Update Token Values
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditTokenValuesDialog(false);
+                    setEditingTokenValues(null);
+                    setNewVariationValue({
+                      componentId: '',
+                      variationId: '',
+                      name: '',
+                      description: '',
+                      tokenValues: []
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
-export default Index; 
+export default Index;
