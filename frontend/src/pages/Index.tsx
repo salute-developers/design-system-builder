@@ -43,7 +43,6 @@ const Index = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [componentSearchTerm, setComponentSearchTerm] = useState('');
-  const [variationSearchTerm, setVariationSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [newVariationValue, setNewVariationValue] = useState({
@@ -258,12 +257,6 @@ const Index = () => {
     );
   };
 
-  const filterVariations = (variations: Variation[]) => {
-    return variations.filter(variation =>
-      variation.name.toLowerCase().includes(variationSearchTerm.toLowerCase())
-    );
-  };
-
   // Handle variation selection in the third panel
   const handleVariationSelect = (variation: Variation) => {
     setSelectedVariation(variation);
@@ -315,49 +308,6 @@ const Index = () => {
     } catch (error) {
       console.error('Error adding variation value:', error);
       alert(error instanceof Error ? error.message : 'Failed to add variation value');
-    }
-  };
-
-  const handleUpdateVariationValue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingVariationValue) return;
-
-    try {
-      const response = await fetch(getApiUrl('variationValues') + `/${editingVariationValue.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newVariationValue.name,
-          description: newVariationValue.description,
-          tokenValues: newVariationValue.tokenValues
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        if (errorData.missingFields) {
-          throw new Error(`Missing required fields: ${errorData.missingFields.join(', ')}`);
-        }
-        throw new Error('Failed to update variation value');
-      }
-
-      // Refresh the design system data
-      if (selectedDesignSystem) {
-        await handleSelect(selectedDesignSystem.id);
-      }
-
-      // Reset the form
-      setEditingVariationValue(null);
-      setNewVariationValue({
-        componentId: '',
-        variationId: '',
-        name: '',
-        description: '',
-        tokenValues: []
-      });
-    } catch (error) {
-      console.error('Error updating variation value:', error);
-      alert(error instanceof Error ? error.message : 'Failed to update variation value');
     }
   };
 
@@ -551,10 +501,7 @@ const Index = () => {
           selectedComponent={selectedComponent}
           selectedVariation={selectedVariation}
           selectedDesignSystem={selectedDesignSystem}
-          variationSearchTerm={variationSearchTerm}
-          setVariationSearchTerm={setVariationSearchTerm}
           onVariationSelect={handleVariationSelect}
-          filterVariations={filterVariations}
         />
       )}
 
@@ -563,16 +510,9 @@ const Index = () => {
         <VariationValuesPanel
           selectedVariation={selectedVariation}
           selectedDesignSystem={selectedDesignSystem}
-          selectedComponent={selectedComponent}
-          editingVariationValue={editingVariationValue}
-          newVariationValue={newVariationValue}
-          setNewVariationValue={setNewVariationValue}
-          setEditingVariationValue={setEditingVariationValue}  
           onOpenEditVariationValueDialog={handleOpenEditVariationValueDialog}
           onOpenAddVariationValueDialog={handleOpenAddVariationValueDialog}
           onOpenEditTokenValuesDialog={handleOpenEditTokenValuesDialog}
-          onUpdateVariationValue={handleUpdateVariationValue}
-          onAddVariationValue={handleAddVariationValue}
         />
       )}
 
@@ -765,7 +705,7 @@ const Index = () => {
 
       {/* Edit Token Values Dialog */}
       <Dialog open={showEditTokenValuesDialog} onOpenChange={setShowEditTokenValuesDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Token Values</DialogTitle>
             {editingTokenValues && (
@@ -774,7 +714,7 @@ const Index = () => {
               </p>
             )}
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 overflow-y-auto flex-1">
             <form onSubmit={handleUpdateTokenValuesFromDialog} className="space-y-4">
               {selectedVariation && editingTokenValues && (() => {
                 // Get tokens from the selected variation
@@ -827,7 +767,7 @@ const Index = () => {
                   );
                 });
               })()}
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-4">
                 <Button type="submit" disabled={!selectedVariation || !editingTokenValues}>
                   Update Token Values
                 </Button>

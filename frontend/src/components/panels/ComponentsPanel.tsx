@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import type { DesignSystem } from '../../types';
+import type { DesignSystem, Variation } from '../../types';
 
 interface ComponentsPanelProps {
   selectedDesignSystem: DesignSystem;
@@ -55,19 +55,18 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
                 )}
                 <p className="text-xs text-gray-400 mt-1">
                   {designSystemComponent.component.variations?.length || 0} variation(s)
+                  {(() => {
+                    // Count total tokens across all variations
+                    const totalTokens = designSystemComponent.component.variations?.reduce((acc: number, variation: Variation) => {
+                      const tokenCount = variation.tokens?.length || 
+                        variation.tokenVariations?.length || 0;
+                      return acc + tokenCount;
+                    }, 0) || 0;
+                    return totalTokens > 0 ? ` • ${totalTokens} token(s)` : '';
+                  })()}
                 </p>
               </div>
               <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // TODO: Add component edit functionality
-                  }}
-                >
-                  Edit
-                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
