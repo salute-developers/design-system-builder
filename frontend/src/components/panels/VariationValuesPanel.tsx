@@ -9,6 +9,7 @@ interface VariationValuesPanelProps {
   onOpenEditVariationValueDialog: (variationValue: VariationValue) => void;
   onOpenEditTokenValuesDialog: (variationValue: VariationValue) => void;
   onOpenAddVariationValueDialog: () => void;
+  onDeleteVariationValue: (variationValue: VariationValue) => void;
 }
 
 const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
@@ -17,6 +18,7 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
   onOpenEditVariationValueDialog,
   onOpenEditTokenValuesDialog,
   onOpenAddVariationValueDialog,
+  onDeleteVariationValue,
 }) => {
   return (
     <div className="flex-1 p-4 bg-white overflow-y-auto">
@@ -56,6 +58,14 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
                         onClick={() => onOpenEditTokenValuesDialog(variationValue)}
                       >
                         Edit Tokens
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteVariationValue(variationValue)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        Delete
                       </Button>
                     </div>
                   </div>

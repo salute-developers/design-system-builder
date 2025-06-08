@@ -11,6 +11,7 @@ interface ComponentsPanelProps {
   setComponentSearchTerm: (term: string) => void;
   onShowAddComponentsDialog: () => void;
   onComponentSelect: (component: any) => void;
+  onRemoveComponent: (component: any) => void;
   filterComponents: (components: any[]) => any[];
 }
 
@@ -21,6 +22,7 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
   setComponentSearchTerm,
   onShowAddComponentsDialog,
   onComponentSelect,
+  onRemoveComponent,
   filterComponents,
 }) => {
   return (
@@ -72,7 +74,7 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // TODO: Add component delete functionality
+                    onRemoveComponent(designSystemComponent);
                   }}
                 >
                   Remove

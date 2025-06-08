@@ -170,4 +170,52 @@ describe('Design Systems API', () => {
       expect(response.body).toHaveProperty('error', 'Component is already part of this design system');
     });
   });
+
+  describe('DELETE /api/design-systems/components/:id', () => {
+    it('should remove component from design system', async () => {
+      // Create test design system and component
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const [component] = await testDb.insert(components).values({
+        name: 'Test Component',
+        description: 'Test Component Description'
+      }).returning();
+
+      // Add component to design system first
+      const addResponse = await request(app)
+        .post('/api/design-systems/components')
+        .send({
+          designSystemId: designSystem.id,
+          componentId: component.id
+        });
+
+      expect(addResponse.status).toBe(201);
+      const designSystemComponentId = addResponse.body.id;
+
+      // Now remove it
+      const removeResponse = await request(app)
+        .delete(`/api/design-systems/components/${designSystemComponentId}`);
+
+      expect(removeResponse.status).toBe(204);
+    });
+
+    it('should return 404 for non-existent design system component', async () => {
+      const response = await request(app)
+        .delete('/api/design-systems/components/999');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Component not found in design system');
+    });
+
+    it('should return 400 for invalid design system component ID', async () => {
+      const response = await request(app)
+        .delete('/api/design-systems/components/invalid');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Invalid design system component ID');
+    });
+  });
 }); 

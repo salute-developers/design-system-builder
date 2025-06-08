@@ -197,5 +197,34 @@ export function createDesignSystemsRouter(db: Database) {
     }
   });
 
+  // Remove component from design system
+  router.delete('/components/:id', async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const { id } = req.params;
+      const designSystemComponentId = parseInt(id);
+      
+      if (isNaN(designSystemComponentId)) {
+        return res.status(400).json({ error: 'Invalid design system component ID' });
+      }
+
+      // Check if the relationship exists
+      const [existing] = await db.select().from(designSystemComponents)
+        .where(eq(designSystemComponents.id, designSystemComponentId));
+
+      if (!existing) {
+        return res.status(404).json({ error: 'Component not found in design system' });
+      }
+
+      // Delete the relationship
+      await db.delete(designSystemComponents)
+        .where(eq(designSystemComponents.id, designSystemComponentId));
+
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error removing component from design system:', error);
+      res.status(500).json({ error: 'Failed to remove component from design system' });
+    }
+  });
+
   return router;
 } 

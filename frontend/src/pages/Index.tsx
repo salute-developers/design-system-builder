@@ -463,6 +463,60 @@ const Index = () => {
     }
   };
 
+  const handleDeleteVariationValue = async (variationValue: VariationValue) => {
+    if (!confirm(`Are you sure you want to delete the variation value "${variationValue.name}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(getApiUrl('variationValues') + `/${variationValue.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete variation value');
+      }
+
+      // Refresh the design system data
+      if (selectedDesignSystem) {
+        await handleSelect(selectedDesignSystem.id);
+      }
+    } catch (error) {
+      console.error('Error deleting variation value:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete variation value');
+    }
+  };
+
+  const handleRemoveComponent = async (designSystemComponent: any) => {
+    if (!confirm(`Are you sure you want to remove "${designSystemComponent.component.name}" from this design system?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(getApiUrl('designSystems') + `/components/${designSystemComponent.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to remove component from design system');
+      }
+
+      // If the removed component was selected, clear the selection
+      if (selectedComponent?.id === designSystemComponent.id) {
+        setSelectedComponent(null);
+        setSelectedVariation(null);
+      }
+
+      // Refresh the design system data
+      if (selectedDesignSystem) {
+        await handleSelect(selectedDesignSystem.id);
+      }
+    } catch (error) {
+      console.error('Error removing component from design system:', error);
+      alert(error instanceof Error ? error.message : 'Failed to remove component from design system');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Panel 1: Design Systems */}
@@ -491,6 +545,7 @@ const Index = () => {
           setComponentSearchTerm={setComponentSearchTerm}
           onShowAddComponentsDialog={() => setShowAddComponentsDialog(true)}
           onComponentSelect={handleComponentSelect}
+          onRemoveComponent={handleRemoveComponent}
           filterComponents={filterComponents}
         />
       )}
@@ -513,6 +568,7 @@ const Index = () => {
           onOpenEditVariationValueDialog={handleOpenEditVariationValueDialog}
           onOpenAddVariationValueDialog={handleOpenAddVariationValueDialog}
           onOpenEditTokenValuesDialog={handleOpenEditTokenValuesDialog}
+          onDeleteVariationValue={handleDeleteVariationValue}
         />
       )}
 
@@ -523,81 +579,101 @@ const Index = () => {
             <DialogTitle>Add Components to Design System</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <form onSubmit={handleAddComponent} className="space-y-4">
-              <div className="flex gap-1">
-                <div className="flex justify-between items-center mb-3">
-                  <Label>Select Components</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSelectAllComponents}
-                      disabled={getAvailableComponentsForSelection().length === 0}
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDeselectAllComponents}
-                      disabled={selectedComponentIds.length === 0}
-                    >
-                      Deselect All
-                    </Button>
-                  </div>
+            <form onSubmit={handleAddComponent} className="space-y-6">
+              {/* Header with Select/Deselect buttons */}
+              <div className="flex justify-between items-center">
+                <Label className="text-base font-medium">Select Components</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAllComponents}
+                    disabled={getAvailableComponentsForSelection().length === 0}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeselectAllComponents}
+                    disabled={selectedComponentIds.length === 0}
+                  >
+                    Deselect All
+                  </Button>
                 </div>
-                
+              </div>
+              
+              {/* Component list or empty state */}
+              <div className="min-h-[200px]">
                 {getAvailableComponentsForSelection().length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4">
-                    All available components have been added to this design system.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-48 overflow-y-auto border rounded-md p-3">
-                    {getAvailableComponentsForSelection().map((component) => (
-                      <div key={component.id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={`component-${component.id}`}
-                          checked={selectedComponentIds.includes(component.id)}
-                          onChange={(e) => handleComponentToggle(component.id, e.target.checked)}
-                          className="h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                        />
-                        <Label
-                          htmlFor={`component-${component.id}`}
-                          className="flex-1 cursor-pointer"
-                        >
-                          <div className="flex gap-1">
-                            <div className="font-medium">{component.name}</div>
-                            {component.description && (
-                              <div className="text-sm text-gray-500">{component.description}</div>
-                            )}
-                          </div>
-                        </Label>
+                  <div className="flex items-center justify-center h-[200px] text-center">
+                    <div>
+                      <div className="text-gray-400 mb-2">
+                        <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                       </div>
-                    ))}
+                      <p className="text-gray-500 font-medium">All components added</p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        All available components have been added to this design system.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg p-4 bg-gray-50 max-h-[300px] overflow-y-auto">
+                    <div className="space-y-3">
+                      {getAvailableComponentsForSelection().map((component) => (
+                        <div 
+                          key={component.id} 
+                          className="flex items-start space-x-3 p-3 bg-white rounded-md border border-gray-200 hover:border-gray-300 transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            id={`component-${component.id}`}
+                            checked={selectedComponentIds.includes(component.id)}
+                            onChange={(e) => handleComponentToggle(component.id, e.target.checked)}
+                            className="mt-1 h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                          />
+                          <Label
+                            htmlFor={`component-${component.id}`}
+                            className="flex-1 cursor-pointer"
+                          >
+                            <div className="space-y-1">
+                              <div className="font-medium text-gray-900">{component.name}</div>
+                              {component.description && (
+                                <div className="text-sm text-gray-500">{component.description}</div>
+                              )}
+                            </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
               
+              {/* Selection summary */}
               {selectedComponentIds.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  {selectedComponentIds.length} component(s) selected
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0">
+                      <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-blue-800">
+                        {selectedComponentIds.length} component{selectedComponentIds.length !== 1 ? 's' : ''} selected
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
               
-              <div className="flex gap-2">
-                <Button 
-                  type="submit" 
-                  disabled={selectedComponentIds.length === 0}
-                  onClick={() => {
-                    // The form submission will handle the addition
-                    // and we'll close the dialog after success
-                  }}
-                >
-                  Add {selectedComponentIds.length > 0 ? `${selectedComponentIds.length} ` : ''}Component{selectedComponentIds.length !== 1 ? 's' : ''}
-                </Button>
+              {/* Action buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <Button
                   type="button"
                   variant="outline"
@@ -607,6 +683,13 @@ const Index = () => {
                   }}
                 >
                   Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={selectedComponentIds.length === 0}
+                  className="min-w-[120px]"
+                >
+                  Add {selectedComponentIds.length > 0 ? `${selectedComponentIds.length} ` : ''}Component{selectedComponentIds.length !== 1 ? 's' : ''}
                 </Button>
               </div>
             </form>
