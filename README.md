@@ -21,6 +21,7 @@ docker-compose -f docker-compose.dev.yml up -d
 Visit:
 - 📱 **Frontend**: http://localhost:3000
 - 🔧 **Backend API**: http://localhost:3001  
+- 📚 **API Documentation**: http://localhost:3001/api-docs
 - 🗄️ **Database**: localhost:5432
 
 > 📖 **For detailed Docker documentation**: See [DOCKER.md](./DOCKER.md)
@@ -138,6 +139,26 @@ design-system/
       IconButton/
         IconButton.config.ts
 ```
+
+## API Documentation
+
+The API includes comprehensive OpenAPI/Swagger documentation available at:
+- **Interactive Docs**: http://localhost:3001/api-docs
+- **OpenAPI Spec**: http://localhost:3001/api-docs.json
+
+### API Categories:
+- **🎨 Design Systems**: Create and manage design systems, add/remove components
+- **🧩 Components**: Retrieve available components with variations and tokens  
+- **🔄 Variation Values**: Manage component variation instances with token values
+- **💊 Health**: System health monitoring
+
+### Key Features:
+- **Interactive Testing**: Test all endpoints directly from the documentation
+- **Request/Response Examples**: See real JSON examples for all operations
+- **Schema Validation**: Complete TypeScript-compatible data models
+- **Error Handling**: Detailed error responses with proper HTTP status codes
+
+The documentation covers all `/api` endpoints used by the CLI tool and external integrations.
 
 ## Project Structure
 

@@ -43,10 +43,12 @@ docker-compose -f docker-compose.dev.yml down
 - **Port**: 3001
 - **Framework**: Node.js/Express with TypeScript
 - **Health Check**: `http://localhost:3001/api/health`
+- **API Documentation**: `http://localhost:3001/api-docs`
 - **Features**: 
   - Database migrations and seeding
   - REST API endpoints
   - Health monitoring
+  - OpenAPI/Swagger documentation
 
 ### 🎨 Frontend Application
 - **Port**: 3000

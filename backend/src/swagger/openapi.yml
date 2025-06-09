@@ -1,0 +1,936 @@
+openapi: 3.0.3
+info:
+  title: Design System Builder API
+  description: API for managing design systems, components, variations, and their relationships
+  version: 1.0.0
+  contact:
+    name: Design System Builder
+    url: https://github.com/your-repo/ds-builder
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+  - url: http://localhost:3001/api
+    description: Production server
+
+paths:
+  /design-systems:
+    get:
+      summary: Get all design systems
+      description: Retrieve a list of all design systems
+      tags:
+        - Design Systems
+      responses:
+        '200':
+          description: Successfully retrieved design systems
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DesignSystem'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new design system
+      description: Create a new design system with name and optional description
+      tags:
+        - Design Systems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDesignSystemRequest'
+      responses:
+        '201':
+          description: Design system created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignSystem'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /design-systems/{id}:
+    get:
+      summary: Get design system by ID
+      description: Retrieve a specific design system with all its components, variations, and token values
+      tags:
+        - Design Systems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Design system ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved design system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignSystemDetailed'
+        '400':
+          description: Invalid design system ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Design system not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update design system
+      description: Update an existing design system's name and description
+      tags:
+        - Design Systems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Design system ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDesignSystemRequest'
+      responses:
+        '200':
+          description: Design system updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignSystem'
+        '400':
+          description: Invalid input or design system ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Design system not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete design system
+      description: Delete a design system and all its related data
+      tags:
+        - Design Systems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Design system ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Design system deleted successfully
+        '400':
+          description: Invalid design system ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Design system not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /design-systems/components:
+    post:
+      summary: Add component to design system
+      description: Add an existing component to a design system
+      tags:
+        - Design Systems
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddComponentRequest'
+      responses:
+        '201':
+          description: Component added to design system successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DesignSystemComponent'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Design system or component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Component is already part of this design system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /design-systems/components/{id}:
+    delete:
+      summary: Remove component from design system
+      description: Remove a component from a design system
+      tags:
+        - Design Systems
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Design system component relationship ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Component removed from design system successfully
+        '400':
+          description: Invalid design system component ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Component not found in design system
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /components/available:
+    get:
+      summary: Get available components
+      description: Retrieve all available components with their variations and tokens
+      tags:
+        - Components
+      responses:
+        '200':
+          description: Successfully retrieved available components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentDetailed'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /variation-values:
+    get:
+      summary: Get all variation values
+      description: Retrieve a list of all variation values
+      tags:
+        - Variation Values
+      responses:
+        '200':
+          description: Successfully retrieved variation values
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VariationValue'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new variation value
+      description: Create a new variation value with optional token values
+      tags:
+        - Variation Values
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVariationValueRequest'
+      responses:
+        '201':
+          description: Variation value created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariationValue'
+        '400':
+          description: Bad request - missing required fields or invalid data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /variation-values/{id}:
+    get:
+      summary: Get variation value by ID
+      description: Retrieve a specific variation value
+      tags:
+        - Variation Values
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation value ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved variation value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariationValue'
+        '404':
+          description: Variation value not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update variation value
+      description: Update an existing variation value and its token values
+      tags:
+        - Variation Values
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation value ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVariationValueRequest'
+      responses:
+        '200':
+          description: Variation value updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VariationValue'
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Variation value not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete variation value
+      description: Delete a variation value and all its token values
+      tags:
+        - Variation Values
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation value ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Variation value deleted successfully
+        '404':
+          description: Variation value not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: Health check
+      description: Check if the API is running and healthy
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    DesignSystem:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the design system
+          example: 1
+        name:
+          type: string
+          description: Name of the design system
+          example: "Plasma Design System"
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the design system
+          example: "A comprehensive design system for modern UI components"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the design system was created
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the design system was last updated
+          example: "2024-01-01T12:00:00Z"
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    DesignSystemDetailed:
+      allOf:
+        - $ref: '#/components/schemas/DesignSystem'
+        - type: object
+          properties:
+            components:
+              type: array
+              items:
+                $ref: '#/components/schemas/DesignSystemComponent'
+            variationValues:
+              type: array
+              items:
+                $ref: '#/components/schemas/VariationValueDetailed'
+
+    DesignSystemComponent:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        designSystemId:
+          type: integer
+          format: int64
+          example: 1
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        component:
+          $ref: '#/components/schemas/ComponentDetailed'
+
+    Component:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "Button"
+        description:
+          type: string
+          nullable: true
+          example: "A clickable button component"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    ComponentDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Component'
+        - type: object
+          properties:
+            variations:
+              type: array
+              items:
+                $ref: '#/components/schemas/VariationDetailed'
+            tokens:
+              type: array
+              items:
+                $ref: '#/components/schemas/Token'
+
+    Variation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "view"
+        description:
+          type: string
+          nullable: true
+          example: "Visual appearance variation"
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    VariationDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Variation'
+        - type: object
+          properties:
+            tokenVariations:
+              type: array
+              items:
+                $ref: '#/components/schemas/TokenVariation'
+
+    Token:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "buttonColor"
+        description:
+          type: string
+          nullable: true
+          example: "Primary color for button component"
+        type:
+          type: string
+          example: "color"
+        defaultValue:
+          type: string
+          nullable: true
+          example: "#007bff"
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        xmlParam:
+          type: string
+          nullable: true
+          example: "colorPrimary"
+        composeParam:
+          type: string
+          nullable: true
+          example: "primaryColor"
+        iosParam:
+          type: string
+          nullable: true
+          example: "primaryColor"
+        webParam:
+          type: string
+          nullable: true
+          example: "--button-primary-color"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    TokenVariation:
+      type: object
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+
+    VariationValue:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        designSystemId:
+          type: integer
+          format: int64
+          example: 1
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        variationId:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "primary"
+        description:
+          type: string
+          nullable: true
+          example: "Primary button style"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    VariationValueDetailed:
+      allOf:
+        - $ref: '#/components/schemas/VariationValue'
+        - type: object
+          properties:
+            tokenValues:
+              type: array
+              items:
+                $ref: '#/components/schemas/TokenValueDetailed'
+
+    TokenValue:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        variationValueId:
+          type: integer
+          format: int64
+          example: 1
+        tokenId:
+          type: integer
+          format: int64
+          example: 1
+        value:
+          type: string
+          example: "#007bff"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    TokenValueDetailed:
+      allOf:
+        - $ref: '#/components/schemas/TokenValue'
+        - type: object
+          properties:
+            token:
+              $ref: '#/components/schemas/Token'
+
+    CreateDesignSystemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the design system
+          example: "My Design System"
+        description:
+          type: string
+          nullable: true
+          description: Optional description
+          example: "A custom design system for our application"
+      required:
+        - name
+
+    UpdateDesignSystemRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name of the design system
+          example: "Updated Design System"
+        description:
+          type: string
+          nullable: true
+          description: Updated description
+          example: "An updated description"
+      required:
+        - name
+
+    AddComponentRequest:
+      type: object
+      properties:
+        designSystemId:
+          type: integer
+          format: int64
+          description: ID of the design system
+          example: 1
+        componentId:
+          type: integer
+          format: int64
+          description: ID of the component to add
+          example: 1
+      required:
+        - designSystemId
+        - componentId
+
+    CreateVariationValueRequest:
+      type: object
+      properties:
+        designSystemId:
+          type: integer
+          format: int64
+          description: ID of the design system
+          example: 1
+        componentId:
+          type: integer
+          format: int64
+          description: ID of the component
+          example: 1
+        variationId:
+          type: integer
+          format: int64
+          description: ID of the variation
+          example: 1
+        name:
+          type: string
+          description: Name of the variation value
+          example: "primary"
+        description:
+          type: string
+          nullable: true
+          description: Optional description
+          example: "Primary button style"
+        tokenValues:
+          type: array
+          nullable: true
+          description: Optional token values to associate
+          items:
+            type: object
+            properties:
+              tokenId:
+                type: integer
+                format: int64
+                example: 1
+              value:
+                type: string
+                example: "#007bff"
+            required:
+              - tokenId
+              - value
+      required:
+        - designSystemId
+        - componentId
+        - variationId
+        - name
+
+    UpdateVariationValueRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name of the variation value
+          example: "updated-primary"
+        description:
+          type: string
+          nullable: true
+          description: Updated description
+          example: "Updated primary button style"
+        tokenValues:
+          type: array
+          nullable: true
+          description: Updated token values
+          items:
+            type: object
+            properties:
+              tokenId:
+                type: integer
+                format: int64
+                example: 1
+              value:
+                type: string
+                example: "#0056b3"
+            required:
+              - tokenId
+              - value
+      required:
+        - name
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        uptime:
+          type: number
+          format: float
+          example: 3600.123
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Design system not found"
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Missing required fields"
+        missingFields:
+          type: array
+          items:
+            type: string
+          description: List of missing required fields
+          example: ["name", "componentId"]
+
+tags:
+  - name: Design Systems
+    description: Operations related to design systems
+  - name: Components
+    description: Operations related to components
+  - name: Variation Values
+    description: Operations related to variation values
+  - name: Health
+    description: Health check operations 
