@@ -9,6 +9,15 @@ import { db } from '../db';
 
 const router = Router();
 
+// Health check endpoint
+router.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 // Mount routes under 'api' namespace
 router.use('/api/design-systems', createDesignSystemsRouter(db));
 router.use('/api/variation-values', createVariationValuesRouter(db));

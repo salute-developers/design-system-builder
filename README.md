@@ -2,6 +2,29 @@
 
 A modern web application for managing and building design systems. This application allows you to create and manage components, variations, tokens, and their relationships with an intuitive admin interface.
 
+## 🚀 Quick Start with Docker (Recommended)
+
+The fastest way to get started is using Docker:
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd ds-builder-structure
+
+# Run the automated setup script
+./setup-docker.sh
+
+# Or manually:
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+Visit:
+- 📱 **Frontend**: http://localhost:3000
+- 🔧 **Backend API**: http://localhost:3001  
+- 🗄️ **Database**: localhost:5432
+
+> 📖 **For detailed Docker documentation**: See [DOCKER.md](./DOCKER.md)
+
 ## Features
 
 - **Component Management**: Create and organize UI components with cascade delete support
@@ -15,13 +38,35 @@ A modern web application for managing and building design systems. This applicat
 - **Visual Indicators**: Clear indication of unassigned tokens and current assignments
 - **Multi-Selection**: Bulk token assignment capabilities
 - **Database Integrity**: Proper foreign key constraints with cascade delete for data consistency
+- **CLI Tool**: Generate component configurations from design systems
 
 ## Prerequisites
 
+### Local Development
 - Node.js (v18 or higher)
 - PostgreSQL database
 
-## Setup
+### Docker (Recommended)
+- Docker & Docker Compose
+- 4GB+ RAM recommended
+
+## Setup Options
+
+### Option 1: Docker Setup (Recommended)
+
+```bash
+# Automated setup
+./setup-docker.sh
+
+# Manual setup
+docker-compose -f docker-compose.dev.yml up -d
+
+# Initialize database
+docker-compose -f docker-compose.dev.yml exec backend npm run migrate
+docker-compose -f docker-compose.dev.yml exec backend npm run seed
+```
+
+### Option 2: Local Development
 
 1. Clone the repository
 2. Install dependencies:
@@ -65,11 +110,44 @@ A modern web application for managing and building design systems. This applicat
 
 This will start both the backend (port 3001) and frontend (port 5173) servers.
 
+## CLI Tool: generate-ds
+
+Generate TypeScript component configurations from your design systems:
+
+```bash
+cd generate-ds
+npm install
+
+# Generate components for design system ID 1
+npm run dev 1
+
+# With custom output directory  
+npm run dev 1 --output ./my-components
+
+# Dry run (preview only)
+npm run dev 1 --dry-run
+```
+
+The CLI tool creates:
+```
+design-system/
+  src/
+    components/
+      Button/
+        Button.config.ts
+      IconButton/
+        IconButton.config.ts
+```
+
 ## Project Structure
 
 - `/backend` - Node.js backend with Express and Drizzle ORM
 - `/frontend` - React frontend with TypeScript and shadcn/ui
+- `/generate-ds` - CLI tool for generating component configurations
 - `/docs` - Documentation including database schema
+- `docker-compose.yml` - Production Docker configuration
+- `docker-compose.dev.yml` - Development Docker configuration
+- `DOCKER.md` - Comprehensive Docker documentation
 
 ## Admin Interface
 
@@ -154,6 +232,12 @@ This architecture ensures design system principles are maintained while providin
 - React Router for navigation
 - Axios for API communication
 
+### Infrastructure:
+- Docker & Docker Compose
+- Nginx (production frontend)
+- Health checks and monitoring
+- Multi-stage builds
+
 ### Development:
 - Concurrent development servers
 - Hot reload for both frontend and backend
@@ -177,6 +261,7 @@ The project includes comprehensive tests covering:
 
 ## Development Commands
 
+### Local Development
 ```bash
 # Install all dependencies
 npm run install:all
@@ -200,11 +285,27 @@ cd backend && npm run generate && npm run migrate
 cd backend && npm run seed
 ```
 
-## Recent Improvements
+### Docker Commands
+```bash
+# Development environment
+docker-compose -f docker-compose.dev.yml up -d
 
-### v1.1.0 - Database Integrity & Smart Seeding
-- **Fixed Foreign Key Constraints**: Added cascade delete to all relationships for proper data cleanup
-- **Component Deletion**: Components can now be safely deleted with all related data automatically removed
-- **Smart Token Assignment**: Seed script now properly assigns tokens to relevant variations based on web config structure
-- **Enhanced Testing**: Added comprehensive CRUD tests for all components operations
-- **Optional Token Values**: Made `defaultValue` optional for tokens in both frontend and API 
+# Production environment  
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+
+# Database operations
+docker-compose exec backend npm run migrate
+docker-compose exec backend npm run seed
+```
+
+## Documentation
+
+- 📖 **[Docker Setup Guide](./DOCKER.md)** - Complete Docker documentation
+- 📁 **[Database Schema](./docs/)** - Database architecture details
+- 🛠️ **[CLI Tool](./generate-ds/README.md)** - Component generation tool 

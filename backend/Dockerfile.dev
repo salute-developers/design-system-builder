@@ -1,0 +1,23 @@
+# Use Node.js 20 Alpine as base image
+FROM node:20-alpine
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 3001
+
+# Start the development server with hot reloading
+CMD ["npm", "run", "dev"] 
