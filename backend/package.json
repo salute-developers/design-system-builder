@@ -11,6 +11,8 @@
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
     "seed": "ts-node src/db/seed.ts",
+    "seed-values": "ts-node src/db/seed-values.ts",
+    "seed-all": "ts-node src/db/cleanup-and-seed.ts",
     "test": "vitest --run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch"
