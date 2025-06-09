@@ -1,15 +1,24 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-
-export const apiConfig = {
-  baseUrl: API_BASE_URL,
+const API_CONFIG = {
+  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
   endpoints: {
     designSystems: '/api/design-systems',
+    variationValues: '/api/variation-values',
+    components: '/api/components',
+  },
+  adminEndpoints: {
     components: '/admin-api/components',
     variations: '/admin-api/variations',
     tokens: '/admin-api/tokens',
-    variationValues: '/api/variation-values',
   },
 };
+
+export function getApiUrl(endpoint: keyof typeof API_CONFIG.endpoints): string {
+  return `${API_CONFIG.baseUrl}${API_CONFIG.endpoints[endpoint]}`;
+}
+
+export function getAdminApiUrl(endpoint: keyof typeof API_CONFIG.adminEndpoints): string {
+  return `${API_CONFIG.baseUrl}${API_CONFIG.adminEndpoints[endpoint]}`;
+}
 
 // TODO: endpoints could have a path parameter, so we need to handle that
 // /api/design-systems/components/1/variations/1/tokens
@@ -17,7 +26,3 @@ export const apiConfig = {
 // Option 1: Shared Types Package
 // Option 2: Update Current API Config
 // Option 3: Code Generation (Advanced)
-
-export const getApiUrl = (endpoint: keyof typeof apiConfig.endpoints) => {
-  return `${apiConfig.baseUrl}${apiConfig.endpoints[endpoint]}`;
-};

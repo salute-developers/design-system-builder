@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
-import { getApiUrl } from '../config/api';
+import { getAdminApiUrl } from '../config/api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import {
@@ -107,7 +107,7 @@ const Admin = () => {
 
   const fetchComponents = async () => {
     try {
-      const response = await fetch(getApiUrl('components'));
+      const response = await fetch(getAdminApiUrl('components'));
       const data = await response.json();
       setComponents(data);
     } catch (error) {
@@ -117,7 +117,7 @@ const Admin = () => {
 
   const fetchComponentDetails = async (componentId: number) => {
     try {
-      const response = await fetch(getApiUrl('components') + `/${componentId}`);
+      const response = await fetch(getAdminApiUrl('components') + `/${componentId}`);
       const data = await response.json();
       setSelectedComponent(data);
     } catch (error) {
@@ -206,7 +206,7 @@ const Admin = () => {
       if (isEditMode && editingItem) {
         switch (dialogType) {
           case 'component':
-            response = await fetch(getApiUrl('components') + `/${editingItem.id}`, {
+            response = await fetch(getAdminApiUrl('components') + `/${editingItem.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -223,7 +223,7 @@ const Admin = () => {
             break;
 
           case 'variation':
-            response = await fetch(getApiUrl('variations') + `/${editingItem.id}`, {
+            response = await fetch(getAdminApiUrl('variations') + `/${editingItem.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -237,7 +237,7 @@ const Admin = () => {
             break;
 
           case 'token':
-            response = await fetch(getApiUrl('tokens') + `/${editingItem.id}`, {
+            response = await fetch(getAdminApiUrl('tokens') + `/${editingItem.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -259,7 +259,7 @@ const Admin = () => {
       } else {
         switch (dialogType) {
           case 'component':
-            response = await fetch(getApiUrl('components'), {
+            response = await fetch(getAdminApiUrl('components'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -272,7 +272,7 @@ const Admin = () => {
             break;
 
           case 'variation':
-            response = await fetch(getApiUrl('variations'), {
+            response = await fetch(getAdminApiUrl('variations'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -286,7 +286,7 @@ const Admin = () => {
             break;
 
           case 'token':
-            response = await fetch(getApiUrl('tokens'), {
+            response = await fetch(getAdminApiUrl('tokens'), {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -330,7 +330,7 @@ const Admin = () => {
     try {
       switch (type) {
         case 'component':
-          await fetch(getApiUrl('components') + `/${id}`, { method: 'DELETE' });
+          await fetch(getAdminApiUrl('components') + `/${id}`, { method: 'DELETE' });
           setComponents(components.filter(c => c.id !== id));
           if (selectedComponent?.id === id) {
             setSelectedComponent(null);
@@ -338,12 +338,12 @@ const Admin = () => {
           break;
 
         case 'variation':
-          await fetch(getApiUrl('variations') + `/${id}`, { method: 'DELETE' });
+          await fetch(getAdminApiUrl('variations') + `/${id}`, { method: 'DELETE' });
           await refreshComponentData();
           break;
 
         case 'token':
-          await fetch(getApiUrl('tokens') + `/${id}`, { method: 'DELETE' });
+          await fetch(getAdminApiUrl('tokens') + `/${id}`, { method: 'DELETE' });
           await refreshComponentData();
           break;
       }
@@ -427,7 +427,7 @@ const Admin = () => {
 
       // Add new tokens
       for (const tokenId of tokensToAdd) {
-        await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
+        await fetch(getAdminApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -435,7 +435,7 @@ const Admin = () => {
 
       // Remove unselected tokens
       for (const tokenId of tokensToRemove) {
-        await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
+        await fetch(getAdminApiUrl('tokens') + `/${tokenId}/variations/${variation.id}`, {
           method: 'DELETE',
         });
       }
@@ -455,7 +455,7 @@ const Admin = () => {
     if (!confirm('Are you sure you want to remove this token from the variation?')) return;
 
     try {
-      await fetch(getApiUrl('tokens') + `/${tokenId}/variations/${variationId}`, {
+      await fetch(getAdminApiUrl('tokens') + `/${tokenId}/variations/${variationId}`, {
         method: 'DELETE',
       });
       
