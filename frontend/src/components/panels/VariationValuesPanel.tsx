@@ -26,7 +26,6 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
         <div className="mb-4 flex justify-between items-center">
           <div>
             <h2 className="text-lg font-semibold">{selectedVariation.name} Values</h2>
-            <p className="text-sm text-gray-600">{selectedVariation.description}</p>
           </div>
           <Button onClick={onOpenAddVariationValueDialog} size="sm">
             Add Value
@@ -36,19 +35,23 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
         <div className="space-y-4">
           {selectedDesignSystem.variationValues
             .filter(vv => vv.variationId === selectedVariation.id)
+            .sort((a, b) => a.id - b.id)
             .map((variationValue) => (
               <Card key={variationValue.id} className="mb-2">
                 <CardHeader>
                   <div className="flex justify-between items-start">
-                    <div>
+                    <div className="flex-1 pr-4">
                       <CardTitle>{variationValue.name}</CardTitle>
-                      <p>{variationValue.description}</p>
+                      {variationValue.description && (
+                        <p className="text-sm text-gray-600 mt-1">{variationValue.description}</p>
+                      )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex flex-col gap-1 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => onOpenEditVariationValueDialog(variationValue)}
+                        className="whitespace-nowrap text-xs"
                       >
                         Edit Value
                       </Button>
@@ -56,6 +59,7 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => onOpenEditTokenValuesDialog(variationValue)}
+                        className="whitespace-nowrap text-xs"
                       >
                         Edit Tokens
                       </Button>
@@ -63,7 +67,7 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => onDeleteVariationValue(variationValue)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 whitespace-nowrap text-xs"
                       >
                         Delete
                       </Button>

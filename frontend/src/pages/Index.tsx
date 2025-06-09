@@ -298,6 +298,10 @@ const Index = () => {
       }
       
       await handleSelect(selectedDesignSystem.id);
+      
+      // Close dialog and reset form
+      setShowEditVariationValueDialog(false);
+      setEditingVariationValue(null);
       setNewVariationValue({
         componentId: '',
         variationId: '',
@@ -812,11 +816,7 @@ const Index = () => {
                   );
                 }
                 
-                return availableTokens.map((token: Token) => {
-                  // Find the current value for this token from the editingTokenValues
-                  const currentTokenValue = editingTokenValues.tokenValues.find(tv => tv.tokenId === token.id);
-                  const currentValue = currentTokenValue?.value || '';
-                  
+                return availableTokens.map((token: Token) => {                  
                   return (
                     <div key={token.id} className="space-y-2">
                       <Label htmlFor={`dialog-token-${token.id}`}>
@@ -832,7 +832,7 @@ const Index = () => {
                       </Label>
                       <Input
                         id={`dialog-token-${token.id}`}
-                        value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || currentValue}
+                        value={newVariationValue.tokenValues.find(tv => tv.tokenId === token.id)?.value || ''}
                         onChange={(e) => {
                           const tokenValues = [...newVariationValue.tokenValues];
                           const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
@@ -844,7 +844,6 @@ const Index = () => {
                           setNewVariationValue({ ...newVariationValue, tokenValues });
                         }}
                         placeholder={token.defaultValue || `Enter ${token.name} value`}
-                        required
                       />
                     </div>
                   );
