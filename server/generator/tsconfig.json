@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+      "target": "es2017",
+      "module": "esnext",
+      "lib": ["esnext"],
+      "importHelpers": false,
+
+      /* Strict Type-Checking Options */
+      "strict": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "strictFunctionTypes": true,
+      "strictBindCallApply": true,
+      "strictPropertyInitialization": true,
+      "noImplicitThis": true,
+      "alwaysStrict": true,
+      "isolatedModules": true,
+      "declaration": true,
+      "declarationMap": true,
+
+      /* Additional Checks */
+      "noUnusedLocals": true,
+      // "noUnusedParameters": true,
+      // "noImplicitReturns": true,
+      // "noFallthroughCasesInSwitch": true,
+
+      /* Module Resolution Options */
+      "resolveJsonModule": true,
+      "moduleResolution": "node",
+      "esModuleInterop": true,
+
+      /* Advanced Options */
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "outDir": "./build",
+      "rootDir": "./src"
+  },
+  "include": ["./src"],
+  "exclude": ["node_modules"]
+}
