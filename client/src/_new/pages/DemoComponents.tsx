@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { IconHomeAltOutline } from '@salutejs/plasma-icons';
 import { Button, IconButton } from '@salutejs/plasma-b2c';
 
-import { Button as TestButton, IconButton as TestIconButton, Link as TestLink } from '@salutejs-ds/test';
-import webThemes from '@salutejs-ds/test/css/test.module.css';
+// import { Button as TestButton, IconButton as TestIconButton, Link as TestLink } from '@salutejs-ds/test';
+// import webThemes from '@salutejs-ds/test/css/test.module.css';
 
 import type { Theme } from '../../themeBuilder';
 
@@ -66,24 +66,24 @@ const StyledActions = styled.div`
     justify-content: flex-end;
 `;
 
-const StyledDemoContent = styled.div`
-    padding: 1rem;
-    overflow-y: scroll;
-    overflow-x: hidden;
+// const StyledDemoContent = styled.div`
+//     padding: 1rem;
+//     overflow-y: scroll;
+//     overflow-x: hidden;
 
-    display: grid;
-    gap: 1rem;
-    height: 100%;
-    justify-items: center; /* центрирует содержимое ячеек по горизонтали */
+//     display: grid;
+//     gap: 1rem;
+//     height: 100%;
+//     justify-items: center; /* центрирует содержимое ячеек по горизонтали */
 
-    grid-template-columns: repeat(6, 1fr);
+//     grid-template-columns: repeat(6, 1fr);
 
-    margin-bottom: 0.5rem;
-    border-radius: 0.5rem;
-    background: #0c0c0c;
-`;
+//     margin-bottom: 0.5rem;
+//     border-radius: 0.5rem;
+//     background: #0c0c0c;
+// `;
 
-const StyledLinkExample = styled.div``;
+// const StyledLinkExample = styled.div``;
 
 interface DemoComponentsProps {
     theme: Theme;
@@ -108,7 +108,7 @@ export const DemoComponents = (props: DemoComponentsProps) => {
                 </IconButton>
             </StyledThemeInfo>
             <StyledWrapper>
-                <StyledDemoContent className={webThemes.dark}>
+                {/* <StyledDemoContent className={webThemes.dark}>
                     <TestButton
                         contentLeft={<IconHomeAltOutline color="inherit" size="s" />}
                         view="accent"
@@ -122,7 +122,7 @@ export const DemoComponents = (props: DemoComponentsProps) => {
                     <StyledLinkExample>
                         Just <TestLink view="accent">link test</TestLink>
                     </StyledLinkExample>
-                </StyledDemoContent>
+                </StyledDemoContent> */}
                 <StyledActions>
                     <Button view="primary" onClick={onGoHome} text="Вернуться" />
                 </StyledActions>

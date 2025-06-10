@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import { Grayscale, type ThemeConfig } from '@salutejs/plasma-tokens-utils';
 
-import { ComponentEditor, ComponentSelector, DemoComponents, Main, TokensEditor } from './_new/pages';
+import { ComponentEditor, ComponentSelector, /* DemoComponents, */ Main, TokensEditor } from './_new/pages';
 import { buildDefaultTheme, type Theme } from './themeBuilder';
 import { Config } from './componentBuilder';
+import { TestIntegration } from './pages/TestIntegration';
 
 // TODO: подумать про версионирование
 const buildDefaultThemeWithUserConfig = () => {
@@ -32,6 +33,7 @@ function App() {
         <BrowserRouter>
             <Routes>
                 <Route index element={<Main createTheme={setTheme} />} />
+                <Route path="test-api" element={<TestIntegration />} />
                 {theme && (
                     <>
                         <Route path="theme" element={<TokensEditor theme={theme} updateTheme={setTheme} />} />
@@ -42,7 +44,13 @@ function App() {
                                 element={<ComponentEditor updateComponents={setComponents} theme={theme} />}
                             />
                         </Route>
-                        <Route path="/demo" element={<DemoComponents theme={theme} />} />
+                        <Route path="component">
+                            <Route
+                                path=":component"
+                                element={<ComponentEditor updateComponents={setComponents} theme={theme} />}
+                            />
+                        </Route>
+                        {/* <Route path="/demo" element={<DemoComponents theme={theme} />} /> */}
                     </>
                 )}
             </Routes>
