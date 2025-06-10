@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
 import { Grayscale, type ThemeConfig } from '@salutejs/plasma-tokens-utils';
 
-import { ComponentEditor, ComponentSelector, DemoComponents, Main, TokensEditor } from './_new/pages';
+import { ComponentEditor, ComponentSelector, /* DemoComponents, */ Main, TokensEditor } from './_new/pages';
 import { buildDefaultTheme, type Theme } from './themeBuilder';
 import { Config } from './componentBuilder';
 
@@ -42,7 +42,7 @@ function App() {
                                 element={<ComponentEditor updateComponents={setComponents} theme={theme} />}
                             />
                         </Route>
-                        <Route path="/demo" element={<DemoComponents theme={theme} />} />
+                        {/* <Route path="/demo" element={<DemoComponents theme={theme} />} /> */}
                     </>
                 )}
             </Routes>
