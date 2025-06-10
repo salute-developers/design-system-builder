@@ -5,6 +5,7 @@ import { Grayscale, type ThemeConfig } from '@salutejs/plasma-tokens-utils';
 import { ComponentEditor, ComponentSelector, /* DemoComponents, */ Main, TokensEditor } from './_new/pages';
 import { buildDefaultTheme, type Theme } from './themeBuilder';
 import { Config } from './componentBuilder';
+import { TestIntegration } from './pages/TestIntegration';
 
 // TODO: подумать про версионирование
 const buildDefaultThemeWithUserConfig = () => {
@@ -32,11 +33,18 @@ function App() {
         <BrowserRouter>
             <Routes>
                 <Route index element={<Main createTheme={setTheme} />} />
+                <Route path="test-api" element={<TestIntegration />} />
                 {theme && (
                     <>
                         <Route path="theme" element={<TokensEditor theme={theme} updateTheme={setTheme} />} />
                         <Route path="components">
                             <Route index element={<ComponentSelector components={components} theme={theme} />} />
+                            <Route
+                                path=":component"
+                                element={<ComponentEditor updateComponents={setComponents} theme={theme} />}
+                            />
+                        </Route>
+                        <Route path="component">
                             <Route
                                 path=":component"
                                 element={<ComponentEditor updateComponents={setComponents} theme={theme} />}

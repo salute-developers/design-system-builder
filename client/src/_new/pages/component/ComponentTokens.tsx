@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { TabItem, Tabs, TextXS } from '@salutejs/plasma-b2c';
 import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
@@ -84,7 +84,14 @@ const getTokenList = (config: Config, selectedVariation?: string, selectedStyle?
 };
 
 const getDefaults = (config: Config, args: Record<string, string | boolean>) => {
-    const [variation, value] = Object.entries(args as Record<string, string>)[0];
+    const entries = Object.entries(args as Record<string, string>);
+    
+    // Safety check: if no args provided, return undefined values
+    if (!entries || entries.length === 0) {
+        return { variationID: undefined, styleID: undefined };
+    }
+    
+    const [variation, value] = entries[0];
 
     const variationID = config
         .getVariations()
@@ -135,12 +142,18 @@ interface ComponentTokensProps {
 export const ComponentTokens = (props: ComponentTokensProps) => {
     const { args, config, theme, updateConfig, setAddStyleModal, onChangeComponentControlValue } = props;
 
-    const { variationID, styleID } = useMemo(() => getDefaults(config, args), []);
+    const { variationID, styleID } = useMemo(() => getDefaults(config, args), [config, args]);
 
     const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
     const [selectedStyle, setSelectedStyle] = useState<undefined | string>(styleID);
 
     const [newToken, setNewToken] = useState<string>('');
+
+    // Update selected values when defaults change
+    useEffect(() => {
+        setSelectedVariation(variationID);
+        setSelectedStyle(styleID);
+    }, [variationID, styleID]);
 
     const onChangeVariation = (value: string) => {
         setNewToken('');
