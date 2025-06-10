@@ -1,0 +1,280 @@
+import { useMemo, useState } from 'react';
+import styled from 'styled-components';
+import { TabItem, Tabs, TextXS } from '@salutejs/plasma-b2c';
+import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
+
+import type { Config } from '../../../componentBuilder';
+import { ComponentToken } from './ComponentToken';
+import { ComponentAddToken } from './ComponentAddToken';
+import type { Theme } from '../../../themeBuilder';
+import { ComponentControl } from './ComponentControl';
+
+const StyledRoot = styled.div`
+    background: #0c0c0c;
+    width: 50%;
+    border-radius: 0.5rem;
+    padding: 0rem 1rem;
+`;
+
+const StyledCaption = styled(TextXS)`
+    margin-top: 1rem;
+`;
+
+const StyledRemoveStyle = styled.div`
+    margin-left: 2rem;
+`;
+
+const StyledAddStyleTabItem = styled(TabItem)`
+    width: 50%;
+`;
+
+const StyledTokens = styled.div`
+    height: calc(100% - 10rem);
+    overflow-x: hidden;
+    overflow-y: scroll;
+`;
+
+const StyledTabsStyle = styled(Tabs)`
+    width: 100%;
+`;
+
+const getVariations = (config: Config) => {
+    const variations = config.getVariations().map((item) => {
+        const propValues = (item.getStyles() || []).map((style) => ({
+            label: style.getName(),
+            value: style.getID(),
+        }));
+
+        return {
+            label: item.getName(),
+            value: item.getID(),
+            inner: propValues,
+        };
+    });
+    variations.push({
+        label: 'общее',
+        value: 'invariants',
+        inner: [],
+    });
+    variations.push({
+        label: 'по умолчанию',
+        value: 'defaults',
+        inner: [],
+    });
+
+    return variations;
+};
+
+const getTokenList = (config: Config, selectedVariation?: string, selectedStyle?: string) => {
+    if (!selectedStyle || selectedVariation === 'defaults') {
+        return [];
+    }
+
+    if (selectedVariation === undefined) {
+        return config.getInvariants().getList();
+    }
+
+    const style = config.getStyle(selectedVariation, selectedStyle);
+
+    if (!style) {
+        return [];
+    }
+
+    return style.getProps().getList();
+};
+
+const getDefaults = (config: Config, args: Record<string, string | boolean>) => {
+    const [variation, value] = Object.entries(args as Record<string, string>)[0];
+
+    const variationID = config
+        .getVariations()
+        .find((item) => item.getName() === variation)
+        ?.getID();
+
+    return { variationID, styleID: value };
+};
+
+const getDefaultList = (config: Config, updateConfig: () => void) => {
+    return config.getDefaults().map((item) => {
+        const name = item.getVariation();
+        const variationID = item.getVariationID();
+        const value = item.getStyleID();
+
+        const list = config
+            .getVariation(variationID)
+            ?.getStyles()
+            ?.map((style) => ({
+                label: style.getName(),
+                value: style.getID(),
+            }));
+
+        const onChange = (_name: string, value: unknown) => {
+            config.updateDefaults(variationID, value as string);
+
+            updateConfig();
+        };
+
+        return {
+            name,
+            value,
+            list,
+            onChange,
+        };
+    });
+};
+
+interface ComponentTokensProps {
+    args: Record<string, string | boolean>;
+    config: Config;
+    theme: Theme;
+    updateConfig: () => void;
+    setAddStyleModal: (value: { open: boolean; variationID?: string }) => void;
+    onChangeComponentControlValue: (name?: string, value?: unknown) => void;
+}
+
+export const ComponentTokens = (props: ComponentTokensProps) => {
+    const { args, config, theme, updateConfig, setAddStyleModal, onChangeComponentControlValue } = props;
+
+    const { variationID, styleID } = useMemo(() => getDefaults(config, args), []);
+
+    const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
+    const [selectedStyle, setSelectedStyle] = useState<undefined | string>(styleID);
+
+    const [newToken, setNewToken] = useState<string>('');
+
+    const onChangeVariation = (value: string) => {
+        setNewToken('');
+
+        if (value === 'defaults') {
+            setSelectedVariation(value);
+            return;
+        }
+
+        if (value === 'invariants') {
+            setSelectedVariation(undefined);
+            return;
+        }
+
+        const variation = config.getVariation(value)?.getName();
+        const style = config.getStyle(value)?.getID();
+
+        setSelectedVariation(value);
+        setSelectedStyle(style);
+
+        onChangeComponentControlValue(variation, style);
+    };
+
+    const onChangeStyle = (value: string) => {
+        setNewToken('');
+        setSelectedStyle(value);
+
+        const variation = config.getVariation(selectedVariation)?.getName();
+        onChangeComponentControlValue(variation, value);
+    };
+
+    const onRemoveStyle = (value: string, event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+        event.stopPropagation();
+
+        if (value === selectedStyle) {
+            const variation = config.getVariation(selectedVariation)?.getName();
+            onChangeComponentControlValue(variation, '');
+        }
+
+        config.removeVariationStyle(selectedVariation, value);
+        updateConfig();
+    };
+
+    const onAddStyle = () => {
+        setAddStyleModal({
+            open: true,
+            variationID: selectedVariation,
+        });
+    };
+
+    const variations = getVariations(config);
+    const styles = variations.find((item) => item.value === selectedVariation)?.inner;
+
+    const tokenList = getTokenList(config, selectedVariation, selectedStyle);
+    const defaultList = getDefaultList(config, updateConfig);
+
+    return (
+        <StyledRoot>
+            <StyledCaption>Вариации</StyledCaption>
+            <Tabs view="divider" size="m" stretch>
+                {variations.map(({ label, value }) => (
+                    <TabItem
+                        view="divider"
+                        key={`item:${label}`}
+                        size="m"
+                        selected={value === selectedVariation}
+                        onClick={() => onChangeVariation(value)}
+                    >
+                        {label}
+                    </TabItem>
+                ))}
+            </Tabs>
+            {Boolean(styles?.length) && (
+                <>
+                    <StyledCaption>Стили</StyledCaption>
+                    <StyledTabsStyle view="divider" size="m">
+                        {styles?.map(({ label, value }) => (
+                            <TabItem
+                                view="divider"
+                                key={`item_inner:${label}`}
+                                size="s"
+                                selected={value === selectedStyle}
+                                contentRight={
+                                    <StyledRemoveStyle onClick={(event) => onRemoveStyle(value, event)}>
+                                        <IconTrash />
+                                    </StyledRemoveStyle>
+                                }
+                                onClick={() => onChangeStyle(value)}
+                            >
+                                {label}
+                            </TabItem>
+                        ))}
+                        <StyledAddStyleTabItem view="divider" size="s" onClick={onAddStyle}>
+                            <IconAddOutline />
+                        </StyledAddStyleTabItem>
+                    </StyledTabsStyle>
+                </>
+            )}
+            <StyledTokens>
+                {selectedVariation === 'defaults' ? (
+                    defaultList.map(({ list, name, value, onChange }) => (
+                        <ComponentControl
+                            key={`defaults:${name}`}
+                            name={name}
+                            items={list}
+                            value={value}
+                            onChangeValue={onChange}
+                        />
+                    ))
+                ) : (
+                    <>
+                        {tokenList.map((prop) => (
+                            <ComponentToken
+                                key={`token:${prop.getName()}`}
+                                item={prop}
+                                config={config}
+                                theme={theme}
+                                variationID={selectedVariation}
+                                styleID={selectedStyle}
+                                updateConfig={updateConfig}
+                            />
+                        ))}
+                        <ComponentAddToken
+                            config={config}
+                            theme={theme}
+                            variationID={selectedVariation}
+                            styleID={selectedStyle}
+                            newToken={newToken}
+                            setNewToken={setNewToken}
+                            updateConfig={updateConfig}
+                        />
+                    </>
+                )}
+            </StyledTokens>
+        </StyledRoot>
+    );
+};
