@@ -1,66 +1,9 @@
-import styled, { createGlobalStyle } from 'styled-components';
+import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { IconHomeAltOutline } from '@salutejs/plasma-icons';
-import { Button, H3, IconButton, Select } from '@salutejs/plasma-b2c';
+import { Button, H3 } from '@salutejs/plasma-b2c';
 
-import type { Theme } from '../../../themeBuilder';
-import { Config } from '../../../componentBuilder';
-import { getComponentMeta } from '../../../componentBuilder/api';
-import { createMetaTokens } from '../../../themeBuilder/themes/createMetaTokens';
-import { createVariationTokens } from '../../../themeBuilder/themes/createVariationTokens';
-import { useState } from 'react';
-
-const NoScroll = createGlobalStyle`
-    html, body {
-        overscroll-behavior: none;
-    }
-`;
-
-const StyledContainer = styled.div`
-    position: relative;
-
-    width: 100%;
-    height: 100vh;
-    box-sizing: border-box;
-    background-color: #000;
-`;
-
-const StyledWrapper = styled.div`
-    position: relative;
-    inset: 3rem;
-    top: 4.5rem;
-    border-radius: 0.5rem;
-    height: calc(100vh - 7rem);
-    width: calc(100% - 6rem);
-
-    overflow: hidden;
-
-    display: flex;
-    flex-direction: column;
-
-    ::-webkit-scrollbar {
-        display: none;
-    }
-    scrollbar-width: none;
-`;
-
-const StyledThemeInfo = styled.div`
-    position: absolute;
-    right: 3rem;
-    top: 1.875rem;
-    display: flex;
-
-    justify-content: center;
-    align-items: center;
-
-    gap: 1rem;
-`;
-
-const StyledThemeName = styled.div``;
-
-const StyledThemeVersion = styled.div`
-    opacity: 0.5;
-`;
+import type { DesignSystem } from '../../../designSystem';
+import { PageWrapper } from '../PageWrapper';
 
 const StyledActions = styled.div`
     display: flex;
@@ -77,9 +20,10 @@ const StyledComponentList = styled.div`
     gap: 1rem;
     grid-template-columns: repeat(6, 1fr);
 
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
     border-radius: 0.5rem;
     background: #0c0c0c;
+    border: solid 1px #313131;
 `;
 
 const StyledComponent = styled.div<{ disabled: boolean }>`
@@ -181,138 +125,41 @@ const componentRoutes = [
 ];
 
 interface ComponentSelectorProps {
-    theme: Theme;
-    components: Config[];
+    designSystem: DesignSystem;
 }
 
 export const ComponentSelector = (props: ComponentSelectorProps) => {
-    const { theme, components } = props;
-
     const navigate = useNavigate();
 
-    const [isLoading, setIsLoading] = useState(false);
-    const [exportType, setExportType] = useState('tgz');
+    const { designSystem } = props;
 
-    const exportTypes = [
-        {
-            value: 'tgz',
-            label: 'tgz',
-        },
-        {
-            value: 'zip',
-            label: 'zip',
-        },
-    ];
-
-    const onGoHome = () => {
-        navigate('/');
-    };
+    const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 
     const onEditComponent = (routeParam: string) => {
-        navigate('/components/' + routeParam);
+        navigate(`/${currentLocation}/components/${routeParam}`);
     };
 
     const onComponentsCancel = () => {
-        navigate('/theme');
-    };
-
-    const onChangeExportType = (value: string) => {
-        setExportType(value);
+        navigate(`/${currentLocation}/theme`);
     };
 
     const onComponentsSave = async () => {
-        // TODO: подумать как можно это оптимзировать (и нужно ли)
-        const allowedComponentRoutes = componentRoutes.filter((item) => !item.disabled);
-        const initialComponentsRoutes = allowedComponentRoutes.filter(
-            (item) => !components.find((cmp) => cmp.getName() === item.name),
-        );
-        const initialComponents = initialComponentsRoutes.map((item) => {
-            const meta = getComponentMeta(item.name);
-            return new Config(meta);
-        });
-
-        const componentsMeta = [...initialComponents, ...components].map((item) => item.createMeta());
-
-        const metaTokens = createMetaTokens(theme);
-        const variationTokens = createVariationTokens(theme, undefined, 'web');
-
-        const data = {
-            packageName: theme.getName(),
-            packageVersion: theme.getVersion(),
-            componentsMeta,
-            themeSource: {
-                meta: metaTokens,
-                variations: variationTokens,
-            },
-            exportType,
-        };
-
-        // console.log('metaTokens', metaTokens);
-        // console.log('variationTokens', variationTokens);
-        // console.log('new Blob([JSON.stringify(data)]).size', new Blob([JSON.stringify(data)]).size / 1048576);
-
-        setIsLoading(true);
-
-        const result = await fetch('http://localhost:3000/generate', {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-
-        const blob = await result.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${theme.getName()}@${theme.getVersion()}.${exportType}`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-
-        setIsLoading(false);
-
-        console.log('test', result);
+        navigate(`/${currentLocation}/generate`);
     };
 
     return (
-        <StyledContainer>
-            <StyledThemeInfo>
-                <StyledThemeName>{theme.getName()}</StyledThemeName>
-                <StyledThemeVersion>{theme.getVersion()}</StyledThemeVersion>
-                <IconButton view="clear" size="s" onClick={onGoHome}>
-                    <IconHomeAltOutline size="s" />
-                </IconButton>
-            </StyledThemeInfo>
-            <StyledWrapper>
-                <StyledComponentList>
-                    {componentRoutes.map(({ disabled, name, routeParam }) => (
-                        <StyledComponent key={name} disabled={disabled} onClick={() => onEditComponent(routeParam)}>
-                            <H3>{name}</H3>
-                        </StyledComponent>
-                    ))}
-                </StyledComponentList>
-                <StyledActions>
-                    <Button view="clear" onClick={onComponentsCancel} text="Отменить" />
-                    <Select
-                        size="m"
-                        listMaxHeight="25"
-                        listOverflow="scroll"
-                        value={exportType}
-                        items={exportTypes}
-                        onChange={onChangeExportType}
-                    />
-                    <Button
-                        view="primary"
-                        onClick={onComponentsSave}
-                        disabled={isLoading}
-                        isLoading={isLoading}
-                        text="Сгенерировать"
-                    />
-                </StyledActions>
-            </StyledWrapper>
-            <NoScroll />
-        </StyledContainer>
+        <PageWrapper designSystem={designSystem}>
+            <StyledComponentList>
+                {componentRoutes.map(({ disabled, name, routeParam }) => (
+                    <StyledComponent key={name} disabled={disabled} onClick={() => onEditComponent(routeParam)}>
+                        <H3>{name}</H3>
+                    </StyledComponent>
+                ))}
+            </StyledComponentList>
+            <StyledActions>
+                <Button view="clear" onClick={onComponentsCancel} text="Отменить" />
+                <Button view="primary" onClick={onComponentsSave} text="Сгенерировать" />
+            </StyledActions>
+        </PageWrapper>
     );
 };

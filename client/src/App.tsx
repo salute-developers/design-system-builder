@@ -1,50 +1,28 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
-import { Grayscale, type ThemeConfig } from '@salutejs/plasma-tokens-utils';
 
-import { ComponentEditor, ComponentSelector, DemoComponents, Main, TokensEditor } from './_new/pages';
-import { buildDefaultTheme, type Theme } from './themeBuilder';
-import { Config } from './componentBuilder';
-
-// TODO: подумать про версионирование
-const buildDefaultThemeWithUserConfig = () => {
-    const userConfig: ThemeConfig = {
-        name: 'test',
-        accentColor: {
-            dark: '[general.red.500]',
-            light: '[general.red.600]',
-        },
-        grayscale: {
-            dark: Grayscale.gray,
-            light: Grayscale.gray,
-        },
-    };
-
-    return buildDefaultTheme(userConfig);
-};
+import { ComponentEditor, ComponentSelector, Demo, Generate, Main, TokensEditor } from './_new/pages';
+import { DesignSystem } from './designSystem';
 
 function App() {
-    // TODO: временная инициализация
-    const [theme, setTheme] = useState<Theme | undefined>(buildDefaultThemeWithUserConfig());
-    const [components, setComponents] = useState<Config[]>([]);
+    const [designSystem, setDesignSystem] = useState(() => new DesignSystem({}));
+
+    console.log('designSystem', designSystem);
 
     return (
         <BrowserRouter>
             <Routes>
-                <Route index element={<Main createTheme={setTheme} />} />
-                {theme && (
-                    <>
-                        <Route path="theme" element={<TokensEditor theme={theme} updateTheme={setTheme} />} />
-                        <Route path="components">
-                            <Route index element={<ComponentSelector components={components} theme={theme} />} />
-                            <Route
-                                path=":component"
-                                element={<ComponentEditor updateComponents={setComponents} theme={theme} />}
-                            />
-                        </Route>
-                        <Route path="/demo" element={<DemoComponents theme={theme} />} />
-                    </>
-                )}
+                <Route index element={<Main designSystem={designSystem} setDesignSystem={setDesignSystem} />} />
+                {/* TODO: сделать загрузку дизайн системы по данным из url */}
+                <Route path="/:designSystemName/:designSystemVersion">
+                    <Route path="theme" element={<TokensEditor designSystem={designSystem} />} />
+                    <Route path="components">
+                        <Route index element={<ComponentSelector designSystem={designSystem} />} />
+                        <Route path=":component" element={<ComponentEditor designSystem={designSystem} />} />
+                    </Route>
+                    <Route path="generate" element={<Generate designSystem={designSystem} />} />
+                </Route>
+                <Route path="demo" element={<Demo />} />
             </Routes>
         </BrowserRouter>
     );
