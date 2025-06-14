@@ -1,46 +1,14 @@
-import styled, { createGlobalStyle } from 'styled-components';
+import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { Button, DsplL, Link, Select, TextField } from '@salutejs/plasma-b2c';
+import { Button, DsplL, IconButton, Link, Select, TextField, TextS } from '@salutejs/plasma-b2c';
 
-import { buildDefaultTheme, type Theme } from '../../themeBuilder';
 import { useMemo, useState } from 'react';
-import { getGrayscale } from '../utils';
+import { getGrayscale, loadAllDesignSystemNames, removeDesignSystem } from '../utils';
 import type { ThemeData } from '../types';
 import { FormField, getAccentColors, getSaturations } from '../components';
-
-const NoScroll = createGlobalStyle`
-    html, body {
-        overscroll-behavior: none;
-    }
-`;
-
-const StyledContainer = styled.div`
-    position: relative;
-
-    width: 100%;
-    height: 100vh;
-    box-sizing: border-box;
-    background-color: #000;
-`;
-
-const StyledWrapper = styled.div`
-    position: relative;
-    inset: 3rem;
-    top: 4.5rem;
-    border-radius: 0.5rem;
-    height: calc(100vh - 7rem);
-    width: calc(100% - 6rem);
-
-    overflow: hidden;
-
-    display: flex;
-    flex-direction: column;
-
-    ::-webkit-scrollbar {
-        display: none;
-    }
-    scrollbar-width: none;
-`;
+import { DesignSystem } from '../../designSystem';
+import { PageWrapper } from './PageWrapper';
+import { IconTrash } from '@salutejs/plasma-icons';
 
 const StyledActions = styled.div`
     display: flex;
@@ -48,20 +16,70 @@ const StyledActions = styled.div`
     justify-content: flex-end;
 `;
 
-const StyledThemeContent = styled.div`
+const StyledDesignSystemContent = styled.div`
     padding: 1rem;
     height: 100%;
+    min-height: 0;
 
     display: flex;
     flex-direction: row;
     gap: 3rem;
 
-    margin-bottom: 0.5rem;
+    margin-bottom: 1rem;
     border-radius: 0.5rem;
     background: #0c0c0c;
+    border: solid 1px #313131;
 `;
 
-const StyledThemeContentItem = styled.div`
+const StyledLoadedDesignSystems = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow: scroll;
+    width: 100%;
+    padding: 0 1rem;
+`;
+
+const StyledLoadedDesignSystemItem = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+`;
+
+const StyledButton = styled(Button)`
+    background: var(--surface-transparent-primary);
+    font-weight: 400;
+`;
+
+const StyledButtonContent = styled.div`
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    display: flex;
+`;
+
+const StyledLoadedDesignSystemName = styled.div``;
+
+const StyledLoadedDesignSystemVersion = styled.div`
+    opacity: 0.5;
+`;
+
+const StyledDesignSystemContent2 = styled.div`
+    padding: 1rem;
+    max-height: 14rem;
+    min-height: 3rem;
+
+    display: flex;
+    flex-direction: row;
+    gap: 3rem;
+
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    background: #0c0c0c;
+    border: solid 1px #313131;
+`;
+
+const StyledDesignSystemItem = styled.div`
     flex: 1;
 `;
 
@@ -73,16 +91,20 @@ const StyledServiceName = styled(DsplL)`
 `;
 
 interface MainProps {
-    createTheme: (value: Theme) => void;
+    designSystem: DesignSystem;
+    setDesignSystem: (value: DesignSystem) => void;
 }
 
 export const Main = (props: MainProps) => {
-    const { createTheme } = props;
-
     const navigate = useNavigate();
 
-    const [data, setData] = useState<ThemeData>({
+    const [loadedDesignSystems, setLoadedDesignSystems] = useState(loadAllDesignSystemNames());
+
+    const { designSystem, setDesignSystem } = props;
+
+    const [data, setData] = useState<any>({
         themeName: '',
+        themeVersion: '0.1.0',
         accentColors: getAccentColors()[11].value,
         lightSaturations: getSaturations()[7].value,
         darkSaturations: getSaturations()[7].value,
@@ -93,7 +115,7 @@ export const Main = (props: MainProps) => {
     const onChangeData = (name: string) => (param: React.ChangeEvent<HTMLInputElement> | unknown) => {
         const value = (param as React.ChangeEvent<HTMLInputElement>).target?.value ?? param;
 
-        setData((prevState) => ({
+        setData((prevState: any) => ({
             ...prevState,
             [name]: value,
         }));
@@ -109,97 +131,138 @@ export const Main = (props: MainProps) => {
         navigate('/demo');
     };
 
-    const onThemeSave = () => {
-        const { themeName, accentColors, lightSaturations, darkSaturations, lightGrayscale, darkGrayscale } = data;
+    const onLoadDesignSystem = (name: string, version: string) => {
+        setDesignSystem(new DesignSystem({ name, version }));
+        navigate(`/${name}/${version}/theme`);
+    };
 
-        const userConfig = {
-            name: themeName,
-            accentColor: {
-                dark: `[general.${accentColors}.${darkSaturations}]`,
-                light: `[general.${accentColors}.${lightSaturations}]`,
-            },
-            grayscale: {
-                dark: lightGrayscale,
-                light: darkGrayscale,
-            },
-        };
+    const onRemoveDesignSystem = async (name: string, version: string) => {
+        removeDesignSystem(name, version);
+        setLoadedDesignSystems(loadAllDesignSystemNames());
+    };
 
-        createTheme(buildDefaultTheme(userConfig));
-        navigate('/theme');
+    const onDesignSystemSave = async () => {
+        // TODO: выбранные значения цветов пока будут временно игнорироваться
+        // const { themeName, accentColors, lightSaturations, darkSaturations, lightGrayscale, darkGrayscale } = data;
+        // const userConfig = {
+        //     name: themeName,
+        //     accentColor: {
+        //         dark: `[general.${accentColors}.${darkSaturations}]`,
+        //         light: `[general.${accentColors}.${lightSaturations}]`,
+        //     },
+        //     grayscale: {
+        //         dark: lightGrayscale,
+        //         light: darkGrayscale,
+        //     },
+        // };
+
+        setDesignSystem(new DesignSystem({ name: data.themeName, version: data.themeVersion }));
+
+        navigate(`/${data.themeName}/${designSystem.getVersion()}/theme`);
     };
 
     return (
-        <StyledContainer>
-            <StyledWrapper>
-                <StyledThemeContent>
-                    <StyledThemeContentItem>
-                        <StyledServiceName>DESIGN SYSTEM BUILDER</StyledServiceName>
-                        <Link href="https://plasma.sberdevices.ru/" target="_blank">
-                            by plasma team
-                        </Link>
-                    </StyledThemeContentItem>
-                    <StyledThemeContentItem>
-                        <FormField label="Название дизайн системы">
-                            <TextField size="m" value={data.themeName} onChange={onChangeData('themeName')} />
-                        </FormField>
-                        <FormField label="Акцентный цвет из основной палитры">
-                            <Select
-                                size="m"
-                                listMaxHeight="25"
-                                listOverflow="scroll"
-                                value={data.accentColors}
-                                items={accentColors}
-                                onChange={onChangeData('accentColors')}
-                            />
-                        </FormField>
-                        <FormField label="Светлость акцентного цвета для светлой темы">
-                            <Select
-                                size="m"
-                                listMaxHeight="25"
-                                listOverflow="scroll"
-                                value={data.lightSaturations}
-                                items={saturations}
-                                onChange={onChangeData('lightSaturations')}
-                            />
-                        </FormField>
-                        <FormField label="Светлость акцентного цвета для темной темы">
-                            <Select
-                                size="m"
-                                listMaxHeight="25"
-                                listOverflow="scroll"
-                                value={data.darkSaturations}
-                                items={saturations}
-                                onChange={onChangeData('darkSaturations')}
-                            />
-                        </FormField>
-                        <FormField label="Оттенок серого для светлой темы">
-                            <Select
-                                size="m"
-                                listMaxHeight="25"
-                                listOverflow="scroll"
-                                value={data.lightGrayscale}
-                                items={grayscale}
-                                onChange={onChangeData('lightGrayscale')}
-                            />
-                        </FormField>
-                        <FormField label="Оттенок серого для темной темы">
-                            <Select
-                                size="m"
-                                listMaxHeight="25"
-                                listOverflow="scroll"
-                                value={data.darkGrayscale}
-                                items={grayscale}
-                                onChange={onChangeData('darkGrayscale')}
-                            />
-                        </FormField>
-                    </StyledThemeContentItem>
-                </StyledThemeContent>
-                <StyledActions>
-                    <Button view="accent" onClick={onGoDemo} text="Демо" />
-                    <Button view="primary" onClick={onThemeSave} text="Подтвердить" />
-                </StyledActions>
-            </StyledWrapper>
-            <NoScroll />
-        </StyledContainer>
+        <PageWrapper>
+            {loadedDesignSystems && (
+                <StyledDesignSystemContent2>
+                    <TextS>Продолжить редактировать дизайн систему</TextS>
+                    <StyledLoadedDesignSystems>
+                        {loadedDesignSystems.map(([name, version]) => (
+                            <StyledLoadedDesignSystemItem key={`${name}@${version}`}>
+                                <StyledButton
+                                    stretching="filled"
+                                    view="secondary"
+                                    size="m"
+                                    onClick={() => onLoadDesignSystem(name, version)}
+                                >
+                                    <StyledButtonContent>
+                                        <StyledLoadedDesignSystemName>{name}</StyledLoadedDesignSystemName>
+                                        <StyledLoadedDesignSystemVersion>{version}</StyledLoadedDesignSystemVersion>
+                                    </StyledButtonContent>
+                                </StyledButton>
+                                <IconButton size="m" view="clear" onClick={() => onRemoveDesignSystem(name, version)}>
+                                    <IconTrash size="s" />
+                                </IconButton>
+                            </StyledLoadedDesignSystemItem>
+                        ))}
+                    </StyledLoadedDesignSystems>
+                </StyledDesignSystemContent2>
+            )}
+            <StyledDesignSystemContent>
+                <StyledDesignSystemItem>
+                    <StyledServiceName>DESIGN SYSTEM BUILDER</StyledServiceName>
+                    <Link href="https://plasma.sberdevices.ru/" target="_blank">
+                        by plasma team
+                    </Link>
+                </StyledDesignSystemItem>
+                <StyledDesignSystemItem style={{ overflowY: 'scroll' }}>
+                    <FormField label="Название дизайн системы">
+                        <TextField size="m" value={data.themeName} onChange={onChangeData('themeName')} />
+                    </FormField>
+                    <FormField label="Версия дизайн системы">
+                        <TextField size="m" value={data.themeVersion} onChange={onChangeData('themeVersion')} />
+                    </FormField>
+                    <FormField label="Акцентный цвет из основной палитры">
+                        <Select
+                            disabled
+                            size="m"
+                            listMaxHeight="25"
+                            listOverflow="scroll"
+                            value={data.accentColors}
+                            items={accentColors}
+                            onChange={onChangeData('accentColors')}
+                        />
+                    </FormField>
+                    <FormField label="Светлость акцентного цвета для светлой темы">
+                        <Select
+                            disabled
+                            size="m"
+                            listMaxHeight="25"
+                            listOverflow="scroll"
+                            value={data.lightSaturations}
+                            items={saturations}
+                            onChange={onChangeData('lightSaturations')}
+                        />
+                    </FormField>
+                    <FormField label="Светлость акцентного цвета для темной темы">
+                        <Select
+                            disabled
+                            size="m"
+                            listMaxHeight="25"
+                            listOverflow="scroll"
+                            value={data.darkSaturations}
+                            items={saturations}
+                            onChange={onChangeData('darkSaturations')}
+                        />
+                    </FormField>
+                    <FormField label="Оттенок серого для светлой темы">
+                        <Select
+                            disabled
+                            size="m"
+                            listMaxHeight="25"
+                            listOverflow="scroll"
+                            value={data.lightGrayscale}
+                            items={grayscale}
+                            onChange={onChangeData('lightGrayscale')}
+                        />
+                    </FormField>
+                    <FormField label="Оттенок серого для темной темы">
+                        <Select
+                            disabled
+                            size="m"
+                            listMaxHeight="25"
+                            listOverflow="scroll"
+                            value={data.darkGrayscale}
+                            items={grayscale}
+                            onChange={onChangeData('darkGrayscale')}
+                        />
+                    </FormField>
+                </StyledDesignSystemItem>
+            </StyledDesignSystemContent>
+            <StyledActions>
+                <Button view="accent" onClick={onGoDemo} text="Демо" />
+                <Button view="primary" onClick={onDesignSystemSave} text="Начать" />
+            </StyledActions>
+        </PageWrapper>
     );
 };

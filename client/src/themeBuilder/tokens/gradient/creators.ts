@@ -34,8 +34,14 @@ export const createDefaultGradientTokens = (config: ThemeConfig): GradientToken[
 const removeHoverAndActiveTokens = (token: TokenType) =>
     !token.name.includes('-hover') && !token.name.includes('-active');
 
-export const createGradientTokens = (tokens: Array<TokenType>, platforms: PlatformsVariations['gradient']) =>
-    tokens.filter(removeHoverAndActiveTokens).map((token) => {
+export const createGradientTokens = (
+    tokens: Array<TokenType>,
+    platforms: PlatformsVariations['gradient'],
+    includeExtraTokens?: boolean,
+) => {
+    const tokenList = includeExtraTokens ? tokens : tokens.filter(removeHoverAndActiveTokens);
+
+    return tokenList.map((token) => {
         const web = platforms.web[token.name];
         const ios = platforms.ios[token.name];
         const android = platforms.android[token.name];
@@ -52,6 +58,7 @@ export const createGradientTokens = (tokens: Array<TokenType>, platforms: Platfo
 
         return new GradientToken(token, values);
     });
+};
 
 // TODO: Удалить метод после завершения разработки разделов с токенами
 export const createMockGradientTokens = () => {

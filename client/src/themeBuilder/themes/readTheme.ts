@@ -22,7 +22,7 @@ const getAllRelativePath = async (zip: JSZip) => {
 
 const getThemeContent = async (zip: JSZip, allFiles: Array<string>) => {
     let meta = {} as ThemeMeta;
-    let variation = {} as PlatformsVariations;
+    let variations = {} as PlatformsVariations;
 
     for (const relativePath of allFiles) {
         const data = await zip.file(relativePath)?.async('string');
@@ -40,16 +40,16 @@ const getThemeContent = async (zip: JSZip, allFiles: Array<string>) => {
             continue;
         }
 
-        variation = {
-            ...variation,
+        variations = {
+            ...variations,
             [variant]: {
-                ...variation[variant as keyof PlatformsVariations],
+                ...variations[variant as keyof PlatformsVariations],
                 [platform]: res,
             },
         };
     }
 
-    return { meta, variation };
+    return { meta, variations };
 };
 
 export const readTheme = async (themeName: string, themeVersion: string) => {
