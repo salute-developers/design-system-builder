@@ -7,20 +7,19 @@ import { ComponentControl } from './ComponentControl';
 import type { Config, Variation } from '../../../componentBuilder';
 import type { StaticAPI } from '../../../componentBuilder/type';
 
-// TODO сделать динамический выбор компонент
-import { IconButtonStory } from '../../sources/IconButton';
-import { LinkStory } from '../../sources/Link';
-import { ButtonStory } from '../../sources/Button';
+import { IconButtonStory, LinkStory, ButtonStory } from '../../stories';
 
 const StyledRoot = styled.div`
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
     flex: 1;
     flex-direction: column;
 `;
 
 const StyledComponentControls = styled.div`
     background: #0c0c0c;
+    border: solid 1px #313131;
+
     height: 50%;
     padding: 1rem;
     padding-top: 0;
@@ -51,6 +50,7 @@ const StyledComponentPreview = styled.div<{ themeMode: ThemeMode }>`
     transition: background 0.2s ease-in-out;
 
     background: var(--background-primary);
+    border: solid 1px #313131;
 
     height: 50%;
     border-radius: 0.5rem;

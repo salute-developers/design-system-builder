@@ -63,7 +63,7 @@ export interface TokenContextHandlers {
 }
 
 export interface SavedTheme {
-    // themeData: ThemeType;
+    themeData: any;
     date: string;
     branchName?: string;
 }

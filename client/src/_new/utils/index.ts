@@ -4,3 +4,4 @@ export * from './color';
 export * from './themes';
 export * from './formulas';
 export * from './other';
+export * from './storage';

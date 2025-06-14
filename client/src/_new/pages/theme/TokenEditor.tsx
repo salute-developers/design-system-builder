@@ -135,10 +135,10 @@ export const TokenEditor = ({
                 ))}
             </Tabs>
 
-            {(context[0] === 'color' || token instanceof ColorToken) && (
+            {(context?.[0] === 'color' || token instanceof ColorToken) && (
                 <ColorTokenEditor value={tokenValue} onChangeValue={onTokenValueChange} />
             )}
-            {(context[0] === 'gradient' || token instanceof GradientToken) && (
+            {(context?.[0] === 'gradient' || token instanceof GradientToken) && (
                 <TextArea
                     readOnly={readOnly}
                     size="s"

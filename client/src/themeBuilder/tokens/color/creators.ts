@@ -34,8 +34,14 @@ export const createDefaultColorTokens = (config: ThemeConfig): ColorToken[] => {
 const removeHoverAndActiveTokens = (token: TokenType) =>
     !token.name.includes('-hover') && !token.name.includes('-active');
 
-export const createColorTokens = (tokens: Array<TokenType>, platforms: PlatformsVariations['color']) =>
-    tokens.filter(removeHoverAndActiveTokens).map((token) => {
+export const createColorTokens = (
+    tokens: Array<TokenType>,
+    platforms: PlatformsVariations['color'],
+    includeExtraTokens?: boolean,
+) => {
+    const tokenList = includeExtraTokens ? tokens : tokens.filter(removeHoverAndActiveTokens);
+
+    return tokenList.map((token) => {
         const web = platforms.web[token.name];
         const ios = platforms.ios[token.name];
         const android = platforms.android[token.name];
@@ -52,6 +58,7 @@ export const createColorTokens = (tokens: Array<TokenType>, platforms: Platforms
 
         return new ColorToken(token, values);
     });
+};
 
 // TODO: Удалить метод после завершения разработки разделов с токенами
 export const createMockColorTokens = () => {

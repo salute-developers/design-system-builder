@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@salutejs-ds/test": "file:salutejs-ds-test-0.1.0.tgz",
     "@salutejs/plasma-b2c": "^1.582.0-canary.1983.15486466373.0",
     "@salutejs/plasma-colors": "^0.15.0",
     "@salutejs/plasma-icons": "^1.217.0",
