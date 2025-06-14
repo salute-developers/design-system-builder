@@ -32,7 +32,7 @@ const createZip = async (content: ThemeFileStructure) => {
 
 const getFileStructure = (meta: ThemeMeta, variations: PlatformsVariations) => {
     let tokens = {
-        'meta.json': JSON.stringify(meta),
+        'meta.json': JSON.stringify(meta, null, 4),
     } as ThemeFileStructure;
 
     Object.entries(variations).forEach(([variation, platforms]) => {
@@ -41,7 +41,7 @@ const getFileStructure = (meta: ThemeMeta, variations: PlatformsVariations) => {
                 ...tokens,
                 [platform]: {
                     ...tokens[platform],
-                    [`${platform}_${variation}.json`]: JSON.stringify(value),
+                    [`${platform}_${variation}.json`]: JSON.stringify(value, null, 4),
                 },
             };
         });

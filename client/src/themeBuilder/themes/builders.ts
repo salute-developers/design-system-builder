@@ -46,7 +46,7 @@ export const buildDefaultTheme = (config: ThemeConfig) => {
     });
 };
 
-export const buildTheme = (meta: ThemeMeta, variations: PlatformsVariations) => {
+export const buildTheme = (meta: ThemeMeta, variations: PlatformsVariations, includeExtraTokens = false) => {
     const metaGrouped = meta.tokens.reduce((acc, token) => {
         return {
             ...acc,
@@ -54,8 +54,8 @@ export const buildTheme = (meta: ThemeMeta, variations: PlatformsVariations) => 
         };
     }, {} as Record<TokenType['type'], Array<TokenType>>);
 
-    const color = createColorTokens(metaGrouped.color, variations.color);
-    const gradient = createGradientTokens(metaGrouped.gradient, variations.gradient);
+    const color = createColorTokens(metaGrouped.color, variations.color, includeExtraTokens);
+    const gradient = createGradientTokens(metaGrouped.gradient, variations.gradient, includeExtraTokens);
     const shadow = createShadowTokens(metaGrouped.shadow, variations.shadow);
     const shape = createShapeTokens(metaGrouped.shape, variations.shape);
     const spacing = createSpacingTokens(metaGrouped.spacing, variations.spacing);

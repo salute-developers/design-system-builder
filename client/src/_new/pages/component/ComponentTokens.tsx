@@ -14,6 +14,7 @@ const StyledRoot = styled.div`
     width: 50%;
     border-radius: 0.5rem;
     padding: 0rem 1rem;
+    border: solid 1px #313131;
 `;
 
 const StyledCaption = styled(TextXS)`

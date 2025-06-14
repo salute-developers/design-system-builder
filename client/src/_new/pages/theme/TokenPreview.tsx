@@ -48,7 +48,7 @@ const StyledToken = styled.div<{ isOpenEditor: boolean }>`
 
     cursor: pointer;
 
-    background: ${({ isOpenEditor }) => (isOpenEditor ? '#121212' : '#0c0c0c')};
+    background: ${({ isOpenEditor }) => (isOpenEditor ? '#121212' : 'transparent')};
 `;
 
 const StyledTokenName = styled.div`
