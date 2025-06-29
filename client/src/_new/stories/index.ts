@@ -1,3 +1,5 @@
-export { ButtonStory } from './Button.story';
-export { IconButtonStory } from './IconButton.story';
-export { LinkStory } from './Link.story';
+export { ButtonStories } from './Button.story';
+export { IconButtonStories } from './IconButton.story';
+export { LinkStories } from './Link.story';
+export { CheckboxStories } from './Checkbox.story';
+export { RadioboxStories } from './Radiobox.story';
