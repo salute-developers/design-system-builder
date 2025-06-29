@@ -1,4 +1,4 @@
-import { meta } from './meta';
+import { getMeta } from './meta';
 import { webColor, webFontFamily, webGradient, webShadow, webShape, webSpacing, webTypography } from './web';
 import {
     androidColor,
@@ -12,8 +12,8 @@ import {
 import { iosColor, iosFontFamily, iosGradient, iosShadow, iosShape, iosSpacing, iosTypography } from './ios';
 
 // TODO: Забирать из бд по api
-export const themeData = {
-    meta,
+export const getStaticThemeData = (name?: string, version?: string) => ({
+    meta: getMeta(name, version),
     variations: {
         color: {
             web: webColor,
@@ -51,4 +51,4 @@ export const themeData = {
             ios: iosFontFamily,
         },
     },
-};
+});
