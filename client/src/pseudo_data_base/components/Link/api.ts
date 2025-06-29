@@ -1,26 +1,3 @@
-export const staticAPI = [
-    {
-        name: 'disabled',
-        id: '90a75880-e54b-41d5-b601-591cb5cb4026',
-        value: false,
-    },
-    {
-        name: 'target',
-        id: '4c1030d8-c527-44fe-8450-33f99aa48ec3',
-        value: '_blank',
-    },
-    {
-        name: 'href',
-        id: '6b2b4797-80e6-4127-8ca9-f3aa1093dc27',
-        value: 'https://google.com',
-    },
-    {
-        name: 'text',
-        id: 'd81e9e14-615a-44ac-b045-3a66d076dc46',
-        value: 'Hello',
-    },
-];
-
 export const api = [
     {
         id: '7fb3c7d3-fc44-442f-922a-a3252d52c0b2',
