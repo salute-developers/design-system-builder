@@ -1,16 +1,3 @@
-export const staticAPI = [
-    {
-        name: 'disabled',
-        id: '90a75880-e54b-41d5-b601-591cb5cb4026',
-        value: false,
-    },
-    {
-        name: 'isLoading',
-        id: '29cac6b3-1c19-4789-b40d-6c1cf69ce7cd',
-        value: false,
-    },
-];
-
 export const api = [
     {
         id: '2a5e254f-a410-45dd-8010-8a21cbbdf534',
