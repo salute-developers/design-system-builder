@@ -73,7 +73,7 @@ export const TokenPreview = ({
     onTokenUpdate: (token?: Token, data?: any, context?: string[]) => void;
 }) => {
     return (
-        <StyledRoot isTokenEnabled={isOpenEditor || token?.getEnabled() || true}>
+        <StyledRoot isTokenEnabled={Boolean(isOpenEditor || token?.getEnabled())}>
             <StyledToken isOpenEditor={isOpenEditor} onClick={onClick}>
                 <StyledTokenName>{token?.getDisplayName()}</StyledTokenName>
                 {token instanceof ColorToken && <ColorPreview onTokenDelete={onTokenDelete} token={token} />}
