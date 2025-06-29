@@ -15,19 +15,19 @@ export class Props {
 
         // TOOD: подумать, можно ли сделать лучше
         (props || []).forEach((prop) => {
-            const webToken = this.getTokenFromAPI(api, prop.id);
+            const tokenFromAPI = this.getTokenFromAPI(api, prop.id);
 
-            if (!webToken) {
+            if (!tokenFromAPI) {
                 return;
             }
 
-            const isTokenExist = this.list.find((item) => item.getID() === webToken.id);
+            const isTokenExist = this.list.find((item) => item.getID() === tokenFromAPI.id);
 
             if (isTokenExist) {
                 return;
             }
 
-            const token = this.getConfigToken(webToken, prop);
+            const token = this.getConfigToken(tokenFromAPI, prop);
 
             if (token === null) {
                 return;
@@ -41,10 +41,14 @@ export class Props {
         return this.list;
     }
 
-    public addProp(id: string, value: string | number, api: ComponentAPI[]) {
-        const webToken = this.getTokenFromAPI(api, id);
+    public getProp(id: string) {
+        return this.list.find((item) => item.getID() === id);
+    }
 
-        if (!webToken) {
+    public addProp(id: string, value: string | number, api: ComponentAPI[]) {
+        const tokenFromAPI = this.getTokenFromAPI(api, id);
+
+        if (!tokenFromAPI) {
             return;
         }
 
@@ -55,7 +59,7 @@ export class Props {
             states: undefined,
         };
 
-        const token = this.getConfigToken(webToken, propValues);
+        const token = this.getConfigToken(tokenFromAPI, propValues);
 
         if (token === null) {
             return;
@@ -73,28 +77,26 @@ export class Props {
     }
 
     private getConfigToken(token: ComponentAPI, item: PropConfig) {
-        const webTokens = token.platformMappings.web;
-
-        const { type, name } = token;
+        const { type, name, platformMappings } = token;
 
         if (type === 'color') {
-            return new ColorProp(name, item, webTokens);
+            return new ColorProp(name, item, platformMappings);
         }
 
         if (type === 'float') {
-            return new FloatProp(name, item, webTokens);
+            return new FloatProp(name, item, platformMappings);
         }
 
         if (type === 'shape') {
-            return new ShapeProp(name, item, webTokens);
+            return new ShapeProp(name, item, platformMappings);
         }
 
         if (type === 'dimension') {
-            return new DimensionProp(name, item, webTokens);
+            return new DimensionProp(name, item, platformMappings);
         }
 
         if (type === 'typography') {
-            return new TypographyProp(name, item, webTokens);
+            return new TypographyProp(name, item, platformMappings);
         }
 
         return null;
