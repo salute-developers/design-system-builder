@@ -13,3 +13,5 @@ export {
     ComponentTokenTypography,
 } from './ComponentTokenType';
 export { ComponentAddStyle } from './ComponentAddStyle';
+export { ComponentAddTokenState } from './ComponentAddTokenState';
+export { ComponentAppearance } from './ComponentAppearance';

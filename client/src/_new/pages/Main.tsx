@@ -4,7 +4,6 @@ import { Button, DsplL, IconButton, Link, Select, TextField, TextS } from '@salu
 
 import { useMemo, useState } from 'react';
 import { getGrayscale, loadAllDesignSystemNames, removeDesignSystem } from '../utils';
-import type { ThemeData } from '../types';
 import { FormField, getAccentColors, getSaturations } from '../components';
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
@@ -90,9 +89,10 @@ const StyledServiceName = styled(DsplL)`
     letter-spacing: 1rem;
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface MainProps {
-    designSystem: DesignSystem;
-    setDesignSystem: (value: DesignSystem) => void;
+    // designSystem: DesignSystem;
+    // setDesignSystem: (value: DesignSystem) => void;
 }
 
 export const Main = (props: MainProps) => {
@@ -100,11 +100,9 @@ export const Main = (props: MainProps) => {
 
     const [loadedDesignSystems, setLoadedDesignSystems] = useState(loadAllDesignSystemNames());
 
-    const { designSystem, setDesignSystem } = props;
-
     const [data, setData] = useState<any>({
-        themeName: '',
-        themeVersion: '0.1.0',
+        designSystemName: '',
+        designSystemVersion: '0.1.0',
         accentColors: getAccentColors()[11].value,
         lightSaturations: getSaturations()[7].value,
         darkSaturations: getSaturations()[7].value,
@@ -132,7 +130,7 @@ export const Main = (props: MainProps) => {
     };
 
     const onLoadDesignSystem = (name: string, version: string) => {
-        setDesignSystem(new DesignSystem({ name, version }));
+        // setDesignSystem(new DesignSystem({ name, version }));
         navigate(`/${name}/${version}/theme`);
     };
 
@@ -142,10 +140,14 @@ export const Main = (props: MainProps) => {
     };
 
     const onDesignSystemSave = async () => {
+        if (data.designSystemName === '' || data.designSystemVersion === '') {
+            return;
+        }
+
         // TODO: выбранные значения цветов пока будут временно игнорироваться
-        // const { themeName, accentColors, lightSaturations, darkSaturations, lightGrayscale, darkGrayscale } = data;
+        // const { designSystemName, accentColors, lightSaturations, darkSaturations, lightGrayscale, darkGrayscale } = data;
         // const userConfig = {
-        //     name: themeName,
+        //     name: designSystemName,
         //     accentColor: {
         //         dark: `[general.${accentColors}.${darkSaturations}]`,
         //         light: `[general.${accentColors}.${lightSaturations}]`,
@@ -156,9 +158,10 @@ export const Main = (props: MainProps) => {
         //     },
         // };
 
-        setDesignSystem(new DesignSystem({ name: data.themeName, version: data.themeVersion }));
+        new DesignSystem({ name: data.designSystemName, version: data.designSystemVersion });
+        // setDesignSystem(new DesignSystem({ name: data.designSystemName, version: data.designSystemVersion }));
 
-        navigate(`/${data.themeName}/${designSystem.getVersion()}/theme`);
+        navigate(`/${data.designSystemName}/${data.designSystemVersion}/theme`);
     };
 
     return (
@@ -197,10 +200,14 @@ export const Main = (props: MainProps) => {
                 </StyledDesignSystemItem>
                 <StyledDesignSystemItem style={{ overflowY: 'scroll' }}>
                     <FormField label="Название дизайн системы">
-                        <TextField size="m" value={data.themeName} onChange={onChangeData('themeName')} />
+                        <TextField size="m" value={data.designSystemName} onChange={onChangeData('designSystemName')} />
                     </FormField>
                     <FormField label="Версия дизайн системы">
-                        <TextField size="m" value={data.themeVersion} onChange={onChangeData('themeVersion')} />
+                        <TextField
+                            size="m"
+                            value={data.designSystemVersion}
+                            onChange={onChangeData('designSystemVersion')}
+                        />
                     </FormField>
                     <FormField label="Акцентный цвет из основной палитры">
                         <Select

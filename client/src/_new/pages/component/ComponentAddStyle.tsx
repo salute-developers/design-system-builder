@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Button, ModalBase, PopupBaseProvider, TextField, TextS } from '@salutejs/plasma-b2c';
 
 import type { Config } from '../../../componentBuilder';
+import type { DesignSystem } from '../../../designSystem';
+import { useParams } from 'react-router-dom';
 
 const StyledModal = styled.div`
     background: black;
@@ -14,16 +16,20 @@ const StyledModal = styled.div`
 `;
 
 interface ComponentAddStyleProps {
+    designSystem: DesignSystem;
     config: Config;
     addStyleModal: { open: boolean; variationID?: string };
     setAddStyleModal: (value: { open: boolean; variationID?: string }) => void;
 }
 
 export const ComponentAddStyle = (props: ComponentAddStyleProps) => {
-    const { config, addStyleModal, setAddStyleModal } = props;
+    const { componentName } = useParams();
+
+    const { designSystem, config, addStyleModal, setAddStyleModal } = props;
+
+    const { api } = useMemo(() => designSystem.getComponentDataByName(componentName).sources, [componentName]);
 
     const [newStyleName, setNewStyleName] = useState('');
-
     const onCloseModal = () => {
         setNewStyleName('');
         setAddStyleModal({
@@ -41,7 +47,7 @@ export const ComponentAddStyle = (props: ComponentAddStyleProps) => {
             return;
         }
 
-        config.addVariationStyle(addStyleModal.variationID, newStyleName);
+        config.addVariationStyle(api, addStyleModal.variationID, newStyleName);
         onCloseModal();
     };
 
