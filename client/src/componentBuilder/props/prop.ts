@@ -1,6 +1,6 @@
 import { camelToKebab } from '../../_new/utils';
 import { capitalize } from '../utils';
-import type { PropConfig, PropType, State, WebToken } from '../type';
+import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
 export abstract class Prop {
     protected name = '';
@@ -19,7 +19,7 @@ export abstract class Prop {
 
     protected webTokens?: WebToken[] | null;
 
-    constructor(name: string, data: PropConfig, webTokens?: WebToken[] | null) {
+    constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
         const { value, id, adjustment, states } = data;
 
         this.name = name;
@@ -29,32 +29,7 @@ export abstract class Prop {
         this.adjustment = adjustment;
         this.states = states;
 
-        this.webTokens = webTokens;
-    }
-
-    private replaceAdjustmentPlaceholders(template: string, values: string[]) {
-        return template.replace(/\$(\d+)/g, (_, index) => {
-            return values[index - 1] !== undefined ? values[index - 1] : `$${index}`;
-        });
-    }
-
-    public createWebToken(value: string | number) {
-        if (!this.webTokens || !this.webTokens.length || !value) {
-            return null;
-        }
-
-        return this.webTokens.reduce((acc, { name, adjustment }) => {
-            const tokenName = `--plasma${capitalize(name)}`;
-
-            const newValue = adjustment
-                ? this.replaceAdjustmentPlaceholders(adjustment, [value.toString()])
-                : value.toString();
-
-            return {
-                ...acc,
-                [camelToKebab(tokenName)]: newValue,
-            };
-        }, {});
+        this.webTokens = platformTokens?.web;
     }
 
     public getName() {
@@ -89,15 +64,111 @@ export abstract class Prop {
         return this.states;
     }
 
-    public setStates(value: State[] | null) {
-        this.states = value;
+    public removeState(name: string) {
+        if (!this.states) {
+            return;
+        }
+
+        const newStates = this.states.filter((item) => item.state[0] !== name);
+
+        if (!newStates.length) {
+            this.states = null;
+        }
+
+        this.states = newStates;
+    }
+
+    public setState(name: string, value: State) {
+        if (!this.states) {
+            return;
+        }
+
+        // TODO: поддержать работу с несколькими стейтами
+        const stateIndex = this.states.findIndex((item) => item.state[0] === name);
+
+        if (stateIndex === -1) {
+            return;
+        }
+
+        this.states[stateIndex] = value;
+    }
+
+    public addState(value: State) {
+        this.states ??= [];
+
+        this.states?.push(value);
     }
 
     public getAdjustment() {
         return this.adjustment;
     }
 
+    public setAdjustment(value?: string | number) {
+        this.adjustment = value;
+    }
+
     public getWebTokens() {
         return this.webTokens;
+    }
+
+    protected getFormattedTokenName(tokenName: string, componentName?: string) {
+        return capitalize(tokenName).startsWith(componentName || '')
+            ? capitalize(tokenName)
+            : `${componentName}${capitalize(tokenName)}`;
+    }
+
+    protected getAdditionalTokens(
+        token: string,
+        getValue: (state: State) => string | number | undefined,
+        componentName?: string,
+    ) {
+        if (!this.states?.length) {
+            return null;
+        }
+
+        const statesMap = {
+            hovered: 'Hover',
+            pressed: 'Active',
+        };
+
+        return this.states.reduce((acc, item) => {
+            const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
+
+            const formattedTokenName = this.getFormattedTokenName(token, componentName);
+            const tokenName = `--plasma${formattedTokenName}${statesMap[state]}`;
+
+            const value = getValue(item);
+
+            return {
+                ...acc,
+                [camelToKebab(tokenName)]: value,
+            };
+        }, {});
+    }
+
+    public createWebToken(value: string | number, componentName?: string) {
+        if (!this.webTokens || !this.webTokens.length || !value) {
+            return null;
+        }
+
+        const replaceAdjustmentPlaceholders = (template: string, values: string[]) => {
+            return template.replace(/\$(\d+)/g, (_, index) => {
+                return values[index - 1] !== undefined ? values[index - 1] : `$${index}`;
+            });
+        };
+
+        return this.webTokens.reduce((acc, { name, adjustment }) => {
+            const formattedTokenName = this.getFormattedTokenName(name, componentName);
+            const tokenName = `--plasma${formattedTokenName}`;
+
+            const newValue = adjustment
+                ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
+                : value.toString();
+
+            return {
+                ...acc,
+                [camelToKebab(tokenName)]: newValue,
+            };
+        }, {});
     }
 }

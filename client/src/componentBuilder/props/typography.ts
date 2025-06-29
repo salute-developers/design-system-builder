@@ -1,14 +1,13 @@
 import { camelToKebab } from '../../_new/utils';
-import { capitalize } from '../utils';
 import type { Theme } from '../../themeBuilder';
-import type { PropConfig, WebToken } from '../type';
+import type { PlatformTokens, PropConfig } from '../type';
 import { Prop } from './prop';
 
 export class TypographyProp extends Prop {
     protected readonly type = 'typography';
 
-    constructor(name: string, data: PropConfig, webTokens?: WebToken[] | null) {
-        super(name, data, webTokens);
+    constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
+        super(name, data, platformTokens);
     }
 
     private formattedTokenName(nameParts: string[]) {
@@ -63,13 +62,15 @@ export class TypographyProp extends Prop {
         };
     }
 
-    public createWebToken(value?: string | number | Record<string, any>) {
+    public createWebToken(value?: string | number | Record<string, any>, componentName?: string) {
         if (!this.webTokens || !this.webTokens.length || !value || typeof value !== 'object') {
             return null;
         }
 
         return this.webTokens?.reduce((acc, { name }) => {
-            const tokenName = `--plasma${capitalize(name)}`;
+            const formattedTokenName = this.getFormattedTokenName(name, componentName);
+            const tokenName = `--plasma${formattedTokenName}`;
+
             const tokenKey = Object.keys(value).find((key) =>
                 name.toLocaleLowerCase().includes(key.toLocaleLowerCase()),
             );
@@ -85,7 +86,7 @@ export class TypographyProp extends Prop {
         }, {});
     }
 
-    public getWebTokenValue(theme?: Theme) {
+    public getWebTokenValue(componentName?: string, theme?: Theme) {
         if (this.value === undefined || typeof this.value === 'number' || !this.value) {
             return;
         }
@@ -97,7 +98,7 @@ export class TypographyProp extends Prop {
         }
 
         return {
-            ...this.createWebToken(value),
+            ...this.createWebToken(value, componentName),
         };
     }
 }
