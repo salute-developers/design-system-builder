@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { TabItem, Tabs, Button, IconButton } from '@salutejs/plasma-b2c';
 
 import {
@@ -10,6 +10,9 @@ import {
     GradientToken,
     IOSColor,
     IOSGradient,
+    // ShadowToken,
+    ShapeToken,
+    SpacingToken,
     Theme,
     WebColor,
     WebGradient,
@@ -109,7 +112,18 @@ const tokensTypes = [
                 value: 'round',
             },
         ],
-        readOnly: true,
+        readOnly: false,
+    },
+    {
+        label: 'Отступы',
+        value: 'spacing',
+        inner: [
+            {
+                label: 'Размеры',
+                value: 'spacing',
+            },
+        ],
+        readOnly: false,
     },
     {
         label: 'Тени',
@@ -124,18 +138,7 @@ const tokensTypes = [
                 value: 'down',
             },
         ],
-        readOnly: true,
-    },
-    {
-        label: 'Отступы',
-        value: 'spacing',
-        inner: [
-            {
-                label: 'Размеры',
-                value: 'spacing',
-            },
-        ],
-        readOnly: true,
+        readOnly: false,
     },
     {
         label: 'Типографика',
@@ -154,7 +157,7 @@ const tokensTypes = [
                 value: 'screen-l',
             },
         ],
-        readOnly: true,
+        readOnly: false,
     },
     {
         label: 'Семейство шрифтов',
@@ -177,7 +180,7 @@ const tokensTypes = [
                 value: 'header',
             },
         ],
-        readOnly: true,
+        readOnly: false,
     },
 ];
 
@@ -255,32 +258,44 @@ const updateTokens = (theme: Theme, updatedToken: Token, data: any) => {
         token?.setDescription(data.description);
     });
 
+    // TODO: Добавить генерацию для нативных платформ
+
     if (updatedToken instanceof GradientToken) {
         updatedToken?.setValue('web', data.value.split('\n'));
-        // TODO: Добавить генерацию для нативных платформ
-        // token?.setValue('ios', data.value);
-        // token?.setValue('android', data.value);
     }
 
     if (updatedToken instanceof ColorToken) {
         updatedToken?.setValue('web', data.value);
-        updatedToken?.setValue('ios', data.value);
-        updatedToken?.setValue('android', data.value);
     }
+
+    if (updatedToken instanceof ShapeToken) {
+        updatedToken?.setValue('web', data.value);
+    }
+
+    if (updatedToken instanceof SpacingToken) {
+        updatedToken?.setValue('web', data.value);
+    }
+
+    // if (updatedToken instanceof ShadowToken) {
+    //     console.log('data.value', typeof data.value);
+
+    //     updatedToken?.setValue('web', data.value);
+    // }
 };
 
-const types = ['color', 'gradient', 'shape', 'shadow', 'spacing', 'typography', 'fontFamily'] as const;
+const types = ['color', 'gradient', 'shape', 'spacing', 'shadow', 'typography', 'fontFamily'] as const;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface TokensEditorProps {
-    designSystem: DesignSystem;
-    onNextPage?: () => void;
-    onPreviousPage?: () => void;
+    // designSystem: DesignSystem;
+    // setDesignSystem: (value: DesignSystem) => void;
 }
 
 export const TokensEditor = (props: TokensEditorProps) => {
     const navigate = useNavigate();
+    const { designSystemName, designSystemVersion } = useParams();
+    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
-    const { designSystem } = props;
     const [theme, setTheme] = useState(() => designSystem.createThemeInstance());
 
     const [tokenType, setTokenType] = useState(0);
@@ -373,7 +388,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
         };
 
         return (
-            <StyledGroupedTokens>
+            <StyledGroupedTokens key={`grouped:${item.group}`}>
                 {'group' in item && item.group && (
                     <>
                         <StyledTokenGroupNameWrapper>
@@ -433,7 +448,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
                     ))}
                 </Tabs>
                 <Tabs view="divider" size="m">
-                    {tokensTypes[tokenType].inner?.map(({ label, value }, i) => (
+                    {tokensTypes[tokenType].inner?.map(({ label, value }) => (
                         <TabItem
                             view="divider"
                             key={`item_inner:${label}`}
@@ -452,7 +467,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
                 </StyledTokenList>
             </StyledThemeContent>
             <StyledActions>
-                <Button view="clear" onClick={onThemeCancel} text="Отменить" />
+                <Button view="clear" onClick={onThemeCancel} text="Назад" />
                 <Button view="primary" onClick={onThemeSave} text="Сохранить" />
             </StyledActions>
         </PageWrapper>

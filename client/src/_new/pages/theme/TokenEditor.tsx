@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { TextField, Tabs, TabItem, TextArea, Switch, Button } from '@salutejs/plasma-b2c';
 
 import { Token } from '../../../themeBuilder/tokens/token';
-import { ColorToken, GradientToken } from '../../../themeBuilder';
+import { ColorToken, GradientToken, ShapeToken, SpacingToken } from '../../../themeBuilder';
 
 import { ColorTokenEditor } from './ColorTokenEditor';
 import { kebabToCamel } from '../../utils';
@@ -24,11 +24,11 @@ const platformTypes = [
         value: 'ios',
         disabled: true,
     },
-    {
-        label: 'React-Native',
-        value: 'reactNative',
-        disabled: true,
-    },
+    // {
+    //     label: 'React-Native',
+    //     value: 'reactNative',
+    //     disabled: true,
+    // },
 ];
 
 const StyledRoot = styled.div`
@@ -58,7 +58,15 @@ const getValue = (token: Token) => {
         return token.getValue('web').join('\n');
     }
 
-    return JSON.stringify(token.getValue('web'));
+    if (token instanceof ShapeToken) {
+        return token.getValue('web');
+    }
+
+    if (token instanceof SpacingToken) {
+        return token.getValue('web');
+    }
+
+    return JSON.stringify(token.getValue('web'), null, 4);
 };
 
 export const TokenEditor = ({
@@ -117,6 +125,8 @@ export const TokenEditor = ({
         );
     };
 
+    console.log('tokenValue', tokenValue);
+
     return (
         <StyledRoot>
             <TextField
@@ -162,7 +172,7 @@ export const TokenEditor = ({
             )}
 
             <StyledActions>
-                <Button view="clear" text="Отменить" onClick={onUpdateCancel} />
+                <Button view="clear" text="Назад" onClick={onUpdateCancel} />
                 <Button view="accent" text="Сохранить" onClick={onUpdateApply} />
             </StyledActions>
         </StyledRoot>
