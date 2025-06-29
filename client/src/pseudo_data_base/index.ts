@@ -1,2 +1,2 @@
-export { themeData } from './theme';
+export { getStaticThemeData } from './theme';
 export { componentsData } from './components';

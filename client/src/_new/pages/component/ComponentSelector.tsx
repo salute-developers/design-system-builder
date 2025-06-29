@@ -1,8 +1,8 @@
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button, H3 } from '@salutejs/plasma-b2c';
 
-import type { DesignSystem } from '../../../designSystem';
+import { DesignSystem } from '../../../designSystem';
 import { PageWrapper } from '../PageWrapper';
 
 const StyledActions = styled.div`
@@ -39,7 +39,7 @@ const StyledComponent = styled.div<{ disabled: boolean }>`
     align-items: center;
 
     &:hover {
-        border: 1px solid white;
+        border: 1px solid var(--text-accent);
     }
 
     transition: border 0.2s ease-in-out;
@@ -52,8 +52,8 @@ const componentRoutes = [
     { name: 'IconButton', routeParam: 'icon-button', disabled: false },
     { name: 'Link', routeParam: 'link', disabled: false },
     { name: 'Button', routeParam: 'button', disabled: false },
-    { name: 'Checkbox', routeParam: 'checkbox', disabled: true },
-    { name: 'Radiobox', routeParam: 'radiobox', disabled: true },
+    { name: 'Checkbox', routeParam: 'checkbox', disabled: false },
+    { name: 'Radiobox', routeParam: 'radiobox', disabled: false },
     { name: 'ButtonGroup', routeParam: 'button-group', disabled: true },
     { name: 'Breadcrumbs', routeParam: 'breadcrumbs', disabled: true },
     { name: 'Chip', routeParam: 'chip', disabled: true },
@@ -124,14 +124,16 @@ const componentRoutes = [
     { name: 'List', routeParam: 'list', disabled: true },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ComponentSelectorProps {
-    designSystem: DesignSystem;
+    // designSystem: DesignSystem;
 }
 
 export const ComponentSelector = (props: ComponentSelectorProps) => {
     const navigate = useNavigate();
 
-    const { designSystem } = props;
+    const { designSystemName, designSystemVersion } = useParams();
+    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
     const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 
@@ -157,7 +159,7 @@ export const ComponentSelector = (props: ComponentSelectorProps) => {
                 ))}
             </StyledComponentList>
             <StyledActions>
-                <Button view="clear" onClick={onComponentsCancel} text="Отменить" />
+                <Button view="clear" onClick={onComponentsCancel} text="Назад" />
                 <Button view="primary" onClick={onComponentsSave} text="Сгенерировать" />
             </StyledActions>
         </PageWrapper>

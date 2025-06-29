@@ -1,8 +1,9 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { componentsData, themeData } from './pseudo_data_base';
+// TODO: загружать из бд
+import { componentsData, getStaticThemeData } from './pseudo_data_base';
 
-import { buildTheme, type PlatformsVariations, type ThemeMeta } from './themeBuilder';
+import { buildTheme, type Platform, type PlatformsVariations, type ThemeMeta } from './themeBuilder';
 import { Config, type Meta } from './componentBuilder';
 import { kebabToCamel, loadDesignSystem, saveDesignSystem } from './_new/utils';
 
@@ -39,7 +40,7 @@ export class DesignSystem {
     // TODO: загружать из бд через api
     private loadThemeData(name?: string, version?: string) {
         const loadedThemeData = name && version ? loadDesignSystem(name, version)?.themeData : undefined;
-        const localThemeData = themeData as unknown as {
+        const localThemeData = getStaticThemeData(name, version) as unknown as {
             meta: ThemeMeta;
             variations: PlatformsVariations;
         };
@@ -71,11 +72,12 @@ export class DesignSystem {
         return loadedComponentsData ?? localComponentsData;
     }
 
-    public saveComponentsData(data: { meta: Meta; name?: string }) {
-        const { meta, name } = data;
+    public saveComponentsData(data: { meta: Meta }) {
+        const { meta } = data;
+        const { name } = meta;
 
-        const componentName = upperFirstLetter(kebabToCamel(name));
-        const componentIndex = this.componentsData?.findIndex((item) => item.name === componentName);
+        const componentName = name;
+        const componentIndex = this.componentsData?.findIndex(({ name }) => name === componentName);
 
         this.componentsData[componentIndex] = meta;
 
@@ -108,27 +110,43 @@ export class DesignSystem {
         this.version = value;
     }
 
-    private getComponentDataByName(name?: string) {
+    public getComponentDataByName(name?: string) {
         const componentName = upperFirstLetter(kebabToCamel(name));
         const componentData = this.componentsData?.find((item) => item.name === componentName);
 
         return componentData || this.componentsData[0];
     }
 
-    public getThemeData() {
-        return this.themeData;
-    }
-
     public getComponentsData() {
         return this.componentsData;
+    }
+
+    public getThemeData(platform?: Platform) {
+        if (!platform) {
+            return this.themeData.variations;
+        }
+
+        const { meta, variations } = this.themeData;
+
+        const variationsByPlatform = Object.entries(variations).reduce(
+            (acc, [variation, value]) => ({ ...acc, [variation]: value[platform] }),
+            {},
+        ) as Record<keyof typeof variations, typeof platform>;
+
+        return {
+            meta,
+            variations: variationsByPlatform,
+        };
     }
 
     public createThemeInstance(data?: { includeExtraTokens?: boolean }) {
         return buildTheme(this.themeData.meta, this.themeData.variations, data?.includeExtraTokens);
     }
 
-    public createComponentInstance(data?: { name?: string }) {
-        const componentMeta = this.getComponentDataByName(data?.name);
-        return new Config(componentMeta);
+    public createComponentInstance(data: { componentName: string; configInfo: { name: string; id: string } }) {
+        const { componentName, configInfo } = data;
+
+        const componentMeta = this.getComponentDataByName(componentName);
+        return new Config(componentMeta, configInfo);
     }
 }

@@ -37,15 +37,17 @@ export const ComponentTokenColor = ({ value, theme, onChange }: ComponentTokenTy
     // TODO: подумать, может есть смысл передавать для каждого типа отдельным пропсом
     const colors = useMemo(() => theme?.getTokens('color') || [], [theme]);
 
-    const items = colors.map((item) => {
-        // TODO: вероятно временное решение
-        const [, ...value] = item.getName().split('.');
+    const items = colors
+        .filter((item) => item.getEnabled())
+        .map((item) => {
+            // TODO: вероятно временное решение
+            const [, ...value] = item.getName().split('.');
 
-        return {
-            label: item.getDisplayName(),
-            value: value.join('.'),
-        };
-    });
+            return {
+                label: item.getDisplayName(),
+                value: value.join('.'),
+            };
+        });
 
     return (
         <StyledCombobox

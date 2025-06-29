@@ -1,4 +1,4 @@
-import type { ComponentAPI, ComponentConfig, ComponentVariation, Meta, StaticAPI } from './type';
+import type { ComponentAPI, ComponentVariation, Meta, State } from './type';
 import { Props } from './props';
 import { Variation } from './variation';
 import { Default } from './default';
@@ -14,27 +14,22 @@ export class Config {
 
     private invariants: Props;
 
-    private source: {
-        api: ComponentAPI[];
-        variations: ComponentVariation[];
-        staticAPI?: StaticAPI[];
-        config: ComponentConfig;
-    };
-
-    constructor(meta: Meta) {
+    constructor(meta: Meta, configInfo: { id: string; name: string }) {
         const { name, description, sources } = meta;
 
         this.name = name;
         this.description = description;
 
-        const { api, config, staticAPI, variations } = sources;
+        const { api, configs, variations } = sources;
 
-        this.source = {
-            api,
-            config,
-            staticAPI,
-            variations,
-        };
+        const config = configs.find((item) => item.id === configInfo.id)?.config;
+
+        if (!config) {
+            this.defaults = [];
+            this.variations = [];
+            this.invariants = {} as any;
+            return;
+        }
 
         this.variations = config.variations.map((item) => {
             const variation = this.getVariationName(variations, item.id);
@@ -64,24 +59,12 @@ export class Config {
         return this.defaults;
     }
 
-    public getVariationName(variations: ComponentVariation[], id: string) {
-        return variations.find((variation) => variation.id === id)?.name || '';
-    }
-
-    public getStyleName(variationID: string, styleID: string) {
-        return this.getStyle(variationID, styleID)?.getName() || '';
-    }
-
     public getVariations() {
         return this.variations;
     }
 
     public getInvariants() {
         return this.invariants;
-    }
-
-    public getStaticAPI() {
-        return this.source.staticAPI;
     }
 
     public getVariation(variationID?: string) {
@@ -92,68 +75,24 @@ export class Config {
         return this.variations.find((item) => item.getID() === variationID);
     }
 
-    public getStyle(variationID: string, styleID?: string) {
-        const styles = this.variations.find((item) => item.getID() === variationID)?.getStyles();
+    private getProps(variationID?: string, styleID?: string) {
+        const isVariationToken = variationID && styleID;
 
-        if (!styleID) {
-            return styles?.[0];
-        }
-
-        return styles?.find((item) => item.getID() === styleID);
+        return isVariationToken ? this.getStyleByVariation(variationID, styleID)?.getProps() : this.invariants;
     }
 
-    public getProp(id: string, props?: Props) {
-        return props?.getList().find((item) => item.getID() === id);
+    private getVariationName(variations: ComponentVariation[], id: string) {
+        return variations.find((variation) => variation.id === id)?.name || '';
     }
 
-    // TODO: нужно ли это убрать в утилиты
-    public getTokensByVariation(variationID?: string) {
-        const { api, variations } = this.source;
-
-        if (!variationID) {
-            return api.filter((item) => !item.variations);
-        }
-
-        const id = variations.find((variation) => variation.id === variationID)?.id || '';
-
-        return api.filter((item) => item.variations?.find((item) => item === id));
+    private getStyleName(variationID: string, styleID: string) {
+        return this.getStyleByVariation(variationID, styleID)?.getName() || '';
     }
 
-    // TODO: нужно ли убрать отдельные методы
-    private updateVariationToken(variation: string, style: string, tokenName: string, value: string | number) {
-        const item = this.getStyle(variation, style);
-        const prop = this.getProp(tokenName, item?.getProps());
+    public getStyleByVariation(variationID: string, styleID?: string) {
+        const styles = this.variations.find((item) => item.getID() === variationID);
 
-        prop?.setValue(value);
-    }
-
-    private addVariationToken(variation: string, style: string, tokenID: string, value: string | number) {
-        const item = this.getStyle(variation, style);
-        const { api } = this.source;
-
-        item?.getProps().addProp(tokenID, value, api);
-    }
-
-    private removeVariationToken(variation: string, style: string, id: string) {
-        const item = this.getStyle(variation, style);
-
-        item?.getProps().removeProp(id);
-    }
-
-    private updateInvariantToken(tokenName: string, value: string | number) {
-        const prop = this.getProp(tokenName, this.invariants);
-
-        prop?.setValue(value);
-    }
-
-    private addInvariantToken(tokenID: string, value: string | number) {
-        const { api } = this.source;
-
-        this.invariants?.addProp(tokenID, value, api);
-    }
-
-    private removeInvariantToken(id: string) {
-        this.invariants?.removeProp(id);
+        return styles?.getStyle(styleID);
     }
 
     public updateDefaults(variationID: string, newStyledID: string) {
@@ -164,35 +103,36 @@ export class Config {
     }
 
     public updateToken(tokenID: string, value: string | number, variationID?: string, styleID?: string) {
-        if (!variationID || !styleID) {
-            this.updateInvariantToken(tokenID, value);
-            return;
-        }
+        const props = this.getProps(variationID, styleID);
+        const prop = props?.getProp(tokenID);
 
-        this.updateVariationToken(variationID, styleID, tokenID, value);
+        prop?.setValue(value);
     }
 
-    public addToken(tokenID: string, value: string | number, variationID?: string, styleID?: string) {
-        if (!variationID || !styleID) {
-            this.addInvariantToken(tokenID, value);
-            return;
-        }
+    public addToken(
+        tokenID: string,
+        value: string | number,
+        api: ComponentAPI[],
+        variationID?: string,
+        styleID?: string,
+    ) {
+        const props = this.getProps(variationID, styleID);
 
-        this.addVariationToken(variationID, styleID, tokenID, value);
+        props?.addProp(tokenID, value, api);
     }
 
     public removeToken(id: string, variationID?: string, styleID?: string) {
         if (!variationID || !styleID) {
-            this.removeInvariantToken(id);
+            this.invariants?.removeProp(id);
             return;
         }
 
-        this.removeVariationToken(variationID, styleID, id);
+        const item = this.getStyleByVariation(variationID, styleID);
+        item?.getProps().removeProp(id);
     }
 
-    public addVariationStyle(variationID: string, styleID: string) {
+    public addVariationStyle(api: ComponentAPI[], variationID: string, styleID: string) {
         const item = this.variations.find((item) => item.getID() === variationID);
-        const { api } = this.source;
 
         item?.addStyle(styleID, api);
     }
@@ -207,8 +147,40 @@ export class Config {
         item?.removeStyle(styleID);
     }
 
-    // TODO: Подумать, здесь ли должен находиться метод для записи данных в бд
-    public createMeta(): Meta {
+    public addTokenState(tokenID: string, value: State, variationID?: string, styleID?: string) {
+        const props = this.getProps(variationID, styleID);
+        const prop = props?.getProp(tokenID);
+
+        prop?.addState(value);
+    }
+
+    public updateTokenState(tokenID: string, name: string, value: State, variationID?: string, styleID?: string) {
+        const props = this.getProps(variationID, styleID);
+        const prop = props?.getProp(tokenID);
+
+        prop?.setState(name, value);
+    }
+
+    public removeTokenState(tokenID: string, name: string, variationID?: string, styleID?: string) {
+        const props = this.getProps(variationID, styleID);
+        const prop = props?.getProp(tokenID);
+
+        prop?.removeState(name);
+    }
+
+    public updateTokenAdjustment(
+        tokenID: string,
+        value: string | number | undefined,
+        variationID?: string,
+        styleID?: string,
+    ) {
+        const props = this.getProps(variationID, styleID);
+        const prop = props?.getProp(tokenID);
+
+        prop?.setAdjustment(value);
+    }
+
+    public getMeta() {
         const newDefaultVariations = this.defaults.map((item) => ({
             variationID: item.getVariationID(),
             styleID: item.getStyleID(),
@@ -239,24 +211,10 @@ export class Config {
             })),
         }));
 
-        const config = {
-            defaultVariations: newDefaultVariations,
-            invariantProps: newInvariantProps,
-            variations: newVariations,
-        };
-
-        const { api, variations, staticAPI } = this.source;
-
         return {
-            name: this.name,
-            description: this.description,
-            sources: {
-                config,
-                // TODO: подумать, надо ли будет потом это тащить в бд
-                api,
-                staticAPI,
-                variations,
-            },
+            defaultVariations: newDefaultVariations,
+            variations: newVariations,
+            invariantProps: newInvariantProps,
         };
     }
 }
