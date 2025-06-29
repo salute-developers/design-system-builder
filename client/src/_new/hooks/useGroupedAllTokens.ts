@@ -30,16 +30,16 @@ export const useGroupedAllTokens = (theme: Theme) => {
         getGroupedShapeTokens,
     );
 
-    const [shadowMode, setShadowMode, groupedShadowTokens] = useGroupedTokens(
-        theme.getTokens('shadow'),
-        'up',
-        getGroupedShadowTokens,
-    );
-
     const [spacingMode, setsSpacingMode, groupedSpacingTokens] = useGroupedTokens(
         theme.getTokens('spacing'),
         'spacing',
         getGroupedSpacingTokens,
+    );
+
+    const [shadowMode, setShadowMode, groupedShadowTokens] = useGroupedTokens(
+        theme.getTokens('shadow'),
+        'up',
+        getGroupedShadowTokens,
     );
 
     const [typographyMode, setTypographyMode, groupedTypographyTokens] = useGroupedTokens(
@@ -71,14 +71,14 @@ export const useGroupedAllTokens = (theme: Theme) => {
             group: groupedShapeTokens,
         },
         {
-            mode: shadowMode,
-            set: setShadowMode,
-            group: groupedShadowTokens,
-        },
-        {
             mode: spacingMode,
             set: setsSpacingMode,
             group: groupedSpacingTokens,
+        },
+        {
+            mode: shadowMode,
+            set: setShadowMode,
+            group: groupedShadowTokens,
         },
         {
             mode: typographyMode,
