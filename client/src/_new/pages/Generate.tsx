@@ -1,9 +1,9 @@
+import { useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 
-import { useState } from 'react';
-import type { DesignSystem } from '../../designSystem';
+import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
 
 const StyledGenerateContent = styled.div`
@@ -11,7 +11,8 @@ const StyledGenerateContent = styled.div`
     height: 100%;
 
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+
     gap: 3rem;
 
     margin-bottom: 1rem;
@@ -31,17 +32,19 @@ const StyledExportType = styled.div`
     gap: 1rem;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface GenerateProps {
-    designSystem: DesignSystem;
+    // designSystem: DesignSystem;
 }
 
 export const Generate = (props: GenerateProps) => {
     const navigate = useNavigate();
+    const { designSystemName, designSystemVersion } = useParams();
 
-    const { designSystem } = props;
+    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
     const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 
@@ -68,7 +71,7 @@ export const Generate = (props: GenerateProps) => {
     };
 
     const onDesignSystemGenerate = async () => {
-        const themeSource = designSystem.getThemeData();
+        const themeSource = designSystem.getThemeData('web');
         const componentsMeta = designSystem.getComponentsData();
 
         const data = {
@@ -122,7 +125,7 @@ export const Generate = (props: GenerateProps) => {
                 </StyledExportType>
             </StyledGenerateContent>
             <StyledActions>
-                <Button view="clear" onClick={onGoComponents} text="Отменить" />
+                <Button view="clear" onClick={onGoComponents} text="Назад" />
                 <Button
                     view="primary"
                     onClick={onDesignSystemGenerate}

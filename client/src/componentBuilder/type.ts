@@ -33,7 +33,7 @@ export interface WebToken {
     adjustment: string | null;
 }
 
-export interface PlatformMapping {
+export interface PlatformTokens {
     xml: string | null;
     compose: string | null;
     ios: string | null;
@@ -46,7 +46,7 @@ export interface ComponentAPI {
     type: PropType;
     description?: string;
     variations: string[] | null;
-    platformMappings: PlatformMapping;
+    platformMappings: PlatformTokens;
 }
 
 export interface ComponentVariation {
@@ -61,7 +61,7 @@ export interface DefaultVariationConfig {
 
 export interface State {
     state: PropState[];
-    value: string;
+    value?: string;
 }
 
 export interface PropConfig {
@@ -89,26 +89,20 @@ export interface ComponentConfig {
     variations: VariationConfig[];
 }
 
-export type StaticAPI = {
+export interface Config {
     name: string;
     id: string;
-    value: string | boolean;
-    items?: {
-        id: string;
-        value: string;
-        label: string;
-    }[];
-};
+    config: ComponentConfig;
+}
 
-export interface Source {
-    staticAPI?: StaticAPI[];
+export interface Sources {
     api: ComponentAPI[];
     variations: ComponentVariation[];
-    config: ComponentConfig;
+    configs: Config[];
 }
 
 export interface Meta {
     name: string;
     description: string;
-    sources: Source;
+    sources: Sources;
 }

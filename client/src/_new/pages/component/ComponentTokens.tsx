@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import styled from 'styled-components';
 import { TabItem, Tabs, TextXS } from '@salutejs/plasma-b2c';
 import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
@@ -8,10 +8,11 @@ import { ComponentToken } from './ComponentToken';
 import { ComponentAddToken } from './ComponentAddToken';
 import type { Theme } from '../../../themeBuilder';
 import { ComponentControl } from './ComponentControl';
+import type { DesignSystem } from '../../../designSystem';
 
 const StyledRoot = styled.div`
     background: #0c0c0c;
-    width: 50%;
+    width: 55%;
     border-radius: 0.5rem;
     padding: 0rem 1rem;
     border: solid 1px #313131;
@@ -30,7 +31,8 @@ const StyledAddStyleTabItem = styled(TabItem)`
 `;
 
 const StyledTokens = styled.div`
-    height: calc(100% - 10rem);
+    height: calc(100% - 11rem);
+    padding: 0.5rem 0;
     overflow-x: hidden;
     overflow-y: scroll;
 `;
@@ -75,7 +77,7 @@ const getTokenList = (config: Config, selectedVariation?: string, selectedStyle?
         return config.getInvariants().getList();
     }
 
-    const style = config.getStyle(selectedVariation, selectedStyle);
+    const style = config.getStyleByVariation(selectedVariation, selectedStyle);
 
     if (!style) {
         return [];
@@ -126,6 +128,7 @@ const getDefaultList = (config: Config, updateConfig: () => void) => {
 
 interface ComponentTokensProps {
     args: Record<string, string | boolean>;
+    designSystem: DesignSystem;
     config: Config;
     theme: Theme;
     updateConfig: () => void;
@@ -134,14 +137,19 @@ interface ComponentTokensProps {
 }
 
 export const ComponentTokens = (props: ComponentTokensProps) => {
-    const { args, config, theme, updateConfig, setAddStyleModal, onChangeComponentControlValue } = props;
+    const { args, config, designSystem, theme, updateConfig, setAddStyleModal, onChangeComponentControlValue } = props;
 
-    const { variationID, styleID } = useMemo(() => getDefaults(config, args), []);
+    const { variationID, styleID } = getDefaults(config, args);
 
     const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
     const [selectedStyle, setSelectedStyle] = useState<undefined | string>(styleID);
 
     const [newToken, setNewToken] = useState<string>('');
+
+    useLayoutEffect(() => {
+        setSelectedVariation(variationID);
+        setSelectedStyle(styleID);
+    }, [variationID, styleID]);
 
     const onChangeVariation = (value: string) => {
         setNewToken('');
@@ -157,7 +165,7 @@ export const ComponentTokens = (props: ComponentTokensProps) => {
         }
 
         const variation = config.getVariation(value)?.getName();
-        const style = config.getStyle(value)?.getID();
+        const style = config.getStyleByVariation(value)?.getID();
 
         setSelectedVariation(value);
         setSelectedStyle(style);
@@ -207,7 +215,9 @@ export const ComponentTokens = (props: ComponentTokensProps) => {
                         view="divider"
                         key={`item:${label}`}
                         size="m"
-                        selected={value === selectedVariation}
+                        selected={
+                            value === selectedVariation || (selectedVariation === undefined && value === 'invariants')
+                        }
                         onClick={() => onChangeVariation(value)}
                     >
                         {label}
@@ -265,6 +275,7 @@ export const ComponentTokens = (props: ComponentTokensProps) => {
                             />
                         ))}
                         <ComponentAddToken
+                            designSystem={designSystem}
                             config={config}
                             theme={theme}
                             variationID={selectedVariation}

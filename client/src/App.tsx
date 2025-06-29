@@ -1,26 +1,19 @@
-import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router';
 
 import { ComponentEditor, ComponentSelector, Demo, Generate, Main, TokensEditor } from './_new/pages';
-import { DesignSystem } from './designSystem';
 
 function App() {
-    const [designSystem, setDesignSystem] = useState(() => new DesignSystem({}));
-
-    console.log('designSystem', designSystem);
-
     return (
         <BrowserRouter basename="/design-system-builder">
             <Routes>
-                <Route index element={<Main designSystem={designSystem} setDesignSystem={setDesignSystem} />} />
-                {/* TODO: сделать загрузку дизайн системы по данным из url */}
+                <Route index element={<Main />} />
                 <Route path="/:designSystemName/:designSystemVersion">
-                    <Route path="theme" element={<TokensEditor designSystem={designSystem} />} />
+                    <Route path="theme" element={<TokensEditor />} />
                     <Route path="components">
-                        <Route index element={<ComponentSelector designSystem={designSystem} />} />
-                        <Route path=":component" element={<ComponentEditor designSystem={designSystem} />} />
+                        <Route index element={<ComponentSelector />} />
+                        <Route path=":componentName" element={<ComponentEditor />} />
                     </Route>
-                    <Route path="generate" element={<Generate designSystem={designSystem} />} />
+                    <Route path="generate" element={<Generate />} />
                 </Route>
                 <Route path="demo" element={<Demo />} />
             </Routes>

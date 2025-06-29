@@ -59,12 +59,12 @@ export const ComponentControl = (props: ComponentControlProps) => {
         <StyledRoot>
             <TextS>{name}</TextS>
             {isBooleanProp && <Switch size="s" checked={value} onChange={handleOnChange} />}
-            {isStringProp && <StyledTextField size="s" value={value} onChange={handleOnChange} />}
+            {isStringProp && <StyledTextField size="xs" value={value} onChange={handleOnChange} />}
             {isListProp && (
                 <StyledSelect
                     listOverflow="scroll"
                     listMaxHeight="25"
-                    size="s"
+                    size="xs"
                     items={items}
                     value={value}
                     onChange={handleOnChange}

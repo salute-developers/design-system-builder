@@ -27,8 +27,6 @@ const StyledWrapper = styled.div`
     margin: 4.5rem 3rem;
     height: calc(100vh - 7rem);
 
-    overflow: hidden;
-
     display: flex;
     flex-direction: column;
 
