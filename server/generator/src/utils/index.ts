@@ -14,6 +14,11 @@ export const lowerFirstLetter = (str: string) => {
     return str.charAt(0).toLocaleLowerCase() + str.slice(1);
 };
 
+// TODO: вынести в общее место
+export const upperFirstLetter = (str: string) => {
+    return str.charAt(0).toLocaleUpperCase() + str.slice(1);
+};
+
 export const kebabToCamel = (str: string) => {
     return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 };
