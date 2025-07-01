@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import styled, { createGlobalStyle } from 'styled-components';
-import { useNavigate } from 'react-router-dom';
-
+import styled from 'styled-components';
+import { useNavigate, useParams } from 'react-router-dom';
 import { TabItem, Tabs, Button, IconButton } from '@salutejs/plasma-b2c';
+
 import {
     AndroidColor,
     AndroidGradient,
@@ -10,6 +10,9 @@ import {
     GradientToken,
     IOSColor,
     IOSGradient,
+    // ShadowToken,
+    ShapeToken,
+    SpacingToken,
     Theme,
     WebColor,
     WebGradient,
@@ -18,59 +21,12 @@ import { useGroupedAllTokens } from '../../hooks';
 import { TokenPreview } from './TokenPreview';
 import { camelToKebab, type GroupedToken, kebabToCamel } from '../../utils';
 import { Token } from '../../../themeBuilder/tokens/token';
-import { IconHomeAltOutline } from '@salutejs/plasma-icons';
-
-const NoScroll = createGlobalStyle`
-    html, body {
-        overscroll-behavior: none;
-    }
-`;
-
-const StyledContainer = styled.div`
-    position: relative;
-
-    width: 100%;
-    height: 100vh;
-    box-sizing: border-box;
-    background-color: #000;
-`;
-
-const StyledWrapper = styled.div`
-    position: relative;
-    inset: 3rem;
-    top: 4.5rem;
-    border-radius: 0.5rem;
-    height: calc(100vh - 7rem);
-    width: calc(100% - 6rem);
-
-    overflow: hidden;
-
-    display: flex;
-    flex-direction: column;
-
-    ::-webkit-scrollbar {
-        display: none;
-    }
-    scrollbar-width: none;
-`;
-
-const StyledThemeInfo = styled.div`
-    position: absolute;
-    right: 3rem;
-    top: 1.875rem;
-    display: flex;
-
-    justify-content: center;
-    align-items: center;
-
-    gap: 1rem;
-`;
-
-const StyledThemeName = styled.div``;
-
-const StyledThemeVersion = styled.div`
-    opacity: 0.5;
-`;
+import { DesignSystem } from '../../../designSystem';
+import { createVariationTokens } from '../../../themeBuilder/themes/createVariationTokens';
+import { createMetaTokens } from '../../../themeBuilder/themes/createMetaTokens';
+import { extraMetaTokenGetters } from '../../../themeBuilder/themes/metaTokensGetters';
+import { extraThemeTokenGetters } from '../../../themeBuilder/themes/variationTokensGetters';
+import { PageWrapper } from '../PageWrapper';
 
 const StyledActions = styled.div`
     display: flex;
@@ -82,6 +38,8 @@ const StyledTokenList = styled.div`
     flex: 1;
     overflow-y: scroll;
     overflow-x: hidden;
+
+    margin-bottom: 1rem;
 `;
 
 const StyledGroupedTokens = styled.div``;
@@ -97,6 +55,21 @@ const StyledTokenGroupName = styled.div<{ isGroupName: boolean }>`
 
     font-size: ${({ isGroupName }) => (isGroupName ? '0.875rem' : '1.125rem')};
     opacity: ${({ isGroupName }) => (isGroupName ? 0.75 : 1)};
+`;
+
+const StyledThemeContent = styled.div`
+    padding: 1rem;
+
+    display: flex;
+    flex-direction: column;
+
+    min-height: 0;
+    height: 100%;
+    margin-bottom: 1rem;
+
+    border-radius: 0.5rem;
+    background: #0c0c0c;
+    border: solid 1px #313131;
 `;
 
 const tokensTypes = [
@@ -139,7 +112,18 @@ const tokensTypes = [
                 value: 'round',
             },
         ],
-        readOnly: true,
+        readOnly: false,
+    },
+    {
+        label: 'Отступы',
+        value: 'spacing',
+        inner: [
+            {
+                label: 'Размеры',
+                value: 'spacing',
+            },
+        ],
+        readOnly: false,
     },
     {
         label: 'Тени',
@@ -154,18 +138,7 @@ const tokensTypes = [
                 value: 'down',
             },
         ],
-        readOnly: true,
-    },
-    {
-        label: 'Отступы',
-        value: 'spacing',
-        inner: [
-            {
-                label: 'Размеры',
-                value: 'spacing',
-            },
-        ],
-        readOnly: true,
+        readOnly: false,
     },
     {
         label: 'Типографика',
@@ -184,7 +157,7 @@ const tokensTypes = [
                 value: 'screen-l',
             },
         ],
-        readOnly: true,
+        readOnly: false,
     },
     {
         label: 'Семейство шрифтов',
@@ -207,12 +180,12 @@ const tokensTypes = [
                 value: 'header',
             },
         ],
-        readOnly: true,
+        readOnly: false,
     },
 ];
 
-const createNewTokens = (theme: Theme, context?: string[]) => {
-    const [type, mode, ...rest] = context || [];
+const createNewTokens = (theme: Theme, context?: (string | undefined)[]) => {
+    const [type, mode, ...rest] = (context as string[]) || [];
     const replaceTo = mode === 'dark' ? 'light' : 'dark';
 
     const createMeta = (mode: string) => ({
@@ -285,36 +258,48 @@ const updateTokens = (theme: Theme, updatedToken: Token, data: any) => {
         token?.setDescription(data.description);
     });
 
+    // TODO: Добавить генерацию для нативных платформ
+
     if (updatedToken instanceof GradientToken) {
         updatedToken?.setValue('web', data.value.split('\n'));
-        // TODO: Добавить генерацию для нативных платформ
-        // token?.setValue('ios', data.value);
-        // token?.setValue('android', data.value);
     }
 
     if (updatedToken instanceof ColorToken) {
         updatedToken?.setValue('web', data.value);
-        updatedToken?.setValue('ios', data.value);
-        updatedToken?.setValue('android', data.value);
     }
+
+    if (updatedToken instanceof ShapeToken) {
+        updatedToken?.setValue('web', data.value);
+    }
+
+    if (updatedToken instanceof SpacingToken) {
+        updatedToken?.setValue('web', data.value);
+    }
+
+    // if (updatedToken instanceof ShadowToken) {
+    //     console.log('data.value', typeof data.value);
+
+    //     updatedToken?.setValue('web', data.value);
+    // }
 };
 
+const types = ['color', 'gradient', 'shape', 'spacing', 'shadow', 'typography', 'fontFamily'] as const;
+
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface TokensEditorProps {
-    theme: Theme;
-    updateTheme: (value: Theme) => void;
-    onNextPage?: () => void;
-    onPreviousPage?: () => void;
+    // designSystem: DesignSystem;
+    // setDesignSystem: (value: DesignSystem) => void;
 }
 
 export const TokensEditor = (props: TokensEditorProps) => {
     const navigate = useNavigate();
+    const { designSystemName, designSystemVersion } = useParams();
+    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
-    const { theme, updateTheme } = props;
+    const [theme, setTheme] = useState(() => designSystem.createThemeInstance());
 
     const [tokenType, setTokenType] = useState(0);
     const [tokenEditorIndex, setTokenEditorIndex] = useState<string | undefined>(undefined);
-
-    const types = ['color', 'gradient', 'shape', 'shadow', 'spacing', 'typography', 'fontFamily'] as const;
 
     const tokens = useGroupedAllTokens(theme);
 
@@ -344,7 +329,8 @@ export const TokensEditor = (props: TokensEditorProps) => {
 
         updateTokens(theme, token, data);
 
-        updateTheme(theme.cloneInstance());
+        setTheme(theme.cloneInstance());
+
         setTokenEditorIndex(undefined);
         setIsOpenAdd(undefined);
     };
@@ -356,30 +342,31 @@ export const TokensEditor = (props: TokensEditorProps) => {
             return;
         }
 
-        const [mode, ...rest] = token?.getTags();
+        const [mode, ...rest] = token.getTags();
         const replaceTo = mode === 'dark' ? 'light' : 'dark';
 
         const tokenName = token.getName();
         const secondTokenName = [replaceTo, ...rest].join('.');
 
-        theme.removeToken(tokenName, token.getType());
-        theme.removeToken(secondTokenName, token.getType());
+        theme?.removeToken(tokenName, token.getType());
+        theme?.removeToken(secondTokenName, token.getType());
 
-        updateTheme(theme.cloneInstance());
+        setTheme(theme.cloneInstance());
     };
 
     const [isOpenAdd, setIsOpenAdd] = useState<string | undefined>(undefined);
-
-    const onGoHome = () => {
-        navigate('/');
-    };
 
     const onThemeCancel = () => {
         navigate('/');
     };
 
     const onThemeSave = () => {
-        navigate('/components');
+        const metaTokens = createMetaTokens(theme, extraMetaTokenGetters);
+        const variationTokens = createVariationTokens(theme, extraThemeTokenGetters);
+
+        designSystem.saveThemeData({ meta: metaTokens, variations: variationTokens });
+
+        navigate(`/${designSystem.getName()}/${designSystem.getVersion()}/components`);
     };
 
     const renderTokens = (item: GroupedToken, context: string[]) => {
@@ -401,7 +388,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
         };
 
         return (
-            <StyledGroupedTokens>
+            <StyledGroupedTokens key={`grouped:${item.group}`}>
                 {'group' in item && item.group && (
                     <>
                         <StyledTokenGroupNameWrapper>
@@ -445,15 +432,8 @@ export const TokensEditor = (props: TokensEditorProps) => {
     console.log('theme', theme);
 
     return (
-        <StyledContainer>
-            <StyledThemeInfo>
-                <StyledThemeName>{theme.getName()}</StyledThemeName>
-                <StyledThemeVersion>{theme.getVersion()}</StyledThemeVersion>
-                <IconButton view="clear" size="s" onClick={onGoHome}>
-                    <IconHomeAltOutline size="s" />
-                </IconButton>
-            </StyledThemeInfo>
-            <StyledWrapper>
+        <PageWrapper designSystem={designSystem}>
+            <StyledThemeContent>
                 <Tabs view="divider" size="m" stretch>
                     {tokensTypes.map(({ label }, i) => (
                         <TabItem
@@ -468,7 +448,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
                     ))}
                 </Tabs>
                 <Tabs view="divider" size="m">
-                    {tokensTypes[tokenType].inner?.map(({ label, value }, i) => (
+                    {tokensTypes[tokenType].inner?.map(({ label, value }) => (
                         <TabItem
                             view="divider"
                             key={`item_inner:${label}`}
@@ -485,12 +465,11 @@ export const TokensEditor = (props: TokensEditorProps) => {
                         renderTokens(item, [types[tokenType], tokens[tokenType].mode]),
                     )}
                 </StyledTokenList>
-                <StyledActions>
-                    <Button view="clear" onClick={onThemeCancel} text="Отменить" />
-                    <Button view="primary" onClick={onThemeSave} text="Сохранить" />
-                </StyledActions>
-            </StyledWrapper>
-            <NoScroll />
-        </StyledContainer>
+            </StyledThemeContent>
+            <StyledActions>
+                <Button view="clear" onClick={onThemeCancel} text="Назад" />
+                <Button view="primary" onClick={onThemeSave} text="Сохранить" />
+            </StyledActions>
+        </PageWrapper>
     );
 };

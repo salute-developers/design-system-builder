@@ -1,27 +1,33 @@
 import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import { camelToKebab } from '../../_new/utils';
-import { capitalize } from '../utils';
 import type { Theme } from '../../themeBuilder';
-import type { PropConfig, WebToken } from '../type';
+import type { PlatformTokens, PropConfig, State } from '../type';
 import { Prop } from './prop';
 
 export class ColorProp extends Prop {
     protected readonly type = 'color';
 
-    constructor(name: string, data: PropConfig, webTokens?: WebToken[] | null) {
-        super(name, data, webTokens);
+    constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
+        super(name, data, platformTokens);
     }
 
-    private getCSSVar(value: string | number) {
+    private getCSSVar(value?: string | number) {
+        if (!value) {
+            return;
+        }
+
+        if (value === 'transparent' || value === 'inherit') {
+            return value;
+        }
+
         const [category, subcategory, name] = value.toString().split('.');
         const tokenValue = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
 
         return `var(${tokenValue})`;
     }
 
-    private getThemeValue(tokenName: string, theme: Theme, themeMode?: ThemeMode) {
-        const token = theme.getTokenValue(`${themeMode}.${tokenName}`, 'color', 'web');
+    private getThemeValue(tokenName?: string, theme?: Theme, themeMode?: ThemeMode) {
+        const token = theme?.getTokenValue(`${themeMode}.${tokenName}`, 'color', 'web');
 
         if (!token) {
             return this.value;
@@ -30,29 +36,7 @@ export class ColorProp extends Prop {
         return getRestoredColorFromPalette(token, -1);
     }
 
-    private getAdditionalTokens(token: string, theme?: Theme, themeMode?: ThemeMode) {
-        if (!this.states?.length) {
-            return null;
-        }
-
-        const statesMap = {
-            hovered: 'Hover',
-            pressed: 'Active',
-        };
-
-        return this.states.reduce((acc, item) => {
-            const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
-            const tokenName = `--plasma${capitalize(token)}${statesMap[state]}`;
-            const value = theme ? this.getThemeValue(item.value, theme, themeMode) : this.getCSSVar(item.value);
-
-            return {
-                ...acc,
-                [camelToKebab(tokenName)]: value,
-            };
-        }, {});
-    }
-
-    public getWebTokenValue(theme?: Theme, themeMode?: ThemeMode) {
+    public getWebTokenValue(componentName?: string, theme?: Theme, themeMode?: ThemeMode) {
         if (!this.webTokens || !this.webTokens.length) {
             return;
         }
@@ -69,14 +53,17 @@ export class ColorProp extends Prop {
         }
 
         const additionalValues = this.webTokens.reduce((acc, { name }) => {
+            const getValue = ({ value }: State) =>
+                theme ? this.getThemeValue(value, theme, themeMode) : this.getCSSVar(value);
+
             return {
                 ...acc,
-                ...this.getAdditionalTokens(name, theme, themeMode),
+                ...this.getAdditionalTokens(name, getValue, componentName),
             };
         }, {});
 
         return {
-            ...this.createWebToken(value),
+            ...this.createWebToken(value, componentName),
             ...additionalValues,
         };
     }

@@ -48,7 +48,7 @@ const StyledToken = styled.div<{ isOpenEditor: boolean }>`
 
     cursor: pointer;
 
-    background: ${({ isOpenEditor }) => (isOpenEditor ? '#121212' : '#0c0c0c')};
+    background: ${({ isOpenEditor }) => (isOpenEditor ? '#121212' : 'transparent')};
 `;
 
 const StyledTokenName = styled.div`
@@ -73,7 +73,7 @@ export const TokenPreview = ({
     onTokenUpdate: (token?: Token, data?: any, context?: string[]) => void;
 }) => {
     return (
-        <StyledRoot isTokenEnabled={isOpenEditor || token?.getEnabled() || true}>
+        <StyledRoot isTokenEnabled={Boolean(isOpenEditor || token?.getEnabled())}>
             <StyledToken isOpenEditor={isOpenEditor} onClick={onClick}>
                 <StyledTokenName>{token?.getDisplayName()}</StyledTokenName>
                 {token instanceof ColorToken && <ColorPreview onTokenDelete={onTokenDelete} token={token} />}

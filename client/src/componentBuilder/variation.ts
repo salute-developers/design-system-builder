@@ -25,6 +25,14 @@ export class Variation {
         });
     }
 
+    public getStyle(styleID?: string) {
+        if (!styleID) {
+            return this.styles?.[0];
+        }
+
+        return this.styles?.find((item) => item.getID() === styleID);
+    }
+
     public addStyle(name: string, api: ComponentAPI[]) {
         const styleValues = {
             name,

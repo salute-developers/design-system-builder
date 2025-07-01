@@ -23,6 +23,7 @@ export const Slider = styled.input`
     width: 100%;
     background: transparent;
     position: relative;
+    margin: 0;
 
     &:focus {
         outline: none;
