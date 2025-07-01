@@ -143,10 +143,10 @@ export class DesignSystem {
         return buildTheme(this.themeData.meta, this.themeData.variations, data?.includeExtraTokens);
     }
 
-    public createComponentInstance(data: { componentName: string; configInfo: { name: string; id: string } }) {
-        const { componentName, configInfo } = data;
+    public createComponentInstance(data: { componentName: string }) {
+        const { componentName } = data;
 
         const componentMeta = this.getComponentDataByName(componentName);
-        return new Config(componentMeta, configInfo);
+        return new Config(componentMeta);
     }
 }

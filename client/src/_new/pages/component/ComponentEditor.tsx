@@ -11,7 +11,6 @@ import { ComponentAddStyle } from './ComponentAddStyle';
 import { Config } from '../../../componentBuilder';
 import { DesignSystem } from '../../../designSystem';
 import { PageWrapper } from '../PageWrapper';
-import { ComponentAppearance } from './ComponentAppearance';
 
 const StyledActions = styled.div`
     display: flex;
@@ -100,22 +99,13 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
-    const configItems = designSystem
-        .getComponentDataByName(componentName)
-        .sources.configs.map(({ name, id }) => ({ value: id, label: name }));
-    const [configItem, setConfigItem] = useState(configItems[0]);
-
     const theme = useMemo(() => designSystem.createThemeInstance({ includeExtraTokens: true }), []);
     const componentConfig = useMemo(
         () =>
             designSystem.createComponentInstance({
                 componentName,
-                configInfo: {
-                    id: configItem.value,
-                    name: configItem.label,
-                },
             }),
-        [configItem],
+        [],
     );
 
     const [, updateState] = useState({});
@@ -144,9 +134,8 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
         const { sources } = designSystem.getComponentDataByName(componentName);
 
-        const configIndex = sources.configs?.findIndex(({ id }) => id === configItem.value);
-        sources.configs[configIndex] = {
-            ...sources.configs[configIndex],
+        sources.configs[0] = {
+            ...sources.configs[0],
             config: {
                 defaultVariations,
                 invariantProps,
@@ -183,29 +172,10 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setComponentProps({ ...componentProps, ...values });
     };
 
-    const onChangeAppearance = (value: { value: string; label: string }) => {
-        setConfigItem(value);
-
-        const currentComponentConfig = designSystem.createComponentInstance({
-            componentName,
-            configInfo: {
-                id: value.value,
-                name: value.label,
-            },
-        });
-
-        setComponentProps((prev) => ({ ...prev, ...getDefaults(currentComponentConfig) }));
-    };
-
     const vars = createCSSVars(componentConfig, theme, componentProps, themeMode);
 
     return (
         <PageWrapper designSystem={designSystem}>
-            <ComponentAppearance
-                configItems={configItems}
-                configItem={configItem}
-                onChangeAppearance={onChangeAppearance}
-            />
             <StyledBoard>
                 <ComponentTokens
                     args={componentProps}

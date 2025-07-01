@@ -61,8 +61,8 @@ export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: Com
         await fs.writeFile(`${pathToComponent}/${componentName}.ts`, component);
 
         for await (const item of configs) {
-            const { id, name } = item;
-            const config = new Config(componentMeta, { id, name });
+            const { name } = item;
+            const config = new Config(componentMeta);
             const componentConfigFileName = name === 'default' ? componentName : `${componentName}.${name}`;
 
             const componentConfig = createComponentConfig(componentName, config);
