@@ -19,7 +19,8 @@ export function createComponentsRouter(db: Database) {
               }
             }
           },
-          tokens: true
+          tokens: true,
+          propsAPI: true
         }
       });
       res.json(allComponents);

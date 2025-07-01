@@ -58,6 +58,16 @@ export const tokens = pgTable('tokens', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+// Props API table
+export const propsAPI = pgTable('props_api', {
+  id: serial('id').primaryKey(),
+  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  value: text('value').notNull(), // Will store string or boolean as text
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Variation Value table
 export const variationValues = pgTable('variation_values', {
   id: serial('id').primaryKey(),
@@ -102,6 +112,7 @@ export const componentsRelations = relations(components, ({ many }) => ({
   variations: many(variations, { relationName: 'componentVariations' }),
   variationValues: many(variationValues),
   tokens: many(tokens),
+  propsAPI: many(propsAPI),
 }));
 
 export const designSystemComponentsRelations = relations(designSystemComponents, ({ one }) => ({
@@ -169,5 +180,12 @@ export const tokenVariationsRelations = relations(tokenVariations, ({ one }) => 
   variation: one(variations, {
     fields: [tokenVariations.variationId],
     references: [variations.id],
+  }),
+}));
+
+export const propsAPIRelations = relations(propsAPI, ({ one }) => ({
+  component: one(components, {
+    fields: [propsAPI.componentId],
+    references: [components.id],
   }),
 }));

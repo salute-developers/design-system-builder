@@ -50,6 +50,13 @@
       "when": 1749245968734,
       "tag": "0006_great_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1751384601899,
+      "tag": "0007_gigantic_daredevil",
+      "breakpoints": true
     }
   ]
 }

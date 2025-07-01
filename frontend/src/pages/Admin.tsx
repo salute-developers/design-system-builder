@@ -30,6 +30,7 @@ interface Component {
   description: string | null;
   variations?: Variation[];
   tokens?: Token[];
+  propsAPI?: PropsAPI[];
 }
 
 interface Variation {
@@ -53,6 +54,15 @@ interface Token {
   webParam: string | null;
 }
 
+interface PropsAPI {
+  id: number;
+  componentId: number;
+  name: string;
+  value: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface FormData {
   name: string;
   description: string;
@@ -63,6 +73,7 @@ interface FormData {
   iosParam?: string;
   webParam?: string;
   componentId?: number;
+  value?: string;
 }
 
 const Admin = () => {
@@ -70,9 +81,10 @@ const Admin = () => {
   const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
-  const [activeTab, setActiveTab] = useState<'tokens' | 'variations'>('tokens');
+  const [props, setProps] = useState<PropsAPI[]>([]);
+  const [activeTab, setActiveTab] = useState<'tokens' | 'variations' | 'props'>('tokens');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogType, setDialogType] = useState<'component' | 'variation' | 'token'>('component');
+  const [dialogType, setDialogType] = useState<'component' | 'variation' | 'token' | 'props'>('component');
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -80,10 +92,11 @@ const Admin = () => {
   const [componentsSearchTerm, setComponentsSearchTerm] = useState('');
   const [tokensSearchTerm, setTokensSearchTerm] = useState('');
   const [variationsSearchTerm, setVariationsSearchTerm] = useState('');
+  const [propsSearchTerm, setPropsSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [editingItem, setEditingItem] = useState<Component | Variation | Token | null>(null);
+  const [editingItem, setEditingItem] = useState<Component | Variation | Token | PropsAPI | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isAssignTokenDialogOpen, setIsAssignTokenDialogOpen] = useState(false);
   const [selectedVariationForAssignment, setSelectedVariationForAssignment] = useState<Variation | null>(null);
@@ -99,9 +112,11 @@ const Admin = () => {
     if (selectedComponent) {
       setTokens(selectedComponent.tokens || []);
       setVariations(selectedComponent.variations || []);
+      setProps(selectedComponent.propsAPI || []);
     } else {
       setTokens([]);
       setVariations([]);
+      setProps([]);
     }
   }, [selectedComponent]);
 
@@ -151,11 +166,20 @@ const Admin = () => {
       }
     }
     
+    if (dialogType === 'props') {
+      if (!formData.value?.trim()) {
+        errors.value = 'Value is required';
+      }
+      if (!formData.componentId) {
+        errors.componentId = 'Component is required';
+      }
+    }
+    
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleAdd = (type: 'component' | 'variation' | 'token') => {
+  const handleAdd = (type: 'component' | 'variation' | 'token' | 'props') => {
     setDialogType(type);
     setIsEditMode(false);
     setEditingItem(null);
@@ -169,12 +193,13 @@ const Admin = () => {
       iosParam: '',
       webParam: '',
       componentId: selectedComponent?.id,
+      value: '',
     });
     setFormErrors({});
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (type: 'component' | 'variation' | 'token', item: Component | Variation | Token) => {
+  const handleEdit = (type: 'component' | 'variation' | 'token' | 'props', item: Component | Variation | Token | PropsAPI) => {
     setDialogType(type);
     setIsEditMode(true);
     setEditingItem(item);
@@ -188,6 +213,7 @@ const Admin = () => {
       iosParam: 'iosParam' in item ? item.iosParam || '' : '',
       webParam: 'webParam' in item ? item.webParam || '' : '',
       componentId: 'componentId' in item ? item.componentId : selectedComponent?.id,
+      value: 'value' in item ? item.value || '' : '',
     });
     setFormErrors({});
     setIsDialogOpen(true);
@@ -255,6 +281,19 @@ const Admin = () => {
             await response.json();
             needsComponentRefresh = true;
             break;
+
+          case 'props':
+            response = await fetch(getAdminApiUrl('props-api') + `/${editingItem.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                value: formData.value,
+              }),
+            });
+            await response.json();
+            needsComponentRefresh = true;
+            break;
         }
       } else {
         switch (dialogType) {
@@ -304,6 +343,20 @@ const Admin = () => {
             await response.json();
             needsComponentRefresh = true;
             break;
+
+          case 'props':
+            response = await fetch(getAdminApiUrl('props-api'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                value: formData.value,
+                componentId: formData.componentId,
+              }),
+            });
+            await response.json();
+            needsComponentRefresh = true;
+            break;
         }
       }
 
@@ -324,7 +377,7 @@ const Admin = () => {
     }
   };
 
-  const handleDelete = async (type: 'component' | 'variation' | 'token', id: number) => {
+  const handleDelete = async (type: 'component' | 'variation' | 'token' | 'props', id: number) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
 
     try {
@@ -344,6 +397,11 @@ const Admin = () => {
 
         case 'token':
           await fetch(getAdminApiUrl('tokens') + `/${id}`, { method: 'DELETE' });
+          await refreshComponentData();
+          break;
+
+        case 'props':
+          await fetch(getAdminApiUrl('props-api') + `/${id}`, { method: 'DELETE' });
           await refreshComponentData();
           break;
       }
@@ -389,7 +447,8 @@ const Admin = () => {
   const getComponentCounts = (component: Component) => {
     const tokensCount = component.tokens?.length || 0;
     const variationsCount = component.variations?.length || 0;
-    return { tokensCount, variationsCount };
+    const propsCount = component.propsAPI?.length || 0;
+    return { tokensCount, variationsCount, propsCount };
   };
 
   const isTokenAssignedToVariation = (tokenId: number) => {
@@ -593,6 +652,42 @@ const Admin = () => {
                 </Select>
               </div>
             )}
+            {dialogType === 'props' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Component</label>
+                  <Select 
+                    value={formData.componentId?.toString() || ''} 
+                    onValueChange={(value) => setFormData({ ...formData, componentId: parseInt(value) })}
+                  >
+                    <SelectTrigger className={formErrors.componentId ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="Select component" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {components.map((component) => (
+                        <SelectItem key={component.id} value={component.id.toString()}>
+                          {component.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.componentId && <p className="text-sm text-red-500">{formErrors.componentId}</p>}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Value</label>
+                  <Input
+                    value={formData.value}
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                    placeholder="Enter value (e.g., true, false, or any string)"
+                    className={formErrors.value ? 'border-red-500' : ''}
+                  />
+                  {formErrors.value && <p className="text-sm text-red-500">{formErrors.value}</p>}
+                  <p className="text-xs text-gray-500">
+                    This can be a boolean value (true/false) or any string value
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter className="flex-shrink-0 mt-4">
             <Button variant="outline" onClick={() => {
@@ -638,7 +733,7 @@ const Admin = () => {
         </div>
         <div className="space-y-2">
           {filterItems(sortItems(components), componentsSearchTerm).map((component) => {
-            const { tokensCount, variationsCount } = getComponentCounts(component);
+            const { tokensCount, variationsCount, propsCount } = getComponentCounts(component);
             return (
               <div
                 key={component.id}
@@ -660,6 +755,9 @@ const Admin = () => {
                       </span>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                         {variationsCount} variations
+                      </span>
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                        {propsCount} props
                       </span>
                     </div>
                   </div>
@@ -703,9 +801,10 @@ const Admin = () => {
                 <h2 className="text-lg font-semibold mb-2">
                   {selectedComponent.name}
                 </h2>
-                <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsList className="grid w-full grid-cols-3 max-w-lg">
                   <TabsTrigger value="tokens">Tokens</TabsTrigger>
                   <TabsTrigger value="variations">Variations</TabsTrigger>
+                  <TabsTrigger value="props">Props</TabsTrigger>
                 </TabsList>
               </div>
             </div>
@@ -908,10 +1007,92 @@ const Admin = () => {
                 ))}
               </div>
             </TabsContent>
+
+            <TabsContent value="props" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-md font-medium">Component Props</h3>
+                <Button onClick={() => handleAdd('props')}>Add Prop</Button>
+              </div>
+              <div className="mb-4">
+                <div className="relative">
+                  <Input
+                    placeholder="Search props..."
+                    value={propsSearchTerm}
+                    onChange={(e) => setPropsSearchTerm(e.target.value)}
+                    className="mb-2 pr-8"
+                  />
+                  {propsSearchTerm && (
+                    <button
+                      onClick={() => setPropsSearchTerm('')}
+                      className="absolute right-2 top-1 text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={sortBy === 'name' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleSort('name')}
+                  >
+                    Sort by Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </Button>
+                  <Button
+                    variant={sortBy === 'id' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => handleSort('id')}
+                  >
+                    Sort by ID {sortBy === 'id' && (sortOrder === 'asc' ? '↑' : '↓')}
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {props
+                  .filter(prop => prop.name.toLowerCase().includes(propsSearchTerm.toLowerCase()))
+                  .sort((a, b) => {
+                    if (sortBy === 'name') {
+                      return sortOrder === 'asc'
+                        ? a.name.localeCompare(b.name)
+                        : b.name.localeCompare(a.name);
+                    }
+                    return sortOrder === 'asc' ? a.id - b.id : b.id - a.id;
+                  })
+                  .map((prop) => (
+                  <div
+                    key={prop.id}
+                    className="p-4 rounded border group hover:bg-gray-50 transition-colors bg-gray-50"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">{prop.name}</h4>
+                        <p className="text-sm text-gray-500 mt-1">Value: {prop.value}</p>
+                      </div>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit('props', prop)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete('props', prop.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
           </Tabs>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">
-            <p>Select a component to view its tokens and variations</p>
+            <p>Select a component to view its tokens, variations, and props</p>
           </div>
         )}
       </div>

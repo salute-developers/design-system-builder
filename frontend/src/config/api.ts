@@ -9,6 +9,7 @@ const API_CONFIG = {
     components: '/admin-api/components',
     variations: '/admin-api/variations',
     tokens: '/admin-api/tokens',
+    'props-api': '/admin-api/props-api',
   },
 };
 
