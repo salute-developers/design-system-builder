@@ -40,14 +40,15 @@ export const generateBaseFileStructure = async ({
 };
 
 export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: ComponentsFiles) => {
-    const configs = componentsMeta.map((meta) => new Config(meta));
-
-    const rootIndex = createRootIndex(configs);
+    const componentsName = componentsMeta.map((meta) => meta.name);
+    const rootIndex = createRootIndex(componentsName);
     await fs.writeFile(`${pathToDir}/src/index.ts`, rootIndex);
 
-    for await (const config of configs) {
-        const componentName = config.getName();
-        const componentDescription = config.getDescription();
+    for await (const componentMeta of componentsMeta) {
+        const componentName = componentMeta.name;
+        const componentDescription = componentMeta.description;
+        const configs = componentMeta.sources.configs;
+        const componentConfigs = configs.map(({ name }) => name);
 
         const pathToComponent = `${pathToDir}/src/components/${componentName}`;
 
@@ -56,11 +57,17 @@ export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: Com
         const componentIndex = createComponentIndex(componentName);
         await fs.writeFile(`${pathToComponent}/index.ts`, componentIndex);
 
-        const component = createComponent(componentName, componentDescription);
+        const component = createComponent(componentName, componentDescription, componentConfigs);
         await fs.writeFile(`${pathToComponent}/${componentName}.ts`, component);
 
-        const componentConfig = createComponentConfig(componentName, config);
-        await fs.writeFile(`${pathToComponent}/${componentName}.config.ts`, componentConfig);
+        for await (const item of configs) {
+            const { id, name } = item;
+            const config = new Config(componentMeta, { id, name });
+            const componentConfigFileName = name === 'default' ? componentName : `${componentName}.${name}`;
+
+            const componentConfig = createComponentConfig(componentName, config);
+            await fs.writeFile(`${pathToComponent}/${componentConfigFileName}.config.ts`, componentConfig);
+        }
     }
 };
 
