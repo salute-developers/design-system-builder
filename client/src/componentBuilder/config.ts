@@ -14,7 +14,7 @@ export class Config {
 
     private invariants: Props;
 
-    constructor(meta: Meta, configInfo: { id: string; name: string }) {
+    constructor(meta: Meta) {
         const { name, description, sources } = meta;
 
         this.name = name;
@@ -22,7 +22,7 @@ export class Config {
 
         const { api, configs, variations } = sources;
 
-        const config = configs.find((item) => item.id === configInfo.id)?.config;
+        const { config } = configs[0];
 
         if (!config) {
             this.defaults = [];
