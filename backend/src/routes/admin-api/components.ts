@@ -32,7 +32,8 @@ export function createComponentsRouter(db: Database) {
               }
             }
           },
-          tokens: true
+          tokens: true,
+          propsAPI: true
         }
       });
       res.json(allComponents);
@@ -56,7 +57,8 @@ export function createComponentsRouter(db: Database) {
               }
             }
           },
-          tokens: true
+          tokens: true,
+          propsAPI: true
         }
       });
       res.json(allComponents);
@@ -86,7 +88,8 @@ export function createComponentsRouter(db: Database) {
               }
             }
           },
-          tokens: true
+          tokens: true,
+          propsAPI: true
         }
       });
       if (!component) {

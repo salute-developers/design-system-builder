@@ -5,6 +5,7 @@ import { createComponentsRouter as createApiComponentsRouter } from './api/compo
 import { createComponentsRouter } from './admin-api/components';
 import { createVariationsRouter } from './admin-api/variations';
 import { createTokensRouter } from './admin-api/tokens';
+import { createPropsAPIRouter } from './admin-api/props-api';
 import { db } from '../db';
 
 const router = Router();
@@ -27,5 +28,6 @@ router.use('/api/components', createApiComponentsRouter(db));
 router.use('/admin-api/components', createComponentsRouter(db));
 router.use('/admin-api/variations', createVariationsRouter(db));
 router.use('/admin-api/tokens', createTokensRouter(db));
+router.use('/admin-api/props-api', createPropsAPIRouter(db));
 
 export default router; 
