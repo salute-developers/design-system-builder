@@ -29,7 +29,7 @@ function App() {
     const [components, setComponents] = useState<Config[]>([]);
 
     return (
-        <BrowserRouter>
+        <BrowserRouter basename="/design-system-builder">
             <Routes>
                 <Route index element={<Main createTheme={setTheme} />} />
                 {theme && (

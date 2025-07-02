@@ -1,0 +1,79 @@
+name: PR design-system-builder
+
+on:
+  pull_request:
+    branches:
+      - master
+  pull_request_target:
+    branches:
+      - dev
+
+concurrency:
+  # New commit on branch cancels running workflows of the same branch
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    env:
+      PR_NAME: pr-${{ github.event.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+          ref: refs/pull/${{github.event.pull_request.number}}/merge
+
+      - name: Prepare environment
+        uses: ./.github/actions/prepare-environment
+
+      - name: Prepare directory for build
+        run: mkdir s3_build
+
+      # TODO: https://github.com/salute-developers/plasma/issues/255
+      - name: Npm install
+        run: |
+          npm install --prefix="./client"
+
+      # TODO: https://github.com/salute-developers/plasma/issues/603
+      - name: Build Design System Builder
+        run: |
+          export NODE_OPTIONS=--openssl-legacy-provider
+          npm run build --prefix="./client"
+          cp -R ./client/dist ./s3_build/design-system-builder-${PR_NAME}
+
+      - name: Install s3cmd
+        run: |
+          pip3 install s3cmd
+
+      - name: s3 Upload build
+        run: >
+          s3cmd
+          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
+          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          --host ${{ secrets.AWS_ENDPOINT }}
+          --host-bucket ${{ secrets.AWS_ENDPOINT }}
+          --bucket-location ${{ secrets.AWS_REGION }}
+          --signature-v2
+          --delete-removed
+          --no-mime-magic
+          sync
+          ./s3_build/design-system-builder-${PR_NAME}/
+          s3://${{ secrets.AWS_S3_BUCKET_2 }}/pr/design-system-builder-${PR_NAME}/
+
+      - name: Create success comment
+        id: success-comment
+        uses: actions/github-script@v3
+        with:
+          result-encoding: string
+          script: |
+            const url = `${{ vars.STAGE_STABLE_URL }}/pr/design-system-builder-pr-${context.issue.number}`
+
+            return "Design System Builder app deployed!" + "\n\n" + url;
+
+      -   name: Attach comment
+          uses: marocchino/sticky-pull-request-comment@v2
+          with:
+              header: Design System Builder
+              message: ${{ steps.success-comment.outputs.result }}

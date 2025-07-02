@@ -5,7 +5,7 @@ interface ButtonStoryProps {
     args: any;
 }
 
-const Button = component(mergeConfig(buttonConfig, {}));
+const Button = component(mergeConfig(buttonConfig as any, {}));
 
 export const ButtonStory = (props: ButtonStoryProps) => {
     const { args } = props;

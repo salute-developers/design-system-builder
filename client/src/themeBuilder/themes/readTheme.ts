@@ -4,9 +4,10 @@ import { getFileSource } from '../../_new/api';
 import { type PlatformsVariations, type ThemeMeta } from '../types';
 
 const deserializeZip = async (content: string) => {
-    const buf = Buffer.from(content, 'base64') as any;
+    // TODO: Вообще убрать?
+    // const buf = Buffer.from(content, 'base64') as any;
 
-    return await JSZip.loadAsync(buf);
+    return await JSZip.loadAsync({});
 };
 
 const getAllRelativePath = async (zip: JSZip) => {

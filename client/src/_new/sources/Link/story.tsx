@@ -4,7 +4,7 @@ interface LinkStoryProps {
     args: any;
 }
 
-const Link = component(mergeConfig(linkConfig, {}));
+const Link = component(mergeConfig(linkConfig as any, {}));
 
 export const LinkStory = (props: LinkStoryProps) => {
     const { args } = props;

@@ -3,9 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { IconHomeAltOutline } from '@salutejs/plasma-icons';
 import { Button, IconButton } from '@salutejs/plasma-b2c';
 
-import { Button as TestButton, IconButton as TestIconButton, Link as TestLink } from '@salutejs-ds/test';
-import webThemes from '@salutejs-ds/test/css/test.module.css';
-
 import type { Theme } from '../../themeBuilder';
 
 const NoScroll = createGlobalStyle`
@@ -108,21 +105,6 @@ export const DemoComponents = (props: DemoComponentsProps) => {
                 </IconButton>
             </StyledThemeInfo>
             <StyledWrapper>
-                <StyledDemoContent className={webThemes.dark}>
-                    <TestButton
-                        contentLeft={<IconHomeAltOutline color="inherit" size="s" />}
-                        view="accent"
-                        size="l"
-                        text="Text"
-                        value="Value"
-                    />
-                    <TestIconButton view="accent">
-                        <IconHomeAltOutline size="s" />
-                    </TestIconButton>
-                    <StyledLinkExample>
-                        Just <TestLink view="accent">link test</TestLink>
-                    </StyledLinkExample>
-                </StyledDemoContent>
                 <StyledActions>
                     <Button view="primary" onClick={onGoHome} text="Вернуться" />
                 </StyledActions>

@@ -9,6 +9,7 @@ export default defineConfig({
             usePolling: true,
         },
     },
+    base: './',
     plugins: [react()],
     define: {
         'process.env': {},
