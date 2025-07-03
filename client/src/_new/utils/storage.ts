@@ -10,7 +10,7 @@ export const saveDesignSystem = (data: {
 }) => {
     const { name, version, themeData, componentsData } = data;
 
-    const key = `$${name}@${version}`;
+    const key = `#${name}@${version}`;
     const value = JSON.stringify({
         themeData,
         componentsData,
@@ -23,19 +23,19 @@ export const loadDesignSystem = (
     name: string,
     version: string,
 ): { themeData: ThemeSource; componentsData: Meta[] } | undefined => {
-    const savedDesignSystemData = localStorage.getItem(`$${name}@${version}`);
+    const savedDesignSystemData = localStorage.getItem(`#${name}@${version}`);
     return savedDesignSystemData ? JSON.parse(savedDesignSystemData) : undefined;
 };
 
 export const removeDesignSystem = (name: string, version: string) => {
-    localStorage.removeItem(`$${name}@${version}`);
+    localStorage.removeItem(`#${name}@${version}`);
 };
 
 export const loadAllDesignSystemNames = (): (readonly [string, string])[] | undefined => {
     const themes = Object.keys(localStorage as unknown as Array<string>[number])
-        .filter((key) => key.startsWith('$'))
+        .filter((key) => key.startsWith('#'))
         .map((item) => {
-            const [name, version] = item.replace(`$`, '').split('@');
+            const [name, version] = item.replace(`#`, '').split('@');
 
             return [name, version] as const;
         });

@@ -68,7 +68,7 @@ jobs:
         with:
           result-encoding: string
           script: |
-            const url = `${{ vars.STAGE_STABLE_URL }}/pr/design-system-builder-pr-${context.issue.number}`
+            const url = `https://plasma.sberdevices.ru/pr/design-system-builder-pr-${context.issue.number}/`
 
             return "Design System Builder app deployed!" + "\n\n" + url;
 
