@@ -1,13 +1,28 @@
-import { BrowserRouter, Routes, Route } from 'react-router';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import { ComponentEditor, ComponentSelector, Demo, Generate, Main, TokensEditor } from './_new/pages';
 
+const getBaseName = () => {
+    const { pathname } = window.location;
+
+    const prMatch = pathname.match(/^\/pr\/design-system-builder-pr-\d+/);
+    if (prMatch) {
+        return prMatch[0];
+    }
+
+    if (pathname.startsWith('/design-system-builder')) {
+        return '/design-system-builder';
+    }
+
+    return '/';
+};
+
 function App() {
     return (
-        <BrowserRouter basename="/design-system-builder">
+        <Router basename={getBaseName()}>
             <Routes>
                 <Route index element={<Main />} />
-                <Route path="/:designSystemName/:designSystemVersion">
+                <Route path=":designSystemName/:designSystemVersion">
                     <Route path="theme" element={<TokensEditor />} />
                     <Route path="components">
                         <Route index element={<ComponentSelector />} />
@@ -17,7 +32,7 @@ function App() {
                 </Route>
                 <Route path="demo" element={<Demo />} />
             </Routes>
-        </BrowserRouter>
+        </Router>
     );
 }
 
