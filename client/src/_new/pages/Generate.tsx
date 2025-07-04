@@ -86,7 +86,8 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch('http://localhost:3000/generate', {
+        const result = await fetch('https://pr-2-ds-generator.dev.app.sberdevices.ru/generate', {
+        // const result = await fetch('http://localhost:3000/generate', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {

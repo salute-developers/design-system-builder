@@ -267,7 +267,25 @@ export const Main = (props: MainProps) => {
                 </StyledDesignSystemItem>
             </StyledDesignSystemContent>
             <StyledActions>
-                <Button view="accent" onClick={onGoDemo} text="Демо" />
+                {/* <Button view="accent" onClick={onGoDemo} text="Демо" /> */}
+                <Button
+                    view="accent"
+                    onClick={async () => {
+                        await fetch('https://pr-2-ds-generator.dev.app.sberdevices.ru/remove-result', {
+                            method: 'POST',
+                        });
+                    }}
+                    text="Remove result"
+                />
+                <Button
+                    view="accent"
+                    onClick={async () => {
+                        await fetch('https://pr-2-ds-generator.dev.app.sberdevices.ru/check', {
+                            method: 'POST',
+                        });
+                    }}
+                    text="Post health"
+                />
                 <Button view="primary" onClick={onDesignSystemSave} text="Начать" />
             </StyledActions>
         </PageWrapper>
