@@ -46,7 +46,7 @@ export const Generate = (props: GenerateProps) => {
 
     const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
 
-    const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
+    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
 
     const [isLoading, setIsLoading] = useState(false);
     const [exportType, setExportType] = useState('tgz');
@@ -67,7 +67,7 @@ export const Generate = (props: GenerateProps) => {
     };
 
     const onGoComponents = () => {
-        navigate(`/${currentLocation}/components`);
+        navigate(`/${ currentLocation }/components`);
     };
 
     const onDesignSystemGenerate = async () => {
@@ -86,8 +86,7 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch('https://pr-2-ds-generator.dev.app.sberdevices.ru/generate', {
-        // const result = await fetch('http://localhost:3000/generate', {
+        const result = await fetch('https://ds-generator.prom.app.sberdevices.ru/generate', {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -95,23 +94,65 @@ export const Generate = (props: GenerateProps) => {
             },
         });
 
-        const blob = await result.blob();
+        if (!result) {
+            setIsLoading(false)
+        }
+
+        const reader = result.body?.getReader();
+
+        const chunks = [];
+
+        let archiveDetected = false;
+
+        while (true) {
+            const { value, done } = await reader!.read();
+            if (done) break;
+
+            const u8 = new Uint8Array(value);
+
+            if (!archiveDetected) {
+                for (let i = 0; i < u8.length - 3; i++) {
+                    // TGZ
+                    if (u8[i] === 0x1f && u8[i + 1] === 0x8b) {
+                        archiveDetected = true;
+                        const sliced = u8.slice(i);
+                        chunks.push(sliced);
+                        break;
+                    }
+
+                    // ZIP
+                    if (
+                        u8[i] === 0x50 && u8[i + 1] === 0x4b &&
+                        u8[i + 2] === 0x03 && u8[i + 3] === 0x04
+                    ) {
+                        archiveDetected = true;
+                        const sliced = u8.slice(i);
+                        chunks.push(sliced);
+                        break;
+                    }
+                }
+
+                if (!archiveDetected) continue;
+            } else {
+                chunks.push(value);
+            }
+        }
+
+        const blob = new Blob(chunks);
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
+        a.download = `${ designSystem.getName() }@${ designSystem.getVersion() }.${ exportType }`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
 
         setIsLoading(false);
-
-        console.log('test', result);
     };
 
     return (
-        <PageWrapper designSystem={designSystem}>
+        <PageWrapper designSystem={ designSystem }>
             <StyledGenerateContent>
                 <StyledExportType>
                     <BodyM>Тип экспорта</BodyM>
@@ -119,19 +160,19 @@ export const Generate = (props: GenerateProps) => {
                         size="m"
                         listMaxHeight="25"
                         listOverflow="scroll"
-                        value={exportType}
-                        items={exportTypes}
-                        onChange={onChangeExportType}
+                        value={ exportType }
+                        items={ exportTypes }
+                        onChange={ onChangeExportType }
                     />
                 </StyledExportType>
             </StyledGenerateContent>
             <StyledActions>
-                <Button view="clear" onClick={onGoComponents} text="Назад" />
+                <Button view="clear" onClick={ onGoComponents } text="Назад"/>
                 <Button
                     view="primary"
-                    onClick={onDesignSystemGenerate}
-                    disabled={isLoading}
-                    isLoading={isLoading}
+                    onClick={ onDesignSystemGenerate }
+                    disabled={ isLoading }
+                    isLoading={ isLoading }
                     text="Создать дизайн систему"
                 />
             </StyledActions>
