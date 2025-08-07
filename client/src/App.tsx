@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import { ComponentEditor, ComponentSelector, Demo, Generate, Main, TokensEditor } from './_new/pages';
+import { NewMain } from './_new/pages/NewMain';
 
 const getBaseName = () => {
     const { pathname } = window.location;
@@ -21,7 +22,8 @@ function App() {
     return (
         <Router basename={getBaseName()}>
             <Routes>
-                <Route index element={<Main />} />
+                <Route index element={<NewMain />} />
+                <Route path="new-main" element={<NewMain />} />
                 <Route path=":designSystemName/:designSystemVersion">
                     <Route path="theme" element={<TokensEditor />} />
                     <Route path="components">
