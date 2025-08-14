@@ -8,6 +8,7 @@ const Root = styled.div<{ view?: 'default' | 'light' | 'dark' }>`
     cursor: pointer;
 
     height: 1.5rem;
+    width: fit-content;
 
     display: flex;
     gap: 0.375rem;
@@ -30,7 +31,7 @@ const StyledLabel = styled.div`
 const StyledWrapper = styled.div`
     background: var(--edit-button-background-color);
 
-    border-radius: 0.375rem;
+    border-radius: 1rem;
 
     display: flex;
     gap: 0.25rem;

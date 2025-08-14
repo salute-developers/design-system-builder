@@ -1,5 +1,7 @@
-import React, { useState, useRef, useLayoutEffect, forwardRef } from 'react';
+import React, { useRef, forwardRef } from 'react';
 import styled from 'styled-components';
+
+import { useInputDynamicWidth } from '../hooks';
 
 const Root = styled.div<{ view?: 'default' | 'negative' }>`
     position: relative;
@@ -25,11 +27,17 @@ const StyleWrapper = styled.div`
 `;
 
 const StyledInput = styled.input`
+    cursor: pointer;
     position: relative;
     background: transparent;
 
     color: var(--text-field-color);
     caret-color: var(--text-field-color);
+
+    &:hover:not(:placeholder-shown),
+    &:focus:hover {
+        cursor: text;
+    }
 
     &::placeholder {
         color: var(--gray-color-300);
@@ -83,12 +91,6 @@ const StyledDynamicHelper = styled.div`
     line-height: 16px;
 `;
 
-const minWidth = 34;
-const shiftWidth = 2;
-const compensativeWidth = 75;
-// TODO: Подумать, можно ли рассчитывать снаружи
-const FIXED_OFFSET = 356;
-
 interface HeroTextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
     value?: string;
     view?: 'default' | 'negative';
@@ -113,35 +115,14 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
     const spanRef = useRef<HTMLSpanElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
-    const [inputWidth, setInputWidth] = useState(minWidth);
-    const [inputLeft, setInputLeft] = useState(0);
-
-    const rightMaxWidth = (rootRef.current?.offsetWidth || 0) - compensativeWidth;
-    const maxWidth = rightMaxWidth + FIXED_OFFSET;
-
-    useLayoutEffect(() => {
-        let loaded = false;
-
-        document.fonts.ready.then(() => {
-            if (loaded || !spanRef.current) {
-                return;
-            }
-
-            const width = spanRef.current.offsetWidth + shiftWidth;
-
-            const newWidth = Math.min(Math.max(width, minWidth), maxWidth);
-
-            setInputWidth(newWidth);
-
-            const newLeft = spanRef.current.scrollWidth < rightMaxWidth ? 0 : rightMaxWidth - newWidth;
-
-            setInputLeft(newLeft);
-        });
-
-        return () => {
-            loaded = true;
-        };
-    }, [maxWidth, value]);
+    const [inputWidth, inputLeft] = useInputDynamicWidth(rootRef, spanRef, {
+        value,
+        minWidth: 34,
+        shiftWidth: 2,
+        compensativeWidth: 78,
+        // TODO: Подумать, можно ли рассчитывать снаружи
+        fixedOffset: 356,
+    });
 
     return (
         <Root view={view} ref={rootRef} {...rest}>

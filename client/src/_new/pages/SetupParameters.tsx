@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { general, PlasmaSaturation } from '@salutejs/plasma-colors';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
@@ -57,8 +57,6 @@ const accentColors = Object.entries(general)
     }));
 
 interface SetupParametersProps {
-    // projectName: string;
-    // grayTone: GrayTone;
     popupContentStep: number;
     parameters: Parameters;
     // TODO: убрать эни и сделать жденерик
@@ -87,6 +85,8 @@ export const SetupParameters = (props: SetupParametersProps) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const editStep = searchParams.get('editStep') === null ? null : Number(searchParams.get('editStep'));
 
+    console.log('editStep', editStep);
+
     // const [editStep, setEditStep] = useState<number | null>(null);
 
     useGlobalKeyDown((event) => {
@@ -104,17 +104,14 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
     const onChangeProjectName = (event: ChangeEvent<HTMLInputElement>) => {
         onChangeParameters('projectName', event.target.value);
-        // setParameters((prev) => ({ ...prev, projectName: event.target.value }));
     };
 
     const onChangePackagesName = (event: ChangeEvent<HTMLInputElement>) => {
         onChangeParameters('packagesName', event.target.value);
-        // setParameters((prev) => ({ ...prev, packagesName: event.target.value }));
     };
 
     const onSelectGrayTone = (value: string) => {
         onChangeParameters('grayTone', value as GrayTone);
-        // setParameters((prev) => ({ ...prev, grayTone: value as GrayTone }));
 
         if (editStep === null) {
             oChangePopupContentStep(1);
@@ -127,7 +124,6 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
     const onSelectAccentColor = (value: string) => {
         onChangeParameters('accentColor', value as GeneralColor);
-        // setParameters((prev) => ({ ...prev, accentColor: value as GeneralColor }));
 
         if (editStep === null) {
             onChangeThemeMode('light');
@@ -141,7 +137,6 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
     const onSelectLightSaturation = (value: string) => {
         onChangeParameters('lightSaturation', Number(value) as PlasmaSaturation);
-        // setParameters((prev) => ({ ...prev, lightSaturation: Number(value) as PlasmaSaturation }));
         onChangeThemeMode('dark');
 
         if (editStep === null) {
@@ -155,7 +150,6 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
     const onSelectDarkSaturation = (value: string) => {
         onChangeParameters('darkSaturation', Number(value) as PlasmaSaturation);
-        // setParameters((prev) => ({ ...prev, darkSaturation: Number(value) as PlasmaSaturation }));
 
         if (editStep === null) {
             oChangePopupContentStep(4);
@@ -163,16 +157,22 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
         searchParams.delete('editStep');
         setSearchParams(searchParams);
-        // setEditStep(null);
 
-        onNextPage(parameters);
+        // onNextPage(parameters);
     };
+
+    useEffect(() => {
+        if (popupContentStep === 4) {
+            console.log('test');
+            onNextPage(parameters);
+        }
+    }, [popupContentStep]);
 
     return (
         <Root>
             <StyledSelectedParameters>
                 <TextField label="Имя проекта" value={parameters.projectName} onChange={onChangeProjectName} />
-                <TextField label="Имя проекта" value={parameters.packagesName} onChange={onChangePackagesName} />
+                <TextField label="Имя пакетов" value={parameters.packagesName} onChange={onChangePackagesName} />
             </StyledSelectedParameters>
 
             {popupContentStep >= 0 && (
@@ -270,7 +270,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                                     color={general[parameters.accentColor][parameters.darkSaturation]}
                                 />
                             }
-                            color={general[parameters.accentColor][parameters.lightSaturation]}
+                            color={general[parameters.accentColor][parameters.darkSaturation]}
                             text={parameters.darkSaturation.toString()}
                             view="dark"
                             onClick={() => {
