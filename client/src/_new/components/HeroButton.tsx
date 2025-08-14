@@ -1,7 +1,8 @@
+import { ContrastRatioChecker } from 'contrast-ratio-checker';
 import { HTMLAttributes } from 'react';
 import styled from 'styled-components';
 
-const Root = styled.div<{ color?: string }>`
+const Root = styled.div<{ backgroundColor?: string; color?: string }>`
     cursor: pointer;
     width: fit-content;
 
@@ -13,12 +14,21 @@ const Root = styled.div<{ color?: string }>`
     gap: 0.625rem;
 
     border-radius: 2.5rem;
-    background: ${({ color }) => color};
+    background: ${({ backgroundColor }) => backgroundColor};
+    color: ${({ color }) => color};
+
+    transition: transform 0.2s ease-in-out;
+
+    :hover {
+        transform: scale(1.02);
+    }
+
+    :active {
+        transform: scale(0.99);
+    }
 `;
 
 const StyledText = styled.div`
-    color: #fff;
-
     font-family: 'SB Sans Display';
     font-size: 16px;
     font-style: normal;
@@ -34,15 +44,19 @@ const StyledContentRight = styled.div`
 
 interface HeroButtonProps extends HTMLAttributes<HTMLDivElement> {
     text: string;
-    color: string;
+    backgroundColor: string;
     contentRight?: React.ReactNode;
 }
 
 export const HeroButton = (props: HeroButtonProps) => {
-    const { text, color, contentRight, ...rest } = props;
+    const { text, backgroundColor, contentRight, ...rest } = props;
+
+    const checker = new ContrastRatioChecker();
+    const isColorContrast = Math.round(checker.getContrastRatioByHex(backgroundColor, '#FFFFFF') * 100) / 100 > 3;
+    const color = isColorContrast ? 'rgba(255, 255, 255,1)' : 'rgba(0, 0, 0, 1)';
 
     return (
-        <Root color={color} {...rest}>
+        <Root backgroundColor={backgroundColor} color={color} {...rest}>
             <StyledText>{text}</StyledText>
             <StyledContentRight>{contentRight}</StyledContentRight>
         </Root>

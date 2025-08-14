@@ -54,7 +54,7 @@ const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?
 
     background: ${({ isPopupOpen }) => (isPopupOpen ? 'var(--gray-color-1000)' : 'var(--gray-color-950)')};
 
-    transition: background 0.2s ease-in-out;
+    // transition: background 0.2s ease-in-out;
 `;
 
 const Panel = styled.div`
@@ -155,8 +155,6 @@ const MenuSection = styled.div`
 const MenuItem = styled.div`
     cursor: pointer;
 
-    color: var(--gray-color-300);
-
     display: flex;
     height: 2rem;
     align-items: center;
@@ -165,11 +163,19 @@ const MenuItem = styled.div`
 
 const MenuItemText = styled.span<{ selected?: boolean }>`
     padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+
+    color: var(--gray-color-300);
+
+    &:hover {
+        color: var(--gray-color-150);
+    }
 
     ${({ selected }) =>
         selected &&
         css`
-            border-radius: 0.375rem;
+            cursor: default;
+            color: var(--gray-color-150);
             background: rgba(255, 255, 255, 0.04);
         `}
 
@@ -191,7 +197,7 @@ const ContentWrapper = styled.div`
 `;
 
 const ContentHeader = styled.div`
-    width: 22rem;
+    width: 20rem;
 
     color: var(--gray-color-800);
     font-family: 'SB Sans Display';
@@ -199,10 +205,6 @@ const ContentHeader = styled.div`
     font-style: normal;
     font-weight: 400;
     line-height: 52px;
-
-    @media (min-width: 1200px) {
-        width: 52rem;
-    }
 `;
 
 const StyledPopup = styled(Popup)`
@@ -248,59 +250,60 @@ export const NewMain = () => {
     const [popupContentStep, setPopupContentStep] = useState<number>(-1);
 
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
-    const [grayTone, setGrayTone] = useState<GrayTone>('gray');
+    const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
 
-    // const [parameters, setParameters] = useState<Parameters | undefined>();
     const [parameters, setParameters] = useState<Parameters>({
         projectName: '',
         packagesName: '',
         grayTone,
         accentColor: 'electricBlue',
         lightSaturation: 600,
-        darkSaturation: 600,
+        darkSaturation: 400,
     });
 
     const onChangeParameters = (name: string, value: any) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
     };
 
-    const onPrevPage = () => {
-        const prevPage = getNextOrPrevPage(popupContentPage, 'prev');
+    // const onPrevPage = () => {
+    //     const prevPage = getNextOrPrevPage(popupContentPage, 'prev');
 
-        if (!prevPage) {
-            onPopupClose();
-            return;
-        }
+    //     if (!prevPage) {
+    //         onPopupClose();
+    //         return;
+    //     }
 
-        if (popupContentPage === popupContentPages.CREATION_PROGRESS) {
-            setPopupContentPage(prevPage);
-            return;
-        }
+    //     if (popupContentPage === popupContentPages.CREATION_PROGRESS) {
+    //         setPopupContentPage(prevPage);
+    //         return;
+    //     }
 
-        const prevStep = popupContentStep === -1 ? -1 : popupContentStep - 1;
+    //     const prevStep = popupContentStep === -1 ? -1 : popupContentStep - 1;
 
-        if (popupContentStep >= 0) {
-            setPopupContentStep(prevStep);
+    //     if (popupContentStep >= 0) {
+    //         setPopupContentStep(prevStep);
 
-            if (popupContentStep === 2) {
-                setThemeMode('dark');
-            }
+    //         if (popupContentStep === 2) {
+    //             setThemeMode('dark');
+    //         }
 
-            if (popupContentStep === 3) {
-                setThemeMode('light');
-            }
-        }
+    //         if (popupContentStep === 3) {
+    //             setThemeMode('light');
+    //         }
+    //     }
 
-        if (prevStep === -1 || popupContentStep === 4) {
-            setPopupContentPage(prevPage);
-        }
-    };
+    //     if (prevStep === -1 || popupContentStep === 4) {
+    //         setPopupContentPage(prevPage);
+    //     }
+    // };
 
     const onFocus = () => {
         setIsPopupOpen(true);
     };
 
     const onPopupClose = () => {
+        setGrayTone('warmGray');
+        setThemeMode('dark');
         setIsPopupOpen(false);
     };
 
@@ -312,7 +315,7 @@ export const NewMain = () => {
         <Root grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
                 <MainItems>
-                    <IconButton selected={!isPopupOpen} onClick={onPrevPage}>
+                    <IconButton selected={!isPopupOpen} onClick={onPopupClose}>
                         {isPopupOpen ? (
                             <IconArrowLeft size="xs" color="inherit" />
                         ) : (
@@ -377,8 +380,8 @@ export const NewMain = () => {
             </Menu>
             <Content>
                 <ContentWrapper>
-                    <ContentHeader>Пока ничего не создано,</ContentHeader>
-                    <HeroTextField placeholder="начните с имени проекта" onFocus={onFocus} />
+                    <ContentHeader>Пока ничего не создано</ContentHeader>
+                    <HeroTextField placeholder="Начните с имени проекта" onFocus={onFocus} />
                 </ContentWrapper>
             </Content>
             {isPopupOpen && (
@@ -396,13 +399,11 @@ export const NewMain = () => {
                     )}
                     {popupContentPage === popupContentPages.SETUP_PARAMETERS && (
                         <SetupParameters
-                            // grayTone={grayTone}
-                            // projectName={projectName}
                             popupContentStep={popupContentStep}
                             parameters={parameters}
                             onChangeParameters={onChangeParameters}
                             oChangePopupContentStep={setPopupContentStep}
-                            onPrevPage={onPrevPage}
+                            onPrevPage={onPopupClose}
                             onNextPage={(data: Parameters) => {
                                 setParameters(data);
                                 setPopupContentPage(popupContentPages.CREATE_DESIGN_SYSTEM);
@@ -419,9 +420,7 @@ export const NewMain = () => {
                         <CreateDesignSystem
                             parameters={parameters}
                             onSetupPage={onSetupPage}
-                            onPrevPage={() => {
-                                onPrevPage();
-                            }}
+                            onPrevPage={onPopupClose}
                             onNextPage={() => {
                                 setPopupContentPage(popupContentPages.CREATION_PROGRESS);
                             }}
@@ -431,9 +430,7 @@ export const NewMain = () => {
                         <CreationProgress
                             projectName={parameters.projectName}
                             accentColor={general[parameters.accentColor][parameters.darkSaturation]}
-                            onPrevPage={() => {
-                                onPrevPage();
-                            }}
+                            onPrevPage={onPopupClose}
                         />
                     )}
                 </StyledPopup>

@@ -33,7 +33,12 @@ const StyledDesignSystemName = styled.div`
     line-height: 16px;
 `;
 
-const StyledLoadingProgress = styled(LoadingProgress)``;
+const StyledLoadingProgress = styled(LoadingProgress)`
+    position: absolute;
+    width: 17.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+`;
 
 interface CreationProgressProps {
     projectName: string;

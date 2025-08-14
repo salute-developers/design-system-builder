@@ -55,13 +55,13 @@ export const CreateFirstName = (props: CreateFirstNameProps) => {
             <HeroTextField
                 value={value}
                 ref={inputRef}
-                placeholder="начните с имени проекта"
+                placeholder="Начните с имени проекта"
                 dynamicContentRight={
                     <IconButton onClick={onClick}>
                         <StyledIconButton size="s" color="inherit" />
                     </IconButton>
                 }
-                dynamicHelper="без спецсимволов, можно по-русски, название пакетов транслитерируем, а пробелы заменим на дефисы"
+                dynamicHelper="без спецсимволов, можно по-русски — название пакетов транслитерируем по правилам"
                 onBlur={onBlur}
                 onChange={onChange}
                 onKeyDown={onKeyDown}

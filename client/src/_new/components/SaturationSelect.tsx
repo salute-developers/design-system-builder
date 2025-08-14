@@ -24,11 +24,24 @@ const StyledItem = styled.div`
     cursor: pointer;
 
     width: 3rem;
-    height: 2.5rem;
+    height: 4rem;
 
     display: flex;
+    gap: 0.25rem;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+`;
+
+const StyledItemLabel = styled.div`
+    color: var(--gray-color-800);
+
+    text-align: center;
+    font-family: 'SB Sans Display';
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 12px;
 `;
 
 const StyledSaturation = styled.div<{ color: string; size: number }>`
@@ -91,6 +104,7 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
                             onClick={() => onClick(value)}
                         >
                             <StyledSaturation size={size} color={color} />
+                            <StyledItemLabel>{value}</StyledItemLabel>
                         </StyledItem>
                     );
                 })}

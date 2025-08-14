@@ -1,27 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import styled, { css, keyframes } from 'styled-components';
-
-const gradientAnimation = keyframes`
-    0 {
-        background-position: 0;
-    }
-    100% {
-        background-position: 100%;
-    }
-`;
-
-const addGradient = (color: string) => css`
-    background: linear-gradient(to right, var(--gray-color-150) 0% 50%, ${color} 100%);
-    background-size: 200%;
-    background-position: 0;
-
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-fill-color: transparent;
-
-    animation: 0.3s ${gradientAnimation} forwards;
-`;
+import styled, { css } from 'styled-components';
 
 const Root = styled.div``;
 
@@ -36,10 +14,11 @@ const StyledLabel = styled.div`
 `;
 
 const StyledItems = styled.div`
-    // TODO: Подумать, можно ли как-то перенести
-    margin: 0 -5rem 0 -22.25rem;
-
     margin-top: 0.75rem;
+
+    // TODO: Подумать, можно ли как-то перенести
+    margin-left: -22.25rem;
+    padding-left: 22.25rem;
 
     overflow-x: scroll;
     overflow-y: hidden;
@@ -53,6 +32,7 @@ const StyledItems = styled.div`
 
     display: flex;
     align-items: center;
+    gap: 2rem;
 `;
 
 const StyledItem = styled.div<{ color: string }>`
@@ -60,18 +40,24 @@ const StyledItem = styled.div<{ color: string }>`
     cursor: pointer;
     white-space: nowrap;
 
-    margin-right: 2rem;
-
-    color: var(--gray-color-300);
-
     font-family: 'SB Sans Display';
     font-size: 48px;
     font-style: normal;
     font-weight: 400;
     line-height: 52px;
 
+    background: ${({ color }) => css`linear-gradient(to right, transparent 0 50%, ${color} 100%),
+        linear-gradient(to left, var(--gray-color-150) 0%, var(--gray-color-300) 100%)`};
+
+    background-size: 200% 100%;
+    background-position: 0% 0;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: background-position 0.3s linear;
+
     &:hover {
-        ${({ color }) => addGradient(color)}}
+        background-position: 100% 0;
     }
 
     &:after {
@@ -82,11 +68,11 @@ const StyledItem = styled.div<{ color: string }>`
         border-radius: 50%;
         background: ${({ color }) => color};
         opacity: 0;
-        transition: opacity 0.3s;
+        transition: opacity 0.3s linear;
     }
 
     &:hover {
-      &:after {
+        &:after {
             opacity: 1;
         }
     }
@@ -133,19 +119,18 @@ export const AccentSelect = (props: AccentSelectProps) => {
     // TODO: Подумать, можно ли рассчитывать снаружи
     const FIXED_OFFSET = 356;
 
-    const itemsRef = useRef<HTMLDivElement>(null);
-    const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const scrollTimeoutRef = useRef<number | null>(null);
-
     const [ready, setReady] = useState(false);
 
-    const onScroll = () => {
-        clearTimeout(scrollTimeoutRef.current as number);
+    const itemsRef = useRef<HTMLDivElement>(null);
+    const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    // const scrollTimeoutRef = useRef<number | null>(null);
 
-        scrollTimeoutRef.current = setTimeout(() => {
-            scrollToClosest(itemsRef, itemRefs, FIXED_OFFSET);
-        }, 100);
-    };
+    // const onScroll = () => {
+    //     // clearTimeout(scrollTimeoutRef.current as number);
+    //     // scrollTimeoutRef.current = setTimeout(() => {
+    //     //     scrollToClosest(itemsRef, itemRefs, FIXED_OFFSET);
+    //     // }, 100);
+    // };
 
     const onClick = (value: string) => {
         if (onSelect) {
@@ -181,7 +166,11 @@ export const AccentSelect = (props: AccentSelectProps) => {
     return (
         <Root {...rest}>
             <StyledLabel>{label}</StyledLabel>
-            <StyledItems ref={itemsRef} style={{ visibility: ready ? 'visible' : 'hidden' }} onScroll={onScroll}>
+            <StyledItems
+                ref={itemsRef}
+                style={{ visibility: ready ? 'visible' : 'hidden' }}
+                // onScroll={onScroll}
+            >
                 {items.map(({ label, value, color }) => (
                     <StyledItem
                         key={value}
@@ -189,7 +178,9 @@ export const AccentSelect = (props: AccentSelectProps) => {
                             itemRefs.current[label] = el;
                         }}
                         color={color}
-                        onClick={() => onClick(value)}
+                        onClick={() => {
+                            onClick(value);
+                        }}
                     >
                         {label}
                     </StyledItem>

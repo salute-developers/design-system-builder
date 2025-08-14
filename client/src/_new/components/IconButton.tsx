@@ -9,14 +9,13 @@ export const Root = styled.div<{ selected?: boolean }>`
     width: 1rem;
     height: 1rem;
 
-    cursor: pointer;
-
     background: var(--gray-color-300);
     color: var(--gray-color-900);
 
     ${({ selected }) =>
         !selected &&
         css`
+            cursor: pointer;
             background: transparent;
             color: var(--gray-color-500);
 
