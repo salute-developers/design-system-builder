@@ -131,7 +131,7 @@ export const CreateDesignSystem = (props: CreateDesignSystemProps) => {
             <StyledHeader>Приблизительно так будет выглядеть цветовая схема проекта</StyledHeader>
             <HeroButton
                 text="Сгенерировать"
-                color={general[accentColor][darkSaturation]}
+                backgroundColor={general[accentColor][darkSaturation]}
                 contentRight={<IconArrowRight size="xs" color="inherit" />}
                 onClick={() => onNextPage()}
             />
