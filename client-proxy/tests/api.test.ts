@@ -1,15 +1,17 @@
-const request = require('supertest');
-const path = require('path');
-const fs = require('fs-extra');
-const createApp = require('../app');
-const { sampleDesignSystem, sampleDesignSystem2 } = require('./sample-data');
+import request from 'supertest';
+import * as path from 'path';
+import * as fs from 'fs-extra';
+import createApp from '../src/app';
+import { sampleDesignSystem, sampleDesignSystem2 } from './sample-data';
+import { Application } from 'express';
+import { StoredDesignSystem, DesignSystemData } from '../src/types';
 
 describe('Client Proxy API', () => {
-    let app;
-    let testStorageDir;
+    let app: Application;
+    let testStorageDir: string;
 
     beforeEach(() => {
-        testStorageDir = process.env.TEST_STORAGE_DIR;
+        testStorageDir = process.env.TEST_STORAGE_DIR!;
         app = createApp(testStorageDir);
     });
 
@@ -43,7 +45,7 @@ describe('Client Proxy API', () => {
             expect(await fs.pathExists(filePath)).toBe(true);
 
             // Verify file contents
-            const savedData = await fs.readJson(filePath);
+            const savedData: StoredDesignSystem = await fs.readJson(filePath);
             expect(savedData.themeData).toEqual(sampleDesignSystem.themeData);
             expect(savedData.componentsData).toEqual(sampleDesignSystem.componentsData);
             expect(savedData.savedAt).toBeDefined();
@@ -51,7 +53,7 @@ describe('Client Proxy API', () => {
 
         it('should return 400 if name is missing', async () => {
             const invalidData = { ...sampleDesignSystem };
-            delete invalidData.name;
+            delete (invalidData as any).name;
 
             const response = await request(app)
                 .post('/api/design-systems')
@@ -65,7 +67,7 @@ describe('Client Proxy API', () => {
 
         it('should return 400 if version is missing', async () => {
             const invalidData = { ...sampleDesignSystem };
-            delete invalidData.version;
+            delete (invalidData as any).version;
 
             const response = await request(app)
                 .post('/api/design-systems')
@@ -79,7 +81,7 @@ describe('Client Proxy API', () => {
 
         it('should handle large design systems', async () => {
             // Create a large design system with many tokens
-            const largeDesignSystem = {
+            const largeDesignSystem: DesignSystemData = {
                 ...sampleDesignSystem,
                 name: 'large-design-system',
                 themeData: {
@@ -87,7 +89,7 @@ describe('Client Proxy API', () => {
                     meta: {
                         ...sampleDesignSystem.themeData.meta,
                         tokens: Array.from({ length: 1000 }, (_, i) => ({
-                            type: 'color',
+                            type: 'color' as const,
                             name: `color.${i}`,
                             tags: ['color', `${i}`],
                             displayName: `color${i}`,
@@ -135,7 +137,7 @@ describe('Client Proxy API', () => {
         });
 
         it('should handle URL encoded names and versions', async () => {
-            const designSystemWithSpecialChars = {
+            const designSystemWithSpecialChars: DesignSystemData = {
                 ...sampleDesignSystem,
                 name: 'my-design system',
                 version: '1.0.0-beta'
@@ -255,7 +257,7 @@ describe('Client Proxy API', () => {
         });
 
         it('should handle URL encoded names and versions', async () => {
-            const designSystemWithSpecialChars = {
+            const designSystemWithSpecialChars: DesignSystemData = {
                 ...sampleDesignSystem,
                 name: 'my-design system',
                 version: '1.0.0-beta'
@@ -315,7 +317,7 @@ describe('Client Proxy API', () => {
             expect(response.body.themeData).toEqual(sampleDesignSystem.themeData);
 
             // Update (save with same name/version)
-            const updatedDesignSystem = {
+            const updatedDesignSystem: DesignSystemData = {
                 ...sampleDesignSystem,
                 themeData: {
                     ...sampleDesignSystem.themeData,
@@ -324,7 +326,7 @@ describe('Client Proxy API', () => {
                         tokens: [
                             ...sampleDesignSystem.themeData.meta.tokens,
                             {
-                                type: 'color',
+                                type: 'color' as const,
                                 name: 'new.token',
                                 tags: ['new', 'token'],
                                 displayName: 'newToken',
