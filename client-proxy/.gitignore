@@ -1,5 +1,6 @@
 node_modules/
 storage/
+/tests/test-storage
 dist/
 *.log
 .env

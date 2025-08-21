@@ -213,12 +213,12 @@ export const HealthResponseSchema = z.object({
 // Design system tuple schema
 export const DesignSystemTupleSchema = z.tuple([z.string(), z.string()]);
 
-// Stored design system schema
-export const StoredDesignSystemSchema = z.object({
-    themeData: ThemeSourceSchema,
-    componentsData: z.array(MetaSchema),
-    savedAt: z.string(),
-});
+// // Stored design system schema
+// export const StoredDesignSystemSchema = z.object({
+//     themeData: ThemeSourceSchema,
+//     componentsData: z.array(MetaSchema),
+//     savedAt: z.string(),
+// });
 
 // // Export all inferred types to replace manual TypeScript types
 // export type PropType = z.infer<typeof PropTypeSchema>;
@@ -257,8 +257,21 @@ export const StoredDesignSystemSchema = z.object({
 // export type PlatformsVariations = z.infer<typeof PlatformsVariationsSchema>;
 // export type ThemeSource = z.infer<typeof ThemeSourceSchema>;
 
+// Schemas for separate file storage
+export const StoredThemeDataSchema = z.object({
+    themeData: ThemeSourceSchema,
+    savedAt: z.string()
+});
+
+export const StoredComponentsDataSchema = z.object({
+    componentsData: z.array(MetaSchema),
+    savedAt: z.string()
+});
+
 export type DesignSystemData = z.infer<typeof DesignSystemDataSchema>;
-export type StoredDesignSystem = z.infer<typeof StoredDesignSystemSchema>;
+// export type StoredDesignSystem = z.infer<typeof StoredDesignSystemSchema>;
+export type StoredThemeData = z.infer<typeof StoredThemeDataSchema>;
+export type StoredComponentsData = z.infer<typeof StoredComponentsDataSchema>;
 export type ApiResponse = z.infer<typeof ApiResponseSchema>;
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 export type DesignSystemTuple = z.infer<typeof DesignSystemTupleSchema>;

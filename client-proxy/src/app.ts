@@ -2,20 +2,22 @@ import express, { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { 
-    DesignSystemData, 
-    StoredDesignSystem, 
-    ApiResponse, 
+import {
+    DesignSystemData,
+    StoredThemeData,
+    StoredComponentsData,
+    ApiResponse,
     HealthResponse,
-    DesignSystemTuple 
+    DesignSystemTuple
 } from './validation';
-import { 
-    validateRequest, 
+import {
+    validateRequest,
     validateParams,
     DesignSystemDataSchema,
     DesignSystemParamsSchema,
     safeValidate,
-    StoredDesignSystemSchema
+    StoredThemeDataSchema,
+    StoredComponentsDataSchema
 } from './validation';
 
 interface CustomError extends Error {
@@ -37,10 +39,20 @@ const createApp = (storageDir?: string): Application => {
     // Ensure storage directory exists
     fs.ensureDirSync(STORAGE_DIR);
 
-    // Helper function to get file path for a design system
-    const getFilePath = (name: string, version: string): string => {
-        const fileName = `${name}@${version}.json`;
+    // Helper functions to get file paths for a design system
+    const getThemeFilePath = (name: string, version: string): string => {
+        const fileName = `${name}@${version}.theme.json`;
         return path.join(STORAGE_DIR, fileName);
+    };
+
+    const getComponentsFilePath = (name: string, version: string): string => {
+        const fileName = `${name}@${version}.components.json`;
+        return path.join(STORAGE_DIR, fileName);
+    };
+
+    // Helper function to get the base name for a design system
+    const getBaseName = (name: string, version: string): string => {
+        return `${name}@${version}`;
     };
 
     // Health check endpoint
@@ -56,16 +68,29 @@ const createApp = (storageDir?: string): Application => {
             // Request body is already validated by Zod middleware
             const { name, version, themeData, componentsData } = req.body;
 
-            const data: StoredDesignSystem = {
+            const savedAt = new Date().toISOString();
+            
+            // Prepare data for separate files
+            const themeFileData = {
                 themeData,
-                componentsData,
-                savedAt: new Date().toISOString()
+                savedAt
             };
 
-            const filePath = getFilePath(name, version);
-            await fs.writeJson(filePath, data, { spaces: 2 });
+            const componentsFileData = {
+                componentsData,
+                savedAt
+            };
 
-            console.log(`Saved design system: ${name}@${version}`);
+            // Save to separate files
+            const themeFilePath = getThemeFilePath(name, version);
+            const componentsFilePath = getComponentsFilePath(name, version);
+            
+            await Promise.all([
+                fs.writeJson(themeFilePath, themeFileData, { spaces: 2 }),
+                fs.writeJson(componentsFilePath, componentsFileData, { spaces: 2 })
+            ]);
+
+            console.log(`Saved design system: ${name}@${version} (theme + components)`);
             res.json({ 
                 success: true, 
                 message: `Design system ${name}@${version} saved successfully` 
@@ -87,21 +112,38 @@ const createApp = (storageDir?: string): Application => {
         async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
-            const filePath = getFilePath(name, version);
+            const themeFilePath = getThemeFilePath(name, version);
+            const componentsFilePath = getComponentsFilePath(name, version);
 
-            if (!await fs.pathExists(filePath)) {
+            // Check if both files exist
+            const [themeExists, componentsExists] = await Promise.all([
+                fs.pathExists(themeFilePath),
+                fs.pathExists(componentsFilePath)
+            ]);
+
+            if (!themeExists || !componentsExists) {
                 res.status(404).json({ 
-                    error: 'Design system not found' 
+                    error: 'Design system not found',
+                    details: `Missing ${!themeExists ? 'theme' : ''}${!themeExists && !componentsExists ? ' and ' : ''}${!componentsExists ? 'components' : ''} data`
                 });
                 return;
             }
 
-            const rawData = await fs.readJson(filePath);
+            // Load both files in parallel
+            const [themeRawData, componentsRawData] = await Promise.all([
+                fs.readJson(themeFilePath),
+                fs.readJson(componentsFilePath)
+            ]);
             
-            // Validate loaded data
-            const validation = safeValidate(StoredDesignSystemSchema, rawData);
-            if (!validation.success) {
-                console.error(`Invalid stored data for ${name}@${version}:`, validation.errors);
+            // Validate loaded data from separate files
+            const themeValidation = safeValidate(StoredThemeDataSchema, themeRawData);
+            const componentsValidation = safeValidate(StoredComponentsDataSchema, componentsRawData);
+
+            if (!themeValidation.success || !componentsValidation.success) {
+                console.error(`Invalid stored data for ${name}@${version}:`, {
+                    theme: themeValidation.success ? 'valid' : themeValidation.errors,
+                    components: componentsValidation.success ? 'valid' : componentsValidation.errors
+                });
                 res.status(500).json({
                     error: 'Stored data is corrupted',
                     details: 'The stored design system data does not match expected format'
@@ -109,12 +151,14 @@ const createApp = (storageDir?: string): Application => {
                 return;
             }
 
-            const data = validation.data!;
-            console.log(`Loaded design system: ${name}@${version}`);
+            const themeData = themeValidation.data!.themeData;
+            const componentsData = componentsValidation.data!.componentsData;
+
+            console.log(`Loaded design system: ${name}@${version} (theme + components)`);
             res.json({
-                themeData: data.themeData,
-                componentsData: data.componentsData
-            });
+                themeData,
+                componentsData
+            } as any);
 
         } catch (error) {
             console.error('Error loading design system:', error);
@@ -130,17 +174,24 @@ const createApp = (storageDir?: string): Application => {
     app.get('/api/design-systems', async (req: Request, res: Response<DesignSystemTuple[] | ApiResponse>): Promise<void> => {
         try {
             const files = await fs.readdir(STORAGE_DIR);
-            const designSystems: DesignSystemTuple[] = files
-                .filter((file: string) => file.endsWith('.json'))
-                .map((file: string) => {
-                    const nameVersion = file.replace('.json', '');
-                    const [name, version] = nameVersion.split('@');
-                    return [name, version] as const;
-                })
-                .filter((tuple): tuple is DesignSystemTuple => {
-                    const [name, version] = tuple;
-                    return !!name && !!version;
-                });
+            
+            // Get unique design systems by looking for .theme.json files
+            // and checking if corresponding .components.json exists
+            const themeFiles = files.filter((file: string) => file.endsWith('.theme.json'));
+            const designSystems: DesignSystemTuple[] = [];
+
+            for (const themeFile of themeFiles) {
+                const nameVersion = themeFile.replace('.theme.json', '');
+                const [name, version] = nameVersion.split('@');
+                
+                if (name && version) {
+                    // Check if corresponding components file exists
+                    const componentsFile = `${nameVersion}.components.json`;
+                    if (files.includes(componentsFile)) {
+                        designSystems.push([name, version] as const);
+                    }
+                }
+            }
 
             if (designSystems.length === 0) {
                 res.status(200).end();
@@ -166,18 +217,34 @@ const createApp = (storageDir?: string): Application => {
         async (req: Request<{ name: string; version: string }>, res: Response<ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
-            const filePath = getFilePath(name, version);
+            const themeFilePath = getThemeFilePath(name, version);
+            const componentsFilePath = getComponentsFilePath(name, version);
 
-            if (!await fs.pathExists(filePath)) {
+            // Check if both files exist
+            const [themeExists, componentsExists] = await Promise.all([
+                fs.pathExists(themeFilePath),
+                fs.pathExists(componentsFilePath)
+            ]);
+
+            if (!themeExists && !componentsExists) {
                 res.status(404).json({ 
                     error: 'Design system not found' 
                 });
                 return;
             }
 
-            await fs.remove(filePath);
+            // Remove both files (only remove existing ones)
+            const removePromises = [];
+            if (themeExists) {
+                removePromises.push(fs.remove(themeFilePath));
+            }
+            if (componentsExists) {
+                removePromises.push(fs.remove(componentsFilePath));
+            }
+
+            await Promise.all(removePromises);
             
-            console.log(`Deleted design system: ${name}@${version}`);
+            console.log(`Deleted design system: ${name}@${version} (theme + components)`);
             res.json({ 
                 success: true, 
                 message: `Design system ${name}@${version} deleted successfully` 
