@@ -4,14 +4,16 @@ import * as fs from 'fs-extra';
 import createApp from '../src/app';
 import { sampleDesignSystem, sampleDesignSystem2 } from './sample-data';
 import { Application } from 'express';
-import { StoredDesignSystem, DesignSystemData } from '../src/types';
+import { StoredDesignSystem, DesignSystemData } from '../src/validation';
 
 describe('Client Proxy API', () => {
     let app: Application;
     let testStorageDir: string;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         testStorageDir = process.env.TEST_STORAGE_DIR!;
+        // Ensure clean storage directory
+        await fs.emptyDir(testStorageDir);
         app = createApp(testStorageDir);
     });
 
@@ -60,8 +62,15 @@ describe('Client Proxy API', () => {
                 .send(invalidData)
                 .expect(400);
 
-            expect(response.body).toEqual({
-                error: 'Name and version are required'
+            expect(response.body).toMatchObject({
+                error: 'Validation failed',
+                details: 'Request body does not match required schema',
+                validationErrors: expect.arrayContaining([
+                    expect.objectContaining({
+                        path: 'name',
+                        code: 'invalid_type'
+                    })
+                ])
             });
         });
 
@@ -74,8 +83,15 @@ describe('Client Proxy API', () => {
                 .send(invalidData)
                 .expect(400);
 
-            expect(response.body).toEqual({
-                error: 'Name and version are required'
+            expect(response.body).toMatchObject({
+                error: 'Validation failed',
+                details: 'Request body does not match required schema',
+                validationErrors: expect.arrayContaining([
+                    expect.objectContaining({
+                        path: 'version',
+                        code: 'invalid_type'
+                    })
+                ])
             });
         });
 
