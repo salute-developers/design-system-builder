@@ -17,8 +17,10 @@ const StyledItems = styled.div`
     margin-top: 0.75rem;
 
     // TODO: Подумать, можно ли как-то перенести
-    margin-left: -22.25rem;
-    padding-left: 22.25rem;
+    margin-left: -22.5rem;
+    padding-left: 22.5rem;
+    margin-right: -5rem;
+    padding-right: 5rem;
 
     overflow-x: scroll;
     overflow-y: hidden;
@@ -78,29 +80,29 @@ const StyledItem = styled.div<{ color: string }>`
     }
 `;
 
-const scrollToClosest = (
-    itemsRef: React.RefObject<HTMLDivElement>,
-    itemRefs: React.RefObject<Record<string, HTMLDivElement | null>>,
-    offset = 0,
-) => {
-    const container = itemsRef.current;
+// const scrollToClosest = (
+//     itemsRef: React.RefObject<HTMLDivElement>,
+//     itemRefs: React.RefObject<Record<string, HTMLDivElement | null>>,
+//     offset = 0,
+// ) => {
+//     const container = itemsRef.current;
 
-    if (!container || !itemRefs.current) {
-        return;
-    }
+//     if (!container || !itemRefs.current) {
+//         return;
+//     }
 
-    const snapPoints = Object.values(itemRefs.current).map((value) => (value as HTMLDivElement).offsetLeft - offset);
-    const currentScrollLeft = container.scrollLeft;
+//     const snapPoints = Object.values(itemRefs.current).map((value) => (value as HTMLDivElement).offsetLeft - offset);
+//     const currentScrollLeft = container.scrollLeft;
 
-    const closest = snapPoints.reduce((prev, curr) =>
-        Math.abs(curr - currentScrollLeft) < Math.abs(prev - currentScrollLeft) ? curr : prev,
-    );
+//     const closest = snapPoints.reduce((prev, curr) =>
+//         Math.abs(curr - currentScrollLeft) < Math.abs(prev - currentScrollLeft) ? curr : prev,
+//     );
 
-    container.scrollTo({
-        left: closest,
-        behavior: 'smooth',
-    });
-};
+//     container.scrollTo({
+//         left: closest,
+//         behavior: 'smooth',
+//     });
+// };
 
 interface AccentSelectProps {
     label: string;
@@ -115,9 +117,6 @@ interface AccentSelectProps {
 
 export const AccentSelect = (props: AccentSelectProps) => {
     const { items, label, defaultValue, onSelect, ...rest } = props;
-
-    // TODO: Подумать, можно ли рассчитывать снаружи
-    const FIXED_OFFSET = 356;
 
     const [ready, setReady] = useState(false);
 
@@ -153,7 +152,7 @@ export const AccentSelect = (props: AccentSelectProps) => {
                 return;
             }
 
-            container.scrollLeft = target.offsetLeft - FIXED_OFFSET;
+            container.scrollLeft = target.offsetLeft;
 
             setReady(true);
         });

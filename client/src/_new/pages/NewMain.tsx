@@ -15,13 +15,11 @@ import {
 import { general } from '@salutejs/plasma-colors';
 
 import { IconButton } from '../components/IconButton';
-import { HeroTextField } from '../components/HeroTextField';
 import { Popup } from '../components/Popup';
 import { GrayTone, Parameters } from '../types';
 import { CreateFirstName } from './CreateFirstName';
 import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
-import { CreateDesignSystem } from './CreateDesignSystem';
 
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
     return `
@@ -207,38 +205,87 @@ const ContentHeader = styled.div`
     line-height: 52px;
 `;
 
-const StyledPopup = styled(Popup)`
-    left: 4rem;
-    padding: 3.75rem 5rem 0 22.25rem;
+const StyledStartButton = styled.div`
+    cursor: pointer;
+
+    color: var(--gray-color-300);
+
+    &:hover {
+        color: var(--gray-color-150);
+    }
+
+    font-family: 'SB Sans Display';
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 52px;
+
+    transition: color 0.2s ease-in-out;
 `;
 
-const getNextOrPrevPage = (currentStep: keyof typeof popupContentPages | null, direction: 'next' | 'prev') => {
-    if (!currentStep) {
-        return null;
-    }
+const StyledPopup = styled(Popup)`
+    left: 4rem;
+    padding: 3.75rem 5rem 0 22.5rem;
+`;
 
-    const steps = Object.values(popupContentPages);
-    const currentIndex = steps.indexOf(currentStep);
+// const getNextOrPrevPage = (currentStep: keyof typeof popupContentPages | null, direction: 'next' | 'prev') => {
+//     if (!currentStep) {
+//         return null;
+//     }
 
-    if (currentIndex === -1) {
-        return null;
-    }
+//     const steps = Object.values(popupContentPages);
+//     const currentIndex = steps.indexOf(currentStep);
 
-    if (direction === 'next' && currentIndex < steps.length - 1) {
-        return steps[currentIndex + 1];
-    }
+//     if (currentIndex === -1) {
+//         return null;
+//     }
 
-    if (direction === 'prev' && currentIndex > 0) {
-        return steps[currentIndex - 1];
-    }
+//     if (direction === 'next' && currentIndex < steps.length - 1) {
+//         return steps[currentIndex + 1];
+//     }
 
-    return null;
-};
+//     if (direction === 'prev' && currentIndex > 0) {
+//         return steps[currentIndex - 1];
+//     }
+
+//     return null;
+// };
+
+// const onPrevPage = () => {
+//     const prevPage = getNextOrPrevPage(popupContentPage, 'prev');
+
+//     if (!prevPage) {
+//         onPopupClose();
+//         return;
+//     }
+
+//     if (popupContentPage === popupContentPages.CREATION_PROGRESS) {
+//         setPopupContentPage(prevPage);
+//         return;
+//     }
+
+//     const prevStep = popupContentStep === -1 ? -1 : popupContentStep - 1;
+
+//     if (popupContentStep >= 0) {
+//         setPopupContentStep(prevStep);
+
+//         if (popupContentStep === 2) {
+//             setThemeMode('dark');
+//         }
+
+//         if (popupContentStep === 3) {
+//             setThemeMode('light');
+//         }
+//     }
+
+//     if (prevStep === -1 || popupContentStep === 4) {
+//         setPopupContentPage(prevPage);
+//     }
+// };
 
 const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
     SETUP_PARAMETERS: 'SETUP_PARAMETERS',
-    CREATE_DESIGN_SYSTEM: 'CREATE_DESIGN_SYSTEM',
     CREATION_PROGRESS: 'CREATION_PROGRESS',
 } as const;
 
@@ -247,7 +294,7 @@ export const NewMain = () => {
     const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
         popupContentPages.CREATE_FIRST_NAME,
     );
-    const [popupContentStep, setPopupContentStep] = useState<number>(-1);
+    const [popupContentStep, setPopupContentStep] = useState<number>(0);
 
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
@@ -265,39 +312,7 @@ export const NewMain = () => {
         setParameters((prev) => ({ ...prev, [name]: value }));
     };
 
-    // const onPrevPage = () => {
-    //     const prevPage = getNextOrPrevPage(popupContentPage, 'prev');
-
-    //     if (!prevPage) {
-    //         onPopupClose();
-    //         return;
-    //     }
-
-    //     if (popupContentPage === popupContentPages.CREATION_PROGRESS) {
-    //         setPopupContentPage(prevPage);
-    //         return;
-    //     }
-
-    //     const prevStep = popupContentStep === -1 ? -1 : popupContentStep - 1;
-
-    //     if (popupContentStep >= 0) {
-    //         setPopupContentStep(prevStep);
-
-    //         if (popupContentStep === 2) {
-    //             setThemeMode('dark');
-    //         }
-
-    //         if (popupContentStep === 3) {
-    //             setThemeMode('light');
-    //         }
-    //     }
-
-    //     if (prevStep === -1 || popupContentStep === 4) {
-    //         setPopupContentPage(prevPage);
-    //     }
-    // };
-
-    const onFocus = () => {
+    const onOpenPopup = () => {
         setIsPopupOpen(true);
     };
 
@@ -305,10 +320,6 @@ export const NewMain = () => {
         setGrayTone('warmGray');
         setThemeMode('dark');
         setIsPopupOpen(false);
-    };
-
-    const onSetupPage = () => {
-        setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
     };
 
     return (
@@ -381,7 +392,7 @@ export const NewMain = () => {
             <Content>
                 <ContentWrapper>
                     <ContentHeader>Пока ничего не создано</ContentHeader>
-                    <HeroTextField placeholder="Начните с имени проекта" onFocus={onFocus} />
+                    <StyledStartButton onClick={onOpenPopup}>Начните с имени проекта</StyledStartButton>
                 </ContentWrapper>
             </Content>
             {isPopupOpen && (
@@ -392,7 +403,7 @@ export const NewMain = () => {
                             onNextPage={(value: string) => {
                                 onChangeParameters('projectName', value);
                                 onChangeParameters('packagesName', value);
-                                setPopupContentStep(0);
+                                setPopupContentStep(2);
                                 setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
                             }}
                         />
@@ -402,11 +413,10 @@ export const NewMain = () => {
                             popupContentStep={popupContentStep}
                             parameters={parameters}
                             onChangeParameters={onChangeParameters}
-                            oChangePopupContentStep={setPopupContentStep}
+                            onChangePopupContentStep={setPopupContentStep}
                             onPrevPage={onPopupClose}
-                            onNextPage={(data: Parameters) => {
-                                setParameters(data);
-                                setPopupContentPage(popupContentPages.CREATE_DESIGN_SYSTEM);
+                            onNextPage={() => {
+                                setPopupContentPage(popupContentPages.CREATION_PROGRESS);
                             }}
                             onChangeGrayTone={(grayTone: string) => {
                                 setGrayTone(grayTone as GrayTone);
@@ -416,16 +426,7 @@ export const NewMain = () => {
                             }}
                         />
                     )}
-                    {popupContentPage === popupContentPages.CREATE_DESIGN_SYSTEM && (
-                        <CreateDesignSystem
-                            parameters={parameters}
-                            onSetupPage={onSetupPage}
-                            onPrevPage={onPopupClose}
-                            onNextPage={() => {
-                                setPopupContentPage(popupContentPages.CREATION_PROGRESS);
-                            }}
-                        />
-                    )}
+
                     {popupContentPage === popupContentPages.CREATION_PROGRESS && (
                         <CreationProgress
                             projectName={parameters.projectName}

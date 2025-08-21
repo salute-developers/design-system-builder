@@ -33,8 +33,8 @@ const StyledItem = styled.div`
     justify-content: center;
 `;
 
-const StyledItemLabel = styled.div`
-    color: var(--gray-color-800);
+const StyledItemLabel = styled.div<{ color: string }>`
+    color: ${({ color }) => color};
 
     text-align: center;
     font-family: 'SB Sans Display';
@@ -42,6 +42,8 @@ const StyledItemLabel = styled.div`
     font-style: normal;
     font-weight: 400;
     line-height: 12px;
+
+    transition: all 0.1s ease-out;
 `;
 
 const StyledSaturation = styled.div<{ color: string; size: number }>`
@@ -83,17 +85,21 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
             <StyledItems>
                 {items.map(({ value, color }, index) => {
                     let size = 32;
+                    let labelColor = 'var(--gray-color-800)';
 
                     if (hoveredIndex === index) {
                         size = 48;
+                        labelColor = 'var(--gray-color-150)';
                     }
 
                     if (hoveredIndex === index - 1 || hoveredIndex === index + 1) {
                         size = 36;
+                        labelColor = 'var(--gray-color-500)';
                     }
 
                     if (hoveredIndex === null) {
                         size = 40;
+                        labelColor = 'var(--gray-color-150)';
                     }
 
                     return (
@@ -104,7 +110,7 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
                             onClick={() => onClick(value)}
                         >
                             <StyledSaturation size={size} color={color} />
-                            <StyledItemLabel>{value}</StyledItemLabel>
+                            <StyledItemLabel color={labelColor}>{value}</StyledItemLabel>
                         </StyledItem>
                     );
                 })}

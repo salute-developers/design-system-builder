@@ -1,4 +1,4 @@
-import React, { useRef, forwardRef } from 'react';
+import React, { useRef, forwardRef, useEffect } from 'react';
 import styled from 'styled-components';
 
 import { useInputDynamicWidth } from '../hooks';
@@ -100,7 +100,7 @@ interface HeroTextFieldProps extends React.InputHTMLAttributes<HTMLInputElement>
     style?: React.CSSProperties;
 }
 
-export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props, ref) => {
+export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props) => {
     const {
         value,
         placeholder,
@@ -114,6 +114,7 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
 
     const spanRef = useRef<HTMLSpanElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const [inputWidth, inputLeft] = useInputDynamicWidth(rootRef, spanRef, {
         value,
@@ -121,15 +122,19 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
         shiftWidth: 2,
         compensativeWidth: 78,
         // TODO: Подумать, можно ли рассчитывать снаружи
-        fixedOffset: 356,
+        fixedOffset: 360,
     });
+
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
 
     return (
         <Root view={view} ref={rootRef} {...rest}>
             <StyleWrapper>
                 <StyledInput
                     type="text"
-                    ref={ref}
+                    ref={inputRef}
                     value={value}
                     placeholder={placeholder}
                     style={{ width: `${inputWidth}px`, marginLeft: `${inputLeft}px` }}
