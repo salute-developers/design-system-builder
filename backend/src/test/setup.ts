@@ -15,6 +15,7 @@ afterEach(async () => {
   await testDb.delete(schema.variationValues).execute();
   await testDb.delete(schema.tokens).execute();
   await testDb.delete(schema.variations).execute();
+  await testDb.delete(schema.propsAPI).execute();
   await testDb.delete(schema.designSystemComponents).execute();
   await testDb.delete(schema.components).execute();
   await testDb.delete(schema.designSystems).execute();
