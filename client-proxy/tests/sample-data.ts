@@ -4,11 +4,11 @@ import { DesignSystemData } from '../src/validation';
 
 export const sampleDesignSystem: DesignSystemData = {
     name: "test-design-system",
-    version: "1.0.0",
+    version: "0.1.0",
     themeData: {
         meta: {
             name: "test-design-system",
-            version: "1.0.0",
+            version: "0.1.0",
             tokens: [
                 {
                     type: "color",
@@ -225,11 +225,11 @@ export const sampleDesignSystem: DesignSystemData = {
 
 export const sampleDesignSystem2: DesignSystemData = {
     name: "another-design-system",
-    version: "2.0.0",
+    version: "0.1.0",
     themeData: {
         meta: {
             name: "another-design-system",
-            version: "2.0.0",
+            version: "0.1.0",
             tokens: [
                 {
                     type: "color",
