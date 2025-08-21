@@ -1,4 +1,4 @@
-import { KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { KeyboardEvent, useState } from 'react';
 import styled from 'styled-components';
 import { IconArrowBack } from '@salutejs/plasma-icons';
 
@@ -20,7 +20,6 @@ export const CreateFirstName = (props: CreateFirstNameProps) => {
     const { onPrevPage, onNextPage } = props;
 
     const [value, setValue] = useState('');
-    const inputRef = useRef<HTMLInputElement>(null);
 
     const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setValue(event.target.value);
@@ -46,15 +45,10 @@ export const CreateFirstName = (props: CreateFirstNameProps) => {
         onNextPage(value);
     };
 
-    useEffect(() => {
-        inputRef.current?.focus();
-    }, []);
-
     return (
         <Root>
             <HeroTextField
                 value={value}
-                ref={inputRef}
                 placeholder="Начните с имени проекта"
                 dynamicContentRight={
                     <IconButton onClick={onClick}>

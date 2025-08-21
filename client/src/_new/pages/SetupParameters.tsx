@@ -1,5 +1,5 @@
-import { ChangeEvent, useEffect, useState } from 'react';
-import styled from 'styled-components';
+import { ChangeEvent, KeyboardEvent, useEffect, useState } from 'react';
+import styled, { css } from 'styled-components';
 import { general, PlasmaSaturation } from '@salutejs/plasma-colors';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -12,10 +12,34 @@ import { AccentSelect } from '../components/AccentSelect';
 import { GeneralColor, GrayTone, grayTones, Parameters } from '../types';
 import { useGlobalKeyDown } from '../hooks';
 import { prettifyColorName } from '../utils';
+import { HeroTextField } from '../components/HeroTextField';
+import { IconArrowBack, IconArrowRight } from '@salutejs/plasma-icons';
+import { IconButton } from '../components/IconButton';
+import { HeroButton } from '../components/HeroButton';
 
 export const Root = styled.div``;
 
-const StyledSelectedParameters = styled.div`
+const StyledSelectedParameters = styled.div<{ isReady?: boolean }>`
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    z-index: 999;
+
+    position: relative;
+    left: 0;
+
+    ${({ isReady }) =>
+        isReady &&
+        css`
+            left: -21.25rem;
+            opacity: 1;
+        `}
+
+    transition: left 0.5s ease-in-out;
+`;
+
+const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -48,6 +72,55 @@ const StyledPreviewSaturation = styled.div<{ color: string }>`
     background: ${({ color }) => color};
 `;
 
+const StyledIconButton = styled(IconArrowBack)`
+    --icon-size: 3.25rem !important;
+`;
+
+const StyledReadyBlock = styled.div<{ isReady?: boolean }>`
+    position: absolute;
+
+    top: 3.75rem;
+    left: 25rem;
+    opacity: 0;
+
+    ${({ isReady }) =>
+        isReady &&
+        css`
+            left: 22.5rem;
+            opacity: 1;
+        `}
+
+    transition: left 0.5s ease-in-out, opacity 0.5s ease-in-out;
+`;
+
+const StyledHeader = styled.div`
+    width: 30rem;
+
+    margin-bottom: 4rem;
+
+    color: var(--gray-color-100);
+
+    font-family: 'SB Sans Display';
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 52px;
+`;
+
+const StyledDisclaimer = styled.div`
+    width: 16.25rem;
+
+    margin-top: 2.5rem;
+
+    color: var(--gray-color-500);
+
+    font-family: 'SB Sans Display';
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 24px;
+`;
+
 const accentColors = Object.entries(general)
     .slice(0, -3)
     .map(([name, item]) => ({
@@ -56,38 +129,47 @@ const accentColors = Object.entries(general)
         color: item[600],
     }));
 
+const canShowParameter = (stepNumber: number, popupContentStep: number, editStep: number | null) =>
+    (popupContentStep >= stepNumber && (editStep === null || editStep === stepNumber)) ||
+    (popupContentStep > stepNumber && editStep !== null);
+
+const popupSetupSteps = {
+    PROJECT_NAME: 0,
+    PACKAGES_NAME: 1,
+    GRAY_TONE: 2,
+    ACCENT_COLOR: 3,
+    LIGHT_SATURATION: 4,
+    DARK_SATURATION: 5,
+    DONE: 6,
+};
+
 interface SetupParametersProps {
     popupContentStep: number;
     parameters: Parameters;
     // TODO: убрать эни и сделать жденерик
     onChangeParameters: (name: string, value: any) => void;
-    oChangePopupContentStep: (step: number) => void;
+    onChangePopupContentStep: (step: number) => void;
     onChangeGrayTone: (grayTone: string) => void;
     onChangeThemeMode: (themeMode: ThemeMode) => void;
     onPrevPage: () => void;
-    onNextPage: (data: Parameters) => void;
+    onNextPage: () => void;
 }
 
 export const SetupParameters = (props: SetupParametersProps) => {
     const {
-        // projectName,
-        // grayTone,
         popupContentStep,
         parameters,
         onChangeParameters,
         onChangeGrayTone,
         onChangeThemeMode,
-        oChangePopupContentStep,
+        onChangePopupContentStep,
         onPrevPage,
         onNextPage,
     } = props;
 
-    const [searchParams, setSearchParams] = useSearchParams();
-    const editStep = searchParams.get('editStep') === null ? null : Number(searchParams.get('editStep'));
+    const [editStep, setEditStep] = useState<number | null>(null);
 
-    console.log('editStep', editStep);
-
-    // const [editStep, setEditStep] = useState<number | null>(null);
+    console.log('popupContentStep', popupContentStep, 'editStep', editStep);
 
     useGlobalKeyDown((event) => {
         if (event.key === 'Escape') {
@@ -106,33 +188,48 @@ export const SetupParameters = (props: SetupParametersProps) => {
         onChangeParameters('projectName', event.target.value);
     };
 
+    const onKeyDownProjectName = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            onSubmitProjectName();
+        }
+    };
+
+    const onSubmitProjectName = () => {
+        setEditStep(null);
+    };
+
     const onChangePackagesName = (event: ChangeEvent<HTMLInputElement>) => {
         onChangeParameters('packagesName', event.target.value);
+    };
+
+    const onKeyDownPackagesName = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            onSubmitPackagesName();
+        }
+    };
+
+    const onSubmitPackagesName = () => {
+        setEditStep(null);
     };
 
     const onSelectGrayTone = (value: string) => {
         onChangeParameters('grayTone', value as GrayTone);
 
         if (editStep === null) {
-            oChangePopupContentStep(1);
+            onChangePopupContentStep(popupSetupSteps.ACCENT_COLOR);
         }
 
-        searchParams.delete('editStep');
-        setSearchParams(searchParams);
-        // setEditStep(null);
+        setEditStep(null);
     };
 
     const onSelectAccentColor = (value: string) => {
         onChangeParameters('accentColor', value as GeneralColor);
 
         if (editStep === null) {
-            onChangeThemeMode('light');
-            oChangePopupContentStep(2);
+            onChangePopupContentStep(popupSetupSteps.LIGHT_SATURATION);
         }
 
-        searchParams.delete('editStep');
-        setSearchParams(searchParams);
-        // setEditStep(null);
+        setEditStep(null);
     };
 
     const onSelectLightSaturation = (value: string) => {
@@ -140,148 +237,185 @@ export const SetupParameters = (props: SetupParametersProps) => {
         onChangeThemeMode('dark');
 
         if (editStep === null) {
-            oChangePopupContentStep(3);
+            onChangePopupContentStep(popupSetupSteps.DARK_SATURATION);
         }
 
-        searchParams.delete('editStep');
-        setSearchParams(searchParams);
-        // setEditStep(null);
+        setEditStep(null);
     };
 
     const onSelectDarkSaturation = (value: string) => {
         onChangeParameters('darkSaturation', Number(value) as PlasmaSaturation);
 
         if (editStep === null) {
-            oChangePopupContentStep(4);
+            onChangePopupContentStep(popupSetupSteps.DONE);
         }
 
-        searchParams.delete('editStep');
-        setSearchParams(searchParams);
-
-        // onNextPage(parameters);
+        setEditStep(null);
     };
 
     useEffect(() => {
-        if (popupContentStep === 4) {
-            console.log('test');
-            onNextPage(parameters);
+        if (
+            (popupContentStep === popupSetupSteps.LIGHT_SATURATION && editStep === null) ||
+            editStep === popupSetupSteps.LIGHT_SATURATION
+        ) {
+            onChangeThemeMode('light');
+            return;
         }
-    }, [popupContentStep]);
+
+        onChangeThemeMode('dark');
+    }, [popupContentStep, editStep]);
+
+    const isReady = popupContentStep === popupSetupSteps.DONE && editStep === null;
 
     return (
         <Root>
-            <StyledSelectedParameters>
-                <TextField label="Имя проекта" value={parameters.projectName} onChange={onChangeProjectName} />
-                <TextField label="Имя пакетов" value={parameters.packagesName} onChange={onChangePackagesName} />
+            <StyledSelectedParameters isReady={isReady}>
+                <StyledWrapper>
+                    {popupContentStep === popupSetupSteps.PROJECT_NAME || editStep === popupSetupSteps.PROJECT_NAME ? (
+                        <HeroTextField
+                            value={parameters.projectName}
+                            placeholder="Начните с имени проекта"
+                            dynamicContentRight={
+                                <IconButton onClick={onSubmitProjectName}>
+                                    <StyledIconButton size="s" color="inherit" />
+                                </IconButton>
+                            }
+                            dynamicHelper="без спецсимволов, можно по-русски — название пакетов транслитерируем по правилам"
+                            onChange={onChangeProjectName}
+                            onKeyDown={onKeyDownProjectName}
+                        />
+                    ) : (
+                        <TextField
+                            value={parameters.projectName}
+                            label="Имя проекта"
+                            onClick={() => {
+                                setEditStep(popupSetupSteps.PROJECT_NAME);
+                            }}
+                        />
+                    )}
+                    <TextField
+                        label="Имя пакетов"
+                        value={parameters.packagesName}
+                        onClick={() => {
+                            setEditStep(popupSetupSteps.PACKAGES_NAME);
+                        }}
+                        onChange={onChangePackagesName}
+                        onKeyDown={onKeyDownPackagesName}
+                    />
+                </StyledWrapper>
+
+                {canShowParameter(popupSetupSteps.GRAY_TONE, popupContentStep, editStep) && (
+                    <>
+                        {popupContentStep === popupSetupSteps.GRAY_TONE || editStep === popupSetupSteps.GRAY_TONE ? (
+                            <StyledHoverSelect
+                                label="Оттенок серого для базовых токенов"
+                                items={grayTones}
+                                onHover={onChangeGrayTone}
+                                onSelect={onSelectGrayTone}
+                            />
+                        ) : (
+                            <StyledEditButton
+                                label="Оттенок серого"
+                                text={grayTones.find(({ value }) => value === parameters.grayTone)?.label || ''}
+                                onClick={() => {
+                                    setEditStep(popupSetupSteps.GRAY_TONE);
+                                }}
+                            />
+                        )}
+                    </>
+                )}
+
+                {canShowParameter(popupSetupSteps.ACCENT_COLOR, popupContentStep, editStep) && (
+                    <>
+                        {popupContentStep === popupSetupSteps.ACCENT_COLOR ||
+                        editStep === popupSetupSteps.ACCENT_COLOR ? (
+                            <StyledAccentSelect
+                                defaultValue="Green"
+                                label="Цвет для акцентов"
+                                items={accentColors}
+                                onSelect={onSelectAccentColor}
+                            />
+                        ) : (
+                            <StyledEditButton
+                                label="Цвет для акцентов"
+                                text={prettifyColorName(parameters.accentColor)}
+                                onClick={() => {
+                                    setEditStep(popupSetupSteps.ACCENT_COLOR);
+                                }}
+                            />
+                        )}
+                    </>
+                )}
+
+                {canShowParameter(popupSetupSteps.LIGHT_SATURATION, popupContentStep, editStep) && (
+                    <>
+                        {popupContentStep === popupSetupSteps.LIGHT_SATURATION ||
+                        editStep === popupSetupSteps.LIGHT_SATURATION ? (
+                            <StyledSaturationSelect
+                                onSelect={onSelectLightSaturation}
+                                label="Оттенок для светлой темы"
+                                items={saturations}
+                            />
+                        ) : (
+                            <StyledEditButton2
+                                label="Оттенок для светлой темы"
+                                contentLeft={
+                                    <StyledPreviewSaturation
+                                        color={general[parameters.accentColor][parameters.lightSaturation]}
+                                    />
+                                }
+                                color={general[parameters.accentColor][parameters.lightSaturation]}
+                                text={parameters.lightSaturation.toString()}
+                                view="light"
+                                onClick={() => {
+                                    setEditStep(popupSetupSteps.LIGHT_SATURATION);
+                                }}
+                            />
+                        )}
+                    </>
+                )}
+
+                {canShowParameter(popupSetupSteps.DARK_SATURATION, popupContentStep, editStep) && (
+                    <>
+                        {popupContentStep === popupSetupSteps.DARK_SATURATION ||
+                        editStep === popupSetupSteps.DARK_SATURATION ? (
+                            <StyledSaturationSelect
+                                onSelect={onSelectDarkSaturation}
+                                label="Оттенок для тёмной"
+                                items={saturations}
+                            />
+                        ) : (
+                            <StyledEditButton2
+                                label="Для тёмной"
+                                contentLeft={
+                                    <StyledPreviewSaturation
+                                        color={general[parameters.accentColor][parameters.darkSaturation]}
+                                    />
+                                }
+                                color={general[parameters.accentColor][parameters.darkSaturation]}
+                                text={parameters.darkSaturation.toString()}
+                                view="dark"
+                                onClick={() => {
+                                    setEditStep(popupSetupSteps.DARK_SATURATION);
+                                }}
+                            />
+                        )}
+                    </>
+                )}
             </StyledSelectedParameters>
 
-            {popupContentStep >= 0 && (
-                <>
-                    {(popupContentStep <= 0 || editStep === 0) && (
-                        <StyledHoverSelect
-                            label="Оттенок серого для базовых токенов"
-                            items={grayTones}
-                            onHover={onChangeGrayTone}
-                            onSelect={onSelectGrayTone}
-                        />
-                    )}
-                    {popupContentStep >= 1 && editStep !== 0 && (
-                        <StyledEditButton
-                            label="Оттенок серого"
-                            text={grayTones.find(({ value }) => value === parameters.grayTone)?.label || ''}
-                            onClick={() => {
-                                setSearchParams({ editStep: '0' });
-                                // setEditStep(0);
-                                onChangeThemeMode('dark');
-                            }}
-                        />
-                    )}
-                </>
-            )}
-
-            {popupContentStep >= 1 && (
-                <>
-                    {(popupContentStep <= 1 || editStep === 1) && (
-                        <StyledAccentSelect
-                            defaultValue="Green"
-                            label="Цвет для акцентов"
-                            items={accentColors}
-                            onSelect={onSelectAccentColor}
-                        />
-                    )}
-                    {popupContentStep >= 2 && editStep !== 1 && (
-                        <StyledEditButton
-                            label="Цвет для акцентов"
-                            text={prettifyColorName(parameters.accentColor)}
-                            onClick={() => {
-                                setSearchParams({ editStep: '1' });
-                                // setEditStep(1);
-                                onChangeThemeMode('dark');
-                            }}
-                        />
-                    )}
-                </>
-            )}
-
-            {popupContentStep >= 2 && (
-                <>
-                    {(popupContentStep <= 2 || editStep === 2) && (
-                        <StyledSaturationSelect
-                            onSelect={onSelectLightSaturation}
-                            label="Оттенок для светлой темы"
-                            items={saturations}
-                        />
-                    )}
-                    {popupContentStep >= 3 && editStep !== 2 && (
-                        <StyledEditButton2
-                            label="Оттенок для светлой темы"
-                            contentLeft={
-                                <StyledPreviewSaturation
-                                    color={general[parameters.accentColor][parameters.lightSaturation]}
-                                />
-                            }
-                            color={general[parameters.accentColor][parameters.lightSaturation]}
-                            text={parameters.lightSaturation.toString()}
-                            view="light"
-                            onClick={() => {
-                                setSearchParams({ editStep: '2' });
-                                // setEditStep(2);
-                                onChangeThemeMode('light');
-                            }}
-                        />
-                    )}
-                </>
-            )}
-
-            {popupContentStep >= 3 && (
-                <>
-                    {(popupContentStep <= 3 || editStep === 3) && (
-                        <StyledSaturationSelect
-                            onSelect={onSelectDarkSaturation}
-                            label="Оттенок для тёмной"
-                            items={saturations}
-                        />
-                    )}
-                    {popupContentStep >= 4 && editStep !== 3 && (
-                        <StyledEditButton2
-                            label="Для тёмной"
-                            contentLeft={
-                                <StyledPreviewSaturation
-                                    color={general[parameters.accentColor][parameters.darkSaturation]}
-                                />
-                            }
-                            color={general[parameters.accentColor][parameters.darkSaturation]}
-                            text={parameters.darkSaturation.toString()}
-                            view="dark"
-                            onClick={() => {
-                                setSearchParams({ editStep: '3' });
-                                // setEditStep(2);
-                                onChangeThemeMode('dark');
-                            }}
-                        />
-                    )}
-                </>
-            )}
+            <StyledReadyBlock isReady={isReady}>
+                <StyledHeader>Приблизительно так будет выглядеть цветовая схема проекта</StyledHeader>
+                <HeroButton
+                    text="Сгенерировать"
+                    backgroundColor={general[parameters.accentColor][parameters.darkSaturation]}
+                    contentRight={<IconArrowRight size="xs" color="inherit" />}
+                    onClick={() => onNextPage()}
+                />
+                <StyledDisclaimer>
+                    После создания можно будет изменить все параметры и точечно настроить каждый токен и компонент
+                </StyledDisclaimer>
+            </StyledReadyBlock>
         </Root>
     );
 };
