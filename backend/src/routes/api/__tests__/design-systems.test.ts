@@ -101,7 +101,20 @@ describe('Design Systems API', () => {
         .send({});
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Design system ID and component ID are required');
+      expect(response.body).toHaveProperty('error', 'Validation failed');
+      expect(response.body).toHaveProperty('details', 'Request body does not match required schema');
+      expect(response.body.validationErrors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'designSystemId',
+            message: 'Required'
+          }),
+          expect.objectContaining({
+            path: 'componentId', 
+            message: 'Required'
+          })
+        ])
+      );
     });
 
     it('should return 404 for non-existent design system', async () => {
@@ -215,7 +228,16 @@ describe('Design Systems API', () => {
         .delete('/api/design-systems/components/invalid');
 
       expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error', 'Invalid design system component ID');
+      expect(response.body).toHaveProperty('error', 'Parameter validation failed');
+      expect(response.body).toHaveProperty('details', 'URL parameters do not match required schema');
+      expect(response.body.validationErrors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'id',
+            message: 'ID must be a valid number'
+          })
+        ])
+      );
     });
   });
 }); 

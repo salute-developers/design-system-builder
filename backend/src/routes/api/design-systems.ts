@@ -3,16 +3,14 @@ import { designSystems, designSystemComponents, variationValues, tokenValues, va
 import { eq, and, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { Database } from '../../db/types';
-
-interface CreateDesignSystemRequest {
-  name: string;
-  description?: string;
-}
-
-interface UpdateDesignSystemRequest {
-  name: string;
-  description?: string;
-}
+import { 
+  validateBody, 
+  validateParams,
+  CreateDesignSystemSchema,
+  UpdateDesignSystemSchema,
+  AddComponentToDesignSystemSchema,
+  IdParamSchema
+} from '../../validation';
 
 export function createDesignSystemsRouter(db: Database) {
   const router = Router();
@@ -29,15 +27,12 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Get single design system by ID
-  router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  router.get('/:id', 
+    validateParams(IdParamSchema),
+    async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as any; // Zod middleware ensures this is validated
       const designSystemId = parseInt(id);
-      
-      // Validate that id is a valid number
-      if (isNaN(designSystemId)) {
-        return res.status(400).json({ error: 'Invalid design system ID' });
-      }
 
       const designSystem = await db.query.designSystems.findFirst({
         where: eq(designSystems.id, designSystemId),
@@ -78,13 +73,11 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Create new design system
-  router.post('/', async (req: Request, res: Response) => {
+  router.post('/', 
+    validateBody(CreateDesignSystemSchema),
+    async (req: Request, res: Response) => {
     try {
       const { name, description } = req.body;
-
-      if (!name) {
-        return res.status(400).json({ error: 'Name is required' });
-      }
 
       const [system] = await db.insert(designSystems)
         .values({ name, description })
@@ -98,20 +91,15 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Update design system
-  router.put('/:id', async (req: Request<{ id: string }, {}, UpdateDesignSystemRequest>, res: Response) => {
+  router.put('/:id', 
+    validateParams(IdParamSchema),
+    validateBody(UpdateDesignSystemSchema),
+    async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
-      const designSystemId = parseInt(id);
-      
-      // Validate that id is a valid number
-      if (isNaN(designSystemId)) {
-        return res.status(400).json({ error: 'Invalid design system ID' });
-      }
-
+      const { id } = req.params as any;
       const { name, description } = req.body;
-      if (!name) {
-        return res.status(400).json({ error: 'Missing required fields' });
-      }
+      const designSystemId = parseInt(id);
+
       const updatedDesignSystem = await db.update(designSystems)
         .set({
           name,
@@ -128,15 +116,12 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Delete design system
-  router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  router.delete('/:id', 
+    validateParams(IdParamSchema),
+    async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as any;
       const designSystemId = parseInt(id);
-      
-      // Validate that id is a valid number
-      if (isNaN(designSystemId)) {
-        return res.status(400).json({ error: 'Invalid design system ID' });
-      }
 
       // Check if design system exists
       const [system] = await db.select().from(designSystems).where(eq(designSystems.id, designSystemId));
@@ -154,13 +139,11 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Add component to design system
-  router.post('/components', async (req: Request, res: Response) => {
+  router.post('/components', 
+    validateBody(AddComponentToDesignSystemSchema),
+    async (req: Request, res: Response) => {
     try {
       const { designSystemId, componentId } = req.body;
-
-      if (!designSystemId || !componentId) {
-        return res.status(400).json({ error: 'Design system ID and component ID are required' });
-      }
 
       // Validate that the design system exists
       const [designSystem] = await db.select().from(designSystems).where(eq(designSystems.id, designSystemId));
@@ -198,14 +181,12 @@ export function createDesignSystemsRouter(db: Database) {
   });
 
   // Remove component from design system
-  router.delete('/components/:id', async (req: Request<{ id: string }>, res: Response) => {
+  router.delete('/components/:id', 
+    validateParams(IdParamSchema),
+    async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as any;
       const designSystemComponentId = parseInt(id);
-      
-      if (isNaN(designSystemComponentId)) {
-        return res.status(400).json({ error: 'Invalid design system component ID' });
-      }
 
       // Check if the relationship exists
       const [existing] = await db.select().from(designSystemComponents)
