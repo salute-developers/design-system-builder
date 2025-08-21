@@ -107,3 +107,28 @@ The server returns appropriate HTTP status codes:
 - `500` - Server Error
 
 All error responses include an `error` field with a descriptive message.
+
+## 🧪 Testing
+
+The server includes a comprehensive test suite with 86.3% code coverage.
+
+### Running Tests
+```bash
+# Run all tests
+npm test
+
+# Run with coverage report
+npm run test:coverage
+
+# Run in watch mode
+npm run test:watch
+```
+
+### Test Coverage
+- ✅ **19 tests** covering all API endpoints
+- ✅ **CRUD operations** fully tested
+- ✅ **Error handling** comprehensive
+- ✅ **Integration scenarios** validated
+- ✅ **Edge cases** covered
+
+See [TESTING.md](./TESTING.md) for detailed testing documentation.
