@@ -24,6 +24,29 @@ Visit:
 - 📚 **API Documentation**: http://localhost:3001/api-docs
 - 🗄️ **Database**: localhost:5432
 
+## 📁 Client-Proxy Server (File System Storage)
+
+For local development and file-based storage, you can use the client-proxy server:
+
+```bash
+# Install dependencies
+cd client-proxy
+npm install
+
+# Start the proxy server
+npm start
+# or for development with auto-reload:
+npm run dev
+```
+
+The proxy server will:
+- Run on **http://localhost:3003** (different port to avoid conflicts)
+- Store design systems as JSON files in `client-proxy/storage/`
+- Provide REST API for CRUD operations
+- Replace localStorage with persistent file storage
+
+The client will automatically use the proxy server when it's running.
+
 > 📖 **For detailed Docker documentation**: See [DOCKER.md](./DOCKER.md)
 
 ## Features
