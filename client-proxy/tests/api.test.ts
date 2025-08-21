@@ -39,7 +39,7 @@ describe('Client Proxy API', () => {
 
             expect(response.body).toEqual({
                 success: true,
-                message: 'Design system test-design-system@1.0.0 saved successfully'
+                message: 'Design system test-design-system@0.1.0 saved successfully'
             });
 
             // Verify both files were created
@@ -139,7 +139,7 @@ describe('Client Proxy API', () => {
 
         it('should load an existing design system', async () => {
             const response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             expect(response.body.themeData).toEqual(sampleDesignSystem.themeData);
@@ -148,7 +148,7 @@ describe('Client Proxy API', () => {
 
         it('should return 404 for non-existent design system', async () => {
             const response = await request(app)
-                .get('/api/design-systems/non-existent/1.0.0')
+                .get('/api/design-systems/non-existent/0.1.0')
                 .expect(404);
 
             expect(response.body).toEqual({
@@ -161,7 +161,7 @@ describe('Client Proxy API', () => {
             const designSystemWithSpecialChars: DesignSystemData = {
                 ...sampleDesignSystem,
                 name: 'my-design system',
-                version: '1.0.0-beta'
+                version: '0.1.0'
             };
 
             await request(app)
@@ -169,7 +169,7 @@ describe('Client Proxy API', () => {
                 .send(designSystemWithSpecialChars);
 
             const response = await request(app)
-                .get('/api/design-systems/my-design%20system/1.0.0-beta')
+                .get('/api/design-systems/my-design%20system/0.1.0')
                 .expect(200);
 
             expect(response.body.themeData).toEqual(designSystemWithSpecialChars.themeData);
@@ -200,8 +200,8 @@ describe('Client Proxy API', () => {
                 .expect(200);
 
             expect(response.body).toEqual([
-                ['another-design-system', '2.0.0'],
-                ['test-design-system', '1.0.0']
+                ['another-design-system', '0.1.0'],
+                ['test-design-system', '0.1.0']
             ]);
         });
 
@@ -219,7 +219,7 @@ describe('Client Proxy API', () => {
                 .expect(200);
 
             expect(response.body).toEqual([
-                ['test-design-system', '1.0.0']
+                ['test-design-system', '0.1.0']
             ]);
         });
 
@@ -239,7 +239,7 @@ describe('Client Proxy API', () => {
                 .expect(200);
 
             expect(response.body).toEqual([
-                ['test-design-system', '1.0.0']
+                ['test-design-system', '0.1.0']
             ]);
         });
     });
@@ -254,12 +254,12 @@ describe('Client Proxy API', () => {
 
         it('should delete an existing design system', async () => {
             const response = await request(app)
-                .delete('/api/design-systems/test-design-system/1.0.0')
+                .delete('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             expect(response.body).toEqual({
                 success: true,
-                message: 'Design system test-design-system@1.0.0 deleted successfully'
+                message: 'Design system test-design-system@0.1.0 deleted successfully'
             });
 
             // Verify file was deleted
@@ -269,7 +269,7 @@ describe('Client Proxy API', () => {
 
         it('should return 404 when trying to delete non-existent design system', async () => {
             const response = await request(app)
-                .delete('/api/design-systems/non-existent/1.0.0')
+                .delete('/api/design-systems/non-existent/0.1.0')
                 .expect(404);
 
             expect(response.body).toEqual({
@@ -282,7 +282,7 @@ describe('Client Proxy API', () => {
             const designSystemWithSpecialChars: DesignSystemData = {
                 ...sampleDesignSystem,
                 name: 'my-design system',
-                version: '1.0.0-beta'
+                version: '0.1.0'
             };
 
             await request(app)
@@ -290,7 +290,7 @@ describe('Client Proxy API', () => {
                 .send(designSystemWithSpecialChars);
 
             const response = await request(app)
-                .delete('/api/design-systems/my-design%20system/1.0.0-beta')
+                .delete('/api/design-systems/my-design%20system/0.1.0')
                 .expect(200);
 
             expect(response.body.success).toBe(true);
@@ -333,7 +333,7 @@ describe('Client Proxy API', () => {
 
             // Read
             let response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
             
             expect(response.body.themeData).toEqual(sampleDesignSystem.themeData);
@@ -367,19 +367,19 @@ describe('Client Proxy API', () => {
 
             // Verify update
             response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
             
             expect(response.body.themeData.meta.tokens).toHaveLength(4);
 
             // Delete
             await request(app)
-                .delete('/api/design-systems/test-design-system/1.0.0')
+                .delete('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             // Verify deletion
             await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(404);
         });
 
@@ -402,7 +402,7 @@ describe('Client Proxy API', () => {
 
             // Load each one
             const response1 = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             const response2 = await request(app)
@@ -414,7 +414,7 @@ describe('Client Proxy API', () => {
 
             // Delete one
             await request(app)
-                .delete('/api/design-systems/test-design-system/1.0.0')
+                .delete('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             // Verify only one remains
@@ -423,7 +423,7 @@ describe('Client Proxy API', () => {
                 .expect(200);
 
             expect(finalListResponse.body).toEqual([
-                ['another-design-system', '2.0.0']
+                ['another-design-system', '0.1.0']
             ]);
         });
     });

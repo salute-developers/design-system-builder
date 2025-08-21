@@ -226,7 +226,7 @@ describe('Validation Tests', () => {
 
         it('should reject invalid design system name characters', async () => {
             const response = await request(app)
-                .get('/api/design-systems/invalid@name/1.0.0')
+                .get('/api/design-systems/invalid@name/0.1.0')
                 .expect(400);
 
             expect(response.body).toMatchObject({
@@ -242,7 +242,7 @@ describe('Validation Tests', () => {
 
         it('should reject design system name with only spaces', async () => {
             const response = await request(app)
-                .get('/api/design-systems/%20%20%20/1.0.0') // URL encoded spaces
+                .get('/api/design-systems/%20%20%20/0.1.0') // URL encoded spaces
                 .expect(400);
 
             expect(response.body).toMatchObject({
@@ -274,7 +274,7 @@ describe('Validation Tests', () => {
 
         it('should accept valid parameters', async () => {
             const response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(200);
 
             expect(response.body).toHaveProperty('themeData');
@@ -285,7 +285,7 @@ describe('Validation Tests', () => {
             const designSystemWithSpecialChars = {
                 ...sampleDesignSystem,
                 name: 'my-design_system 2',
-                version: '1.0.0-beta.1'
+                version: '0.1.0'
             };
 
             await request(app)
@@ -293,7 +293,7 @@ describe('Validation Tests', () => {
                 .send(designSystemWithSpecialChars);
 
             const response = await request(app)
-                .get('/api/design-systems/my-design_system%202/1.0.0-beta.1')
+                .get('/api/design-systems/my-design_system%202/0.1.0')
                 .expect(200);
 
             expect(response.body).toHaveProperty('themeData');
@@ -326,7 +326,7 @@ describe('Validation Tests', () => {
             });
 
             const response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(500);
 
             expect(response.body).toMatchObject({
@@ -343,13 +343,13 @@ describe('Validation Tests', () => {
                 .expect(200);
 
             // Manually corrupt only the theme data
-            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
+            const themeFilePath = path.join(testStorageDir, 'design-systems', 'test-design-system@0.1.0.theme.json');
             const themeData = await fs.readJson(themeFilePath);
             themeData.themeData.meta = { invalidMeta: true }; // Corrupt meta
             await fs.writeJson(themeFilePath, themeData);
 
             const response = await request(app)
-                .get('/api/design-systems/test-design-system/1.0.0')
+                .get('/api/design-systems/test-design-system/0.1.0')
                 .expect(500);
 
             expect(response.body).toMatchObject({
