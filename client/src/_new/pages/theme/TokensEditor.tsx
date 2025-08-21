@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TabItem, Tabs, Button, IconButton } from '@salutejs/plasma-b2c';
@@ -294,14 +294,30 @@ interface TokensEditorProps {
 export const TokensEditor = (props: TokensEditorProps) => {
     const navigate = useNavigate();
     const { designSystemName, designSystemVersion } = useParams();
-    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
+    const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
 
-    const [theme, setTheme] = useState(() => designSystem.createThemeInstance());
+    const [theme, setTheme] = useState<any>(null);
+
+    useEffect(() => {
+        const initializeDesignSystem = async () => {
+            if (designSystemName && designSystemVersion) {
+                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                setDesignSystem(ds);
+                setTheme(ds.createThemeInstance());
+            }
+        };
+        initializeDesignSystem();
+    }, [designSystemName, designSystemVersion]);
 
     const [tokenType, setTokenType] = useState(0);
     const [tokenEditorIndex, setTokenEditorIndex] = useState<string | undefined>(undefined);
+    const [isOpenAdd, setIsOpenAdd] = useState<string | undefined>(undefined);
 
     const tokens = useGroupedAllTokens(theme);
+
+    if (!designSystem || !theme) {
+        return <div>Loading...</div>;
+    }
 
     const onClickTokenPreview = (index: string) => {
         setTokenEditorIndex((prevIndex) => (prevIndex === index ? undefined : index));
@@ -353,8 +369,6 @@ export const TokensEditor = (props: TokensEditorProps) => {
 
         setTheme(theme.cloneInstance());
     };
-
-    const [isOpenAdd, setIsOpenAdd] = useState<string | undefined>(undefined);
 
     const onThemeCancel = () => {
         navigate('/');

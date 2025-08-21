@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, H3 } from '@salutejs/plasma-b2c';
@@ -133,7 +134,21 @@ export const ComponentSelector = (props: ComponentSelectorProps) => {
     const navigate = useNavigate();
 
     const { designSystemName, designSystemVersion } = useParams();
-    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
+    const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
+
+    useEffect(() => {
+        const initializeDesignSystem = async () => {
+            if (designSystemName && designSystemVersion) {
+                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                setDesignSystem(ds);
+            }
+        };
+        initializeDesignSystem();
+    }, [designSystemName, designSystemVersion]);
+
+    if (!designSystem) {
+        return <div>Loading...</div>;
+    }
 
     const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 

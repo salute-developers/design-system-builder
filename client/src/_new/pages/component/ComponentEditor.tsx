@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { type ThemeMode } from '@salutejs/plasma-tokens-utils';
@@ -97,24 +97,30 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     const { componentName = '', designSystemName, designSystemVersion } = useParams();
     const navigate = useNavigate();
 
-    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
+    const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
 
-    const theme = useMemo(() => designSystem.createThemeInstance({ includeExtraTokens: true }), []);
+    useEffect(() => {
+        const initializeDesignSystem = async () => {
+            if (designSystemName && designSystemVersion) {
+                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                setDesignSystem(ds);
+            }
+        };
+        initializeDesignSystem();
+    }, [designSystemName, designSystemVersion]);
+
+    const theme = useMemo(() => designSystem?.createThemeInstance({ includeExtraTokens: true }), [designSystem]);
     const componentConfig = useMemo(
         () =>
-            designSystem.createComponentInstance({
+            designSystem?.createComponentInstance({
                 componentName,
             }),
-        [],
+        [designSystem, componentName],
     );
 
     const [, updateState] = useState({});
-    const forceRender = () => updateState({});
-
-    const [componentProps, setComponentProps] = useState(getDefaults(componentConfig));
-
+    const [componentProps, setComponentProps] = useState(() => componentConfig ? getDefaults(componentConfig) : {});
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
-
     const [addStyleModal, setAddStyleModal] = useState<{
         open: boolean;
         variationID?: string;
@@ -122,6 +128,12 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         open: false,
         variationID: undefined,
     });
+
+    const forceRender = () => updateState({});
+
+    if (!designSystem || !theme || !componentConfig) {
+        return <div>Loading...</div>;
+    }
 
     const onComponentCancel = () => {
         navigate(-1);

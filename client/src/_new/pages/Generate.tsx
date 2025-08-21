@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
@@ -44,12 +44,26 @@ export const Generate = (props: GenerateProps) => {
     const navigate = useNavigate();
     const { designSystemName, designSystemVersion } = useParams();
 
-    const designSystem = new DesignSystem({ name: designSystemName, version: designSystemVersion });
+    const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
 
-    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
+    useEffect(() => {
+        const initializeDesignSystem = async () => {
+            if (designSystemName && designSystemVersion) {
+                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                setDesignSystem(ds);
+            }
+        };
+        initializeDesignSystem();
+    }, [designSystemName, designSystemVersion]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [exportType, setExportType] = useState('tgz');
+
+    if (!designSystem) {
+        return <div>Loading...</div>;
+    }
+
+    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
 
     const exportTypes = [
         {

@@ -87,7 +87,13 @@ const getTokenList = (config: Config, selectedVariation?: string, selectedStyle?
 };
 
 const getDefaults = (config: Config, args: Record<string, string | boolean>) => {
-    const [variation, value] = Object.entries(args as Record<string, string>)[0];
+    const entries = Object.entries(args as Record<string, string>);
+    
+    if (entries.length === 0) {
+        return { variationID: undefined, styleID: undefined };
+    }
+    
+    const [variation, value] = entries[0];
 
     const variationID = config
         .getVariations()
@@ -138,9 +144,9 @@ interface ComponentTokensProps {
 
 export const ComponentTokens = (props: ComponentTokensProps) => {
     const { args, config, designSystem, theme, updateConfig, setAddStyleModal, onChangeComponentControlValue } = props;
-
+// console.warn(JSON.stringify(config.getInvariants()));
     const { variationID, styleID } = getDefaults(config, args);
-
+    // console.warn(variationID, styleID, 'ids');
     const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
     const [selectedStyle, setSelectedStyle] = useState<undefined | string>(styleID);
 
@@ -202,8 +208,8 @@ export const ComponentTokens = (props: ComponentTokensProps) => {
 
     const variations = getVariations(config);
     const styles = variations.find((item) => item.value === selectedVariation)?.inner;
-
     const tokenList = getTokenList(config, selectedVariation, selectedStyle);
+    // console.warn('tokenList', tokenList);
     const defaultList = getDefaultList(config, updateConfig);
 
     return (

@@ -11,45 +11,45 @@ import {
 
 import { useGroupedTokens } from './useGroupedTokens';
 
-export const useGroupedAllTokens = (theme: Theme) => {
+export const useGroupedAllTokens = (theme: Theme | null) => {
     const [colorMode, setColorMode, groupedColorTokens] = useGroupedTokens(
-        theme.getTokens('color'),
+        theme?.getTokens('color') || [],
         'dark',
         getGroupedColorTokens,
     );
 
     const [gradientMode, setGradientMode, groupedGradientTokens] = useGroupedTokens(
-        theme.getTokens('gradient'),
+        theme?.getTokens('gradient') || [],
         'dark',
         getGroupedGradientTokens,
     );
 
     const [shapeMode, setShapeMode, groupedShapeTokens] = useGroupedTokens(
-        theme.getTokens('shape'),
+        theme?.getTokens('shape') || [],
         'round',
         getGroupedShapeTokens,
     );
 
     const [spacingMode, setsSpacingMode, groupedSpacingTokens] = useGroupedTokens(
-        theme.getTokens('spacing'),
+        theme?.getTokens('spacing') || [],
         'spacing',
         getGroupedSpacingTokens,
     );
 
     const [shadowMode, setShadowMode, groupedShadowTokens] = useGroupedTokens(
-        theme.getTokens('shadow'),
+        theme?.getTokens('shadow') || [],
         'up',
         getGroupedShadowTokens,
     );
 
     const [typographyMode, setTypographyMode, groupedTypographyTokens] = useGroupedTokens(
-        theme.getTokens('typography'),
+        theme?.getTokens('typography') || [],
         'screen-s',
         getGroupedTypographyTokens,
     );
 
     const [fontFamilyMode, setFontFamilyMode, groupedFontFamilyTokens] = useGroupedTokens(
-        theme.getTokens('fontFamily'),
+        theme?.getTokens('fontFamily') || [],
         'display',
         getGroupedFontFamilyTokens,
     );
