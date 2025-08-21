@@ -1,5 +1,5 @@
 import { IconArrowBack, IconMessageDraftOutline } from '@salutejs/plasma-icons';
-import React, { useState, forwardRef, useRef } from 'react';
+import React, { useState, forwardRef, useRef, KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import { useInputDynamicWidth } from '../hooks';
 
@@ -119,7 +119,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
 
     const [inputWidth] = useInputDynamicWidth(rootRef, spanRef, {
         value,
-        minWidth: 24,
+        minWidth: 16,
         maxWidth: 172,
         shiftWidth: 2,
     });
@@ -144,6 +144,16 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
         }
     };
 
+    const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            inputRef.current?.blur();
+        }
+
+        if (onKeyDown) {
+            onKeyDown(event);
+        }
+    };
+
     return (
         <Root view={view} ref={rootRef} {...rest}>
             <StyledLabel>{label}</StyledLabel>
@@ -155,7 +165,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
                     placeholder={placeholder}
                     style={{ width: `${inputWidth}px` }}
                     onChange={onChange}
-                    onKeyDown={onKeyDown}
+                    onKeyDown={handleKeyDown}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                 />
