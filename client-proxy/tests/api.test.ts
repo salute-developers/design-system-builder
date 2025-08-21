@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import createApp from '../src/app';
 import { sampleDesignSystem, sampleDesignSystem2 } from './sample-data';
 import { Application } from 'express';
-import { StoredDesignSystem, DesignSystemData } from '../src/validation';
+import { DesignSystemData } from '../src/validation';
 
 describe('Client Proxy API', () => {
     let app: Application;
@@ -42,15 +42,19 @@ describe('Client Proxy API', () => {
                 message: 'Design system test-design-system@1.0.0 saved successfully'
             });
 
-            // Verify file was created
-            const filePath = path.join(testStorageDir, 'test-design-system@1.0.0.json');
-            expect(await fs.pathExists(filePath)).toBe(true);
+            // Verify both files were created
+            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
+            const componentsFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.components.json');
+            expect(await fs.pathExists(themeFilePath)).toBe(true);
+            expect(await fs.pathExists(componentsFilePath)).toBe(true);
 
             // Verify file contents
-            const savedData: StoredDesignSystem = await fs.readJson(filePath);
-            expect(savedData.themeData).toEqual(sampleDesignSystem.themeData);
-            expect(savedData.componentsData).toEqual(sampleDesignSystem.componentsData);
-            expect(savedData.savedAt).toBeDefined();
+            const themeData = await fs.readJson(themeFilePath);
+            const componentsData = await fs.readJson(componentsFilePath);
+            expect(themeData.themeData).toEqual(sampleDesignSystem.themeData);
+            expect(componentsData.componentsData).toEqual(sampleDesignSystem.componentsData);
+            expect(themeData.savedAt).toBeDefined();
+            expect(componentsData.savedAt).toBeDefined();
         });
 
         it('should return 400 if name is missing', async () => {
@@ -148,7 +152,8 @@ describe('Client Proxy API', () => {
                 .expect(404);
 
             expect(response.body).toEqual({
-                error: 'Design system not found'
+                error: 'Design system not found',
+                details: 'Missing theme and components data'
             });
         });
 

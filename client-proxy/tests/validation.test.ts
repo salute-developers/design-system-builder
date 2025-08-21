@@ -313,10 +313,15 @@ describe('Validation Tests', () => {
                 .send(sampleDesignSystem)
                 .expect(200);
 
-            // Manually corrupt the stored file
-            const filePath = path.join(testStorageDir, 'test-design-system@1.0.0.json');
-            await fs.writeJson(filePath, {
+            // Manually corrupt the stored files
+            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
+            const componentsFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.components.json');
+            await fs.writeJson(themeFilePath, {
                 invalidData: 'corrupted',
+                savedAt: new Date().toISOString()
+            });
+            await fs.writeJson(componentsFilePath, {
+                invalidData: 'corrupted', 
                 savedAt: new Date().toISOString()
             });
 
@@ -338,10 +343,10 @@ describe('Validation Tests', () => {
                 .expect(200);
 
             // Manually corrupt only the theme data
-            const filePath = path.join(testStorageDir, 'test-design-system@1.0.0.json');
-            const data = await fs.readJson(filePath);
-            data.themeData.meta = { invalidMeta: true }; // Corrupt meta
-            await fs.writeJson(filePath, data);
+            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
+            const themeData = await fs.readJson(themeFilePath);
+            themeData.themeData.meta = { invalidMeta: true }; // Corrupt meta
+            await fs.writeJson(themeFilePath, themeData);
 
             const response = await request(app)
                 .get('/api/design-systems/test-design-system/1.0.0')
