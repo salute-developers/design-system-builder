@@ -160,8 +160,16 @@ const createApp = (storageDir?: string): Application => {
         }
     });
 
+    // 404 handler - must come before error handler
+    app.use((req: Request, res: Response<ApiResponse>) => {
+        res.status(404).json({ 
+            error: 'Endpoint not found',
+            path: req.path 
+        });
+    });
+
     // Error handling middleware
-    app.use((err: CustomError, req: Request, res: Response<ApiResponse>, next: NextFunction): void => {
+    app.use((err: CustomError, _req: Request, res: Response<ApiResponse>, _next: NextFunction): void => {
         // Handle JSON parsing errors
         if (err.type === 'entity.parse.failed') {
             res.status(400).json({
@@ -175,14 +183,6 @@ const createApp = (storageDir?: string): Application => {
         res.status(500).json({ 
             error: 'Internal server error',
             details: err.message 
-        });
-    });
-
-    // 404 handler
-    app.use((req: Request, res: Response<ApiResponse>) => {
-        res.status(404).json({ 
-            error: 'Endpoint not found',
-            path: req.path 
         });
     });
 

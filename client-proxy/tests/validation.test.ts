@@ -304,6 +304,7 @@ describe('Validation Tests', () => {
         beforeEach(async () => {
             // Clean up test storage before each test
             await fs.emptyDir(testStorageDir);
+            app = createApp(testStorageDir);
         });
 
         it('should detect corrupted stored data', async () => {
@@ -314,8 +315,8 @@ describe('Validation Tests', () => {
                 .expect(200);
 
             // Manually corrupt the stored files
-            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
-            const componentsFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.components.json');
+            const themeFilePath = path.join(testStorageDir, 'design-systems', 'test-design-system@0.1.0.theme.json');
+            const componentsFilePath = path.join(testStorageDir, 'design-systems', 'test-design-system@0.1.0.components.json');
             await fs.writeJson(themeFilePath, {
                 invalidData: 'corrupted',
                 savedAt: new Date().toISOString()
