@@ -3,9 +3,7 @@ module.exports = {
   testEnvironment: 'node',
   testMatch: [
     '**/tests/**/*.test.ts',
-    '**/tests/**/*.test.js',
-    '**/__tests__/**/*.ts',
-    '**/__tests__/**/*.js'
+    '**/__tests__/**/*.ts'
   ],
   collectCoverageFrom: [
     'src/**/*.ts',
@@ -22,5 +20,7 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest'
-  }
+  },
+  // Run tests in series to avoid file system race conditions
+  maxWorkers: 1
 };

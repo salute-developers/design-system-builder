@@ -12,6 +12,11 @@ A TypeScript-based file system proxy server for storing and retrieving design sy
 - 🔷 **TypeScript**: Full type safety with types derived from client sources
 - 🎯 **Type-Safe API**: Strongly typed request/response interfaces
 - 📊 **Comprehensive Types**: Shared types for ThemeSource, Meta, and API responses
+- ✅ **Runtime Validation**: Zod schemas for request/response validation
+- 🛡️ **Data Integrity**: Validates stored data on load to detect corruption
+- 📋 **Detailed Errors**: Rich validation error messages with field-level details
+- 🔄 **Type Inference**: All TypeScript types inferred from Zod schemas (single source of truth)
+- 🎯 **Zero Duplication**: No manual type definitions - everything derived from validation schemas
 
 ## Setup
 
@@ -154,27 +159,22 @@ The server is built with TypeScript and uses types derived from the client sourc
 - **Design System Data**: Full type safety for `ThemeSource` and `Meta` interfaces
 - **Error Handling**: Typed error responses and status codes
 
-### Type Definitions
+### Type Definitions (Inferred from Zod)
 ```typescript
-// Core design system types
-interface ThemeSource {
-    meta: ThemeMeta;
-    variations: PlatformsVariations;
-}
+// All types are automatically inferred from Zod schemas - no manual definitions!
+import { 
+    ThemeSource,
+    Meta,
+    DesignSystemData,
+    ComponentAPI,
+    Sources
+} from './validation'; // <- All types come from here
 
-interface Meta {
-    name: string;
-    description: string;
-    sources: Sources;
-}
-
-// API request/response types
-interface DesignSystemData {
-    name: string;
-    version: string;
-    themeData: ThemeSource;
-    componentsData: Array<Meta>;
-}
+// Example: ThemeSource is automatically inferred from ThemeSourceSchema
+const themeData: ThemeSource = {
+    meta: { /* ... */ },
+    variations: { /* ... */ }
+}; // ✅ Full type safety with runtime validation
 ```
 
 ### Development Workflow
@@ -187,4 +187,61 @@ npm run build
 
 # Development with hot reload and type checking
 npm run dev
+
+# Run validation tests
+npm test validation.test.ts
+```
+
+## ✅ Runtime Validation with Zod
+
+The server uses Zod for comprehensive runtime validation, ensuring data integrity at every level.
+
+### Validation Features
+- **Request Body Validation**: All POST requests validated against strict schemas
+- **URL Parameter Validation**: Design system names and versions validated
+- **Data Integrity Checks**: Stored files validated when loaded
+- **Detailed Error Messages**: Field-level validation errors with clear descriptions
+- **Type Coercion**: Automatic trimming and type conversion where appropriate
+
+### Validation Error Format
+```typescript
+{
+  "error": "Validation failed",
+  "details": "Request body does not match required schema",
+  "validationErrors": [
+    {
+      "path": "componentsData.0.sources.api.0.type",
+      "message": "Invalid enum value. Expected 'color' | 'dimension' | 'float' | 'shape' | 'typography', received 'invalid_type'",
+      "code": "invalid_enum_value"
+    }
+  ]
+}
+```
+
+### Validated Endpoints
+- `POST /api/design-systems` - Full design system validation
+- `GET /api/design-systems/:name/:version` - Parameter validation + data integrity
+- `DELETE /api/design-systems/:name/:version` - Parameter validation
+
+### Schema Coverage & Type Inference
+- **Complete Component Builder Types**: ComponentAPI, Sources, Config hierarchies
+- **Theme System Types**: ThemeMeta, TokenType, PlatformsVariations  
+- **Nested Validation**: Deep validation of complex component configurations
+- **Platform Mappings**: Cross-platform token validation
+- **Single Source of Truth**: All TypeScript types automatically inferred from Zod schemas
+- **Zero Type Duplication**: No manual type definitions - everything derived from validation
+
+### Migration Guide
+```typescript
+// ❌ Old way (deprecated)
+import { DesignSystemData } from './types';
+
+// ✅ New way (recommended)
+import { DesignSystemData } from './validation';
+
+// Benefits:
+// - Types are guaranteed to match validation schemas
+// - No risk of type/schema drift
+// - Single place to update both types and validation
+// - Better IntelliSense with Zod inference
 ```

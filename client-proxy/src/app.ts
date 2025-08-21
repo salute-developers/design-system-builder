@@ -8,7 +8,15 @@ import {
     ApiResponse, 
     HealthResponse,
     DesignSystemTuple 
-} from './types';
+} from './validation';
+import { 
+    validateRequest, 
+    validateParams,
+    DesignSystemDataSchema,
+    DesignSystemParamsSchema,
+    safeValidate,
+    StoredDesignSystemSchema
+} from './validation';
 
 interface CustomError extends Error {
     type?: string;
@@ -40,17 +48,13 @@ const createApp = (storageDir?: string): Application => {
         res.json({ status: 'ok', message: 'Client proxy server is running' });
     });
 
-    // Save design system
-    app.post('/api/design-systems', async (req: Request<{}, ApiResponse, DesignSystemData>, res: Response<ApiResponse>): Promise<void> => {
+    // Save design system with validation
+    app.post('/api/design-systems', 
+        validateRequest(DesignSystemDataSchema),
+        async (req: Request<{}, ApiResponse, DesignSystemData>, res: Response<ApiResponse>): Promise<void> => {
         try {
+            // Request body is already validated by Zod middleware
             const { name, version, themeData, componentsData } = req.body;
-
-            if (!name || !version) {
-                res.status(400).json({ 
-                    error: 'Name and version are required' 
-                });
-                return;
-            }
 
             const data: StoredDesignSystem = {
                 themeData,
@@ -77,8 +81,10 @@ const createApp = (storageDir?: string): Application => {
         }
     });
 
-    // Load specific design system
-    app.get('/api/design-systems/:name/:version', async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
+    // Load specific design system with parameter validation
+    app.get('/api/design-systems/:name/:version', 
+        validateParams(DesignSystemParamsSchema),
+        async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
             const filePath = getFilePath(name, version);
@@ -90,8 +96,20 @@ const createApp = (storageDir?: string): Application => {
                 return;
             }
 
-            const data: StoredDesignSystem = await fs.readJson(filePath);
+            const rawData = await fs.readJson(filePath);
             
+            // Validate loaded data
+            const validation = safeValidate(StoredDesignSystemSchema, rawData);
+            if (!validation.success) {
+                console.error(`Invalid stored data for ${name}@${version}:`, validation.errors);
+                res.status(500).json({
+                    error: 'Stored data is corrupted',
+                    details: 'The stored design system data does not match expected format'
+                });
+                return;
+            }
+
+            const data = validation.data!;
             console.log(`Loaded design system: ${name}@${version}`);
             res.json({
                 themeData: data.themeData,
@@ -142,8 +160,10 @@ const createApp = (storageDir?: string): Application => {
         }
     });
 
-    // Delete design system
-    app.delete('/api/design-systems/:name/:version', async (req: Request<{ name: string; version: string }>, res: Response<ApiResponse>): Promise<void> => {
+    // Delete design system with parameter validation
+    app.delete('/api/design-systems/:name/:version', 
+        validateParams(DesignSystemParamsSchema),
+        async (req: Request<{ name: string; version: string }>, res: Response<ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
             const filePath = getFilePath(name, version);

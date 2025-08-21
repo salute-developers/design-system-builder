@@ -1,6 +1,6 @@
 // Sample test data based on the actual design system structure
 
-import { DesignSystemData } from '../src/types';
+import { DesignSystemData } from '../src/validation';
 
 export const sampleDesignSystem: DesignSystemData = {
     name: "test-design-system",
@@ -70,33 +70,17 @@ export const sampleDesignSystem: DesignSystemData = {
         },
         variations: {
             color: {
-                dark: {
-                    web: {
-                        "dark.text.default.primary": "#FFFFFF",
-                        "dark.text.default.secondary": "#CCCCCC"
-                    },
-                    ios: {
-                        "dark.text.default.primary": "#FFFFFF",
-                        "dark.text.default.secondary": "#CCCCCC"
-                    },
-                    android: {
-                        "dark.text.default.primary": "#FFFFFF",
-                        "dark.text.default.secondary": "#CCCCCC"
-                    }
+                web: {
+                    "dark.text.default.primary": "#FFFFFF",
+                    "dark.text.default.secondary": "#CCCCCC"
                 },
-                light: {
-                    web: {
-                        "dark.text.default.primary": "#000000",
-                        "dark.text.default.secondary": "#666666"
-                    },
-                    ios: {
-                        "dark.text.default.primary": "#000000",
-                        "dark.text.default.secondary": "#666666"
-                    },
-                    android: {
-                        "dark.text.default.primary": "#000000",
-                        "dark.text.default.secondary": "#666666"
-                    }
+                ios: {
+                    "dark.text.default.primary": "#FFFFFF", 
+                    "dark.text.default.secondary": "#CCCCCC"
+                },
+                android: {
+                    "dark.text.default.primary": "#FFFFFF",
+                    "dark.text.default.secondary": "#CCCCCC"
                 }
             },
             gradient: {
@@ -148,7 +132,7 @@ export const sampleDesignSystem: DesignSystemData = {
                         name: "size",
                         type: "dimension",
                         description: "Button size",
-                        variations: ["s", "m", "l"],
+                        variations: ["size-var-s", "size-var-m", "size-var-l"], // IDs, not names
                         platformMappings: {
                             xml: null,
                             compose: null,
@@ -164,7 +148,7 @@ export const sampleDesignSystem: DesignSystemData = {
                         name: "view",
                         type: "color",
                         description: "Button appearance",
-                        variations: ["primary", "secondary"],
+                        variations: ["view-var-primary", "view-var-secondary"], // IDs, not names
                         platformMappings: {
                             xml: null,
                             compose: null,
@@ -291,16 +275,14 @@ export const sampleDesignSystem2: DesignSystemData = {
         },
         variations: {
             color: {
-                default: {
-                    web: {
-                        "primary.background": "#F5F5F5"
-                    },
-                    ios: {
-                        "primary.background": "#F5F5F5"
-                    },
-                    android: {
-                        "primary.background": "#F5F5F5"
-                    }
+                web: {
+                    "primary.background": "#F5F5F5"
+                },
+                ios: {
+                    "primary.background": "#F5F5F5"
+                },
+                android: {
+                    "primary.background": "#F5F5F5"
                 }
             },
             gradient: {
@@ -346,7 +328,7 @@ export const sampleDesignSystem2: DesignSystemData = {
                         name: "size",
                         type: "dimension",
                         description: "Input size",
-                        variations: ["s", "m"],
+                        variations: ["input-size-s", "input-size-m"], // IDs, not names
                         platformMappings: {
                             xml: null,
                             compose: null,
