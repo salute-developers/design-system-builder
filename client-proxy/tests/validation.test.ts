@@ -1,7 +1,7 @@
 import request from 'supertest';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import createApp from '../src/app';
+import { createTestApp } from './setup';
 import { sampleDesignSystem } from './sample-data';
 import { Application } from 'express';
 
@@ -9,11 +9,10 @@ describe('Validation Tests', () => {
     let app: Application;
     let testStorageDir: string;
 
-    beforeEach(async () => {
-        testStorageDir = process.env.TEST_STORAGE_DIR!;
-        // Ensure clean storage directory
-        await fs.emptyDir(testStorageDir);
-        app = createApp(testStorageDir);
+    beforeEach(() => {
+        testStorageDir = path.join(__dirname, 'test-storage', `test-${Date.now()}`);
+        fs.ensureDirSync(testStorageDir);
+        app = createTestApp(testStorageDir);
     });
 
     describe('POST /api/design-systems validation', () => {
@@ -304,7 +303,7 @@ describe('Validation Tests', () => {
         beforeEach(async () => {
             // Clean up test storage before each test
             await fs.emptyDir(testStorageDir);
-            app = createApp(testStorageDir);
+            app = createTestApp(testStorageDir);
         });
 
         it('should detect corrupted stored data', async () => {

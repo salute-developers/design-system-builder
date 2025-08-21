@@ -1,7 +1,7 @@
 import request from 'supertest';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import createApp from '../src/app';
+import { createTestApp } from './setup';
 import { sampleDesignSystem, sampleDesignSystem2 } from './sample-data';
 import { Application } from 'express';
 import { DesignSystemData } from '../src/validation';
@@ -14,7 +14,7 @@ describe('Client Proxy API', () => {
         testStorageDir = process.env.TEST_STORAGE_DIR!;
         // Ensure clean storage directory
         await fs.emptyDir(testStorageDir);
-        app = createApp(testStorageDir);
+        app = createTestApp(testStorageDir);
     });
 
     describe('GET /health', () => {
