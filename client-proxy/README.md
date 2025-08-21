@@ -1,6 +1,6 @@
 # Client Proxy Server
 
-A simple file system proxy server for storing and retrieving design system data.
+A TypeScript-based file system proxy server for storing and retrieving design system data with full type safety.
 
 ## Features
 
@@ -9,6 +9,9 @@ A simple file system proxy server for storing and retrieving design system data.
 - 🚀 **Express Server**: Lightweight and fast
 - 🌐 **CORS Enabled**: Works with frontend applications
 - 📝 **JSON Format**: Human-readable storage format
+- 🔷 **TypeScript**: Full type safety with types derived from client sources
+- 🎯 **Type-Safe API**: Strongly typed request/response interfaces
+- 📊 **Comprehensive Types**: Shared types for ThemeSource, Meta, and API responses
 
 ## Setup
 
@@ -17,16 +20,24 @@ A simple file system proxy server for storing and retrieving design system data.
    npm install
    ```
 
-2. **Start the server**:
+2. **Build the TypeScript project**:
    ```bash
-   # Production
-   npm start
-   
-   # Development (with auto-reload)
-   npm run dev
+   npm run build
    ```
 
-3. **Server will start on port 3001** (configurable via PORT environment variable)
+3. **Start the server**:
+   ```bash
+   # Production (compiled JS)
+   npm start
+   
+   # Development (TypeScript with hot reload)
+   npm run dev
+   
+   # Type checking only
+   npm run type-check
+   ```
+
+4. **Server will start on port 3003** (configurable via PORT environment variable)
 
 ## API Endpoints
 
@@ -132,3 +143,48 @@ npm run test:watch
 - ✅ **Edge cases** covered
 
 See [TESTING.md](./TESTING.md) for detailed testing documentation.
+
+## 🔷 TypeScript Integration
+
+The server is built with TypeScript and uses types derived from the client sources for maximum compatibility.
+
+### Type Safety Features
+- **Shared Types**: Types imported from client `themeBuilder` and `componentBuilder`
+- **API Contracts**: Strongly typed request/response interfaces
+- **Design System Data**: Full type safety for `ThemeSource` and `Meta` interfaces
+- **Error Handling**: Typed error responses and status codes
+
+### Type Definitions
+```typescript
+// Core design system types
+interface ThemeSource {
+    meta: ThemeMeta;
+    variations: PlatformsVariations;
+}
+
+interface Meta {
+    name: string;
+    description: string;
+    sources: Sources;
+}
+
+// API request/response types
+interface DesignSystemData {
+    name: string;
+    version: string;
+    themeData: ThemeSource;
+    componentsData: Array<Meta>;
+}
+```
+
+### Development Workflow
+```bash
+# Type checking during development
+npm run type-check
+
+# Build with type checking
+npm run build
+
+# Development with hot reload and type checking
+npm run dev
+```

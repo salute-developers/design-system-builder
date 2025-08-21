@@ -1,13 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs-extra');
-const path = require('path');
+import express, { Request, Response, NextFunction, Application } from 'express';
+import cors from 'cors';
+import * as fs from 'fs-extra';
+import * as path from 'path';
+import { 
+    DesignSystemData, 
+    StoredDesignSystem, 
+    ApiResponse, 
+    HealthResponse,
+    DesignSystemTuple 
+} from './types';
 
-const createApp = (storageDir) => {
-    const app = express();
+interface CustomError extends Error {
+    type?: string;
+    status?: number;
+    statusCode?: number;
+}
+
+const createApp = (storageDir?: string): Application => {
+    const app: Application = express();
     
     // Use provided storage directory or default
-    const STORAGE_DIR = storageDir || path.join(__dirname, 'storage');
+    const STORAGE_DIR = storageDir || path.join(__dirname, '../storage');
 
     // Middleware
     app.use(cors());
@@ -17,28 +30,29 @@ const createApp = (storageDir) => {
     fs.ensureDirSync(STORAGE_DIR);
 
     // Helper function to get file path for a design system
-    const getFilePath = (name, version) => {
+    const getFilePath = (name: string, version: string): string => {
         const fileName = `${name}@${version}.json`;
         return path.join(STORAGE_DIR, fileName);
     };
 
     // Health check endpoint
-    app.get('/health', (req, res) => {
+    app.get('/health', (req: Request, res: Response<HealthResponse>) => {
         res.json({ status: 'ok', message: 'Client proxy server is running' });
     });
 
     // Save design system
-    app.post('/api/design-systems', async (req, res) => {
+    app.post('/api/design-systems', async (req: Request<{}, ApiResponse, DesignSystemData>, res: Response<ApiResponse>): Promise<void> => {
         try {
             const { name, version, themeData, componentsData } = req.body;
 
             if (!name || !version) {
-                return res.status(400).json({ 
+                res.status(400).json({ 
                     error: 'Name and version are required' 
                 });
+                return;
             }
 
-            const data = {
+            const data: StoredDesignSystem = {
                 themeData,
                 componentsData,
                 savedAt: new Date().toISOString()
@@ -55,26 +69,28 @@ const createApp = (storageDir) => {
 
         } catch (error) {
             console.error('Error saving design system:', error);
+            const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to save design system',
-                details: error.message 
+                details: err.message 
             });
         }
     });
 
     // Load specific design system
-    app.get('/api/design-systems/:name/:version', async (req, res) => {
+    app.get('/api/design-systems/:name/:version', async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
             const filePath = getFilePath(name, version);
 
             if (!await fs.pathExists(filePath)) {
-                return res.status(404).json({ 
+                res.status(404).json({ 
                     error: 'Design system not found' 
                 });
+                return;
             }
 
-            const data = await fs.readJson(filePath);
+            const data: StoredDesignSystem = await fs.readJson(filePath);
             
             console.log(`Loaded design system: ${name}@${version}`);
             res.json({
@@ -84,28 +100,33 @@ const createApp = (storageDir) => {
 
         } catch (error) {
             console.error('Error loading design system:', error);
+            const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to load design system',
-                details: error.message 
+                details: err.message 
             });
         }
     });
 
     // List all design systems
-    app.get('/api/design-systems', async (req, res) => {
+    app.get('/api/design-systems', async (req: Request, res: Response<DesignSystemTuple[] | ApiResponse>): Promise<void> => {
         try {
             const files = await fs.readdir(STORAGE_DIR);
-            const designSystems = files
-                .filter(file => file.endsWith('.json'))
-                .map(file => {
+            const designSystems: DesignSystemTuple[] = files
+                .filter((file: string) => file.endsWith('.json'))
+                .map((file: string) => {
                     const nameVersion = file.replace('.json', '');
                     const [name, version] = nameVersion.split('@');
-                    return [name, version];
+                    return [name, version] as const;
                 })
-                .filter(([name, version]) => name && version);
+                .filter((tuple): tuple is DesignSystemTuple => {
+                    const [name, version] = tuple;
+                    return !!name && !!version;
+                });
 
             if (designSystems.length === 0) {
-                return res.status(200).end();
+                res.status(200).end();
+                return;
             }
 
             console.log(`Listed ${designSystems.length} design systems`);
@@ -113,23 +134,25 @@ const createApp = (storageDir) => {
 
         } catch (error) {
             console.error('Error listing design systems:', error);
+            const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to list design systems',
-                details: error.message 
+                details: err.message 
             });
         }
     });
 
     // Delete design system
-    app.delete('/api/design-systems/:name/:version', async (req, res) => {
+    app.delete('/api/design-systems/:name/:version', async (req: Request<{ name: string; version: string }>, res: Response<ApiResponse>): Promise<void> => {
         try {
             const { name, version } = req.params;
             const filePath = getFilePath(name, version);
 
             if (!await fs.pathExists(filePath)) {
-                return res.status(404).json({ 
+                res.status(404).json({ 
                     error: 'Design system not found' 
                 });
+                return;
             }
 
             await fs.remove(filePath);
@@ -142,21 +165,23 @@ const createApp = (storageDir) => {
 
         } catch (error) {
             console.error('Error deleting design system:', error);
+            const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to delete design system',
-                details: error.message 
+                details: err.message 
             });
         }
     });
 
     // Error handling middleware
-    app.use((err, req, res, next) => {
+    app.use((err: CustomError, req: Request, res: Response<ApiResponse>, next: NextFunction): void => {
         // Handle JSON parsing errors
         if (err.type === 'entity.parse.failed') {
-            return res.status(400).json({
+            res.status(400).json({
                 error: 'Invalid JSON in request body',
                 details: err.message
             });
+            return;
         }
 
         console.error('Unhandled error:', err);
@@ -167,7 +192,7 @@ const createApp = (storageDir) => {
     });
 
     // 404 handler
-    app.use((req, res) => {
+    app.use((req: Request, res: Response<ApiResponse>) => {
         res.status(404).json({ 
             error: 'Endpoint not found',
             path: req.path 
@@ -177,4 +202,4 @@ const createApp = (storageDir) => {
     return app;
 };
 
-module.exports = createApp;
+export default createApp;
