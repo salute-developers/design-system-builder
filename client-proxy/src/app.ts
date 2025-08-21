@@ -68,7 +68,10 @@ const createApp = (storageDir?: string): Application => {
         validateParams(DesignSystemParamsSchema),
         async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
         try {
-            const { name, version } = req.params;
+            const { name } = req.params;
+            // const { name, version } = req.params;
+            // TODO: Remove hardcoded version and use dynamic version from params
+            const version = '0.1.0';
 
             const { themeData, componentsData } = await store.loadDesignSystem(name, version);
 
@@ -127,7 +130,10 @@ const createApp = (storageDir?: string): Application => {
         validateParams(DesignSystemParamsSchema),
         async (req: Request<{ name: string; version: string }>, res: Response<ApiResponse>): Promise<void> => {
         try {
-            const { name, version } = req.params;
+            const { name } = req.params;
+            // const { name, version } = req.params;
+            // TODO: Remove hardcoded version and use dynamic version from params
+            const version = '0.1.0';
 
             await store.deleteDesignSystem(name, version);
             
