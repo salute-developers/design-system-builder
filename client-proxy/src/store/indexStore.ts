@@ -1,107 +1,110 @@
-import * as fs from 'fs-extra';
-import * as path from 'path';
-
-// Interface for design system index entry
-export interface DesignSystemIndexEntry {
+// Interface for backend design system response
+export interface BackendDesignSystem {
+    id: number;
     name: string;
-    version: string;
+    description?: string;
     createdAt: string;
     updatedAt: string;
 }
 
-// Interface for design system index file
-export interface DesignSystemIndex {
-    designSystems: DesignSystemIndexEntry[];
-    lastUpdated: string;
+// Interface for creating a design system
+export interface CreateDesignSystemRequest {
+    name: string;
+    description?: string;
 }
 
 export class IndexStore {
-    private indexPath: string;
+    private baseUrl: string;
 
     constructor(storageDir: string) {
-        this.indexPath = path.join(storageDir, 'index.json');
+        // For now, hardcode the backend URL - this could be made configurable
+        this.baseUrl = process.env.BACKEND_URL || 'http://localhost:3001/api';
     }
 
-    // Load design system index
-    async loadDesignSystemIndex(): Promise<DesignSystemIndex> {
-        try {
-            if (await fs.pathExists(this.indexPath)) {
-                const indexData = await fs.readJson(this.indexPath);
-                return indexData as DesignSystemIndex;
-            }
-        } catch (error) {
-            console.warn('Error loading design system index, creating new one:', error);
-        }
-        
-        // Return empty index if file doesn't exist or is corrupted
-        return {
-            designSystems: [],
-            lastUpdated: new Date().toISOString()
-        };
-    }
-
-    // Save design system index
-    async saveDesignSystemIndex(index: DesignSystemIndex): Promise<void> {
-        index.lastUpdated = new Date().toISOString();
-        await fs.writeJson(this.indexPath, index, { spaces: 2 });
-    }
-
-    // Add or update design system in index
+    // Add design system to backend
     async addToIndex(name: string, version: string): Promise<void> {
-        const index = await this.loadDesignSystemIndex();
-        const existingIndex = index.designSystems.findIndex(
-            ds => ds.name === name && ds.version === version
-        );
-
-        const now = new Date().toISOString();
+        // TODO: Backend currently doesn't support versions - design system names must be unique
+        // When backend supports versions, we can have multiple design systems with same name but different versions
+        // For now, check if name exists and skip creation to avoid duplicates
         
-        if (existingIndex >= 0) {
-            // Update existing entry
-            index.designSystems[existingIndex]!.updatedAt = now;
-        } else {
-            // Add new entry
-            index.designSystems.push({
-                name,
-                version,
-                createdAt: now,
-                updatedAt: now
-            });
+        // Check if design system with this name already exists
+        const exists = await this.existsInIndex(name, version);
+        if (exists) {
+            console.log(`Design system ${name} already exists in backend, skipping creation`);
+            return;
         }
 
-        await this.saveDesignSystemIndex(index);
+        const createRequest: CreateDesignSystemRequest = {
+            name: name,
+            description: `Design system ${name} version ${version}`
+        };
+
+        const response = await fetch(`${this.baseUrl}/design-systems`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(createRequest)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create design system in backend: ${response.status} ${response.statusText}`);
+        }
+
+        console.log(`Design system ${name}@${version} created in backend`);
     }
 
-    // Remove design system from index
+    // Remove design system from backend
     async removeFromIndex(name: string, version: string): Promise<void> {
-        const index = await this.loadDesignSystemIndex();
-        index.designSystems = index.designSystems.filter(
-            ds => !(ds.name === name && ds.version === version)
-        );
-        await this.saveDesignSystemIndex(index);
+        // First, get the design system to find its ID
+        const response = await fetch(`${this.baseUrl}/design-systems`);
+        
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        }
+
+        const backendDesignSystems = await response.json() as BackendDesignSystem[];
+        const designSystem = backendDesignSystems.find(ds => ds.name === name);
+        
+        if (!designSystem) {
+            throw new Error(`Design system ${name} not found in backend`);
+        }
+
+        // Delete by ID
+        const deleteResponse = await fetch(`${this.baseUrl}/design-systems/${designSystem.id}`, {
+            method: 'DELETE'
+        });
+
+        if (!deleteResponse.ok) {
+            throw new Error(`Failed to delete design system from backend: ${deleteResponse.status} ${deleteResponse.statusText}`);
+        }
+
+        console.log(`Design system ${name}@${version} deleted from backend`);
     }
 
-    // Check if design system exists in index
+    // Check if design system exists in backend
     async existsInIndex(name: string, version: string): Promise<boolean> {
-        const index = await this.loadDesignSystemIndex();
-        return index.designSystems.some(
-            ds => ds.name === name && ds.version === version
-        );
+        const response = await fetch(`${this.baseUrl}/design-systems`);
+        
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        }
+
+        const backendDesignSystems = await response.json() as BackendDesignSystem[];
+        return backendDesignSystems.some(ds => ds.name === name);
     }
 
-    // List all design systems from index
+    // List all design systems from backend
     async listFromIndex(): Promise<Array<[string, string]>> {
-        const index = await this.loadDesignSystemIndex();
-        return index.designSystems
-            .map(ds => [ds.name, ds.version] as [string, string])
-            .sort((a, b) => {
-                // Sort by name first, then by version
-                const nameComparison = a[0].localeCompare(b[0]);
-                return nameComparison !== 0 ? nameComparison : a[1].localeCompare(b[1]);
-            });
-    }
+        const response = await fetch(`${this.baseUrl}/design-systems`);
+        
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        }
 
-    // Check if index file exists
-    async indexExists(): Promise<boolean> {
-        return await fs.pathExists(this.indexPath);
+        const backendDesignSystems = await response.json() as BackendDesignSystem[];
+        
+        // Convert to tuple format [name, version]
+        return backendDesignSystems.map(ds => [ds.name, '0.1.0'] as [string, string]);
     }
 }

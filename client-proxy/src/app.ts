@@ -13,6 +13,7 @@ import {
     DesignSystemParamsSchema
 } from './validation';
 import { createStore } from './store';
+import { IndexStore } from './store/indexStore';
 
 interface CustomError extends Error {
     type?: string;
@@ -20,14 +21,14 @@ interface CustomError extends Error {
     statusCode?: number;
 }
 
-const createApp = (storageDir?: string): Application => {
+const createApp = (storageDir?: string, indexStore?: IndexStore): Application => {
     const app: Application = express();
     
     // Use provided storage directory or default
     const STORAGE_DIR = storageDir || path.join(__dirname, '../storage');
 
-    // Create store instance
-    const store = createStore(STORAGE_DIR);
+    // Create store instance with optional mock index store
+    const store = createStore(STORAGE_DIR, indexStore);
 
     // Middleware
     app.use(cors());

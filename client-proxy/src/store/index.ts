@@ -13,14 +13,13 @@ export class DesignSystemStore {
     private componentStore: ComponentStore;
     private indexStore: IndexStore;
 
-    constructor(storageDir: string) {
+    constructor(storageDir: string, indexStore?: IndexStore) {
         this.storageDir = storageDir;
-        // Ensure storage directory exists
         fs.ensureDirSync(this.storageDir);
         
         this.themeStore = new ThemeStore(storageDir);
         this.componentStore = new ComponentStore(storageDir);
-        this.indexStore = new IndexStore(storageDir);
+        this.indexStore = indexStore || new IndexStore(storageDir);
     }
 
     // Save design system data
@@ -99,6 +98,6 @@ export class DesignSystemStore {
 }
 
 // Factory function to create a store instance
-export const createStore = (storageDir: string): DesignSystemStore => {
-    return new DesignSystemStore(storageDir);
+export const createStore = (storageDir: string, indexStore?: IndexStore): DesignSystemStore => {
+    return new DesignSystemStore(storageDir, indexStore);
 };
