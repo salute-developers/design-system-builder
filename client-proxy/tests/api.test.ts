@@ -273,7 +273,8 @@ describe('Client Proxy API', () => {
                 .expect(404);
 
             expect(response.body).toEqual({
-                error: 'Design system not found'
+                error: 'Design system not found',
+                details: 'Design system not found'
             });
         });
 
