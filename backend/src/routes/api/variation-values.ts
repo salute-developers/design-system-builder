@@ -3,27 +3,13 @@ import { variationValues, tokenValues, variations, tokens } from '../../db/schem
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { Database } from '../../db/types';
-
-interface CreateVariationValueRequest {
-  designSystemId: number;
-  componentId: number;
-  variationId: number;
-  name: string;
-  description?: string;
-  tokenValues?: Array<{
-    tokenId: number;
-    value: string;
-  }>;
-}
-
-interface UpdateVariationValueRequest {
-  name: string;
-  description?: string;
-  tokenValues?: Array<{
-    tokenId: number;
-    value: string;
-  }>;
-}
+import {
+  validateBody,
+  validateParams,
+  CreateVariationValueSchema,
+  UpdateVariationValueSchema,
+  IdParamSchema
+} from '../../validation';
 
 export function createVariationValuesRouter(db: Database) {
   const router = Router();
@@ -40,9 +26,13 @@ export function createVariationValuesRouter(db: Database) {
   });
 
   // Get variation value by ID
-  router.get('/:id', async (req: Request, res: Response) => {
+  router.get('/:id', 
+    validateParams(IdParamSchema),
+    async (req: Request, res: Response) => {
     try {
-      const [value] = await db.select().from(variationValues).where(eq(variationValues.id, parseInt(req.params.id)));
+      const { id } = req.params as any;
+      const variationValueId = parseInt(id);
+      const [value] = await db.select().from(variationValues).where(eq(variationValues.id, variationValueId));
       if (!value) {
         return res.status(404).json({ error: 'Variation value not found' });
       }
@@ -54,17 +44,11 @@ export function createVariationValuesRouter(db: Database) {
   });
 
   // Create a new variation value
-  router.post('/', async (req: Request<{}, {}, CreateVariationValueRequest>, res: Response) => {
+  router.post('/', 
+    validateBody(CreateVariationValueSchema),
+    async (req: Request, res: Response) => {
     try {
       const { designSystemId, componentId, variationId, name, description, tokenValues: newTokenValues } = req.body;
-      const missingFields = [];
-      if (!designSystemId) missingFields.push('designSystemId');
-      if (!componentId) missingFields.push('componentId');
-      if (!variationId) missingFields.push('variationId');
-      if (!name) missingFields.push('name');
-      if (missingFields.length > 0) {
-        return res.status(400).json({ error: 'Missing required fields', missingFields });
-      }
 
       // Check if variation exists
       const [variation] = await db.select().from(variations).where(eq(variations.id, variationId));
@@ -106,35 +90,36 @@ export function createVariationValuesRouter(db: Database) {
   });
 
   // Update variation value
-  router.put('/:id', async (req: Request<{ id: string }, {}, UpdateVariationValueRequest>, res: Response) => {
+  router.put('/:id', 
+    validateParams(IdParamSchema),
+    validateBody(UpdateVariationValueSchema),
+    async (req: Request, res: Response) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params as any;
       const { name, description, tokenValues: updatedTokenValues } = req.body;
-      if (!name) {
-        return res.status(400).json({ error: 'Missing required fields', missingFields: ['name'] });
-      }
+      const variationValueId = parseInt(id);
 
       // Check if variation value exists
-      const [existingValue] = await db.select().from(variationValues).where(eq(variationValues.id, parseInt(id)));
+      const [existingValue] = await db.select().from(variationValues).where(eq(variationValues.id, variationValueId));
       if (!existingValue) {
         return res.status(404).json({ error: 'Variation value not found' });
       }
 
       const [updated] = await db.update(variationValues)
         .set({ name, description })
-        .where(eq(variationValues.id, parseInt(id)))
+        .where(eq(variationValues.id, variationValueId))
         .returning();
 
       // If token values are provided, update them
       if (updatedTokenValues && Array.isArray(updatedTokenValues)) {
         // First delete existing token values
-        await db.delete(tokenValues).where(eq(tokenValues.variationValueId, parseInt(id)));
+        await db.delete(tokenValues).where(eq(tokenValues.variationValueId, variationValueId));
         
         // Then insert new token values only if there are valid values
         const tokenValueInserts = updatedTokenValues
           .filter(tv => tv.tokenId && tv.value) // Filter out invalid entries
           .map(tv => ({
-            variationValueId: parseInt(id),
+            variationValueId: variationValueId,
             tokenId: tv.tokenId,
             value: tv.value
           }));
@@ -152,18 +137,21 @@ export function createVariationValuesRouter(db: Database) {
   });
 
   // Delete variation value
-  router.delete('/:id', async (req: Request, res: Response) => {
+  router.delete('/:id', 
+    validateParams(IdParamSchema),
+    async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const { id } = req.params as any;
+      const variationValueId = parseInt(id);
       // Check if variation value exists
-      const [value] = await db.select().from(variationValues).where(eq(variationValues.id, id));
+      const [value] = await db.select().from(variationValues).where(eq(variationValues.id, variationValueId));
       if (!value) {
         return res.status(404).json({ error: 'Variation value not found' });
       }
       // First delete all token values
-      await db.delete(tokenValues).where(eq(tokenValues.variationValueId, id));
+      await db.delete(tokenValues).where(eq(tokenValues.variationValueId, variationValueId));
       // Then delete the variation value
-      await db.delete(variationValues).where(eq(variationValues.id, id));
+      await db.delete(variationValues).where(eq(variationValues.id, variationValueId));
       res.status(204).send();
     } catch (error) {
       console.error('Error deleting variation value:', error);
