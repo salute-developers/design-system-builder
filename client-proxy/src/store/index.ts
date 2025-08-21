@@ -1,16 +1,17 @@
 import * as fs from 'fs-extra';
-import * as path from 'path';
 import {
     DesignSystemData,
     DesignSystemTuple
 } from '../validation';
 import { ThemeStore } from './themes';
 import { ComponentStore } from './components';
+import { IndexStore } from './indexStore';
 
 export class DesignSystemStore {
     private storageDir: string;
     private themeStore: ThemeStore;
     private componentStore: ComponentStore;
+    private indexStore: IndexStore;
 
     constructor(storageDir: string) {
         this.storageDir = storageDir;
@@ -19,6 +20,7 @@ export class DesignSystemStore {
         
         this.themeStore = new ThemeStore(storageDir);
         this.componentStore = new ComponentStore(storageDir);
+        this.indexStore = new IndexStore(storageDir);
     }
 
     // Save design system data
@@ -31,22 +33,30 @@ export class DesignSystemStore {
             this.componentStore.saveComponents(name, version, componentsData)
         ]);
 
+        // Add to index
+        await this.indexStore.addToIndex(name, version);
+
         console.log(`Saved design system: ${name}@${version} (theme + components)`);
     }
 
     // Load design system data
     async loadDesignSystem(name: string, version: string): Promise<{ themeData: any; componentsData: any }> {
-        // Check if both files exist first
+        // First check if design system exists in index
+        const existsInIndex = await this.indexStore.existsInIndex(name, version);
+        if (!existsInIndex) {
+            throw new Error('Design system not found');
+        }
+
+        // Check if both files exist
         const [themeExists, componentsExist] = await Promise.all([
             this.themeStore.themeExists(name, version),
             this.componentStore.componentsExist(name, version)
         ]);
 
         if (!themeExists || !componentsExist) {
-            const missing = [];
-            if (!themeExists) missing.push('theme');
-            if (!componentsExist) missing.push('components');
-            throw new Error(`Missing ${missing.join(' and ')} data`);
+            // Files are missing - clean up index
+            await this.indexStore.removeFromIndex(name, version);
+            throw new Error('Design system not found');
         }
 
         // Load both theme and components in parallel
@@ -59,44 +69,18 @@ export class DesignSystemStore {
         return { themeData, componentsData };
     }
 
-    // List all design systems
+    // List all design systems from index
     async listDesignSystems(): Promise<DesignSystemTuple[]> {
-        // Get both theme and component files in parallel
-        const [themeFiles, componentFiles] = await Promise.all([
-            this.themeStore.listThemeFiles(),
-            this.componentStore.listComponentFiles()
-        ]);
-        
-        // Get unique design systems by looking for .theme.json files
-        // and checking if corresponding .components.json exists
-        const designSystems: DesignSystemTuple[] = [];
-
-        for (const themeFile of themeFiles) {
-            const nameVersion = themeFile.replace('.theme.json', '');
-            const [name, version] = nameVersion.split('@');
-            
-            if (name && version) {
-                // Check if corresponding components file exists
-                const componentsFile = `${nameVersion}.components.json`;
-                if (componentFiles.includes(componentsFile)) {
-                    designSystems.push([name, version] as const);
-                }
-            }
-        }
-
-        console.log(`Listed ${designSystems.length} design systems`);
-        return designSystems;
+        const designSystems = await this.indexStore.listFromIndex();
+        console.log(`Listed ${designSystems.length} design systems from index`);
+        return designSystems as DesignSystemTuple[];
     }
 
     // Delete design system
     async deleteDesignSystem(name: string, version: string): Promise<void> {
-        // Check if design system exists before attempting to delete
-        const [themeExists, componentsExist] = await Promise.all([
-            this.themeStore.themeExists(name, version),
-            this.componentStore.componentsExist(name, version)
-        ]);
-
-        if (!themeExists && !componentsExist) {
+        // Check if design system exists in index
+        const exists = await this.indexStore.existsInIndex(name, version);
+        if (!exists) {
             throw new Error('Design system not found');
         }
 
@@ -105,19 +89,13 @@ export class DesignSystemStore {
             this.themeStore.deleteTheme(name, version),
             this.componentStore.deleteComponents(name, version)
         ]);
+
+        // Remove from index
+        await this.indexStore.removeFromIndex(name, version);
         
         console.log(`Deleted design system: ${name}@${version} (theme + components)`);
     }
-
-    // Check if design system exists
-    async designSystemExists(name: string, version: string): Promise<boolean> {
-        const [themeExists, componentsExist] = await Promise.all([
-            this.themeStore.themeExists(name, version),
-            this.componentStore.componentsExist(name, version)
-        ]);
-
-        return themeExists && componentsExist;
-    }
+    
 }
 
 // Factory function to create a store instance

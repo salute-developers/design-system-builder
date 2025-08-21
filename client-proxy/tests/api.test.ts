@@ -43,8 +43,8 @@ describe('Client Proxy API', () => {
             });
 
             // Verify both files were created
-            const themeFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.theme.json');
-            const componentsFilePath = path.join(testStorageDir, 'test-design-system@1.0.0.components.json');
+            const themeFilePath = path.join(testStorageDir, 'design-systems', 'test-design-system@0.1.0.theme.json');
+            const componentsFilePath = path.join(testStorageDir, 'design-systems', 'test-design-system@0.1.0.components.json');
             expect(await fs.pathExists(themeFilePath)).toBe(true);
             expect(await fs.pathExists(componentsFilePath)).toBe(true);
 
@@ -153,7 +153,7 @@ describe('Client Proxy API', () => {
 
             expect(response.body).toEqual({
                 error: 'Design system not found',
-                details: 'Missing theme and components data'
+                details: 'Design system not found'
             });
         });
 

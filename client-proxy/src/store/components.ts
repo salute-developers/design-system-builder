@@ -5,14 +5,18 @@ import { safeValidate, StoredComponentsDataSchema } from '../validation';
 
 export class ComponentStore {
     private storageDir: string;
+    private designSystemsDir: string;
 
     constructor(storageDir: string) {
         this.storageDir = storageDir;
+        this.designSystemsDir = path.join(storageDir, 'design-systems');
+        // Ensure design-systems directory exists
+        fs.ensureDirSync(this.designSystemsDir);
     }
 
     private getComponentsFilePath(name: string, version: string): string {
         const fileName = `${name}@${version}.components.json`;
-        return path.join(this.storageDir, fileName);
+        return path.join(this.designSystemsDir, fileName);
     }
 
     async saveComponents(name: string, version: string, componentsData: any): Promise<void> {
@@ -66,7 +70,7 @@ export class ComponentStore {
     }
 
     async listComponentFiles(): Promise<string[]> {
-        const files = await fs.readdir(this.storageDir);
+        const files = await fs.readdir(this.designSystemsDir);
         return files.filter((file: string) => file.endsWith('.components.json'));
     }
 

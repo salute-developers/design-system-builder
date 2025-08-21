@@ -5,14 +5,18 @@ import { safeValidate, StoredThemeDataSchema } from '../validation';
 
 export class ThemeStore {
     private storageDir: string;
+    private designSystemsDir: string;
 
     constructor(storageDir: string) {
         this.storageDir = storageDir;
+        this.designSystemsDir = path.join(storageDir, 'design-systems');
+        // Ensure design-systems directory exists
+        fs.ensureDirSync(this.designSystemsDir);
     }
 
     private getThemeFilePath(name: string, version: string): string {
         const fileName = `${name}@${version}.theme.json`;
-        return path.join(this.storageDir, fileName);
+        return path.join(this.designSystemsDir, fileName);
     }
 
     async saveTheme(name: string, version: string, themeData: any): Promise<void> {
@@ -66,7 +70,7 @@ export class ThemeStore {
     }
 
     async listThemeFiles(): Promise<string[]> {
-        const files = await fs.readdir(this.storageDir);
+        const files = await fs.readdir(this.designSystemsDir);
         return files.filter((file: string) => file.endsWith('.theme.json'));
     }
 
