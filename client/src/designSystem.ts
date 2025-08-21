@@ -19,27 +19,38 @@ export class DesignSystem {
     private themeData: ThemeSource;
     private componentsData: Meta[] = [];
 
-    constructor({ name, version = '0.1.0' }: { name?: string; version?: string }) {
+    private constructor({ name, version = '0.1.0' }: { name?: string; version?: string }) {
         this.name = name;
         this.version = version;
 
-        this.themeData = this.loadThemeData(name, version);
-        this.componentsData = this.loadComponentsData(name, version);
+        // Initialize with empty/default values - actual loading happens in create method
+        this.themeData = {} as ThemeSource;
+        this.componentsData = [];
+    }
 
+    public static async create({ name, version = '0.1.0' }: { name?: string; version?: string }): Promise<DesignSystem> {
+        const instance = new DesignSystem({ name, version });
+        
+        // Load data (from storage if available, otherwise from local sources)
+        instance.themeData = await instance.loadThemeData(name, version);
+        instance.componentsData = await instance.loadComponentsData(name, version);
+        
+        // Save to storage after loading (in case we loaded from local data)
         if (name && version) {
-            // TODO: сохранять в бд через api
-            saveDesignSystem({
+            await saveDesignSystem({
                 name,
                 version,
-                themeData: this.themeData,
-                componentsData: this.componentsData,
+                themeData: instance.themeData,
+                componentsData: instance.componentsData,
             });
         }
+        
+        return instance;
     }
 
     // TODO: загружать из бд через api
-    private loadThemeData(name?: string, version?: string) {
-        const loadedThemeData = name && version ? loadDesignSystem(name, version)?.themeData : undefined;
+    private async loadThemeData(name?: string, version?: string) {
+        const loadedThemeData = name && version ? (await loadDesignSystem(name, version))?.themeData : undefined;
         const localThemeData = getStaticThemeData(name, version) as unknown as {
             meta: ThemeMeta;
             variations: PlatformsVariations;
@@ -48,7 +59,7 @@ export class DesignSystem {
         return loadedThemeData ?? localThemeData;
     }
 
-    public saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
+    public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
         this.themeData = data;
 
         if (!this.name || !this.version) {
@@ -56,7 +67,7 @@ export class DesignSystem {
         }
 
         // TODO: сохранять в бд через api
-        saveDesignSystem({
+        await saveDesignSystem({
             name: this.name,
             version: this.version,
             themeData: this.themeData,
@@ -65,14 +76,14 @@ export class DesignSystem {
     }
 
     // TODO: загружать из бд через api
-    private loadComponentsData(name?: string, version?: string) {
-        const loadedComponentsData = name && version ? loadDesignSystem(name, version)?.componentsData : undefined;
+    private async loadComponentsData(name?: string, version?: string) {
+        const loadedComponentsData = name && version ? (await loadDesignSystem(name, version))?.componentsData : undefined;
         const localComponentsData = componentsData as Meta[];
 
         return loadedComponentsData ?? localComponentsData;
     }
 
-    public saveComponentsData(data: { meta: Meta }) {
+    public async saveComponentsData(data: { meta: Meta }) {
         const { meta } = data;
         const { name } = meta;
 
@@ -86,7 +97,7 @@ export class DesignSystem {
         }
 
         // TODO: сохранять в бд через api
-        saveDesignSystem({
+        await saveDesignSystem({
             name: this.name,
             version: this.version,
             themeData: this.themeData,

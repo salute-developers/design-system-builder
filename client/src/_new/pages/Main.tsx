@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { Button, DsplL, IconButton, Link, Select, TextField, TextS } from '@salutejs/plasma-b2c';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { getGrayscale, loadAllDesignSystemNames, removeDesignSystem } from '../utils';
 import { FormField, getAccentColors, getSaturations } from '../components';
 import { DesignSystem } from '../../designSystem';
@@ -98,7 +98,15 @@ interface MainProps {
 export const Main = (props: MainProps) => {
     const navigate = useNavigate();
 
-    const [loadedDesignSystems, setLoadedDesignSystems] = useState(loadAllDesignSystemNames());
+    const [loadedDesignSystems, setLoadedDesignSystems] = useState<(readonly [string, string])[] | undefined>(undefined);
+
+    useEffect(() => {
+        const loadDesignSystems = async () => {
+            const systems = await loadAllDesignSystemNames();
+            setLoadedDesignSystems(systems);
+        };
+        loadDesignSystems();
+    }, []);
 
     const [data, setData] = useState<any>({
         designSystemName: '',
@@ -135,8 +143,9 @@ export const Main = (props: MainProps) => {
     };
 
     const onRemoveDesignSystem = async (name: string, version: string) => {
-        removeDesignSystem(name, version);
-        setLoadedDesignSystems(loadAllDesignSystemNames());
+        await removeDesignSystem(name, version);
+        const updatedSystems = await loadAllDesignSystemNames();
+        setLoadedDesignSystems(updatedSystems);
     };
 
     const onDesignSystemSave = async () => {
@@ -158,8 +167,8 @@ export const Main = (props: MainProps) => {
         //     },
         // };
 
-        new DesignSystem({ name: data.designSystemName, version: data.designSystemVersion });
-        // setDesignSystem(new DesignSystem({ name: data.designSystemName, version: data.designSystemVersion }));
+        await DesignSystem.create({ name: data.designSystemName, version: data.designSystemVersion });
+        // setDesignSystem(await DesignSystem.create({ name: data.designSystemName, version: data.designSystemVersion }));
 
         navigate(`/${data.designSystemName}/${data.designSystemVersion}/theme`);
     };
