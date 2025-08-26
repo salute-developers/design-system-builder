@@ -67,7 +67,7 @@ export function createVariationValuesRouter(db: Database) {
       // If token values are provided, create them
       if (newTokenValues && Array.isArray(newTokenValues) && newTokenValues.length > 0) {
         const tokenValueInserts = newTokenValues
-          .filter(tv => tv.tokenId && tv.value) // Filter out invalid entries
+          .filter(tv => tv.tokenId && tv.value && tv.value.trim() !== '') // Filter out invalid entries and empty values
           .map(tv => ({
             variationValueId: variationValue.id,
             tokenId: tv.tokenId,
@@ -117,7 +117,7 @@ export function createVariationValuesRouter(db: Database) {
         
         // Then insert new token values only if there are valid values
         const tokenValueInserts = updatedTokenValues
-          .filter(tv => tv.tokenId && tv.value) // Filter out invalid entries
+          .filter(tv => tv.tokenId && tv.value && tv.value.trim() !== '') // Filter out invalid entries and empty values
           .map(tv => ({
             variationValueId: variationValueId,
             tokenId: tv.tokenId,

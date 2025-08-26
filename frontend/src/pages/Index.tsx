@@ -46,8 +46,8 @@ const Index = () => {
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [newVariationValue, setNewVariationValue] = useState({
-    componentId: '',
-    variationId: '',
+    componentId: -1,
+    variationId: -1,
     name: '',
     description: '',
     tokenValues: [] as { tokenId: number; value: string }[],
@@ -278,6 +278,12 @@ const Index = () => {
   const handleAddVariationValue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDesignSystem) return;
+    
+    // Validate that we have valid IDs
+    if (newVariationValue.componentId <= 0 || newVariationValue.variationId <= 0) {
+      alert('Please select a valid component and variation');
+      return;
+    }
 
     try {
       const response = await fetch(getApiUrl('variationValues'), {
@@ -286,6 +292,7 @@ const Index = () => {
         body: JSON.stringify({
           ...newVariationValue,
           designSystemId: selectedDesignSystem.id,
+          tokenValues: newVariationValue.tokenValues.filter(tv => tv.value.trim() !== '')
         }),
       });
       
@@ -303,8 +310,8 @@ const Index = () => {
       setShowEditVariationValueDialog(false);
       setEditingVariationValue(null);
       setNewVariationValue({
-        componentId: '',
-        variationId: '',
+        componentId: -1,
+        variationId: -1,
         name: '',
         description: '',
         tokenValues: [],
@@ -318,16 +325,16 @@ const Index = () => {
   // Dialog handler functions
   const handleOpenEditVariationValueDialog = (variationValue: VariationValue) => {
     setEditingVariationValue(variationValue);
-    setNewVariationValue({
-      componentId: variationValue.componentId.toString(),
-      variationId: variationValue.variationId.toString(),
-      name: variationValue.name,
-      description: variationValue.description || '',
-      tokenValues: variationValue.tokenValues.map(tv => ({
-        tokenId: tv.tokenId,
-        value: tv.value
-      }))
-    });
+          setNewVariationValue({
+        componentId: variationValue.componentId,
+        variationId: variationValue.variationId,
+        name: variationValue.name,
+        description: variationValue.description || '',
+        tokenValues: variationValue.tokenValues.map(tv => ({
+          tokenId: tv.tokenId,
+          value: tv.value
+        }))
+      });
     setShowEditVariationValueDialog(true);
   };
 
@@ -344,8 +351,8 @@ const Index = () => {
     }));
     
     setNewVariationValue({
-      componentId: selectedComponent?.component.id.toString() || '',
-      variationId: selectedVariation?.id.toString() || '',
+      componentId: selectedComponent?.component.id || -1,
+      variationId: selectedVariation?.id || -1,
       name: '',
       description: '',
       tokenValues: emptyTokenValues
@@ -370,8 +377,8 @@ const Index = () => {
     });
     
     setNewVariationValue({
-      componentId: variationValue.componentId.toString(),
-      variationId: variationValue.variationId.toString(),
+      componentId: variationValue.componentId,
+      variationId: variationValue.variationId,
       name: variationValue.name,
       description: variationValue.description || '',
       tokenValues: allTokenValues
@@ -382,6 +389,12 @@ const Index = () => {
   const handleUpdateVariationValueFromDialog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingVariationValue) return;
+    
+    // Validate that we have valid IDs
+    if (newVariationValue.componentId <= 0 || newVariationValue.variationId <= 0) {
+      alert('Please select a valid component and variation');
+      return;
+    }
 
     try {
       const response = await fetch(getApiUrl('variationValues') + `/${editingVariationValue.id}`, {
@@ -390,7 +403,7 @@ const Index = () => {
         body: JSON.stringify({
           name: newVariationValue.name,
           description: newVariationValue.description,
-          tokenValues: newVariationValue.tokenValues
+          tokenValues: newVariationValue.tokenValues.filter(tv => tv.value.trim() !== '')
         }),
       });
 
@@ -411,8 +424,8 @@ const Index = () => {
       setShowEditVariationValueDialog(false);
       setEditingVariationValue(null);
       setNewVariationValue({
-        componentId: '',
-        variationId: '',
+        componentId: -1,
+        variationId: -1,
         name: '',
         description: '',
         tokenValues: []
@@ -426,6 +439,12 @@ const Index = () => {
   const handleUpdateTokenValuesFromDialog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTokenValues) return;
+    
+    // Validate that we have valid IDs
+    if (newVariationValue.componentId <= 0 || newVariationValue.variationId <= 0) {
+      alert('Please select a valid component and variation');
+      return;
+    }
 
     try {
       const response = await fetch(getApiUrl('variationValues') + `/${editingTokenValues.id}`, {
@@ -434,7 +453,7 @@ const Index = () => {
         body: JSON.stringify({
           name: editingTokenValues.name,
           description: editingTokenValues.description,
-          tokenValues: newVariationValue.tokenValues
+          tokenValues: newVariationValue.tokenValues.filter(tv => tv.value.trim() !== '')
         }),
       });
 
@@ -455,8 +474,8 @@ const Index = () => {
       setShowEditTokenValuesDialog(false);
       setEditingTokenValues(null);
       setNewVariationValue({
-        componentId: '',
-        variationId: '',
+        componentId: -1,
+        variationId: -1,
         name: '',
         description: '',
         tokenValues: []
@@ -748,6 +767,13 @@ const Index = () => {
           </DialogHeader>
           <div className="py-4">
             <form onSubmit={editingVariationValue ? handleUpdateVariationValueFromDialog : handleAddVariationValue} className="space-y-4">
+              {(newVariationValue.componentId <= 0 || newVariationValue.variationId <= 0) && (
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ Please select a component and variation first
+                  </p>
+                </div>
+              )}
               <div>
                 <Label htmlFor="dialogVariationValueName">Value Name</Label>
                 <Input
@@ -756,6 +782,9 @@ const Index = () => {
                   onChange={(e) => setNewVariationValue({ ...newVariationValue, name: e.target.value })}
                   required
                 />
+                {!newVariationValue.name.trim() && (
+                  <p className="text-sm text-red-500 mt-1">Name is required</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="dialogVariationValueDescription">Description</Label>
@@ -766,7 +795,12 @@ const Index = () => {
                 />
               </div>
               <div className="flex gap-2">
-                <Button type="submit">{editingVariationValue ? 'Update' : 'Add'} Value</Button>
+                <Button 
+                  type="submit" 
+                  disabled={newVariationValue.componentId <= 0 || newVariationValue.variationId <= 0 || !newVariationValue.name.trim()}
+                >
+                  {editingVariationValue ? 'Update' : 'Add'} Value
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
@@ -774,8 +808,8 @@ const Index = () => {
                     setShowEditVariationValueDialog(false);
                     setEditingVariationValue(null);
                     setNewVariationValue({
-                      componentId: '',
-                      variationId: '',
+                      componentId: -1,
+                      variationId: -1,
                       name: '',
                       description: '',
                       tokenValues: []
@@ -860,8 +894,8 @@ const Index = () => {
                     setShowEditTokenValuesDialog(false);
                     setEditingTokenValues(null);
                     setNewVariationValue({
-                      componentId: '',
-                      variationId: '',
+                      componentId: -1,
+                      variationId: -1,
                       name: '',
                       description: '',
                       tokenValues: []

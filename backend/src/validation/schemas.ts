@@ -30,7 +30,7 @@ export const AddComponentToDesignSystemSchema = z.object({
 // Token Value schemas
 export const TokenValueSchema = z.object({
   tokenId: z.number().int().positive('Token ID must be a positive integer'),
-  value: z.string().trim().min(1, 'Value is required')
+  value: z.string().trim() // Allow empty strings, backend will filter them out
 });
 
 // Variation Value schemas
