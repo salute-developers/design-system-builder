@@ -44,6 +44,45 @@ describe('Design Systems API', () => {
     });
   });
 
+  describe('GET /api/design-systems/:id', () => {
+    it('should return design system by id with nested relations', async () => {
+      // Create test design system
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const response = await request(app).get(`/api/design-systems/${designSystem.id}`);
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('id', designSystem.id);
+      expect(response.body).toHaveProperty('name', designSystem.name);
+      expect(response.body).toHaveProperty('description', designSystem.description);
+      expect(response.body).toHaveProperty('components');
+      expect(response.body).toHaveProperty('variationValues');
+    });
+
+    it('should return 404 for non-existent design system', async () => {
+      const response = await request(app).get('/api/design-systems/999');
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Design system not found');
+    });
+
+    it('should return 400 for invalid design system ID', async () => {
+      const response = await request(app).get('/api/design-systems/invalid');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Parameter validation failed');
+      expect(response.body).toHaveProperty('details', 'URL parameters do not match required schema');
+      expect(response.body.validationErrors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'id',
+            message: 'ID must be a valid number'
+          })
+        ])
+      );
+    });
+  });
+
   describe('POST /api/design-systems', () => {
     it('should create a new design system', async () => {
       const newSystem = {
@@ -67,6 +106,107 @@ describe('Design Systems API', () => {
         .send({});
 
       expect(response.status).toBe(400);
+    });
+  });
+
+  describe('PUT /api/design-systems/:id', () => {
+    it('should update design system', async () => {
+      // Create test design system
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Original Name',
+        description: 'Original Description'
+      }).returning();
+
+      const updateData = {
+        name: 'Updated Name',
+        description: 'Updated Description'
+      };
+
+      const response = await request(app)
+        .put(`/api/design-systems/${designSystem.id}`)
+        .send(updateData);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('id', designSystem.id);
+      expect(response.body).toHaveProperty('name', updateData.name);
+      expect(response.body).toHaveProperty('description', updateData.description);
+      expect(response.body).toHaveProperty('updatedAt');
+    });
+
+    it('should return 400 for invalid design system ID', async () => {
+      const response = await request(app)
+        .put('/api/design-systems/invalid')
+        .send({ name: 'Test', description: 'Test' });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Parameter validation failed');
+      expect(response.body).toHaveProperty('details', 'URL parameters do not match required schema');
+      expect(response.body.validationErrors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'id',
+            message: 'ID must be a valid number'
+          })
+        ])
+      );
+    });
+
+    it('should validate required fields in body', async () => {
+      // Create test design system
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const response = await request(app)
+        .put(`/api/design-systems/${designSystem.id}`)
+        .send({});
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('DELETE /api/design-systems/:id', () => {
+    it('should delete design system', async () => {
+      // Create test design system
+      const [designSystem] = await testDb.insert(designSystems).values({
+        name: 'Test System',
+        description: 'Test Description'
+      }).returning();
+
+      const response = await request(app)
+        .delete(`/api/design-systems/${designSystem.id}`);
+
+      expect(response.status).toBe(204);
+
+      // Verify it's deleted
+      const getResponse = await request(app).get(`/api/design-systems/${designSystem.id}`);
+      expect(getResponse.status).toBe(404);
+    });
+
+    it('should return 404 for non-existent design system', async () => {
+      const response = await request(app)
+        .delete('/api/design-systems/999');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toHaveProperty('error', 'Design system not found');
+    });
+
+    it('should return 400 for invalid design system ID', async () => {
+      const response = await request(app)
+        .delete('/api/design-systems/invalid');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error', 'Parameter validation failed');
+      expect(response.body).toHaveProperty('details', 'URL parameters do not match required schema');
+      expect(response.body.validationErrors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: 'id',
+            message: 'ID must be a valid number'
+          })
+        ])
+      );
     });
   });
 
