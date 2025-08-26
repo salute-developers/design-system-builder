@@ -90,6 +90,44 @@ Removes the design system file.
 - Files include metadata like `savedAt` timestamp
 - Directory is automatically created on startup
 
+## Data Fetching Scripts
+
+The project includes scripts to fetch all data from the backend API and save it as structured JSON files.
+
+### Quick Start
+
+```bash
+# Fetch all backend data
+npm run fetch-data
+
+# Check backend availability and fetch data
+npm run fetch-data:check
+```
+
+### What It Fetches
+
+- **Components**: All available components with variations, tokens, and props API
+- **Design Systems**: All design systems with their components and variation values
+- **Variation Values**: All variation values with token values
+
+### Output Files
+
+- `data/backend-data-{timestamp}.json` - Timestamped data file
+- `data/latest-backend-data.json` - Most recent data
+- `data/fetch-summary.json` - Summary of the fetch operation
+
+### Configuration
+
+You can customize the script behavior by setting environment variables:
+
+```bash
+export BACKEND_BASE_URL="http://localhost:3001"
+export BACKEND_TIMEOUT="30000"
+npm run fetch-data
+```
+
+For more details, see the [scripts documentation](scripts/README.md).
+
 ## Example Usage
 
 ```javascript
