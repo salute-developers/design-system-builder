@@ -49,7 +49,9 @@ export function createDesignSystemsRouter(db: Database) {
                         }
                       }
                     }
-                  }
+                  },
+                  tokens: true,
+                  propsAPI: true
                 }
               }
             }
@@ -65,6 +67,11 @@ export function createDesignSystemsRouter(db: Database) {
           }
         }
       });
+
+      if (!designSystem) {
+        return res.status(404).json({ error: 'Design system not found' });
+      }
+
       res.json(designSystem);
     } catch (error) {
       console.error('Error fetching design system:', error);
@@ -108,6 +115,11 @@ export function createDesignSystemsRouter(db: Database) {
         })
         .where(eq(designSystems.id, designSystemId))
         .returning();
+
+      if (updatedDesignSystem.length === 0) {
+        return res.status(404).json({ error: 'Design system not found' });
+      }
+
       res.json(updatedDesignSystem[0]);
     } catch (error) {
       console.error('Error updating design system:', error);
