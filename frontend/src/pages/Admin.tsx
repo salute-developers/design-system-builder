@@ -706,32 +706,38 @@ const Admin = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Components Panel - Narrow */}
-      <div className="w-1/4 p-4 border-r border-gray-200 bg-white">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Components</h2>
-          <Button onClick={() => handleAdd('component')} size="sm">Add</Button>
-        </div>
-        <div className="mb-4">
-          <div className="relative">
-            <Input
-              placeholder="Search components..."
-              value={componentsSearchTerm}
-              onChange={(e) => setComponentsSearchTerm(e.target.value)}
-              className="mb-2 pr-8"
-            />
-            {componentsSearchTerm && (
-              <button
-                onClick={() => setComponentsSearchTerm('')}
-                className="absolute right-2 top-1 text-gray-400 hover:text-gray-600"
-              >
-                ×
-              </button>
-            )}
+      <div className="w-1/4 h-full flex flex-col border-r border-gray-200 bg-white">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 p-4 border-b border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Components</h2>
+            <Button onClick={() => handleAdd('component')} size="sm">Add</Button>
+          </div>
+          <div className="mb-4">
+            <div className="relative">
+              <Input
+                placeholder="Search components..."
+                value={componentsSearchTerm}
+                onChange={(e) => setComponentsSearchTerm(e.target.value)}
+                className="mb-2 pr-8"
+              />
+              {componentsSearchTerm && (
+                <button
+                  onClick={() => setComponentsSearchTerm('')}
+                  className="absolute right-2 top-1 text-gray-400 hover:text-gray-600"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
         </div>
-        <div className="space-y-2">
+        
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-4 pt-0">
+          <div className="space-y-2">
           {filterItems(sortItems(components), componentsSearchTerm).map((component) => {
             const { tokensCount, variationsCount, propsCount } = getComponentCounts(component);
             return (
@@ -789,25 +795,32 @@ const Admin = () => {
               </div>
             );
           })}
+          </div>
         </div>
       </div>
 
       {/* Main Panel - Tokens and Variations */}
-      <div className="flex-1 p-4 bg-white">
+      <div className="flex-1 h-full flex flex-col bg-white">
         {selectedComponent ? (
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'tokens' | 'variations')}>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-lg font-semibold mb-2">
-                  {selectedComponent.name}
-                </h2>
-                <TabsList className="grid w-full grid-cols-3 max-w-lg">
-                  <TabsTrigger value="tokens">Tokens</TabsTrigger>
-                  <TabsTrigger value="variations">Variations</TabsTrigger>
-                  <TabsTrigger value="props">Props</TabsTrigger>
-                </TabsList>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'tokens' | 'variations')} className="h-full flex flex-col">
+            {/* Header - Fixed */}
+            <div className="flex-shrink-0 p-4 border-b border-gray-200">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold mb-2">
+                    {selectedComponent.name}
+                  </h2>
+                  <TabsList className="grid w-full grid-cols-3 max-w-lg">
+                    <TabsTrigger value="tokens">Tokens</TabsTrigger>
+                    <TabsTrigger value="variations">Variations</TabsTrigger>
+                    <TabsTrigger value="props">Props</TabsTrigger>
+                  </TabsList>
+                </div>
               </div>
             </div>
+            
+            {/* Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-4 pt-0">
 
             <TabsContent value="tokens" className="space-y-4">
               <div className="flex justify-between items-center">
@@ -1089,6 +1102,7 @@ const Admin = () => {
                 ))}
               </div>
             </TabsContent>
+            </div>
           </Tabs>
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">
