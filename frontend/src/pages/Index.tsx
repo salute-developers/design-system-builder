@@ -541,7 +541,7 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 overflow-y-hidden">
       {/* Panel 1: Design Systems */}
       <DesignSystemsPanel
         designSystems={designSystems}
