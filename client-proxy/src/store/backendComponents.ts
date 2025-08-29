@@ -1,4 +1,4 @@
-import { FormatTransformer, BackendFormat, ClientFormat } from '../../scripts/format-transformer';
+import { FormatTransformer, BackendFormat, ClientFormat } from '../services';
 import { DesignSystemData } from '../validation';
 
 export class BackendComponentStore {
