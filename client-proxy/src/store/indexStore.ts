@@ -21,37 +21,16 @@ export class IndexStore {
         this.baseUrl = process.env.BACKEND_URL || 'http://localhost:3001/api';
     }
 
-    // Add design system to backend
+    // Add design system to backend index (design system already created by BackendComponentStore)
     async addToIndex(name: string, version: string): Promise<void> {
-        // TODO: Backend currently doesn't support versions - design system names must be unique
-        // When backend supports versions, we can have multiple design systems with same name but different versions
-        // For now, check if name exists and skip creation to avoid duplicates
-        
-        // Check if design system with this name already exists
+        // The design system is already created by BackendComponentStore.ensureDesignSystemExists
+        // We just need to verify it exists in the backend
         const exists = await this.existsInIndex(name, version);
         if (exists) {
-            console.log(`Design system ${name} already exists in backend, skipping creation`);
-            return;
+            console.log(`Design system ${name}@${version} exists in backend index`);
+        } else {
+            console.log(`Design system ${name}@${version} not found in backend index (may need to wait for backend sync)`);
         }
-
-        const createRequest: CreateDesignSystemRequest = {
-            name: name,
-            description: `Design system ${name} version ${version}`
-        };
-
-        const response = await fetch(`${this.baseUrl}/design-systems`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(createRequest)
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to create design system in backend: ${response.status} ${response.statusText}`);
-        }
-
-        console.log(`Design system ${name}@${version} created in backend`);
     }
 
     // Remove design system from backend
