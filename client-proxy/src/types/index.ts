@@ -1,13 +1,5 @@
 /**
- * @deprecated This file is deprecated. All types are now inferred from Zod schemas.
- * Import types from '../validation' instead for better type safety and consistency.
- * 
- * Example:
- * // Old (deprecated)
- * import { DesignSystemData } from './types';
- * 
- * // New (recommended) 
- * import { DesignSystemData } from './validation';
+ * Core types and utilities for the client-proxy application
  */
 
 // Re-export all types from validation for backward compatibility
