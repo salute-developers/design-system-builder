@@ -12,7 +12,7 @@ export const VariationsSchema = z.object({
 });
 
 // Basic types
-export const PropTypeSchema = z.enum(['color', 'dimension', 'float', 'shape', 'typography']);
+export const PropTypeSchema = z.enum(['color', 'dimension', 'float', 'number', 'shape', 'typography']);
 export const PropStateSchema = z.enum(['hovered', 'pressed']);
 export const IntersectionsSchema = z.record(z.string(), z.array(z.string()));
 
@@ -99,7 +99,7 @@ export const MetaSchema = z.object({
     name: z.string(),
     description: z.string(),
     sources: SourcesSchema,
-});
+}).passthrough(); // Allow additional properties like createdAt, updatedAt, props
 
 // Theme-related schemas
 export const TokenTypeSchema = z.object({
@@ -213,49 +213,49 @@ export const HealthResponseSchema = z.object({
 // Design system tuple schema
 export const DesignSystemTupleSchema = z.tuple([z.string(), z.string()]);
 
-// // Stored design system schema
-// export const StoredDesignSystemSchema = z.object({
-//     themeData: ThemeSourceSchema,
-//     componentsData: z.array(MetaSchema),
-//     savedAt: z.string(),
-// });
+// Stored design system schema
+export const StoredDesignSystemSchema = z.object({
+    themeData: ThemeSourceSchema,
+    componentsData: z.array(MetaSchema),
+    savedAt: z.string(),
+});
 
-// // Export all inferred types to replace manual TypeScript types
-// export type PropType = z.infer<typeof PropTypeSchema>;
-// export type PropState = z.infer<typeof PropStateSchema>;
-// export type Intersections = z.infer<typeof IntersectionsSchema>;
+// Export all inferred types to replace manual TypeScript types
+export type PropType = z.infer<typeof PropTypeSchema>;
+export type PropState = z.infer<typeof PropStateSchema>;
+export type Intersections = z.infer<typeof IntersectionsSchema>;
 
-// export type WebToken = z.infer<typeof WebTokenSchema>;
-// export type PlatformTokens = z.infer<typeof PlatformTokensSchema>;
+export type WebToken = z.infer<typeof WebTokenSchema>;
+export type PlatformTokens = z.infer<typeof PlatformTokensSchema>;
 
-// export type ComponentAPI = z.infer<typeof ComponentAPISchema>;
-// export type ComponentVariation = z.infer<typeof ComponentVariationSchema>;
-// export type DefaultVariationConfig = z.infer<typeof DefaultVariationConfigSchema>;
-// export type State = z.infer<typeof StateSchema>;
-// export type PropConfig = z.infer<typeof PropConfigSchema>;
-// export type StyleConfig = z.infer<typeof StyleConfigSchema>;
-// export type VariationConfig = z.infer<typeof VariationConfigSchema>;
-// export type ComponentConfig = z.infer<typeof ComponentConfigSchema>;
-// export type Config = z.infer<typeof ConfigSchema>;
-// export type Sources = z.infer<typeof SourcesSchema>;
-// export type Meta = z.infer<typeof MetaSchema>;
+export type ComponentAPI = z.infer<typeof ComponentAPISchema>;
+export type ComponentVariation = z.infer<typeof ComponentVariationSchema>;
+export type DefaultVariationConfig = z.infer<typeof DefaultVariationConfigSchema>;
+export type State = z.infer<typeof StateSchema>;
+export type PropConfig = z.infer<typeof PropConfigSchema>;
+export type StyleConfig = z.infer<typeof StyleConfigSchema>;
+export type VariationConfig = z.infer<typeof VariationConfigSchema>;
+export type ComponentConfig = z.infer<typeof ComponentConfigSchema>;
+export type Config = z.infer<typeof ConfigSchema>;
+export type Sources = z.infer<typeof SourcesSchema>;
+export type Meta = z.infer<typeof MetaSchema>;
 
-// export type TokenType = z.infer<typeof TokenTypeSchema>;
-// export type ColorMeta = z.infer<typeof ColorMetaSchema>;
-// export type GradientMeta = z.infer<typeof GradientMetaSchema>;
-// export type ShadowMeta = z.infer<typeof ShadowMetaSchema>;
-// export type ShapeMeta = z.infer<typeof ShapeMetaSchema>;
-// export type SpacingMeta = z.infer<typeof SpacingMetaSchema>;
-// export type TypographyMeta = z.infer<typeof TypographyMetaSchema>;
-// export type FontFamilyMeta = z.infer<typeof FontFamilyMetaSchema>;
-// export type ThemeMeta = z.infer<typeof ThemeMetaSchema>;
+export type TokenType = z.infer<typeof TokenTypeSchema>;
+export type ColorMeta = z.infer<typeof ColorMetaSchema>;
+export type GradientMeta = z.infer<typeof GradientMetaSchema>;
+export type ShadowMeta = z.infer<typeof ShadowMetaSchema>;
+export type ShapeMeta = z.infer<typeof ShapeMetaSchema>;
+export type SpacingMeta = z.infer<typeof SpacingMetaSchema>;
+export type TypographyMeta = z.infer<typeof TypographyMetaSchema>;
+export type FontFamilyMeta = z.infer<typeof FontFamilyMetaSchema>;
+export type ThemeMeta = z.infer<typeof ThemeMetaSchema>;
 
-// export type Variations = z.infer<typeof VariationsSchema>;
-// export type Variation = keyof Variations;
-// export type Platform = 'web' | 'ios' | 'android';
-// export type Platforms = z.infer<typeof PlatformsSchema>;
-// export type PlatformsVariations = z.infer<typeof PlatformsVariationsSchema>;
-// export type ThemeSource = z.infer<typeof ThemeSourceSchema>;
+export type Variations = z.infer<typeof VariationsSchema>;
+export type Variation = keyof Variations;
+export type Platform = 'web' | 'ios' | 'android';
+export type Platforms = z.infer<typeof PlatformsSchema>;
+export type PlatformsVariations = z.infer<typeof PlatformsVariationsSchema>;
+export type ThemeSource = z.infer<typeof ThemeSourceSchema>;
 
 // Schemas for separate file storage
 export const StoredThemeDataSchema = z.object({
@@ -269,7 +269,7 @@ export const StoredComponentsDataSchema = z.object({
 });
 
 export type DesignSystemData = z.infer<typeof DesignSystemDataSchema>;
-// export type StoredDesignSystem = z.infer<typeof StoredDesignSystemSchema>;
+export type StoredDesignSystem = z.infer<typeof StoredDesignSystemSchema>;
 export type StoredThemeData = z.infer<typeof StoredThemeDataSchema>;
 export type StoredComponentsData = z.infer<typeof StoredComponentsDataSchema>;
 export type ApiResponse = z.infer<typeof ApiResponseSchema>;

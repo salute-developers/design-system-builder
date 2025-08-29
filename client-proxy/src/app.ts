@@ -33,29 +33,68 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
     // Middleware
     app.use(cors());
     app.use(express.json({ limit: '10mb' }));
+    
+    // Add request logging middleware to track duplicates
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const requestId = Math.random().toString(36).substring(7);
+        req.headers['x-request-id'] = requestId;
+        
+        console.log(`📨 [${requestId}] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+        if (req.method === 'POST' && req.path === '/api/design-systems') {
+            console.log(`📨 [${requestId}] POST to /api/design-systems - Body size: ${JSON.stringify(req.body || {}).length} chars`);
+        }
+        
+        next();
+    });
 
     // Health check endpoint
     app.get('/health', (req: Request, res: Response<HealthResponse>) => {
         res.json({ status: 'ok', message: 'Client proxy server is running' });
     });
+    
+    // Debug endpoint to test request logging
+    app.post('/debug/test', (req: Request, res: Response) => {
+        console.log(`🔍 [DEBUG] Test endpoint hit`);
+        console.log(`🔍 [DEBUG] Request body:`, req.body);
+        console.log(`🔍 [DEBUG] Request headers:`, req.headers);
+        res.json({ 
+            message: 'Debug endpoint hit',
+            body: req.body,
+            headers: req.headers
+        });
+    });
 
-    // Save design system with validation
+    // Save design system with validation and transformation
     app.post('/api/design-systems', 
         validateRequest(DesignSystemDataSchema),
         async (req: Request<{}, ApiResponse, DesignSystemData>, res: Response<ApiResponse>): Promise<void> => {
+        console.log(`🚀 [POST] /api/design-systems endpoint hit`);
+        console.log(`🚀 [POST] Request body received:`, {
+            name: req.body?.name,
+            version: req.body?.version,
+            hasThemeData: !!req.body?.themeData,
+            componentsCount: req.body?.componentsData?.length,
+            bodyKeys: Object.keys(req.body || {})
+        });
+        
         try {
             // Request body is already validated by Zod middleware
             const designSystemData = req.body;
+            console.log(`✅ [POST] Validation passed, proceeding to save design system: ${designSystemData.name}@${designSystemData.version}`);
 
+            // Use the enhanced DesignSystemStore which now handles transformation internally
+            console.log(`🔄 [POST] Calling store.saveDesignSystem...`);
             await store.saveDesignSystem(designSystemData);
+            console.log(`✅ [POST] store.saveDesignSystem completed successfully`);
 
             res.json({ 
                 success: true, 
-                message: `Design system ${designSystemData.name}@${designSystemData.version} saved successfully` 
+                message: `Design system ${designSystemData.name}@${designSystemData.version} saved successfully with transformation (${designSystemData.componentsData.length} components, theme: ${designSystemData.themeData ? 'present' : 'missing'})`
             });
+            console.log(`✅ [POST] Response sent successfully`);
 
         } catch (error) {
-            console.error('Error saving design system:', error);
+            console.error('❌ [POST] Error saving design system:', error);
             const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to save design system',
@@ -64,7 +103,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
         }
     });
 
-    // Load specific design system with parameter validation
+    // Load specific design system with parameter validation and transformation
     app.get('/api/design-systems/:name/:version', 
         validateParams(DesignSystemParamsSchema),
         async (req: Request<{ name: string; version: string }>, res: Response<Pick<DesignSystemData, 'themeData' | 'componentsData'> | ApiResponse>): Promise<void> => {
@@ -74,6 +113,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
             // TODO: Remove hardcoded version and use dynamic version from params
             const version = '0.1.0';
 
+            // Use the enhanced DesignSystemStore which now handles transformation internally
             const { themeData, componentsData } = await store.loadDesignSystem(name, version);
 
             res.json({
