@@ -437,7 +437,7 @@ export class BackendComponentStore {
 
 
     /**
-     * Get existing tokens from backend
+     * Get existing tokens from backend by extracting them from components data
      */
     private async getExistingTokens(): Promise<Array<{
         id: number;
@@ -446,18 +446,36 @@ export class BackendComponentStore {
         defaultValue?: string;
     }>> {
         try {
-            const response = await fetch(`${this.baseUrl}/tokens/available`);
-            if (!response.ok) {
-                console.warn(`⚠️ Could not fetch tokens from backend: ${response.status} ${response.statusText}`);
-                return [];
+            // Get components which include tokens in their structure
+            const components = await this.getExistingComponents();
+            
+            // Extract all unique tokens from components
+            const tokenMap = new Map<number, { id: number; name: string; type: string; defaultValue?: string }>();
+            
+            for (const component of components) {
+                // Add tokens from the component's tokens array
+                if (component.tokens) {
+                    for (const token of component.tokens) {
+                        tokenMap.set(token.id, token);
+                    }
+                }
+                
+                // Add tokens from variations' tokenVariations
+                if (component.variations) {
+                    for (const variation of component.variations) {
+                        if (variation.tokenVariations) {
+                            for (const tokenVariation of variation.tokenVariations) {
+                                if (tokenVariation.token) {
+                                    tokenMap.set(tokenVariation.token.id, tokenVariation.token);
+                                }
+                            }
+                        }
+                    }
+                }
             }
-
-            const tokens = await response.json() as Array<{
-                id: number;
-                name: string;
-                type: string;
-                defaultValue?: string;
-            }>;
+            
+            const tokens = Array.from(tokenMap.values());
+            console.log(`🔍 Extracted ${tokens.length} unique tokens from ${components.length} components`);
             return tokens;
         } catch (error) {
             console.error(`❌ Failed to get existing tokens:`, error);
@@ -571,11 +589,12 @@ export class BackendComponentStore {
      */
     private async addVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>): Promise<void> {
         try {
-                    // Convert the extracted token values to the format expected by the backend
-        const backendTokenValues = tokenValues.map(tokenValue => ({
-            tokenId: tokenValue.id,
-            value: tokenValue.value
-        }));
+            // Convert the extracted token values to the format expected by the backend
+            // Ensure all values are strings as the backend expects
+            const backendTokenValues = tokenValues.map(tokenValue => ({
+                tokenId: tokenValue.id,
+                value: String(tokenValue.value) // Convert all values to strings
+            }));
 
             const payload = {
                 designSystemId,
