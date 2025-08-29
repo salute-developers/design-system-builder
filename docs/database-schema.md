@@ -77,9 +77,11 @@ erDiagram
     
     TOKEN_VALUES {
         serial id PK
-        integer variation_value_id FK
         integer token_id FK
         text value
+        text type "variation or invariant"
+        integer variation_value_id FK "nullable"
+        integer component_id FK "nullable"
         timestamp created_at
         timestamp updated_at
     }
@@ -94,7 +96,8 @@ erDiagram
     DESIGN_SYSTEMS ||--o{ VARIATION_VALUES : "has many"
     COMPONENTS ||--o{ VARIATION_VALUES : "has many"
     VARIATIONS ||--o{ VARIATION_VALUES : "has many"
-    VARIATION_VALUES ||--o{ TOKEN_VALUES : "has many"
+    VARIATION_VALUES ||--o{ TOKEN_VALUES : "has many (variation tokens)"
+    COMPONENTS ||--o{ TOKEN_VALUES : "has many (invariant tokens)"
     TOKENS ||--o{ TOKEN_VALUES : "has many"
 ```
 
@@ -174,14 +177,21 @@ Specific instances of variations within design systems, representing how a varia
 - `created_at`, `updated_at` (timestamp) - Audit fields
 
 #### `token_values`
-The actual values assigned to tokens in specific variation instances.
+The actual values assigned to tokens. Supports both variation-specific and invariant (component-level) token values.
 
 **Fields:**
 - `id` (serial, PK) - Unique identifier
-- `variation_value_id` (integer, FK) - Reference to variation value
 - `token_id` (integer, FK) - Reference to token
 - `value` (text, required) - The actual token value
+- `type` (text, required) - Token value type: 'variation' or 'invariant'
+- `variation_value_id` (integer, FK, optional) - Reference to variation value (for variation tokens)
+- `component_id` (integer, FK, optional) - Reference to component (for invariant tokens)
 - `created_at`, `updated_at` (timestamp) - Audit fields
+
+**Business Rules:**
+- **Variation tokens**: `type = 'variation'`, `variation_value_id` is set, `component_id` is null
+- **Invariant tokens**: `type = 'invariant'`, `component_id` is set, `variation_value_id` is null
+- **Unique constraints**: Prevent duplicate token values per variation or per component
 
 ### Junction Tables
 
@@ -202,12 +212,43 @@ Many-to-many relationship table connecting design systems and components.
 - **Design Systems → Variation Values**: Each design system can have multiple variation values
 - **Components → Variation Values**: Each component can have multiple variation values
 - **Variations → Variation Values**: Each variation can have multiple variation values
-- **Variation Values → Token Values**: Each variation value can have multiple token values
+- **Variation Values → Token Values**: Each variation value can have multiple token values (variation tokens)
+- **Components → Token Values**: Each component can have multiple token values (invariant tokens)
 - **Tokens → Token Values**: Each token can have multiple token values
 
 ### Many-to-Many Relationships
 - **Design Systems ↔ Components**: Through the `design_system_components` junction table
 - **Tokens ↔ Variations**: Through the `token_variations` junction table (key relationship for token assignment)
+
+## Invariant Tokens
+
+### Concept
+Invariant tokens are component-level tokens that maintain the same value across all design systems. Unlike variation tokens that can have different values per design system, invariant tokens provide consistent baseline values for components.
+
+### Use Cases
+- **Default component properties** (e.g., base padding, default border radius)
+- **Structural constants** (e.g., minimum dimensions, fixed ratios)
+- **Cross-platform consistency** (e.g., standard icon sizes, common spacing units)
+
+### Example Data Flow
+```
+Component: "Button" (id: 1)
+├── Invariant Tokens:
+│   ├── Token Value: "min-height" = "32px" (type: invariant, component_id: 1)
+│   └── Token Value: "base-padding" = "8px" (type: invariant, component_id: 1)
+├── Variation Tokens (Design System A):
+│   ├── Token Value: "background-color" = "#007bff" (type: variation, variation_value_id: 123)
+│   └── Token Value: "text-color" = "#ffffff" (type: variation, variation_value_id: 123)
+└── Variation Tokens (Design System B):
+    ├── Token Value: "background-color" = "#28a745" (type: variation, variation_value_id: 456)
+    └── Token Value: "text-color" = "#ffffff" (type: variation, variation_value_id: 456)
+```
+
+### API Endpoints
+- `POST /invariant-token-values` - Create invariant token value
+- `GET /invariant-token-values?componentId=123` - Get all invariant token values for a component
+- `PUT /invariant-token-values/:id` - Update invariant token value
+- `DELETE /invariant-token-values/:id` - Delete invariant token value
 
 ## Current Admin Interface Architecture
 
@@ -217,6 +258,7 @@ The admin interface operates with the following simplified model:
 2. **Variations**: Different states/types of components (Primary Button, Secondary Button)
 3. **Tokens**: Design properties that belong to components
 4. **Token Assignment**: Many-to-many assignment of component tokens to component variations
+5. **Invariant Tokens**: Component-level tokens that remain constant across design systems
 
 ### Token Assignment Flow
 1. Create tokens at the component level
@@ -224,6 +266,7 @@ The admin interface operates with the following simplified model:
 3. Assign specific tokens to specific variations through the junction table
 4. Each token can be assigned to multiple variations
 5. Each variation can use multiple tokens
+6. Set invariant token values for component-level constants
 
 ## Usage Patterns
 
@@ -232,6 +275,7 @@ The admin interface operates with the following simplified model:
 2. Create `tokens` for the component
 3. Create `variations` for the component
 4. Assign tokens to variations via `token_variations` junction table
+5. Set invariant token values for component constants
 
 ### Cross-Platform Token Management
 The token table includes platform-specific parameter fields:
@@ -254,6 +298,8 @@ Component: "Button" (id: 1)
 │   │   └── web_param: "16px"
 │   ├── Token: "background_color" (id: 2, type: color)
 │   └── Token: "text_color" (id: 3, type: color)
+├── Invariant Token Values:
+│   └── Token Value: border_radius = "8px" (type: invariant, component_id: 1)
 ├── Variations:
 │   ├── Variation: "Primary" (id: 1)
 │   │   └── Token Assignments (via token_variations):
@@ -271,7 +317,8 @@ Component: "Button" (id: 1)
 - **Initial Schema**: Basic design system structure with `variation_id` in tokens table
 - **Token Enhancement**: Added platform-specific parameter fields (`description`, `xml_param`, `compose_param`, `ios_param`, `web_param`)
 - **Schema Refactor**: Replaced direct `variation_id` in tokens with many-to-many `token_variations` junction table
-- **Current State**: Proper many-to-many relationship allowing tokens to be assigned to multiple variations
+- **Invariant Tokens**: Added support for both variation and invariant token values using `type` field and conditional foreign keys
+- **Current State**: Proper many-to-many relationship allowing tokens to be assigned to multiple variations, plus support for component-level invariant tokens
 
 ## Database Technology
 
@@ -287,4 +334,5 @@ Component: "Button" (id: 1)
 - Multi-token selection and assignment to variations
 - Visual indicators for unassigned tokens
 - CRUD operations for all entities
-- Real-time updates and proper state management 
+- Real-time updates and proper state management
+- Support for invariant token management

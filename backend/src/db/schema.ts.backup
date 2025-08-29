@@ -80,23 +80,15 @@ export const variationValues = pgTable('variation_values', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
-// Token Value table - supports both variation and invariant tokens
+// Token Value table
 export const tokenValues = pgTable('token_values', {
   id: serial('id').primaryKey(),
+  variationValueId: integer('variation_value_id').references(() => variationValues.id, { onDelete: 'cascade' }).notNull(),
   tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'cascade' }).notNull(),
   value: text('value').notNull(),
-  type: text('type').notNull().default('variation'), // 'variation' or 'invariant'
-  
-  // Conditional foreign keys based on type
-  variationValueId: integer('variation_value_id').references(() => variationValues.id, { onDelete: 'cascade' }),
-  componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }),
-  
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-}, (table) => ({
-  uniqueVariationToken: unique().on(table.variationValueId, table.tokenId),
-  uniqueInvariantToken: unique().on(table.componentId, table.tokenId),
-}));
+});
 
 // Token-Variation junction table for many-to-many relationship
 export const tokenVariations = pgTable('token_variations', {
@@ -170,18 +162,13 @@ export const variationValuesRelations = relations(variationValues, ({ one, many 
 }));
 
 export const tokenValuesRelations = relations(tokenValues, ({ one }) => ({
-  token: one(tokens, {
-    fields: [tokenValues.tokenId],
-    references: [tokens.id],
-  }),
-  // Conditional relations based on which foreign key is set
   variationValue: one(variationValues, {
     fields: [tokenValues.variationValueId],
     references: [variationValues.id],
   }),
-  component: one(components, {
-    fields: [tokenValues.componentId],
-    references: [components.id],
+  token: one(tokens, {
+    fields: [tokenValues.tokenId],
+    references: [tokens.id],
   }),
 }));
 
