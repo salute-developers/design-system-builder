@@ -57,6 +57,13 @@
       "when": 1751384601899,
       "tag": "0007_gigantic_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1756465882243,
+      "tag": "0008_amusing_grandmaster",
+      "breakpoints": true
     }
   ]
 }
