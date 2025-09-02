@@ -76,6 +76,7 @@ export const variationValues = pgTable('variation_values', {
   variationId: integer('variation_id').references(() => variations.id, { onDelete: 'cascade' }).notNull(),
   name: text('name').notNull(),
   description: text('description'),
+  isDefaultValue: text('is_default_value').default('false'), // 'true' or 'false' as string
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

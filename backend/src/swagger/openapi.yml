@@ -863,6 +863,11 @@ components:
           type: string
           nullable: true
           example: "Primary button style"
+        isDefaultValue:
+          type: string
+          enum: ["true", "false"]
+          description: Whether this variation value is the default for its variation
+          example: "false"
         createdAt:
           type: string
           format: date-time
@@ -991,6 +996,10 @@ components:
           nullable: true
           description: Optional description
           example: "Primary button style"
+        isDefaultValue:
+          type: boolean
+          description: Whether this should be the default variation value for this variation
+          example: false
         tokenValues:
           type: array
           nullable: true
@@ -1113,6 +1122,10 @@ components:
           nullable: true
           description: Updated description
           example: "Updated primary button style"
+        isDefaultValue:
+          type: boolean
+          description: Whether this should be the default variation value for this variation
+          example: false
         tokenValues:
           type: array
           nullable: true

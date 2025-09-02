@@ -71,6 +71,13 @@
       "when": 1756814934108,
       "tag": "0009_low_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1756822463364,
+      "tag": "0010_large_red_skull",
+      "breakpoints": true
     }
   ]
 }

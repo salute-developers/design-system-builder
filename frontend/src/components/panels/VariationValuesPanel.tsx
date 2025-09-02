@@ -10,6 +10,7 @@ interface VariationValuesPanelProps {
   onOpenEditTokenValuesDialog: (variationValue: VariationValue) => void;
   onOpenAddVariationValueDialog: () => void;
   onDeleteVariationValue: (variationValue: VariationValue) => void;
+  onSetDefaultVariationValue: (variationValue: VariationValue) => void;
 }
 
 const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
@@ -19,6 +20,7 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
   onOpenEditTokenValuesDialog,
   onOpenAddVariationValueDialog,
   onDeleteVariationValue,
+  onSetDefaultVariationValue,
 }) => {
   return (
     <div className="flex-1 h-full flex flex-col bg-white">
@@ -44,16 +46,33 @@ const VariationValuesPanel: React.FC<VariationValuesPanelProps> = ({
               .filter(vv => vv.variationId === selectedVariation.id)
               .sort((a, b) => a.id - b.id)
               .map((variationValue) => (
-                <Card key={variationValue.id} className="mb-2">
+                <Card key={variationValue.id} className={`mb-2 ${variationValue.isDefaultValue === 'true' ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}>
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div className="flex-1 pr-4">
-                        <CardTitle>{variationValue.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle>{variationValue.name}</CardTitle>
+                          {variationValue.isDefaultValue === 'true' && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Default
+                            </span>
+                          )}
+                        </div>
                         {variationValue.description && (
                           <p className="text-sm text-gray-600 mt-1">{variationValue.description}</p>
                         )}
                       </div>
                       <div className="flex flex-col gap-1 flex-shrink-0">
+                        {variationValue.isDefaultValue !== 'true' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onSetDefaultVariationValue(variationValue)}
+                            className="whitespace-nowrap text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            Set as Default
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"

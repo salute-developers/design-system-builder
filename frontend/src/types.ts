@@ -68,6 +68,7 @@ export interface VariationValue {
   variationId: number;
   name: string;
   description: string | null;
+  isDefaultValue: string; // 'true' or 'false' as string from backend
   createdAt: string;
   updatedAt: string;
   tokenValues: TokenValue[];

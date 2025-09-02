@@ -64,6 +64,7 @@ const Index = () => {
   const [invariantTokenValues, setInvariantTokenValues] = useState<InvariantTokenValue[]>([]);
   const [showEditInvariantsDialog, setShowEditInvariantsDialog] = useState(false);
   const [editingInvariantTokenValues, setEditingInvariantTokenValues] = useState<{ tokenId: number; value: string }[]>([]);
+  const [newVariationValueIsDefault, setNewVariationValueIsDefault] = useState(false);
 
   useEffect(() => {
     fetchDesignSystems();
@@ -330,6 +331,7 @@ const Index = () => {
         body: JSON.stringify({
           ...newVariationValue,
           designSystemId: selectedDesignSystem.id,
+          isDefaultValue: newVariationValueIsDefault,
           tokenValues: newVariationValue.tokenValues.filter(tv => tv.value.trim() !== '')
         }),
       });
@@ -347,6 +349,7 @@ const Index = () => {
       // Close dialog and reset form
       setShowEditVariationValueDialog(false);
       setEditingVariationValue(null);
+      setNewVariationValueIsDefault(false);
       setNewVariationValue({
         componentId: -1,
         variationId: -1,
@@ -659,6 +662,38 @@ const Index = () => {
     }
   };
 
+  // Handle setting default variation value
+  const handleSetDefaultVariationValue = async (variationValue: VariationValue) => {
+    if (!selectedDesignSystem) return;
+
+    try {
+      const response = await fetch(getApiUrl('variationValues') + `/${variationValue.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: variationValue.name,
+          description: variationValue.description,
+          isDefaultValue: true,
+          tokenValues: variationValue.tokenValues.map(tv => ({
+            tokenId: tv.tokenId,
+            value: tv.value
+          }))
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to set default variation value');
+      }
+
+      // Refresh the design system data
+      await handleSelect(selectedDesignSystem.id);
+    } catch (error) {
+      console.error('Error setting default variation value:', error);
+      alert(error instanceof Error ? error.message : 'Failed to set default variation value');
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-y-hidden">
       {/* Panel 1: Design Systems */}
@@ -713,6 +748,7 @@ const Index = () => {
           onOpenAddVariationValueDialog={handleOpenAddVariationValueDialog}
           onOpenEditTokenValuesDialog={handleOpenEditTokenValuesDialog}
           onDeleteVariationValue={handleDeleteVariationValue}
+          onSetDefaultVariationValue={handleSetDefaultVariationValue}
         />
       )}
       
@@ -925,6 +961,18 @@ const Index = () => {
                   onChange={(e) => setNewVariationValue({ ...newVariationValue, description: e.target.value })}
                 />
               </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="dialogVariationValueIsDefault"
+                  checked={newVariationValueIsDefault}
+                  onChange={(e) => setNewVariationValueIsDefault(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <Label htmlFor="dialogVariationValueIsDefault" className="text-sm font-medium">
+                  Set as default variation value
+                </Label>
+              </div>
               <div className="flex gap-2">
                 <Button 
                   type="submit" 
@@ -938,6 +986,7 @@ const Index = () => {
                   onClick={() => {
                     setShowEditVariationValueDialog(false);
                     setEditingVariationValue(null);
+                    setNewVariationValueIsDefault(false);
                     setNewVariationValue({
                       componentId: -1,
                       variationId: -1,

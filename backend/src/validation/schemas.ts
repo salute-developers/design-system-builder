@@ -40,12 +40,14 @@ export const CreateVariationValueSchema = z.object({
   variationId: z.number().int().positive('Variation ID must be a positive integer'),
   name: z.string().trim().min(1, 'Name is required').max(255, 'Name must be less than 255 characters'),
   description: z.string().trim().max(1000, 'Description must be less than 1000 characters').optional(),
+  isDefaultValue: z.boolean().optional().default(false),
   tokenValues: z.array(TokenValueSchema).optional()
 });
 
 export const UpdateVariationValueSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255, 'Name must be less than 255 characters'),
   description: z.string().trim().max(1000, 'Description must be less than 1000 characters').optional(),
+  isDefaultValue: z.boolean().optional(),
   tokenValues: z.array(TokenValueSchema).optional()
 });
 
