@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { variationValues, tokenValues, variations, tokens } from '../../db/schema';
 import { eq } from 'drizzle-orm';
-import * as schema from '../../db/schema';
 import { Database } from '../../db/types';
 import {
   validateBody,

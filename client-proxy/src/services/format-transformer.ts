@@ -93,6 +93,21 @@ interface BackendFormat {
       type: string;
     };
   }>;
+  invariantTokenValues: Array<{
+    id: number;
+    value: string;
+    componentId: number;
+    designSystemId: number;
+    tokenId: number;
+    type: string;
+    createdAt: string;
+    updatedAt: string;
+    token: {
+      id: number;
+      name: string;
+      type: string;
+    };
+  }>;
   metadata: {
     designSystemId: number;
     designSystemName: string;
@@ -305,7 +320,8 @@ class FormatTransformer {
       // Transform variation values to configs
       const configs = this.transformVariationValuesToConfigs(
         backendData.variationValues.filter(vv => vv.componentId === component.id),
-        component
+        component,
+        backendData.invariantTokenValues || []
       );
 
       return {
@@ -432,7 +448,7 @@ class FormatTransformer {
       });
 
       // Transform configs to variation values and token values
-      const { variationValues, tokenValues } = this.transformConfigsToVariationValues(
+      const { variationValues, tokenValues, invariantTokenValues } = this.transformConfigsToVariationValues(
         component.sources.configs,
         componentId,
         component.sources.variations,
@@ -450,22 +466,27 @@ class FormatTransformer {
         tokens,
         // RESTORE: Props API
         propsAPI,
-        // PRESERVE: Variation values and token values for this component
+        // PRESERVE: Variation values, token values, and invariant token values for this component
         _variationValues: variationValues,
-        _tokenValues: tokenValues
+        _tokenValues: tokenValues,
+        _invariantTokenValues: invariantTokenValues
       };
     });
 
-    // Collect all variation values and token values
+    // Collect all variation values, token values, and invariant token values
     const allVariationValues: any[] = [];
     const allTokenValues: any[] = [];
+    const allInvariantTokenValues: any[] = [];
     components.forEach(component => {
-      // Collect variation values and token values from each component
+      // Collect variation values, token values, and invariant token values from each component
       if (component._variationValues) {
         allVariationValues.push(...component._variationValues);
       }
       if (component._tokenValues) {
         allTokenValues.push(...component._tokenValues);
+      }
+      if (component._invariantTokenValues) {
+        allInvariantTokenValues.push(...component._invariantTokenValues);
       }
     });
 
@@ -482,6 +503,7 @@ class FormatTransformer {
       components,
       variationValues: allVariationValues,
       tokenValues: allTokenValues,
+      invariantTokenValues: allInvariantTokenValues,
       metadata: {
         designSystemId: 1,
         designSystemName: clientData.designSystem?.name || 'Transformed Design System',
@@ -502,15 +524,24 @@ class FormatTransformer {
    */
   private transformVariationValuesToConfigs(
     variationValues: any[],
-    component: any
+    component: any,
+    invariantTokenValues: any[] = []
   ): any[] {
+    // Transform invariant token values to invariant props
+    const invariantProps = invariantTokenValues
+      .filter(itv => itv.componentId === component.id)
+      .map(itv => ({
+        id: this.idMappings.get(itv.tokenId) || this.generateUUID(),
+        value: itv.value
+      }));
+
     if (variationValues.length === 0) {
       return [{
         name: 'default',
         id: this.generateUUID(),
         config: {
           defaultVariations: [],
-          invariantProps: [],
+          invariantProps,
           variations: []
         }
       }];
@@ -550,7 +581,7 @@ class FormatTransformer {
       id: this.generateUUID(),
       config: {
         defaultVariations: [],
-        invariantProps: [],
+        invariantProps,
         variations
       }
     }];
@@ -564,9 +595,10 @@ class FormatTransformer {
     componentId: number,
     variations: any[],
     api: any[]
-  ): { variationValues: any[], tokenValues: any[] } {
+  ): { variationValues: any[], tokenValues: any[], invariantTokenValues: any[] } {
     const variationValues: any[] = [];
     const tokenValues: any[] = [];
+    const invariantTokenValues: any[] = [];
 
     configs.forEach(config => {
       config.config.variations.forEach((variation: any) => {
@@ -613,9 +645,12 @@ class FormatTransformer {
           variationValues.push(variationValue);
         });
       });
+
+      // Note: Invariant props are handled directly in BackendComponentStore
+      // after we have access to the token name to backend ID mapping
     });
 
-    return { variationValues, tokenValues };
+    return { variationValues, tokenValues, invariantTokenValues };
   }
 
   /**
@@ -665,6 +700,8 @@ class FormatTransformer {
     console.warn(`⚠️ No ID mapping found for token ${token.name} (${token.id}) - this token may not exist in backend yet`);
     return null;
   }
+
+
 
   /**
    * Validate transformation completeness

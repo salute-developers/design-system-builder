@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import { getAdminApiUrl } from '../config/api';
+
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import {
@@ -81,6 +82,7 @@ const Admin = () => {
   const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
   const [tokens, setTokens] = useState<Token[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
+
   const [props, setProps] = useState<PropsAPI[]>([]);
   const [activeTab, setActiveTab] = useState<'tokens' | 'variations' | 'props'>('tokens');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -92,6 +94,7 @@ const Admin = () => {
   const [componentsSearchTerm, setComponentsSearchTerm] = useState('');
   const [tokensSearchTerm, setTokensSearchTerm] = useState('');
   const [variationsSearchTerm, setVariationsSearchTerm] = useState('');
+
   const [propsSearchTerm, setPropsSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -103,6 +106,7 @@ const Admin = () => {
   const [availableTokensForAssignment, setAvailableTokensForAssignment] = useState<Token[]>([]);
   const [selectedTokensForAssignment, setSelectedTokensForAssignment] = useState<number[]>([]);
   const [dialogFilterTerm, setDialogFilterTerm] = useState('');
+
 
   useEffect(() => {
     fetchComponents();
@@ -139,6 +143,8 @@ const Admin = () => {
       console.error('Error fetching component details:', error);
     }
   };
+
+
 
   const refreshComponentData = async () => {
     if (selectedComponent) {
@@ -461,6 +467,9 @@ const Admin = () => {
     const variation = variations.find(v => v.id === variationId);
     const currentlyAssignedTokenIds = variation?.tokenVariations?.map(tv => tv.token.id) || [];
     
+    // TODO: Add validation to prevent token-variation reassignment after users have set values
+    // This should check if any design systems are using this component and have set values
+    
     // Show all tokens, not just available ones
     setAvailableTokensForAssignment(tokens);
     setSelectedVariationForAssignment(variation || null);
@@ -523,6 +532,8 @@ const Admin = () => {
       console.error('Error removing token from variation:', error);
     }
   };
+
+
 
   const renderDialog = () => {
     return (
@@ -740,6 +751,8 @@ const Admin = () => {
           <div className="space-y-2">
           {filterItems(sortItems(components), componentsSearchTerm).map((component) => {
             const { tokensCount, variationsCount, propsCount } = getComponentCounts(component);
+            const unassignedTokensCount = component.id === selectedComponent?.id ? 
+              tokens.filter(token => !isTokenAssignedToVariation(token.id)).length : 0;
             return (
               <div
                 key={component.id}
@@ -761,6 +774,9 @@ const Admin = () => {
                       </span>
                       <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                         {variationsCount} variations
+                      </span>
+                      <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                        {unassignedTokensCount} available for invariants
                       </span>
                       <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
                         {propsCount} props
@@ -802,7 +818,7 @@ const Admin = () => {
       {/* Main Panel - Tokens and Variations */}
       <div className="flex-1 h-full flex flex-col bg-white">
         {selectedComponent ? (
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'tokens' | 'variations')} className="h-full flex flex-col">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'tokens' | 'variations' | 'props')} className="h-full flex flex-col">
             {/* Header - Fixed */}
             <div className="flex-shrink-0 p-4 border-b border-gray-200">
               <div className="flex justify-between items-center mb-4">
@@ -1020,6 +1036,8 @@ const Admin = () => {
                 ))}
               </div>
             </TabsContent>
+
+
 
             <TabsContent value="props" className="space-y-4">
               <div className="flex justify-between items-center">
@@ -1244,6 +1262,8 @@ const Admin = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 };

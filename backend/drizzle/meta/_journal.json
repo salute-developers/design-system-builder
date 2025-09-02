@@ -64,6 +64,13 @@
       "when": 1756465882243,
       "tag": "0008_amusing_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1756814934108,
+      "tag": "0009_low_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

@@ -49,6 +49,14 @@ export const UpdateVariationValueSchema = z.object({
   tokenValues: z.array(TokenValueSchema).optional()
 });
 
+// Component Invariant Token Value schemas
+export const AddInvariantTokenValuesSchema = z.object({
+  tokenValues: z.array(z.object({
+    tokenId: z.number().int().positive('Token ID must be a positive integer'),
+    value: z.string().trim().min(1, 'Value is required').max(1000, 'Value must be less than 1000 characters')
+  })).min(1, 'At least one token value is required')
+});
+
 // Export inferred types for use in route handlers
 export type IdParam = z.infer<typeof IdParamSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
@@ -58,3 +66,4 @@ export type AddComponentToDesignSystemRequest = z.infer<typeof AddComponentToDes
 export type TokenValue = z.infer<typeof TokenValueSchema>;
 export type CreateVariationValueRequest = z.infer<typeof CreateVariationValueSchema>;
 export type UpdateVariationValueRequest = z.infer<typeof UpdateVariationValueSchema>;
+export type AddInvariantTokenValuesRequest = z.infer<typeof AddInvariantTokenValuesSchema>;

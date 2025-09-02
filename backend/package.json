@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp src/swagger/openapi.yml dist/swagger/ && cp src/swagger/admin-openapi.yml dist/swagger/",
     "start": "node dist/index.js",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",

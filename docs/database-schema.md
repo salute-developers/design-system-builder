@@ -244,12 +244,6 @@ Component: "Button" (id: 1)
     └── Token Value: "text-color" = "#ffffff" (type: variation, variation_value_id: 456)
 ```
 
-### API Endpoints
-- `POST /invariant-token-values` - Create invariant token value
-- `GET /invariant-token-values?componentId=123` - Get all invariant token values for a component
-- `PUT /invariant-token-values/:id` - Update invariant token value
-- `DELETE /invariant-token-values/:id` - Delete invariant token value
-
 ## Current Admin Interface Architecture
 
 The admin interface operates with the following simplified model:
