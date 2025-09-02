@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { designSystems, designSystemComponents, variationValues, tokenValues, variations, tokens } from '../../db/schema';
+import { designSystems, designSystemComponents } from '../../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { Database } from '../../db/types';
@@ -63,6 +63,11 @@ export function createDesignSystemsRouter(db: Database) {
                   token: true
                 }
               }
+            }
+          },
+          invariantTokenValues: {
+            with: {
+              token: true
             }
           }
         }

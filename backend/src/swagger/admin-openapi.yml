@@ -1,0 +1,590 @@
+openapi: 3.0.3
+info:
+  title: Design System Builder Admin API
+  description: Administrative API for managing design systems, components, tokens, variations, and invariants
+  version: 1.0.0
+  contact:
+    name: Design System Builder
+    url: https://github.com/your-repo/ds-builder
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001/admin-api
+    description: Development server (Admin API)
+
+paths:
+  /components:
+    get:
+      summary: Get all components (Admin)
+      description: Retrieve a list of all components with full details for admin management
+      tags:
+        - Components
+      responses:
+        '200':
+          description: Successfully retrieved components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentDetailed'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new component (Admin)
+      description: Create a new component with name and optional description
+      tags:
+        - Components
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateComponentRequest'
+      responses:
+        '201':
+          description: Component created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /components/{id}:
+    get:
+      summary: Get component by ID (Admin)
+      description: Retrieve a specific component by its ID with full details
+      tags:
+        - Components
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Component ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved component
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentDetailed'
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update component (Admin)
+      description: Update an existing component's name and description
+      tags:
+        - Components
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Component ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentRequest'
+      responses:
+        '200':
+          description: Component updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete component (Admin)
+      description: Delete a component and all its related data
+      tags:
+        - Components
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Component ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Component deleted successfully
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /components/{id}/invariants:
+    get:
+      summary: Get component invariant token values (Admin)
+      description: Retrieve all invariant token values for a specific component
+      tags:
+        - Invariants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Component ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved invariant token values
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvariantTokenValue'
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Add/update component invariant token values (Admin)
+      description: Add or update invariant token values for a component. Tokens must belong to the component and not be assigned to variations.
+      tags:
+        - Invariants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Component ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddInvariantTokenValuesRequest'
+      responses:
+        '200':
+          description: Invariant token values added/updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvariantTokenValuesResponse'
+        '400':
+          description: Bad request - validation error or business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Component:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the component
+          example: 1
+        name:
+          type: string
+          description: Name of the component
+          example: "Button"
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the component
+          example: "A reusable button component"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the component was created
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the component was last updated
+          example: "2024-01-01T12:00:00Z"
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+
+    ComponentDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Component'
+        - type: object
+          properties:
+            variations:
+              type: array
+              items:
+                $ref: '#/components/schemas/VariationDetailed'
+            tokens:
+              type: array
+              items:
+                $ref: '#/components/schemas/Token'
+            propsAPI:
+              type: array
+              items:
+                $ref: '#/components/schemas/PropsAPI'
+
+    Variation:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "view"
+        description:
+          type: string
+          nullable: true
+          example: "Visual appearance variation"
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    VariationDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Variation'
+        - type: object
+          properties:
+            tokenVariations:
+              type: array
+              items:
+                $ref: '#/components/schemas/TokenVariation'
+
+    Token:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "buttonColor"
+        description:
+          type: string
+          nullable: true
+          example: "Primary color for button component"
+        type:
+          type: string
+          example: "color"
+        defaultValue:
+          type: string
+          nullable: true
+          example: "#007bff"
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        xmlParam:
+          type: string
+          nullable: true
+          example: "colorPrimary"
+        composeParam:
+          type: string
+          nullable: true
+          example: "primaryColor"
+        iosParam:
+          type: string
+          nullable: true
+          example: "primaryColor"
+        webParam:
+          type: string
+          nullable: true
+          example: "--button-primary-color"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    TokenVariation:
+      type: object
+      properties:
+        token:
+          $ref: '#/components/schemas/Token'
+
+    PropsAPI:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        componentId:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "disabled"
+        value:
+          type: string
+          example: "false"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+
+    CreateComponentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the component
+          example: "Button"
+        description:
+          type: string
+          nullable: true
+          description: Description of the component
+          example: "A reusable button component"
+        designSystemId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Optional design system ID to associate with
+          example: 1
+      required:
+        - name
+
+    UpdateComponentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name of the component
+          example: "Updated Button"
+        description:
+          type: string
+          nullable: true
+          description: Updated description of the component
+          example: "An updated reusable button component"
+      required:
+        - name
+
+    AddInvariantTokenValuesRequest:
+      type: object
+      properties:
+        tokenValues:
+          type: array
+          description: Array of token values to add or update
+          items:
+            type: object
+            properties:
+              tokenId:
+                type: integer
+                format: int64
+                description: ID of the token
+                example: 1
+              value:
+                type: string
+                description: Value for the token
+                example: "#007bff"
+            required:
+              - tokenId
+              - value
+          minItems: 1
+      required:
+        - tokenValues
+
+    InvariantTokenValue:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier for the token value
+          example: 1
+        tokenId:
+          type: integer
+          format: int64
+          description: ID of the token
+          example: 1
+        value:
+          type: string
+          description: Value for the token
+          example: "#007bff"
+        type:
+          type: string
+          description: Type of token value (always 'invariant')
+          example: "invariant"
+        componentId:
+          type: integer
+          format: int64
+          description: ID of the component
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+          description: When the token value was created
+          example: "2024-01-01T12:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: When the token value was last updated
+          example: "2024-01-01T12:00:00Z"
+      required:
+        - id
+        - tokenId
+        - value
+        - type
+        - componentId
+        - createdAt
+        - updatedAt
+
+    InvariantTokenValuesResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Invariant token values added/updated successfully"
+        updated:
+          type: integer
+          description: Number of token values updated
+          example: 1
+        created:
+          type: integer
+          description: Number of token values created
+          example: 2
+      required:
+        - message
+        - updated
+        - created
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Component not found"
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Missing required fields"
+        missingFields:
+          type: array
+          items:
+            type: string
+          description: List of missing required fields
+          example: ["name", "componentId"]
+
+tags:
+  - name: Components
+    description: Operations related to component management
+  - name: Invariants
+    description: Operations related to invariant token values
+

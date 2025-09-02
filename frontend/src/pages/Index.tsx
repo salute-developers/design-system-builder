@@ -16,8 +16,9 @@ import {
   ComponentsPanel,
   VariationsPanel,
   VariationValuesPanel,
+  InvariantsPanel,
 } from '../components/panels';
-import type { DesignSystem, Variation, Token, VariationValue } from '../types';
+import type { DesignSystem, Variation, Token, VariationValue, InvariantTokenValue } from '../types';
 
 interface FormData {
   name: string;
@@ -59,6 +60,10 @@ const Index = () => {
   const [showEditVariationValueDialog, setShowEditVariationValueDialog] = useState(false);
   const [showEditTokenValuesDialog, setShowEditTokenValuesDialog] = useState(false);
   const [editingTokenValues, setEditingTokenValues] = useState<VariationValue | null>(null);
+  const [showInvariants, setShowInvariants] = useState(false);
+  const [invariantTokenValues, setInvariantTokenValues] = useState<InvariantTokenValue[]>([]);
+  const [showEditInvariantsDialog, setShowEditInvariantsDialog] = useState(false);
+  const [editingInvariantTokenValues, setEditingInvariantTokenValues] = useState<{ tokenId: number; value: string }[]>([]);
 
   useEffect(() => {
     fetchDesignSystems();
@@ -82,6 +87,26 @@ const Index = () => {
       setAvailableComponents(data);
     } catch (error) {
       console.error('Error fetching available components:', error);
+    }
+  };
+
+  const fetchInvariantTokenValues = async (componentId: number) => {
+    if (!selectedDesignSystem) {
+      setInvariantTokenValues([]);
+      return;
+    }
+    
+    try {
+      const response = await fetch(getApiUrl('components') + `/${componentId}/invariants?designSystemId=${selectedDesignSystem.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setInvariantTokenValues(data);
+      } else {
+        setInvariantTokenValues([]);
+      }
+    } catch (error) {
+      console.error('Error fetching invariant token values:', error);
+      setInvariantTokenValues([]);
     }
   };
 
@@ -260,18 +285,31 @@ const Index = () => {
   // Handle variation selection in the third panel
   const handleVariationSelect = (variation: Variation) => {
     setSelectedVariation(variation);
+    setShowInvariants(false); // Reset invariants view when variation is selected
   };
 
   // Handle component selection in the second panel
   const handleComponentSelect = (component: any) => {
     setSelectedComponent(component);
     setSelectedVariation(null); // Reset variation when component changes
+    setShowInvariants(false); // Reset invariants view when component changes
+  };
+
+  // Handle invariants selection
+  const handleInvariantsSelect = () => {
+    setShowInvariants(true);
+    setSelectedVariation(null); // Clear variation selection
+    if (selectedComponent) {
+      fetchInvariantTokenValues(selectedComponent.component.id);
+    }
   };
 
   // Reset selections when design system changes
   const handleDesignSystemSelect = async (id: number) => {
     setSelectedComponent(null);
     setSelectedVariation(null);
+    setShowInvariants(false);
+    setInvariantTokenValues([]);
     await handleSelect(id);
   };
 
@@ -528,6 +566,8 @@ const Index = () => {
       if (selectedComponent?.id === designSystemComponent.id) {
         setSelectedComponent(null);
         setSelectedVariation(null);
+        setShowInvariants(false);
+        setInvariantTokenValues([]);
       }
 
       // Refresh the design system data
@@ -537,6 +577,85 @@ const Index = () => {
     } catch (error) {
       console.error('Error removing component from design system:', error);
       alert(error instanceof Error ? error.message : 'Failed to remove component from design system');
+    }
+  };
+
+  // Handle opening edit invariants dialog
+  const handleOpenEditInvariantsDialog = () => {
+    if (!selectedComponent) return;
+    
+    // Get only unassigned tokens (tokens not assigned to any variation)
+    const componentTokens = selectedComponent.component.tokens || [];
+    const unassignedTokens = componentTokens.filter((token: Token) => {
+      // Check if token is assigned to any variation
+      return !selectedComponent.component.variations?.some((variation: any) =>
+        variation.tokenVariations?.some((tv: any) => tv.token.id === token.id)
+      );
+    });
+    
+    // Initialize with existing invariant values or empty values
+    const tokenValues = unassignedTokens.map((token: Token) => {
+      const existingValue = invariantTokenValues.find(tv => tv.tokenId === token.id);
+      return {
+        tokenId: token.id,
+        value: existingValue?.value || ''
+      };
+    });
+    
+    setEditingInvariantTokenValues(tokenValues);
+    setShowEditInvariantsDialog(true);
+  };
+
+  // Handle updating invariant token values
+  const handleUpdateInvariantTokenValues = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedComponent || !selectedDesignSystem) return;
+
+    try {
+      const response = await fetch(getApiUrl('components') + `/${selectedComponent.component.id}/invariants?designSystemId=${selectedDesignSystem.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tokenValues: editingInvariantTokenValues.filter(tv => tv.value.trim() !== '')
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update invariant token values');
+      }
+
+      // Refresh the invariant token values
+      await fetchInvariantTokenValues(selectedComponent.component.id);
+      
+      // Close dialog and reset form
+      setShowEditInvariantsDialog(false);
+      setEditingInvariantTokenValues([]);
+    } catch (error) {
+      console.error('Error updating invariant token values:', error);
+      alert(error instanceof Error ? error.message : 'Failed to update invariant token values');
+    }
+  };
+
+  // Handle deleting invariant token value
+  const handleDeleteInvariantTokenValue = async (tokenValueId: number) => {
+    if (!selectedComponent || !selectedDesignSystem) return;
+
+    try {
+      const response = await fetch(getApiUrl('components') + `/${selectedComponent.component.id}/invariants/${tokenValueId}?designSystemId=${selectedDesignSystem.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete invariant token value');
+      }
+
+      // Refresh the invariant token values
+      await fetchInvariantTokenValues(selectedComponent.component.id);
+    } catch (error) {
+      console.error('Error deleting invariant token value:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete invariant token value');
     }
   };
 
@@ -580,11 +699,13 @@ const Index = () => {
           selectedVariation={selectedVariation}
           selectedDesignSystem={selectedDesignSystem}
           onVariationSelect={handleVariationSelect}
+          onInvariantsSelect={handleInvariantsSelect}
+          showInvariants={showInvariants}
         />
       )}
 
-      {/* Panel 4: Variation Values */}
-      {selectedVariation && selectedDesignSystem && (
+      {/* Panel 4: Variation Values or Invariants */}
+      {selectedVariation && selectedDesignSystem && !showInvariants && (
         <VariationValuesPanel
           selectedVariation={selectedVariation}
           selectedDesignSystem={selectedDesignSystem}
@@ -592,6 +713,16 @@ const Index = () => {
           onOpenAddVariationValueDialog={handleOpenAddVariationValueDialog}
           onOpenEditTokenValuesDialog={handleOpenEditTokenValuesDialog}
           onDeleteVariationValue={handleDeleteVariationValue}
+        />
+      )}
+      
+      {/* Panel 4: Invariants */}
+      {showInvariants && selectedComponent && (
+        <InvariantsPanel
+          selectedComponent={selectedComponent.component}
+          invariantTokenValues={invariantTokenValues}
+          onOpenEditInvariantsDialog={handleOpenEditInvariantsDialog}
+          onDeleteInvariantTokenValue={handleDeleteInvariantTokenValue}
         />
       )}
 
@@ -900,6 +1031,88 @@ const Index = () => {
                       description: '',
                       tokenValues: []
                     });
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Invariants Dialog */}
+      <Dialog open={showEditInvariantsDialog} onOpenChange={setShowEditInvariantsDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit Invariant Token Values</DialogTitle>
+            <p className="text-sm text-gray-600">
+              Set invariant values for unassigned tokens. These values apply to the entire component and are not part of any variation.
+            </p>
+          </DialogHeader>
+          <div className="py-4 overflow-y-auto flex-1">
+            <form onSubmit={handleUpdateInvariantTokenValues} className="space-y-4">
+              {selectedComponent && (() => {
+                // Get only unassigned tokens (tokens not assigned to any variation)
+                const componentTokens = selectedComponent.component.tokens || [];
+                const unassignedTokens = componentTokens.filter((token: Token) => {
+                  // Check if token is assigned to any variation
+                  return !selectedComponent.component.variations?.some((variation: any) =>
+                    variation.tokenVariations?.some((tv: any) => tv.token.id === token.id)
+                  );
+                });
+                
+                if (unassignedTokens.length === 0) {
+                  return (
+                    <div className="text-sm text-gray-500 py-4">
+                      No tokens are available for invariants. All tokens are assigned to variations.
+                    </div>
+                  );
+                }
+                
+                return unassignedTokens.map((token: Token) => {                  
+                  return (
+                    <div key={token.id} className="space-y-2">
+                      <Label htmlFor={`invariant-token-${token.id}`}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{token.name}</span>
+                          {token.description && (
+                            <span className="text-xs text-gray-500">{token.description}</span>
+                          )}
+                          {token.defaultValue && (
+                            <span className="text-xs text-gray-400">Default: {token.defaultValue}</span>
+                          )}
+                        </div>
+                      </Label>
+                      <Input
+                        id={`invariant-token-${token.id}`}
+                        value={editingInvariantTokenValues.find(tv => tv.tokenId === token.id)?.value || ''}
+                        onChange={(e) => {
+                          const tokenValues = [...editingInvariantTokenValues];
+                          const existingIndex = tokenValues.findIndex(tv => tv.tokenId === token.id);
+                          if (existingIndex >= 0) {
+                            tokenValues[existingIndex] = { tokenId: token.id, value: e.target.value };
+                          } else {
+                            tokenValues.push({ tokenId: token.id, value: e.target.value });
+                          }
+                          setEditingInvariantTokenValues(tokenValues);
+                        }}
+                        placeholder={token.defaultValue || `Enter ${token.name} value`}
+                      />
+                    </div>
+                  );
+                });
+              })()}
+              <div className="flex gap-2 pt-4">
+                <Button type="submit" disabled={!selectedComponent}>
+                  Save Invariant Values
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditInvariantsDialog(false);
+                    setEditingInvariantTokenValues([]);
                   }}
                 >
                   Cancel

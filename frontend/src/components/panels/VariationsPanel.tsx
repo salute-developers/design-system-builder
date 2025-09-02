@@ -7,6 +7,8 @@ interface VariationsPanelProps {
   selectedVariation: Variation | null;
   selectedDesignSystem: DesignSystem | null;
   onVariationSelect: (variation: Variation) => void;
+  onInvariantsSelect: () => void;
+  showInvariants: boolean;
 }
 
 const VariationsPanel: React.FC<VariationsPanelProps> = ({
@@ -14,6 +16,8 @@ const VariationsPanel: React.FC<VariationsPanelProps> = ({
   selectedVariation,
   selectedDesignSystem,
   onVariationSelect,
+  onInvariantsSelect,
+  showInvariants,
 }) => {
   return (
     <div className="w-1/4 h-full flex flex-col border-r border-gray-200 bg-white">
@@ -28,12 +32,28 @@ const VariationsPanel: React.FC<VariationsPanelProps> = ({
       {/* Content - Scrollable */}
       <div className="flex-1 overflow-y-auto p-3">
         <div className="space-y-2">
+          {/* Invariants Button */}
+          <div
+            className={cn(
+              'p-2 rounded cursor-pointer hover:bg-gray-50 group border-2 border-dashed',
+              showInvariants && 'bg-green-50 border-green-200'
+            )}
+            onClick={onInvariantsSelect}
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <h3 className="font-medium text-sm">Invariants</h3>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Component-level token values</p>
+          </div>
+          
+          {/* Variations */}
           {selectedComponent.component.variations?.map((variation: Variation) => (
             <div
               key={variation.id}
               className={cn(
                 'p-2 rounded cursor-pointer hover:bg-gray-50 group',
-                selectedVariation?.id === variation.id && 'bg-blue-50 border border-blue-200'
+                selectedVariation?.id === variation.id && !showInvariants && 'bg-blue-50 border border-blue-200'
               )}
               onClick={() => onVariationSelect(variation)}
             >

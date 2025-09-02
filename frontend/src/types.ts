@@ -81,4 +81,15 @@ export interface TokenValue {
   createdAt: string;
   updatedAt: string;
   token: Token;
+}
+
+export interface InvariantTokenValue {
+  id: number;
+  tokenId: number;
+  value: string;
+  type: string;
+  componentId: number;
+  createdAt: string;
+  updatedAt: string;
+  token: Token;
 } 

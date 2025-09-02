@@ -90,12 +90,13 @@ export const tokenValues = pgTable('token_values', {
   // Conditional foreign keys based on type
   variationValueId: integer('variation_value_id').references(() => variationValues.id, { onDelete: 'cascade' }),
   componentId: integer('component_id').references(() => components.id, { onDelete: 'cascade' }),
+  designSystemId: integer('design_system_id').references(() => designSystems.id, { onDelete: 'cascade' }),
   
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => ({
   uniqueVariationToken: unique().on(table.variationValueId, table.tokenId),
-  uniqueInvariantToken: unique().on(table.componentId, table.tokenId),
+  uniqueInvariantToken: unique().on(table.designSystemId, table.componentId, table.tokenId),
 }));
 
 // Token-Variation junction table for many-to-many relationship
@@ -113,6 +114,7 @@ export const tokenVariations = pgTable('token_variations', {
 export const designSystemsRelations = relations(designSystems, ({ many }) => ({
   components: many(designSystemComponents),
   variationValues: many(variationValues),
+  invariantTokenValues: many(tokenValues, { relationName: 'designSystemInvariantTokenValues' }),
 }));
 
 export const componentsRelations = relations(components, ({ many }) => ({
@@ -121,6 +123,7 @@ export const componentsRelations = relations(components, ({ many }) => ({
   variationValues: many(variationValues),
   tokens: many(tokens),
   propsAPI: many(propsAPI),
+  tokenValues: many(tokenValues),
 }));
 
 export const designSystemComponentsRelations = relations(designSystemComponents, ({ one }) => ({
@@ -182,6 +185,11 @@ export const tokenValuesRelations = relations(tokenValues, ({ one }) => ({
   component: one(components, {
     fields: [tokenValues.componentId],
     references: [components.id],
+  }),
+  designSystem: one(designSystems, {
+    fields: [tokenValues.designSystemId],
+    references: [designSystems.id],
+    relationName: 'designSystemInvariantTokenValues',
   }),
 }));
 

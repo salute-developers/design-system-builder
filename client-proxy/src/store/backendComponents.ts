@@ -407,6 +407,54 @@ export class BackendComponentStore {
                 }
             }
 
+            // Add invariant token values from original client data
+            console.log(`\n🔍 Starting invariant token value creation from original client data`);
+            for (const component of backendFormat.components) {
+                const existingComponent = existingComponents.find(c => c.name === component.name);
+                if (!existingComponent) {
+                    console.log(`⚠️ Component ${component.name} not found in backend, skipping invariant values`);
+                    continue;
+                }
+
+                // Find the original client component data that contains the invariant props
+                const originalClientComponent = originalComponentsData.find((c: any) => c.name === component.name);
+                if (!originalClientComponent) {
+                    console.log(`⚠️ Original client component not found for ${component.name}`);
+                    continue;
+                }
+
+                // Process invariant props from configs
+                for (const config of originalClientComponent.sources?.configs || []) {
+                    if (config.config?.invariantProps) {
+                        for (const prop of config.config.invariantProps) {
+                            // Find the token by UUID in the original component's API
+                            const token = originalClientComponent.sources?.api?.find((t: any) => t.id === prop.id);
+                            if (token) {
+                                // Get the backend token ID using the token name
+                                const backendTokenId = tokenNameToBackendId.get(token.name);
+                                if (backendTokenId) {
+                                    try {
+                                        await this.addInvariantTokenValue(designSystemId, {
+                                            componentId: existingComponent.id,
+                                            tokenId: backendTokenId,
+                                            value: prop.value
+                                        });
+                                        console.log(`💾 Added invariant token value for ${token.name} (${backendTokenId}) with value ${prop.value}`);
+                                    } catch (error) {
+                                        console.error(`❌ Failed to add invariant token value for ${token.name}:`, error);
+                                        // Continue with other invariant values
+                                    }
+                                } else {
+                                    console.warn(`⚠️ Could not find backend token ID for token: ${token.name}`);
+                                }
+                            } else {
+                                console.warn(`⚠️ Could not find token for prop ID: ${prop.id}`);
+                            }
+                        }
+                    }
+                }
+            }
+
             console.log(`✅ Successfully linked design system data to backend: ${name}@${version}`);
 
         } catch (error) {
@@ -635,6 +683,46 @@ export class BackendComponentStore {
     }
 
     /**
+     * Add invariant token value
+     */
+    private async addInvariantTokenValue(designSystemId: number, invariantTokenValue: any): Promise<void> {
+        try {
+            const payload = {
+                tokenValues: [{
+                    tokenId: invariantTokenValue.tokenId,
+                    value: String(invariantTokenValue.value)
+                }]
+            };
+
+            console.log(`🔍 Sending invariant token value payload to /components/${invariantTokenValue.componentId}/invariants:`, JSON.stringify(payload, null, 2));
+
+            const response = await fetch(`${this.baseUrl}/components/${invariantTokenValue.componentId}/invariants?designSystemId=${designSystemId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errorDetails = '';
+                try {
+                    const errorResponse = await response.json();
+                    errorDetails = ` - Details: ${JSON.stringify(errorResponse)}`;
+                } catch (e) {
+                    errorDetails = ` - Could not parse error response`;
+                }
+                throw new Error(`Failed to add invariant token value: ${response.status} ${response.statusText}${errorDetails}`);
+            }
+
+            console.log(`💾 Added invariant token value for token ${invariantTokenValue.tokenId}`);
+        } catch (error) {
+            console.error(`❌ Failed to add invariant token value for token ${invariantTokenValue.tokenId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
      * Transform backend data structure to match FormatTransformer expectations
      */
     private transformBackendDataForTransformer(backendData: any): any {
@@ -652,7 +740,8 @@ export class BackendComponentStore {
                 },
                 components: backendData.components?.map((link: any) => link.component) || [],
                 variationValues: backendData.variationValues || [],
-                tokenValues: []
+                tokenValues: [],
+                invariantTokenValues: backendData.invariantTokenValues || []
             };
 
             // Extract token values from variation values

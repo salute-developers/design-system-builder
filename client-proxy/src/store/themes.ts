@@ -36,13 +36,11 @@ export class ThemeStore {
         
         try {
             await fs.writeJson(themeFilePath, themeFileData, { spaces: 2 });
-            console.log(`✅ Theme file written successfully: ${themeFilePath}`);
+            console.log(`✅ Theme: ${name}@${version} saved successfully: ${themeFilePath}`);
         } catch (error) {
-            console.error(`❌ Failed to write theme file:`, error);
+            console.error(`❌ Failed to save theme: ${name}@${version}, ${themeFilePath}`, error);
             throw error;
         }
-
-        console.log(`Saved theme: ${name}@${version}`);
     }
 
     async loadTheme(name: string, version: string): Promise<any> {
