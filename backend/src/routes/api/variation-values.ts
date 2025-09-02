@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { variationValues, tokenValues, variations, tokens } from '../../db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, not } from 'drizzle-orm';
 import { Database } from '../../db/types';
 import {
   validateBody,
@@ -47,12 +47,22 @@ export function createVariationValuesRouter(db: Database) {
     validateBody(CreateVariationValueSchema),
     async (req: Request, res: Response) => {
     try {
-      const { designSystemId, componentId, variationId, name, description, tokenValues: newTokenValues } = req.body;
+      const { designSystemId, componentId, variationId, name, description, isDefaultValue, tokenValues: newTokenValues } = req.body;
 
       // Check if variation exists
       const [variation] = await db.select().from(variations).where(eq(variations.id, variationId));
       if (!variation) {
         return res.status(400).json({ error: 'Variation not found' });
+      }
+
+      // If this is being set as default, unset any existing default for this variation in this design system
+      if (isDefaultValue) {
+        await db.update(variationValues)
+          .set({ isDefaultValue: 'false' })
+          .where(and(
+            eq(variationValues.designSystemId, designSystemId),
+            eq(variationValues.variationId, variationId)
+          ));
       }
 
       const [variationValue] = await db.insert(variationValues).values({
@@ -61,6 +71,7 @@ export function createVariationValuesRouter(db: Database) {
         variationId,
         name,
         description,
+        isDefaultValue: isDefaultValue ? 'true' : 'false',
       }).returning();
 
       // If token values are provided, create them
@@ -95,7 +106,7 @@ export function createVariationValuesRouter(db: Database) {
     async (req: Request, res: Response) => {
     try {
       const { id } = req.params as any;
-      const { name, description, tokenValues: updatedTokenValues } = req.body;
+      const { name, description, isDefaultValue, tokenValues: updatedTokenValues } = req.body;
       const variationValueId = parseInt(id);
 
       // Check if variation value exists
@@ -104,8 +115,24 @@ export function createVariationValuesRouter(db: Database) {
         return res.status(404).json({ error: 'Variation value not found' });
       }
 
+      // If this is being set as default, unset any existing default for this variation in this design system
+      if (isDefaultValue) {
+        await db.update(variationValues)
+          .set({ isDefaultValue: 'false' })
+          .where(and(
+            eq(variationValues.designSystemId, existingValue.designSystemId),
+            eq(variationValues.variationId, existingValue.variationId),
+            not(eq(variationValues.id, variationValueId)) // Exclude the current record
+          ));
+      }
+
+      const updateData: any = { name, description };
+      if (isDefaultValue !== undefined) {
+        updateData.isDefaultValue = isDefaultValue ? 'true' : 'false';
+      }
+
       const [updated] = await db.update(variationValues)
-        .set({ name, description })
+        .set(updateData)
         .where(eq(variationValues.id, variationValueId))
         .returning();
 

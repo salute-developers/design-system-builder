@@ -379,6 +379,10 @@ export class BackendComponentStore {
                             continue;
                         }
 
+                        // Check if this style is marked as a default variation in the original client data
+                        const isDefaultVariation = this.isDefaultVariationInConfig(originalClientComponent, originalVariation.id.toString(), style.id);
+                        console.log(`🔍 Style ${style.name} (${style.id}) is default variation: ${isDefaultVariation}`);
+
                         // Extract token values from this specific style using backend token IDs
                         const tokenValues = this.extractTokenValuesFromStyle(style, originalClientComponent, originalVariation.id, tokenNameToBackendId);
                         console.log(`🔍 Extracted ${tokenValues.length} token values for ${backendVariation.name} style ${style.name}:`, tokenValues);
@@ -395,14 +399,15 @@ export class BackendComponentStore {
                             variationId: existingVariation.id,
                             variationIdType: typeof existingVariation.id,
                             styleName: style.name,
-                            tokenValuesCount: tokenValues.length
+                            tokenValuesCount: tokenValues.length,
+                            isDefaultVariation
                         });
                         
                         // Ensure variationId is a number
                         const variationId = typeof existingVariation.id === 'string' ? parseInt(existingVariation.id, 10) : existingVariation.id;
                         
-                        await this.addVariationValue(designSystemId, existingComponent.id, variationId, style, tokenValues);
-                        console.log(`💾 Added variation value for ${backendVariation.name} style ${style.name} with ${tokenValues.length} token values`);
+                        await this.addVariationValue(designSystemId, existingComponent.id, variationId, style, tokenValues, isDefaultVariation);
+                        console.log(`💾 Added variation value for ${backendVariation.name} style ${style.name} with ${tokenValues.length} token values (default: ${isDefaultVariation})`);
                     }
                 }
             }
@@ -635,7 +640,7 @@ export class BackendComponentStore {
     /**
      * Add variation value with token values
      */
-    private async addVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>): Promise<void> {
+    private async addVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>, isDefaultValue: boolean = false): Promise<void> {
         try {
             // Convert the extracted token values to the format expected by the backend
             // Ensure all values are strings as the backend expects
@@ -650,6 +655,7 @@ export class BackendComponentStore {
                 variationId,
                 name: style.name,
                 description: style.description || '',
+                isDefaultValue,
                 tokenValues: backendTokenValues
             };
 
@@ -874,6 +880,30 @@ export class BackendComponentStore {
         } catch (error) {
             console.error(`❌ Error extracting token values for style ${style.name}:`, error);
             return [];
+        }
+    }
+
+    /**
+     * Check if a variation style is marked as default in the original client config
+     */
+    private isDefaultVariationInConfig(component: any, variationId: string, styleId: string): boolean {
+        try {
+            // Look through all configs for this component
+            for (const config of component.sources?.configs || []) {
+                if (config.config?.defaultVariations) {
+                    // Check if this variation/style combination is in the defaultVariations array
+                    const isDefault = config.config.defaultVariations.some((dv: any) => 
+                        dv.variationID === variationId && dv.styleID === styleId
+                    );
+                    if (isDefault) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (error) {
+            console.error(`❌ Error checking if variation is default:`, error);
+            return false;
         }
     }
 

@@ -66,6 +66,7 @@ interface BackendFormat {
     name: string;
     componentId: number;
     variationId: number;
+    isDefaultValue: string; // 'true' or 'false' as string from backend
     createdAt: string;
     updatedAt: string;
     tokenValues: Array<{
@@ -576,11 +577,32 @@ class FormatTransformer {
       };
     }).filter(Boolean);
 
+    // Find default variations (variation values with isDefaultValue === 'true')
+    const defaultVariations = variationValues
+      .filter(vv => vv.isDefaultValue === 'true')
+      .map(vv => {
+        const variation = component.variations.find((v: any) => v.id === vv.variationId);
+        if (!variation) return null;
+        
+        // Find the style ID for this variation value
+        const variationUUID = this.idMappings.get(vv.variationId);
+        if (!variationUUID) return null;
+        
+        const variationConfig = variations.find(v => v && v.id === variationUUID);
+        const style = variationConfig?.styles.find((s: any) => s.name === vv.name);
+        
+        return {
+          variationID: variationUUID,
+          styleID: style?.id || this.generateUUID()
+        };
+      })
+      .filter(Boolean);
+
     return [{
       name: 'default',
       id: this.generateUUID(),
       config: {
-        defaultVariations: [],
+        defaultVariations,
         invariantProps,
         variations
       }
@@ -601,9 +623,17 @@ class FormatTransformer {
     const invariantTokenValues: any[] = [];
 
     configs.forEach(config => {
+      // Check if this style is a default variation
+      const isDefaultVariation = (variationId: string, styleId: string) => {
+        return config.config.defaultVariations?.some((dv: any) => 
+          dv.variationID === variationId && dv.styleID === styleId
+        ) || false;
+      };
+
       config.config.variations.forEach((variation: any) => {
         variation.styles.forEach((style: any) => {
           const variationValueId = this.generateNumericId();
+          const isDefault = isDefaultVariation(variation.id, style.id);
           
           const variationValue = {
             id: variationValueId,
@@ -612,6 +642,7 @@ class FormatTransformer {
             variationId: this.findVariationIdByName(variations, variation.id),
             name: style.name,
             description: '',
+            isDefaultValue: isDefault ? 'true' : 'false',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             tokenValues: [] as any[]

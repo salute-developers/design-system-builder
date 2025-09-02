@@ -1,0 +1,1 @@
+ALTER TABLE "variation_values" ADD COLUMN "is_default_value" text DEFAULT 'false';
