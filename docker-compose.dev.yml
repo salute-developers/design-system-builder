@@ -70,6 +70,48 @@ services:
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
+  # Client Application (Development)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: ds-builder-client-dev
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    ports:
+      - "3002:5173"
+    depends_on:
+      - backend
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+  # Client Proxy Service (Development)
+  client-proxy:
+    build:
+      context: ./client-proxy
+      dockerfile: Dockerfile.dev
+    container_name: ds-builder-client-proxy-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+    ports:
+      - "3003:3003"
+    depends_on:
+      - backend
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./client-proxy:/app
+      - /app/node_modules
+      - ./client-proxy/storage:/app/storage
+    command: npm run dev
+
 volumes:
   postgres_data_dev:
     driver: local

@@ -107,19 +107,12 @@ build_with_dns_fallback() {
     local dns_fallback=$2
     
     if [ "$dns_fallback" = true ]; then
-        echo_info "Building with DNS fallback strategy..."
-        echo_info "Pre-pulling base images..."
-        
-        # Try to pull base images directly
-        docker pull node:20-alpine > /dev/null 2>&1
-        docker pull postgres:15-alpine > /dev/null 2>&1
-        docker pull nginx:alpine > /dev/null 2>&1
-        
-        if docker-compose -f $compose_file build; then
-            echo_success "Build successful with base image pre-pull"
+        echo_info "Building with Google DNS (8.8.8.8, 8.8.4.4)..."
+        if docker-compose -f $compose_file build --dns=8.8.8.8 --dns=8.8.4.4; then
+            echo_success "Build successful with Google DNS"
             return 0
         else
-            echo_error "Build failed even with base image pre-pull"
+            echo_error "Build failed even with Google DNS"
             return 1
         fi
     else
@@ -129,19 +122,12 @@ build_with_dns_fallback() {
             return 0
         else
             echo_warning "Build failed with default DNS"
-            echo_info "Retrying with base image pre-pull strategy..."
-            
-            # Try to pull base images directly
-            echo_info "Pre-pulling base images..."
-            docker pull node:20-alpine > /dev/null 2>&1
-            docker pull postgres:15-alpine > /dev/null 2>&1
-            docker pull nginx:alpine > /dev/null 2>&1
-            
-            if docker-compose -f $compose_file build; then
-                echo_success "Build successful with base image pre-pull"
+            echo_info "Retrying with Google DNS (8.8.8.8, 8.8.4.4)..."
+            if docker-compose -f $compose_file build --dns=8.8.8.8 --dns=8.8.4.4; then
+                echo_success "Build successful with Google DNS fallback"
                 return 0
             else
-                echo_error "Build failed even with base image pre-pull"
+                echo_error "Build failed even with Google DNS"
                 return 1
             fi
         fi
@@ -268,3 +254,4 @@ else
     echo "   • Network issues: Check Docker network configuration"
     exit 1
 fi
+

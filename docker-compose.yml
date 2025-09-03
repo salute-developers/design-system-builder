@@ -76,6 +76,51 @@ services:
       timeout: 10s
       retries: 3
 
+  # Client Application
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: ds-builder-client
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ds-builder-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Client Proxy Service
+  client-proxy:
+    build:
+      context: ./client-proxy
+      dockerfile: Dockerfile
+    container_name: ds-builder-client-proxy
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+    ports:
+      - "3003:3003"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./client-proxy/storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   postgres_data:
     driver: local
