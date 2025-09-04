@@ -131,7 +131,7 @@ const StyledDescriptionWarningWCAG = styled.div`
     font-size: 10px;
     font-style: normal;
     font-weight: 400;
-    line-height: 12px; 
+    line-height: 12px;
 `;
 
 const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
@@ -156,10 +156,10 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
     const [hoveredColor, setHoveredColor] = useState<string>('');
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-    const backgroundColor = themeMode === 'light' ? '#C7C7C7' : '#171717';
+    const backgroundColor = themeMode === 'light' ? '#FFFFFF' : '#000000';
     const threshold = saturationType === 'stroke' ? 3 : 2;
     const isColorContrast = checkIsColorContrast(hoveredColor, backgroundColor, threshold);
-    const contrastColor = checkIsColorContrast(hoveredColor, '#FFFFFF') ? '#F5F5F5' : '#171717'; // TODO: сделать переменными 100 / 950
+    const contrastColor = checkIsColorContrast(hoveredColor, '#FFFFFF') ? '#FFFFFF' : '#000000'; // TODO: сделать переменными 100 / 950
 
     const currentItem = hoveredIndex !== null && itemRefs?.current[hoveredIndex];
     const descriptionLeftOffset = currentItem ? currentItem.offsetLeft - 128 / 2 + 48 / 2 : 0;
