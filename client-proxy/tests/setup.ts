@@ -1,7 +1,11 @@
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { IndexStore } from '../src/store/indexStore';
+import { BackendComponentStore } from '../src/store/backendComponents';
 import createApp from '../src/app';
+
+// Set test environment
+process.env.NODE_ENV = 'test';
 
 // Test storage directory
 const TEST_STORAGE_DIR = path.join(__dirname, 'test-storage');
@@ -108,8 +112,60 @@ export class MockIndexStore extends IndexStore {
     }
 }
 
-// Create app with mock index store for tests
+// Mock BackendComponentStore for tests that doesn't make real HTTP calls
+export class MockBackendComponentStore {
+    private storageDir: string;
+
+    constructor(storageDir: string) {
+        this.storageDir = storageDir;
+    }
+
+    async saveComponents(name: string, version: string, componentsData: any[]): Promise<void> {
+        // Just save to local files instead of making HTTP calls
+        const componentsFilePath = path.join(this.storageDir, 'design-systems', `${name}@${version}.components.json`);
+        await fs.ensureDir(path.dirname(componentsFilePath));
+        await fs.writeJson(componentsFilePath, {
+            componentsData,
+            savedAt: new Date().toISOString()
+        });
+    }
+
+    async loadComponents(name: string, version: string): Promise<any[]> {
+        const componentsFilePath = path.join(this.storageDir, 'design-systems', `${name}@${version}.components.json`);
+        if (await fs.pathExists(componentsFilePath)) {
+            const data = await fs.readJson(componentsFilePath);
+            return data.componentsData || [];
+        }
+        throw new Error(`Components not found: ${name}@${version}`);
+    }
+
+    async deleteComponents(name: string, version: string): Promise<void> {
+        const componentsFilePath = path.join(this.storageDir, 'design-systems', `${name}@${version}.components.json`);
+        if (await fs.pathExists(componentsFilePath)) {
+            await fs.remove(componentsFilePath);
+        }
+    }
+
+    // Mock methods that would normally make HTTP calls
+    async componentsExist(name: string, version: string): Promise<boolean> {
+        const componentsFilePath = path.join(this.storageDir, 'design-systems', `${name}@${version}.components.json`);
+        return await fs.pathExists(componentsFilePath);
+    }
+
+    async getDesignSystemId(name: string): Promise<number | null> {
+        // Return a mock ID for tests
+        return 1;
+    }
+
+    async ensureDesignSystemExists(name: string, version: string): Promise<number> {
+        // Return a mock ID for tests
+        return 1;
+    }
+}
+
+// Create app with mock stores for tests
 export function createTestApp(storageDir: string) {
     const mockIndexStore = new MockIndexStore(storageDir);
-    return createApp(storageDir, mockIndexStore);
+    const mockComponentStore = new MockBackendComponentStore(storageDir);
+    return createApp(storageDir, mockIndexStore, mockComponentStore);
 }

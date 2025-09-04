@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z, ZodError, ZodIssue } from 'zod';
 import { ApiResponse } from './schemas';
+import { Logger } from '../utils/logger';
 
 // Validation error response interface
 interface ValidationErrorResponse extends ApiResponse {
@@ -14,22 +15,22 @@ interface ValidationErrorResponse extends ApiResponse {
 // Generic validation middleware factory
 export function validateRequest<T>(schema: z.ZodSchema<T>) {
     return (req: Request, res: Response<ValidationErrorResponse>, next: NextFunction): void => {
-        console.log(`🔍 [VALIDATION] Starting validation for ${req.method} ${req.path}`);
-        console.log(`🔍 [VALIDATION] Request body keys:`, Object.keys(req.body || {}));
-        console.log(`🔍 [VALIDATION] Request body preview:`, JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
+        Logger.debug(`🔍 [VALIDATION] Starting validation for ${req.method} ${req.path}`);
+        Logger.debug(`🔍 [VALIDATION] Request body keys:`, Object.keys(req.body || {}));
+        Logger.debug(`🔍 [VALIDATION] Request body preview:`, JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
         
         try {
             // Validate request body
-            console.log(`🔍 [VALIDATION] Attempting to parse with schema...`);
+            Logger.debug(`🔍 [VALIDATION] Attempting to parse with schema...`);
             const validatedData = schema.parse(req.body);
-            console.log(`✅ [VALIDATION] Validation successful for ${req.method} ${req.path}`);
+            Logger.debug(`✅ [VALIDATION] Validation successful for ${req.method} ${req.path}`);
             
             // Replace req.body with validated data (ensures type safety)
             req.body = validatedData;
             
             next();
         } catch (error) {
-            console.error(`❌ [VALIDATION] Validation failed for ${req.method} ${req.path}:`, error);
+            Logger.error(`❌ [VALIDATION] Validation failed for ${req.method} ${req.path}:`, error);
             
             if (error instanceof ZodError) {
                 const validationErrors = error.issues.map((err: ZodIssue) => ({
@@ -38,7 +39,7 @@ export function validateRequest<T>(schema: z.ZodSchema<T>) {
                     code: err.code,
                 }));
 
-                console.error(`❌ [VALIDATION] Zod validation errors:`, validationErrors);
+                Logger.error(`❌ [VALIDATION] Zod validation errors:`, validationErrors);
                 res.status(400).json({
                     error: 'Validation failed',
                     details: 'Request body does not match required schema',
@@ -48,7 +49,7 @@ export function validateRequest<T>(schema: z.ZodSchema<T>) {
             }
 
             // Handle unexpected validation errors
-            console.error('Unexpected validation error:', error);
+            Logger.error('Unexpected validation error:', error);
             res.status(500).json({
                 error: 'Internal validation error',
                 details: 'An unexpected error occurred during validation',
@@ -80,7 +81,7 @@ export function validateQuery<T>(schema: z.ZodSchema<T>) {
                 return;
             }
 
-            console.error('Unexpected query validation error:', error);
+            Logger.error('Unexpected query validation error:', error);
             res.status(500).json({
                 error: 'Internal validation error',
                 details: 'An unexpected error occurred during query validation',
@@ -112,7 +113,7 @@ export function validateParams<T>(schema: z.ZodSchema<T>) {
                 return;
             }
 
-            console.error('Unexpected parameter validation error:', error);
+            Logger.error('Unexpected parameter validation error:', error);
             res.status(500).json({
                 error: 'Internal validation error',
                 details: 'An unexpected error occurred during parameter validation',
