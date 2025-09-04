@@ -3,6 +3,9 @@ import styled from 'styled-components';
 import { checkIsColorContrast } from '../utils';
 
 const Root = styled.div<{ backgroundColor?: string; color?: string }>`
+    position: relative;
+    z-index: 999;
+
     cursor: pointer;
     width: fit-content;
 
@@ -17,7 +20,7 @@ const Root = styled.div<{ backgroundColor?: string; color?: string }>`
     background: ${({ backgroundColor }) => backgroundColor};
     color: ${({ color }) => color};
 
-    transition: transform 0.2s ease-in-out;
+    transition: transform 0.1s ease-in-out;
 
     :hover {
         transform: scale(1.02);
@@ -51,7 +54,7 @@ interface HeroButtonProps extends HTMLAttributes<HTMLDivElement> {
 export const HeroButton = (props: HeroButtonProps) => {
     const { text, backgroundColor = '#000000', contentRight, ...rest } = props;
 
-    const color = checkIsColorContrast(backgroundColor, '#FFFFFF', 3) ? 'rgba(255, 255, 255,1)' : 'rgba(0, 0, 0, 1)';
+    const color = checkIsColorContrast(backgroundColor, '#FFFFFF') ? '#F5F5F5' : '#171717'; // TODO: сделать переменными 100 / 950
 
     return (
         <Root backgroundColor={backgroundColor} color={color} {...rest}>

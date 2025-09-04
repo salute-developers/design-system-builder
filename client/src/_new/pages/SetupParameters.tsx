@@ -21,6 +21,8 @@ export const Root = styled.div``;
 const StyledSelectedParameters = styled.div<{ isReady?: boolean }>`
     z-index: 999;
 
+    height: calc(100vh - 3rem);
+
     position: relative;
 
     ${({ isReady }) =>
@@ -155,7 +157,7 @@ const StyledThemeModeSwitcher = styled.span<{ color: string }>`
 
     color: ${({ color }) => color};
 
-    transition: transform 0.2s ease-in-out;
+    transition: transform 0.1s ease-in-out;
 
     :hover {
         transform: scale(1.02);
@@ -475,6 +477,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                                     text={lightStrokeSaturation.toString()}
                                     view="light"
                                     saturationType="stroke"
+                                    isReady={isReady}
                                     onClick={() => {
                                         setEditStep(popupSetupSteps.LIGHT_STROKE_SATURATION);
                                     }}
@@ -507,6 +510,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                                     text={lightFillSaturation.toString()}
                                     view="light"
                                     saturationType="fill"
+                                    isReady={isReady}
                                     onClick={() => {
                                         setEditStep(popupSetupSteps.LIGHT_FILL_SATURATION);
                                     }}
@@ -539,6 +543,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                                     text={darkStrokeSaturation.toString()}
                                     view="dark"
                                     saturationType="stroke"
+                                    isReady={isReady}
                                     onClick={() => {
                                         setEditStep(popupSetupSteps.DARK_STROKE_SATURATION);
                                     }}
@@ -571,6 +576,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                                     text={darkFillSaturation.toString()}
                                     view="dark"
                                     saturationType="fill"
+                                    isReady={isReady}
                                     onClick={() => {
                                         setEditStep(popupSetupSteps.DARK_FILL_SATURATION);
                                     }}
@@ -579,14 +585,11 @@ export const SetupParameters = (props: SetupParametersProps) => {
                         </>
                     )}
                 </StyledWrapper>
-            </StyledSelectedParameters>
-
-            {!isReady && (
                 <StyledResetParametersButton onClick={handleResetParameters}>
                     <IconClose size="xs" color="inherit" />
                     <>Сбросить</>
                 </StyledResetParametersButton>
-            )}
+            </StyledSelectedParameters>
 
             <StyledReadyBlock isReady={isReady}>
                 <StyledHeader>
