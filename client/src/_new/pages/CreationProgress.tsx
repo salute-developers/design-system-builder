@@ -41,7 +41,7 @@ const StyledLoadingProgress = styled(LoadingProgress)`
 `;
 
 interface CreationProgressProps {
-    projectName: string;
+    projectName?: string;
     accentColor: string;
     onPrevPage: () => void;
 }

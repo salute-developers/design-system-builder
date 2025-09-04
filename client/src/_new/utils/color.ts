@@ -1,3 +1,4 @@
+import { ContrastRatioChecker } from 'contrast-ratio-checker';
 import { general as generalColors } from '@salutejs/plasma-colors';
 import {
     Grayscale,
@@ -218,4 +219,11 @@ export const shiftAccentColor = (color: ComplexValue, theme: ThemeMode, opacity?
 
     // TODO: удалить opacity - 1 и обновить использование метода в новой архитектуре
     return opacity ? `${newValue}[${(opacity - 1).toPrecision(2)}]` : newValue;
+};
+
+export const checkIsColorContrast = (firstColor: string, secondColor: string, threshold = 2) => {
+    const checker = new ContrastRatioChecker();
+    const ratio = Math.round(checker.getContrastRatioByHex(firstColor || '#FFFFFF', secondColor) * 100) / 100;
+
+    return ratio > threshold;
 };

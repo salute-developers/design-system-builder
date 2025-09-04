@@ -47,6 +47,7 @@ const StyledItem = styled.div`
 
 interface HoverSelectProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> {
     label: string;
+    grayTone?: string;
     items: {
         value: string;
         label: string;
@@ -56,7 +57,7 @@ interface HoverSelectProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelec
 }
 
 export const HoverSelect = (props: HoverSelectProps) => {
-    const { items, label, onSelect, onHover, ...rest } = props;
+    const { items, label, grayTone, onSelect, onHover, ...rest } = props;
 
     const onClick = (value: string) => {
         if (onSelect) {
@@ -69,7 +70,12 @@ export const HoverSelect = (props: HoverSelectProps) => {
             <StyledLabel>{label}</StyledLabel>
             <StyledItems>
                 {items.map(({ label, value }) => (
-                    <StyledItem key={value} onClick={() => onClick(value)} onMouseEnter={() => onHover?.(value)}>
+                    <StyledItem
+                        key={value}
+                        onClick={() => onClick(value)}
+                        onMouseEnter={() => onHover?.(value)}
+                        onMouseLeave={() => onHover?.(grayTone || 'warmGray')}
+                    >
                         {label}
                     </StyledItem>
                 ))}

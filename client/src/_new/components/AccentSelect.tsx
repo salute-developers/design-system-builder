@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { MouseEvent, useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
+import { useHorizontalDraggable } from '../hooks';
 
 const Root = styled.div``;
 
@@ -15,6 +16,7 @@ const StyledLabel = styled.div`
 
 const StyledItems = styled.div`
     margin-top: 0.75rem;
+    user-select: none;
 
     // TODO: Подумать, можно ли как-то перенести
     margin-left: -22.5rem;
@@ -35,12 +37,18 @@ const StyledItems = styled.div`
     display: flex;
     align-items: center;
     gap: 2rem;
+
+    cursor: pointer;
+
+    &:active {
+        cursor: grabbing;
+    }
 `;
 
 const StyledItem = styled.div<{ color: string }>`
     position: relative;
-    cursor: pointer;
     white-space: nowrap;
+    user-select: none;
 
     font-family: 'SB Sans Display';
     font-size: 48px;
@@ -80,30 +88,6 @@ const StyledItem = styled.div<{ color: string }>`
     }
 `;
 
-// const scrollToClosest = (
-//     itemsRef: React.RefObject<HTMLDivElement>,
-//     itemRefs: React.RefObject<Record<string, HTMLDivElement | null>>,
-//     offset = 0,
-// ) => {
-//     const container = itemsRef.current;
-
-//     if (!container || !itemRefs.current) {
-//         return;
-//     }
-
-//     const snapPoints = Object.values(itemRefs.current).map((value) => (value as HTMLDivElement).offsetLeft - offset);
-//     const currentScrollLeft = container.scrollLeft;
-
-//     const closest = snapPoints.reduce((prev, curr) =>
-//         Math.abs(curr - currentScrollLeft) < Math.abs(prev - currentScrollLeft) ? curr : prev,
-//     );
-
-//     container.scrollTo({
-//         left: closest,
-//         behavior: 'smooth',
-//     });
-// };
-
 interface AccentSelectProps {
     label: string;
     defaultValue?: string;
@@ -122,17 +106,10 @@ export const AccentSelect = (props: AccentSelectProps) => {
 
     const itemsRef = useRef<HTMLDivElement>(null);
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    // const scrollTimeoutRef = useRef<number | null>(null);
-
-    // const onScroll = () => {
-    //     // clearTimeout(scrollTimeoutRef.current as number);
-    //     // scrollTimeoutRef.current = setTimeout(() => {
-    //     //     scrollToClosest(itemsRef, itemRefs, FIXED_OFFSET);
-    //     // }, 100);
-    // };
+    const { moved, onMouseDown, onMouseMove, onMouseUp, onMouseLeave } = useHorizontalDraggable(itemsRef);
 
     const onClick = (value: string) => {
-        if (onSelect) {
+        if (onSelect && !moved.current) {
             onSelect(value);
         }
     };
@@ -168,7 +145,10 @@ export const AccentSelect = (props: AccentSelectProps) => {
             <StyledItems
                 ref={itemsRef}
                 style={{ visibility: ready ? 'visible' : 'hidden' }}
-                // onScroll={onScroll}
+                onMouseDown={onMouseDown}
+                onMouseLeave={onMouseLeave}
+                onMouseUp={onMouseUp}
+                onMouseMove={onMouseMove}
             >
                 {items.map(({ label, value, color }) => (
                     <StyledItem
@@ -177,9 +157,7 @@ export const AccentSelect = (props: AccentSelectProps) => {
                             itemRefs.current[label] = el;
                         }}
                         color={color}
-                        onClick={() => {
-                            onClick(value);
-                        }}
+                        onClick={() => onClick(value)}
                     >
                         {label}
                     </StyledItem>
