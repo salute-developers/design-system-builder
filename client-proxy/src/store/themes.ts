@@ -2,6 +2,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import { StoredThemeData } from '../validation';
 import { safeValidate, StoredThemeDataSchema } from '../validation';
+import { Logger } from '../utils/logger';
 
 export class ThemeStore {
     private storageDir: string;
@@ -20,9 +21,9 @@ export class ThemeStore {
     }
 
     async saveTheme(name: string, version: string, themeData: any): Promise<void> {
-        console.log(`🎨 ThemeStore.saveTheme called for ${name}@${version}`);
-        console.log(`📁 Storage dir: ${this.storageDir}`);
-        console.log(`📁 Design systems dir: ${this.designSystemsDir}`);
+        Logger.log(`🎨 ThemeStore.saveTheme called for ${name}@${version}`);
+        Logger.log(`📁 Storage dir: ${this.storageDir}`);
+        Logger.log(`📁 Design systems dir: ${this.designSystemsDir}`);
         
         const savedAt = new Date().toISOString();
         
@@ -32,13 +33,13 @@ export class ThemeStore {
         };
 
         const themeFilePath = this.getThemeFilePath(name, version);
-        console.log(`📄 Theme file path: ${themeFilePath}`);
+        Logger.log(`📄 Theme file path: ${themeFilePath}`);
         
         try {
             await fs.writeJson(themeFilePath, themeFileData, { spaces: 2 });
-            console.log(`✅ Theme: ${name}@${version} saved successfully: ${themeFilePath}`);
+            Logger.log(`✅ Theme: ${name}@${version} saved successfully: ${themeFilePath}`);
         } catch (error) {
-            console.error(`❌ Failed to save theme: ${name}@${version}, ${themeFilePath}`, error);
+            Logger.error(`❌ Failed to save theme: ${name}@${version}, ${themeFilePath}`, error);
             throw error;
         }
     }
@@ -55,12 +56,12 @@ export class ThemeStore {
         
         const themeValidation = safeValidate(StoredThemeDataSchema, themeRawData);
         if (!themeValidation.success) {
-            console.error(`Invalid stored theme data for ${name}@${version}:`, themeValidation.errors);
+            Logger.error(`Invalid stored theme data for ${name}@${version}:`, themeValidation.errors);
             throw new Error('The stored theme data does not match expected format');
         }
 
         const themeData = themeValidation.data!.themeData;
-        console.log(`Loaded theme: ${name}@${version}`);
+        Logger.log(`Loaded theme: ${name}@${version}`);
         return themeData;
     }
 
@@ -70,7 +71,7 @@ export class ThemeStore {
         const themeExists = await fs.pathExists(themeFilePath);
         if (themeExists) {
             await fs.remove(themeFilePath);
-            console.log(`Deleted theme: ${name}@${version}`);
+            Logger.log(`Deleted theme: ${name}@${version}`);
         }
     }
 

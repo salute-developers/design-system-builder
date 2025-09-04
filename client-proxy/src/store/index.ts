@@ -6,6 +6,7 @@ import {
 import { ThemeStore } from './themes';
 import { BackendComponentStore } from './backendComponents';
 import { IndexStore } from './indexStore';
+import { Logger } from '../utils/logger';
 
 export class DesignSystemStore {
     private storageDir: string;
@@ -13,12 +14,12 @@ export class DesignSystemStore {
     private componentStore: BackendComponentStore;
     private indexStore: IndexStore;
 
-    constructor(storageDir: string, indexStore?: IndexStore) {
+    constructor(storageDir: string, indexStore?: IndexStore, componentStore?: BackendComponentStore) {
         this.storageDir = storageDir;
         fs.ensureDirSync(this.storageDir);
         
         this.themeStore = new ThemeStore(storageDir);
-        this.componentStore = new BackendComponentStore();
+        this.componentStore = componentStore || new BackendComponentStore();
         this.indexStore = indexStore || new IndexStore(storageDir);
     }
 
@@ -26,8 +27,8 @@ export class DesignSystemStore {
     async saveDesignSystem(data: DesignSystemData): Promise<void> {
         const { name, version, themeData, componentsData } = data;
         
-        console.log(`🔄 Processing design system: ${name}@${version}`);
-        console.log(`📊 Components: ${componentsData.length}, Theme: ${themeData ? 'present' : 'missing'}`);
+        Logger.log(`🔄 Processing design system: ${name}@${version}`);
+        Logger.log(`📊 Components: ${componentsData.length}, Theme: ${themeData ? 'present' : 'missing'}`);
 
         // Save components using our enhanced transformation system
         await this.componentStore.saveComponents(name, version, componentsData);
@@ -38,7 +39,7 @@ export class DesignSystemStore {
         // Add to index
         await this.indexStore.addToIndex(name, version);
 
-        console.log(`✅ Saved design system to backend: ${name}@${version} (theme + components with transformation)`);
+        Logger.log(`✅ Saved design system to backend: ${name}@${version} (theme + components with transformation)`);
     }
 
     // Load design system data with enhanced transformation
@@ -67,14 +68,14 @@ export class DesignSystemStore {
             this.componentStore.loadComponents(name, version)
         ]);
 
-        console.log(`✅ Loaded design system from storage: ${name}@${version} (theme + components with transformation)`);
+        Logger.log(`✅ Loaded design system from storage: ${name}@${version} (theme + components with transformation)`);
         return { themeData, componentsData };
     }
 
     // List all design systems from index
     async listDesignSystems(): Promise<DesignSystemTuple[]> {
         const designSystems = await this.indexStore.listFromIndex();
-        console.log(`📋 Listed ${designSystems.length} design systems from storage index`);
+        Logger.log(`📋 Listed ${designSystems.length} design systems from storage index`);
         return designSystems as DesignSystemTuple[];
     }
 
@@ -95,12 +96,12 @@ export class DesignSystemStore {
         // Remove from index
         await this.indexStore.removeFromIndex(name, version);
         
-        console.log(`🗑️ Deleted design system from storage: ${name}@${version} (theme + components with transformation)`);
+        Logger.log(`🗑️ Deleted design system from storage: ${name}@${version} (theme + components with transformation)`);
     }
     
 }
 
 // Factory function to create a store instance
-export const createStore = (storageDir: string, indexStore?: IndexStore): DesignSystemStore => {
-    return new DesignSystemStore(storageDir, indexStore);
+export const createStore = (storageDir: string, indexStore?: IndexStore, componentStore?: BackendComponentStore): DesignSystemStore => {
+    return new DesignSystemStore(storageDir, indexStore, componentStore);
 };

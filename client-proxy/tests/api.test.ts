@@ -39,7 +39,7 @@ describe('Client Proxy API', () => {
 
             expect(response.body).toEqual({
                 success: true,
-                message: 'Design system test-design-system@0.1.0 saved successfully'
+                message: 'Design system test-design-system@0.1.0 saved successfully with transformation (1 components, theme: present)'
             });
 
             // Verify both files were created
@@ -153,7 +153,7 @@ describe('Client Proxy API', () => {
 
             expect(response.body).toEqual({
                 error: 'Design system not found',
-                details: 'Design system not found'
+                details: 'Design system not found in backend index'
             });
         });
 
@@ -274,7 +274,7 @@ describe('Client Proxy API', () => {
 
             expect(response.body).toEqual({
                 error: 'Design system not found',
-                details: 'Design system not found'
+                details: 'Design system not found in backend index'
             });
         });
 

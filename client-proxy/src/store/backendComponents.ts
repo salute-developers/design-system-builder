@@ -1,5 +1,6 @@
 import { FormatTransformer, BackendFormat, ClientFormat } from '../services';
 import { DesignSystemData } from '../validation';
+import { Logger } from '../utils/logger';
 
 export class BackendComponentStore {
     private baseUrl: string;
@@ -7,7 +8,7 @@ export class BackendComponentStore {
 
     constructor() {
         this.baseUrl = process.env.BACKEND_URL || 'http://localhost:3001/api';
-        console.log(`🔧 BackendComponentStore baseUrl set to: ${this.baseUrl}`);
+        Logger.log(`🔧 BackendComponentStore baseUrl set to: ${this.baseUrl}`);
         this.transformer = new FormatTransformer();
     }
 

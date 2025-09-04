@@ -14,6 +14,8 @@ import {
 } from './validation';
 import { createStore } from './store';
 import { IndexStore } from './store/indexStore';
+import { Logger } from './utils/logger';
+// import { RequestLogger } from './utils/request-logger'; // DISABLED: Request/response logging
 
 interface CustomError extends Error {
     type?: string;
@@ -21,14 +23,14 @@ interface CustomError extends Error {
     statusCode?: number;
 }
 
-const createApp = (storageDir?: string, indexStore?: IndexStore): Application => {
+const createApp = (storageDir?: string, indexStore?: IndexStore, componentStore?: any): Application => {
     const app: Application = express();
     
     // Use provided storage directory or default
     const STORAGE_DIR = storageDir || path.join(__dirname, '../storage');
 
-    // Create store instance with optional mock index store
-    const store = createStore(STORAGE_DIR, indexStore);
+    // Create store instance with optional mock index store and component store
+    const store = createStore(STORAGE_DIR, indexStore, componentStore);
 
     // Middleware
     app.use(cors());
@@ -39,13 +41,67 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
         const requestId = Math.random().toString(36).substring(7);
         req.headers['x-request-id'] = requestId;
         
-        console.log(`📨 [${requestId}] ${req.method} ${req.path} - ${new Date().toISOString()}`);
+        Logger.log(`📨 [${requestId}] ${req.method} ${req.path} - ${new Date().toISOString()}`);
         if (req.method === 'POST' && req.path === '/api/design-systems') {
-            console.log(`📨 [${requestId}] POST to /api/design-systems - Body size: ${JSON.stringify(req.body || {}).length} chars`);
+            Logger.log(`📨 [${requestId}] POST to /api/design-systems - Body size: ${JSON.stringify(req.body || {}).length} chars`);
         }
         
         next();
     });
+
+    // Add request/response logging middleware for specific endpoints
+    // DISABLED: Request/response logging
+    /*
+    const logger = RequestLogger.getInstance();
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const shouldLog = (
+            (req.method === 'POST' && req.path === '/api/design-systems') ||
+            (req.method === 'GET' && req.path.match(/^\/api\/design-systems\/[^\/]+\/[^\/]+$/)) ||
+            (req.method === 'GET' && req.path === '/api/design-systems') ||
+            (req.method === 'DELETE' && req.path.match(/^\/api\/design-systems\/[^\/]+\/[^\/]+$/))
+        );
+
+        if (shouldLog) {
+            // Log request
+            logger.logRequest(
+                req.method,
+                req.originalUrl,
+                req.headers as Record<string, string>,
+                req.body
+            );
+
+            // Override res.json to capture response
+            const originalJson = res.json;
+            res.json = function(body: any) {
+                logger.logResponse(
+                    req.method,
+                    req.originalUrl,
+                    res.statusCode,
+                    res.getHeaders() as Record<string, string>,
+                    body
+                );
+                return originalJson.call(this, body);
+            };
+
+            // Override res.end to capture response for non-JSON responses
+            const originalEnd = res.end;
+            res.end = function(chunk?: any, encoding?: any) {
+                if (chunk && !res.headersSent) {
+                    logger.logResponse(
+                        req.method,
+                        req.originalUrl,
+                        res.statusCode,
+                        res.getHeaders() as Record<string, string>,
+                        chunk.toString()
+                    );
+                }
+                return originalEnd.call(this, chunk, encoding);
+            };
+        }
+
+        next();
+    });
+    */
 
     // Health check endpoint
     app.get('/health', (req: Request, res: Response<HealthResponse>) => {
@@ -54,9 +110,9 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
     
     // Debug endpoint to test request logging
     app.post('/debug/test', (req: Request, res: Response) => {
-        console.log(`🔍 [DEBUG] Test endpoint hit`);
-        console.log(`🔍 [DEBUG] Request body:`, req.body);
-        console.log(`🔍 [DEBUG] Request headers:`, req.headers);
+        Logger.debug(`🔍 [DEBUG] Test endpoint hit`);
+        Logger.debug(`🔍 [DEBUG] Request body:`, req.body);
+        Logger.debug(`🔍 [DEBUG] Request headers:`, req.headers);
         res.json({ 
             message: 'Debug endpoint hit',
             body: req.body,
@@ -68,8 +124,8 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
     app.post('/api/design-systems', 
         validateRequest(DesignSystemDataSchema),
         async (req: Request<{}, ApiResponse, DesignSystemData>, res: Response<ApiResponse>): Promise<void> => {
-        console.log(`🚀 [POST] /api/design-systems endpoint hit`);
-        console.log(`🚀 [POST] Request body received:`, {
+        Logger.log(`🚀 [POST] /api/design-systems endpoint hit`);
+        Logger.log(`🚀 [POST] Request body received:`, {
             name: req.body?.name,
             version: req.body?.version,
             hasThemeData: !!req.body?.themeData,
@@ -80,21 +136,21 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
         try {
             // Request body is already validated by Zod middleware
             const designSystemData = req.body;
-            console.log(`✅ [POST] Validation passed, proceeding to save design system: ${designSystemData.name}@${designSystemData.version}`);
+            Logger.log(`✅ [POST] Validation passed, proceeding to save design system: ${designSystemData.name}@${designSystemData.version}`);
 
             // Use the enhanced DesignSystemStore which now handles transformation internally
-            console.log(`🔄 [POST] Calling store.saveDesignSystem...`);
+            Logger.log(`🔄 [POST] Calling store.saveDesignSystem...`);
             await store.saveDesignSystem(designSystemData);
-            console.log(`✅ [POST] store.saveDesignSystem completed successfully`);
+            Logger.log(`✅ [POST] store.saveDesignSystem completed successfully`);
 
             res.json({ 
                 success: true, 
                 message: `Design system ${designSystemData.name}@${designSystemData.version} saved successfully with transformation (${designSystemData.componentsData.length} components, theme: ${designSystemData.themeData ? 'present' : 'missing'})`
             });
-            console.log(`✅ [POST] Response sent successfully`);
+            Logger.log(`✅ [POST] Response sent successfully`);
 
         } catch (error) {
-            console.error('❌ [POST] Error saving design system:', error);
+            Logger.error('❌ [POST] Error saving design system:', error);
             const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to save design system',
@@ -122,7 +178,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
             } as any);
 
         } catch (error) {
-            console.error('Error loading design system:', error);
+            Logger.error('Error loading design system:', error);
             const err = error as Error;
             
             if (err.message.includes('Missing') || err.message.includes('not found')) {
@@ -157,7 +213,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
             res.json(designSystems);
 
         } catch (error) {
-            console.error('Error listing design systems:', error);
+            Logger.error('Error listing design systems:', error);
             const err = error as Error;
             res.status(500).json({ 
                 error: 'Failed to list design systems',
@@ -184,7 +240,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
             });
 
         } catch (error) {
-            console.error('Error deleting design system:', error);
+            Logger.error('Error deleting design system:', error);
             const err = error as Error;
             
             if (err.message.includes('not found')) {
@@ -220,7 +276,7 @@ const createApp = (storageDir?: string, indexStore?: IndexStore): Application =>
             return;
         }
 
-        console.error('Unhandled error:', err);
+        Logger.error('Unhandled error:', err);
         res.status(500).json({ 
             error: 'Internal server error',
             details: err.message 
