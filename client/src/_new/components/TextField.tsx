@@ -99,7 +99,7 @@ const StyledSpan = styled.span`
 const StyledContentRight = styled.div`
     cursor: pointer;
 
-    color: var(--gray-color-800);
+    color: var(--gray-color-600);
     width: 0.75rem;
     height: 0.75rem;
 

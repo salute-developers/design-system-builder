@@ -108,14 +108,30 @@ const StyledDescriptionStroke = styled.div<{ color: string }>`
     padding: 0.25rem 0;
 `;
 
-const StyledDescriptionFill = styled.div<{ color: string }>`
-    color: #ffffff;
-    background: ${({ color }) => color};
+const StyledDescriptionFill = styled.div<{ backgroundColor: string; color: string }>`
+    color: ${({ color }) => color};
+    background: ${({ backgroundColor }) => backgroundColor};
 
     white-space: nowrap;
 
-    padding: 0.25rem;
+    padding: 0.0625rem 0.25rem 0.1875rem 0.25rem;
     border-radius: 0.25rem;
+`;
+
+const StyledDescriptionWarning = styled.div`
+    display: flex;
+    gap: 0.125rem;
+    align-items: center;
+
+    color: var(--gray-color-500);
+`;
+
+const StyledDescriptionWarningWCAG = styled.div`
+    font-family: 'SB Sans Display';
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 12px; 
 `;
 
 const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
@@ -141,9 +157,11 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
     const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
     const backgroundColor = themeMode === 'light' ? '#C7C7C7' : '#171717';
-    const isColorContrast = checkIsColorContrast(hoveredColor, backgroundColor);
+    const threshold = saturationType === 'stroke' ? 3 : 2;
+    const isColorContrast = checkIsColorContrast(hoveredColor, backgroundColor, threshold);
+    const contrastColor = checkIsColorContrast(hoveredColor, '#FFFFFF') ? '#F5F5F5' : '#171717'; // TODO: сделать переменными 100 / 950
 
-    const currentItem = hoveredIndex && itemRefs?.current[hoveredIndex];
+    const currentItem = hoveredIndex !== null && itemRefs?.current[hoveredIndex];
     const descriptionLeftOffset = currentItem ? currentItem.offsetLeft - 128 / 2 + 48 / 2 : 0;
 
     const onClick = (value: string) => {
@@ -209,9 +227,16 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
                             <StyledDescriptionStroke color={hoveredColor}>для текста и ссылок</StyledDescriptionStroke>
                         )}
                         {saturationType === 'fill' && (
-                            <StyledDescriptionFill color={hoveredColor}>для контролов и плашек</StyledDescriptionFill>
+                            <StyledDescriptionFill color={contrastColor} backgroundColor={hoveredColor}>
+                                для контролов и плашек
+                            </StyledDescriptionFill>
                         )}
-                        {!isColorContrast && <StyledIconInfoCircleOutline color="var(--gray-color-500)" />}
+                        {!isColorContrast && (
+                            <StyledDescriptionWarning>
+                                <StyledIconInfoCircleOutline color="inherit" />
+                                <StyledDescriptionWarningWCAG>WCAG</StyledDescriptionWarningWCAG>
+                            </StyledDescriptionWarning>
+                        )}
                     </StyledDescriptionHelper>
                 </StyledDescription>
             )}

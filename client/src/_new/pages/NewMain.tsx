@@ -30,7 +30,7 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --gray-color-150: ${general[grayTone][themeMode === 'dark' ? 150 : 700]};
         --gray-color-200: ${general[grayTone][200]};
         --gray-color-250: ${general[grayTone][250]};
-        --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
+        --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
         --gray-color-400: ${general[grayTone][themeMode === 'dark' ? 400 : 800]};
         --gray-color-500: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
         --gray-color-600: ${general[grayTone][600]};
@@ -38,7 +38,7 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --gray-color-800: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
         --gray-color-850: ${general[grayTone][850]};
         --gray-color-900: ${general[grayTone][900]};
-        --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 100]};
+        --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 200]};
         --gray-color-1000: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
     `;
 
@@ -171,6 +171,7 @@ const MenuItem = styled.div<{ selected?: boolean }>`
         `}
 
     display: flex;
+    gap: 0.75rem;
     align-items: center;
     align-self: stretch;
 `;
@@ -249,7 +250,7 @@ const StyledProjectName = styled.div`
         color: var(--gray-color-150);
     }
 
-    margin-top: 1rem;
+    margin-top: 0.25rem;
 
     font-family: 'SB Sans Display';
     font-size: 12px;
@@ -358,6 +359,9 @@ export const NewMain = () => {
                     <MenuSection>Контрибьюты</MenuSection>
                     <MenuItem>
                         <MenuItemText>Валерьян Константинович Приходрищенко</MenuItemText>
+                        <MenuItemContentRight>
+                            <IconPlus size="xs" color="inherit" />
+                        </MenuItemContentRight>
                     </MenuItem>
                     <MenuItem>
                         <MenuItemText>Приходько Валерьян</MenuItemText>
@@ -415,7 +419,9 @@ export const NewMain = () => {
                     {popupContentPage === popupContentPages.CREATION_PROGRESS && (
                         <CreationProgress
                             projectName={parameters.projectName}
-                            accentColor={general[parameters.accentColor || 'amber'][parameters.darkFillSaturation || '50']}
+                            accentColor={
+                                general[parameters.accentColor || 'amber'][parameters.darkFillSaturation || '50']
+                            }
                             onPrevPage={onPopupClose}
                         />
                     )}
