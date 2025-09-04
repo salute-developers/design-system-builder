@@ -1,12 +1,15 @@
-import { IconArrowBack, IconMessageDraftOutline } from '@salutejs/plasma-icons';
-import React, { useState, forwardRef, useRef, KeyboardEvent } from 'react';
+import React, { useState, useRef, KeyboardEvent, InputHTMLAttributes, useEffect } from 'react';
+import { IconArrowBack, IconClose, IconMessageDraftOutline } from '@salutejs/plasma-icons';
 import styled from 'styled-components';
+
 import { useInputDynamicWidth } from '../hooks';
 
 const Root = styled.div<{ view?: 'default' | 'negative' }>`
     position: relative;
+    cursor: pointer;
 
     height: 1.5rem;
+    width: fit-content;
 
     display: flex;
     gap: 0.375rem;
@@ -21,6 +24,19 @@ const Root = styled.div<{ view?: 'default' | 'negative' }>`
     --text-field-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-300)' : '#ff0000')};
     --text-field-color-hover: ${({ view }) => (view === 'default' ? 'var(--gray-color-150)' : '#ff0000')};
     --text-field-border-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-800)' : '#ff0000')};
+
+    &:hover div + div {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-field-color-hover);
+    }
+
+    &:hover > div {
+        color: var(--text-field-color-hover);
+    }
+
+    &:hover svg {
+        color: var(--gray-color-300);
+    }
 `;
 
 const StyledLabel = styled.div`
@@ -32,11 +48,6 @@ const StyledWrapper = styled.div`
 
     color: var(--text-field-color);
     caret-color: var(--text-field-color);
-
-    &:hover {
-        background: rgba(255, 255, 255, 0.06);
-        color: var(--text-field-color-hover);
-    }
 
     &:focus-within {
         box-shadow: 0 0 0 0.0625rem var(--text-field-border-color) inset;
@@ -60,6 +71,11 @@ const StyledWrapper = styled.div`
 
 const StyledInput = styled.input`
     background: transparent;
+    cursor: pointer;
+
+    :focus {
+        cursor: text;
+    }
 
     color: inherit;
     font: inherit;
@@ -92,6 +108,12 @@ const StyledContentRight = styled.div`
     justify-content: center;
 `;
 
+const StyledIconButton = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+`;
+
 const StyledIconMessageDraftOutline = styled(IconMessageDraftOutline)`
     --icon-size: 0.75rem !important;
 `;
@@ -100,22 +122,40 @@ const StyledIconArrowBack = styled(IconArrowBack)`
     --icon-size: 0.75rem !important;
 `;
 
-interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+const StyledIconClose = styled(IconClose)`
+    --icon-size: 0.75rem !important;
+`;
+
+interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
     value?: string;
     view?: 'default' | 'negative';
     label?: string;
     placeholder?: string;
     style?: React.CSSProperties;
+    onCommit?: (value: string) => void;
 }
 
-export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) => {
-    const { value, placeholder, label, view = 'default', onChange, onKeyDown, onFocus, onBlur, ...rest } = props;
+export const TextField = (props: TextFieldProps) => {
+    const {
+        value: externalValue,
+        placeholder,
+        label,
+        view = 'default',
+        onKeyDown,
+        onCommit,
+        onFocus,
+        onBlur,
+        ...rest
+    } = props;
 
     const [isFocused, setIsFocused] = useState(false);
-    const inputRef = React.useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const spanRef = useRef<HTMLSpanElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
+
+    const [value, setValue] = useState(externalValue || '');
+    const prevValue = useRef<string>(value);
 
     const [inputWidth] = useInputDynamicWidth(rootRef, spanRef, {
         value,
@@ -123,6 +163,10 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
         maxWidth: 172,
         shiftWidth: 2,
     });
+
+    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setValue(event.target.value);
+    };
 
     const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
         setIsFocused(true);
@@ -137,7 +181,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
     };
 
     const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+        event.preventDefault();
+
         setIsFocused(false);
+
+        setValue(prevValue.current);
 
         if (onBlur) {
             onBlur(event);
@@ -145,6 +193,11 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter' && onCommit) {
+            onCommit(value);
+            prevValue.current = value;
+        }
+
         if (event.key === 'Enter') {
             inputRef.current?.blur();
         }
@@ -154,9 +207,31 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
         }
     };
 
+    const handleFocusOnInput = () => {
+        inputRef.current?.focus();
+    };
+
+    const handleCommitValue = () => {
+        if (onCommit) {
+            onCommit(value);
+            prevValue.current = value;
+        }
+    };
+
+    const handleResetValue = () => {
+        setValue(prevValue.current);
+    };
+
+    useEffect(() => {
+        if (externalValue) {
+            setValue(externalValue);
+            prevValue.current = externalValue;
+        }
+    }, [externalValue]);
+
     return (
         <Root view={view} ref={rootRef} {...rest}>
-            <StyledLabel>{label}</StyledLabel>
+            <StyledLabel onClick={handleFocusOnInput}>{label}</StyledLabel>
             <StyledWrapper>
                 <StyledInput
                     type="text"
@@ -164,20 +239,30 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props) =>
                     value={value}
                     placeholder={placeholder}
                     style={{ width: `${inputWidth}px` }}
-                    onChange={onChange}
+                    onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                 />
                 <StyledSpan ref={spanRef}>{value || placeholder}</StyledSpan>
                 <StyledContentRight>
-                    {isFocused ? (
-                        <StyledIconArrowBack color="inherit" />
-                    ) : (
-                        <StyledIconMessageDraftOutline color="inherit" />
+                    {!isFocused && (
+                        <StyledIconButton onClick={handleFocusOnInput}>
+                            <StyledIconMessageDraftOutline color="inherit" />
+                        </StyledIconButton>
+                    )}
+                    {value && isFocused && (
+                        <StyledIconButton onMouseDown={handleCommitValue}>
+                            <StyledIconArrowBack color="inherit" />
+                        </StyledIconButton>
+                    )}
+                    {!value && isFocused && (
+                        <StyledIconButton onMouseDown={handleResetValue}>
+                            <StyledIconClose color="inherit" />
+                        </StyledIconButton>
                     )}
                 </StyledContentRight>
             </StyledWrapper>
         </Root>
     );
-});
+};

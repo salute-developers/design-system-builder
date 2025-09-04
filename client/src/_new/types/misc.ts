@@ -9,8 +9,10 @@ export interface Parameters {
     packagesName: string;
     grayTone: GrayTone;
     accentColor: GeneralColor;
-    lightSaturation: PlasmaSaturation;
-    darkSaturation: PlasmaSaturation;
+    lightStrokeSaturation: PlasmaSaturation;
+    lightFillSaturation: PlasmaSaturation;
+    darkStrokeSaturation: PlasmaSaturation;
+    darkFillSaturation: PlasmaSaturation;
 }
 
 export const grayTones = [
