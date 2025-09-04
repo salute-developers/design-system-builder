@@ -1,6 +1,6 @@
-import { ContrastRatioChecker } from 'contrast-ratio-checker';
 import { HTMLAttributes } from 'react';
 import styled from 'styled-components';
+import { checkIsColorContrast } from '../utils';
 
 const Root = styled.div<{ backgroundColor?: string; color?: string }>`
     cursor: pointer;
@@ -44,16 +44,14 @@ const StyledContentRight = styled.div`
 
 interface HeroButtonProps extends HTMLAttributes<HTMLDivElement> {
     text: string;
-    backgroundColor: string;
+    backgroundColor?: string;
     contentRight?: React.ReactNode;
 }
 
 export const HeroButton = (props: HeroButtonProps) => {
-    const { text, backgroundColor, contentRight, ...rest } = props;
+    const { text, backgroundColor = '#000000', contentRight, ...rest } = props;
 
-    const checker = new ContrastRatioChecker();
-    const isColorContrast = Math.round(checker.getContrastRatioByHex(backgroundColor, '#FFFFFF') * 100) / 100 > 3;
-    const color = isColorContrast ? 'rgba(255, 255, 255,1)' : 'rgba(0, 0, 0, 1)';
+    const color = checkIsColorContrast(backgroundColor, '#FFFFFF', 3) ? 'rgba(255, 255, 255,1)' : 'rgba(0, 0, 0, 1)';
 
     return (
         <Root backgroundColor={backgroundColor} color={color} {...rest}>

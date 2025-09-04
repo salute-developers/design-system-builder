@@ -9,6 +9,7 @@ import {
     IconBrightnessmaxOutline,
     IconHelpCircleOutline,
     IconHomeAltOutline,
+    IconPlus,
     IconSettingsOutline,
     IconTree,
 } from '@salutejs/plasma-icons';
@@ -20,15 +21,16 @@ import { GrayTone, Parameters } from '../types';
 import { CreateFirstName } from './CreateFirstName';
 import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
+import { transliterateToSnakeCase } from '../utils';
 
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
     return `
         --gray-color-50: ${general[grayTone][50]};
-        --gray-color-100: ${general[grayTone][100]};
+        --gray-color-100: ${general[grayTone][themeMode === 'dark' ? 100 : 950]};
         --gray-color-150: ${general[grayTone][themeMode === 'dark' ? 150 : 700]};
         --gray-color-200: ${general[grayTone][200]};
         --gray-color-250: ${general[grayTone][250]};
-        --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
+        --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
         --gray-color-400: ${general[grayTone][themeMode === 'dark' ? 400 : 800]};
         --gray-color-500: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
         --gray-color-600: ${general[grayTone][600]};
@@ -36,7 +38,7 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --gray-color-800: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
         --gray-color-850: ${general[grayTone][850]};
         --gray-color-900: ${general[grayTone][900]};
-        --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 200]};
+        --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 100]};
         --gray-color-1000: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
     `;
 
@@ -130,7 +132,10 @@ const HeaderTitle = styled.div`
     line-height: 16px;
 `;
 
-const MenuList = styled.div``;
+const MenuList = styled.div`
+    display: flex;
+    flex-direction: column;
+`;
 
 const MenuSection = styled.div`
     padding: 0 0.5rem;
@@ -150,24 +155,12 @@ const MenuSection = styled.div`
     line-height: 16px;
 `;
 
-const MenuItem = styled.div`
+const MenuItem = styled.div<{ selected?: boolean }>`
     cursor: pointer;
 
-    display: flex;
-    height: 2rem;
-    align-items: center;
-    align-self: stretch;
-`;
-
-const MenuItemText = styled.span<{ selected?: boolean }>`
+    margin: 0.25rem 0;
     padding: 0.25rem 0.5rem;
     border-radius: 0.375rem;
-
-    color: var(--gray-color-300);
-
-    &:hover {
-        color: var(--gray-color-150);
-    }
 
     ${({ selected }) =>
         selected &&
@@ -176,6 +169,18 @@ const MenuItemText = styled.span<{ selected?: boolean }>`
             color: var(--gray-color-150);
             background: rgba(255, 255, 255, 0.04);
         `}
+
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+`;
+
+const MenuItemText = styled.span`
+    color: var(--gray-color-300);
+
+    &:hover {
+        color: var(--gray-color-150);
+    }
 
     white-space: nowrap;
     overflow: hidden;
@@ -187,6 +192,20 @@ const MenuItemText = styled.span<{ selected?: boolean }>`
     font-style: normal;
     font-weight: 400;
     line-height: 16px;
+`;
+
+const MenuItemContentRight = styled.div`
+    cursor: pointer;
+
+    color: var(--gray-color-500);
+
+    &:hover {
+        color: var(--gray-color-150);
+    }
+
+    display: flex;
+    align-items: center;
+    align-self: stretch;
 `;
 
 const ContentWrapper = styled.div`
@@ -223,65 +242,26 @@ const StyledStartButton = styled.div`
     transition: color 0.2s ease-in-out;
 `;
 
+const StyledProjectName = styled.div`
+    color: var(--gray-color-500);
+
+    &:hover {
+        color: var(--gray-color-150);
+    }
+
+    margin-top: 1rem;
+
+    font-family: 'SB Sans Display';
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: 16px; /* 133.333% */
+`;
+
 const StyledPopup = styled(Popup)`
     left: 4rem;
     padding: 3.75rem 5rem 0 22.5rem;
 `;
-
-// const getNextOrPrevPage = (currentStep: keyof typeof popupContentPages | null, direction: 'next' | 'prev') => {
-//     if (!currentStep) {
-//         return null;
-//     }
-
-//     const steps = Object.values(popupContentPages);
-//     const currentIndex = steps.indexOf(currentStep);
-
-//     if (currentIndex === -1) {
-//         return null;
-//     }
-
-//     if (direction === 'next' && currentIndex < steps.length - 1) {
-//         return steps[currentIndex + 1];
-//     }
-
-//     if (direction === 'prev' && currentIndex > 0) {
-//         return steps[currentIndex - 1];
-//     }
-
-//     return null;
-// };
-
-// const onPrevPage = () => {
-//     const prevPage = getNextOrPrevPage(popupContentPage, 'prev');
-
-//     if (!prevPage) {
-//         onPopupClose();
-//         return;
-//     }
-
-//     if (popupContentPage === popupContentPages.CREATION_PROGRESS) {
-//         setPopupContentPage(prevPage);
-//         return;
-//     }
-
-//     const prevStep = popupContentStep === -1 ? -1 : popupContentStep - 1;
-
-//     if (popupContentStep >= 0) {
-//         setPopupContentStep(prevStep);
-
-//         if (popupContentStep === 2) {
-//             setThemeMode('dark');
-//         }
-
-//         if (popupContentStep === 3) {
-//             setThemeMode('light');
-//         }
-//     }
-
-//     if (prevStep === -1 || popupContentStep === 4) {
-//         setPopupContentPage(prevPage);
-//     }
-// };
 
 const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
@@ -294,19 +274,11 @@ export const NewMain = () => {
     const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
         popupContentPages.CREATE_FIRST_NAME,
     );
-    const [popupContentStep, setPopupContentStep] = useState<number>(0);
 
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
 
-    const [parameters, setParameters] = useState<Parameters>({
-        projectName: '',
-        packagesName: '',
-        grayTone,
-        accentColor: 'electricBlue',
-        lightSaturation: 600,
-        darkSaturation: 400,
-    });
+    const [parameters, setParameters] = useState<Partial<Parameters>>({});
 
     const onChangeParameters = (name: string, value: any) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
@@ -360,8 +332,11 @@ export const NewMain = () => {
                     </IconButton>
                 </Header>
                 <MenuList>
-                    <MenuItem>
-                        <MenuItemText selected>Проекты</MenuItemText>
+                    <MenuItem selected>
+                        <MenuItemText>Мои проекты</MenuItemText>
+                        <MenuItemContentRight>
+                            <IconPlus size="xs" color="inherit" />
+                        </MenuItemContentRight>
                     </MenuItem>
                     <MenuItem>
                         <MenuItemText>Черновики</MenuItemText>
@@ -371,6 +346,9 @@ export const NewMain = () => {
                     <MenuSection>Команды</MenuSection>
                     <MenuItem>
                         <MenuItemText>Сбер</MenuItemText>
+                        <MenuItemContentRight>
+                            <IconPlus size="xs" color="inherit" />
+                        </MenuItemContentRight>
                     </MenuItem>
                     <MenuItem>
                         <MenuItemText>Девайсы</MenuItemText>
@@ -392,7 +370,10 @@ export const NewMain = () => {
             <Content>
                 <ContentWrapper>
                     <ContentHeader>Пока ничего не создано</ContentHeader>
-                    <StyledStartButton onClick={onOpenPopup}>Начните с имени проекта</StyledStartButton>
+                    <StyledStartButton onClick={onOpenPopup}>
+                        {parameters.projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
+                    </StyledStartButton>
+                    {parameters.projectName && <StyledProjectName>{parameters.projectName}</StyledProjectName>}
                 </ContentWrapper>
             </Content>
             {isPopupOpen && (
@@ -402,19 +383,23 @@ export const NewMain = () => {
                             onPrevPage={onPopupClose}
                             onNextPage={(value: string) => {
                                 onChangeParameters('projectName', value);
-                                onChangeParameters('packagesName', value);
-                                setPopupContentStep(2);
+                                const transliteratedValue = transliterateToSnakeCase(value);
+                                onChangeParameters('packagesName', transliteratedValue);
+
                                 setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
                             }}
                         />
                     )}
                     {popupContentPage === popupContentPages.SETUP_PARAMETERS && (
                         <SetupParameters
-                            popupContentStep={popupContentStep}
                             parameters={parameters}
+                            themeMode={themeMode}
                             onChangeParameters={onChangeParameters}
-                            onChangePopupContentStep={setPopupContentStep}
                             onPrevPage={onPopupClose}
+                            onResetParameters={() => {
+                                setParameters({});
+                                setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
+                            }}
                             onNextPage={() => {
                                 setPopupContentPage(popupContentPages.CREATION_PROGRESS);
                             }}
@@ -430,7 +415,7 @@ export const NewMain = () => {
                     {popupContentPage === popupContentPages.CREATION_PROGRESS && (
                         <CreationProgress
                             projectName={parameters.projectName}
-                            accentColor={general[parameters.accentColor][parameters.darkSaturation]}
+                            accentColor={general[parameters.accentColor || 'amber'][parameters.darkFillSaturation || '50']}
                             onPrevPage={onPopupClose}
                         />
                     )}
