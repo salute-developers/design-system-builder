@@ -1,5 +1,4 @@
-import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
-import { ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { IconArrowsMoveVertical, IconInfoCircleOutline } from '@salutejs/plasma-icons';
 import { forwardRef, HTMLAttributes } from 'react';
 import styled from 'styled-components';
 import { checkIsColorContrast } from '../utils';
@@ -17,7 +16,7 @@ const Root = styled.div<{ view?: 'default' | 'light' | 'dark' }>`
     align-items: center;
 
     --edit-button-background-color: ${({ view }) =>
-        view === 'default' ? 'transparent' : view === 'light' ? 'var(--gray-color-200)' : 'var(--gray-color-950)'};
+        view === 'default' ? 'transparent' : view === 'light' ? '#F5F5F5' : '#171717'};
 
     &:hover > div {
         color: var(--gray-color-150);
@@ -38,9 +37,13 @@ const StyledLabel = styled.div`
     line-height: 16px;
 `;
 
-const StyledWrapper = styled.div<{ color?: string; saturationType?: 'fill' | 'stroke' }>`
-    background: ${({ saturationType, color }) =>
-        saturationType === 'fill' && color ? color : color ? 'var(--gray-color-100)' : 'transparent'};
+const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: 'fill' | 'stroke' }>`
+    background: ${({ saturationType, backgroundColor }) =>
+        saturationType === 'fill'
+            ? backgroundColor
+            : backgroundColor
+            ? 'var(--edit-button-background-color)'
+            : 'transparent'};
 
     border-radius: 1rem;
 
@@ -51,12 +54,11 @@ const StyledWrapper = styled.div<{ color?: string; saturationType?: 'fill' | 'st
 
     padding: 0.125rem 0.25rem;
 
-    transition: all 0.2s ease-in-out;
+    transition: all 0.1s ease-in-out;
 `;
 
 const StyledText = styled.div<{ color?: string; saturationType?: 'fill' | 'stroke' }>`
-    color: ${({ saturationType, color }) =>
-        saturationType === 'stroke' && color ? color : color ? 'var(--gray-color-100)' : 'var(--gray-color-300)'};
+    color: ${({ saturationType, color }) => (saturationType ? color : 'var(--gray-color-300)')};
 
     font-family: 'SB Sans Display';
     font-size: 12px;
@@ -75,8 +77,8 @@ const StyledContentLeft = styled.div`
     justify-content: center;
 `;
 
-const StyledContentRight = styled.div<{ saturationType?: 'fill' | 'stroke' }>`
-    color: ${({ saturationType }) => (saturationType === 'fill' ? 'var(--gray-color-950)' : 'var(--gray-color-600)')};
+const StyledContentRight = styled.div<{ color?: string; saturationType?: 'fill' | 'stroke' }>`
+    color: ${({ saturationType, color }) => (saturationType === 'fill' ? color : 'var(--gray-color-600)')};
     width: 0.75rem;
     height: 0.75rem;
 
@@ -85,7 +87,15 @@ const StyledContentRight = styled.div<{ saturationType?: 'fill' | 'stroke' }>`
     justify-content: center;
 `;
 
-const StyledWarning = styled.span`
+const StyledWarning = styled.section`
+    color: var(--gray-color-600);
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+`;
+
+const StyledWarningText = styled.div`
     color: var(--gray-color-600);
 
     font-family: 'SB Sans Display';
@@ -99,37 +109,49 @@ const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
     --icon-size: 0.75rem !important;
 `;
 
+const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
+    margin-right: 0.25rem;
+    margin-left: 0.375rem;
+    margin-top: 0.0625rem; // TODO: Переделать
+    --icon-size: 0.75rem !important;
+`;
+
 interface EditButtonProps extends HTMLAttributes<HTMLDivElement> {
     text?: string;
     label?: string;
     color?: string;
     view?: 'default' | 'light' | 'dark';
     contentLeft?: React.ReactNode;
-    themeMode?: ThemeMode;
     saturationType?: 'fill' | 'stroke';
+    isReady?: boolean;
 }
 
 export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, ref) => {
-    const { label, text, view = 'default', color, saturationType, contentLeft, themeMode, ...rest } = props;
+    const { label, text, view = 'default', color, saturationType, contentLeft, isReady, ...rest } = props;
 
-    const backgroundColor = themeMode === 'light' ? '#C7C7C7' : '#171717';
-    console.log('color', color);
-
+    const backgroundColor = view === 'light' ? '#C7C7C7' : '#171717';
     const isColorContrast = color && checkIsColorContrast(color, backgroundColor);
+    const contrastColor = color && checkIsColorContrast(color, '#FFFFFF') ? '#F5F5F5' : '#171717'; // TODO: сделать переменными 100 / 950
+    const textColor = saturationType === 'fill' ? contrastColor : color;
 
     return (
         <Root view={view} {...rest} ref={ref}>
             <StyledLabel>{label}</StyledLabel>
-            <StyledWrapper color={color} saturationType={saturationType}>
+            <StyledWrapper backgroundColor={color} saturationType={saturationType}>
                 {contentLeft && <StyledContentLeft>{contentLeft}</StyledContentLeft>}
-                <StyledText color={color} saturationType={saturationType}>
+                <StyledText color={textColor} saturationType={saturationType}>
                     {text}
                 </StyledText>
-                <StyledContentRight saturationType={saturationType}>
+                <StyledContentRight color={textColor} saturationType={saturationType}>
                     <StyledIconArrowsMoveVertical color="inherit" />
                 </StyledContentRight>
             </StyledWrapper>
-            {!isColorContrast && saturationType && <StyledWarning>— может слиться с фоном</StyledWarning>}
+            {!isColorContrast && saturationType && (
+                <StyledWarning>
+                    <StyledIconInfoCircleOutline color="inherit" />
+                    {!isReady && <StyledWarningText>может слиться с фоном</StyledWarningText>}
+                </StyledWarning>
+            )}
         </Root>
     );
 });
