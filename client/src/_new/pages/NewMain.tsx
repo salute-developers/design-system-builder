@@ -225,14 +225,16 @@ const ContentHeader = styled.div`
     line-height: 52px;
 `;
 
-const StyledStartButton = styled.div`
+const StyledStartWrapper = styled.div`
     cursor: pointer;
 
-    color: var(--gray-color-300);
-
-    &:hover {
+    &:hover div {
         color: var(--gray-color-150);
     }
+`;
+
+const StyledStartButton = styled.div`
+    color: var(--gray-color-300);
 
     font-family: 'SB Sans Display';
     font-size: 48px;
@@ -246,17 +248,15 @@ const StyledStartButton = styled.div`
 const StyledProjectName = styled.div`
     color: var(--gray-color-500);
 
-    &:hover {
-        color: var(--gray-color-150);
-    }
-
     margin-top: 0.25rem;
 
     font-family: 'SB Sans Display';
     font-size: 12px;
     font-style: normal;
     font-weight: 400;
-    line-height: 16px; /* 133.333% */
+    line-height: 16px;
+
+    transition: color 0.2s ease-in-out;
 `;
 
 const StyledPopup = styled(Popup)`
@@ -374,10 +374,12 @@ export const NewMain = () => {
             <Content>
                 <ContentWrapper>
                     <ContentHeader>Пока ничего не создано</ContentHeader>
-                    <StyledStartButton onClick={onOpenPopup}>
-                        {parameters.projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
-                    </StyledStartButton>
-                    {parameters.projectName && <StyledProjectName>{parameters.projectName}</StyledProjectName>}
+                    <StyledStartWrapper onClick={onOpenPopup}>
+                        <StyledStartButton>
+                            {parameters.projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
+                        </StyledStartButton>
+                        {parameters.projectName && <StyledProjectName>{parameters.projectName}</StyledProjectName>}
+                    </StyledStartWrapper>
                 </ContentWrapper>
             </Content>
             {isPopupOpen && (

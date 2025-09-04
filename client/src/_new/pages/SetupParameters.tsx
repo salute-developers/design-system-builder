@@ -168,6 +168,10 @@ const StyledThemeModeSwitcher = styled.span<{ color: string }>`
     }
 `;
 
+const StyledSeparator = styled.div`
+    height: 1.5rem;
+`;
+
 const accentColors = Object.entries(general)
     .slice(0, -3)
     .map(([name, item]) => ({
@@ -387,7 +391,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
                     ) : (
                         <TextField
                             value={projectName}
-                            label="Имя проекта"
+                            label="Название проекта"
                             onClick={() => {
                                 setEditStep(popupSetupSteps.PROJECT_NAME);
                             }}
@@ -518,7 +522,11 @@ export const SetupParameters = (props: SetupParametersProps) => {
                             )}
                         </>
                     )}
+                </StyledWrapper>
 
+                {isReady && <StyledSeparator />}
+
+                <StyledWrapper>
                     {canShowParameter(popupSetupSteps.DARK_STROKE_SATURATION, popupSetupStep, editStep) && (
                         <>
                             {popupSetupStep === popupSetupSteps.DARK_STROKE_SATURATION ||
