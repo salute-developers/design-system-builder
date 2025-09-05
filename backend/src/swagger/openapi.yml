@@ -15,7 +15,7 @@ servers:
     description: Development server
 
 paths:
-  /design-systems:
+  /api/design-systems:
     get:
       summary: Get all design systems
       description: Retrieve a list of all design systems
@@ -68,7 +68,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /design-systems/{id}:
+  /api/design-systems/{id}:
     get:
       summary: Get design system by ID
       description: Retrieve a specific design system with all its components, variations, and token values
@@ -191,7 +191,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /design-systems/components:
+  /api/design-systems/components:
     post:
       summary: Add component to design system
       description: Add an existing component to a design system
@@ -235,7 +235,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /design-systems/components/{id}:
+  /api/design-systems/components/{id}:
     delete:
       summary: Remove component from design system
       description: Remove a component from a design system
@@ -272,7 +272,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /components/available:
+  /api/components/available:
     get:
       summary: Get available components
       description: Retrieve all available components with their variations and tokens
@@ -294,7 +294,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /components/{id}/invariants:
+  /api/components/{id}/invariants:
     get:
       summary: Get component invariant token values
       description: Retrieve all invariant token values for a specific component in a design system
@@ -399,7 +399,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /components/{id}/invariants/{tokenValueId}:
+  /api/components/{id}/invariants/{tokenValueId}:
     delete:
       summary: Delete invariant token value
       description: Delete a specific invariant token value for a component in a design system
@@ -452,7 +452,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /variation-values:
+  /api/variation-values:
     get:
       summary: Get all variation values
       description: Retrieve a list of all variation values
@@ -505,7 +505,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /variation-values/{id}:
+  /api/variation-values/{id}:
     get:
       summary: Get variation value by ID
       description: Retrieve a specific variation value
@@ -616,7 +616,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /health:
+  /api/health:
     get:
       summary: Health check
       description: Check if the API is running and healthy
