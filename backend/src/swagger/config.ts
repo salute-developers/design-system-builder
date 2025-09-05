@@ -35,7 +35,7 @@ export function setupSwagger(app: Express): void {
     const swaggerSpec = yaml.load(swaggerDocument);
     
     // Serve swagger docs
-    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    app.use('/api-docs', swaggerUi.serveFiles(swaggerSpec), swaggerUi.setup(swaggerSpec, {
       customSiteTitle: 'Design System Builder API',
       customCss: `
         .swagger-ui .topbar { display: none; }

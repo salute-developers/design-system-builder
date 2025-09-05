@@ -15,7 +15,7 @@ servers:
     description: Development server (Admin API)
 
 paths:
-  /components:
+  /admin-api/components:
     get:
       summary: Get all components (Admin)
       description: Retrieve a list of all components with full details for admin management
@@ -68,7 +68,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /components/{id}:
+  /admin-api/components/{id}:
     get:
       summary: Get component by ID (Admin)
       description: Retrieve a specific component by its ID with full details
@@ -179,7 +179,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /components/{id}/invariants:
+  /admin-api/components/{id}/invariants:
     get:
       summary: Get component invariant token values (Admin)
       description: Retrieve all invariant token values for a specific component
@@ -251,6 +251,334 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '404':
           description: Component not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin-api/variations:
+    get:
+      summary: Get all variations (Admin)
+      description: Retrieve a list of all variations
+      tags:
+        - Variations
+      responses:
+        '200':
+          description: Successfully retrieved variations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Variation'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new variation (Admin)
+      description: Create a new variation for a component
+      tags:
+        - Variations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVariationRequest'
+      responses:
+        '201':
+          description: Variation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Variation'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin-api/variations/{id}:
+    get:
+      summary: Get variation by ID (Admin)
+      description: Retrieve a specific variation by its ID
+      tags:
+        - Variations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved variation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Variation'
+        '404':
+          description: Variation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update variation (Admin)
+      description: Update an existing variation's name and description
+      tags:
+        - Variations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVariationRequest'
+      responses:
+        '200':
+          description: Variation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Variation'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Variation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete variation (Admin)
+      description: Delete a variation and all its related data
+      tags:
+        - Variations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Variation ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Variation deleted successfully
+        '404':
+          description: Variation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin-api/tokens:
+    get:
+      summary: Get all tokens (Admin)
+      description: Retrieve a list of all tokens
+      tags:
+        - Tokens
+      responses:
+        '200':
+          description: Successfully retrieved tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Token'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Create a new token (Admin)
+      description: Create a new token for a component
+      tags:
+        - Tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTokenRequest'
+      responses:
+        '201':
+          description: Token created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin-api/tokens/{id}:
+    get:
+      summary: Get token by ID (Admin)
+      description: Retrieve a specific token by its ID
+      tags:
+        - Tokens
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Token ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '200':
+          description: Successfully retrieved token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update token (Admin)
+      description: Update an existing token's properties
+      tags:
+        - Tokens
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Token ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTokenRequest'
+      responses:
+        '200':
+          description: Token updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400':
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete token (Admin)
+      description: Delete a token and all its related data
+      tags:
+        - Tokens
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Token ID
+          schema:
+            type: integer
+            format: int64
+            example: 1
+      responses:
+        '204':
+          description: Token deleted successfully
+        '404':
+          description: Token not found
           content:
             application/json:
               schema:
@@ -560,6 +888,144 @@ components:
         - updated
         - created
 
+    CreateVariationRequest:
+      type: object
+      properties:
+        componentId:
+          type: integer
+          format: int64
+          description: ID of the component
+          example: 1
+        name:
+          type: string
+          description: Name of the variation
+          example: "primary"
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the variation
+          example: "Primary button style"
+      required:
+        - componentId
+        - name
+
+    UpdateVariationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name of the variation
+          example: "updated-primary"
+        description:
+          type: string
+          nullable: true
+          description: Updated description of the variation
+          example: "Updated primary button style"
+      required:
+        - name
+
+    CreateTokenRequest:
+      type: object
+      properties:
+        componentId:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the component
+          example: 1
+        name:
+          type: string
+          description: Name of the token
+          example: "buttonColor"
+        type:
+          type: string
+          description: Type of the token
+          example: "color"
+        defaultValue:
+          type: string
+          nullable: true
+          description: Default value for the token
+          example: "#007bff"
+        description:
+          type: string
+          nullable: true
+          description: Optional description of the token
+          example: "Primary color for button component"
+        xmlParam:
+          type: string
+          nullable: true
+          description: XML parameter name
+          example: "colorPrimary"
+        composeParam:
+          type: string
+          nullable: true
+          description: Compose parameter name
+          example: "primaryColor"
+        iosParam:
+          type: string
+          nullable: true
+          description: iOS parameter name
+          example: "primaryColor"
+        webParam:
+          type: string
+          nullable: true
+          description: Web parameter name
+          example: "--button-primary-color"
+      required:
+        - name
+        - type
+
+    UpdateTokenRequest:
+      type: object
+      properties:
+        componentId:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID of the component
+          example: 1
+        name:
+          type: string
+          description: Updated name of the token
+          example: "updatedButtonColor"
+        type:
+          type: string
+          description: Updated type of the token
+          example: "color"
+        defaultValue:
+          type: string
+          nullable: true
+          description: Updated default value for the token
+          example: "#0056b3"
+        description:
+          type: string
+          nullable: true
+          description: Updated description of the token
+          example: "Updated primary color for button component"
+        xmlParam:
+          type: string
+          nullable: true
+          description: Updated XML parameter name
+          example: "updatedColorPrimary"
+        composeParam:
+          type: string
+          nullable: true
+          description: Updated compose parameter name
+          example: "updatedPrimaryColor"
+        iosParam:
+          type: string
+          nullable: true
+          description: Updated iOS parameter name
+          example: "updatedPrimaryColor"
+        webParam:
+          type: string
+          nullable: true
+          description: Updated web parameter name
+          example: "--updated-button-primary-color"
+      required:
+        - name
+        - type
+
     Error:
       type: object
       properties:
@@ -587,4 +1053,7 @@ tags:
     description: Operations related to component management
   - name: Invariants
     description: Operations related to invariant token values
-
+  - name: Variations
+    description: Operations related to variation management
+  - name: Tokens
+    description: Operations related to token management

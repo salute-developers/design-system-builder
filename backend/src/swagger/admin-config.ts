@@ -14,7 +14,7 @@ export function setupAdminSwagger(app: Express): void {
     const swaggerSpec = yaml.load(swaggerDocument);
     
     // Serve admin swagger docs
-    app.use('/admin-api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    app.use('/admin-api-docs', swaggerUi.serveFiles(swaggerSpec), swaggerUi.setup(swaggerSpec, {
       customSiteTitle: 'Design System Builder Admin API',
       customCss: `
         .swagger-ui .topbar { display: none; }
