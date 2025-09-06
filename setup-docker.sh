@@ -98,11 +98,11 @@ else
     exit 1
 fi
 
-echo "  🎨 Creating design system with variation values..."
-if docker-compose -f $COMPOSE_FILE exec -T backend npm run seed-all; then
-    echo "  ✅ Design system seeding completed"
+echo "  🎨 Seeding design system from saved state..."
+if docker-compose -f $COMPOSE_FILE exec -T backend npm run seed-saved-state; then
+    echo "  ✅ Design system seeding from saved state completed"
 else
-    echo "  ❌ Design system seeding failed"
+    echo "  ❌ Design system seeding from saved state failed"
     exit 1
 fi
 

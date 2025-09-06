@@ -14,42 +14,42 @@ const db = drizzle(client, { schema });
 const extractedData = {
   "designSystems": [
     {
-      "id": 154,
+      "id": 4,
       "name": "test-42",
       "description": "Design System test-42 version 0.1.0",
-      "createdAt": "2025-09-05T16:48:33.939Z",
-      "updatedAt": "2025-09-05T16:48:33.939Z"
+      "createdAt": "2025-09-06T08:49:39.232Z",
+      "updatedAt": "2025-09-06T08:49:39.232Z"
     }
   ],
   "components": [
     {
-      "id": 12,
+      "id": 16,
       "name": "Link",
       "description": "Clickable link component for navigation",
-      "createdAt": "2025-06-07T00:43:46.495Z",
-      "updatedAt": "2025-06-07T00:43:46.495Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [
         {
-          "id": 53,
-          "componentId": 12,
+          "id": 35,
+          "componentId": 16,
           "name": "view",
           "description": "Visual appearance variation (default, primary, secondary, tertiary, paragraph, accent, positive, warning, negative, clear)",
-          "createdAt": "2025-06-07T00:43:46.505Z",
-          "updatedAt": "2025-06-07T00:43:46.505Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         },
         {
-          "id": 57,
-          "componentId": 12,
+          "id": 36,
+          "componentId": 16,
           "name": "size",
           "description": "",
-          "createdAt": "2025-07-01T18:15:50.078Z",
-          "updatedAt": "2025-07-01T18:15:50.078Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         }
       ],
       "tokens": [
         {
-          "id": 206,
-          "componentId": 12,
+          "id": 83,
+          "componentId": 16,
           "name": "focusColor",
           "type": "color",
           "defaultValue": "",
@@ -58,12 +58,12 @@ const extractedData = {
           "composeParam": "focusColor",
           "iosParam": "focusColor",
           "webParam": "linkColorFocus",
-          "createdAt": "2025-06-07T00:43:46.511Z",
-          "updatedAt": "2025-06-07T00:43:46.511Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         },
         {
-          "id": 205,
-          "componentId": 12,
+          "id": 84,
+          "componentId": 16,
           "name": "disableAlpha",
           "type": "float",
           "defaultValue": "",
@@ -72,12 +72,12 @@ const extractedData = {
           "composeParam": "disabledOpacity",
           "iosParam": "disabledOpacity",
           "webParam": "linkDisabledOpacity",
-          "createdAt": "2025-06-07T00:43:46.511Z",
-          "updatedAt": "2025-06-07T00:43:46.511Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         },
         {
-          "id": 198,
-          "componentId": 12,
+          "id": 85,
+          "componentId": 16,
           "name": "textColor",
           "type": "color",
           "defaultValue": "",
@@ -86,12 +86,12 @@ const extractedData = {
           "composeParam": "contentColor",
           "iosParam": "contentColor",
           "webParam": "linkColor",
-          "createdAt": "2025-06-07T00:43:46.511Z",
-          "updatedAt": "2025-06-07T00:43:46.511Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         },
         {
-          "id": 207,
-          "componentId": 12,
+          "id": 86,
+          "componentId": 16,
           "name": "textColorVisited",
           "type": "color",
           "defaultValue": "",
@@ -100,12 +100,12 @@ const extractedData = {
           "composeParam": "contentColorVisited",
           "iosParam": "contentColorVisited",
           "webParam": "linkColorVisited",
-          "createdAt": "2025-07-01T19:55:37.689Z",
-          "updatedAt": "2025-07-01T19:55:37.689Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         },
         {
-          "id": 204,
-          "componentId": 12,
+          "id": 87,
+          "componentId": 16,
           "name": "underlineBorderWidth",
           "type": "dimension",
           "defaultValue": "",
@@ -114,12 +114,12 @@ const extractedData = {
           "composeParam": "textDecoration",
           "iosParam": "underlineThickness",
           "webParam": "linkUnderlineBorder",
-          "createdAt": "2025-06-07T00:43:46.511Z",
-          "updatedAt": "2025-06-07T00:43:46.511Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         },
         {
-          "id": 197,
-          "componentId": 12,
+          "id": 88,
+          "componentId": 16,
           "name": "textStyle",
           "type": "typography",
           "defaultValue": "",
@@ -128,340 +128,81 @@ const extractedData = {
           "composeParam": "height",
           "iosParam": "height",
           "webParam": "linkFont",
-          "createdAt": "2025-06-07T00:43:46.511Z",
-          "updatedAt": "2025-06-07T00:43:46.511Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         }
       ],
       "propsAPI": [
         {
-          "id": 2,
-          "componentId": 12,
+          "id": 9,
+          "componentId": 16,
           "name": "disabled",
           "value": "false",
-          "createdAt": "2025-07-01T19:04:26.302Z",
-          "updatedAt": "2025-07-01T19:04:26.302Z"
+          "createdAt": "2025-09-06T08:49:39.271Z",
+          "updatedAt": "2025-09-06T08:49:39.271Z"
         },
         {
-          "id": 3,
-          "componentId": 12,
+          "id": 10,
+          "componentId": 16,
           "name": "target",
           "value": "_blank",
-          "createdAt": "2025-07-01T19:16:59.851Z",
-          "updatedAt": "2025-07-01T19:16:59.851Z"
+          "createdAt": "2025-09-06T08:49:39.271Z",
+          "updatedAt": "2025-09-06T08:49:39.271Z"
         },
         {
-          "id": 4,
-          "componentId": 12,
+          "id": 11,
+          "componentId": 16,
           "name": "href",
           "value": "https://google.com",
-          "createdAt": "2025-07-01T19:17:30.029Z",
-          "updatedAt": "2025-07-01T19:17:30.029Z"
+          "createdAt": "2025-09-06T08:49:39.271Z",
+          "updatedAt": "2025-09-06T08:49:39.271Z"
         },
         {
-          "id": 1,
-          "componentId": 12,
+          "id": 12,
+          "componentId": 16,
           "name": "text",
           "value": "hello world",
-          "createdAt": "2025-07-01T19:03:30.531Z",
-          "updatedAt": "2025-07-01T19:03:30.531Z"
+          "createdAt": "2025-09-06T08:49:39.271Z",
+          "updatedAt": "2025-09-06T08:49:39.271Z"
         }
       ]
-    },
-    {
-      "id": 2,
-      "name": "IconButton",
-      "description": "",
-      "createdAt": "2025-05-20T17:24:30.828Z",
-      "updatedAt": "2025-08-21T23:19:56.446Z",
-      "variations": [
-        {
-          "id": 18,
-          "componentId": 2,
-          "name": "view",
-          "description": "",
-          "createdAt": "2025-06-06T17:55:09.751Z",
-          "updatedAt": "2025-06-06T17:55:09.751Z"
-        },
-        {
-          "id": 64,
-          "componentId": 2,
-          "name": "size",
-          "description": "",
-          "createdAt": "2025-08-29T08:56:27.313Z",
-          "updatedAt": "2025-08-29T08:56:27.313Z"
-        },
-        {
-          "id": 65,
-          "componentId": 2,
-          "name": "shape",
-          "description": "",
-          "createdAt": "2025-08-29T08:56:33.209Z",
-          "updatedAt": "2025-08-29T08:56:33.209Z"
-        }
-      ],
-      "tokens": [
-        {
-          "id": 34,
-          "componentId": 2,
-          "name": "Test token 1",
-          "type": "number",
-          "defaultValue": "42",
-          "description": "",
-          "xmlParam": "",
-          "composeParam": "",
-          "iosParam": "",
-          "webParam": "",
-          "createdAt": "2025-06-06T17:55:00.778Z",
-          "updatedAt": "2025-06-06T17:55:00.778Z"
-        }
-      ],
-      "propsAPI": []
-    },
-    {
-      "id": 14,
-      "name": "Button",
-      "description": "test empty button",
-      "createdAt": "2025-08-26T14:04:44.369Z",
-      "updatedAt": "2025-08-26T14:04:44.369Z",
-      "variations": [],
-      "tokens": [],
-      "propsAPI": []
-    },
-    {
-      "id": 15,
-      "name": "Checkbox",
-      "description": "",
-      "createdAt": "2025-08-26T16:16:30.567Z",
-      "updatedAt": "2025-08-26T16:16:30.567Z",
-      "variations": [],
-      "tokens": [],
-      "propsAPI": []
-    },
-    {
-      "id": 16,
-      "name": "Radiobox",
-      "description": "",
-      "createdAt": "2025-08-26T16:16:38.357Z",
-      "updatedAt": "2025-08-26T16:16:38.357Z",
-      "variations": [],
-      "tokens": [],
-      "propsAPI": []
     },
     {
       "id": 17,
-      "name": "TestButton",
-      "description": "A test button component",
-      "createdAt": "2025-08-26T16:18:33.243Z",
-      "updatedAt": "2025-08-26T16:18:33.243Z",
-      "variations": [
-        {
-          "id": 58,
-          "componentId": 17,
-          "name": "primary",
-          "description": "",
-          "createdAt": "2025-08-26T16:18:33.255Z",
-          "updatedAt": "2025-08-26T16:18:33.255Z"
-        }
-      ],
-      "tokens": [
-        {
-          "id": 208,
-          "componentId": 17,
-          "name": "backgroundColor",
-          "type": "color",
-          "defaultValue": "",
-          "description": "Button background color",
-          "xmlParam": "android:background",
-          "composeParam": "backgroundColor",
-          "iosParam": "backgroundColor",
-          "webParam": "buttonBg",
-          "createdAt": "2025-08-26T16:18:33.278Z",
-          "updatedAt": "2025-08-26T16:18:33.278Z"
-        }
-      ],
-      "propsAPI": []
-    },
-    {
-      "id": 26,
-      "name": "Link",
-      "description": "Clickable link component for navigation",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
-      "variations": [
-        {
-          "id": 70,
-          "componentId": 26,
-          "name": "view",
-          "description": "Visual appearance variation (default, primary, secondary, tertiary, paragraph, accent, positive, warning, negative, clear)",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
-        },
-        {
-          "id": 71,
-          "componentId": 26,
-          "name": "size",
-          "description": "",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
-        }
-      ],
-      "tokens": [
-        {
-          "id": 217,
-          "componentId": 26,
-          "name": "focusColor",
-          "type": "color",
-          "defaultValue": "",
-          "description": "цвет ссылки в фокусе",
-          "xmlParam": "sd_focusColor",
-          "composeParam": "focusColor",
-          "iosParam": "focusColor",
-          "webParam": "linkColorFocus",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        },
-        {
-          "id": 218,
-          "componentId": 26,
-          "name": "disableAlpha",
-          "type": "float",
-          "defaultValue": "",
-          "description": "прозрачность в отключенном состоянии",
-          "xmlParam": "android:alpha",
-          "composeParam": "disabledOpacity",
-          "iosParam": "disabledOpacity",
-          "webParam": "linkDisabledOpacity",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        },
-        {
-          "id": 219,
-          "componentId": 26,
-          "name": "textColor",
-          "type": "color",
-          "defaultValue": "",
-          "description": "цвет текста ссылки",
-          "xmlParam": "contentColor",
-          "composeParam": "contentColor",
-          "iosParam": "contentColor",
-          "webParam": "linkColor",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        },
-        {
-          "id": 220,
-          "componentId": 26,
-          "name": "textColorVisited",
-          "type": "color",
-          "defaultValue": "",
-          "description": "Цвет текста посещённой ссылки",
-          "xmlParam": "contentColorVisited",
-          "composeParam": "contentColorVisited",
-          "iosParam": "contentColorVisited",
-          "webParam": "linkColorVisited",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        },
-        {
-          "id": 221,
-          "componentId": 26,
-          "name": "underlineBorderWidth",
-          "type": "dimension",
-          "defaultValue": "",
-          "description": "толщина подчеркивания",
-          "xmlParam": "android:textUnderline",
-          "composeParam": "textDecoration",
-          "iosParam": "underlineThickness",
-          "webParam": "linkUnderlineBorder",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        },
-        {
-          "id": 222,
-          "componentId": 26,
-          "name": "textStyle",
-          "type": "typography",
-          "defaultValue": "",
-          "description": "семейство шрифта ссылки",
-          "xmlParam": "android:minHeight",
-          "composeParam": "height",
-          "iosParam": "height",
-          "webParam": "linkFont",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
-        }
-      ],
-      "propsAPI": [
-        {
-          "id": 5,
-          "componentId": 26,
-          "name": "disabled",
-          "value": "false",
-          "createdAt": "2025-09-05T19:09:33.698Z",
-          "updatedAt": "2025-09-05T19:09:33.698Z"
-        },
-        {
-          "id": 6,
-          "componentId": 26,
-          "name": "target",
-          "value": "_blank",
-          "createdAt": "2025-09-05T19:09:33.698Z",
-          "updatedAt": "2025-09-05T19:09:33.698Z"
-        },
-        {
-          "id": 7,
-          "componentId": 26,
-          "name": "href",
-          "value": "https://google.com",
-          "createdAt": "2025-09-05T19:09:33.698Z",
-          "updatedAt": "2025-09-05T19:09:33.698Z"
-        },
-        {
-          "id": 8,
-          "componentId": 26,
-          "name": "text",
-          "value": "hello world",
-          "createdAt": "2025-09-05T19:09:33.698Z",
-          "updatedAt": "2025-09-05T19:09:33.698Z"
-        }
-      ]
-    },
-    {
-      "id": 27,
       "name": "IconButton",
       "description": "",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [
         {
-          "id": 67,
-          "componentId": 27,
+          "id": 26,
+          "componentId": 17,
           "name": "view",
           "description": "",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         },
         {
-          "id": 68,
-          "componentId": 27,
+          "id": 27,
+          "componentId": 17,
           "name": "size",
           "description": "",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         },
         {
-          "id": 69,
-          "componentId": 27,
+          "id": 28,
+          "componentId": 17,
           "name": "shape",
           "description": "",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         }
       ],
       "tokens": [
         {
-          "id": 216,
-          "componentId": 27,
+          "id": 74,
+          "componentId": 17,
           "name": "Test token 1",
           "type": "number",
           "defaultValue": "42",
@@ -470,62 +211,62 @@ const extractedData = {
           "composeParam": "",
           "iosParam": "",
           "webParam": "",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         }
       ],
       "propsAPI": []
     },
     {
-      "id": 28,
+      "id": 18,
       "name": "Button",
       "description": "test empty button",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [],
       "tokens": [],
       "propsAPI": []
     },
     {
-      "id": 29,
+      "id": 19,
       "name": "Checkbox",
       "description": "",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [],
       "tokens": [],
       "propsAPI": []
     },
     {
-      "id": 30,
+      "id": 20,
       "name": "Radiobox",
       "description": "",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [],
       "tokens": [],
       "propsAPI": []
     },
     {
-      "id": 31,
+      "id": 21,
       "name": "TestButton",
       "description": "A test button component",
-      "createdAt": "2025-09-05T19:09:33.647Z",
-      "updatedAt": "2025-09-05T19:09:33.647Z",
+      "createdAt": "2025-09-06T08:49:39.239Z",
+      "updatedAt": "2025-09-06T08:49:39.239Z",
       "variations": [
         {
-          "id": 66,
-          "componentId": 31,
+          "id": 25,
+          "componentId": 21,
           "name": "primary",
           "description": "",
-          "createdAt": "2025-09-05T19:09:33.652Z",
-          "updatedAt": "2025-09-05T19:09:33.652Z"
+          "createdAt": "2025-09-06T08:49:39.246Z",
+          "updatedAt": "2025-09-06T08:49:39.246Z"
         }
       ],
       "tokens": [
         {
-          "id": 215,
-          "componentId": 31,
+          "id": 73,
+          "componentId": 21,
           "name": "backgroundColor",
           "type": "color",
           "defaultValue": "",
@@ -534,8 +275,8 @@ const extractedData = {
           "composeParam": "backgroundColor",
           "iosParam": "backgroundColor",
           "webParam": "buttonBg",
-          "createdAt": "2025-09-05T19:09:33.661Z",
-          "updatedAt": "2025-09-05T19:09:33.661Z"
+          "createdAt": "2025-09-06T08:49:39.254Z",
+          "updatedAt": "2025-09-06T08:49:39.254Z"
         }
       ],
       "propsAPI": []
@@ -543,94 +284,58 @@ const extractedData = {
   ],
   "variations": [
     {
-      "id": 58,
+      "id": 25,
+      "componentId": 21,
+      "name": "primary",
+      "description": "",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
+      "tokenVariations": []
+    },
+    {
+      "id": 26,
       "componentId": 17,
-      "name": "primary",
-      "description": "",
-      "createdAt": "2025-08-26T16:18:33.255Z",
-      "updatedAt": "2025-08-26T16:18:33.255Z",
-      "tokenVariations": []
-    },
-    {
-      "id": 18,
-      "componentId": 2,
       "name": "view",
       "description": "",
-      "createdAt": "2025-06-06T17:55:09.751Z",
-      "updatedAt": "2025-06-06T17:55:09.751Z",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
       "tokenVariations": []
     },
     {
-      "id": 64,
-      "componentId": 2,
+      "id": 27,
+      "componentId": 17,
       "name": "size",
       "description": "",
-      "createdAt": "2025-08-29T08:56:27.313Z",
-      "updatedAt": "2025-08-29T08:56:27.313Z",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
       "tokenVariations": []
     },
     {
-      "id": 65,
-      "componentId": 2,
+      "id": 28,
+      "componentId": 17,
       "name": "shape",
       "description": "",
-      "createdAt": "2025-08-29T08:56:33.209Z",
-      "updatedAt": "2025-08-29T08:56:33.209Z",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
       "tokenVariations": []
     },
     {
-      "id": 66,
-      "componentId": 31,
-      "name": "primary",
-      "description": "",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
-      "tokenVariations": []
-    },
-    {
-      "id": 67,
-      "componentId": 27,
-      "name": "view",
-      "description": "",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
-      "tokenVariations": []
-    },
-    {
-      "id": 68,
-      "componentId": 27,
-      "name": "size",
-      "description": "",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
-      "tokenVariations": []
-    },
-    {
-      "id": 69,
-      "componentId": 27,
-      "name": "shape",
-      "description": "",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
-      "tokenVariations": []
-    },
-    {
-      "id": 70,
-      "componentId": 26,
+      "id": 35,
+      "componentId": 16,
       "name": "view",
       "description": "Visual appearance variation (default, primary, secondary, tertiary, paragraph, accent, positive, warning, negative, clear)",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
       "tokenVariations": [
         {
-          "id": 408,
-          "tokenId": 219,
-          "variationId": 70,
-          "createdAt": "2025-09-05T19:09:33.686Z",
-          "updatedAt": "2025-09-05T19:09:33.686Z",
+          "id": 86,
+          "tokenId": 85,
+          "variationId": 35,
+          "createdAt": "2025-09-06T08:49:39.262Z",
+          "updatedAt": "2025-09-06T08:49:39.262Z",
           "token": {
-            "id": 219,
-            "componentId": 26,
+            "id": 85,
+            "componentId": 16,
             "name": "textColor",
             "type": "color",
             "defaultValue": "",
@@ -639,19 +344,19 @@ const extractedData = {
             "composeParam": "contentColor",
             "iosParam": "contentColor",
             "webParam": "linkColor",
-            "createdAt": "2025-09-05T19:09:33.661Z",
-            "updatedAt": "2025-09-05T19:09:33.661Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 409,
-          "tokenId": 221,
-          "variationId": 70,
-          "createdAt": "2025-09-05T19:09:33.686Z",
-          "updatedAt": "2025-09-05T19:09:33.686Z",
+          "id": 87,
+          "tokenId": 87,
+          "variationId": 35,
+          "createdAt": "2025-09-06T08:49:39.262Z",
+          "updatedAt": "2025-09-06T08:49:39.262Z",
           "token": {
-            "id": 221,
-            "componentId": 26,
+            "id": 87,
+            "componentId": 16,
             "name": "underlineBorderWidth",
             "type": "dimension",
             "defaultValue": "",
@@ -660,19 +365,19 @@ const extractedData = {
             "composeParam": "textDecoration",
             "iosParam": "underlineThickness",
             "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-09-05T19:09:33.661Z",
-            "updatedAt": "2025-09-05T19:09:33.661Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 411,
-          "tokenId": 220,
-          "variationId": 70,
-          "createdAt": "2025-09-05T19:09:33.686Z",
-          "updatedAt": "2025-09-05T19:09:33.686Z",
+          "id": 89,
+          "tokenId": 86,
+          "variationId": 35,
+          "createdAt": "2025-09-06T08:49:39.262Z",
+          "updatedAt": "2025-09-06T08:49:39.262Z",
           "token": {
-            "id": 220,
-            "componentId": 26,
+            "id": 86,
+            "componentId": 16,
             "name": "textColorVisited",
             "type": "color",
             "defaultValue": "",
@@ -681,29 +386,29 @@ const extractedData = {
             "composeParam": "contentColorVisited",
             "iosParam": "contentColorVisited",
             "webParam": "linkColorVisited",
-            "createdAt": "2025-09-05T19:09:33.661Z",
-            "updatedAt": "2025-09-05T19:09:33.661Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 71,
-      "componentId": 26,
+      "id": 36,
+      "componentId": 16,
       "name": "size",
       "description": "",
-      "createdAt": "2025-09-05T19:09:33.652Z",
-      "updatedAt": "2025-09-05T19:09:33.652Z",
+      "createdAt": "2025-09-06T08:49:39.246Z",
+      "updatedAt": "2025-09-06T08:49:39.246Z",
       "tokenVariations": [
         {
-          "id": 410,
-          "tokenId": 222,
-          "variationId": 71,
-          "createdAt": "2025-09-05T19:09:33.686Z",
-          "updatedAt": "2025-09-05T19:09:33.686Z",
+          "id": 88,
+          "tokenId": 88,
+          "variationId": 36,
+          "createdAt": "2025-09-06T08:49:39.262Z",
+          "updatedAt": "2025-09-06T08:49:39.262Z",
           "token": {
-            "id": 222,
-            "componentId": 26,
+            "id": 88,
+            "componentId": 16,
             "name": "textStyle",
             "type": "typography",
             "defaultValue": "",
@@ -712,112 +417,8 @@ const extractedData = {
             "composeParam": "height",
             "iosParam": "height",
             "webParam": "linkFont",
-            "createdAt": "2025-09-05T19:09:33.661Z",
-            "updatedAt": "2025-09-05T19:09:33.661Z"
-          }
-        }
-      ]
-    },
-    {
-      "id": 53,
-      "componentId": 12,
-      "name": "view",
-      "description": "Visual appearance variation (default, primary, secondary, tertiary, paragraph, accent, positive, warning, negative, clear)",
-      "createdAt": "2025-06-07T00:43:46.505Z",
-      "updatedAt": "2025-06-07T00:43:46.505Z",
-      "tokenVariations": [
-        {
-          "id": 390,
-          "tokenId": 198,
-          "variationId": 53,
-          "createdAt": "2025-06-07T00:43:46.517Z",
-          "updatedAt": "2025-06-07T00:43:46.517Z",
-          "token": {
-            "id": 198,
-            "componentId": 12,
-            "name": "textColor",
-            "type": "color",
-            "defaultValue": "",
-            "description": "цвет текста ссылки",
-            "xmlParam": "contentColor",
-            "composeParam": "contentColor",
-            "iosParam": "contentColor",
-            "webParam": "linkColor",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
-          }
-        },
-        {
-          "id": 396,
-          "tokenId": 204,
-          "variationId": 53,
-          "createdAt": "2025-06-07T00:43:46.517Z",
-          "updatedAt": "2025-06-07T00:43:46.517Z",
-          "token": {
-            "id": 204,
-            "componentId": 12,
-            "name": "underlineBorderWidth",
-            "type": "dimension",
-            "defaultValue": "",
-            "description": "толщина подчеркивания",
-            "xmlParam": "android:textUnderline",
-            "composeParam": "textDecoration",
-            "iosParam": "underlineThickness",
-            "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
-          }
-        },
-        {
-          "id": 404,
-          "tokenId": 207,
-          "variationId": 53,
-          "createdAt": "2025-07-01T19:57:17.334Z",
-          "updatedAt": "2025-07-01T19:57:17.334Z",
-          "token": {
-            "id": 207,
-            "componentId": 12,
-            "name": "textColorVisited",
-            "type": "color",
-            "defaultValue": "",
-            "description": "Цвет текста посещённой ссылки",
-            "xmlParam": "contentColorVisited",
-            "composeParam": "contentColorVisited",
-            "iosParam": "contentColorVisited",
-            "webParam": "linkColorVisited",
-            "createdAt": "2025-07-01T19:55:37.689Z",
-            "updatedAt": "2025-07-01T19:55:37.689Z"
-          }
-        }
-      ]
-    },
-    {
-      "id": 57,
-      "componentId": 12,
-      "name": "size",
-      "description": "",
-      "createdAt": "2025-07-01T18:15:50.078Z",
-      "updatedAt": "2025-07-01T18:15:50.078Z",
-      "tokenVariations": [
-        {
-          "id": 403,
-          "tokenId": 197,
-          "variationId": 57,
-          "createdAt": "2025-07-01T19:56:34.138Z",
-          "updatedAt": "2025-07-01T19:56:34.138Z",
-          "token": {
-            "id": 197,
-            "componentId": 12,
-            "name": "textStyle",
-            "type": "typography",
-            "defaultValue": "",
-            "description": "семейство шрифта ссылки",
-            "xmlParam": "android:minHeight",
-            "composeParam": "height",
-            "iosParam": "height",
-            "webParam": "linkFont",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
@@ -825,22 +426,22 @@ const extractedData = {
   ],
   "tokens": [
     {
-      "id": 208,
+      "id": 73,
+      "componentId": 21,
+      "name": "backgroundColor",
+      "type": "color",
+      "defaultValue": "",
+      "description": "Button background color",
+      "xmlParam": "android:background",
+      "composeParam": "backgroundColor",
+      "iosParam": "backgroundColor",
+      "webParam": "buttonBg",
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
+    },
+    {
+      "id": 74,
       "componentId": 17,
-      "name": "backgroundColor",
-      "type": "color",
-      "defaultValue": "",
-      "description": "Button background color",
-      "xmlParam": "android:background",
-      "composeParam": "backgroundColor",
-      "iosParam": "backgroundColor",
-      "webParam": "buttonBg",
-      "createdAt": "2025-08-26T16:18:33.278Z",
-      "updatedAt": "2025-08-26T16:18:33.278Z"
-    },
-    {
-      "id": 34,
-      "componentId": 2,
       "name": "Test token 1",
       "type": "number",
       "defaultValue": "42",
@@ -849,40 +450,12 @@ const extractedData = {
       "composeParam": "",
       "iosParam": "",
       "webParam": "",
-      "createdAt": "2025-06-06T17:55:00.778Z",
-      "updatedAt": "2025-06-06T17:55:00.778Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 215,
-      "componentId": 31,
-      "name": "backgroundColor",
-      "type": "color",
-      "defaultValue": "",
-      "description": "Button background color",
-      "xmlParam": "android:background",
-      "composeParam": "backgroundColor",
-      "iosParam": "backgroundColor",
-      "webParam": "buttonBg",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
-    },
-    {
-      "id": 216,
-      "componentId": 27,
-      "name": "Test token 1",
-      "type": "number",
-      "defaultValue": "42",
-      "description": "",
-      "xmlParam": "",
-      "composeParam": "",
-      "iosParam": "",
-      "webParam": "",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
-    },
-    {
-      "id": 217,
-      "componentId": 26,
+      "id": 83,
+      "componentId": 16,
       "name": "focusColor",
       "type": "color",
       "defaultValue": "",
@@ -891,12 +464,12 @@ const extractedData = {
       "composeParam": "focusColor",
       "iosParam": "focusColor",
       "webParam": "linkColorFocus",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 218,
-      "componentId": 26,
+      "id": 84,
+      "componentId": 16,
       "name": "disableAlpha",
       "type": "float",
       "defaultValue": "",
@@ -905,12 +478,12 @@ const extractedData = {
       "composeParam": "disabledOpacity",
       "iosParam": "disabledOpacity",
       "webParam": "linkDisabledOpacity",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 219,
-      "componentId": 26,
+      "id": 85,
+      "componentId": 16,
       "name": "textColor",
       "type": "color",
       "defaultValue": "",
@@ -919,12 +492,12 @@ const extractedData = {
       "composeParam": "contentColor",
       "iosParam": "contentColor",
       "webParam": "linkColor",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 220,
-      "componentId": 26,
+      "id": 86,
+      "componentId": 16,
       "name": "textColorVisited",
       "type": "color",
       "defaultValue": "",
@@ -933,12 +506,12 @@ const extractedData = {
       "composeParam": "contentColorVisited",
       "iosParam": "contentColorVisited",
       "webParam": "linkColorVisited",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 221,
-      "componentId": 26,
+      "id": 87,
+      "componentId": 16,
       "name": "underlineBorderWidth",
       "type": "dimension",
       "defaultValue": "",
@@ -947,12 +520,12 @@ const extractedData = {
       "composeParam": "textDecoration",
       "iosParam": "underlineThickness",
       "webParam": "linkUnderlineBorder",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     },
     {
-      "id": 222,
-      "componentId": 26,
+      "id": 88,
+      "componentId": 16,
       "name": "textStyle",
       "type": "typography",
       "defaultValue": "",
@@ -961,177 +534,65 @@ const extractedData = {
       "composeParam": "height",
       "iosParam": "height",
       "webParam": "linkFont",
-      "createdAt": "2025-09-05T19:09:33.661Z",
-      "updatedAt": "2025-09-05T19:09:33.661Z"
-    },
-    {
-      "id": 206,
-      "componentId": 12,
-      "name": "focusColor",
-      "type": "color",
-      "defaultValue": "",
-      "description": "цвет ссылки в фокусе",
-      "xmlParam": "sd_focusColor",
-      "composeParam": "focusColor",
-      "iosParam": "focusColor",
-      "webParam": "linkColorFocus",
-      "createdAt": "2025-06-07T00:43:46.511Z",
-      "updatedAt": "2025-06-07T00:43:46.511Z"
-    },
-    {
-      "id": 205,
-      "componentId": 12,
-      "name": "disableAlpha",
-      "type": "float",
-      "defaultValue": "",
-      "description": "прозрачность в отключенном состоянии",
-      "xmlParam": "android:alpha",
-      "composeParam": "disabledOpacity",
-      "iosParam": "disabledOpacity",
-      "webParam": "linkDisabledOpacity",
-      "createdAt": "2025-06-07T00:43:46.511Z",
-      "updatedAt": "2025-06-07T00:43:46.511Z"
-    },
-    {
-      "id": 198,
-      "componentId": 12,
-      "name": "textColor",
-      "type": "color",
-      "defaultValue": "",
-      "description": "цвет текста ссылки",
-      "xmlParam": "contentColor",
-      "composeParam": "contentColor",
-      "iosParam": "contentColor",
-      "webParam": "linkColor",
-      "createdAt": "2025-06-07T00:43:46.511Z",
-      "updatedAt": "2025-06-07T00:43:46.511Z"
-    },
-    {
-      "id": 207,
-      "componentId": 12,
-      "name": "textColorVisited",
-      "type": "color",
-      "defaultValue": "",
-      "description": "Цвет текста посещённой ссылки",
-      "xmlParam": "contentColorVisited",
-      "composeParam": "contentColorVisited",
-      "iosParam": "contentColorVisited",
-      "webParam": "linkColorVisited",
-      "createdAt": "2025-07-01T19:55:37.689Z",
-      "updatedAt": "2025-07-01T19:55:37.689Z"
-    },
-    {
-      "id": 204,
-      "componentId": 12,
-      "name": "underlineBorderWidth",
-      "type": "dimension",
-      "defaultValue": "",
-      "description": "толщина подчеркивания",
-      "xmlParam": "android:textUnderline",
-      "composeParam": "textDecoration",
-      "iosParam": "underlineThickness",
-      "webParam": "linkUnderlineBorder",
-      "createdAt": "2025-06-07T00:43:46.511Z",
-      "updatedAt": "2025-06-07T00:43:46.511Z"
-    },
-    {
-      "id": 197,
-      "componentId": 12,
-      "name": "textStyle",
-      "type": "typography",
-      "defaultValue": "",
-      "description": "семейство шрифта ссылки",
-      "xmlParam": "android:minHeight",
-      "composeParam": "height",
-      "iosParam": "height",
-      "webParam": "linkFont",
-      "createdAt": "2025-06-07T00:43:46.511Z",
-      "updatedAt": "2025-06-07T00:43:46.511Z"
+      "createdAt": "2025-09-06T08:49:39.254Z",
+      "updatedAt": "2025-09-06T08:49:39.254Z"
     }
   ],
   "tokenVariations": [
     {
-      "id": 408,
-      "tokenId": 219,
-      "variationId": 70,
-      "createdAt": "2025-09-05T19:09:33.686Z",
-      "updatedAt": "2025-09-05T19:09:33.686Z"
+      "id": 86,
+      "tokenId": 85,
+      "variationId": 35,
+      "createdAt": "2025-09-06T08:49:39.262Z",
+      "updatedAt": "2025-09-06T08:49:39.262Z"
     },
     {
-      "id": 409,
-      "tokenId": 221,
-      "variationId": 70,
-      "createdAt": "2025-09-05T19:09:33.686Z",
-      "updatedAt": "2025-09-05T19:09:33.686Z"
+      "id": 87,
+      "tokenId": 87,
+      "variationId": 35,
+      "createdAt": "2025-09-06T08:49:39.262Z",
+      "updatedAt": "2025-09-06T08:49:39.262Z"
     },
     {
-      "id": 410,
-      "tokenId": 222,
-      "variationId": 71,
-      "createdAt": "2025-09-05T19:09:33.686Z",
-      "updatedAt": "2025-09-05T19:09:33.686Z"
+      "id": 88,
+      "tokenId": 88,
+      "variationId": 36,
+      "createdAt": "2025-09-06T08:49:39.262Z",
+      "updatedAt": "2025-09-06T08:49:39.262Z"
     },
     {
-      "id": 411,
-      "tokenId": 220,
-      "variationId": 70,
-      "createdAt": "2025-09-05T19:09:33.686Z",
-      "updatedAt": "2025-09-05T19:09:33.686Z"
-    },
-    {
-      "id": 390,
-      "tokenId": 198,
-      "variationId": 53,
-      "createdAt": "2025-06-07T00:43:46.517Z",
-      "updatedAt": "2025-06-07T00:43:46.517Z"
-    },
-    {
-      "id": 396,
-      "tokenId": 204,
-      "variationId": 53,
-      "createdAt": "2025-06-07T00:43:46.517Z",
-      "updatedAt": "2025-06-07T00:43:46.517Z"
-    },
-    {
-      "id": 403,
-      "tokenId": 197,
-      "variationId": 57,
-      "createdAt": "2025-07-01T19:56:34.138Z",
-      "updatedAt": "2025-07-01T19:56:34.138Z"
-    },
-    {
-      "id": 404,
-      "tokenId": 207,
-      "variationId": 53,
-      "createdAt": "2025-07-01T19:57:17.334Z",
-      "updatedAt": "2025-07-01T19:57:17.334Z"
+      "id": 89,
+      "tokenId": 86,
+      "variationId": 35,
+      "createdAt": "2025-09-06T08:49:39.262Z",
+      "updatedAt": "2025-09-06T08:49:39.262Z"
     }
   ],
   "variationValues": [
     {
-      "id": 620,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 18,
+      "id": 60,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 26,
       "name": "default",
       "description": "",
       "isDefaultValue": "true",
-      "createdAt": "2025-09-05T16:48:33.983Z",
-      "updatedAt": "2025-09-05T16:48:33.983Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1465,
-          "tokenId": 208,
+          "id": 63,
+          "tokenId": 73,
           "value": "surface.default.solid-default",
           "type": "variation",
-          "variationValueId": 620,
+          "variationValueId": 60,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:33.986Z",
-          "updatedAt": "2025-09-05T16:48:33.986Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 208,
-            "componentId": 17,
+            "id": 73,
+            "componentId": 21,
             "name": "backgroundColor",
             "type": "color",
             "defaultValue": "",
@@ -1140,36 +601,36 @@ const extractedData = {
             "composeParam": "backgroundColor",
             "iosParam": "backgroundColor",
             "webParam": "buttonBg",
-            "createdAt": "2025-08-26T16:18:33.278Z",
-            "updatedAt": "2025-08-26T16:18:33.278Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 621,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 18,
+      "id": 61,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 26,
       "name": "secondary",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:33.992Z",
-      "updatedAt": "2025-09-05T16:48:33.992Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1466,
-          "tokenId": 208,
+          "id": 64,
+          "tokenId": 73,
           "value": "surface.default.transparent-secondary",
           "type": "variation",
-          "variationValueId": 621,
+          "variationValueId": 61,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:33.993Z",
-          "updatedAt": "2025-09-05T16:48:33.993Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 208,
-            "componentId": 17,
+            "id": 73,
+            "componentId": 21,
             "name": "backgroundColor",
             "type": "color",
             "defaultValue": "",
@@ -1178,36 +639,36 @@ const extractedData = {
             "composeParam": "backgroundColor",
             "iosParam": "backgroundColor",
             "webParam": "buttonBg",
-            "createdAt": "2025-08-26T16:18:33.278Z",
-            "updatedAt": "2025-08-26T16:18:33.278Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 622,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 18,
+      "id": 62,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 26,
       "name": "accent",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:33.997Z",
-      "updatedAt": "2025-09-05T16:48:33.997Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1467,
-          "tokenId": 208,
+          "id": 65,
+          "tokenId": 73,
           "value": "surface.default.accent",
           "type": "variation",
-          "variationValueId": 622,
+          "variationValueId": 62,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:33.998Z",
-          "updatedAt": "2025-09-05T16:48:33.998Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 208,
-            "componentId": 17,
+            "id": 73,
+            "componentId": 21,
             "name": "backgroundColor",
             "type": "color",
             "defaultValue": "",
@@ -1216,96 +677,96 @@ const extractedData = {
             "composeParam": "backgroundColor",
             "iosParam": "backgroundColor",
             "webParam": "buttonBg",
-            "createdAt": "2025-08-26T16:18:33.278Z",
-            "updatedAt": "2025-08-26T16:18:33.278Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 623,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 64,
+      "id": 63,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 27,
       "name": "xl",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.002Z",
-      "updatedAt": "2025-09-05T16:48:34.002Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": []
     },
     {
-      "id": 624,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 64,
+      "id": 64,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 27,
       "name": "l",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.007Z",
-      "updatedAt": "2025-09-05T16:48:34.007Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": []
     },
     {
-      "id": 625,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 64,
+      "id": 65,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 27,
       "name": "m",
       "description": "",
       "isDefaultValue": "true",
-      "createdAt": "2025-09-05T16:48:34.011Z",
-      "updatedAt": "2025-09-05T16:48:34.011Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": []
     },
     {
-      "id": 626,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 65,
+      "id": 66,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 28,
       "name": "rounded",
       "description": "",
       "isDefaultValue": "true",
-      "createdAt": "2025-09-05T16:48:34.015Z",
-      "updatedAt": "2025-09-05T16:48:34.015Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": []
     },
     {
-      "id": 627,
-      "designSystemId": 154,
-      "componentId": 2,
-      "variationId": 65,
+      "id": 67,
+      "designSystemId": 4,
+      "componentId": 17,
+      "variationId": 28,
       "name": "pilled",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.018Z",
-      "updatedAt": "2025-09-05T16:48:34.018Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": []
     },
     {
-      "id": 632,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 57,
+      "id": 68,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 36,
       "name": "s",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.039Z",
-      "updatedAt": "2025-09-05T16:48:34.039Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1480,
-          "tokenId": 197,
+          "id": 75,
+          "tokenId": 88,
           "value": "body.s.normal",
           "type": "variation",
-          "variationValueId": 632,
+          "variationValueId": 68,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.040Z",
-          "updatedAt": "2025-09-05T16:48:34.040Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 197,
-            "componentId": 12,
+            "id": 88,
+            "componentId": 16,
             "name": "textStyle",
             "type": "typography",
             "defaultValue": "",
@@ -1314,36 +775,36 @@ const extractedData = {
             "composeParam": "height",
             "iosParam": "height",
             "webParam": "linkFont",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 633,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 57,
+      "id": 69,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 36,
       "name": "m",
       "description": "",
       "isDefaultValue": "true",
-      "createdAt": "2025-09-05T16:48:34.043Z",
-      "updatedAt": "2025-09-05T16:48:34.043Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1481,
-          "tokenId": 197,
+          "id": 76,
+          "tokenId": 88,
           "value": "body.m.normal",
           "type": "variation",
-          "variationValueId": 633,
+          "variationValueId": 69,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.044Z",
-          "updatedAt": "2025-09-05T16:48:34.044Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 197,
-            "componentId": 12,
+            "id": 88,
+            "componentId": 16,
             "name": "textStyle",
             "type": "typography",
             "defaultValue": "",
@@ -1352,36 +813,36 @@ const extractedData = {
             "composeParam": "height",
             "iosParam": "height",
             "webParam": "linkFont",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 634,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 57,
+      "id": 70,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 36,
       "name": "l",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.048Z",
-      "updatedAt": "2025-09-05T16:48:34.048Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1482,
-          "tokenId": 197,
+          "id": 77,
+          "tokenId": 88,
           "value": "body.l.normal",
           "type": "variation",
-          "variationValueId": 634,
+          "variationValueId": 70,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.048Z",
-          "updatedAt": "2025-09-05T16:48:34.048Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 197,
-            "componentId": 12,
+            "id": 88,
+            "componentId": 16,
             "name": "textStyle",
             "type": "typography",
             "defaultValue": "",
@@ -1390,36 +851,36 @@ const extractedData = {
             "composeParam": "height",
             "iosParam": "height",
             "webParam": "linkFont",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 628,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 53,
+      "id": 71,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 35,
       "name": "default",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.023Z",
-      "updatedAt": "2025-09-05T16:48:34.023Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1468,
-          "tokenId": 198,
+          "id": 66,
+          "tokenId": 85,
           "value": "text.default.primary",
           "type": "variation",
-          "variationValueId": 628,
+          "variationValueId": 71,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.023Z",
-          "updatedAt": "2025-09-05T16:48:34.023Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 198,
-            "componentId": 12,
+            "id": 85,
+            "componentId": 16,
             "name": "textColor",
             "type": "color",
             "defaultValue": "",
@@ -1428,23 +889,23 @@ const extractedData = {
             "composeParam": "contentColor",
             "iosParam": "contentColor",
             "webParam": "linkColor",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1469,
-          "tokenId": 207,
+          "id": 67,
+          "tokenId": 86,
           "value": "text.default.secondary",
           "type": "variation",
-          "variationValueId": 628,
+          "variationValueId": 71,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.023Z",
-          "updatedAt": "2025-09-05T16:48:34.023Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 207,
-            "componentId": 12,
+            "id": 86,
+            "componentId": 16,
             "name": "textColorVisited",
             "type": "color",
             "defaultValue": "",
@@ -1453,23 +914,23 @@ const extractedData = {
             "composeParam": "contentColorVisited",
             "iosParam": "contentColorVisited",
             "webParam": "linkColorVisited",
-            "createdAt": "2025-07-01T19:55:37.689Z",
-            "updatedAt": "2025-07-01T19:55:37.689Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1470,
-          "tokenId": 204,
+          "id": 68,
+          "tokenId": 87,
           "value": "0",
           "type": "variation",
-          "variationValueId": 628,
+          "variationValueId": 71,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.023Z",
-          "updatedAt": "2025-09-05T16:48:34.023Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 204,
-            "componentId": 12,
+            "id": 87,
+            "componentId": 16,
             "name": "underlineBorderWidth",
             "type": "dimension",
             "defaultValue": "",
@@ -1478,36 +939,36 @@ const extractedData = {
             "composeParam": "textDecoration",
             "iosParam": "underlineThickness",
             "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 629,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 53,
+      "id": 72,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 35,
       "name": "secondary",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.027Z",
-      "updatedAt": "2025-09-05T16:48:34.027Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1471,
-          "tokenId": 198,
+          "id": 69,
+          "tokenId": 85,
           "value": "text.default.secondary",
           "type": "variation",
-          "variationValueId": 629,
+          "variationValueId": 72,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.028Z",
-          "updatedAt": "2025-09-05T16:48:34.028Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 198,
-            "componentId": 12,
+            "id": 85,
+            "componentId": 16,
             "name": "textColor",
             "type": "color",
             "defaultValue": "",
@@ -1516,23 +977,23 @@ const extractedData = {
             "composeParam": "contentColor",
             "iosParam": "contentColor",
             "webParam": "linkColor",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1472,
-          "tokenId": 207,
+          "id": 70,
+          "tokenId": 86,
           "value": "text.default.tertiary",
           "type": "variation",
-          "variationValueId": 629,
+          "variationValueId": 72,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.028Z",
-          "updatedAt": "2025-09-05T16:48:34.028Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 207,
-            "componentId": 12,
+            "id": 86,
+            "componentId": 16,
             "name": "textColorVisited",
             "type": "color",
             "defaultValue": "",
@@ -1541,23 +1002,23 @@ const extractedData = {
             "composeParam": "contentColorVisited",
             "iosParam": "contentColorVisited",
             "webParam": "linkColorVisited",
-            "createdAt": "2025-07-01T19:55:37.689Z",
-            "updatedAt": "2025-07-01T19:55:37.689Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1473,
-          "tokenId": 204,
+          "id": 71,
+          "tokenId": 87,
           "value": "0",
           "type": "variation",
-          "variationValueId": 629,
+          "variationValueId": 72,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.028Z",
-          "updatedAt": "2025-09-05T16:48:34.028Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 204,
-            "componentId": 12,
+            "id": 87,
+            "componentId": 16,
             "name": "underlineBorderWidth",
             "type": "dimension",
             "defaultValue": "",
@@ -1566,36 +1027,36 @@ const extractedData = {
             "composeParam": "textDecoration",
             "iosParam": "underlineThickness",
             "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 631,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 53,
+      "id": 73,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 35,
       "name": "clear",
       "description": "",
       "isDefaultValue": "false",
-      "createdAt": "2025-09-05T16:48:34.035Z",
-      "updatedAt": "2025-09-05T16:48:34.035Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1477,
-          "tokenId": 198,
+          "id": 72,
+          "tokenId": 85,
           "value": "inherit",
           "type": "variation",
-          "variationValueId": 631,
+          "variationValueId": 73,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.036Z",
-          "updatedAt": "2025-09-05T16:48:34.036Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 198,
-            "componentId": 12,
+            "id": 85,
+            "componentId": 16,
             "name": "textColor",
             "type": "color",
             "defaultValue": "",
@@ -1604,23 +1065,23 @@ const extractedData = {
             "composeParam": "contentColor",
             "iosParam": "contentColor",
             "webParam": "linkColor",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1478,
-          "tokenId": 207,
+          "id": 73,
+          "tokenId": 86,
           "value": "inherit",
           "type": "variation",
-          "variationValueId": 631,
+          "variationValueId": 73,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.036Z",
-          "updatedAt": "2025-09-05T16:48:34.036Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 207,
-            "componentId": 12,
+            "id": 86,
+            "componentId": 16,
             "name": "textColorVisited",
             "type": "color",
             "defaultValue": "",
@@ -1629,23 +1090,23 @@ const extractedData = {
             "composeParam": "contentColorVisited",
             "iosParam": "contentColorVisited",
             "webParam": "linkColorVisited",
-            "createdAt": "2025-07-01T19:55:37.689Z",
-            "updatedAt": "2025-07-01T19:55:37.689Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1479,
-          "tokenId": 204,
+          "id": 74,
+          "tokenId": 87,
           "value": "1",
           "type": "variation",
-          "variationValueId": 631,
+          "variationValueId": 73,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:48:34.036Z",
-          "updatedAt": "2025-09-05T16:48:34.036Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 204,
-            "componentId": 12,
+            "id": 87,
+            "componentId": 16,
             "name": "underlineBorderWidth",
             "type": "dimension",
             "defaultValue": "",
@@ -1654,36 +1115,36 @@ const extractedData = {
             "composeParam": "textDecoration",
             "iosParam": "underlineThickness",
             "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
     },
     {
-      "id": 630,
-      "designSystemId": 154,
-      "componentId": 12,
-      "variationId": 53,
+      "id": 74,
+      "designSystemId": 4,
+      "componentId": 16,
+      "variationId": 35,
       "name": "accent",
       "description": "",
       "isDefaultValue": "true",
-      "createdAt": "2025-09-05T16:48:34.031Z",
-      "updatedAt": "2025-09-05T16:48:34.031Z",
+      "createdAt": "2025-09-06T08:49:39.276Z",
+      "updatedAt": "2025-09-06T08:49:39.276Z",
       "tokenValues": [
         {
-          "id": 1485,
-          "tokenId": 198,
+          "id": 78,
+          "tokenId": 85,
           "value": "text.default.accent",
           "type": "variation",
-          "variationValueId": 630,
+          "variationValueId": 74,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:49:19.553Z",
-          "updatedAt": "2025-09-05T16:49:19.553Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 198,
-            "componentId": 12,
+            "id": 85,
+            "componentId": 16,
             "name": "textColor",
             "type": "color",
             "defaultValue": "",
@@ -1692,23 +1153,23 @@ const extractedData = {
             "composeParam": "contentColor",
             "iosParam": "contentColor",
             "webParam": "linkColor",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1486,
-          "tokenId": 207,
+          "id": 79,
+          "tokenId": 86,
           "value": "text.default.accent-minor",
           "type": "variation",
-          "variationValueId": 630,
+          "variationValueId": 74,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:49:19.553Z",
-          "updatedAt": "2025-09-05T16:49:19.553Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 207,
-            "componentId": 12,
+            "id": 86,
+            "componentId": 16,
             "name": "textColorVisited",
             "type": "color",
             "defaultValue": "",
@@ -1717,23 +1178,23 @@ const extractedData = {
             "composeParam": "contentColorVisited",
             "iosParam": "contentColorVisited",
             "webParam": "linkColorVisited",
-            "createdAt": "2025-07-01T19:55:37.689Z",
-            "updatedAt": "2025-07-01T19:55:37.689Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         },
         {
-          "id": 1487,
-          "tokenId": 204,
+          "id": 80,
+          "tokenId": 87,
           "value": "0",
           "type": "variation",
-          "variationValueId": 630,
+          "variationValueId": 74,
           "componentId": null,
           "designSystemId": null,
-          "createdAt": "2025-09-05T16:49:19.553Z",
-          "updatedAt": "2025-09-05T16:49:19.553Z",
+          "createdAt": "2025-09-06T08:49:39.283Z",
+          "updatedAt": "2025-09-06T08:49:39.283Z",
           "token": {
-            "id": 204,
-            "componentId": 12,
+            "id": 87,
+            "componentId": 16,
             "name": "underlineBorderWidth",
             "type": "dimension",
             "defaultValue": "",
@@ -1742,8 +1203,8 @@ const extractedData = {
             "composeParam": "textDecoration",
             "iosParam": "underlineThickness",
             "webParam": "linkUnderlineBorder",
-            "createdAt": "2025-06-07T00:43:46.511Z",
-            "updatedAt": "2025-06-07T00:43:46.511Z"
+            "createdAt": "2025-09-06T08:49:39.254Z",
+            "updatedAt": "2025-09-06T08:49:39.254Z"
           }
         }
       ]
@@ -1751,18 +1212,18 @@ const extractedData = {
   ],
   "tokenValues": [
     {
-      "id": 1465,
-      "tokenId": 208,
+      "id": 63,
+      "tokenId": 73,
       "value": "surface.default.solid-default",
       "type": "variation",
-      "variationValueId": 620,
+      "variationValueId": 60,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:33.986Z",
-      "updatedAt": "2025-09-05T16:48:33.986Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 208,
-        "componentId": 17,
+        "id": 73,
+        "componentId": 21,
         "name": "backgroundColor",
         "type": "color",
         "defaultValue": "",
@@ -1771,23 +1232,23 @@ const extractedData = {
         "composeParam": "backgroundColor",
         "iosParam": "backgroundColor",
         "webParam": "buttonBg",
-        "createdAt": "2025-08-26T16:18:33.278Z",
-        "updatedAt": "2025-08-26T16:18:33.278Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1466,
-      "tokenId": 208,
+      "id": 64,
+      "tokenId": 73,
       "value": "surface.default.transparent-secondary",
       "type": "variation",
-      "variationValueId": 621,
+      "variationValueId": 61,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:33.993Z",
-      "updatedAt": "2025-09-05T16:48:33.993Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 208,
-        "componentId": 17,
+        "id": 73,
+        "componentId": 21,
         "name": "backgroundColor",
         "type": "color",
         "defaultValue": "",
@@ -1796,23 +1257,23 @@ const extractedData = {
         "composeParam": "backgroundColor",
         "iosParam": "backgroundColor",
         "webParam": "buttonBg",
-        "createdAt": "2025-08-26T16:18:33.278Z",
-        "updatedAt": "2025-08-26T16:18:33.278Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1467,
-      "tokenId": 208,
+      "id": 65,
+      "tokenId": 73,
       "value": "surface.default.accent",
       "type": "variation",
-      "variationValueId": 622,
+      "variationValueId": 62,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:33.998Z",
-      "updatedAt": "2025-09-05T16:48:33.998Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 208,
-        "componentId": 17,
+        "id": 73,
+        "componentId": 21,
         "name": "backgroundColor",
         "type": "color",
         "defaultValue": "",
@@ -1821,23 +1282,23 @@ const extractedData = {
         "composeParam": "backgroundColor",
         "iosParam": "backgroundColor",
         "webParam": "buttonBg",
-        "createdAt": "2025-08-26T16:18:33.278Z",
-        "updatedAt": "2025-08-26T16:18:33.278Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1468,
-      "tokenId": 198,
+      "id": 66,
+      "tokenId": 85,
       "value": "text.default.primary",
       "type": "variation",
-      "variationValueId": 628,
+      "variationValueId": 71,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.023Z",
-      "updatedAt": "2025-09-05T16:48:34.023Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 198,
-        "componentId": 12,
+        "id": 85,
+        "componentId": 16,
         "name": "textColor",
         "type": "color",
         "defaultValue": "",
@@ -1846,23 +1307,23 @@ const extractedData = {
         "composeParam": "contentColor",
         "iosParam": "contentColor",
         "webParam": "linkColor",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1469,
-      "tokenId": 207,
+      "id": 67,
+      "tokenId": 86,
       "value": "text.default.secondary",
       "type": "variation",
-      "variationValueId": 628,
+      "variationValueId": 71,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.023Z",
-      "updatedAt": "2025-09-05T16:48:34.023Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 207,
-        "componentId": 12,
+        "id": 86,
+        "componentId": 16,
         "name": "textColorVisited",
         "type": "color",
         "defaultValue": "",
@@ -1871,23 +1332,23 @@ const extractedData = {
         "composeParam": "contentColorVisited",
         "iosParam": "contentColorVisited",
         "webParam": "linkColorVisited",
-        "createdAt": "2025-07-01T19:55:37.689Z",
-        "updatedAt": "2025-07-01T19:55:37.689Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1470,
-      "tokenId": 204,
+      "id": 68,
+      "tokenId": 87,
       "value": "0",
       "type": "variation",
-      "variationValueId": 628,
+      "variationValueId": 71,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.023Z",
-      "updatedAt": "2025-09-05T16:48:34.023Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 204,
-        "componentId": 12,
+        "id": 87,
+        "componentId": 16,
         "name": "underlineBorderWidth",
         "type": "dimension",
         "defaultValue": "",
@@ -1896,23 +1357,23 @@ const extractedData = {
         "composeParam": "textDecoration",
         "iosParam": "underlineThickness",
         "webParam": "linkUnderlineBorder",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1471,
-      "tokenId": 198,
+      "id": 69,
+      "tokenId": 85,
       "value": "text.default.secondary",
       "type": "variation",
-      "variationValueId": 629,
+      "variationValueId": 72,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.028Z",
-      "updatedAt": "2025-09-05T16:48:34.028Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 198,
-        "componentId": 12,
+        "id": 85,
+        "componentId": 16,
         "name": "textColor",
         "type": "color",
         "defaultValue": "",
@@ -1921,23 +1382,23 @@ const extractedData = {
         "composeParam": "contentColor",
         "iosParam": "contentColor",
         "webParam": "linkColor",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1472,
-      "tokenId": 207,
+      "id": 70,
+      "tokenId": 86,
       "value": "text.default.tertiary",
       "type": "variation",
-      "variationValueId": 629,
+      "variationValueId": 72,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.028Z",
-      "updatedAt": "2025-09-05T16:48:34.028Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 207,
-        "componentId": 12,
+        "id": 86,
+        "componentId": 16,
         "name": "textColorVisited",
         "type": "color",
         "defaultValue": "",
@@ -1946,23 +1407,23 @@ const extractedData = {
         "composeParam": "contentColorVisited",
         "iosParam": "contentColorVisited",
         "webParam": "linkColorVisited",
-        "createdAt": "2025-07-01T19:55:37.689Z",
-        "updatedAt": "2025-07-01T19:55:37.689Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1473,
-      "tokenId": 204,
+      "id": 71,
+      "tokenId": 87,
       "value": "0",
       "type": "variation",
-      "variationValueId": 629,
+      "variationValueId": 72,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.028Z",
-      "updatedAt": "2025-09-05T16:48:34.028Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 204,
-        "componentId": 12,
+        "id": 87,
+        "componentId": 16,
         "name": "underlineBorderWidth",
         "type": "dimension",
         "defaultValue": "",
@@ -1971,23 +1432,23 @@ const extractedData = {
         "composeParam": "textDecoration",
         "iosParam": "underlineThickness",
         "webParam": "linkUnderlineBorder",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1477,
-      "tokenId": 198,
+      "id": 72,
+      "tokenId": 85,
       "value": "inherit",
       "type": "variation",
-      "variationValueId": 631,
+      "variationValueId": 73,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.036Z",
-      "updatedAt": "2025-09-05T16:48:34.036Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 198,
-        "componentId": 12,
+        "id": 85,
+        "componentId": 16,
         "name": "textColor",
         "type": "color",
         "defaultValue": "",
@@ -1996,23 +1457,23 @@ const extractedData = {
         "composeParam": "contentColor",
         "iosParam": "contentColor",
         "webParam": "linkColor",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1478,
-      "tokenId": 207,
+      "id": 73,
+      "tokenId": 86,
       "value": "inherit",
       "type": "variation",
-      "variationValueId": 631,
+      "variationValueId": 73,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.036Z",
-      "updatedAt": "2025-09-05T16:48:34.036Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 207,
-        "componentId": 12,
+        "id": 86,
+        "componentId": 16,
         "name": "textColorVisited",
         "type": "color",
         "defaultValue": "",
@@ -2021,23 +1482,23 @@ const extractedData = {
         "composeParam": "contentColorVisited",
         "iosParam": "contentColorVisited",
         "webParam": "linkColorVisited",
-        "createdAt": "2025-07-01T19:55:37.689Z",
-        "updatedAt": "2025-07-01T19:55:37.689Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1479,
-      "tokenId": 204,
+      "id": 74,
+      "tokenId": 87,
       "value": "1",
       "type": "variation",
-      "variationValueId": 631,
+      "variationValueId": 73,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.036Z",
-      "updatedAt": "2025-09-05T16:48:34.036Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 204,
-        "componentId": 12,
+        "id": 87,
+        "componentId": 16,
         "name": "underlineBorderWidth",
         "type": "dimension",
         "defaultValue": "",
@@ -2046,23 +1507,23 @@ const extractedData = {
         "composeParam": "textDecoration",
         "iosParam": "underlineThickness",
         "webParam": "linkUnderlineBorder",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1480,
-      "tokenId": 197,
+      "id": 75,
+      "tokenId": 88,
       "value": "body.s.normal",
       "type": "variation",
-      "variationValueId": 632,
+      "variationValueId": 68,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.040Z",
-      "updatedAt": "2025-09-05T16:48:34.040Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 197,
-        "componentId": 12,
+        "id": 88,
+        "componentId": 16,
         "name": "textStyle",
         "type": "typography",
         "defaultValue": "",
@@ -2071,23 +1532,23 @@ const extractedData = {
         "composeParam": "height",
         "iosParam": "height",
         "webParam": "linkFont",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1481,
-      "tokenId": 197,
+      "id": 76,
+      "tokenId": 88,
       "value": "body.m.normal",
       "type": "variation",
-      "variationValueId": 633,
+      "variationValueId": 69,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.044Z",
-      "updatedAt": "2025-09-05T16:48:34.044Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 197,
-        "componentId": 12,
+        "id": 88,
+        "componentId": 16,
         "name": "textStyle",
         "type": "typography",
         "defaultValue": "",
@@ -2096,23 +1557,23 @@ const extractedData = {
         "composeParam": "height",
         "iosParam": "height",
         "webParam": "linkFont",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1482,
-      "tokenId": 197,
+      "id": 77,
+      "tokenId": 88,
       "value": "body.l.normal",
       "type": "variation",
-      "variationValueId": 634,
+      "variationValueId": 70,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:48:34.048Z",
-      "updatedAt": "2025-09-05T16:48:34.048Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 197,
-        "componentId": 12,
+        "id": 88,
+        "componentId": 16,
         "name": "textStyle",
         "type": "typography",
         "defaultValue": "",
@@ -2121,23 +1582,23 @@ const extractedData = {
         "composeParam": "height",
         "iosParam": "height",
         "webParam": "linkFont",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1485,
-      "tokenId": 198,
+      "id": 78,
+      "tokenId": 85,
       "value": "text.default.accent",
       "type": "variation",
-      "variationValueId": 630,
+      "variationValueId": 74,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:49:19.553Z",
-      "updatedAt": "2025-09-05T16:49:19.553Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 198,
-        "componentId": 12,
+        "id": 85,
+        "componentId": 16,
         "name": "textColor",
         "type": "color",
         "defaultValue": "",
@@ -2146,23 +1607,23 @@ const extractedData = {
         "composeParam": "contentColor",
         "iosParam": "contentColor",
         "webParam": "linkColor",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1486,
-      "tokenId": 207,
+      "id": 79,
+      "tokenId": 86,
       "value": "text.default.accent-minor",
       "type": "variation",
-      "variationValueId": 630,
+      "variationValueId": 74,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:49:19.553Z",
-      "updatedAt": "2025-09-05T16:49:19.553Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 207,
-        "componentId": 12,
+        "id": 86,
+        "componentId": 16,
         "name": "textColorVisited",
         "type": "color",
         "defaultValue": "",
@@ -2171,23 +1632,23 @@ const extractedData = {
         "composeParam": "contentColorVisited",
         "iosParam": "contentColorVisited",
         "webParam": "linkColorVisited",
-        "createdAt": "2025-07-01T19:55:37.689Z",
-        "updatedAt": "2025-07-01T19:55:37.689Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1487,
-      "tokenId": 204,
+      "id": 80,
+      "tokenId": 87,
       "value": "0",
       "type": "variation",
-      "variationValueId": 630,
+      "variationValueId": 74,
       "componentId": null,
       "designSystemId": null,
-      "createdAt": "2025-09-05T16:49:19.553Z",
-      "updatedAt": "2025-09-05T16:49:19.553Z",
+      "createdAt": "2025-09-06T08:49:39.283Z",
+      "updatedAt": "2025-09-06T08:49:39.283Z",
       "token": {
-        "id": 204,
-        "componentId": 12,
+        "id": 87,
+        "componentId": 16,
         "name": "underlineBorderWidth",
         "type": "dimension",
         "defaultValue": "",
@@ -2196,23 +1657,23 @@ const extractedData = {
         "composeParam": "textDecoration",
         "iosParam": "underlineThickness",
         "webParam": "linkUnderlineBorder",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1483,
-      "tokenId": 205,
+      "id": 81,
+      "tokenId": 84,
       "value": "0.4",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
-      "designSystemId": 154,
-      "createdAt": "2025-09-05T16:48:34.067Z",
-      "updatedAt": "2025-09-05T16:48:34.067Z",
+      "componentId": 16,
+      "designSystemId": 4,
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 205,
-        "componentId": 12,
+        "id": 84,
+        "componentId": 16,
         "name": "disableAlpha",
         "type": "float",
         "defaultValue": "",
@@ -2221,23 +1682,23 @@ const extractedData = {
         "composeParam": "disabledOpacity",
         "iosParam": "disabledOpacity",
         "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1484,
-      "tokenId": 206,
+      "id": 82,
+      "tokenId": 83,
       "value": "text.default.accent",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
-      "designSystemId": 154,
-      "createdAt": "2025-09-05T16:48:34.072Z",
-      "updatedAt": "2025-09-05T16:48:34.072Z",
+      "componentId": 16,
+      "designSystemId": 4,
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 206,
-        "componentId": 12,
+        "id": 83,
+        "componentId": 16,
         "name": "focusColor",
         "type": "color",
         "defaultValue": "",
@@ -2246,23 +1707,23 @@ const extractedData = {
         "composeParam": "focusColor",
         "iosParam": "focusColor",
         "webParam": "linkColorFocus",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1295,
-      "tokenId": 206,
+      "id": 83,
+      "tokenId": 83,
       "value": "#28a745",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
+      "componentId": 16,
       "designSystemId": null,
-      "createdAt": "2025-09-02T10:53:57.745Z",
-      "updatedAt": "2025-09-02T10:53:57.745Z",
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 206,
-        "componentId": 12,
+        "id": 83,
+        "componentId": 16,
         "name": "focusColor",
         "type": "color",
         "defaultValue": "",
@@ -2271,23 +1732,23 @@ const extractedData = {
         "composeParam": "focusColor",
         "iosParam": "focusColor",
         "webParam": "linkColorFocus",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1296,
-      "tokenId": 205,
+      "id": 84,
+      "tokenId": 84,
       "value": "0.8",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
+      "componentId": 16,
       "designSystemId": null,
-      "createdAt": "2025-09-02T10:53:57.745Z",
-      "updatedAt": "2025-09-02T10:53:57.745Z",
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 205,
-        "componentId": 12,
+        "id": 84,
+        "componentId": 16,
         "name": "disableAlpha",
         "type": "float",
         "defaultValue": "",
@@ -2296,178 +1757,96 @@ const extractedData = {
         "composeParam": "disabledOpacity",
         "iosParam": "disabledOpacity",
         "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
-      }
-    },
-    {
-      "id": 1568,
-      "tokenId": 217,
-      "value": "#28a745",
-      "type": "invariant",
-      "variationValueId": null,
-      "componentId": 26,
-      "designSystemId": null,
-      "createdAt": "2025-09-05T19:09:33.723Z",
-      "updatedAt": "2025-09-05T19:09:33.723Z",
-      "token": {
-        "id": 217,
-        "componentId": 26,
-        "name": "focusColor",
-        "type": "color",
-        "defaultValue": "",
-        "description": "цвет ссылки в фокусе",
-        "xmlParam": "sd_focusColor",
-        "composeParam": "focusColor",
-        "iosParam": "focusColor",
-        "webParam": "linkColorFocus",
-        "createdAt": "2025-09-05T19:09:33.661Z",
-        "updatedAt": "2025-09-05T19:09:33.661Z"
-      }
-    },
-    {
-      "id": 1569,
-      "tokenId": 218,
-      "value": "0.8",
-      "type": "invariant",
-      "variationValueId": null,
-      "componentId": 26,
-      "designSystemId": null,
-      "createdAt": "2025-09-05T19:09:33.723Z",
-      "updatedAt": "2025-09-05T19:09:33.723Z",
-      "token": {
-        "id": 218,
-        "componentId": 26,
-        "name": "disableAlpha",
-        "type": "float",
-        "defaultValue": "",
-        "description": "прозрачность в отключенном состоянии",
-        "xmlParam": "android:alpha",
-        "composeParam": "disabledOpacity",
-        "iosParam": "disabledOpacity",
-        "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-09-05T19:09:33.661Z",
-        "updatedAt": "2025-09-05T19:09:33.661Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     }
   ],
   "designSystemComponents": [
     {
-      "id": 310,
-      "designSystemId": 154,
-      "componentId": 2,
-      "createdAt": "2025-09-05T16:48:33.954Z",
-      "updatedAt": "2025-09-05T16:48:33.954Z"
+      "id": 19,
+      "designSystemId": 4,
+      "componentId": 17,
+      "createdAt": "2025-09-06T08:49:39.267Z",
+      "updatedAt": "2025-09-06T08:49:39.267Z"
     },
     {
-      "id": 311,
-      "designSystemId": 154,
-      "componentId": 14,
-      "createdAt": "2025-09-05T16:48:33.960Z",
-      "updatedAt": "2025-09-05T16:48:33.960Z"
+      "id": 20,
+      "designSystemId": 4,
+      "componentId": 18,
+      "createdAt": "2025-09-06T08:49:39.267Z",
+      "updatedAt": "2025-09-06T08:49:39.267Z"
     },
     {
-      "id": 312,
-      "designSystemId": 154,
-      "componentId": 12,
-      "createdAt": "2025-09-05T16:48:33.963Z",
-      "updatedAt": "2025-09-05T16:48:33.963Z"
-    },
-    {
-      "id": 313,
-      "designSystemId": 154,
-      "componentId": 15,
-      "createdAt": "2025-09-05T16:48:33.966Z",
-      "updatedAt": "2025-09-05T16:48:33.966Z"
-    },
-    {
-      "id": 314,
-      "designSystemId": 154,
+      "id": 21,
+      "designSystemId": 4,
       "componentId": 16,
-      "createdAt": "2025-09-05T16:48:33.969Z",
-      "updatedAt": "2025-09-05T16:48:33.969Z"
+      "createdAt": "2025-09-06T08:49:39.267Z",
+      "updatedAt": "2025-09-06T08:49:39.267Z"
+    },
+    {
+      "id": 22,
+      "designSystemId": 4,
+      "componentId": 19,
+      "createdAt": "2025-09-06T08:49:39.267Z",
+      "updatedAt": "2025-09-06T08:49:39.267Z"
+    },
+    {
+      "id": 23,
+      "designSystemId": 4,
+      "componentId": 20,
+      "createdAt": "2025-09-06T08:49:39.267Z",
+      "updatedAt": "2025-09-06T08:49:39.267Z"
     }
   ],
   "propsAPI": [
     {
-      "id": 2,
-      "componentId": 12,
+      "id": 9,
+      "componentId": 16,
       "name": "disabled",
       "value": "false",
-      "createdAt": "2025-07-01T19:04:26.302Z",
-      "updatedAt": "2025-07-01T19:04:26.302Z"
+      "createdAt": "2025-09-06T08:49:39.271Z",
+      "updatedAt": "2025-09-06T08:49:39.271Z"
     },
     {
-      "id": 3,
-      "componentId": 12,
+      "id": 10,
+      "componentId": 16,
       "name": "target",
       "value": "_blank",
-      "createdAt": "2025-07-01T19:16:59.851Z",
-      "updatedAt": "2025-07-01T19:16:59.851Z"
+      "createdAt": "2025-09-06T08:49:39.271Z",
+      "updatedAt": "2025-09-06T08:49:39.271Z"
     },
     {
-      "id": 4,
-      "componentId": 12,
+      "id": 11,
+      "componentId": 16,
       "name": "href",
       "value": "https://google.com",
-      "createdAt": "2025-07-01T19:17:30.029Z",
-      "updatedAt": "2025-07-01T19:17:30.029Z"
+      "createdAt": "2025-09-06T08:49:39.271Z",
+      "updatedAt": "2025-09-06T08:49:39.271Z"
     },
     {
-      "id": 1,
-      "componentId": 12,
+      "id": 12,
+      "componentId": 16,
       "name": "text",
       "value": "hello world",
-      "createdAt": "2025-07-01T19:03:30.531Z",
-      "updatedAt": "2025-07-01T19:03:30.531Z"
-    },
-    {
-      "id": 5,
-      "componentId": 26,
-      "name": "disabled",
-      "value": "false",
-      "createdAt": "2025-09-05T19:09:33.698Z",
-      "updatedAt": "2025-09-05T19:09:33.698Z"
-    },
-    {
-      "id": 6,
-      "componentId": 26,
-      "name": "target",
-      "value": "_blank",
-      "createdAt": "2025-09-05T19:09:33.698Z",
-      "updatedAt": "2025-09-05T19:09:33.698Z"
-    },
-    {
-      "id": 7,
-      "componentId": 26,
-      "name": "href",
-      "value": "https://google.com",
-      "createdAt": "2025-09-05T19:09:33.698Z",
-      "updatedAt": "2025-09-05T19:09:33.698Z"
-    },
-    {
-      "id": 8,
-      "componentId": 26,
-      "name": "text",
-      "value": "hello world",
-      "createdAt": "2025-09-05T19:09:33.698Z",
-      "updatedAt": "2025-09-05T19:09:33.698Z"
+      "createdAt": "2025-09-06T08:49:39.271Z",
+      "updatedAt": "2025-09-06T08:49:39.271Z"
     }
   ],
   "invariantTokenValues": [
     {
-      "id": 1483,
-      "tokenId": 205,
+      "id": 81,
+      "tokenId": 84,
       "value": "0.4",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
-      "designSystemId": 154,
-      "createdAt": "2025-09-05T16:48:34.067Z",
-      "updatedAt": "2025-09-05T16:48:34.067Z",
+      "componentId": 16,
+      "designSystemId": 4,
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 205,
-        "componentId": 12,
+        "id": 84,
+        "componentId": 16,
         "name": "disableAlpha",
         "type": "float",
         "defaultValue": "",
@@ -2476,23 +1855,23 @@ const extractedData = {
         "composeParam": "disabledOpacity",
         "iosParam": "disabledOpacity",
         "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1484,
-      "tokenId": 206,
+      "id": 82,
+      "tokenId": 83,
       "value": "text.default.accent",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
-      "designSystemId": 154,
-      "createdAt": "2025-09-05T16:48:34.072Z",
-      "updatedAt": "2025-09-05T16:48:34.072Z",
+      "componentId": 16,
+      "designSystemId": 4,
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 206,
-        "componentId": 12,
+        "id": 83,
+        "componentId": 16,
         "name": "focusColor",
         "type": "color",
         "defaultValue": "",
@@ -2501,23 +1880,23 @@ const extractedData = {
         "composeParam": "focusColor",
         "iosParam": "focusColor",
         "webParam": "linkColorFocus",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1295,
-      "tokenId": 206,
+      "id": 83,
+      "tokenId": 83,
       "value": "#28a745",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
+      "componentId": 16,
       "designSystemId": null,
-      "createdAt": "2025-09-02T10:53:57.745Z",
-      "updatedAt": "2025-09-02T10:53:57.745Z",
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 206,
-        "componentId": 12,
+        "id": 83,
+        "componentId": 16,
         "name": "focusColor",
         "type": "color",
         "defaultValue": "",
@@ -2526,23 +1905,23 @@ const extractedData = {
         "composeParam": "focusColor",
         "iosParam": "focusColor",
         "webParam": "linkColorFocus",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     },
     {
-      "id": 1296,
-      "tokenId": 205,
+      "id": 84,
+      "tokenId": 84,
       "value": "0.8",
       "type": "invariant",
       "variationValueId": null,
-      "componentId": 12,
+      "componentId": 16,
       "designSystemId": null,
-      "createdAt": "2025-09-02T10:53:57.745Z",
-      "updatedAt": "2025-09-02T10:53:57.745Z",
+      "createdAt": "2025-09-06T08:49:39.289Z",
+      "updatedAt": "2025-09-06T08:49:39.289Z",
       "token": {
-        "id": 205,
-        "componentId": 12,
+        "id": 84,
+        "componentId": 16,
         "name": "disableAlpha",
         "type": "float",
         "defaultValue": "",
@@ -2551,58 +1930,8 @@ const extractedData = {
         "composeParam": "disabledOpacity",
         "iosParam": "disabledOpacity",
         "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-06-07T00:43:46.511Z",
-        "updatedAt": "2025-06-07T00:43:46.511Z"
-      }
-    },
-    {
-      "id": 1568,
-      "tokenId": 217,
-      "value": "#28a745",
-      "type": "invariant",
-      "variationValueId": null,
-      "componentId": 26,
-      "designSystemId": null,
-      "createdAt": "2025-09-05T19:09:33.723Z",
-      "updatedAt": "2025-09-05T19:09:33.723Z",
-      "token": {
-        "id": 217,
-        "componentId": 26,
-        "name": "focusColor",
-        "type": "color",
-        "defaultValue": "",
-        "description": "цвет ссылки в фокусе",
-        "xmlParam": "sd_focusColor",
-        "composeParam": "focusColor",
-        "iosParam": "focusColor",
-        "webParam": "linkColorFocus",
-        "createdAt": "2025-09-05T19:09:33.661Z",
-        "updatedAt": "2025-09-05T19:09:33.661Z"
-      }
-    },
-    {
-      "id": 1569,
-      "tokenId": 218,
-      "value": "0.8",
-      "type": "invariant",
-      "variationValueId": null,
-      "componentId": 26,
-      "designSystemId": null,
-      "createdAt": "2025-09-05T19:09:33.723Z",
-      "updatedAt": "2025-09-05T19:09:33.723Z",
-      "token": {
-        "id": 218,
-        "componentId": 26,
-        "name": "disableAlpha",
-        "type": "float",
-        "defaultValue": "",
-        "description": "прозрачность в отключенном состоянии",
-        "xmlParam": "android:alpha",
-        "composeParam": "disabledOpacity",
-        "iosParam": "disabledOpacity",
-        "webParam": "linkDisabledOpacity",
-        "createdAt": "2025-09-05T19:09:33.661Z",
-        "updatedAt": "2025-09-05T19:09:33.661Z"
+        "createdAt": "2025-09-06T08:49:39.254Z",
+        "updatedAt": "2025-09-06T08:49:39.254Z"
       }
     }
   ]

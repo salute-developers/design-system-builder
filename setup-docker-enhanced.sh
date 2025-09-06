@@ -228,19 +228,11 @@ if [ "$FULL_SETUP" = true ]; then
         exit 1
     fi
     
-    echo_step "Seeding basic data (components and tokens)..."
-    if docker-compose -f $COMPOSE_FILE exec -T backend npm run seed; then
-        echo_success "Basic seeding completed"
+    echo_step "Seeding database with saved state..."
+    if docker-compose -f $COMPOSE_FILE exec -T backend npm run seed-saved-state; then
+        echo_success "Database seeding completed"
     else
-        echo_error "Basic seeding failed"
-        exit 1
-    fi
-    
-    echo_step "Creating design system with variation values..."
-    if docker-compose -f $COMPOSE_FILE exec -T backend npm run seed-all; then
-        echo_success "Design system seeding completed"
-    else
-        echo_error "Design system seeding failed"
+        echo_error "Database seeding failed"
         exit 1
     fi
 else

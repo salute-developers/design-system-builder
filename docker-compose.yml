@@ -106,6 +106,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3003
+      BACKEND_URL: http://backend:3001/api
     ports:
       - "3003:3003"
     depends_on:
