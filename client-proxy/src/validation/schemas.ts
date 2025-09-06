@@ -12,7 +12,8 @@ export const VariationsSchema = z.object({
 });
 
 // Basic types
-export const PropTypeSchema = z.enum(['color', 'dimension', 'float', 'number', 'shape', 'typography']);
+// TODO: we should check our data schema
+export const PropTypeSchema = z.enum(['color', 'dimension', 'float', 'number', 'shape', 'typography', 'string']);
 export const PropStateSchema = z.enum(['hovered', 'pressed']);
 export const IntersectionsSchema = z.record(z.string(), z.array(z.string()));
 
