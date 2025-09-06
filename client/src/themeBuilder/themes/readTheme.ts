@@ -7,7 +7,7 @@ const deserializeZip = async (content: string) => {
     // TODO: Вообще убрать?
     // const buf = Buffer.from(content, 'base64') as any;
 
-    return await JSZip.loadAsync({});
+    return await JSZip.loadAsync("");
 };
 
 const getAllRelativePath = async (zip: JSZip) => {
