@@ -1,5 +1,6 @@
-import React, { useRef, forwardRef, useEffect } from 'react';
+import { useRef, forwardRef, useEffect, ReactNode } from 'react';
 import styled from 'styled-components';
+import { InputHTMLAttributes } from '@salutejs/plasma-b2c';
 
 import { useInputDynamicWidth } from '../hooks';
 
@@ -26,7 +27,10 @@ const StyleWrapper = styled.div`
     }
 `;
 
-const StyledInput = styled.input`
+const StyledInput = styled.input<{ width: number; left: number }>`
+    width: ${({ width }) => width}px;
+    margin-left: ${({ left }) => left}px;
+
     cursor: pointer;
     position: relative;
     background: transparent;
@@ -91,13 +95,12 @@ const StyledDynamicHelper = styled.div`
     line-height: 16px;
 `;
 
-interface HeroTextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface HeroTextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
     value?: string;
     view?: 'default' | 'negative';
     placeholder?: string;
-    dynamicContentRight?: React.ReactNode;
+    dynamicContentRight?: ReactNode;
     dynamicHelper?: string;
-    style?: React.CSSProperties;
 }
 
 export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props) => {
@@ -137,7 +140,8 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
                     ref={inputRef}
                     value={value}
                     placeholder={placeholder}
-                    style={{ width: `${inputWidth}px`, marginLeft: `${inputLeft}px` }}
+                    width={inputWidth}
+                    left={inputLeft}
                     onChange={onChange}
                     onKeyDown={onKeyDown}
                 />

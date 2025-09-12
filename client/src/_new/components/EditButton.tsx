@@ -1,9 +1,11 @@
-import { IconArrowsMoveVertical, IconInfoCircleOutline } from '@salutejs/plasma-icons';
-import { forwardRef, HTMLAttributes } from 'react';
+import { forwardRef, HTMLAttributes, ReactNode } from 'react';
 import styled from 'styled-components';
-import { checkIsColorContrast } from '../utils';
+import { IconArrowsMoveVertical, IconInfoCircleOutline } from '@salutejs/plasma-icons';
 
-const Root = styled.div<{ view?: 'default' | 'light' | 'dark' }>`
+import { checkIsColorContrast } from '../utils';
+import { SaturationType, ViewType } from '../types';
+
+const Root = styled.div<{ view?: ViewType }>`
     position: relative;
 
     cursor: pointer;
@@ -16,7 +18,7 @@ const Root = styled.div<{ view?: 'default' | 'light' | 'dark' }>`
     align-items: center;
 
     --edit-button-background-color: ${({ view }) =>
-        view === 'default' ? 'transparent' : view === 'light' ? '#F5F5F5' : '#171717'};
+        view === undefined ? 'transparent' : view === 'light' ? '#F4F5FB' : '#16181D'};
 
     &:hover > div {
         color: var(--gray-color-150);
@@ -37,7 +39,7 @@ const StyledLabel = styled.div`
     line-height: 16px;
 `;
 
-const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: 'fill' | 'stroke' }>`
+const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: SaturationType }>`
     background: ${({ saturationType, backgroundColor }) =>
         saturationType === 'fill'
             ? backgroundColor
@@ -57,7 +59,7 @@ const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: 'f
     transition: all 0.1s ease-in-out;
 `;
 
-const StyledText = styled.div<{ color?: string; saturationType?: 'fill' | 'stroke' }>`
+const StyledText = styled.div<{ color?: string; saturationType?: SaturationType }>`
     color: ${({ saturationType, color }) => (saturationType ? color : 'var(--gray-color-300)')};
 
     font-family: 'SB Sans Display';
@@ -77,7 +79,7 @@ const StyledContentLeft = styled.div`
     justify-content: center;
 `;
 
-const StyledContentRight = styled.div<{ color?: string; saturationType?: 'fill' | 'stroke' }>`
+const StyledContentRight = styled.div<{ color?: string; saturationType?: SaturationType }>`
     color: ${({ saturationType, color }) => (saturationType === 'fill' ? color : 'var(--gray-color-600)')};
     width: 0.75rem;
     height: 0.75rem;
@@ -120,18 +122,20 @@ interface EditButtonProps extends HTMLAttributes<HTMLDivElement> {
     text?: string;
     label?: string;
     color?: string;
-    view?: 'default' | 'light' | 'dark';
-    contentLeft?: React.ReactNode;
-    saturationType?: 'fill' | 'stroke';
+    view?: ViewType;
+    contentLeft?: ReactNode;
+    saturationType?: SaturationType;
     isReady?: boolean;
 }
 
 export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, ref) => {
-    const { label, text, view = 'default', color, saturationType, contentLeft, isReady, ...rest } = props;
+    const { label, text, view, color, saturationType, contentLeft, isReady, ...rest } = props;
 
-    const backgroundColor = view === 'light' ? '#C7C7C7' : '#171717';
-    const isColorContrast = color && checkIsColorContrast(color, backgroundColor);
-    const contrastColor = color && checkIsColorContrast(color, '#FFFFFF') ? '#F5F5F5' : '#171717'; // TODO: сделать переменными 100 / 950
+    const backgroundColor = view === 'light' ? '#FFFFFF' : '#000000';
+    const threshold = saturationType === 'stroke' ? 3 : 2;
+    const isColorContrast = color && checkIsColorContrast(color, backgroundColor, threshold);
+
+    const contrastColor = color && checkIsColorContrast(color, '#FFFFFF') ? '#FFFFFF' : '#000000';
     const textColor = saturationType === 'fill' ? contrastColor : color;
 
     return (

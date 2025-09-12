@@ -1,20 +1,14 @@
-import { ChangeEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
-import { general, PlasmaSaturation } from '@salutejs/plasma-colors';
+import { general } from '@salutejs/plasma-colors';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { IconArrowRight, IconClose } from '@salutejs/plasma-icons';
 
-import { HoverSelect } from '../components/HoverSelect';
-import { EditButton } from '../components/EditButton';
-import { TextField } from '../components/TextField';
-import { SaturationSelect } from '../components/SaturationSelect';
-import { AccentSelect } from '../components/AccentSelect';
-import { GeneralColor, GrayTone, grayTones, Parameters } from '../types';
+import { Parameters } from '../types';
 import { useGlobalKeyDown } from '../hooks';
-import { prettifyColorName, transliterateToSnakeCase } from '../utils';
-import { HeroTextField } from '../components/HeroTextField';
-import { IconArrowBack, IconArrowRight, IconClose } from '@salutejs/plasma-icons';
-import { IconButton } from '../components/IconButton';
 import { HeroButton } from '../components/HeroButton';
+
+import { ProjectNameStep, PackagesNameStep, GrayToneStep, AccentSelectStep, SaturationSelectStep } from './step';
 
 export const Root = styled.div``;
 
@@ -41,39 +35,6 @@ const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-`;
-
-const StyledEditButton = styled(EditButton)`
-    margin: 1.5rem 0;
-`;
-
-const StyledHoverSelect = styled(HoverSelect)`
-    margin: 3rem 0;
-`;
-
-const StyledAccentSelect = styled(AccentSelect)`
-    margin: 3rem 0;
-`;
-
-const StyledSaturationSelect = styled(SaturationSelect)`
-    margin: 3rem 0;
-`;
-
-const StyledPreviewSaturation = styled.div<{ color: string; saturationType?: 'fill' | 'stroke' }>`
-    border-radius: 50%;
-    width: 0.75rem;
-    height: 0.75rem;
-    background: ${({ color }) => color};
-
-    ${({ saturationType }) =>
-        saturationType === 'stroke' &&
-        css`
-            box-shadow: 0 0 0 0.0625rem rgba(0, 0, 0, 0.12) inset;
-        `}
-`;
-
-const StyledIconButton = styled(IconArrowBack)`
-    --icon-size: 3.25rem !important;
 `;
 
 const StyledReadyBlock = styled.div<{ isReady?: boolean }>`
@@ -172,19 +133,14 @@ const StyledSeparator = styled.div`
     height: 1.5rem;
 `;
 
-const accentColors = Object.entries(general)
-    .slice(0, -3)
-    .map(([name, item]) => ({
-        label: prettifyColorName(name),
-        value: name,
-        color: item[600],
-    }));
+const fnCanShowStep = (popupSetupStep: number, editStep: number | null) => (stepNumber: number) =>
+    (popupSetupStep >= stepNumber && (editStep === null || editStep === stepNumber)) ||
+    (popupSetupStep > stepNumber && editStep !== null);
 
-const canShowParameter = (stepNumber: number, popupContentStep: number, editStep: number | null) =>
-    (popupContentStep >= stepNumber && (editStep === null || editStep === stepNumber)) ||
-    (popupContentStep > stepNumber && editStep !== null);
+const fnIsEditMode = (popupSetupStep: number, editStep: number | null) => (stepNumber: number) =>
+    popupSetupStep === stepNumber || editStep === stepNumber;
 
-const popupSetupSteps = {
+export const popupSetupSteps = {
     PROJECT_NAME: 0,
     PACKAGES_NAME: 1,
     GRAY_TONE: 2,
@@ -199,13 +155,12 @@ const popupSetupSteps = {
 interface SetupParametersProps {
     parameters: Partial<Parameters>;
     themeMode: ThemeMode;
-    // TODO: убрать эни и сделать жденерик
-    onChangeParameters: (name: string, value: any) => void;
+    onChangeParameters: <T extends keyof Parameters>(name: T, value: Parameters[T]) => void;
     onChangeGrayTone: (grayTone: string) => void;
     onChangeThemeMode: (themeMode: ThemeMode) => void;
     onResetParameters: () => void;
     onPrevPage: () => void;
-    onNextPage: () => void;
+    onNextPage: (data: Partial<Parameters>) => void;
 }
 
 export const SetupParameters = (props: SetupParametersProps) => {
@@ -225,16 +180,39 @@ export const SetupParameters = (props: SetupParametersProps) => {
         packagesName,
         grayTone,
         accentColor = 'blue',
-        lightStrokeSaturation = '50',
-        lightFillSaturation = '50',
-        darkStrokeSaturation = '50',
-        darkFillSaturation = '50',
+        lightStrokeSaturation = 50,
+        lightFillSaturation = 50,
+        darkStrokeSaturation = 50,
+        darkFillSaturation = 50,
     } = parameters;
 
-    const [popupSetupStep, setPopupContentStep] = useState<number>(2);
+    const [popupSetupStep, setPopupSetupStep] = useState<number>(2);
     const [editStep, setEditStep] = useState<number | null>(null);
 
     const packagesNameEdited = useRef(false);
+
+    const isReady = popupSetupStep === popupSetupSteps.DONE && editStep === null;
+    const canShowSeparator =
+        editStep !== popupSetupSteps.LIGHT_FILL_SATURATION &&
+        editStep !== popupSetupSteps.DARK_STROKE_SATURATION &&
+        popupSetupStep !== popupSetupSteps.LIGHT_FILL_SATURATION &&
+        popupSetupStep !== popupSetupSteps.DARK_STROKE_SATURATION;
+
+    const themeModeSwitcher =
+        themeMode === 'dark'
+            ? {
+                  saturation: darkStrokeSaturation,
+                  newThemeMode: 'light',
+                  text: 'в тёмной',
+              }
+            : {
+                  saturation: lightStrokeSaturation,
+                  newThemeMode: 'dark',
+                  text: 'в светлой',
+              };
+
+    const canShowStep = fnCanShowStep(popupSetupStep, editStep);
+    const isEditMode = fnIsEditMode(popupSetupStep, editStep);
 
     useGlobalKeyDown((event) => {
         if (event.key === 'Escape') {
@@ -242,102 +220,12 @@ export const SetupParameters = (props: SetupParametersProps) => {
         }
     });
 
-    const saturations = useMemo(
-        () =>
-            Object.entries(general[accentColor] || {})
-                .reverse()
-                .map(([saturation, value]) => ({
-                    value: saturation,
-                    color: value,
-                })),
-        [accentColor],
-    );
-
-    const onChangeProjectName = (event: ChangeEvent<HTMLInputElement>) => {
-        onChangeParameters('projectName', event.target.value);
+    const handleSetEditStep = (step: number | null) => {
+        setEditStep(step);
     };
 
-    const onKeyDownProjectName = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter' && projectName) {
-            onSubmitProjectName(projectName);
-        }
-    };
-
-    const onSubmitProjectName = (value: string) => {
-        onChangeParameters('projectName', value);
-        setEditStep(null);
-
-        if (!packagesNameEdited.current) {
-            const transliteratedValue = transliterateToSnakeCase(value);
-            onChangeParameters('packagesName', transliteratedValue);
-        }
-    };
-
-    const onSubmitPackagesName = (value: string) => {
-        packagesNameEdited.current = true;
-
-        onChangeParameters('packagesName', value);
-        setEditStep(null);
-    };
-
-    const onSelectGrayTone = (value: string) => {
-        onChangeParameters('grayTone', value as GrayTone);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.ACCENT_COLOR);
-        }
-
-        setEditStep(null);
-    };
-
-    const onSelectAccentColor = (value: string) => {
-        onChangeParameters('accentColor', value as GeneralColor);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.LIGHT_STROKE_SATURATION);
-        }
-
-        setEditStep(null);
-    };
-
-    const onSelectLightStrokeSaturation = (value: string) => {
-        onChangeParameters('lightStrokeSaturation', Number(value) as PlasmaSaturation);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.LIGHT_FILL_SATURATION);
-        }
-
-        setEditStep(null);
-    };
-
-    const onSelectLightFillSaturation = (value: string) => {
-        onChangeParameters('lightFillSaturation', Number(value) as PlasmaSaturation);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.DARK_STROKE_SATURATION);
-        }
-
-        setEditStep(null);
-    };
-
-    const onSelectDarkStrokeSaturation = (value: string) => {
-        onChangeParameters('darkStrokeSaturation', Number(value) as PlasmaSaturation);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.DARK_FILL_SATURATION);
-        }
-
-        setEditStep(null);
-    };
-
-    const onSelectDarkFillSaturation = (value: string) => {
-        onChangeParameters('darkFillSaturation', Number(value) as PlasmaSaturation);
-
-        if (editStep === null) {
-            setPopupContentStep(popupSetupSteps.DONE);
-        }
-
-        setEditStep(null);
+    const handleSetSetupStep = (step: number) => {
+        setPopupSetupStep(step);
     };
 
     const handleResetParameters = () => {
@@ -345,254 +233,157 @@ export const SetupParameters = (props: SetupParametersProps) => {
         packagesNameEdited.current = false;
     };
 
+    const handleThemeModeSwitch = () => {
+        onChangeThemeMode(themeModeSwitcher.newThemeMode as ThemeMode);
+    };
+
+    const handleSubmitParameters = () => {
+        onNextPage(parameters);
+    };
+
     useEffect(() => {
-        if (
-            ((popupSetupStep === popupSetupSteps.LIGHT_STROKE_SATURATION ||
-                popupSetupStep === popupSetupSteps.LIGHT_FILL_SATURATION) &&
-                editStep === null) ||
-            editStep === popupSetupSteps.LIGHT_STROKE_SATURATION ||
-            editStep === popupSetupSteps.LIGHT_FILL_SATURATION
-        ) {
+        const lightSteps = [popupSetupSteps.LIGHT_STROKE_SATURATION, popupSetupSteps.LIGHT_FILL_SATURATION];
+        const darkSteps = [popupSetupSteps.DARK_STROKE_SATURATION, popupSetupSteps.DARK_FILL_SATURATION];
+
+        if ((lightSteps.includes(popupSetupStep) && editStep === null) || (editStep && lightSteps.includes(editStep))) {
             onChangeThemeMode('light');
             return;
         }
 
-        if (
-            ((popupSetupStep === popupSetupSteps.DARK_STROKE_SATURATION ||
-                popupSetupStep === popupSetupSteps.DARK_FILL_SATURATION) &&
-                editStep === null) ||
-            editStep === popupSetupSteps.DARK_STROKE_SATURATION ||
-            editStep === popupSetupSteps.DARK_FILL_SATURATION
-        ) {
+        if ((darkSteps.includes(popupSetupStep) && editStep === null) || (editStep && darkSteps.includes(editStep))) {
             onChangeThemeMode('dark');
             return;
         }
     }, [popupSetupStep, editStep]);
 
-    const isReady = popupSetupStep === popupSetupSteps.DONE && editStep === null;
-
     return (
         <Root>
             <StyledSelectedParameters isReady={isReady}>
                 <StyledWrapper>
-                    {popupSetupStep === popupSetupSteps.PROJECT_NAME || editStep === popupSetupSteps.PROJECT_NAME ? (
-                        <HeroTextField
-                            value={projectName}
-                            placeholder="Начните с имени проекта"
-                            dynamicContentRight={
-                                <IconButton onClick={() => onSubmitProjectName(projectName || '')}>
-                                    <StyledIconButton size="s" color="inherit" />
-                                </IconButton>
-                            }
-                            dynamicHelper="без спецсимволов, можно по-русски — название пакетов транслитерируем по правилам"
-                            onChange={onChangeProjectName}
-                            onKeyDown={onKeyDownProjectName}
-                        />
-                    ) : (
-                        <TextField
-                            value={projectName}
-                            label="Название проекта"
-                            onClick={() => {
-                                setEditStep(popupSetupSteps.PROJECT_NAME);
-                            }}
-                        />
-                    )}
-                    <TextField
-                        label="Имя пакетов в коде"
-                        value={packagesName}
-                        onClick={() => {
-                            if (editStep === null) {
-                                setEditStep(popupSetupSteps.PACKAGES_NAME);
-                            }
-                        }}
-                        onCommit={onSubmitPackagesName}
-                        onBlur={() => {
-                            setEditStep(null);
-                        }}
+                    <ProjectNameStep
+                        packagesNameEdited={packagesNameEdited}
+                        projectName={projectName}
+                        editMode={isEditMode(popupSetupSteps.PROJECT_NAME)}
+                        onChangeEditStep={handleSetEditStep}
+                        onChangeParameters={onChangeParameters}
+                    />
+                    <PackagesNameStep
+                        packagesNameEdited={packagesNameEdited}
+                        packagesName={packagesName}
+                        onChangeEditStep={handleSetEditStep}
+                        onChangeParameters={onChangeParameters}
                     />
                 </StyledWrapper>
 
-                {canShowParameter(popupSetupSteps.GRAY_TONE, popupSetupStep, editStep) && (
-                    <>
-                        {popupSetupStep === popupSetupSteps.GRAY_TONE || editStep === popupSetupSteps.GRAY_TONE ? (
-                            <StyledHoverSelect
-                                label="Оттенок серого для базовых токенов"
-                                items={grayTones}
-                                grayTone={grayTone}
-                                onHover={onChangeGrayTone}
-                                onSelect={onSelectGrayTone}
-                            />
-                        ) : (
-                            <StyledEditButton
-                                label="Оттенок серого"
-                                text={grayTones.find(({ value }) => value === grayTone)?.label || ''}
-                                onClick={() => {
-                                    setEditStep(popupSetupSteps.GRAY_TONE);
-                                }}
-                            />
-                        )}
-                    </>
+                {canShowStep(popupSetupSteps.GRAY_TONE) && (
+                    <GrayToneStep
+                        grayTone={grayTone}
+                        editMode={isEditMode(popupSetupSteps.GRAY_TONE)}
+                        editStep={editStep}
+                        onChangeEditStep={handleSetEditStep}
+                        onChangeSetupStep={handleSetSetupStep}
+                        onChangeParameters={onChangeParameters}
+                        onChangeGrayTone={onChangeGrayTone}
+                    />
                 )}
 
                 <StyledWrapper>
-                    {canShowParameter(popupSetupSteps.ACCENT_COLOR, popupSetupStep, editStep) && (
-                        <>
-                            {popupSetupStep === popupSetupSteps.ACCENT_COLOR ||
-                            editStep === popupSetupSteps.ACCENT_COLOR ? (
-                                <StyledAccentSelect
-                                    defaultValue="Green"
-                                    label="Цвет бренда"
-                                    items={accentColors}
-                                    onSelect={onSelectAccentColor}
-                                />
-                            ) : (
-                                <EditButton
-                                    label="Цвет бренда"
-                                    text={prettifyColorName(accentColor)}
-                                    onClick={() => {
-                                        setEditStep(popupSetupSteps.ACCENT_COLOR);
-                                    }}
-                                />
-                            )}
-                        </>
+                    {canShowStep(popupSetupSteps.ACCENT_COLOR) && (
+                        <AccentSelectStep
+                            accentColor={accentColor}
+                            editMode={isEditMode(popupSetupSteps.ACCENT_COLOR)}
+                            editStep={editStep}
+                            onChangeEditStep={handleSetEditStep}
+                            onChangeSetupStep={handleSetSetupStep}
+                            onChangeParameters={onChangeParameters}
+                        />
                     )}
 
-                    {canShowParameter(popupSetupSteps.LIGHT_STROKE_SATURATION, popupSetupStep, editStep) && (
-                        <>
-                            {popupSetupStep === popupSetupSteps.LIGHT_STROKE_SATURATION ||
-                            editStep === popupSetupSteps.LIGHT_STROKE_SATURATION ? (
-                                <StyledSaturationSelect
-                                    label="Оттенок для текстов в светлой теме"
-                                    items={saturations}
-                                    themeMode={themeMode}
-                                    saturationType="stroke"
-                                    onSelect={onSelectLightStrokeSaturation}
-                                />
-                            ) : (
-                                <EditButton
-                                    label="Оттенок для текстов в светлой теме"
-                                    contentLeft={
-                                        <StyledPreviewSaturation
-                                            saturationType="stroke"
-                                            color={general[accentColor][lightStrokeSaturation]}
-                                        />
-                                    }
-                                    color={general[accentColor][lightStrokeSaturation]}
-                                    text={lightStrokeSaturation.toString()}
-                                    view="light"
-                                    saturationType="stroke"
-                                    isReady={isReady}
-                                    onClick={() => {
-                                        setEditStep(popupSetupSteps.LIGHT_STROKE_SATURATION);
-                                    }}
-                                />
-                            )}
-                        </>
+                    {canShowStep(popupSetupSteps.LIGHT_STROKE_SATURATION) && (
+                        <SaturationSelectStep
+                            label="Оттенок для текстов в светлой теме"
+                            view="light"
+                            saturationType="stroke"
+                            name="lightStrokeSaturation"
+                            saturation={lightStrokeSaturation}
+                            accentColor={accentColor}
+                            themeMode={themeMode}
+                            isReady={isReady}
+                            currentStep={popupSetupSteps.LIGHT_STROKE_SATURATION}
+                            nextStep={popupSetupSteps.LIGHT_FILL_SATURATION}
+                            editMode={isEditMode(popupSetupSteps.LIGHT_STROKE_SATURATION)}
+                            editStep={editStep}
+                            onChangeEditStep={handleSetEditStep}
+                            onChangeSetupStep={handleSetSetupStep}
+                            onChangeParameters={onChangeParameters}
+                        />
                     )}
 
-                    {canShowParameter(popupSetupSteps.LIGHT_FILL_SATURATION, popupSetupStep, editStep) && (
-                        <>
-                            {popupSetupStep === popupSetupSteps.LIGHT_FILL_SATURATION ||
-                            editStep === popupSetupSteps.LIGHT_FILL_SATURATION ? (
-                                <StyledSaturationSelect
-                                    label="Для плашек в светлой теме"
-                                    items={saturations}
-                                    saturationType="fill"
-                                    themeMode={themeMode}
-                                    onSelect={onSelectLightFillSaturation}
-                                />
-                            ) : (
-                                <EditButton
-                                    label="Для плашек в светлой теме"
-                                    contentLeft={
-                                        <StyledPreviewSaturation
-                                            saturationType="fill"
-                                            color={general[accentColor][lightFillSaturation]}
-                                        />
-                                    }
-                                    color={general[accentColor][lightFillSaturation]}
-                                    text={lightFillSaturation.toString()}
-                                    view="light"
-                                    saturationType="fill"
-                                    isReady={isReady}
-                                    onClick={() => {
-                                        setEditStep(popupSetupSteps.LIGHT_FILL_SATURATION);
-                                    }}
-                                />
-                            )}
-                        </>
+                    {canShowStep(popupSetupSteps.LIGHT_FILL_SATURATION) && (
+                        <SaturationSelectStep
+                            label="Для плашек в светлой теме"
+                            view="light"
+                            saturationType="fill"
+                            name="lightFillSaturation"
+                            saturation={lightFillSaturation}
+                            accentColor={accentColor}
+                            themeMode={themeMode}
+                            isReady={isReady}
+                            currentStep={popupSetupSteps.LIGHT_FILL_SATURATION}
+                            nextStep={popupSetupSteps.DARK_STROKE_SATURATION}
+                            editMode={isEditMode(popupSetupSteps.LIGHT_FILL_SATURATION)}
+                            editStep={editStep}
+                            onChangeEditStep={handleSetEditStep}
+                            onChangeSetupStep={handleSetSetupStep}
+                            onChangeParameters={onChangeParameters}
+                        />
                     )}
                 </StyledWrapper>
 
-                {isReady && <StyledSeparator />}
+                {canShowSeparator && <StyledSeparator />}
 
                 <StyledWrapper>
-                    {canShowParameter(popupSetupSteps.DARK_STROKE_SATURATION, popupSetupStep, editStep) && (
-                        <>
-                            {popupSetupStep === popupSetupSteps.DARK_STROKE_SATURATION ||
-                            editStep === popupSetupSteps.DARK_STROKE_SATURATION ? (
-                                <StyledSaturationSelect
-                                    label="Оттенок для текстов в тёмной теме"
-                                    items={saturations}
-                                    saturationType="stroke"
-                                    themeMode={themeMode}
-                                    onSelect={onSelectDarkStrokeSaturation}
-                                />
-                            ) : (
-                                <EditButton
-                                    label="Оттенок для текстов в тёмной теме"
-                                    contentLeft={
-                                        <StyledPreviewSaturation
-                                            saturationType="stroke"
-                                            color={general[accentColor][darkStrokeSaturation]}
-                                        />
-                                    }
-                                    color={general[accentColor][darkStrokeSaturation]}
-                                    text={darkStrokeSaturation.toString()}
-                                    view="dark"
-                                    saturationType="stroke"
-                                    isReady={isReady}
-                                    onClick={() => {
-                                        setEditStep(popupSetupSteps.DARK_STROKE_SATURATION);
-                                    }}
-                                />
-                            )}
-                        </>
+                    {canShowStep(popupSetupSteps.DARK_STROKE_SATURATION) && (
+                        <SaturationSelectStep
+                            label="Оттенок для текстов в тёмной теме"
+                            view="dark"
+                            saturationType="stroke"
+                            name="darkStrokeSaturation"
+                            saturation={darkStrokeSaturation}
+                            accentColor={accentColor}
+                            themeMode={themeMode}
+                            isReady={isReady}
+                            currentStep={popupSetupSteps.DARK_STROKE_SATURATION}
+                            nextStep={popupSetupSteps.DARK_FILL_SATURATION}
+                            editMode={isEditMode(popupSetupSteps.DARK_STROKE_SATURATION)}
+                            editStep={editStep}
+                            onChangeEditStep={handleSetEditStep}
+                            onChangeSetupStep={handleSetSetupStep}
+                            onChangeParameters={onChangeParameters}
+                        />
                     )}
 
-                    {canShowParameter(popupSetupSteps.DARK_FILL_SATURATION, popupSetupStep, editStep) && (
-                        <>
-                            {popupSetupStep === popupSetupSteps.DARK_FILL_SATURATION ||
-                            editStep === popupSetupSteps.DARK_FILL_SATURATION ? (
-                                <StyledSaturationSelect
-                                    label="Для плашек в тёмной теме"
-                                    items={saturations}
-                                    saturationType="fill"
-                                    themeMode={themeMode}
-                                    onSelect={onSelectDarkFillSaturation}
-                                />
-                            ) : (
-                                <EditButton
-                                    label="Для плашек в тёмной теме"
-                                    contentLeft={
-                                        <StyledPreviewSaturation
-                                            saturationType="fill"
-                                            color={general[accentColor][darkFillSaturation]}
-                                        />
-                                    }
-                                    color={general[accentColor][darkFillSaturation]}
-                                    text={darkFillSaturation.toString()}
-                                    view="dark"
-                                    saturationType="fill"
-                                    isReady={isReady}
-                                    onClick={() => {
-                                        setEditStep(popupSetupSteps.DARK_FILL_SATURATION);
-                                    }}
-                                />
-                            )}
-                        </>
+                    {canShowStep(popupSetupSteps.DARK_FILL_SATURATION) && (
+                        <SaturationSelectStep
+                            label="Для плашек в тёмной теме"
+                            view="dark"
+                            saturationType="fill"
+                            name="darkFillSaturation"
+                            saturation={darkFillSaturation}
+                            accentColor={accentColor}
+                            themeMode={themeMode}
+                            isReady={isReady}
+                            currentStep={popupSetupSteps.DARK_FILL_SATURATION}
+                            nextStep={popupSetupSteps.DONE}
+                            editMode={isEditMode(popupSetupSteps.DARK_FILL_SATURATION)}
+                            editStep={editStep}
+                            onChangeEditStep={handleSetEditStep}
+                            onChangeSetupStep={handleSetSetupStep}
+                            onChangeParameters={onChangeParameters}
+                        />
                     )}
                 </StyledWrapper>
+
                 <StyledResetParametersButton onClick={handleResetParameters}>
                     <IconClose size="xs" color="inherit" />
                     <>Сбросить</>
@@ -603,24 +394,18 @@ export const SetupParameters = (props: SetupParametersProps) => {
                 <StyledHeader>
                     Приблизительно так будет выглядеть цветовая схема проекта{' '}
                     <StyledThemeModeSwitcher
-                        color={
-                            general[accentColor || 'amber']?.[
-                                themeMode === 'dark' ? darkStrokeSaturation : lightStrokeSaturation || '50'
-                            ]
-                        }
-                        onClick={() => {
-                            onChangeThemeMode(themeMode === 'dark' ? 'light' : 'dark');
-                        }}
+                        color={general[accentColor]?.[themeModeSwitcher.saturation]}
+                        onClick={handleThemeModeSwitch}
                     >
-                        {themeMode === 'dark' ? 'в тёмной' : 'в светлой'}
-                    </StyledThemeModeSwitcher>{' '}
+                        {themeModeSwitcher.text}
+                    </StyledThemeModeSwitcher>
                     теме
                 </StyledHeader>
                 <HeroButton
                     text="Сгенерировать"
-                    backgroundColor={general[accentColor || 'amber']?.[darkFillSaturation || '50']}
+                    backgroundColor={general[accentColor][darkFillSaturation]}
                     contentRight={<IconArrowRight size="xs" color="inherit" />}
-                    onClick={() => onNextPage()}
+                    onClick={handleSubmitParameters}
                 />
                 <StyledDisclaimer>
                     После создания можно будет изменить все параметры и точечно настроить каждый токен и компонент

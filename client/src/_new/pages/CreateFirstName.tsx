@@ -1,4 +1,4 @@
-import { KeyboardEvent, useState } from 'react';
+import { ChangeEvent, KeyboardEvent, useState } from 'react';
 import styled from 'styled-components';
 import { IconArrowBack } from '@salutejs/plasma-icons';
 
@@ -21,7 +21,7 @@ export const CreateFirstName = (props: CreateFirstNameProps) => {
 
     const [value, setValue] = useState('');
 
-    const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const onChange = (event: ChangeEvent<HTMLInputElement>) => {
         setValue(event.target.value);
     };
 

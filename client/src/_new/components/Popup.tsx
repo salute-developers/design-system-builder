@@ -8,7 +8,7 @@ const Root = styled.div`
 
     background: var(--gray-color-950);
 
-    // transition: background 0.2s ease-in-out;
+    transition: background 0.2s ease-in-out;
 `;
 
 interface PopupProps {

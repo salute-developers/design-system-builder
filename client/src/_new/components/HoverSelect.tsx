@@ -39,7 +39,7 @@ const StyledItem = styled.div`
     box-shadow: 0 0 0 0.0625rem var(--gray-color-800) inset;
 
     &:hover {
-        background: var(--gray-color-800);
+        background: var(--gray-color-850);
         color: var(--gray-color-150);
         box-shadow: none;
     }

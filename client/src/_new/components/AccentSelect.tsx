@@ -1,4 +1,4 @@
-import { MouseEvent, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 import { useHorizontalDraggable } from '../hooks';
 
@@ -88,18 +88,20 @@ const StyledItem = styled.div<{ color: string }>`
     }
 `;
 
-interface AccentSelectProps {
+type Item<T extends string = string> = {
     label: string;
-    defaultValue?: string;
-    items: {
-        value: string;
-        label: string;
-        color: string;
-    }[];
+    value: T;
+    color: string;
+};
+
+interface AccentSelectProps<T extends readonly Item[]> {
+    label: string;
+    defaultValue?: T[number]['value'];
+    items: T;
     onSelect?: (value: string) => void;
 }
 
-export const AccentSelect = (props: AccentSelectProps) => {
+export const AccentSelect = <T extends readonly Item[]>(props: AccentSelectProps<T>) => {
     const { items, label, defaultValue, onSelect, ...rest } = props;
 
     const [ready, setReady] = useState(false);
@@ -125,7 +127,14 @@ export const AccentSelect = (props: AccentSelectProps) => {
             const container = itemsRef.current;
             const target = itemRefs.current[defaultValue];
 
-            if (!container || !target) {
+            if (!container) {
+                return;
+            }
+
+            if (!target) {
+                container.scrollLeft = 0;
+                setReady(true);
+
                 return;
             }
 
@@ -154,7 +163,7 @@ export const AccentSelect = (props: AccentSelectProps) => {
                     <StyledItem
                         key={value}
                         ref={(el) => {
-                            itemRefs.current[label] = el;
+                            itemRefs.current[value] = el;
                         }}
                         color={color}
                         onClick={() => onClick(value)}
