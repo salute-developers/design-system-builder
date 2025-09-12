@@ -225,7 +225,5 @@ export const checkIsColorContrast = (firstColor: string, secondColor: string, th
     const checker = new ContrastRatioChecker();
     const ratio = Math.round(checker.getContrastRatioByHex(firstColor || '#FFFFFF', secondColor) * 100) / 100;
 
-    console.log('ratio', ratio);
-
     return ratio > threshold;
 };

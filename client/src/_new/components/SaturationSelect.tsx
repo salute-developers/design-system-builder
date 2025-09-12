@@ -2,8 +2,9 @@ import { useRef, useState } from 'react';
 import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { IconInfoCircleOutline } from '@salutejs/plasma-icons';
-import { ContrastRatioChecker } from 'contrast-ratio-checker';
+
 import { checkIsColorContrast } from '../utils';
+import { SaturationType } from '../types';
 
 const Root = styled.div`
     position: relative;
@@ -65,9 +66,10 @@ const StyledSaturation = styled.div<{ color: string; size: number }>`
     transition: all 0.1s ease-out;
 `;
 
-const StyledDescription = styled.div`
+const StyledDescription = styled.div<{ left: number }>`
     position: absolute;
     bottom: -3rem;
+    left: ${({ left }) => left}px;
 
     width: 8rem;
 
@@ -138,6 +140,28 @@ const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
     --icon-size: 0.75rem !important;
 `;
 
+const DESCRIPTION_WIDTH = 128;
+const DEFAULT_COLOR_SATURATION_SIZE = 40;
+const HOVERED_COLOR_SATURATION_SIZE = 48;
+const HOVERED_COLOR_SATURATION_SIBLING_SIZE = 36;
+const HOVERED_COLOR_SATURATION_REST_SIZE = 32;
+
+const getItemSizeAndColor = (hoveredIndex: number | null, index: number): [number, string] => {
+    if (hoveredIndex === index) {
+        return [HOVERED_COLOR_SATURATION_SIZE, 'var(--gray-color-150)'];
+    }
+
+    if (hoveredIndex === index - 1 || hoveredIndex === index + 1) {
+        return [HOVERED_COLOR_SATURATION_SIBLING_SIZE, 'var(--gray-color-500)'];
+    }
+
+    if (hoveredIndex === null) {
+        return [DEFAULT_COLOR_SATURATION_SIZE, 'var(--gray-color-150)'];
+    }
+
+    return [HOVERED_COLOR_SATURATION_REST_SIZE, 'var(--gray-color-800)'];
+};
+
 interface SaturationSelectProps {
     label: string;
     items: {
@@ -145,7 +169,7 @@ interface SaturationSelectProps {
         color: string;
     }[];
     themeMode: ThemeMode;
-    saturationType: 'fill' | 'stroke';
+    saturationType: SaturationType;
     onSelect?: (value: string) => void;
 }
 
@@ -159,10 +183,12 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
     const backgroundColor = themeMode === 'light' ? '#FFFFFF' : '#000000';
     const threshold = saturationType === 'stroke' ? 3 : 2;
     const isColorContrast = checkIsColorContrast(hoveredColor, backgroundColor, threshold);
-    const contrastColor = checkIsColorContrast(hoveredColor, '#FFFFFF') ? '#FFFFFF' : '#000000'; // TODO: сделать переменными 100 / 950
 
+    const contrastColor = checkIsColorContrast(hoveredColor, '#FFFFFF', 3) ? '#FFFFFF' : '#000000';
     const currentItem = hoveredIndex !== null && itemRefs?.current[hoveredIndex];
-    const descriptionLeftOffset = currentItem ? currentItem.offsetLeft - 128 / 2 + 48 / 2 : 0;
+    const descriptionLeftOffset = currentItem
+        ? currentItem.offsetLeft - DESCRIPTION_WIDTH / 2 + HOVERED_COLOR_SATURATION_SIZE / 2
+        : 0;
 
     const onClick = (value: string) => {
         if (onSelect) {
@@ -170,41 +196,33 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
         }
     };
 
+    const handleItemMouseEnter = (color: string, index: number) => {
+        setHoveredColor(color);
+        setHoveredIndex(index);
+    };
+
+    const handleItemMouseLeave = () => {
+        setHoveredColor('');
+        setHoveredIndex(null);
+    };
+
+    const handleItemClick = (value: string) => {
+        onClick(value);
+    };
+
     return (
         <Root {...rest}>
             <StyledLabel>{label}</StyledLabel>
             <StyledItems>
                 {items.map(({ value, color }, index) => {
-                    let size = 32;
-                    let labelColor = 'var(--gray-color-800)';
-
-                    if (hoveredIndex === index) {
-                        size = 48;
-                        labelColor = 'var(--gray-color-150)';
-                    }
-
-                    if (hoveredIndex === index - 1 || hoveredIndex === index + 1) {
-                        size = 36;
-                        labelColor = 'var(--gray-color-500)';
-                    }
-
-                    if (hoveredIndex === null) {
-                        size = 40;
-                        labelColor = 'var(--gray-color-150)';
-                    }
+                    const [size, labelColor] = getItemSizeAndColor(hoveredIndex, index);
 
                     return (
                         <StyledItem
                             key={value}
-                            onMouseEnter={() => {
-                                setHoveredColor(color);
-                                setHoveredIndex(index);
-                            }}
-                            onMouseLeave={() => {
-                                setHoveredColor('');
-                                setHoveredIndex(null);
-                            }}
-                            onClick={() => onClick(value)}
+                            onMouseEnter={() => handleItemMouseEnter(color, index)}
+                            onMouseLeave={handleItemMouseLeave}
+                            onClick={() => handleItemClick(value)}
                             ref={(el) => {
                                 itemRefs.current[index] = el;
                             }}
@@ -216,11 +234,7 @@ export const SaturationSelect = (props: SaturationSelectProps) => {
                 })}
             </StyledItems>
             {hoveredIndex !== null && (
-                <StyledDescription
-                    style={{
-                        left: `${descriptionLeftOffset}px`,
-                    }}
-                >
+                <StyledDescription left={descriptionLeftOffset}>
                     <StyledDescriptionPointer />
                     <StyledDescriptionHelper>
                         {saturationType === 'stroke' && (

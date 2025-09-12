@@ -49,6 +49,13 @@ interface CreationProgressProps {
 export const CreationProgress = (props: CreationProgressProps) => {
     const { projectName, accentColor, onPrevPage } = props;
 
+    useGlobalKeyDown((event) => {
+        if (event.key === 'Escape') {
+            onPrevPage();
+        }
+    });
+
+    //TODO: Временная демонстрация прогресса
     const [value, setValue] = useState(0);
     useEffect(() => {
         const interval = setInterval(() => {
@@ -64,12 +71,6 @@ export const CreationProgress = (props: CreationProgressProps) => {
 
         return () => clearInterval(interval);
     }, []);
-
-    useGlobalKeyDown((event) => {
-        if (event.key === 'Escape') {
-            onPrevPage();
-        }
-    });
 
     return (
         <Root>

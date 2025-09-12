@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import styled, { css } from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
-import { useNavigate } from 'react-router-dom';
 import {
     IconAppsOutline,
     IconArrowLeft,
@@ -23,11 +22,12 @@ import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
 import { transliterateToSnakeCase } from '../utils';
 
+// TODO: переделать на независимые переменные
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
     return `
         --gray-color-50: ${general[grayTone][50]};
         --gray-color-100: ${general[grayTone][themeMode === 'dark' ? 100 : 950]};
-        --gray-color-150: ${general[grayTone][themeMode === 'dark' ? 150 : 700]};
+        --gray-color-150: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
         --gray-color-200: ${general[grayTone][200]};
         --gray-color-250: ${general[grayTone][250]};
         --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
@@ -35,8 +35,8 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --gray-color-500: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
         --gray-color-600: ${general[grayTone][600]};
         --gray-color-700: ${general[grayTone][700]};
-        --gray-color-800: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
-        --gray-color-850: ${general[grayTone][850]};
+        --gray-color-800: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
+        --gray-color-850: ${general[grayTone][themeMode === 'dark' ? 850 : 150]};
         --gray-color-900: ${general[grayTone][900]};
         --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 200]};
         --gray-color-1000: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
@@ -53,8 +53,6 @@ const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?
     display: flex;
 
     background: ${({ isPopupOpen }) => (isPopupOpen ? 'var(--gray-color-1000)' : 'var(--gray-color-950)')};
-
-    // transition: background 0.2s ease-in-out;
 `;
 
 const Panel = styled.div`
@@ -281,7 +279,9 @@ export const NewMain = () => {
 
     const [parameters, setParameters] = useState<Partial<Parameters>>({});
 
-    const onChangeParameters = (name: string, value: any) => {
+    const { projectName, accentColor = 'blue', darkFillSaturation = 50 } = parameters;
+
+    const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
     };
 
@@ -293,6 +293,31 @@ export const NewMain = () => {
         setGrayTone('warmGray');
         setThemeMode('dark');
         setIsPopupOpen(false);
+    };
+
+    const onResetParameters = () => {
+        setParameters({});
+        setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
+    };
+
+    const onChangeGrayTone = (grayTone: string) => {
+        setGrayTone(grayTone as GrayTone);
+    };
+
+    const onChangeThemeMode = (themeMode: ThemeMode) => {
+        setThemeMode(themeMode);
+    };
+
+    const onNextPageCreateFirstName = (value: string) => {
+        onChangeParameters('projectName', value);
+        const transliteratedValue = transliterateToSnakeCase(value);
+        onChangeParameters('packagesName', transliteratedValue);
+
+        setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
+    };
+
+    const onNextPageCreateSetupParameters = (data: Partial<Parameters>) => {
+        setPopupContentPage(popupContentPages.CREATION_PROGRESS);
     };
 
     return (
@@ -376,25 +401,16 @@ export const NewMain = () => {
                     <ContentHeader>Пока ничего не создано</ContentHeader>
                     <StyledStartWrapper onClick={onOpenPopup}>
                         <StyledStartButton>
-                            {parameters.projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
+                            {projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
                         </StyledStartButton>
-                        {parameters.projectName && <StyledProjectName>{parameters.projectName}</StyledProjectName>}
+                        {projectName && <StyledProjectName>{projectName}</StyledProjectName>}
                     </StyledStartWrapper>
                 </ContentWrapper>
             </Content>
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
-                        <CreateFirstName
-                            onPrevPage={onPopupClose}
-                            onNextPage={(value: string) => {
-                                onChangeParameters('projectName', value);
-                                const transliteratedValue = transliterateToSnakeCase(value);
-                                onChangeParameters('packagesName', transliteratedValue);
-
-                                setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
-                            }}
-                        />
+                        <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
                     )}
                     {popupContentPage === popupContentPages.SETUP_PARAMETERS && (
                         <SetupParameters
@@ -402,28 +418,16 @@ export const NewMain = () => {
                             themeMode={themeMode}
                             onChangeParameters={onChangeParameters}
                             onPrevPage={onPopupClose}
-                            onResetParameters={() => {
-                                setParameters({});
-                                setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
-                            }}
-                            onNextPage={() => {
-                                setPopupContentPage(popupContentPages.CREATION_PROGRESS);
-                            }}
-                            onChangeGrayTone={(grayTone: string) => {
-                                setGrayTone(grayTone as GrayTone);
-                            }}
-                            onChangeThemeMode={(themeMode: ThemeMode) => {
-                                setThemeMode(themeMode);
-                            }}
+                            onResetParameters={onResetParameters}
+                            onChangeGrayTone={onChangeGrayTone}
+                            onChangeThemeMode={onChangeThemeMode}
+                            onNextPage={onNextPageCreateSetupParameters}
                         />
                     )}
-
                     {popupContentPage === popupContentPages.CREATION_PROGRESS && (
                         <CreationProgress
-                            projectName={parameters.projectName}
-                            accentColor={
-                                general[parameters.accentColor || 'amber'][parameters.darkFillSaturation || '50']
-                            }
+                            projectName={projectName}
+                            accentColor={general[accentColor][darkFillSaturation]}
                             onPrevPage={onPopupClose}
                         />
                     )}
