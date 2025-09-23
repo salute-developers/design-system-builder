@@ -10,13 +10,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
-    "seed": "ts-node src/db/seed.ts",
-    "seed-values": "ts-node src/db/seed-values.ts",
-    "seed-all": "ts-node src/db/cleanup-and-seed.ts",
     "clear-db": "ts-node src/db/clear-database.ts",
     "extract-state": "ts-node src/db/extract-and-save-state.ts",
-    "seed-saved-state": "ts-node src/db/seed-from-saved-state.ts",
-    "seed-saved-state-clear": "ts-node src/db/seed-from-saved-state.ts --clear",
     "test": "vitest --run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch"
