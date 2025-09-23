@@ -81,7 +81,8 @@ export function createVariationValuesRouter(db: Database) {
           .map(tv => ({
             variationValueId: variationValue.id,
             tokenId: tv.tokenId,
-            value: tv.value
+            value: tv.value,
+            states: tv.states
           }));
         
         if (tokenValueInserts.length > 0) {
@@ -147,7 +148,8 @@ export function createVariationValuesRouter(db: Database) {
           .map(tv => ({
             variationValueId: variationValueId,
             tokenId: tv.tokenId,
-            value: tv.value
+            value: tv.value,
+            states: tv.states
           }));
         
         if (tokenValueInserts.length > 0) {

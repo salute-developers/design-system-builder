@@ -223,7 +223,7 @@ interface ClientFormat {
 
 class FormatTransformer {
   private idMappings: Map<string | number, string> = new Map();
-  private reverseIdMappings: Map<string, number> = new Map();
+  // private reverseIdMappings: Map<string, number> = new Map();
 
   /**
    * Transform from Backend Database Format to Client Storage Format
@@ -234,7 +234,7 @@ class FormatTransformer {
     
     // Clear previous mappings
     this.idMappings.clear();
-    this.reverseIdMappings.clear();
+    // this.reverseIdMappings.clear();
 
     const componentsData = backendData.components.map(component => {
       // Generate UUIDs for new entities
@@ -388,7 +388,7 @@ class FormatTransformer {
     
     // Clear previous mappings
     this.idMappings.clear();
-    this.reverseIdMappings.clear();
+    // this.reverseIdMappings.clear();
 
     const components = clientData.componentsData.map(component => {
       const componentId = this.generateNumericId();
@@ -477,7 +477,7 @@ class FormatTransformer {
         component.sources.configs,
         componentId,
         component.sources.variations,
-        component.sources.api
+        // component.sources.api
       );
 
       return {
@@ -592,7 +592,8 @@ class FormatTransformer {
         props: vv.tokenValues.map((tv: any) => {
           return {
             id: this.idMappings.get(`${tv.token.id}_API`) || this.generateUUID(),
-            value: tv.value
+            value: tv.value,
+            states: tv.states
         }})
       }));
 
@@ -641,7 +642,7 @@ class FormatTransformer {
     configs: any[],
     componentId: number,
     variations: any[],
-    api: any[]
+    // api: any[]
   ): { variationValues: any[], tokenValues: any[], invariantTokenValues: any[] } {
     const variationValues: any[] = [];
     const tokenValues: any[] = [];

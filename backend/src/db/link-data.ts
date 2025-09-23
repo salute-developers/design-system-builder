@@ -194,6 +194,10 @@ export const linkData = {
       variationValueId: 10,
       tokenId: 19,
       value: "text.default.primary",
+      states: [
+        { state: ["pressed"], value: "text.default.primary-active" },
+        { state: ["hovered"], value: "text.default.primary-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
@@ -205,6 +209,10 @@ export const linkData = {
       variationValueId: 10,
       tokenId: 20,
       value: "text.default.secondary",
+      states: [
+        { state: ["pressed"], value: "text.default.secondary-active" },
+        { state: ["hovered"], value: "text.default.secondary-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
@@ -228,6 +236,10 @@ export const linkData = {
       variationValueId: 11,
       tokenId: 19,
       value: "text.default.secondary",
+      states: [
+        { state: ["pressed"], value: "text.default.secondary-active" },
+        { state: ["hovered"], value: "text.default.secondary-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
@@ -239,6 +251,10 @@ export const linkData = {
       variationValueId: 11,
       tokenId: 20,
       value: "text.default.tertiary",
+      states: [
+        { state: ["pressed"], value: "text.default.tertiary-active" },
+        { state: ["hovered"], value: "text.default.tertiary-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
@@ -262,6 +278,10 @@ export const linkData = {
       variationValueId: 12,
       tokenId: 19,
       value: "text.default.accent",
+      states: [
+        { state: ["pressed"], value: "text.default.accent-active" },
+        { state: ["hovered"], value: "text.default.accent-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
@@ -273,6 +293,10 @@ export const linkData = {
       variationValueId: 12,
       tokenId: 20,
       value: "text.default.accent-minor",
+      states: [
+        { state: ["pressed"], value: "text.default.accent-minor-active" },
+        { state: ["hovered"], value: "text.default.accent-minor-hover" }
+      ],
       type: "variation",
       componentId: 2,
       designSystemId: 1,
