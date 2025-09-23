@@ -34,7 +34,7 @@ export const StyledSelect = styled(Select)`
 
 const getTokensByVariation = (api: ComponentAPI[], variations: ComponentVariation[], variationID?: string) => {
     if (!variationID) {
-        return api.filter((item) => !item.variations);
+        return api.filter((item) => !item.variations || item.variations.length === 0);
     }
 
     const id = variations.find((variation) => variation.id === variationID)?.id || '';

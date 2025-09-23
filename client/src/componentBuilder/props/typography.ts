@@ -92,7 +92,7 @@ export class TypographyProp extends Prop {
         }
 
         const value = theme ? this.getThemeValue(theme) : this.getCSSVar(this.value);
-
+        
         if (!this.webTokens || !this.webTokens.length) {
             return;
         }
