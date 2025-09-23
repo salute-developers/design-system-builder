@@ -285,7 +285,7 @@ export class BackendComponentStore {
                 if (!originalClientComponent) {
                     continue;
                 }
-                
+
                 for (const backendVariation of component.variations || []) {
                     // Find the corresponding backend variation by name (case-insensitive)
                     const existingVariation = existingComponent.variations?.find(v => 
@@ -557,13 +557,14 @@ export class BackendComponentStore {
     /**
      * Add variation value with token values
      */
-    private async addVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>, isDefaultValue: boolean = false): Promise<void> {
+    private async addVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any; states: any }>, isDefaultValue: boolean = false): Promise<void> {
         try {
             // Convert the extracted token values to the format expected by the backend
             // Ensure all values are strings as the backend expects
             const backendTokenValues = tokenValues.map(tokenValue => ({
                 tokenId: tokenValue.id,
-                value: String(tokenValue.value) // Convert all values to strings
+                value: String(tokenValue.value), // Convert all values to strings
+                states: tokenValue.states || []
             }));
 
             const payload = {
@@ -606,13 +607,14 @@ export class BackendComponentStore {
     /**
      * Update variation value with token values
      */
-    private async updateVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>, isDefaultValue: boolean = false): Promise<void> {
+    private async updateVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any, states: any }>, isDefaultValue: boolean = false): Promise<void> {
         try {
             // Convert the extracted token values to the format expected by the backend
             // Ensure all values are strings as the backend expects
             const backendTokenValues = tokenValues.map(tokenValue => ({
                 tokenId: tokenValue.id,
-                value: String(tokenValue.value) // Convert all values to strings
+                value: String(tokenValue.value), // Convert all values to strings
+                states: tokenValue.states || []
             }));
 
             const payload = {
@@ -809,8 +811,8 @@ export class BackendComponentStore {
      * Extract token values from a specific style's props
      * The style.props contains the actual token values for this variation
      */
-    private extractTokenValuesFromStyle(style: any, component: any, variationId: string, tokenNameToBackendId: Map<string, number>): Array<{ id: number; value: any }> {
-        const tokenValues: Array<{ id: number; value: any }> = [];
+    private extractTokenValuesFromStyle(style: any, component: any, variationId: string, tokenNameToBackendId: Map<string, number>): Array<{ id: number; value: any; states: any }> {
+        const tokenValues: Array<{ id: number; value: any, states: any }> = [];
         try {
             console.log(`🔍 Extracting token values for style ${style.name} in variation ${variationId}`);
             console.log(`🔍 Style props:`, style.props);
@@ -831,11 +833,11 @@ export class BackendComponentStore {
                         // Use the backend token ID instead of generating a new one
                         const backendTokenId = tokenNameToBackendId.get(`${token.name}_${component.name}`);
                         if (backendTokenId) {
-                            console.log('____prop.value_____', JSON.stringify(prop.value, null,2));
 
                             tokenValues.push({
                                 id: backendTokenId,
-                                value: prop.value
+                                value: prop.value,
+                                states: prop.states
                             });
                             console.log(`🔍 Mapped token ${token.name} (${token.id}) -> backend ID ${backendTokenId} with value ${prop.value}`);
                         } else {

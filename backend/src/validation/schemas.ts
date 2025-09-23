@@ -27,10 +27,18 @@ export const AddComponentToDesignSystemSchema = z.object({
   componentId: z.number().int().positive('Component ID must be a positive integer')
 });
 
+export const TokenStateSchema = z.object({
+  state: z.array(z.string().min(1, "State cannot be empty")),
+  value: z.string().min(1, "Value is required"),
+});
+
 // Token Value schemas
 export const TokenValueSchema = z.object({
   tokenId: z.number().int().positive('Token ID must be a positive integer'),
-  value: z.string().trim() // Allow empty strings, backend will filter them out
+  value: z.string().trim(), // Allow empty strings, backend will filter them out
+  states: z.array(TokenStateSchema)
+    .default([])
+    .optional(),
 });
 
 // Variation Value schemas

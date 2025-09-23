@@ -399,6 +399,10 @@ export const iconbuttonData = {
       tokenId: 6, // iconColor
       value: "text.inverse.primary",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "text.inverse.primary-active" },
+        { state: ["hovered"], value: "text.inverse.primary-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
@@ -432,6 +436,10 @@ export const iconbuttonData = {
       tokenId: 4, // backgroundColor
       value: "surface.default.solid-default",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "surface.default.solid-default-active" },
+        { state: ["hovered"], value: "surface.default.solid-default-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
@@ -444,6 +452,10 @@ export const iconbuttonData = {
       tokenId: 6, // iconColor
       value: "text.default.primary",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "text.default.primary-active" },
+        { state: ["hovered"], value: "text.default.primary-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
@@ -477,6 +489,10 @@ export const iconbuttonData = {
       tokenId: 4, // backgroundColor
       value: "surface.default.transparent-secondary",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "surface.default.transparent-secondary-active" },
+        { state: ["hovered"], value: "surface.default.transparent-secondary-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
@@ -489,6 +505,10 @@ export const iconbuttonData = {
       tokenId: 6, // iconColor
       value: "text.on-dark.primary",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "text.on-dark.primary-active" },
+        { state: ["hovered"], value: "text.on-dark.primary-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
@@ -522,6 +542,10 @@ export const iconbuttonData = {
       tokenId: 4, // backgroundColor
       value: "surface.default.accent",
       type: "variation",
+      states: [
+        { state: ["pressed"], value: "surface.default.accent-active" },
+        { state: ["hovered"], value: "surface.default.accent-hover" }
+      ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
