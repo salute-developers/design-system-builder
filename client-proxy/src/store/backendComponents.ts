@@ -247,22 +247,22 @@ export class BackendComponentStore {
             const existingComponents = await this.getExistingComponents();
             
             // Link existing components to design system
-            // for (const component of backendFormat.components) {
-            //     const existingComponent = existingComponents.find(c => c.name === component.name);
-            //     if (existingComponent) {
-            //         try {
-            //             await this.linkComponentToDesignSystem(designSystemId, existingComponent.id);
-            //         } catch (error: any) {
-            //             if (error.message.includes('409')) {
-            //                 console.log(`ℹ️ Component ${component.name} already linked to design system, continuing with variation values`);
-            //             } else {
-            //                 throw error;
-            //             }
-            //         }
-            //     } else {
-            //         console.log(`⚠️ Component ${component.name} not found in backend, skipping link`);
-            //     }
-            // }
+            for (const component of backendFormat.components) {
+                const existingComponent = existingComponents.find(c => c.name === component.name);
+                if (existingComponent) {
+                    try {
+                        await this.linkComponentToDesignSystem(designSystemId, existingComponent.id);
+                    } catch (error: any) {
+                        if (error.message.includes('409')) {
+                            console.log(`ℹ️ Component ${component.name} already linked to design system, continuing with variation values`);
+                        } else {
+                            throw error;
+                        }
+                    }
+                } else {
+                    console.log(`⚠️ Component ${component.name} not found in backend, skipping link`);
+                }
+            }
 
             const existingTokens = await this.getExistingTokens();
             
