@@ -88,11 +88,12 @@ export class DesignSystemStore {
         // Delete both theme and components in parallel using our enhanced system
         await Promise.all([
             this.themeStore.deleteTheme(name, version),
+            // INFO: здесь удаляется дизайн система
             this.componentStore.deleteComponents(name, version)
         ]);
 
         // Remove from index
-        await this.indexStore.removeFromIndex(name, version);
+        // await this.indexStore.removeFromIndex(name, version);
         
         Logger.log(`🗑️ Deleted design system from storage: ${name}@${version} (theme + components with transformation)`);
     }
