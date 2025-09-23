@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction, Application } from 'express';
 import cors from 'cors';
-import * as path from 'path';
+
 import {
     DesignSystemData,
     ApiResponse,
@@ -23,14 +23,11 @@ interface CustomError extends Error {
     statusCode?: number;
 }
 
-const createApp = (storageDir?: string, indexStore?: IndexStore, componentStore?: any): Application => {
+const createApp = (indexStore?: IndexStore, componentStore?: any): Application => {
     const app: Application = express();
-    
-    // Use provided storage directory or default
-    const STORAGE_DIR = storageDir || path.join(__dirname, '../storage');
 
     // Create store instance with optional mock index store and component store
-    const store = createStore(STORAGE_DIR, indexStore, componentStore);
+    const store = createStore(indexStore, componentStore);
 
     // Middleware
     app.use(cors());

@@ -117,6 +117,7 @@ export const designSystemsRelations = relations(designSystems, ({ many }) => ({
   components: many(designSystemComponents),
   variationValues: many(variationValues),
   invariantTokenValues: many(tokenValues, { relationName: 'designSystemInvariantTokenValues' }),
+  themes: many(themes),
 }));
 
 export const componentsRelations = relations(components, ({ many }) => ({
@@ -206,9 +207,22 @@ export const tokenVariationsRelations = relations(tokenVariations, ({ one }) => 
   }),
 }));
 
-export const propsAPIRelations = relations(propsAPI, ({ one }) => ({
-  component: one(components, {
-    fields: [propsAPI.componentId],
-    references: [components.id],
+// Themes table
+export const themes = pgTable('themes', {
+  id: serial('id').primaryKey(),
+  designSystemId: integer('design_system_id').references(() => designSystems.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+  themeData: jsonb('theme_data').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  uniqueThemeVersion: unique().on(table.designSystemId, table.name, table.version),
+}));
+
+export const themesRelations = relations(themes, ({ one }) => ({
+  designSystem: one(designSystems, {
+    fields: [themes.designSystemId],
+    references: [designSystems.id],
   }),
 }));
