@@ -59,6 +59,26 @@ export const AddInvariantTokenValuesSchema = z.object({
   })).min(1, 'At least one token value is required')
 });
 
+// Theme schemas
+export const CreateThemeSchema = z.object({
+  designSystemId: z.number().int().positive('Design system ID must be a positive integer'),
+  name: z.string().trim().min(1, 'Name is required').max(255, 'Name must be less than 255 characters'),
+  version: z.string().trim().min(1, 'Version is required').max(50, 'Version must be less than 50 characters'),
+  themeData: z.any() // JSONB field - can be any valid JSON
+});
+
+export const UpdateThemeSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(255, 'Name must be less than 255 characters').optional(),
+  version: z.string().trim().min(1, 'Version is required').max(50, 'Version must be less than 50 characters').optional(),
+  themeData: z.any().optional() // JSONB field - can be any valid JSON
+});
+
+export const ThemeParamsSchema = z.object({
+  designSystemId: z.string().regex(/^\d+$/, 'Design system ID must be a valid number'),
+  name: z.string().min(1, 'Name is required'),
+  version: z.string().min(1, 'Version is required')
+});
+
 // Export inferred types for use in route handlers
 export type IdParam = z.infer<typeof IdParamSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
@@ -69,3 +89,6 @@ export type TokenValue = z.infer<typeof TokenValueSchema>;
 export type CreateVariationValueRequest = z.infer<typeof CreateVariationValueSchema>;
 export type UpdateVariationValueRequest = z.infer<typeof UpdateVariationValueSchema>;
 export type AddInvariantTokenValuesRequest = z.infer<typeof AddInvariantTokenValuesSchema>;
+export type CreateThemeRequest = z.infer<typeof CreateThemeSchema>;
+export type UpdateThemeRequest = z.infer<typeof UpdateThemeSchema>;
+export type ThemeParams = z.infer<typeof ThemeParamsSchema>;

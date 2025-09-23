@@ -16,7 +16,7 @@ export interface CreateDesignSystemRequest {
 export class IndexStore {
     private baseUrl: string;
 
-    constructor(storageDir: string) {
+    constructor() {
         // For now, hardcode the backend URL - this could be made configurable
         this.baseUrl = process.env.BACKEND_URL || 'http://localhost:3001/api';
     }

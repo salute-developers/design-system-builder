@@ -1,26 +1,22 @@
-import * as fs from 'fs-extra';
 import {
     DesignSystemData,
     DesignSystemTuple
 } from '../validation';
-import { ThemeStore } from './themes';
+import { BackendThemeStore } from './backendThemes';
 import { BackendComponentStore } from './backendComponents';
 import { IndexStore } from './indexStore';
 import { Logger } from '../utils/logger';
+import { ThemeSource, Meta } from '../validation';
 
 export class DesignSystemStore {
-    private storageDir: string;
-    private themeStore: ThemeStore;
+    private themeStore: BackendThemeStore;
     private componentStore: BackendComponentStore;
     private indexStore: IndexStore;
 
-    constructor(storageDir: string, indexStore?: IndexStore, componentStore?: BackendComponentStore) {
-        this.storageDir = storageDir;
-        fs.ensureDirSync(this.storageDir);
-        
-        this.themeStore = new ThemeStore(storageDir);
+    constructor(indexStore?: IndexStore, componentStore?: BackendComponentStore) {
+        this.themeStore = new BackendThemeStore();
         this.componentStore = componentStore || new BackendComponentStore();
-        this.indexStore = indexStore || new IndexStore(storageDir);
+        this.indexStore = indexStore || new IndexStore();
     }
 
     // Save design system data with enhanced transformation
@@ -44,7 +40,7 @@ export class DesignSystemStore {
     }
 
     // Load design system data with enhanced transformation
-    async loadDesignSystem(name: string, version: string): Promise<{ themeData: any; componentsData: any }> {
+    async loadDesignSystem(name: string, version: string): Promise<{ themeData: ThemeSource; componentsData: Meta[] }> {
         // First check if design system exists in index
         const existsInIndex = await this.indexStore.existsInIndex(name, version);
         if (!existsInIndex) {
@@ -104,6 +100,6 @@ export class DesignSystemStore {
 }
 
 // Factory function to create a store instance
-export const createStore = (storageDir: string, indexStore?: IndexStore, componentStore?: BackendComponentStore): DesignSystemStore => {
-    return new DesignSystemStore(storageDir, indexStore, componentStore);
+export const createStore = (indexStore?: IndexStore, componentStore?: BackendComponentStore): DesignSystemStore => {
+    return new DesignSystemStore(indexStore, componentStore);
 };

@@ -1,6 +1,7 @@
 import { FormatTransformer, BackendFormat, ClientFormat } from '../services';
-import { DesignSystemData } from '../validation';
+import { DesignSystemData, Meta } from '../validation';
 import { Logger } from '../utils/logger';
+
 
 export class BackendComponentStore {
     private baseUrl: string;
@@ -59,7 +60,7 @@ export class BackendComponentStore {
      * Load components from backend using our transformation system
      * We load the design system data and transform it back to client format
      */
-    async loadComponents(name: string, version: string): Promise<any> {
+    async loadComponents(name: string, version: string): Promise<Meta[]> {
         console.log(`🔄 Loading components from backend: ${name}@${version}`);
         
         try {
@@ -94,7 +95,7 @@ export class BackendComponentStore {
             }
 
             console.log(`✅ Components loaded from backend: ${name}@${version}`);
-            return clientFormat.componentsData;
+            return clientFormat.componentsData as Meta[];
         } catch (error) {
             console.error(`❌ Failed to load components from backend: ${name}@${version}`, error);
             throw error;
