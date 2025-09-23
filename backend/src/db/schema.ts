@@ -1,5 +1,5 @@
-import { pgTable, serial, text, timestamp, integer, unique } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { pgTable, serial, text, timestamp, integer, unique, jsonb } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // version: text('version').notNull(),
 // owner: text('owner').notNull(),
@@ -87,6 +87,7 @@ export const tokenValues = pgTable('token_values', {
   tokenId: integer('token_id').references(() => tokens.id, { onDelete: 'cascade' }).notNull(),
   value: text('value').notNull(),
   type: text('type').notNull().default('variation'), // 'variation' or 'invariant'
+  states: jsonb('states').$type<{ state: string[]; value: string }[]>().default(sql`'[]'::jsonb`),
   
   // Conditional foreign keys based on type
   variationValueId: integer('variation_value_id').references(() => variationValues.id, { onDelete: 'cascade' }),

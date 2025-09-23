@@ -78,6 +78,13 @@
       "when": 1756822463364,
       "tag": "0010_large_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1758574566153,
+      "tag": "0011_spotty_maddog",
+      "breakpoints": true
     }
   ]
 }
