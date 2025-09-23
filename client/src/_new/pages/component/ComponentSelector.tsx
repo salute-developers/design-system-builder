@@ -139,7 +139,7 @@ export const ComponentSelector = (props: ComponentSelectorProps) => {
     useEffect(() => {
         const initializeDesignSystem = async () => {
             if (designSystemName && designSystemVersion) {
-                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                const ds = await DesignSystem.get({ name: designSystemName, version: designSystemVersion });
                 setDesignSystem(ds);
             }
         };

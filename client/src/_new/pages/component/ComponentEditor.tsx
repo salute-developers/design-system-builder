@@ -102,7 +102,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     useEffect(() => {
         const initializeDesignSystem = async () => {
             if (designSystemName && designSystemVersion) {
-                const ds = await DesignSystem.create({ name: designSystemName, version: designSystemVersion });
+                const ds = await DesignSystem.get({ name: designSystemName, version: designSystemVersion });
                 setDesignSystem(ds);
             }
         };
@@ -119,7 +119,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     );
 
     const [, updateState] = useState({});
-    const [componentProps, setComponentProps] = useState(() => componentConfig ? getDefaults(componentConfig) : {});
+    const [componentProps, setComponentProps] = useState({});
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [addStyleModal, setAddStyleModal] = useState<{
         open: boolean;
@@ -130,6 +130,12 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     });
 
     const forceRender = () => updateState({});
+
+    useEffect(() => {
+        if (componentConfig) {
+            setComponentProps((prev) => ({ ...prev, ...getDefaults(componentConfig) }));
+        }
+    }, [componentConfig]);
 
     if (!designSystem || !theme || !componentConfig) {
         return <div>Loading...</div>;

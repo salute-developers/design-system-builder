@@ -28,13 +28,20 @@ export class DesignSystem {
         this.componentsData = [];
     }
 
-    public static async create({ name, version = '0.1.0' }: { name?: string; version?: string }): Promise<DesignSystem> {
+    public static async create({
+        name,
+        version = '0.1.0',
+    }: {
+        name?: string;
+        version?: string;
+    }): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version });
-        
+
         // Load data (from storage if available, otherwise from local sources)
-        instance.themeData = await instance.loadThemeData(name, version);
-        instance.componentsData = await instance.loadComponentsData(name, version);
-        
+        const { themeData, componentsData } = await instance.loadData(name, version);
+        instance.themeData = themeData;
+        instance.componentsData = componentsData;
+
         // Save to storage after loading (in case we loaded from local data)
         if (name && version) {
             await saveDesignSystem({
@@ -44,19 +51,50 @@ export class DesignSystem {
                 componentsData: instance.componentsData,
             });
         }
-        
+
         return instance;
     }
 
-    // TODO: загружать из бд через api
-    private async loadThemeData(name?: string, version?: string) {
-        const loadedThemeData = name && version ? (await loadDesignSystem(name, version))?.themeData : undefined;
-        const localThemeData = getStaticThemeData(name, version) as unknown as {
-            meta: ThemeMeta;
-            variations: PlatformsVariations;
+    public static async get({ name, version = '0.1.0' }: { name?: string; version?: string }): Promise<DesignSystem> {
+        const instance = new DesignSystem({ name, version });
+
+        // Load data (from storage if available, otherwise from local sources)
+        const { themeData, componentsData } = await instance.loadData(name, version);
+        instance.themeData = themeData;
+        instance.componentsData = componentsData;
+
+        return instance;
+    }
+
+    private async loadData(name?: string, version?: string) {
+        const loadedData = name && version ? await loadDesignSystem(name, version) : undefined;
+        const localData = {
+            themeData: getStaticThemeData(name, version) as unknown as {
+                meta: ThemeMeta;
+                variations: PlatformsVariations;
+            },
+            componentsData: componentsData as Meta[],
         };
 
-        return loadedThemeData ?? localThemeData;
+        if (!loadedData) {
+            return localData;
+        }
+
+        if (!loadedData.themeData && loadedData.componentsData) {
+            return {
+                themeData: localData.themeData,
+                componentsData: loadedData.componentsData,
+            };
+        }
+
+        if (loadedData.themeData && !loadedData.componentsData) {
+            return {
+                themeData: loadedData.themeData,
+                componentsData: localData.componentsData,
+            };
+        }
+
+        return loadedData;
     }
 
     public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
@@ -73,14 +111,6 @@ export class DesignSystem {
             themeData: this.themeData,
             componentsData: this.componentsData,
         });
-    }
-
-    // TODO: загружать из бд через api
-    private async loadComponentsData(name?: string, version?: string) {
-        const loadedComponentsData = name && version ? (await loadDesignSystem(name, version))?.componentsData : undefined;
-        const localComponentsData = componentsData as Meta[];
-
-        return loadedComponentsData ?? localComponentsData;
     }
 
     public async saveComponentsData(data: { meta: Meta }) {
