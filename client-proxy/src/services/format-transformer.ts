@@ -222,7 +222,7 @@ interface ClientFormat {
 }
 
 class FormatTransformer {
-  private idMappings: Map<number, string> = new Map();
+  private idMappings: Map<string | number, string> = new Map();
   private reverseIdMappings: Map<string, number> = new Map();
 
   /**
@@ -239,27 +239,39 @@ class FormatTransformer {
     const componentsData = backendData.components.map(component => {
       // Generate UUIDs for new entities
       const componentUUID = this.generateUUID();
-      this.idMappings.set(component.id, componentUUID);
+      this.idMappings.set(`${component.id}_COMPONENT`, componentUUID);
 
       // Transform tokens to API sources with timestamps
       const api = component.tokens.map(token => {
         const tokenUUID = this.generateUUID();
-        this.idMappings.set(token.id, tokenUUID);
+        this.idMappings.set(`${token.id}_API`, tokenUUID);
+
+        let webTokens = token.webParam ? [{
+              name: token.webParam,
+              adjustment: null
+            }] : null;
+
+        // TODO: Подумать про другую реализацию
+        if (token.type === 'typography' && token.webParam) {
+          const cssFontProps = ['FontFamily', 'FontSize', 'FontStyle', 'FontWeight', 'LetterSpacing', 'LineHeight'];
+
+          webTokens = cssFontProps.map(prop => ({
+            name: `${token.webParam}${prop}`,
+            adjustment: null
+          }))
+        }
 
         return {
           id: tokenUUID,
           name: token.name,
           type: token.type,
           description: token.description || '',
-          variations: this.getTokenVariations(component, token.id),
+          variations: [] as string[], // TODO: this.getTokenVariations(component, token.id),
           platformMappings: {
             xml: token.xmlParam || null,
             compose: token.composeParam || null,
             ios: token.iosParam || null,
-            web: token.webParam ? [{
-              name: token.webParam,
-              adjustment: null
-            }] : null
+            web: webTokens,
           },
           // PRESERVE: Token timestamps
           createdAt: token.createdAt,
@@ -270,16 +282,16 @@ class FormatTransformer {
       // Transform variations with descriptions and token variations
       const variations = component.variations.map(variation => {
         const variationUUID = this.generateUUID();
-        this.idMappings.set(variation.id, variationUUID);
+        this.idMappings.set(`${variation.id}_VARIATION`, variationUUID);
 
         // Transform token variations
         const tokenVariations = variation.tokenVariations.map(tv => {
           const tvUUID = this.generateUUID();
           return {
             id: tvUUID,
-            tokenId: this.idMappings.get(tv.token.id) || this.generateUUID(),
+            tokenId: this.idMappings.get(`${tv.token.id}_API`) || this.generateUUID(),
             token: {
-              id: this.idMappings.get(tv.token.id) || this.generateUUID(),
+              id: this.idMappings.get(`${tv.token.id}_API`) || this.generateUUID(),
               name: tv.token.name,
               type: tv.token.type,
               description: tv.token.description || '',
@@ -304,6 +316,18 @@ class FormatTransformer {
           tokenVariations
         };
       });
+
+
+      variations.forEach(variation => {
+        variation.tokenVariations.forEach(tv => {
+          const apiIndex = api.findIndex(api => api.id === tv.tokenId);
+
+          if (apiIndex !== -1 && api[apiIndex]) {
+            api[apiIndex].variations.push(variation.id);
+          }
+        });
+      });
+    
 
       // Transform props API
       const props = component.propsAPI.map(prop => {
@@ -368,12 +392,12 @@ class FormatTransformer {
 
     const components = clientData.componentsData.map(component => {
       const componentId = this.generateNumericId();
-      this.idMappings.set(componentId, component.name);
+      this.idMappings.set(`${componentId}_COMPONENT`, component.name);
 
       // Transform API sources to tokens with timestamps
       const tokens = component.sources.api.map(token => {
         const tokenId = this.generateNumericId();
-        this.idMappings.set(tokenId, token.id);
+        this.idMappings.set(`${tokenId}_API`, token.id);
 
         return {
           id: tokenId,
@@ -395,7 +419,7 @@ class FormatTransformer {
       // Transform variations with descriptions and token variations
       const variations = component.sources.variations.map(variation => {
         const variationId = this.generateNumericId();
-        this.idMappings.set(variationId, variation.id);
+        this.idMappings.set(`${variationId}_VARIATION`, variation.id);
 
         // Transform token variations back (handle missing field gracefully)
         const tokenVariations = (variation.tokenVariations || []).map(tv => {
@@ -532,7 +556,7 @@ class FormatTransformer {
     const invariantProps = invariantTokenValues
       .filter(itv => itv.componentId === component.id)
       .map(itv => ({
-        id: this.idMappings.get(itv.tokenId) || this.generateUUID(),
+        id: this.idMappings.get(`${itv.tokenId}_API`) || this.generateUUID(),
         value: itv.value
       }));
 
@@ -565,14 +589,15 @@ class FormatTransformer {
         name: vv.name,
         id: this.generateUUID(),
         intersections: null,
-        props: vv.tokenValues.map((tv: any) => ({
-          id: this.idMappings.get(tv.token.id) || this.generateUUID(),
-          value: tv.value
-        }))
+        props: vv.tokenValues.map((tv: any) => {
+          return {
+            id: this.idMappings.get(`${tv.token.id}_API`) || this.generateUUID(),
+            value: tv.value
+        }})
       }));
 
       return {
-        id: this.idMappings.get(variationId) || this.generateUUID(),
+        id: this.idMappings.get(`${variationId}_VARIATION`) || this.generateUUID(),
         styles
       };
     }).filter(Boolean);
@@ -585,7 +610,7 @@ class FormatTransformer {
         if (!variation) return null;
         
         // Find the style ID for this variation value
-        const variationUUID = this.idMappings.get(vv.variationId);
+        const variationUUID = this.idMappings.get(`${vv.variationId}_VARIATION`);
         if (!variationUUID) return null;
         
         const variationConfig = variations.find(v => v && v.id === variationUUID);
@@ -648,30 +673,30 @@ class FormatTransformer {
             tokenValues: [] as any[]
           };
 
-          if (style.props) {
-            style.props.forEach((prop: any) => {
-              const tokenValueId = this.generateNumericId();
-              // prop.id is the TOKEN ID (UUID), not the token name
-              // We need to find the token by ID and get its numeric ID
-              const tokenId = this.findTokenIdById(api, prop.id);
+          // if (style.props) {
+          //   style.props.forEach((prop: any) => {
+          //     const tokenValueId = this.generateNumericId();
+          //     // prop.id is the TOKEN ID (UUID), not the token name
+          //     // We need to find the token by ID and get its numeric ID
+          //     const tokenId = this.findTokenIdById(api, prop.id);
 
-              if (tokenId) {
-                const tokenValue = {
-                  id: tokenValueId,
-                  variationValueId,
-                  tokenId,
-                  value: prop.value,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString()
-                };
+          //     if (tokenId) {
+          //       const tokenValue = {
+          //         id: tokenValueId,
+          //         variationValueId,
+          //         tokenId,
+          //         value: prop.value,
+          //         createdAt: new Date().toISOString(),
+          //         updatedAt: new Date().toISOString()
+          //       };
 
-                tokenValues.push(tokenValue);
-                variationValue.tokenValues.push(tokenValue);
-              } else {
-                console.warn(`⚠️ Could not find token with ID: ${prop.id} for style: ${style.name}`);
-              }
-            });
-          }
+          //       tokenValues.push(tokenValue);
+          //       variationValue.tokenValues.push(tokenValue);
+          //     } else {
+          //       console.warn(`⚠️ Could not find token with ID: ${prop.id} for style: ${style.name}`);
+          //     }
+          //   });
+          // }
 
           variationValues.push(variationValue);
         });
@@ -687,13 +712,13 @@ class FormatTransformer {
   /**
    * Helper methods
    */
-  private getTokenVariations(component: any, tokenId: number): string[] | null {
-    const variations = component.variations
-      .filter((v: any) => v.tokenVariations.some((tv: any) => tv.token.id === tokenId))
-      .map((v: any) => this.idMappings.get(v.id) || this.generateUUID());
+  // private getTokenVariations(component: any, tokenId: number): string[] | null {
+  //   const variations = component.variations
+  //     .filter((v: any) => v.tokenVariations.some((tv: any) => tv.token.id === tokenId))
+  //     .map((v: any) => this.idMappings.get(v.id) || this.generateUUID());
     
-    return variations.length > 0 ? variations : null;
-  }
+  //   return variations.length > 0 ? variations : null;
+  // }
 
   private generateUUID(): string {
     return uuidv4();
@@ -713,24 +738,24 @@ class FormatTransformer {
     return token ? this.generateNumericId() : 1;
   }
 
-  private findTokenIdById(api: any[], tokenId: string): number | null {
-    // Find the token by its UUID
-    const token = api.find(t => t.id === tokenId);
-    if (!token) {
-      return null;
-    }
+  // private findTokenIdById(api: any[], tokenId: string): number | null {
+  //   // Find the token by its UUID
+  //   const token = api.find(t => t.id === tokenId);
+  //   if (!token) {
+  //     return null;
+  //   }
     
-    // Convert the UUID to a numeric ID using our ID mappings
-    const numericId = this.findNumericIdByUUID(token.id);
-    if (numericId) {
-      return numericId;
-    }
+  //   // Convert the UUID to a numeric ID using our ID mappings
+  //   const numericId = this.findNumericIdByUUID(token.id);
+  //   if (numericId) {
+  //     return numericId;
+  //   }
     
-    // If no mapping exists, we need to get the actual token ID from the backend
-    // For now, return null to indicate this token needs to be handled differently
-    console.warn(`⚠️ No ID mapping found for token ${token.name} (${token.id}) - this token may not exist in backend yet`);
-    return null;
-  }
+  //   // If no mapping exists, we need to get the actual token ID from the backend
+  //   // For now, return null to indicate this token needs to be handled differently
+  //   console.warn(`⚠️ No ID mapping found for token ${token.name} (${token.id}) - this token may not exist in backend yet`);
+  //   return null;
+  // }
 
 
 
@@ -811,16 +836,16 @@ class FormatTransformer {
   /**
    * Find numeric ID by UUID from the reverse mappings
    */
-  findNumericIdByUUID(uuid: string): number | null {
-    return this.reverseIdMappings.get(uuid) || null;
-  }
+  // findNumericIdByUUID(uuid: string): number | null {
+  //   return this.reverseIdMappings.get(uuid) || null;
+  // }
 
   /**
    * Get reverse ID mappings for debugging
    */
-  getReverseIdMappings(): Map<string, number> {
-    return this.reverseIdMappings;
-  }
+  // getReverseIdMappings(): Map<string, number> {
+  //   return this.reverseIdMappings;
+  // }
 }
 
 export { FormatTransformer, BackendFormat, ClientFormat };

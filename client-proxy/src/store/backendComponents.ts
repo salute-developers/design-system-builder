@@ -18,7 +18,7 @@ export class BackendComponentStore {
      */
     async saveComponents(name: string, version: string, componentsData: DesignSystemData['componentsData']): Promise<void> {
         console.log(`🔄 Saving components to backend: ${name}@${version}`);
-        
+
         try {
             // Transform client format to backend format
             const clientFormat: ClientFormat = {
@@ -35,31 +35,20 @@ export class BackendComponentStore {
 
             const backendFormat = this.transformer.transformClientToBackend(clientFormat);
             console.log(`🔍 Backend format created:`, JSON.stringify(backendFormat, null, 2));
-            
+
             // Validate the transformation
-            console.log(`🔍 Validating transformation...`);
             const validation = this.transformer.validateTransformation(clientFormat, backendFormat, 'toBackend');
-            console.log(`🔍 Validation result:`, validation);
             if (!validation.isValid) {
-                console.warn('⚠️ Transformation warnings:', validation.warnings);
                 if (validation.dataLoss.length > 0) {
-                    console.error('❌ Data loss detected:', validation.dataLoss);
                     throw new Error(`Data loss during transformation: ${validation.dataLoss.join(', ')}`);
                 }
             }
-            console.log(`✅ Transformation validation passed`);
 
             // Create or update design system in backend
-            console.log(`🏗️ About to ensure design system exists: ${name}@${version}`);
             const designSystemId = await this.ensureDesignSystemExists(name, version, backendFormat.designSystem);
-            console.log(`✅ Design system ensured: ${name}@${version} with ID: ${designSystemId}`);
-
             // Store the transformed data in the actual backend database
-            console.log(`🚀 About to call storeBackendFormat for ${name}@${version}`);
             await this.storeBackendFormat(name, version, backendFormat, designSystemId, componentsData);
-            console.log(`✅ storeBackendFormat completed for ${name}@${version}`);
 
-            console.log(`✅ Components saved to backend: ${name}@${version}`);
         } catch (error) {
             console.error(`❌ Failed to save components to backend: ${name}@${version}`, error);
             throw error;
@@ -253,116 +242,70 @@ export class BackendComponentStore {
      */
     private async storeBackendFormat(name: string, version: string, backendFormat: BackendFormat, designSystemId: number, originalComponentsData: any): Promise<void> {
         try {
-            console.log(`🗄️ Storing design system data using public API approach: ${name}@${version}`);
-            console.log(`📊 Components to store: ${backendFormat.components.length}`);
-            console.log(`🔍 Using design system ID: ${designSystemId}`);
 
             // Get existing components from backend (includes variations and tokens)
             const existingComponents = await this.getExistingComponents();
-            console.log(`🔍 Found ${existingComponents.length} existing components in backend`);
-
+            
             // Link existing components to design system
-            for (const component of backendFormat.components) {
-                const existingComponent = existingComponents.find(c => c.name === component.name);
-                if (existingComponent) {
-                    try {
-                        await this.linkComponentToDesignSystem(designSystemId, existingComponent.id);
-                        console.log(`🔗 Linked existing component ${component.name} to design system`);
-                    } catch (error: any) {
-                        if (error.message.includes('409')) {
-                            console.log(`ℹ️ Component ${component.name} already linked to design system, continuing with variation values`);
-                        } else {
-                            throw error;
-                        }
-                    }
-                } else {
-                    console.log(`⚠️ Component ${component.name} not found in backend, skipping link`);
-                }
-            }
+            // for (const component of backendFormat.components) {
+            //     const existingComponent = existingComponents.find(c => c.name === component.name);
+            //     if (existingComponent) {
+            //         try {
+            //             await this.linkComponentToDesignSystem(designSystemId, existingComponent.id);
+            //         } catch (error: any) {
+            //             if (error.message.includes('409')) {
+            //                 console.log(`ℹ️ Component ${component.name} already linked to design system, continuing with variation values`);
+            //             } else {
+            //                 throw error;
+            //             }
+            //         }
+            //     } else {
+            //         console.log(`⚠️ Component ${component.name} not found in backend, skipping link`);
+            //     }
+            // }
 
-            // Get existing tokens from backend to map UUIDs to numeric IDs
-            console.log(`🔍 Getting existing tokens from backend for ID mapping...`);
             const existingTokens = await this.getExistingTokens();
-            console.log(`🔍 Found ${existingTokens.length} existing tokens in backend`);
             
             // Create a mapping from token names to backend IDs
             const tokenNameToBackendId = new Map<string, number>();
             existingTokens.forEach((token: any) => {
-                tokenNameToBackendId.set(token.name, token.id);
+                tokenNameToBackendId.set(`${token.name}_${token.componentName}`, token.id);
             });
-            console.log(`🔍 Created token name to backend ID mapping for ${tokenNameToBackendId.size} tokens`);
             
             // Add variation values with token values (only if they don't already exist)
-            console.log(`\n🔍 Starting variation value creation for ${backendFormat.components.length} components`);
-            console.log(`🔍 Backend format components:`, backendFormat.components.map(c => ({ name: c.name, variationsCount: c.variations?.length || 0 })));
-            console.log(`🔍 Original components data:`, originalComponentsData.map((c: any) => ({ name: c.name, variationsCount: c.variations?.length || 0, hasSources: !!c.sources, hasConfigs: !!c.sources?.configs })));
-            
             for (const component of backendFormat.components) {
-                console.log(`\n🔍 Processing component: ${component.name}`);
-                console.log(`🔍 Component variations:`, component.variations?.map(v => ({ name: v.name, id: v.id })) || []);
-                
                 const existingComponent = existingComponents.find(c => c.name === component.name);
                 if (!existingComponent) {
-                    console.log(`⚠️ Component ${component.name} not found in backend, skipping`);
                     continue;
                 }
-                console.log(`✅ Found existing component: ${component.name} (ID: ${existingComponent.id})`);
 
                 // Find the original client component data that contains the sources/configs
                 const originalClientComponent = originalComponentsData.find((c: any) => c.name === component.name);
                 if (!originalClientComponent) {
-                    console.log(`⚠️ Original client component not found for ${component.name}`);
                     continue;
                 }
-                console.log(`✅ Found original client component: ${component.name}`);
-                console.log(`🔍 Original client component structure:`, {
-                    name: originalClientComponent.name,
-                    hasVariations: !!originalClientComponent.variations,
-                    variationsCount: originalClientComponent.variations?.length || 0,
-                    hasSources: !!originalClientComponent.sources,
-                    hasConfigs: !!originalClientComponent.sources?.configs,
-                    configsCount: originalClientComponent.sources?.configs?.length || 0
-                });
-
-                                // Use variations from the BACKEND FORMAT (which has the complete structure)
-                console.log(`🔍 Component ${component.name} has ${component.variations?.length || 0} variations in backend format`);
                 
                 for (const backendVariation of component.variations || []) {
-                    console.log(`🔍 Processing variation: ${backendVariation.name} (ID: ${backendVariation.id})`);
-                    
                     // Find the corresponding backend variation by name (case-insensitive)
                     const existingVariation = existingComponent.variations?.find(v => 
                         v.name.toLowerCase() === backendVariation.name.toLowerCase()
                     );
-                    
+                                 
                     if (!existingVariation) {
-                        console.log(`⚠️ Backend variation not found for ${component.name} variation: ${backendVariation.name}`);
                         continue;
                     }
-                    console.log(`✅ Found backend variation: ${existingVariation.name} (ID: ${existingVariation.id})`);
                     
                     // Find the ORIGINAL variation by name to get the correct ID for config lookup
                     const originalVariation = originalClientComponent.sources?.variations?.find((v: any) => 
                         v.name.toLowerCase() === backendVariation.name.toLowerCase()
                     );
-                    
+
                     if (!originalVariation) {
-                        console.log(`⚠️ Original variation not found for ${component.name} variation: ${backendVariation.name}`);
                         continue;
                     }
-                    console.log(`✅ Found original variation: ${originalVariation.name} (ID: ${originalVariation.id})`);
-                    
-                    // Find the variation config in component sources that contains the styles
-                    console.log(`🔍 Looking for variation config for ${component.name} variation: ${backendVariation.name} with ID: ${originalVariation.id}`);
-                    console.log(`🔍 Component structure:`, JSON.stringify({
-                        name: originalClientComponent.name,
-                        variations: originalClientComponent.sources?.variations?.map((v: any) => ({ id: v.id, name: v.name })),
-                        configsCount: originalClientComponent.sources?.configs?.length || 0
-                    }, null, 2));
                     
                     const variationConfig = this.findVariationConfig(originalClientComponent, originalVariation.id.toString());
                     if (!variationConfig) {
-                        console.log(`⚠️ No variation config found for ${component.name} variation: ${backendVariation.name}`);
                         continue;
                     }
 
@@ -371,61 +314,35 @@ export class BackendComponentStore {
                         // Check if variation value already exists for this design system + component + variation + style combination
                         const variationValueExists = await this.variationValueExists(designSystemId, existingComponent.id, existingVariation.id, style.name);
                         
-                        if (variationValueExists) {
-                            console.log(`ℹ️ Variation value already exists for ${backendVariation.name} style ${style.name}, skipping`);
-                            // For debugging: still extract token values to see what we would have sent
-                            const debugTokenValues = this.extractTokenValuesFromStyle(style, originalClientComponent, originalVariation.id, tokenNameToBackendId);
-                            console.log(`🔍 🔍 EXTRACTING TOKEN VALUES FOR EXISTING VARIATION VALUE (for debugging):`);
-                            console.log(`🔍 Would have extracted ${debugTokenValues.length} token values for ${backendVariation.name} style ${style.name}:`, debugTokenValues);
-                            continue;
-                        }
-
                         // Check if this style is marked as a default variation in the original client data
-                        const isDefaultVariation = this.isDefaultVariationInConfig(originalClientComponent, originalVariation.id.toString(), style.id);
-                        console.log(`🔍 Style ${style.name} (${style.id}) is default variation: ${isDefaultVariation}`);
 
                         // Extract token values from this specific style using backend token IDs
                         const tokenValues = this.extractTokenValuesFromStyle(style, originalClientComponent, originalVariation.id, tokenNameToBackendId);
-                        console.log(`🔍 Extracted ${tokenValues.length} token values for ${backendVariation.name} style ${style.name}:`, tokenValues);
-                        
-                        // Validate token values structure
-                        if (tokenValues.length > 0) {
-                            console.log(`🔍 First token value structure:`, JSON.stringify(tokenValues[0], null, 2));
-                        }
-                        
-                        // Create variation value with extracted token values
-                        console.log(`🔍 About to call addVariationValue with:`, {
-                            designSystemId,
-                            componentId: existingComponent.id,
-                            variationId: existingVariation.id,
-                            variationIdType: typeof existingVariation.id,
-                            styleName: style.name,
-                            tokenValuesCount: tokenValues.length,
-                            isDefaultVariation
-                        });
-                        
                         // Ensure variationId is a number
+                        const isDefaultVariation = this.isDefaultVariationInConfig(originalClientComponent, originalVariation.id.toString(), style.id);
                         const variationId = typeof existingVariation.id === 'string' ? parseInt(existingVariation.id, 10) : existingVariation.id;
                         
+                        if (variationValueExists) {
+                            await this.updateVariationValue(designSystemId, existingComponent.id, variationId, style, tokenValues, isDefaultVariation);
+                            
+                            continue;
+                        }
+
                         await this.addVariationValue(designSystemId, existingComponent.id, variationId, style, tokenValues, isDefaultVariation);
-                        console.log(`💾 Added variation value for ${backendVariation.name} style ${style.name} with ${tokenValues.length} token values (default: ${isDefaultVariation})`);
                     }
                 }
             }
 
             // Add invariant token values from original client data
-            console.log(`\n🔍 Starting invariant token value creation from original client data`);
             for (const component of backendFormat.components) {
                 const existingComponent = existingComponents.find(c => c.name === component.name);
                 if (!existingComponent) {
-                    console.log(`⚠️ Component ${component.name} not found in backend, skipping invariant values`);
                     continue;
                 }
 
                 // Find the original client component data that contains the invariant props
                 const originalClientComponent = originalComponentsData.find((c: any) => c.name === component.name);
                 if (!originalClientComponent) {
-                    console.log(`⚠️ Original client component not found for ${component.name}`);
                     continue;
                 }
 
@@ -437,7 +354,7 @@ export class BackendComponentStore {
                             const token = originalClientComponent.sources?.api?.find((t: any) => t.id === prop.id);
                             if (token) {
                                 // Get the backend token ID using the token name
-                                const backendTokenId = tokenNameToBackendId.get(token.name);
+                                const backendTokenId = tokenNameToBackendId.get(`${token.name}_${component.name}`);
                                 if (backendTokenId) {
                                     try {
                                         await this.addInvariantTokenValue(designSystemId, {
@@ -445,7 +362,6 @@ export class BackendComponentStore {
                                             tokenId: backendTokenId,
                                             value: prop.value
                                         });
-                                        console.log(`💾 Added invariant token value for ${token.name} (${backendTokenId}) with value ${prop.value}`);
                                     } catch (error) {
                                         console.error(`❌ Failed to add invariant token value for ${token.name}:`, error);
                                         // Continue with other invariant values
@@ -460,8 +376,6 @@ export class BackendComponentStore {
                     }
                 }
             }
-
-            console.log(`✅ Successfully linked design system data to backend: ${name}@${version}`);
 
         } catch (error) {
             console.error(`❌ Failed to store design system data: ${name}@${version}`, error);
@@ -497,6 +411,7 @@ export class BackendComponentStore {
         id: number;
         name: string;
         type: string;
+        componentName: string;
         defaultValue?: string;
     }>> {
         try {
@@ -504,13 +419,13 @@ export class BackendComponentStore {
             const components = await this.getExistingComponents();
             
             // Extract all unique tokens from components
-            const tokenMap = new Map<number, { id: number; name: string; type: string; defaultValue?: string }>();
+            const tokenMap = new Map<number, { id: number; name: string; type: string; componentName: string; defaultValue?: string }>();
             
             for (const component of components) {
                 // Add tokens from the component's tokens array
                 if (component.tokens) {
                     for (const token of component.tokens) {
-                        tokenMap.set(token.id, token);
+                        tokenMap.set(token.id, {...token, componentName: component.name});
                     }
                 }
                 
@@ -520,7 +435,7 @@ export class BackendComponentStore {
                         if (variation.tokenVariations) {
                             for (const tokenVariation of variation.tokenVariations) {
                                 if (tokenVariation.token) {
-                                    tokenMap.set(tokenVariation.token.id, tokenVariation.token);
+                                    tokenMap.set(tokenVariation.token.id, {...tokenVariation.token, componentName: component.name});
                                 }
                             }
                         }
@@ -660,8 +575,6 @@ export class BackendComponentStore {
                 tokenValues: backendTokenValues
             };
 
-            console.log(`🔍 Sending payload to /variation-values:`, JSON.stringify(payload, null, 2));
-            console.log(`🔍 Backend URL: ${this.baseUrl}/variation-values`);
 
             const response = await fetch(`${this.baseUrl}/variation-values`, {
                 method: 'POST',
@@ -688,6 +601,61 @@ export class BackendComponentStore {
             throw error;
         }
     }
+
+    /**
+     * Update variation value with token values
+     */
+    private async updateVariationValue(designSystemId: number, componentId: number, variationId: number, style: any, tokenValues: Array<{ id: number; value: any }>, isDefaultValue: boolean = false): Promise<void> {
+        try {
+            // Convert the extracted token values to the format expected by the backend
+            // Ensure all values are strings as the backend expects
+            const backendTokenValues = tokenValues.map(tokenValue => ({
+                tokenId: tokenValue.id,
+                value: String(tokenValue.value) // Convert all values to strings
+            }));
+
+            const payload = {
+                name: style.name,
+                description: style.description || '',
+                isDefaultValue,
+                tokenValues: backendTokenValues
+            };
+
+            const variationValues = await fetch(`${this.baseUrl}/variation-values`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            const variationValuesResponse = await variationValues.json() as any[];
+            const variation = variationValuesResponse.find((v: any) => v.name === style.name && v.designSystemId === designSystemId && v.componentId === componentId && v.variationId === variationId);
+
+            const response = await fetch(`${this.baseUrl}/variation-values/${variation.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                let errorDetails = '';
+                try {
+                    const errorResponse = await response.json();
+                    errorDetails = ` - Details: ${JSON.stringify(errorResponse)}`;
+                } catch (e) {
+                    errorDetails = ` - Could not parse error response`;
+                }
+                throw new Error(`Failed to update variation value: ${response.status} ${response.statusText}${errorDetails}`);
+            }
+
+            console.log(`💾 Updated variation value for ${style.name} with ${tokenValues.length} token values`);
+        } catch (error) {
+            console.error(`❌ Failed to update variation value for ${style.name}:`, error);
+            throw error;
+        }
+    }
+
 
     /**
      * Add invariant token value
@@ -845,7 +813,7 @@ export class BackendComponentStore {
         try {
             console.log(`🔍 Extracting token values for style ${style.name} in variation ${variationId}`);
             console.log(`🔍 Style props:`, style.props);
-            
+
             // Find tokens that belong to this variation
             const variationTokens = component.sources?.api?.filter((token: any) => 
                 token.variations && token.variations.includes(variationId)
@@ -860,8 +828,10 @@ export class BackendComponentStore {
                     const token = variationTokens.find((t: any) => t.id === prop.id);
                     if (token) {
                         // Use the backend token ID instead of generating a new one
-                        const backendTokenId = tokenNameToBackendId.get(token.name);
+                        const backendTokenId = tokenNameToBackendId.get(`${token.name}_${component.name}`);
                         if (backendTokenId) {
+                            console.log('____prop.value_____', JSON.stringify(prop.value, null,2));
+
                             tokenValues.push({
                                 id: backendTokenId,
                                 value: prop.value

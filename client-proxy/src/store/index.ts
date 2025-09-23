@@ -37,7 +37,8 @@ export class DesignSystemStore {
         await this.themeStore.saveTheme(name, version, themeData);
 
         // Add to index
-        await this.indexStore.addToIndex(name, version);
+
+        // await this.indexStore.addToIndex(name, version);
 
         Logger.log(`✅ Saved design system to backend: ${name}@${version} (theme + components with transformation)`);
     }
@@ -51,16 +52,17 @@ export class DesignSystemStore {
         }
 
         // Check if both theme and components exist
-        const [themeExists, componentsExist] = await Promise.all([
-            this.themeStore.themeExists(name, version),
-            this.componentStore.componentsExist(name, version)
-        ]);
+        // const [themeExists, componentsExist] = await Promise.all([
+        //     this.themeStore.themeExists(name, version),
+        //     this.componentStore.componentsExist(name, version)
+        // ]);
 
-        if (!themeExists || !componentsExist) {
-            // Files are missing - clean up index
-            await this.indexStore.removeFromIndex(name, version);
-            throw new Error('Design system data not found in storage');
-        }
+
+        // if (!themeExists || !componentsExist) {
+        //     // Files are missing - clean up index
+        //     await this.indexStore.removeFromIndex(name, version);
+        //     throw new Error('Design system data not found in storage');
+        // }
 
         // Load both theme and components in parallel using our enhanced system
         const [themeData, componentsData] = await Promise.all([
