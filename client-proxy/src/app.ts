@@ -31,7 +31,7 @@ const createApp = (indexStore?: IndexStore, componentStore?: any): Application =
 
     // Middleware
     app.use(cors());
-    app.use(express.json({ limit: '10mb' }));
+    app.use(express.json({ limit: '50mb' }));
     
     // Add request logging middleware to track duplicates
     app.use((req: Request, res: Response, next: NextFunction) => {

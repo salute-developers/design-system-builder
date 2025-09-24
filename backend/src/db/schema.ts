@@ -220,6 +220,13 @@ export const themes = pgTable('themes', {
   uniqueThemeVersion: unique().on(table.designSystemId, table.name, table.version),
 }));
 
+export const propsAPIRelations = relations(propsAPI, ({ one }) => ({
+  component: one(components, {
+    fields: [propsAPI.componentId],
+    references: [components.id],
+  }),
+}));
+
 export const themesRelations = relations(themes, ({ one }) => ({
   designSystem: one(designSystems, {
     fields: [themes.designSystemId],
