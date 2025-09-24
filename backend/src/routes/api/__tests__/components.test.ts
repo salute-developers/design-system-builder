@@ -7,7 +7,7 @@ import { components, designSystems, tokens, tokenValues, tokenVariations, variat
 import { eq } from 'drizzle-orm';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 let router: ReturnType<typeof createComponentsRouter>;
 

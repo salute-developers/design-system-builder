@@ -6,7 +6,7 @@ import { testDb } from '../../../test/setup';
 import { variationValues, variations, components, designSystems } from '../../../db/schema';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 let router: ReturnType<typeof createVariationValuesRouter>;
 
