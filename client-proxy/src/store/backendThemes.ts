@@ -29,7 +29,7 @@ export class BackendThemeStore {
     }
 
     /**
-     * Save theme to backend database
+     * Save theme to backend database (create or update)
      */
     async saveTheme(name: string, version: string, themeData: ThemeSource): Promise<void> {
         Logger.log(`🎨 Saving theme to backend: ${name}@${version}`);
@@ -38,26 +38,53 @@ export class BackendThemeStore {
             // First, get or create the design system
             const designSystemId = await this.ensureDesignSystemExists(name);
             
-            // Save theme to backend
-            const response = await fetch(`${this.baseUrl}/themes`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    designSystemId,
-                    name,
-                    version,
-                    themeData
-                })
-            });
+            // Check if theme already exists
+            const existingTheme = await this.themeExists(name, version);
+            
+            if (existingTheme) {
+                // Update existing theme
+                Logger.log(`🔄 Updating existing theme: ${name}@${version}`);
+                const response = await fetch(`${this.baseUrl}/themes/${designSystemId}/${name}/${version}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name,
+                        version,
+                        themeData
+                    })
+                });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to save theme: ${response.status} ${response.statusText} - ${errorText}`);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to update theme: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                Logger.log(`✅ Theme updated in backend: ${name}@${version}`);
+            } else {
+                // Create new theme
+                Logger.log(`🆕 Creating new theme: ${name}@${version}`);
+                const response = await fetch(`${this.baseUrl}/themes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        designSystemId,
+                        name,
+                        version,
+                        themeData
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to create theme: ${response.status} ${response.statusText} - ${errorText}`);
+                }
+
+                Logger.log(`✅ Theme created in backend: ${name}@${version}`);
             }
-
-            Logger.log(`✅ Theme saved to backend: ${name}@${version}`);
         } catch (error) {
             Logger.error(`❌ Failed to save theme to backend: ${name}@${version}`, error);
             throw error;
