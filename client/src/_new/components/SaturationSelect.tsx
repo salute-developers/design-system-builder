@@ -1,23 +1,20 @@
 import { useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { IconInfoCircleOutline } from '@salutejs/plasma-icons';
+import { bodyXXS, textParagraph, textPrimary, textTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { checkIsColorContrast } from '../utils';
 import { SaturationType } from '../types';
+import { checkIsColorContrast, h6 } from '../utils';
 
 const Root = styled.div`
     position: relative;
 `;
 
 const StyledLabel = styled.div`
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const StyledItems = styled.div`
@@ -44,11 +41,7 @@ const StyledItemLabel = styled.div<{ color: string }>`
     color: ${({ color }) => color};
 
     text-align: center;
-    font-family: 'SB Sans Display';
-    font-size: 10px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 12px;
+    ${bodyXXS as CSSObject};
 
     transition: all 0.1s ease-out;
 `;
@@ -80,11 +73,7 @@ const StyledDescription = styled.div<{ left: number }>`
     justify-content: center;
 
     text-align: center;
-    font-family: 'SB Sans Display';
-    font-size: 10px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 12px;
+    ${bodyXXS as CSSObject};
 
     transition: left 0.1s ease-out;
 `;
@@ -93,7 +82,7 @@ const StyledDescriptionPointer = styled.div`
     height: 1rem;
     width: 0.063rem;
 
-    background-image: linear-gradient(to bottom, var(--gray-color-150) 0%, rgba(236, 236, 236, 0) 100%);
+    background-image: linear-gradient(to bottom, ${textPrimary} 0%, rgba(236, 236, 236, 0) 100%);
 `;
 
 const StyledDescriptionHelper = styled.div`
@@ -125,15 +114,11 @@ const StyledDescriptionWarning = styled.div`
     gap: 0.125rem;
     align-items: center;
 
-    color: var(--gray-color-500);
+    color: ${textParagraph};
 `;
 
 const StyledDescriptionWarningWCAG = styled.div`
-    font-family: 'SB Sans Display';
-    font-size: 10px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 12px;
+    ${bodyXXS as CSSObject};
 `;
 
 const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
@@ -148,18 +133,18 @@ const HOVERED_COLOR_SATURATION_REST_SIZE = 32;
 
 const getItemSizeAndColor = (hoveredIndex: number | null, index: number): [number, string] => {
     if (hoveredIndex === index) {
-        return [HOVERED_COLOR_SATURATION_SIZE, 'var(--gray-color-150)'];
+        return [HOVERED_COLOR_SATURATION_SIZE, textPrimary];
     }
 
     if (hoveredIndex === index - 1 || hoveredIndex === index + 1) {
-        return [HOVERED_COLOR_SATURATION_SIBLING_SIZE, 'var(--gray-color-500)'];
+        return [HOVERED_COLOR_SATURATION_SIBLING_SIZE, textParagraph];
     }
 
     if (hoveredIndex === null) {
-        return [DEFAULT_COLOR_SATURATION_SIZE, 'var(--gray-color-150)'];
+        return [DEFAULT_COLOR_SATURATION_SIZE, textPrimary];
     }
 
-    return [HOVERED_COLOR_SATURATION_REST_SIZE, 'var(--gray-color-800)'];
+    return [HOVERED_COLOR_SATURATION_REST_SIZE, textTertiary];
 };
 
 interface SaturationSelectProps {

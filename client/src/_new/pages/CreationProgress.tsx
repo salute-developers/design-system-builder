@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
+import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { useGlobalKeyDown } from '../hooks';
 import { LoadingProgress } from '../components/LoadingProgress';
+import { h6 } from '../utils';
 
 const Root = styled.div`
     display: flex;
@@ -24,13 +26,10 @@ const StyledDesignSystemName = styled.div`
     height: 2.5rem;
     padding: 0 0.5rem;
 
-    color: var(--gray-color-150);
+    color: ${textPrimary};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 700;
-    line-height: 16px;
+    ${h6 as CSSObject};
+    font-weight: 600;
 `;
 
 const StyledLoadingProgress = styled(LoadingProgress)`

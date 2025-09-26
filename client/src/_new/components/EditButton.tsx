@@ -1,8 +1,20 @@
 import { forwardRef, HTMLAttributes, ReactNode } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 import { IconArrowsMoveVertical, IconInfoCircleOutline } from '@salutejs/plasma-icons';
+import {
+    bodyXXS,
+    darkBackgroundSecondary,
+    h1,
+    lightBackgroundSecondary,
+    onDarkTextPrimary,
+    onLightTextPrimary,
+    textParagraph,
+    textPrimary,
+    textSecondary,
+    textTertiary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { checkIsColorContrast } from '../utils';
+import { checkIsColorContrast, h6 } from '../utils';
 import { SaturationType, ViewType } from '../types';
 
 const Root = styled.div<{ view?: ViewType }>`
@@ -18,10 +30,10 @@ const Root = styled.div<{ view?: ViewType }>`
     align-items: center;
 
     --edit-button-background-color: ${({ view }) =>
-        view === undefined ? 'transparent' : view === 'light' ? '#F4F5FB' : '#16181D'};
+        view === undefined ? 'transparent' : view === 'light' ? lightBackgroundSecondary : darkBackgroundSecondary};
 
     &:hover > div {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 
     &:hover > div + div {
@@ -30,13 +42,9 @@ const Root = styled.div<{ view?: ViewType }>`
 `;
 
 const StyledLabel = styled.div`
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: SaturationType }>`
@@ -60,17 +68,12 @@ const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: Sa
 `;
 
 const StyledText = styled.div<{ color?: string; saturationType?: SaturationType }>`
-    color: ${({ saturationType, color }) => (saturationType ? color : 'var(--gray-color-300)')};
+    color: ${({ saturationType, color }) => (saturationType ? color : textSecondary)};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+     ${h6 as CSSObject};
 `;
 
 const StyledContentLeft = styled.div`
-    color: var(--gray-color-800);
     width: 0.75rem;
     height: 0.75rem;
 
@@ -80,7 +83,7 @@ const StyledContentLeft = styled.div`
 `;
 
 const StyledContentRight = styled.div<{ color?: string; saturationType?: SaturationType }>`
-    color: ${({ saturationType, color }) => (saturationType === 'fill' ? color : 'var(--gray-color-600)')};
+    color: ${({ saturationType, color }) => (saturationType === 'fill' ? color : textParagraph)};
     width: 0.75rem;
     height: 0.75rem;
 
@@ -90,7 +93,7 @@ const StyledContentRight = styled.div<{ color?: string; saturationType?: Saturat
 `;
 
 const StyledWarning = styled.section`
-    color: var(--gray-color-600);
+    color: ${textParagraph};
 
     display: flex;
     align-items: center;
@@ -98,13 +101,9 @@ const StyledWarning = styled.section`
 `;
 
 const StyledWarningText = styled.div`
-    color: var(--gray-color-600);
+    color: ${textParagraph};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${bodyXXS as CSSObject};
 `;
 
 const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
@@ -135,7 +134,7 @@ export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, re
     const threshold = saturationType === 'stroke' ? 3 : 2;
     const isColorContrast = color && checkIsColorContrast(color, backgroundColor, threshold);
 
-    const contrastColor = color && checkIsColorContrast(color, '#FFFFFF') ? '#FFFFFF' : '#000000';
+    const contrastColor = color && checkIsColorContrast(color, '#FFFFFF') ? onDarkTextPrimary : onLightTextPrimary;
     const textColor = saturationType === 'fill' ? contrastColor : color;
 
     return (

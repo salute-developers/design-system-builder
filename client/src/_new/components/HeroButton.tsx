@@ -1,6 +1,7 @@
 import { HTMLAttributes } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 import { checkIsColorContrast } from '../utils';
+import { bodyM } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 const Root = styled.div<{ backgroundColor?: string; color?: string }>`
     position: relative;
@@ -32,11 +33,7 @@ const Root = styled.div<{ backgroundColor?: string; color?: string }>`
 `;
 
 const StyledText = styled.div`
-    font-family: 'SB Sans Display';
-    font-size: 16px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 20px;
+    ${bodyM as CSSObject};
 `;
 
 const StyledContentRight = styled.div`

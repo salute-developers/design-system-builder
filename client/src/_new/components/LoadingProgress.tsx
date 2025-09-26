@@ -1,9 +1,9 @@
 import styled from 'styled-components';
+import { surfaceTransparentSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 const Root = styled.div`
-    background: var(--gray-color-800);
+    background: ${surfaceTransparentSecondary};
     height: 0.125rem;
-    width: 100%;
 `;
 
 const StyledProgress = styled.div<{ color: string; value: number }>`

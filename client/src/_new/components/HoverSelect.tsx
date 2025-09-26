@@ -1,16 +1,20 @@
 import { HTMLAttributes } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
+import {
+    outlineSolidSecondary,
+    surfaceSolidCard,
+    textPrimary,
+    textSecondary,
+    textTertiary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { h6 } from '../utils';
 
 const Root = styled.div``;
 
 const StyledLabel = styled.div`
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const StyledItems = styled.div`
@@ -26,21 +30,17 @@ const StyledItem = styled.div`
 
     padding: 0.75rem 1.25rem;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 
     border-radius: 1.25rem;
 
     background: transparent;
-    color: var(--gray-color-300);
-    box-shadow: 0 0 0 0.0625rem var(--gray-color-800) inset;
+    color: ${textSecondary};
+    box-shadow: 0 0 0 0.0625rem ${outlineSolidSecondary} inset;
 
     &:hover {
-        background: var(--gray-color-850);
-        color: var(--gray-color-150);
+        background: ${surfaceSolidCard};
+        color: ${textPrimary};
         box-shadow: none;
     }
 `;

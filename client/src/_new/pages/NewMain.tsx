@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, CSSObject } from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import {
     IconAppsOutline,
-    IconArrowLeft,
+    IconClose,
     IconBookOutline,
     IconBrightnessmaxOutline,
     IconHelpCircleOutline,
@@ -14,45 +14,55 @@ import {
 } from '@salutejs/plasma-icons';
 import { general } from '@salutejs/plasma-colors';
 
+import {
+    backgroundSecondary,
+    backgroundPrimary,
+    textPrimary,
+    textTertiary,
+    textSecondary,
+    surfaceTransparentPrimary,
+    textParagraph,
+    h1,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
+import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
+
 import { IconButton } from '../components/IconButton';
 import { Popup } from '../components/Popup';
 import { GrayTone, Parameters } from '../types';
 import { CreateFirstName } from './CreateFirstName';
 import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
-import { transliterateToSnakeCase } from '../utils';
+import { h6, transliterateToSnakeCase } from '../utils';
 
-// TODO: переделать на независимые переменные
+// TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
     return `
-        --gray-color-50: ${general[grayTone][50]};
-        --gray-color-100: ${general[grayTone][themeMode === 'dark' ? 100 : 950]};
-        --gray-color-150: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
-        --gray-color-200: ${general[grayTone][200]};
-        --gray-color-250: ${general[grayTone][250]};
-        --gray-color-300: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
-        --gray-color-400: ${general[grayTone][themeMode === 'dark' ? 400 : 800]};
-        --gray-color-500: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
-        --gray-color-600: ${general[grayTone][600]};
-        --gray-color-700: ${general[grayTone][700]};
-        --gray-color-800: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
-        --gray-color-850: ${general[grayTone][themeMode === 'dark' ? 850 : 150]};
-        --gray-color-900: ${general[grayTone][900]};
-        --gray-color-950: ${general[grayTone][themeMode === 'dark' ? 950 : 200]};
-        --gray-color-1000: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
+        --text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
+        --text-secondary: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
+        --text-tertiary: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
+        --text-paragraph: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
+        --text-negative: ${general[grayTone][themeMode === 'dark' ? 600 : 600]};
+        --on-dark-text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 150]};
+        --on-light-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
+        --inverse-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 150]};
+        --surface-solid-card: ${general[grayTone][themeMode === 'dark' ? 800 : 150]};
+        --surface-solid-default: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
+        --surface-transparent-primary: ${general[grayTone][themeMode === 'dark' ? 50 : 1000]}0a;
+        --surface-transparent-secondary: ${general[grayTone][themeMode === 'dark' ? 100 : 950]}0f;
+        --outline-solid-secondary: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
+        --background-primary: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
+        --background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 250]};
+        --dark-background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
+        --light-background-secondary: ${general[grayTone][themeMode === 'dark' ? 250 : 250]};
     `;
-
-    // return Object.entries(general[grayTone]).reduce((acc, [name, value]) => {
-    //     return acc + `--gray-color-${name}: ${value};\n`;
-    // }, '');
 };
 
 const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?: boolean }>`
-    ${({ grayTone, themeMode }) => getGrayTokens(grayTone, themeMode)};
-
     display: flex;
 
-    background: ${({ isPopupOpen }) => (isPopupOpen ? 'var(--gray-color-1000)' : 'var(--gray-color-950)')};
+    background: ${({ isPopupOpen }) => (isPopupOpen ? backgroundPrimary : backgroundSecondary)} !important;
+
+    ${({ grayTone, themeMode }) => getGrayTokens(grayTone, themeMode)};
 `;
 
 const Panel = styled.div`
@@ -120,14 +130,11 @@ const Header = styled.div`
 
 const HeaderTitle = styled.div`
     overflow: hidden;
-    color: var(--gray-color-150);
-
+    color: ${textPrimary};
     text-overflow: ellipsis;
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+
+    ${h6 as CSSObject};
+    font-weight: 600;
 `;
 
 const MenuList = styled.div`
@@ -140,17 +147,13 @@ const MenuSection = styled.div`
     box-sizing: border-box;
     height: 2rem;
 
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 
     display: flex;
     flex-direction: row;
     align-items: center;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const MenuItem = styled.div<{ selected?: boolean }>`
@@ -160,12 +163,14 @@ const MenuItem = styled.div<{ selected?: boolean }>`
     padding: 0.25rem 0.5rem;
     border-radius: 0.375rem;
 
+    color: ${textSecondary};
+
     ${({ selected }) =>
         selected &&
         css`
             cursor: default;
-            color: var(--gray-color-150);
-            background: rgba(255, 255, 255, 0.04);
+            color: ${textPrimary};
+            background: ${surfaceTransparentPrimary};
         `}
 
     display: flex;
@@ -175,10 +180,10 @@ const MenuItem = styled.div<{ selected?: boolean }>`
 `;
 
 const MenuItemText = styled.span`
-    color: var(--gray-color-300);
+    color: inherit;
 
     &:hover {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 
     white-space: nowrap;
@@ -186,20 +191,16 @@ const MenuItemText = styled.span`
     text-overflow: ellipsis;
     width: 100%;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const MenuItemContentRight = styled.div`
     cursor: pointer;
 
-    color: var(--gray-color-500);
+    color: ${textParagraph};
 
     &:hover {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 
     display: flex;
@@ -215,44 +216,33 @@ const ContentWrapper = styled.div`
 const ContentHeader = styled.div`
     width: 20rem;
 
-    color: var(--gray-color-800);
-    font-family: 'SB Sans Display';
-    font-size: 48px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 52px;
+    color: ${textTertiary};
+
+    ${h1 as CSSObject};
 `;
 
 const StyledStartWrapper = styled.div`
     cursor: pointer;
 
     &:hover div {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 `;
 
 const StyledStartButton = styled.div`
-    color: var(--gray-color-300);
+    color: ${textSecondary};
 
-    font-family: 'SB Sans Display';
-    font-size: 48px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 52px;
+    ${h1 as CSSObject};
 
     transition: color 0.2s ease-in-out;
 `;
 
 const StyledProjectName = styled.div`
-    color: var(--gray-color-500);
+    color: ${textParagraph};
 
     margin-top: 0.25rem;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 
     transition: color 0.2s ease-in-out;
 `;
@@ -321,12 +311,12 @@ export const NewMain = () => {
     };
 
     return (
-        <Root grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
+        <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
                 <MainItems>
                     <IconButton selected={!isPopupOpen} onClick={onPopupClose}>
                         {isPopupOpen ? (
-                            <IconArrowLeft size="xs" color="inherit" />
+                            <IconClose size="xs" color="inherit" />
                         ) : (
                             <IconHomeAltOutline size="xs" color="inherit" />
                         )}

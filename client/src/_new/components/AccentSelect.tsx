@@ -1,17 +1,16 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, CSSObject } from 'styled-components';
+import { h1, textPrimary, textSecondary, textTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+
 import { useHorizontalDraggable } from '../hooks';
+import { h6 } from '../utils';
 
 const Root = styled.div``;
 
 const StyledLabel = styled.div`
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 const StyledItems = styled.div`
@@ -50,14 +49,10 @@ const StyledItem = styled.div<{ color: string }>`
     white-space: nowrap;
     user-select: none;
 
-    font-family: 'SB Sans Display';
-    font-size: 48px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 52px;
+    ${h1 as CSSObject};
 
     background: ${({ color }) => css`linear-gradient(to right, transparent 0 50%, ${color} 100%),
-        linear-gradient(to left, var(--gray-color-150) 0%, var(--gray-color-300) 100%)`};
+        linear-gradient(to left, ${textPrimary} 0%, ${textSecondary} 100%)`};
 
     background-size: 200% 100%;
     background-position: 0% 0;
