@@ -1,8 +1,19 @@
 import React, { useState, useRef, KeyboardEvent, InputHTMLAttributes, useEffect } from 'react';
 import { IconArrowBack, IconClose, IconMessageDraftOutline } from '@salutejs/plasma-icons';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
+import {
+    outlineSolidSecondary,
+    surfaceTransparentPrimary,
+    surfaceTransparentSecondary,
+    textNegative,
+    textParagraph,
+    textPrimary,
+    textSecondary,
+    textTertiary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { useInputDynamicWidth } from '../hooks';
+import { h6 } from '../utils';
 
 const Root = styled.div<{ view?: 'default' | 'negative' }>`
     position: relative;
@@ -15,18 +26,14 @@ const Root = styled.div<{ view?: 'default' | 'negative' }>`
     gap: 0.375rem;
     align-items: center;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 
-    --text-field-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-300)' : '#ff0000')};
-    --text-field-color-hover: ${({ view }) => (view === 'default' ? 'var(--gray-color-150)' : '#ff0000')};
-    --text-field-border-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-800)' : '#ff0000')};
+    --text-field-color: ${({ view }) => (view === 'default' ? textSecondary : textNegative)};
+    --text-field-color-hover: ${({ view }) => (view === 'default' ? textPrimary : textNegative)};
+    --text-field-border-color: ${({ view }) => (view === 'default' ? outlineSolidSecondary : textNegative)};
 
-    &:hover div + div {
-        background: rgba(255, 255, 255, 0.06);
+    &:not(:focus-within):hover div + div {
+        background: ${surfaceTransparentPrimary};
         color: var(--text-field-color-hover);
     }
 
@@ -35,12 +42,12 @@ const Root = styled.div<{ view?: 'default' | 'negative' }>`
     }
 
     &:hover svg {
-        color: var(--gray-color-300);
+        color: ${textSecondary};
     }
 `;
 
 const StyledLabel = styled.div`
-    color: var(--gray-color-800);
+    color: ${textTertiary};
 `;
 
 const StyledWrapper = styled.div`
@@ -51,14 +58,14 @@ const StyledWrapper = styled.div`
 
     &:focus-within {
         box-shadow: 0 0 0 0.0625rem var(--text-field-border-color) inset;
+        background: ${surfaceTransparentSecondary};
         color: var(--text-field-color-hover);
     }
 
     &:focus-within div {
-        color: var(--gray-color-500);
+        color: ${textParagraph};
     }
 
-    // width: 12.5rem;
     border-radius: 0.375rem;
 
     display: flex;
@@ -99,7 +106,7 @@ const StyledSpan = styled.span`
 const StyledContentRight = styled.div`
     cursor: pointer;
 
-    color: var(--gray-color-600);
+    color: ${textTertiary};
     width: 0.75rem;
     height: 0.75rem;
 

@@ -9,6 +9,10 @@ import { IconButton } from '../../components/IconButton';
 import { TextField } from '../../components/TextField';
 import { popupSetupSteps } from '../SetupParameters';
 
+const StyledHeroTextField = styled(HeroTextField)`
+    margin-bottom: 3rem;
+`;
+
 const StyledIconButton = styled(IconArrowBack)`
     --icon-size: 3.25rem !important;
 `;
@@ -49,7 +53,7 @@ export const ProjectNameStep = (props: ProjectNameStepProps) => {
     };
 
     return editMode ? (
-        <HeroTextField
+        <StyledHeroTextField
             value={projectName}
             placeholder="Начните с имени проекта"
             dynamicContentRight={

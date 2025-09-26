@@ -1,20 +1,24 @@
 import { useRef, forwardRef, useEffect, ReactNode } from 'react';
-import styled from 'styled-components';
+import styled, { CSSObject } from 'styled-components';
 import { InputHTMLAttributes } from '@salutejs/plasma-b2c';
 
 import { useInputDynamicWidth } from '../hooks';
+import {
+    h1,
+    textNegative,
+    textPrimary,
+    textSecondary,
+    textTertiary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { h6 } from '../utils';
 
 const Root = styled.div<{ view?: 'default' | 'negative' }>`
     position: relative;
 
-    font-family: 'SB Sans Display';
-    font-size: 48px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 52px;
+    ${h1 as CSSObject};
 
-    --text-field-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-150)' : '#ff0000')};
-    --text-field-helper-color: ${({ view }) => (view === 'default' ? 'var(--gray-color-800)' : '#ff0000')};
+    --text-field-color: ${({ view }) => (view === 'default' ? textPrimary : textNegative)};
+    --text-field-helper-color: ${({ view }) => (view === 'default' ? textTertiary : textNegative)};
 `;
 
 const StyleWrapper = styled.div`
@@ -44,16 +48,16 @@ const StyledInput = styled.input<{ width: number; left: number }>`
     }
 
     &::placeholder {
-        color: var(--gray-color-300);
+        color: ${textSecondary};
         transition: color 0.2s ease-in-out;
     }
 
     &:hover::placeholder {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 
     &:focus::placeholder {
-        color: var(--gray-color-800);
+        color: ${textTertiary};
     }
 
     &:not(:placeholder-shown) ~ div {
@@ -87,12 +91,7 @@ const StyledDynamicHelper = styled.div`
 
     margin-top: 1.25rem;
 
-    color: var(--text-field-helper-color);
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px;
+    ${h6 as CSSObject};
 `;
 
 interface HeroTextFieldProps extends InputHTMLAttributes<HTMLInputElement> {

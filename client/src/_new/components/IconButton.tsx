@@ -1,4 +1,10 @@
 import styled, { css } from 'styled-components';
+import {
+    inverseTextPrimary,
+    surfaceSolidDefault,
+    textParagraph,
+    textPrimary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 export const Root = styled.div<{ selected?: boolean }>`
     border-radius: 50%;
@@ -9,18 +15,18 @@ export const Root = styled.div<{ selected?: boolean }>`
     width: 1rem;
     height: 1rem;
 
-    background: var(--gray-color-300);
-    color: var(--gray-color-900);
+    background: ${surfaceSolidDefault};
+    color: ${inverseTextPrimary};
 
     ${({ selected }) =>
         !selected &&
         css`
             cursor: pointer;
             background: transparent;
-            color: var(--gray-color-500);
+            color: ${textParagraph};
 
             &:hover {
-                color: var(--gray-color-150);
+                color: ${textPrimary};
             }
         `}
 `;

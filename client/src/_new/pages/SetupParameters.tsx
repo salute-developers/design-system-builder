@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import styled, { css } from 'styled-components';
+import styled, { css, CSSObject } from 'styled-components';
 import { general } from '@salutejs/plasma-colors';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { IconArrowRight, IconClose } from '@salutejs/plasma-icons';
+import { h1, h5, textParagraph, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { Parameters } from '../types';
 import { useGlobalKeyDown } from '../hooks';
 import { HeroButton } from '../components/HeroButton';
 
 import { ProjectNameStep, PackagesNameStep, GrayToneStep, AccentSelectStep, SaturationSelectStep } from './step';
+import { h6 } from '../utils';
 
 export const Root = styled.div``;
 
@@ -63,13 +65,9 @@ const StyledHeader = styled.div`
 
     margin-bottom: 4rem;
 
-    color: var(--gray-color-100);
+    color: ${textPrimary};
 
-    font-family: 'SB Sans Display';
-    font-size: 48px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 52px;
+    ${h1 as CSSObject};
 `;
 
 const StyledDisclaimer = styled.div`
@@ -77,13 +75,9 @@ const StyledDisclaimer = styled.div`
 
     margin-top: 2.5rem;
 
-    color: var(--gray-color-500);
+    color: ${textParagraph};
 
-    font-family: 'SB Sans Display';
-    font-size: 16px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 24px;
+    ${h5 as CSSObject};
 `;
 
 const StyledResetParametersButton = styled.div`
@@ -92,21 +86,17 @@ const StyledResetParametersButton = styled.div`
 
     bottom: 3rem;
 
-    color: var(--gray-color-500);
+    color: ${textParagraph};
 
     &:hover {
-        color: var(--gray-color-150);
+        color: ${textPrimary};
     }
 
     display: flex;
     gap: 0.375rem;
     align-items: center;
 
-    font-family: 'SB Sans Display';
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 400;
-    line-height: 16px; /* 133.333% */
+     ${h6 as CSSObject};
 `;
 
 const StyledThemeModeSwitcher = styled.span<{ color: string }>`
