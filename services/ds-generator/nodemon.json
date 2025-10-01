@@ -1,0 +1,10 @@
+{
+    "watch": ["./app"],
+    "ext": "ts",
+    "exec": "tsx ./app/index.ts",
+    "env": {
+        "PORT": "3000",
+        "NODE_ENV": "development",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+    }
+}
