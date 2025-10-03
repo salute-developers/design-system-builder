@@ -6,6 +6,8 @@ import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
 
+const HOST = 'http://localhost:3000'
+
 const StyledGenerateContent = styled.div`
     padding: 1rem;
     height: 100%;
@@ -100,7 +102,7 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch('https://ds-generator.prom.app.sberdevices.ru/generate', {
+        const result = await fetch(`${HOST}/generate`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
