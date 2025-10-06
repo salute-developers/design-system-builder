@@ -1,0 +1,60 @@
+services:
+  backend:
+    platform: "linux/amd64"
+    container_name: project-publisher
+    build:
+      context: .
+      dockerfile: Dockerfile   # твой Dockerfile бэкенда из предыдущего шага
+    ports:
+      - "8080:8080"
+    # вот здесь
+#    env_file:
+#      - run.env
+    environment:
+
+      # Пример: прокидываем любые нужные ENV для твоих скриптов/раннера
+      TZ: ${TZ:-UTC}
+      JAVA_OPTS: ${JAVA_OPTS:-}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_CONTEXT: default
+      DOCKER_CERT_PATH: ""
+      DOCKER_CONFIG: ""
+      # Если используешь выгрузку на S3 из раннера, можно держать тут креды/регион (или в secrets)
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      SHARED_VOLUME_NAME: project-builder-builds
+      SHARED_ROOT: /tmp/builds
+    volumes:
+      # DooD: чтобы бэкенд мог запускать docker-контейнеры раннера
+      - /var/run/docker.sock:/var/run/docker.sock
+#      - ${DOCKER_SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+      # Кэши, чтобы сборки были быстрее (используются runner-контейнерами)
+      - gradle-cache:/var/cache/gradle
+      - npm-cache:/var/cache/npm
+
+      # Рабочие каталоги билдов (логи/артефакты, если нужно что-то сохранить с хоста)
+      - builds:/tmp/builds
+
+      # Скрипты и файлы раннера (если хранятся в репозитории)
+      - ./scripts:/app/scripts:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    # По желанию можно слегка ограничить сам backend
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+volumes:
+  gradle-cache:
+  npm-cache:
+  builds:
+    name: project-builder-builds
