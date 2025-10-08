@@ -169,11 +169,12 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
             const version = '0.1.0';
 
             // Use the enhanced DesignSystemStore which now handles transformation internally
-            const { themeData, componentsData } = await store.loadDesignSystem(name, version);
+            const { themeData, componentsData, parameters } = await store.loadDesignSystem(name, version);
 
             res.json({
                 themeData,
-                componentsData
+                componentsData,
+                parameters
             } as any);
 
         } catch (error) {

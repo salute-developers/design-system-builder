@@ -1,10 +1,10 @@
 import {
     DesignSystemData,
-    DesignSystemTuple
+    Parameters
 } from '../validation';
 import { BackendThemeStore } from './backendThemes';
 import { BackendComponentStore } from './backendComponents';
-import { IndexStore } from './indexStore';
+import { BackendDesignSystem, IndexStore } from './indexStore';
 import { Logger } from '../utils/logger';
 import { ThemeSource, Meta } from '../validation';
 
@@ -21,13 +21,13 @@ export class DesignSystemStore {
 
     // Save design system data with enhanced transformation
     async saveDesignSystem(data: DesignSystemData): Promise<void> {
-        const { name, version, themeData, componentsData } = data;
+        const { name, version, parameters, themeData, componentsData } = data;
         
         Logger.log(`🔄 Processing design system: ${name}@${version}`);
         Logger.log(`📊 Components: ${componentsData.length}, Theme: ${themeData ? 'present' : 'missing'}`);
 
         // Save components using our enhanced transformation system
-        await this.componentStore.saveComponents(name, version, componentsData);
+        await this.componentStore.saveComponents(name, version, parameters, componentsData);
 
         // Save theme data using existing theme store
         await this.themeStore.saveTheme(name, version, themeData);
@@ -40,7 +40,7 @@ export class DesignSystemStore {
     }
 
     // Load design system data with enhanced transformation
-    async loadDesignSystem(name: string, version: string): Promise<{ themeData: ThemeSource; componentsData: Meta[] }> {
+    async loadDesignSystem(name: string, version: string): Promise<{ themeData: ThemeSource; componentsData: Meta[], parameters?: Partial<Parameters> }> {
         // First check if design system exists in index
         const existsInIndex = await this.indexStore.existsInIndex(name, version);
         if (!existsInIndex) {
@@ -61,20 +61,42 @@ export class DesignSystemStore {
         // }
 
         // Load both theme and components in parallel using our enhanced system
-        const [themeData, componentsData] = await Promise.all([
+        const [themeData, componentsData, designSystem] = await Promise.all([
             this.themeStore.loadTheme(name, version),
-            this.componentStore.loadComponents(name, version)
+            this.componentStore.loadComponents(name, version),
+            this.getDesignSystem(name)
         ]);
 
+        const parameters = {
+            projectName: designSystem.projectName,
+            packagesName: designSystem.name,
+            grayTone: designSystem.grayTone,
+            accentColor: designSystem.accentColor,
+            lightStrokeSaturation: designSystem.lightStrokeSaturation,
+            lightFillSaturation: designSystem.lightFillSaturation,
+            darkStrokeSaturation: designSystem.darkStrokeSaturation,
+            darkFillSaturation: designSystem.darkFillSaturation
+        }
+
         Logger.log(`✅ Loaded design system from storage: ${name}@${version} (theme + components with transformation)`);
-        return { themeData, componentsData };
+        return { themeData, componentsData, parameters };
+    }
+
+    async getDesignSystem(name: string): Promise<BackendDesignSystem> {
+        const designSystemId = await this.componentStore.getDesignSystemId(name);
+        if (!designSystemId) {
+            throw new Error(`Design system ${name} not found in backend`);
+        }
+
+        const designSystem = await this.indexStore.getDesignSystem(designSystemId);
+        return designSystem as BackendDesignSystem;
     }
 
     // List all design systems from index
-    async listDesignSystems(): Promise<DesignSystemTuple[]> {
+    async listDesignSystems(): Promise<BackendDesignSystem[]> {
         const designSystems = await this.indexStore.listFromIndex();
         Logger.log(`📋 Listed ${designSystems.length} design systems from storage index`);
-        return designSystems as DesignSystemTuple[];
+        return designSystems as BackendDesignSystem[];
     }
 
     // Delete design system with enhanced cleanup

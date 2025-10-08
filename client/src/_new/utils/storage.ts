@@ -1,5 +1,6 @@
 import type { Meta } from '../../componentBuilder';
 import type { ThemeSource } from '../../designSystem';
+import { Parameters } from '../types';
 
 // Proxy server configuration - use env var at build time, fallback to localhost
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
@@ -23,7 +24,7 @@ const apiCall = async (url: string, options: RequestInit = {}) => {
         // Handle empty responses
         const text = await response.text();
         if (!text) {
-            console.warn('empty repspnse form API call')
+            console.warn('empty repspnse form API call');
             return null;
         }
 
@@ -42,6 +43,7 @@ const apiCall = async (url: string, options: RequestInit = {}) => {
 export const saveDesignSystem = async (data: {
     name: string;
     version: string;
+    parameters?: Partial<Parameters>;
     themeData: ThemeSource;
     componentsData: Meta[];
 }): Promise<void> => {
@@ -51,68 +53,89 @@ export const saveDesignSystem = async (data: {
             body: JSON.stringify(data),
         });
     } catch (error) {
-        // If server is not running, fall back to localStorage
-        console.warn('Proxy server not available, falling back to localStorage');
-        const { name, version, themeData, componentsData } = data;
-        const key = `#${name}@${version}`;
-        const value = JSON.stringify({
-            themeData,
-            componentsData,
-        });
-        localStorage.setItem(key, value);
+        // // If server is not running, fall back to localStorage
+        // console.warn('Proxy server not available, falling back to localStorage');
+        // const { name, version, themeData, componentsData } = data;
+        // const key = `#${name}@${version}`;
+        // const value = JSON.stringify({
+        //     themeData,
+        //     componentsData,
+        // });
+        // localStorage.setItem(key, value);
     }
 };
 
 export const loadDesignSystem = async (
     name: string,
     version: string,
-): Promise<{ themeData: ThemeSource; componentsData: Meta[] } | undefined> => {
+): Promise<{ themeData: ThemeSource; componentsData: Meta[], parameters?: Partial<Parameters> } | undefined> => {
     try {
-        const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`);
+        const data = await apiCall(
+            `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+        );
+
         return data;
     } catch (error) {
-        // If server is not running, fall back to localStorage
-        console.warn('Proxy server not available, falling back to localStorage');
-        try {
-            const savedDesignSystemData = localStorage.getItem(`#${name}@${version}`);
-            return savedDesignSystemData ? JSON.parse(savedDesignSystemData) : undefined;
-        } catch (localStorageError) {
-            console.error('Both proxy server and localStorage failed:', error, localStorageError);
-            return undefined;
-        }
+        // // If server is not running, fall back to localStorage
+        // console.warn('Proxy server not available, falling back to localStorage');
+        // try {
+        //     const savedDesignSystemData = localStorage.getItem(`#${name}@${version}`);
+        //     return savedDesignSystemData ? JSON.parse(savedDesignSystemData) : undefined;
+        // } catch (localStorageError) {
+        //     console.error('Both proxy server and localStorage failed:', error, localStorageError);
+        //     return undefined;
+        // }
     }
 };
 
 export const removeDesignSystem = async (name: string, version: string): Promise<void> => {
     try {
-        await apiCall(`${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, {
-            method: 'DELETE',
-        });
+        await apiCall(
+            `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+            {
+                method: 'DELETE',
+            },
+        );
     } catch (error) {
         // If server is not running, fall back to localStorage
-        console.warn('Proxy server not available, falling back to localStorage');
-        localStorage.removeItem(`#${name}@${version}`);
+        // console.warn('Proxy server not available, falling back to localStorage');
+        // localStorage.removeItem(`#${name}@${version}`);
     }
 };
 
-export const loadAllDesignSystemNames = async (): Promise<(readonly [string, string])[] | undefined> => {
+export interface BackendDesignSystem {
+    id: number;
+    name: string;
+    projectName: string;
+    grayTone: string;
+    accentColor: string;
+    lightStrokeSaturation: number;
+    lightFillSaturation: number;
+    darkStrokeSaturation: number;
+    darkFillSaturation: number;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {
         const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`);
         return data || undefined;
     } catch (error) {
-        // If server is not running, fall back to localStorage
-        console.warn('Proxy server not available, falling back to localStorage');
-        try {
-            const themes = Object.keys(localStorage as unknown as Array<string>[number])
-                .filter((key) => key.startsWith('#'))
-                .map((item) => {
-                    const [name, version] = item.replace(`#`, '').split('@');
-                    return [name, version] as const;
-                });
-            return !themes.length ? undefined : themes;
-        } catch (localStorageError) {
-            console.error('Both proxy server and localStorage failed:', error, localStorageError);
-            return undefined;
-        }
+        // // If server is not running, fall back to localStorage
+        // console.warn('Proxy server not available, falling back to localStorage');
+        // try {
+        //     const themes = Object.keys(localStorage as unknown as Array<string>[number])
+        //         .filter((key) => key.startsWith('#'))
+        //         .map((item) => {
+        //             const [name, version] = item.replace(`#`, '').split('@');
+        //             return [name, version] as const;
+        //         });
+        //     return !themes.length ? undefined : themes;
+        // } catch (localStorageError) {
+        //     console.error('Both proxy server and localStorage failed:', error, localStorageError);
+        //     return undefined;
+        // }
     }
 };

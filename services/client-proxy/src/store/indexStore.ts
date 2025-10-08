@@ -2,6 +2,13 @@
 export interface BackendDesignSystem {
     id: number;
     name: string;
+    projectName: string;
+    grayTone: string;
+    accentColor: string;
+    lightStrokeSaturation: number;
+    lightFillSaturation: number;
+    darkStrokeSaturation: number;
+    darkFillSaturation: number;
     description?: string;
     createdAt: string;
     updatedAt: string;
@@ -72,8 +79,20 @@ export class IndexStore {
         return backendDesignSystems.some(ds => ds.name === name);
     }
 
+    async getDesignSystem(id: number) {
+      const response = await fetch(`${this.baseUrl}/design-systems/${id}`);
+        
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        }
+
+        const backendDesignSystem = await response.json() as BackendDesignSystem;
+
+        return backendDesignSystem;
+    }
+
     // List all design systems from backend
-    async listFromIndex(): Promise<Array<[string, string]>> {
+    async listFromIndex(): Promise<Array<BackendDesignSystem>> {
         const response = await fetch(`${this.baseUrl}/design-systems`);
         
         if (!response.ok) {
@@ -81,8 +100,7 @@ export class IndexStore {
         }
 
         const backendDesignSystems = await response.json() as BackendDesignSystem[];
-        
-        // Convert to tuple format [name, version]
-        return backendDesignSystems.map(ds => [ds.name, '0.1.0'] as [string, string]);
+
+        return backendDesignSystems;
     }
 }
