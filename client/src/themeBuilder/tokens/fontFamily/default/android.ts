@@ -1,4 +1,4 @@
-import type { ThemeConfig } from '@salutejs/plasma-tokens-utils';
+import { ThemeConfig } from '../../../types';
 
 import type { AndroidFontFamilyToken } from '../types';
 

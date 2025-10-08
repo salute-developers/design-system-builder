@@ -1,5 +1,4 @@
-import type { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
+import { ThemeConfig } from '../../../types';
 import type { WebShapeToken } from '../types';
 
 export const getWebTokens = (config: ThemeConfig): WebShapeToken => ({

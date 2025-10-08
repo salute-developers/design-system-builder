@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidColor, ColorToken, IOSColor, WebColor } from './color';
 import { colorTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultColorTokens = (config: ThemeConfig): ColorToken[] => {
     const webTokens = getWebTokens(config);

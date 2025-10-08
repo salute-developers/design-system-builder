@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidShape, ShapeToken, IOSShape, WebShape } from './shape';
 import { shapeTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultShapeTokens = (config: ThemeConfig): ShapeToken[] => {
     const webTokens = getWebTokens(config);

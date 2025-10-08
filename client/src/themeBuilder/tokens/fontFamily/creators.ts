@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidFontFamily, FontFamilyToken, IOSFontFamily, WebFontFamily } from './fontFamily';
 import { fontFamilyTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultFontFamilyTokens = (config: ThemeConfig): FontFamilyToken[] => {
     const webTokens = getWebTokens(config);

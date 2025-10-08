@@ -44,3 +44,21 @@ export type VariationsClasses = {
 export type PlatformsByVariationsMap<T extends Variation = Variation, U extends Platform = Platform> = {
     [key in U]: PlatformsVariations[T][key][string];
 };
+
+export type Grayscale = 'warmGray' | 'gray' | 'coolGray';
+
+export interface ThemeConfig {
+    name: string;
+    strokeAccentColor: {
+        dark: string;
+        light: string;
+    };
+    fillAccentColor: {
+        dark: string;
+        light: string;
+    };
+    grayscale: {
+        light: Grayscale;
+        dark: Grayscale;
+    };
+}
