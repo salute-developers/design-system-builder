@@ -14,5 +14,5 @@ import { generateRoute, healthCheckRoute, removeResultRoute } from './routes';
     await fastify.register(removeResultRoute);
     await fastify.register(generateRoute);
 
-    fastify.listen({ port: 3000, host: '0.0.0.0' });
+    fastify.listen({ port: 3005, host: '0.0.0.0' });
 })();

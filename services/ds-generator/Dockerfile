@@ -12,6 +12,17 @@ RUN npm ci
 
 COPY --chown=node:node . .
 
-EXPOSE 3000
+EXPOSE 3005
 
 CMD ["npm", "start"]
+
+## Билд образа
+# docker build -t ds-generator:latest .
+
+## Запуск
+# docker run -d \
+#   --name my_node_app \
+#   -p 3005:3005 \
+#   -v $(pwd):/home/node/app \
+#   -v /home/node/app/node_modules \
+#   my_node_app
