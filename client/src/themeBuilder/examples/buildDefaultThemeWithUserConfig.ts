@@ -1,17 +1,20 @@
-import { Grayscale, type ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { buildDefaultTheme } from '../themes';
+import { ThemeConfig } from '../types';
 
 export const buildDefaultThemeWithUserConfig = async () => {
     const userConfig: ThemeConfig = {
         name: 'default',
-        accentColor: {
+        strokeAccentColor: {
             dark: '[general.blue.500]',
             light: '[general.blue.500]',
         },
+        fillAccentColor: {
+            dark: '[general.green.500]',
+            light: '[general.green.500]',
+        },
         grayscale: {
-            dark: Grayscale.gray,
-            light: Grayscale.gray,
+            dark: 'warmGray',
+            light: 'warmGray',
         },
     };
 

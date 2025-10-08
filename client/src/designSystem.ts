@@ -1,11 +1,20 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 // TODO: загружать из бд
-import { componentsData, getStaticThemeData } from './pseudo_data_base';
+import { componentsData } from './pseudo_data_base';
 
-import { buildTheme, type Platform, type PlatformsVariations, type ThemeMeta } from './themeBuilder';
+import { buildDefaultTheme, buildTheme, type Platform, type PlatformsVariations, type ThemeMeta } from './themeBuilder';
 import { Config, type Meta } from './componentBuilder';
 import { kebabToCamel, loadDesignSystem, saveDesignSystem } from './_new/utils';
+import { createMetaTokens } from './themeBuilder/themes/createMetaTokens';
+import { createVariationTokens } from './themeBuilder/themes/createVariationTokens';
+import { Parameters } from './_new/types';
+
+interface DesignSystemProps {
+    name?: string;
+    version?: string;
+    parameters?: Partial<Parameters>;
+}
 
 export interface ThemeSource {
     meta: ThemeMeta;
@@ -15,38 +24,32 @@ export interface ThemeSource {
 export class DesignSystem {
     private name?: string;
     private version?: string;
+    private parameters?: Partial<Parameters>;
 
     private themeData: ThemeSource;
     private componentsData: Meta[] = [];
 
-    private constructor({ name, version = '0.1.0' }: { name?: string; version?: string }) {
+    private constructor({ name, parameters }: DesignSystemProps) {
         this.name = name;
-        this.version = version;
+        this.version = '0.1.0';
+        this.parameters = parameters;
 
-        // Initialize with empty/default values - actual loading happens in create method
         this.themeData = {} as ThemeSource;
         this.componentsData = [];
     }
 
-    public static async create({
-        name,
-        version = '0.1.0',
-    }: {
-        name?: string;
-        version?: string;
-    }): Promise<DesignSystem> {
-        const instance = new DesignSystem({ name, version });
+    public static async create({ name, version = '0.1.0', parameters }: DesignSystemProps): Promise<DesignSystem> {
+        const instance = new DesignSystem({ name, version, parameters });
 
-        // Load data (from storage if available, otherwise from local sources)
-        const { themeData, componentsData } = await instance.loadData(name, version);
+        const { themeData, componentsData } = await instance.loadData({ name, version, parameters });
         instance.themeData = themeData;
         instance.componentsData = componentsData;
 
-        // Save to storage after loading (in case we loaded from local data)
         if (name && version) {
             await saveDesignSystem({
                 name,
                 version,
+                parameters,
                 themeData: instance.themeData,
                 componentsData: instance.componentsData,
             });
@@ -55,59 +58,88 @@ export class DesignSystem {
         return instance;
     }
 
-    public static async get({ name, version = '0.1.0' }: { name?: string; version?: string }): Promise<DesignSystem> {
+    public static async get({ name, version = '0.1.0' }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version });
 
-        // Load data (from storage if available, otherwise from local sources)
-        const { themeData, componentsData } = await instance.loadData(name, version);
+        const { themeData, componentsData, parameters } = await instance.loadData({ name, version });
         instance.themeData = themeData;
         instance.componentsData = componentsData;
+        instance.parameters = parameters;
 
         return instance;
     }
 
-    private async loadData(name?: string, version?: string) {
+    private async loadData({ name, version = '0.1.0', parameters }: DesignSystemProps) {
         const loadedData = name && version ? await loadDesignSystem(name, version) : undefined;
-        const localData = {
-            themeData: getStaticThemeData(name, version) as unknown as {
-                meta: ThemeMeta;
-                variations: PlatformsVariations;
-            },
-            componentsData: componentsData as Meta[],
-        };
 
         if (!loadedData) {
-            return localData;
-        }
-
-        if (!loadedData.themeData && loadedData.componentsData) {
             return {
-                themeData: localData.themeData,
-                componentsData: loadedData.componentsData,
-            };
-        }
-
-        if (loadedData.themeData && !loadedData.componentsData) {
-            return {
-                themeData: loadedData.themeData,
-                componentsData: localData.componentsData,
+                themeData: this.generateThemeData(parameters),
+                componentsData: this.generateComponentData(),
             };
         }
 
         return loadedData;
     }
 
+    private generateComponentData() {
+        return componentsData as Meta[];
+    }
+
+    private generateThemeData(parameters?: Partial<Parameters>) {
+        if (!parameters) {
+            return {
+                meta: {} as ThemeMeta,
+                variations: {} as PlatformsVariations,
+            };
+        }
+
+        const {
+            projectName = 'default',
+            accentColor,
+            grayTone = 'gray',
+            darkStrokeSaturation,
+            darkFillSaturation,
+            lightStrokeSaturation,
+            lightFillSaturation,
+        } = parameters;
+
+        const userConfig = {
+            name: projectName,
+            strokeAccentColor: {
+                dark: `[general.${accentColor}.${darkStrokeSaturation}]`,
+                light: `[general.${accentColor}.${lightStrokeSaturation}]`,
+            },
+            fillAccentColor: {
+                dark: `[general.${accentColor}.${darkFillSaturation}]`,
+                light: `[general.${accentColor}.${lightFillSaturation}]`,
+            },
+            grayscale: {
+                dark: grayTone,
+                light: grayTone,
+            },
+        };
+        const defaultTheme = buildDefaultTheme(userConfig);
+
+        return {
+            meta: createMetaTokens(defaultTheme),
+            variations: createVariationTokens(defaultTheme),
+        };
+    }
+
     public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
         this.themeData = data;
+
+        console.log('parameters', this.parameters);
 
         if (!this.name || !this.version) {
             return;
         }
 
-        // TODO: сохранять в бд через api
         await saveDesignSystem({
             name: this.name,
             version: this.version,
+            parameters: this.parameters,
             themeData: this.themeData,
             componentsData: this.componentsData,
         });
@@ -126,10 +158,10 @@ export class DesignSystem {
             return;
         }
 
-        // TODO: сохранять в бд через api
         await saveDesignSystem({
             name: this.name,
             version: this.version,
+            parameters: this.parameters,
             themeData: this.themeData,
             componentsData: this.componentsData,
         });
@@ -149,6 +181,10 @@ export class DesignSystem {
 
     public setVersion(value: string) {
         this.version = value;
+    }
+
+    public getParameters() {
+        return this.parameters;
     }
 
     public getComponentDataByName(name?: string) {

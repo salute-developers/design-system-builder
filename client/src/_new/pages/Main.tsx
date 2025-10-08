@@ -1,283 +1,305 @@
+import { useEffect, useLayoutEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
-import { Button, DsplL, IconButton, Link, Select, TextField, TextS } from '@salutejs/plasma-b2c';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ThemeMode } from '@salutejs/plasma-tokens-utils';
+import {
+    IconAppsOutline,
+    IconClose,
+    IconBrightnessmaxOutline,
+    IconHelpCircleOutline,
+    IconHomeAltOutline,
+    IconTree,
+    IconTextUnderline,
+    IconStickerOutline,
+    IconArrowLeft,
+    IconBookOutline,
+    IconFloorTypeOutline,
+} from '@salutejs/plasma-icons';
+import { general } from '@salutejs/plasma-colors';
 
-import { useMemo, useState, useEffect } from 'react';
-import { getGrayscale, loadAllDesignSystemNames, removeDesignSystem } from '../utils';
-import { FormField, getAccentColors, getSaturations } from '../components';
-import { DesignSystem } from '../../designSystem';
-import { PageWrapper } from './PageWrapper';
-import { IconTrash } from '@salutejs/plasma-icons';
+import { backgroundSecondary, backgroundPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-const StyledActions = styled.div`
+import { IconButton } from '../components/IconButton';
+import { Popup } from '../components/Popup';
+import { GrayTone, Parameters } from '../types';
+import { CreateFirstName } from './CreateFirstName';
+import { SetupParameters } from './SetupParameters';
+import { CreationProgress } from './CreationProgress';
+import { transliterateToSnakeCase } from '../utils';
+
+// TODO: Добавить оставшиеся переменные из макетов
+const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
+    return `
+        --text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
+        --text-secondary: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
+        --text-tertiary: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
+        --text-paragraph: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
+        --text-negative: ${general[grayTone][themeMode === 'dark' ? 600 : 600]};
+        --on-dark-text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 150]};
+        --on-light-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
+        --inverse-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 150]};
+        --surface-solid-card: ${general[grayTone][themeMode === 'dark' ? 800 : 150]};
+        --surface-solid-default: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
+        --surface-transparent-primary: ${general[grayTone][themeMode === 'dark' ? 50 : 1000]}0a;
+        --surface-transparent-secondary: ${general[grayTone][themeMode === 'dark' ? 100 : 950]}0f;
+        --outline-solid-secondary: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
+        --background-primary: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
+        --background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 250]};
+        --dark-background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
+        --light-background-secondary: ${general[grayTone][themeMode === 'dark' ? 250 : 250]};
+    `;
+};
+
+const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?: boolean }>`
     display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
+
+    background: ${({ isPopupOpen }) => (isPopupOpen ? backgroundPrimary : backgroundSecondary)} !important;
+
+    ${({ grayTone, themeMode }) => getGrayTokens(grayTone, themeMode)};
 `;
 
-const StyledDesignSystemContent = styled.div`
-    padding: 1rem;
-    height: 100%;
-    min-height: 0;
+const Panel = styled.div`
+    position: relative;
 
-    display: flex;
-    flex-direction: row;
-    gap: 3rem;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    min-width: 4rem;
+    max-width: 4rem;
+    height: 100vh;
 
-    margin-bottom: 1rem;
-    border-radius: 0.5rem;
-    background: #0c0c0c;
-    border: solid 1px #313131;
-`;
-
-const StyledLoadedDesignSystems = styled.div`
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    overflow: scroll;
-    width: 100%;
-    padding: 0 1rem;
-`;
-
-const StyledLoadedDesignSystemItem = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-`;
-
-const StyledButton = styled(Button)`
-    background: var(--surface-transparent-primary);
-    font-weight: 400;
-`;
-
-const StyledButtonContent = styled.div`
-    align-items: center;
     justify-content: space-between;
-    flex: 1;
+`;
+
+const MainItems = styled.div`
     display: flex;
+    flex-direction: column;
+
+    & > div {
+        padding: 0.75rem;
+    }
 `;
 
-const StyledLoadedDesignSystemName = styled.div``;
-
-const StyledLoadedDesignSystemVersion = styled.div`
-    opacity: 0.5;
-`;
-
-const StyledDesignSystemContent2 = styled.div`
-    padding: 1rem;
-    max-height: 14rem;
-    min-height: 3rem;
-
+const BuilderItems = styled.div`
     display: flex;
-    flex-direction: row;
-    gap: 3rem;
+    flex-direction: column;
 
-    margin-bottom: 1rem;
-    border-radius: 0.5rem;
-    background: #0c0c0c;
-    border: solid 1px #313131;
+    & > div {
+        padding: 0.75rem;
+    }
 `;
 
-const StyledDesignSystemItem = styled.div`
-    flex: 1;
+const StyledPopup = styled(Popup)`
+    left: 4rem;
+    padding: 3.75rem 5rem 0 22.5rem;
 `;
 
-const StyledServiceName = styled(DsplL)`
-    margin-top: -2rem;
+const popupContentPages = {
+    CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
+    SETUP_PARAMETERS: 'SETUP_PARAMETERS',
+    CREATION_PROGRESS: 'CREATION_PROGRESS',
+} as const;
 
-    line-height: 10rem;
-    letter-spacing: 1rem;
-`;
+const getNewPath = (value: string) => {
+    const parts = location.pathname.split('/');
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface MainProps {
-    // designSystem: DesignSystem;
-    // setDesignSystem: (value: DesignSystem) => void;
-}
+    if (parts.length === 0) {
+        return '/';
+    }
 
-export const Main = (props: MainProps) => {
+    const [designSystemName, designSystemVersion] = parts.filter(Boolean);
+
+    return '/' + [designSystemName, designSystemVersion].join('/') + '/' + value;
+};
+
+export const Main = () => {
     const navigate = useNavigate();
+    const currentPath = useLocation().pathname.split('/').filter(Boolean);
 
-    const [loadedDesignSystems, setLoadedDesignSystems] = useState<(readonly [string, string])[] | undefined>(undefined);
+    const isEditingDesignSystem = !['/', '/drafts'].includes(useLocation().pathname);
 
-    useEffect(() => {
-        const loadDesignSystems = async () => {
-            const systems = await loadAllDesignSystemNames();
-            setLoadedDesignSystems(systems);
-        };
-        loadDesignSystems();
-    }, []);
+    const [showTokensPanelItems, setShowTokensPanelItems] = useState(currentPath.includes('colors') ? true : false);
 
-    const [data, setData] = useState<any>({
-        designSystemName: '',
-        designSystemVersion: '0.1.0',
-        accentColors: getAccentColors()[11].value,
-        lightSaturations: getSaturations()[7].value,
-        darkSaturations: getSaturations()[7].value,
-        lightGrayscale: getGrayscale()[0].value,
-        darkGrayscale: getGrayscale()[0].value,
-    });
+    const [isPopupOpen, setIsPopupOpen] = useState(false);
+    const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
+        popupContentPages.CREATE_FIRST_NAME,
+    );
 
-    const onChangeData = (name: string) => (param: React.ChangeEvent<HTMLInputElement> | unknown) => {
-        const value = (param as React.ChangeEvent<HTMLInputElement>).target?.value ?? param;
+    const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+    const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
 
-        setData((prevState: any) => ({
-            ...prevState,
-            [name]: value,
-        }));
+    const [parameters, setParameters] = useState<Partial<Parameters>>({});
+
+    const { accentColor = 'blue', darkFillSaturation = 50 } = parameters;
+
+    const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
+        setParameters((prev) => ({ ...prev, [name]: value }));
     };
 
-    const accentColors = useMemo(() => getAccentColors(), []);
-
-    const saturations = useMemo(() => getSaturations(data.accentColors), [data.accentColors]);
-
-    const grayscale = useMemo(() => getGrayscale(), []);
-
-    const onGoDemo = () => {
-        navigate('/demo');
+    const onOpenPopup = () => {
+        setIsPopupOpen(true);
     };
 
-    const onLoadDesignSystem = (name: string, version: string) => {
-        // setDesignSystem(new DesignSystem({ name, version }));
-        navigate(`/${name}/${version}/theme`);
+    const onPopupClose = () => {
+        setGrayTone('warmGray');
+        setThemeMode('dark');
+        setIsPopupOpen(false);
     };
 
-    const onRemoveDesignSystem = async (name: string, version: string) => {
-        await removeDesignSystem(name, version);
-        const updatedSystems = await loadAllDesignSystemNames();
-        setLoadedDesignSystems(updatedSystems);
+    const onResetParameters = () => {
+        setParameters({});
+        setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
     };
 
-    const onDesignSystemSave = async () => {
-        if (data.designSystemName === '' || data.designSystemVersion === '') {
-            return;
-        }
-
-        // TODO: выбранные значения цветов пока будут временно игнорироваться
-        // const { designSystemName, accentColors, lightSaturations, darkSaturations, lightGrayscale, darkGrayscale } = data;
-        // const userConfig = {
-        //     name: designSystemName,
-        //     accentColor: {
-        //         dark: `[general.${accentColors}.${darkSaturations}]`,
-        //         light: `[general.${accentColors}.${lightSaturations}]`,
-        //     },
-        //     grayscale: {
-        //         dark: lightGrayscale,
-        //         light: darkGrayscale,
-        //     },
-        // };
-
-        await DesignSystem.create({ name: data.designSystemName, version: data.designSystemVersion });
-        // setDesignSystem(await DesignSystem.create({ name: data.designSystemName, version: data.designSystemVersion }));
-
-        navigate(`/${data.designSystemName}/${data.designSystemVersion}/theme`);
+    const onChangeGrayTone = (grayTone: string) => {
+        setGrayTone(grayTone as GrayTone);
     };
+
+    const onChangeThemeMode = (themeMode: ThemeMode) => {
+        setThemeMode(themeMode);
+    };
+
+    const onNextPageCreateFirstName = (value: string) => {
+        onChangeParameters('projectName', value);
+        const transliteratedValue = transliterateToSnakeCase(value);
+        onChangeParameters('packagesName', transliteratedValue);
+
+        setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
+    };
+
+    const onNextPageCreateSetupParameters = (data: Partial<Parameters>) => {
+        console.log('data', data);
+
+        setPopupContentPage(popupContentPages.CREATION_PROGRESS);
+    };
+
+    const onGoThemeEditor = (designSystemName: string, designSystemVersion = '0.1.0') => {
+        onPopupClose();
+        navigate(`/${designSystemName}/${designSystemVersion}/colors`);
+        onResetParameters();
+    };
+
+    const onClickPanelButton = (path: string) => {
+        const newPath = path === '' ? '/' : getNewPath(path);
+
+        navigate(newPath, { replace: true });
+    };
+
+    useLayoutEffect(() => {
+        const showPanelItems = ['colors', 'typography', 'shapes'].some((item) => currentPath.includes(item));
+
+        setShowTokensPanelItems(showPanelItems);
+    }, [currentPath]);
 
     return (
-        <PageWrapper>
-            {loadedDesignSystems && (
-                <StyledDesignSystemContent2>
-                    <TextS>Продолжить редактировать дизайн систему</TextS>
-                    <StyledLoadedDesignSystems>
-                        {loadedDesignSystems.map(([name, version]) => (
-                            <StyledLoadedDesignSystemItem key={`${name}@${version}`}>
-                                <StyledButton
-                                    stretching="filled"
-                                    view="secondary"
-                                    size="m"
-                                    onClick={() => onLoadDesignSystem(name, version)}
+        <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
+            <Panel>
+                <MainItems>
+                    <IconButton
+                        selected={!isPopupOpen && currentPath.length === 0}
+                        onClick={() => {
+                            onPopupClose();
+                            onClickPanelButton('');
+                        }}
+                    >
+                        {isPopupOpen ? (
+                            <IconArrowLeft size="xs" color="inherit" />
+                        ) : (
+                            <IconHomeAltOutline size="xs" color="inherit" />
+                        )}
+                    </IconButton>
+                    <IconButton disabled>
+                        <IconTree size="xs" color="inherit" />
+                    </IconButton>
+                </MainItems>
+                {isEditingDesignSystem && (
+                    <BuilderItems>
+                        <IconButton
+                            selected={currentPath.includes('overview')}
+                            onClick={() => {
+                                onClickPanelButton('overview');
+                            }}
+                        >
+                            <IconBookOutline size="xs" color="inherit" />
+                        </IconButton>
+
+                        {!showTokensPanelItems && (
+                            <IconButton
+                                onClick={() => {
+                                    onClickPanelButton('colors');
+                                }}
+                            >
+                                <IconFloorTypeOutline size="xs" color="inherit" />
+                            </IconButton>
+                        )}
+
+                        {showTokensPanelItems && (
+                            <>
+                                <IconButton
+                                    selected={currentPath.includes('colors')}
+                                    onClick={() => onClickPanelButton('colors')}
                                 >
-                                    <StyledButtonContent>
-                                        <StyledLoadedDesignSystemName>{name}</StyledLoadedDesignSystemName>
-                                        <StyledLoadedDesignSystemVersion>{version}</StyledLoadedDesignSystemVersion>
-                                    </StyledButtonContent>
-                                </StyledButton>
-                                <IconButton size="m" view="clear" onClick={() => onRemoveDesignSystem(name, version)}>
-                                    <IconTrash size="s" />
+                                    <IconBrightnessmaxOutline size="xs" color="inherit" />
                                 </IconButton>
-                            </StyledLoadedDesignSystemItem>
-                        ))}
-                    </StyledLoadedDesignSystems>
-                </StyledDesignSystemContent2>
+                                <IconButton
+                                    selected={currentPath.includes('typography')}
+                                    onClick={() => onClickPanelButton('typography')}
+                                >
+                                    <IconTextUnderline size="xs" color="inherit" />
+                                </IconButton>
+                                <IconButton
+                                    selected={currentPath.includes('shapes')}
+                                    onClick={() => onClickPanelButton('shapes')}
+                                >
+                                    <IconStickerOutline size="xs" color="inherit" />
+                                </IconButton>
+                            </>
+                        )}
+
+                        <IconButton
+                            selected={currentPath.includes('components')}
+                            onClick={() => {
+                                onClickPanelButton('components');
+                            }}
+                        >
+                            <IconAppsOutline size="xs" color="inherit" />
+                        </IconButton>
+                    </BuilderItems>
+                )}
+                <IconButton style={{ padding: '0.75rem' }}>
+                    <IconHelpCircleOutline size="xs" color="inherit" />
+                </IconButton>
+            </Panel>
+            <Outlet context={{ onOpenPopup, projectName: parameters.projectName }} />
+            {isPopupOpen && (
+                <StyledPopup>
+                    {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
+                        <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
+                    )}
+                    {popupContentPage === popupContentPages.SETUP_PARAMETERS && (
+                        <SetupParameters
+                            parameters={parameters}
+                            themeMode={themeMode}
+                            onChangeParameters={onChangeParameters}
+                            onPrevPage={onPopupClose}
+                            onResetParameters={onResetParameters}
+                            onChangeGrayTone={onChangeGrayTone}
+                            onChangeThemeMode={onChangeThemeMode}
+                            onNextPage={onNextPageCreateSetupParameters}
+                        />
+                    )}
+                    {popupContentPage === popupContentPages.CREATION_PROGRESS && (
+                        <CreationProgress
+                            parameters={parameters}
+                            accentColor={general[accentColor][darkFillSaturation]}
+                            onPrevPage={onPopupClose}
+                            onNextPage={onGoThemeEditor}
+                        />
+                    )}
+                </StyledPopup>
             )}
-            <StyledDesignSystemContent>
-                <StyledDesignSystemItem>
-                    <StyledServiceName>DESIGN SYSTEM BUILDER</StyledServiceName>
-                    <Link href="https://plasma.sberdevices.ru/" target="_blank">
-                        by plasma team
-                    </Link>
-                </StyledDesignSystemItem>
-                <StyledDesignSystemItem style={{ overflowY: 'scroll' }}>
-                    <FormField label="Название дизайн системы">
-                        <TextField size="m" value={data.designSystemName} onChange={onChangeData('designSystemName')} />
-                    </FormField>
-                    <FormField label="Версия дизайн системы">
-                        <TextField
-                            size="m"
-                            value={data.designSystemVersion}
-                            onChange={onChangeData('designSystemVersion')}
-                        />
-                    </FormField>
-                    <FormField label="Акцентный цвет из основной палитры">
-                        <Select
-                            disabled
-                            size="m"
-                            listMaxHeight="25"
-                            listOverflow="scroll"
-                            value={data.accentColors}
-                            items={accentColors}
-                            onChange={onChangeData('accentColors')}
-                        />
-                    </FormField>
-                    <FormField label="Светлость акцентного цвета для светлой темы">
-                        <Select
-                            disabled
-                            size="m"
-                            listMaxHeight="25"
-                            listOverflow="scroll"
-                            value={data.lightSaturations}
-                            items={saturations}
-                            onChange={onChangeData('lightSaturations')}
-                        />
-                    </FormField>
-                    <FormField label="Светлость акцентного цвета для темной темы">
-                        <Select
-                            disabled
-                            size="m"
-                            listMaxHeight="25"
-                            listOverflow="scroll"
-                            value={data.darkSaturations}
-                            items={saturations}
-                            onChange={onChangeData('darkSaturations')}
-                        />
-                    </FormField>
-                    <FormField label="Оттенок серого для светлой темы">
-                        <Select
-                            disabled
-                            size="m"
-                            listMaxHeight="25"
-                            listOverflow="scroll"
-                            value={data.lightGrayscale}
-                            items={grayscale}
-                            onChange={onChangeData('lightGrayscale')}
-                        />
-                    </FormField>
-                    <FormField label="Оттенок серого для темной темы">
-                        <Select
-                            disabled
-                            size="m"
-                            listMaxHeight="25"
-                            listOverflow="scroll"
-                            value={data.darkGrayscale}
-                            items={grayscale}
-                            onChange={onChangeData('darkGrayscale')}
-                        />
-                    </FormField>
-                </StyledDesignSystemItem>
-            </StyledDesignSystemContent>
-            <StyledActions>
-                <Button view="primary" onClick={onDesignSystemSave} text="Начать" />
-            </StyledActions>
-        </PageWrapper>
+        </Root>
     );
 };

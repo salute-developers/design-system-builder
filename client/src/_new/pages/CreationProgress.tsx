@@ -5,6 +5,8 @@ import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { useGlobalKeyDown } from '../hooks';
 import { LoadingProgress } from '../components/LoadingProgress';
 import { h6 } from '../utils';
+import { DesignSystem } from '../../designSystem';
+import { Parameters } from '../types';
 
 const Root = styled.div`
     display: flex;
@@ -40,13 +42,15 @@ const StyledLoadingProgress = styled(LoadingProgress)`
 `;
 
 interface CreationProgressProps {
-    projectName?: string;
+    parameters: Partial<Parameters>;
     accentColor: string;
     onPrevPage: () => void;
+    onNextPage: (designSystemName: string) => void;
 }
 
 export const CreationProgress = (props: CreationProgressProps) => {
-    const { projectName, accentColor, onPrevPage } = props;
+    const { parameters, accentColor, onPrevPage, onNextPage } = props;
+    const [designSystemCreated, setDesignSystemCreated] = useState(false);
 
     useGlobalKeyDown((event) => {
         if (event.key === 'Escape') {
@@ -64,16 +68,31 @@ export const CreationProgress = (props: CreationProgressProps) => {
                     return 100;
                 }
 
-                return value + 5;
+                return value + 25;
             });
         }, 300);
+
+        const createDesignSystem = async () => {
+            console.log('Creating design system...', parameters);
+
+            await DesignSystem.create({ name: parameters.packagesName, parameters });
+            setDesignSystemCreated(true);
+        };
+
+        createDesignSystem();
 
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        if (designSystemCreated && value >= 100 && parameters.packagesName) {
+            onNextPage(parameters.packagesName);
+        }
+    }, [designSystemCreated, value]);
+
     return (
         <Root>
-            <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
+            <StyledDesignSystemName>{parameters.projectName}</StyledDesignSystemName>
             <StyledLoadingProgress value={value} color={accentColor} />
         </Root>
     );

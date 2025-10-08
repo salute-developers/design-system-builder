@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
@@ -20,7 +21,7 @@ const StyledGenerateContent = styled.div`
 
     margin-bottom: 1rem;
     border-radius: 0.5rem;
-    background: #0c0c0c;
+    background: ${backgroundSecondary};
     border: solid 1px #313131;
 `;
 
@@ -68,7 +69,7 @@ export const Generate = (props: GenerateProps) => {
         return <div>Loading...</div>;
     }
 
-    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
+    const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 
     const exportTypes = [
         {
@@ -86,7 +87,7 @@ export const Generate = (props: GenerateProps) => {
     };
 
     const onGoComponents = () => {
-        navigate(`/${ currentLocation }/components`);
+        navigate(`/${currentLocation}/components`);
     };
 
     const onDesignSystemGenerate = async () => {
@@ -165,7 +166,7 @@ export const Generate = (props: GenerateProps) => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${ designSystem.getName() }@${ designSystem.getVersion() }.${ exportType }`;
+        a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -226,7 +227,7 @@ export const Generate = (props: GenerateProps) => {
     }
 
     return (
-        <PageWrapper designSystem={ designSystem }>
+        <PageWrapper designSystem={designSystem}>
             <StyledGenerateContent>
                 <StyledExportType>
                     <BodyM>Тип экспорта</BodyM>
@@ -234,9 +235,9 @@ export const Generate = (props: GenerateProps) => {
                         size="m"
                         listMaxHeight="25"
                         listOverflow="scroll"
-                        value={ exportType }
-                        items={ exportTypes }
-                        onChange={ onChangeExportType }
+                        value={exportType}
+                        items={exportTypes}
+                        onChange={onChangeExportType}
                     />
                 </StyledExportType>
             </StyledGenerateContent>
@@ -247,9 +248,9 @@ export const Generate = (props: GenerateProps) => {
                 <Button view="clear" onClick={ onGoComponents } text="Назад"/>
                 <Button
                     view="primary"
-                    onClick={ onDesignSystemGenerate }
-                    disabled={ isLoading }
-                    isLoading={ isLoading }
+                    onClick={onDesignSystemGenerate}
+                    disabled={isLoading}
+                    isLoading={isLoading}
                     text="Создать дизайн систему"
                 />
             </StyledActions>
