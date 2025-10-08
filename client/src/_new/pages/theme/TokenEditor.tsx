@@ -125,8 +125,6 @@ export const TokenEditor = ({
         );
     };
 
-    console.log('tokenValue', tokenValue);
-
     return (
         <StyledRoot>
             <TextField

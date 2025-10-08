@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react';
 import styled from 'styled-components';
 import { TabItem, Tabs, TextXS } from '@salutejs/plasma-b2c';
 import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import type { Config } from '../../../componentBuilder';
 import { ComponentToken } from './ComponentToken';
@@ -11,11 +12,11 @@ import { ComponentControl } from './ComponentControl';
 import type { DesignSystem } from '../../../designSystem';
 
 const StyledRoot = styled.div`
-    background: #0c0c0c;
     width: 55%;
     border-radius: 0.5rem;
     padding: 0rem 1rem;
-    border: solid 1px #313131;
+    background: ${backgroundSecondary};
+    // border: solid 1px #313131;
 `;
 
 const StyledCaption = styled(TextXS)`

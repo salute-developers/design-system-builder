@@ -1,6 +1,7 @@
 import styled, { css } from 'styled-components';
 import type { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { Divider, SegmentProvider, Switch, TextXS } from '@salutejs/plasma-b2c';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { ComponentControl } from './ComponentControl';
 import type { Config, Variation } from '../../../componentBuilder';
@@ -17,8 +18,8 @@ const StyledRoot = styled.div`
 `;
 
 const StyledComponentControls = styled.div`
-    background: #0c0c0c;
-    border: solid 1px #313131;
+    background: ${backgroundSecondary};
+    // border: solid 1px #313131;
 
     flex: 1;
     padding: 1rem;
@@ -50,7 +51,7 @@ const StyledComponentPreview = styled.div<{ themeMode: ThemeMode }>`
     transition: background 0.2s ease-in-out;
 
     background: var(--background-primary);
-    border: solid 1px #313131;
+    // border: solid 1px #313131;
 
     border-radius: 0.5rem;
     display: flex;
