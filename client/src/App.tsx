@@ -1,7 +1,17 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-import { ComponentEditor, ComponentSelector, Demo, Generate, Main, TokensEditor } from './_new/pages';
-import { NewMain } from './_new/pages/NewMain';
+import {
+    ComponentEditor,
+    ComponentSelector,
+    Projects,
+    Home,
+    Colors,
+    Shapes,
+    Typography,
+    Components,
+    Main,
+    Overview,
+} from './_new/pages';
 
 const getBaseName = () => {
     const { pathname } = window.location;
@@ -22,17 +32,21 @@ function App() {
     return (
         <Router basename={getBaseName()}>
             <Routes>
-                <Route index element={<NewMain />} />
-                <Route path="new-main" element={<NewMain />} />
-                <Route path=":designSystemName/:designSystemVersion">
-                    <Route path="theme" element={<TokensEditor />} />
-                    <Route path="components">
-                        <Route index element={<ComponentSelector />} />
-                        <Route path=":componentName" element={<ComponentEditor />} />
+                <Route path="/" element={<Main />}>
+                    <Route path="/" element={<Home />}>
+                        <Route index element={<Projects />} />
                     </Route>
-                    <Route path="generate" element={<Generate />} />
+                    <Route path=":designSystemName/:designSystemVersion">
+                        <Route path="overview" element={<Overview />} />
+                        <Route path="colors" element={<Colors />} />
+                        <Route path="shapes" element={<Shapes />} />
+                        <Route path="typography" element={<Typography />} />
+                        <Route path="components" element={<Components />}>
+                            <Route index element={<ComponentSelector />} />
+                            <Route path=":componentName" element={<ComponentEditor />} />
+                        </Route>
+                    </Route>
                 </Route>
-                <Route path="demo" element={<Demo />} />
             </Routes>
         </Router>
     );
