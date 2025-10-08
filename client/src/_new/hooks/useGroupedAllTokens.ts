@@ -56,36 +56,43 @@ export const useGroupedAllTokens = (theme: Theme | null) => {
 
     return [
         {
+            value: 'color',
             mode: colorMode,
             set: setColorMode,
             group: groupedColorTokens,
         },
         {
+            value: 'gradient',
             mode: gradientMode,
             set: setGradientMode,
             group: groupedGradientTokens,
         },
         {
+            value: 'shape',
             mode: shapeMode,
             set: setShapeMode,
             group: groupedShapeTokens,
         },
         {
+            value: 'spacing',
             mode: spacingMode,
             set: setsSpacingMode,
             group: groupedSpacingTokens,
         },
         {
+            value: 'shadow',
             mode: shadowMode,
             set: setShadowMode,
             group: groupedShadowTokens,
         },
         {
+            value: 'typography',
             mode: typographyMode,
             set: setTypographyMode,
             group: groupedTypographyTokens,
         },
         {
+            value: 'fontFamily',
             mode: fontFamilyMode,
             set: setFontFamilyMode,
             group: groupedFontFamilyTokens,

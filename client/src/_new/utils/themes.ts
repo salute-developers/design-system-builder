@@ -160,6 +160,6 @@ export const h6 = {
     'font-family': 'SB Sans Display',
     'font-size': '12px',
     'font-style': 'normal',
-    'font-weight': 400,
+    'font-weight': '400',
     'line-height': '16px',
 };

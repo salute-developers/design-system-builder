@@ -4,9 +4,5 @@ body {
 }
 
 * {
-  /* font-family: 'SB Sans Text Mono', Helvetica, Arial, sans-serif !important; */
-}
-
-:root {
-  background-color: rgba(22, 24, 29, 1) !important;
+  font-family: 'SB Sans Display', Helvetica, Arial, sans-serif !important;
 }

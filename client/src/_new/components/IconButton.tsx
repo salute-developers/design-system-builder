@@ -6,7 +6,7 @@ import {
     textPrimary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-export const Root = styled.div<{ selected?: boolean }>`
+export const Root = styled.div<{ selected?: boolean; disabled?: boolean }>`
     border-radius: 50%;
 
     display: flex;
@@ -29,10 +29,22 @@ export const Root = styled.div<{ selected?: boolean }>`
                 color: ${textPrimary};
             }
         `}
+
+    ${({ disabled }) =>
+        disabled &&
+        css`
+            cursor: not-allowed;
+            opacity: 0.4;
+
+            &:hover {
+                color: ${textParagraph};
+            }
+        `}
 `;
 
 interface IconButtonProps {
     selected?: boolean;
+    disabled?: boolean;
     children: React.ReactNode;
     style?: React.CSSProperties;
     onClick?: () => void;
