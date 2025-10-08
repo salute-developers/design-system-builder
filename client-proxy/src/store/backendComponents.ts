@@ -17,7 +17,7 @@ export class BackendComponentStore {
      * Save components to backend using our transformation system
      * Transforms from client format to backend format and stores in actual backend database
      */
-    async saveComponents(name: string, version: string, componentsData: DesignSystemData['componentsData']): Promise<void> {
+    async saveComponents(name: string, version: string, parameters: DesignSystemData['parameters'], componentsData: DesignSystemData['componentsData']): Promise<void> {
         console.log(`🔄 Saving components to backend: ${name}@${version}`);
 
         try {
@@ -29,6 +29,14 @@ export class BackendComponentStore {
                     id: this.generateUUID(),
                     name,
                     description: `Design System ${name} version ${version}`,
+                    projectName: parameters.projectName,
+                    // packagesName: parameters.packagesName, TODO: это поле name
+                    grayTone: parameters.grayTone,
+                    accentColor: parameters.accentColor,
+                    lightStrokeSaturation: parameters.lightStrokeSaturation,
+                    lightFillSaturation: parameters.lightFillSaturation,
+                    darkStrokeSaturation: parameters.darkStrokeSaturation,
+                    darkFillSaturation: parameters.darkFillSaturation,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 }
@@ -172,7 +180,14 @@ export class BackendComponentStore {
                 },
                 body: JSON.stringify({
                     name: designSystem.name,
-                    description: designSystem.description
+                    description: designSystem.description,
+                    projectName: designSystem.projectName,
+                    grayTone: designSystem.grayTone,
+                    accentColor: designSystem.accentColor,
+                    lightStrokeSaturation: designSystem.lightStrokeSaturation,
+                    lightFillSaturation: designSystem.lightFillSaturation,
+                    darkStrokeSaturation: designSystem.darkStrokeSaturation,
+                    darkFillSaturation: designSystem.darkFillSaturation
                 })
             });
 
@@ -185,7 +200,7 @@ export class BackendComponentStore {
                 throw new Error(`Failed to create design system: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
-            console.error(`❌ Failed to ensure design system exists: ${name}@${version}`, error);
+            console.error(`❌ Failed to ensure design system exists in components layer: ${name}@${version}`, error);
             throw error;
         }
     }
@@ -387,7 +402,7 @@ export class BackendComponentStore {
     /**
      * Get design system ID by name from backend
      */
-    private async getDesignSystemId(name: string): Promise<number | null> {
+    public async getDesignSystemId(name: string): Promise<number | null> {
         try {
             const response = await fetch(`${this.baseUrl}/design-systems`);
             if (!response.ok) {

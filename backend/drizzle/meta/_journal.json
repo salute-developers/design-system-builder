@@ -92,6 +92,13 @@
       "when": 1758623496859,
       "tag": "0012_wild_maddog",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1759750361466,
+      "tag": "0013_public_wild_pack",
+      "breakpoints": true
     }
   ]
 }
