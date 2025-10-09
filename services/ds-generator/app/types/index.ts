@@ -1,15 +1,30 @@
 import { FastifyReply } from 'fastify';
-import { ThemeSource } from '@salutejs/core-themes/build/cjs/types';
 
 // TODO: забирать из отдельного пакета
 import { Meta } from '../componentBuilder';
+import { ThemeSource } from '../themeBuilder/types';
+
+type ExportType = 'tgz' | 'zip' | 'source';
+
+export interface DesignSystemData {
+    packageName: string;
+    packageVersion: string;
+    componentsData: Meta[];
+    themeData: ThemeSource;
+}
+
+export interface OutputParams {
+    pathToDir: string;
+    coreVersion: string;
+    exportType: ExportType;
+}
 
 export interface GenerateRouteBody {
     packageName: string;
     packageVersion: string;
-    componentsMeta: Meta[];
-    themeSource: ThemeSource;
-    exportType: 'tgz' | 'zip';
+    exportType: ExportType;
+    // componentsMeta: Meta[];
+    // themeSource: ThemeSource;
 }
 
 export interface BaseFileStructure {

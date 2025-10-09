@@ -9,6 +9,7 @@ lerna-debug.log*
 
 build
 result
+output
 node_modules
 dist
 dist-ssr

@@ -1,10 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { CORE_VERSION, GENERATE_ROOT_DIR, addFolderToZip } from '../utils';
-import { GenerateRouteBody } from '../types';
-import pacote from 'pacote';
-import { generateBaseFileStructure, generateComponentsFiles, generateThemeFiles } from '../generate';
-import JSZip from 'jszip';
 import fs from 'fs-extra';
+
+import { BASE_URL, CORE_VERSION, GENERATE_ROOT_DIR } from '../utils';
+import { GenerateRouteBody } from '../types';
+import { generateDesignSystem } from '../generate';
 
 export const generateRoute = async (server: FastifyInstance) => {
     server.post<{
@@ -19,7 +18,13 @@ export const generateRoute = async (server: FastifyInstance) => {
                 reply.raw.write('ping');
             }, 10000);
 
-            const { packageName, packageVersion, componentsMeta, themeSource, exportType } = request.body;
+            const { packageName, packageVersion, exportType } = request.body;
+
+            const data = await fetch(
+                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
+            );
+
+            const { componentsData, themeData } = (await data.json()) as any;
 
             reply.raw.writeHead(200, {
                 'Content-Type': 'application/octet-stream',
@@ -27,21 +32,10 @@ export const generateRoute = async (server: FastifyInstance) => {
                 'Access-Control-Allow-Origin': '*',
             });
 
-            await generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion: CORE_VERSION });
-
-            await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource });
-
-            await generateComponentsFiles({ pathToDir, componentsMeta });
-
-            let buffer;
-
-            if (exportType === 'zip') {
-                const zip = new JSZip();
-                await addFolderToZip(zip, pathToDir, zip);
-                buffer = await zip.generateAsync({ type: 'nodebuffer' });
-            } else if (exportType === 'tgz') {
-                buffer = await pacote.tarball(pathToDir);
-            }
+            const buffer = await generateDesignSystem(
+                { packageName, packageVersion, componentsData, themeData },
+                { pathToDir, exportType, coreVersion: CORE_VERSION },
+            );
 
             reply.raw.write(buffer);
 
