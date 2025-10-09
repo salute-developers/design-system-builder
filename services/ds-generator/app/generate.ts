@@ -1,8 +1,9 @@
 import fs from 'fs-extra';
-import path, { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import path from 'path';
+import pacote from 'pacote';
+// import { fileURLToPath } from 'url';
 
-import {generate} from './themeBuilder'
+import { generate } from './themeBuilder';
 
 import {
     createComponent,
@@ -12,8 +13,16 @@ import {
     createRootIndex,
 } from './creators';
 
-import { BaseFileStructure, ComponentsFiles, ThemeFiles } from './types';
+import {
+    BaseFileStructure,
+    ComponentsFiles,
+    DesignSystemData,
+    OutputParams,
+    ThemeFiles,
+} from './types';
 import { Config } from './componentBuilder';
+import JSZip from 'jszip';
+import { addFolderToZip } from './utils';
 
 export const generateBaseFileStructure = async ({
     pathToDir,
@@ -21,8 +30,8 @@ export const generateBaseFileStructure = async ({
     packageVersion,
     coreVersion,
 }: BaseFileStructure) => {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
+    // const __filename = fileURLToPath(import.meta.url);
+    // const __dirname = dirname(__filename);
 
     await fs.mkdir(pathToDir, { recursive: true });
 
@@ -36,7 +45,7 @@ export const generateBaseFileStructure = async ({
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
 
-    await fs.mkdir(`${pathToDir}/src`);
+    await fs.mkdir(`${pathToDir}/src`, { recursive: true });
 };
 
 export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: ComponentsFiles) => {
@@ -86,4 +95,29 @@ export const generateThemeFiles = async ({ packageName, packageVersion, pathToDi
     } catch (e) {
         console.log(e);
     }
+};
+
+export const generateDesignSystem = async (designSystemData: DesignSystemData, outputParams: OutputParams) => {
+    const { packageName, packageVersion, componentsData, themeData } = designSystemData;
+    const { pathToDir, coreVersion, exportType } = outputParams;
+
+    await generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion });
+
+    await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: themeData });
+
+    await generateComponentsFiles({ pathToDir, componentsMeta: componentsData });
+
+    let buffer: Buffer<ArrayBufferLike> = Buffer.from('');
+
+    if (exportType === 'zip') {
+        const zip = new JSZip();
+        await addFolderToZip(zip, pathToDir, zip);
+        buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    }
+
+    if (exportType === 'tgz') {
+        buffer = await pacote.tarball(pathToDir);
+    }
+
+    return buffer;
 };

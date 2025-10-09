@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "",
-  "type": "module",
   "main": "index.js",
+  "bin": {
+    "plasma-ds-generate": "./dist/cli.js"
+  },
   "scripts": {
+    "build": "tsc && cp -r ./app/constants  ./dist",
     "dev": "nodemon",
     "start": "tsx ./app/index.ts",
     "lint": "eslint"

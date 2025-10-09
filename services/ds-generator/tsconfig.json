@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
       "target": "es2017",
-      "module": "esnext",
+      "module": "commonjs",
       "lib": ["esnext"],
       "importHelpers": false,
 
@@ -31,6 +31,7 @@
 
       /* Advanced Options */
       "skipLibCheck": true,
+      "outDir": "./dist",
       "forceConsistentCasingInFileNames": true,
       "rootDir": "./app",
   },

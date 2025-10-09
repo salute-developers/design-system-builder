@@ -71,7 +71,7 @@ const getFileSource = async (owner: string, repo: string, path: string, branchNa
 
     const data = await result.json();
 
-    return data;
+    return data as any;
 };
 
 export const readTheme = async (themeName: string, themeVersion: string) => {

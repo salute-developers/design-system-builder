@@ -2,6 +2,8 @@ import fs from 'fs-extra';
 import path from 'path';
 import JSZip from 'jszip';
 
+export const BASE_URL = process.env.CLIENT_PROXY_URL || 'http://localhost:3003/api';
+
 export const CORE_VERSION = '0.328.0-canary.1983.15896947411.0';
 
 export const GENERATE_ROOT_DIR = './result';
