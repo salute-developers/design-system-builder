@@ -9,7 +9,7 @@ export const allComponentsData = {
   designSystems: [
     {
       id: 1,
-      name: "test-66",
+      name: "test_66",
       description: "Design System with all components from pseudo_data_base",
       createdAt: "2025-01-27T12:00:00.000Z",
       updatedAt: "2025-01-27T12:00:00.000Z"

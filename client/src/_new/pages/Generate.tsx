@@ -6,7 +6,7 @@ import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
 
-const HOST = 'http://localhost:3000'
+const HOST = 'http://localhost:3005';
 
 const StyledGenerateContent = styled.div`
     padding: 1rem;
@@ -65,7 +65,7 @@ export const Generate = (props: GenerateProps) => {
         return <div>Loading...</div>;
     }
 
-    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
+    const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
 
     const exportTypes = [
         {
@@ -83,18 +83,15 @@ export const Generate = (props: GenerateProps) => {
     };
 
     const onGoComponents = () => {
-        navigate(`/${ currentLocation }/components`);
+        navigate(`/${currentLocation}/components`);
     };
 
     const onDesignSystemGenerate = async () => {
-        const themeSource = designSystem.getThemeData('web');
-        const componentsMeta = designSystem.getComponentsData();
-
         const data = {
             packageName: designSystem.getName(),
             packageVersion: designSystem.getVersion(),
-            componentsMeta,
-            themeSource,
+            // componentsMeta: designSystem.getComponentsData(),
+            // themeSource: designSystem.getThemeData('web'),
             exportType,
         };
 
@@ -111,7 +108,7 @@ export const Generate = (props: GenerateProps) => {
         });
 
         if (!result) {
-            setIsLoading(false)
+            setIsLoading(false);
         }
 
         const reader = result.body?.getReader();
@@ -137,10 +134,7 @@ export const Generate = (props: GenerateProps) => {
                     }
 
                     // ZIP
-                    if (
-                        u8[i] === 0x50 && u8[i + 1] === 0x4b &&
-                        u8[i + 2] === 0x03 && u8[i + 3] === 0x04
-                    ) {
+                    if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x03 && u8[i + 3] === 0x04) {
                         archiveDetected = true;
                         const sliced = u8.slice(i);
                         chunks.push(sliced);
@@ -158,7 +152,7 @@ export const Generate = (props: GenerateProps) => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${ designSystem.getName() }@${ designSystem.getVersion() }.${ exportType }`;
+        a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -168,7 +162,7 @@ export const Generate = (props: GenerateProps) => {
     };
 
     return (
-        <PageWrapper designSystem={ designSystem }>
+        <PageWrapper designSystem={designSystem}>
             <StyledGenerateContent>
                 <StyledExportType>
                     <BodyM>Тип экспорта</BodyM>
@@ -176,19 +170,19 @@ export const Generate = (props: GenerateProps) => {
                         size="m"
                         listMaxHeight="25"
                         listOverflow="scroll"
-                        value={ exportType }
-                        items={ exportTypes }
-                        onChange={ onChangeExportType }
+                        value={exportType}
+                        items={exportTypes}
+                        onChange={onChangeExportType}
                     />
                 </StyledExportType>
             </StyledGenerateContent>
             <StyledActions>
-                <Button view="clear" onClick={ onGoComponents } text="Назад"/>
+                <Button view="clear" onClick={onGoComponents} text="Назад" />
                 <Button
                     view="primary"
-                    onClick={ onDesignSystemGenerate }
-                    disabled={ isLoading }
-                    isLoading={ isLoading }
+                    onClick={onDesignSystemGenerate}
+                    disabled={isLoading}
+                    isLoading={isLoading}
                     text="Создать дизайн систему"
                 />
             </StyledActions>
