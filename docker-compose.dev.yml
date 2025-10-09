@@ -113,6 +113,28 @@ services:
       - ./client-proxy/storage:/app/storage
     command: npm run dev
 
+  # Generator web library
+  generator:
+    build:
+      context: ./services/ds-generator
+      dockerfile: Dockerfile.dev
+    container_name: ds-builder-generator-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      CLIENT_PROXY_URL: http://client-proxy:3003/api
+    ports:
+      - "3005:3005"
+    depends_on:
+      - client-proxy
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./services/ds-generator:/home/node/app
+      - /home/node/app/node_modules
+    command: npm run dev
+
 volumes:
   postgres_data_dev:
     driver: local

@@ -288,6 +288,7 @@ if [ "$services_healthy" = true ]; then
     echo "   🎨 Client:      http://localhost:3002"
     echo "   🔧 Backend API: http://localhost:3001"
     echo "   🔗 Client Proxy: http://localhost:3003"
+    echo "   🏗️ Generator:    http://localhost:3005"
     echo "   🗄️ Database:    localhost:5432"
     echo "   📊 Health:      http://localhost:3001/api/health"
     echo ""
