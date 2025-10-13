@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidTypography, TypographyToken, IOSTypography, WebTypography } from './typography';
 import { typographyTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultTypographyTokens = (config: ThemeConfig): TypographyToken[] => {
     const webTokens = getWebTokens(config);

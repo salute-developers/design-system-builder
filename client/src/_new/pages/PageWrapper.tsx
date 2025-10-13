@@ -2,6 +2,7 @@ import styled, { createGlobalStyle } from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { IconHomeAltOutline } from '@salutejs/plasma-icons';
 import { IconButton } from '@salutejs/plasma-b2c';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import type { DesignSystem } from '../../designSystem';
 
@@ -19,13 +20,14 @@ const StyledContainer = styled.div`
     box-sizing: border-box;
     overflow: hidden;
 
-    background-color: #000;
+    background-color: ${backgroundSecondary};
 `;
 
 const StyledWrapper = styled.div`
     position: relative;
-    margin: 4.5rem 3rem;
-    height: calc(100vh - 7rem);
+    // margin: 4.5rem 3rem;
+    // height: calc(100vh - 7rem);
+    height: calc(100vh - 3rem);
 
     display: flex;
     flex-direction: column;
@@ -70,7 +72,7 @@ export const PageWrapper = (props: PageWrapperProps) => {
 
     return (
         <StyledContainer>
-            {designSystem && (
+            {/* {designSystem && (
                 <StyledDesignSystemInfo>
                     <StyledDesignSystemName>{designSystem.getName()}</StyledDesignSystemName>
                     <StyledDesignSystemVersion>{designSystem.getVersion()}</StyledDesignSystemVersion>
@@ -78,7 +80,7 @@ export const PageWrapper = (props: PageWrapperProps) => {
                         <IconHomeAltOutline size="s" />
                     </IconButton>
                 </StyledDesignSystemInfo>
-            )}
+            )} */}
             <StyledWrapper>{children}</StyledWrapper>
             <NoScroll />
         </StyledContainer>

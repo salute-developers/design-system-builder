@@ -1,5 +1,3 @@
-import type { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import {
     createColorTokens,
     createDefaultColorTokens,
@@ -23,7 +21,7 @@ import {
     createSpacingTokens,
     createMockSpacingTokens,
 } from '../tokens';
-import type { PlatformsVariations, ThemeMeta, TokenType } from '../types';
+import type { PlatformsVariations, ThemeConfig, ThemeMeta, TokenType } from '../types';
 import { Theme } from '.';
 
 export const buildDefaultTheme = (config: ThemeConfig) => {

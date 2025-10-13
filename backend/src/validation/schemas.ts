@@ -13,7 +13,14 @@ export const PaginationQuerySchema = z.object({
 // Design System schemas
 export const CreateDesignSystemSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255, 'Name must be less than 255 characters'),
-  description: z.string().trim().max(1000, 'Description must be less than 1000 characters').optional()
+  description: z.string().trim().max(1000, 'Description must be less than 1000 characters').optional(),
+  projectName: z.string().trim().min(1, 'Project name is required'),
+  grayTone: z.string().trim().min(1, 'Gray tone is required'),
+  accentColor: z.string().trim().min(1, 'Accent color is required'),
+  lightStrokeSaturation: z.number().int().min(0, 'Must be a positive number'),
+  lightFillSaturation: z.number().int().min(0, 'Must be a positive number'),
+  darkStrokeSaturation: z.number().int().min(0, 'Must be a positive number'),
+  darkFillSaturation: z.number().int().min(0, 'Must be a positive number'),
 });
 
 export const UpdateDesignSystemSchema = z.object({
@@ -36,9 +43,7 @@ export const TokenStateSchema = z.object({
 export const TokenValueSchema = z.object({
   tokenId: z.number().int().positive('Token ID must be a positive integer'),
   value: z.string().trim(), // Allow empty strings, backend will filter them out
-  states: z.array(TokenStateSchema)
-    .default([])
-    .optional(),
+  states: z.array(TokenStateSchema).default([]).optional(),
 });
 
 // Variation Value schemas
@@ -61,9 +66,7 @@ export const UpdateVariationValueSchema = z.object({
 
 // Component Invariant Token Value schemas
 export const AddInvariantTokenValuesSchema = z.object({
-  tokenValues: z.array(z.object({
-    tokenId: z.number().int().positive('Token ID must be a positive integer'),
-    value: z.string().trim().min(1, 'Value is required').max(1000, 'Value must be less than 1000 characters')
+  tokenValues: z.array(z.object({tokenId: z.number().int().positive('Token ID must be a positive integer'),value: z.string().trim().min(1, 'Value is required').max(1000, 'Value must be less than 1000 characters')
   })).min(1, 'At least one token value is required')
 });
 

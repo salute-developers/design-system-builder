@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { TabItem, Tabs, Button, IconButton } from '@salutejs/plasma-b2c';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import {
     AndroidColor,
@@ -68,11 +69,11 @@ const StyledThemeContent = styled.div`
     margin-bottom: 1rem;
 
     border-radius: 0.5rem;
-    background: #0c0c0c;
-    border: solid 1px #313131;
+    background: ${backgroundSecondary};
+    // border: solid 1px #313131;
 `;
 
-const tokensTypes = [
+const tokensTypesTabs = [
     {
         label: 'Цвета',
         value: 'color',
@@ -283,15 +284,18 @@ const updateTokens = (theme: Theme, updatedToken: Token, data: any) => {
     // }
 };
 
-const types = ['color', 'gradient', 'shape', 'spacing', 'shadow', 'typography', 'fontFamily'] as const;
+// const types = ['color', 'gradient', 'shape', 'spacing', 'shadow', 'typography', 'fontFamily'] as const;
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface TokensEditorProps {
+    selectedTokensTypes: string[];
     // designSystem: DesignSystem;
     // setDesignSystem: (value: DesignSystem) => void;
 }
 
 export const TokensEditor = (props: TokensEditorProps) => {
+    const { selectedTokensTypes } = props;
+
     const navigate = useNavigate();
     const { designSystemName, designSystemVersion } = useParams();
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
@@ -313,7 +317,10 @@ export const TokensEditor = (props: TokensEditorProps) => {
     const [tokenEditorIndex, setTokenEditorIndex] = useState<string | undefined>(undefined);
     const [isOpenAdd, setIsOpenAdd] = useState<string | undefined>(undefined);
 
-    const tokens = useGroupedAllTokens(theme);
+    const groupedTokens = useGroupedAllTokens(theme);
+
+    const tokens = groupedTokens.filter((item) => selectedTokensTypes.includes(item.value));
+    const tokensTypes = tokensTypesTabs.filter((item) => selectedTokensTypes?.includes(item.value));
 
     if (!designSystem || !theme) {
         return <div>Loading...</div>;
@@ -443,8 +450,6 @@ export const TokensEditor = (props: TokensEditorProps) => {
         );
     };
 
-    console.log('theme', theme);
-
     return (
         <PageWrapper designSystem={designSystem}>
             <StyledThemeContent>
@@ -476,7 +481,7 @@ export const TokensEditor = (props: TokensEditorProps) => {
                 </Tabs>
                 <StyledTokenList>
                     {tokens[tokenType].group.map((item) =>
-                        renderTokens(item, [types[tokenType], tokens[tokenType].mode]),
+                        renderTokens(item, [selectedTokensTypes[tokenType], tokens[tokenType].mode]),
                     )}
                 </StyledTokenList>
             </StyledThemeContent>

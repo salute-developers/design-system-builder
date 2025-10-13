@@ -1,5 +1,4 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
+import { ThemeConfig } from '../../../types';
 import { IOSShadowToken } from '../types';
 
 export const getIOSTokens = (config: ThemeConfig): IOSShadowToken => ({

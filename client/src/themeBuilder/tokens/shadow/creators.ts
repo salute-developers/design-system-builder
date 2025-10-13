@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidShadow, ShadowToken, IOSShadow, WebShadow } from './shadow';
 import { shadowTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultShadowTokens = (config: ThemeConfig): ShadowToken[] => {
     const webTokens = getWebTokens(config);

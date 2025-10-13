@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, H3 } from '@salutejs/plasma-b2c';
+import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { DesignSystem } from '../../../designSystem';
 import { PageWrapper } from '../PageWrapper';
@@ -23,8 +24,8 @@ const StyledComponentList = styled.div`
 
     margin-bottom: 1rem;
     border-radius: 0.5rem;
-    background: #0c0c0c;
-    border: solid 1px #313131;
+    background: ${backgroundSecondary};
+    // border: solid 1px #313131;
 `;
 
 const StyledComponent = styled.div<{ disabled: boolean }>`
@@ -40,7 +41,7 @@ const StyledComponent = styled.div<{ disabled: boolean }>`
     align-items: center;
 
     &:hover {
-        border: 1px solid var(--text-accent);
+        border: 1px solid white;
     }
 
     transition: border 0.2s ease-in-out;

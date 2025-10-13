@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidSpacing, SpacingToken, IOSSpacing, WebSpacing } from './spacing';
 import { spacingTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultSpacingTokens = (config: ThemeConfig): SpacingToken[] => {
     const webTokens = getWebTokens(config);

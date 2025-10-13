@@ -1,8 +1,6 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
 import { AndroidGradient, GradientToken, IOSGradient, WebGradient } from './gradient';
 import { gradientTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
-import { PlatformsVariations, TokenType } from '../../types';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
 
 export const createDefaultGradientTokens = (config: ThemeConfig): GradientToken[] => {
     const webTokens = getWebTokens(config);

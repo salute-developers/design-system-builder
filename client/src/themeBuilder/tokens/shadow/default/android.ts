@@ -1,5 +1,4 @@
-import { ThemeConfig } from '@salutejs/plasma-tokens-utils';
-
+import { ThemeConfig } from '../../../types';
 import { AndroidShadowToken } from '../types';
 
 export const getAndroidTokens = (config: ThemeConfig): AndroidShadowToken => ({
