@@ -13,6 +13,12 @@ import { h6 } from '../../utils';
 import { IconButton } from '../../components/IconButton';
 import { Workspace } from '../../components';
 
+const Root = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+`;
+
 const Header = styled.div`
     padding: 0 0.5rem;
     box-sizing: border-box;
@@ -124,7 +130,7 @@ export const Home = () => {
     return (
         <Workspace
             menu={
-                <>
+                <Root>
                     <Header>
                         <HeaderTitle>ID 081b5359</HeaderTitle>
                         <IconButton>
@@ -148,7 +154,7 @@ export const Home = () => {
                             <ListItemText>Черновики</ListItemText>
                         </ListItem> */}
                     </List>
-                </>
+                </Root>
                 //     {/* <List>
                 //     <MenuSection>Команды</MenuSection>
                 //     <ListItem>

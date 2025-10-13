@@ -9,10 +9,6 @@ const Menu = styled.div<{ background?: string }>`
     height: 100vh;
 
     background: ${({ background }) => background || 'transparent'};
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
 `;
 
 const Content = styled.div`
