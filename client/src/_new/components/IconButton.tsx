@@ -47,7 +47,7 @@ interface IconButtonProps {
     disabled?: boolean;
     children: React.ReactNode;
     style?: React.CSSProperties;
-    onClick?: () => void;
+    onClick?: (event: any) => void;
 }
 
 export const IconButton = (props: IconButtonProps) => {

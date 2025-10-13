@@ -1,12 +1,11 @@
 import { useParams } from 'react-router-dom';
 import styled, { css, CSSObject } from 'styled-components';
 import {
-    Icon,
-    IconArrowDown,
     IconChevronDown,
     IconChevronUp,
     IconEye,
     IconEyeClosedFill,
+    IconPlus,
     IconSearch,
 } from '@salutejs/plasma-icons';
 import {
@@ -24,6 +23,19 @@ import { TokensEditor } from '../theme';
 import { h6 } from '../../utils';
 import { Workspace } from '../../components';
 import { IconButton } from '../../components/IconButton';
+import { useState } from 'react';
+
+const Root = styled.div`
+    height: 100%;
+
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+
+    &:hover > div:nth-child(3) > div > div > div:nth-child(1) {
+        display: block;
+    }
+`;
 
 const Header = styled.div`
     padding: 0 0.5rem;
@@ -65,7 +77,7 @@ const List = styled.div`
 const ListSectionTitle = styled.div`
     padding: 0 0.5rem;
     box-sizing: border-box;
-    height: 2rem;
+    min-height: 2rem;
 
     color: ${textTertiary};
 
@@ -76,6 +88,17 @@ const ListSectionTitle = styled.div`
     ${h6 as CSSObject};
 `;
 
+const ListSectionGroups = styled.div`
+    display: flex;
+    flex-direction: column;
+
+    padding-left: 0.75rem;
+    margin-left: -0.75rem;
+
+    overflow-y: scroll;
+    overflow-x: visible;
+`;
+
 const ListSectionGroup = styled.div`
     position: relative;
 
@@ -84,29 +107,16 @@ const ListSectionGroup = styled.div`
 `;
 
 const ListSectionGroupToggle = styled.div`
+    display: none;
+
     position: absolute;
-    left: -0.5rem;
+    left: 0;
+    transform: translateX(-0.5rem);
     top: 0.25rem;
     cursor: pointer;
 `;
 
-const ListSectionGroupTitle = styled.div`
-    padding: 0 0.5rem;
-    box-sizing: border-box;
-    height: 2rem;
-
-    display: flex;
-    align-items: center;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-
-    color: ${textSecondary};
-
-    ${h6 as CSSObject};
-`;
-
-const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; canShowTooltip?: boolean }>`
+const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; lineThrough?: boolean }>`
     position: relative;
     cursor: pointer;
 
@@ -125,11 +135,24 @@ const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; canShowToo
             background: ${surfaceTransparentPrimary};
         `}
 
-    ${({ disabled }) =>
+    ${({ disabled, lineThrough }) =>
         disabled &&
         css`
+            text-decoration: ${lineThrough ? 'line-through' : 'none'};
             cursor: not-allowed;
             color: ${textTertiary};
+
+            & > div:nth-child(2) {
+                display: flex;
+            }
+
+            & > div:nth-child(2) div {
+                color: inherit;
+
+                &:hover {
+                    color: ${textPrimary};
+                }
+            }
         `}
 
     ${({ disabled }) =>
@@ -144,13 +167,7 @@ const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; canShowToo
             }
         `}
 
-    ${({ canShowTooltip }) =>
-        canShowTooltip &&
-        css`
-            &:hover > div:last-child {
-                display: flex;
-            }
-        `}
+
 
 
     &:hover > div:nth-child(2) {
@@ -191,15 +208,25 @@ const ListItemTooltip = styled.div`
     ${bodyXXS as CSSObject};
 `;
 
-const ListItemWrapper = styled.div`
+const ListItemWrapper = styled.div<{ canShowTooltip?: boolean }>`
     display: flex;
     gap: 0.25rem;
     align-items: center;
 
     overflow: hidden;
+
+    ${({ canShowTooltip }) =>
+        canShowTooltip &&
+        css`
+            &:hover ~ div:nth-child(3) {
+                display: flex;
+            }
+        `}
 `;
 
 const ListItemText = styled.span`
+    user-select: none;
+
     color: inherit;
 
     white-space: nowrap;
@@ -227,17 +254,11 @@ const ListItemPreview = styled.div<{ color: string }>`
 `;
 
 const ListItemContentRight = styled.div`
-    cursor: pointer;
-
-    color: inherit;
-
-    &:hover {
-        color: ${textPrimary};
-    }
-
     display: none;
+
     align-items: center;
     align-self: stretch;
+    gap: 0.5rem;
 `;
 
 const StyledIconChevronDown = styled(IconChevronDown)`
@@ -251,10 +272,11 @@ const StyledIconChevronUp = styled(IconChevronUp)`
 // TODO: Недорогое и быстрое решение
 const MAX_CHARS_TOKEN_NAME = 32;
 
-const groups = [
+const defaultGroups = [
     {
         name: 'Text',
         disabled: false,
+        opened: true,
         tokens: [
             {
                 label: 'textPrimary',
@@ -287,7 +309,79 @@ const groups = [
                 values: ['#FFFFFF', '#FF00FF'],
             },
             {
-                label: 'textTransparentPromoPopopopoppoopopop',
+                label: 'textTransparentPromoPopopopoppoopopop1',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textPrimary2',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textSecondary2',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTertiary2',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromo2',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop2',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop3',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textPrimary3',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textSecondary3',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTertiary3',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromo3',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop4',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop5',
                 selected: false,
                 disabled: true,
                 values: ['#FFFFFF', '#FF00FF'],
@@ -297,6 +391,7 @@ const groups = [
     {
         name: 'Surface',
         disabled: false,
+        opened: false,
         tokens: [
             {
                 label: 'surfacePrimary',
@@ -338,15 +433,162 @@ const groups = [
     },
 ];
 
+const onDarkGroups = [
+    {
+        name: 'Text',
+        disabled: false,
+        opened: true,
+        tokens: [
+            {
+                label: 'textPrimary',
+                selected: true,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textSecondary',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTertiary',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+    {
+        name: 'Surface',
+        disabled: false,
+        opened: false,
+        tokens: [
+            {
+                label: 'surfacePrimary',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'surfaceSecondary',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'surfaceTertiary',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+];
+
+const onLightGroups = [
+    {
+        name: 'Text',
+        disabled: false,
+        opened: true,
+        tokens: [
+            {
+                label: 'textTransparentPromo',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'textTransparentPromoPopopopoppoopopop1',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+    {
+        name: 'Surface',
+        disabled: false,
+        opened: false,
+        tokens: [
+            {
+                label: 'surfaceTransparentPromo',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'surfaceTransparentPromoPopopopoppoopopop',
+                selected: false,
+                disabled: false,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+            {
+                label: 'surfaceTransparentPromoPopopopoppoopopop',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+];
+
+const inverseGroups = [
+    {
+        name: 'Text',
+        disabled: false,
+        opened: true,
+        tokens: [
+            {
+                label: 'textTransparentPromoPopopopoppoopopop5',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+    {
+        name: 'Surface',
+        disabled: false,
+        opened: false,
+        tokens: [
+            {
+                label: 'surfaceTransparentPromoPopopopoppoopopop',
+                selected: false,
+                disabled: true,
+                values: ['#FFFFFF', '#FF00FF'],
+            },
+        ],
+    },
+];
+
+const externalGroups = [
+    { name: 'Default', selected: true, subgroups: defaultGroups },
+    { name: 'onDark', selected: false, subgroups: onDarkGroups },
+    { name: 'onLight', selected: false, subgroups: onLightGroups },
+    { name: 'Inverse', selected: false, subgroups: inverseGroups },
+];
+
 export const Colors = () => {
     // TODO: Загружать тему на этой странице и дальше передавать в контент
     const { designSystemName, designSystemVersion } = useParams();
+
+    const [groups, setGroups] = useState(externalGroups);
+    const [selectedGroup, setSelectedGroup] = useState(externalGroups[0].name);
+
+    const [subgroups, setSubgroups] = useState(defaultGroups);
 
     return (
         <Workspace
             menuBackground={backgroundTertiary}
             menu={
-                <>
+                <Root>
                     <Header>
                         <HeaderContent>
                             <HeaderTitle>Моя дизайн-системушка</HeaderTitle>
@@ -358,68 +600,171 @@ export const Colors = () => {
                     </Header>
                     <List>
                         <ListSectionTitle>Подтемы</ListSectionTitle>
-                        <ListItem selected>
-                            <ListItemText>Default</ListItemText>
-                        </ListItem>
-                        <ListItem>
-                            <ListItemText>onDark</ListItemText>
-                        </ListItem>
-                        <ListItem>
-                            <ListItemText>onLight</ListItemText>
-                        </ListItem>
-                        <ListItem>
-                            <ListItemText>Inverse</ListItemText>
-                        </ListItem>
-                    </List>
-                    <List>
-                        <ListSectionTitle>Токены</ListSectionTitle>
-                        {groups.map(({ name, disabled, tokens }) => (
-                            <ListSectionGroup>
-                                <ListSectionGroupToggle>
-                                    <StyledIconChevronUp color="inherit" />
-                                </ListSectionGroupToggle>
-                                {/* <ListSectionGroupTitle>{name}</ListSectionGroupTitle> */}
-                                <ListItem disabled={disabled}>
-                                    <ListItemWrapper>
-                                        <ListItemText>{name}</ListItemText>
-                                    </ListItemWrapper>
-                                    <ListItemContentRight>
-                                        {disabled ? (
-                                            <IconEyeClosedFill size="xs" color="inherit" />
-                                        ) : (
-                                            <IconEye size="xs" color="inherit" />
-                                        )}
-                                    </ListItemContentRight>
-                                </ListItem>
-                                {tokens.map(({ selected, disabled, label, values }) => (
-                                    <ListItem
-                                        selected={selected}
-                                        disabled={disabled}
-                                        // TODO: Недорогое и быстрое решение
-                                        canShowTooltip={Boolean(label.length > MAX_CHARS_TOKEN_NAME)}
-                                    >
-                                        <ListItemWrapper>
-                                            <ListItemText>{label}</ListItemText>
-                                            <ListItemPreviewWrapper>
-                                                {values.map((value) => (
-                                                    <ListItemPreview color={value} />
-                                                ))}
-                                            </ListItemPreviewWrapper>
-                                        </ListItemWrapper>
-                                        <ListItemContentRight>
-                                            {disabled ? (
-                                                <IconEyeClosedFill size="xs" color="inherit" />
-                                            ) : (
-                                                <IconEye size="xs" color="inherit" />
-                                            )}
-                                        </ListItemContentRight>
-                                        <ListItemTooltip>{label}</ListItemTooltip>
-                                    </ListItem>
-                                ))}
-                            </ListSectionGroup>
+                        {externalGroups.map(({ name, selected }, index) => (
+                            <ListItem
+                                selected={name === selectedGroup}
+                                onClick={() => setSelectedGroup(name)}
+                                key={`${name}_${index}`}
+                            >
+                                <ListItemText>{name}</ListItemText>
+                            </ListItem>
                         ))}
                     </List>
-                </>
+                    <List
+                        style={{
+                            minHeight: 0,
+                        }}
+                    >
+                        <ListSectionTitle>Токены</ListSectionTitle>
+                        <ListSectionGroups>
+                            {subgroups.map(({ name, disabled, opened, tokens }) => (
+                                <ListSectionGroup>
+                                    <ListSectionGroupToggle
+                                        onClick={() => {
+                                            const index = subgroups.findIndex((group) => group.name === name);
+                                            const updatedSubgroups = [...subgroups];
+                                            updatedSubgroups[index] = {
+                                                ...subgroups[index],
+                                                opened: !subgroups[index].opened,
+                                            };
+
+                                            setSubgroups(updatedSubgroups);
+                                        }}
+                                    >
+                                        {opened ? (
+                                            <StyledIconChevronUp color="inherit" />
+                                        ) : (
+                                            <StyledIconChevronDown color="inherit" />
+                                        )}
+                                    </ListSectionGroupToggle>
+                                    <ListItem
+                                        onClick={() => {
+                                            // const index = groups.findIndex((group) => group.name === name);
+                                            // const newGroups = JSON.parse(JSON.stringify(groups));
+                                            // newGroups[index].opened = !opened;
+                                            // setGroups(newGroups);
+                                        }}
+                                        disabled={disabled}
+                                    >
+                                        <ListItemWrapper>
+                                            <ListItemText>{name}</ListItemText>
+                                        </ListItemWrapper>
+                                        <ListItemContentRight>
+                                            <IconButton>
+                                                <IconPlus size="xs" color="inherit" />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={(e: any) => {
+                                                    e.stopPropagation();
+
+                                                    const groupIndex = subgroups.findIndex(
+                                                        (group) => group.name === name,
+                                                    );
+                                                    const newDisabled = !subgroups[groupIndex].disabled;
+
+                                                    const updatedSubgroups = [...subgroups];
+                                                    updatedSubgroups[groupIndex].tokens.forEach((token) => {
+                                                        token.disabled = newDisabled;
+                                                    });
+                                                    updatedSubgroups[groupIndex].disabled = newDisabled;
+
+                                                    setSubgroups(updatedSubgroups);
+                                                }}
+                                            >
+                                                {disabled ? (
+                                                    <IconEyeClosedFill size="xs" color="inherit" />
+                                                ) : (
+                                                    <IconEye size="xs" color="inherit" />
+                                                )}
+                                            </IconButton>
+                                        </ListItemContentRight>
+                                    </ListItem>
+                                    {opened &&
+                                        tokens.map(({ selected, disabled, label, values }) => (
+                                            <ListItem
+                                                selected={selected}
+                                                disabled={disabled}
+                                                lineThrough
+                                                onClick={() => {
+                                                    const groupIndex = subgroups.findIndex(
+                                                        (group) => group.name === name,
+                                                    );
+
+                                                    const tokenIndex = subgroups[groupIndex].tokens.findIndex(
+                                                        (token) => token.label === label,
+                                                    );
+
+                                                    const updatedSubgroups = [...subgroups];
+
+                                                    updatedSubgroups.forEach((group) =>
+                                                        group.tokens.forEach((token) => {
+                                                            token.selected = false;
+                                                        }),
+                                                    );
+                                                    updatedSubgroups[groupIndex].tokens[tokenIndex].selected = true;
+
+                                                    setSubgroups(updatedSubgroups);
+                                                }}
+                                            >
+                                                <ListItemWrapper
+                                                    // TODO: Недорогое и быстрое решение
+                                                    canShowTooltip={Boolean(label.length > MAX_CHARS_TOKEN_NAME)}
+                                                >
+                                                    <ListItemText>{label}</ListItemText>
+                                                    <ListItemPreviewWrapper>
+                                                        {values.map((value) => (
+                                                            <ListItemPreview color={value} />
+                                                        ))}
+                                                    </ListItemPreviewWrapper>
+                                                </ListItemWrapper>
+                                                <ListItemContentRight>
+                                                    <IconButton
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+
+                                                            const groupIndex = subgroups.findIndex(
+                                                                (group) => group.name === name,
+                                                            );
+
+                                                            const tokenIndex = subgroups[groupIndex].tokens.findIndex(
+                                                                (token) => token.label === label,
+                                                            );
+
+                                                            const updatedSubgroups = [...subgroups];
+                                                            updatedSubgroups[groupIndex].tokens[tokenIndex].disabled =
+                                                                !disabled;
+
+                                                            if (updatedSubgroups[groupIndex].disabled && disabled) {
+                                                                updatedSubgroups[groupIndex].disabled = false;
+                                                            }
+
+                                                            if (
+                                                                !updatedSubgroups[groupIndex].disabled &&
+                                                                updatedSubgroups[groupIndex].tokens.every(
+                                                                    ({ disabled }) => disabled,
+                                                                )
+                                                            ) {
+                                                                updatedSubgroups[groupIndex].disabled = true;
+                                                            }
+
+                                                            setSubgroups(updatedSubgroups);
+                                                        }}
+                                                    >
+                                                        {disabled ? (
+                                                            <IconEyeClosedFill size="xs" color="inherit" />
+                                                        ) : (
+                                                            <IconEye size="xs" color="inherit" />
+                                                        )}
+                                                    </IconButton>
+                                                </ListItemContentRight>
+                                                <ListItemTooltip>{label}</ListItemTooltip>
+                                            </ListItem>
+                                        ))}
+                                </ListSectionGroup>
+                            ))}
+                        </ListSectionGroups>
+                    </List>
+                </Root>
             }
             content={<TokensEditor selectedTokensTypes={['color', 'gradient']} />}
         />
