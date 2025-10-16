@@ -1,6 +1,6 @@
 {
-  "name": "ds-builder-backend",
-  "version": "1.0.0",
+  "name": "db-service",
+  "version": "0.1.2",
   "description": "Backend for Design System Builder",
   "main": "dist/index.js",
   "scripts": {

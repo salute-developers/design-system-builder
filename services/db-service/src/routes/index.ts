@@ -12,9 +12,9 @@ import { db } from '../db';
 const router = Router();
 
 // Health check endpoint
-router.get('/api/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok', 
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
@@ -32,4 +32,4 @@ router.use('/admin-api/variations', createVariationsRouter(db));
 router.use('/admin-api/tokens', createTokensRouter(db));
 router.use('/admin-api/props-api', createPropsAPIRouter(db));
 
-export default router; 
+export default router;

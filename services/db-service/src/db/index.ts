@@ -8,7 +8,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 
-const connectionString = `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'ds_builder'}`;
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ds_builder';
 
 const pool = new Pool({
   connectionString,
@@ -37,7 +37,7 @@ pool.on('error', (err) => {
   process.exit(-1);
 });
 
-export const db = drizzle(pool, { 
+export const db = drizzle(pool, {
   schema,
   // logger: {
   //   logQuery: (query: string, params: any[]) => {
