@@ -1,0 +1,128 @@
+---
+id: IconButton
+title: IconButton
+---
+
+import { PropsTable } from '@site/src/components';
+
+# IconButton
+
+Интерактивный элемент интерфейса, который инициирует мгновенное действие или событие при активации пользователем.
+Кнопки могут отображаться в нескольких размерах и цветах, могут содержать текст и/или иконку.
+
+## Быстрый старт
+
+```tsx
+import { IconButton } from '@salutejs/{{ packageName }}';
+```
+
+```tsx live
+import React from 'react';
+import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconClose } from '@salutejs/plasma-icons';
+
+export function App() {
+return (
+<div>
+    <IconButton>
+        <IconClose color="inherit" />
+    </IconButton>
+</div>
+);
+}
+```
+
+## Примеры
+
+### Свойство `view`
+
+```tsx live
+import React from 'react';
+import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconClose } from '@salutejs/plasma-icons';
+
+export function App() {
+const { viewList } = useComponentProps();
+
+return (
+<div className="flex-container">
+    {
+    viewList && Object.entries(viewList).map(([view]) => (
+    <IconButton view={view}>
+        <IconClose color="inherit" />
+    </IconButton>
+    ))
+    }
+</div>
+);
+}
+```
+
+### Размер кнопки
+Размер кнопки задается с помощью свойства `size`:
+
+```tsx live
+import React from 'react';
+import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconClose } from '@salutejs/plasma-icons';
+
+export function App() {
+const { sizeList } = useComponentProps();
+
+return (
+<div>
+    {
+    sizeList && sizeList.map((size) => (
+    <IconButton size={size} >
+        <IconClose color="inherit" />
+    </IconButton>
+    ))
+    }
+</div>
+);
+}
+```
+
+### Границы кнопки
+Границы кнопки задаются с помощью свойства `pin`. Возможные значения свойства `pin`:
++ `square` – обычное скругление;
++ `circle` – сильное скругление;
++ `clear` – нет скругления.
+
+```tsx live
+import React from 'react';
+import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconClose } from '@salutejs/plasma-icons';
+
+export function App() {
+return (
+<div className="flex-container">
+    <IconButton pin="square-square">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="square-clear">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="clear-square">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="clear-clear">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="clear-circle">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="circle-clear">
+        <IconClose color="inherit" />
+    </IconButton>
+    <IconButton pin="circle-circle">
+        <IconClose color="inherit" />
+    </IconButton>
+</div>
+);
+}
+```
+
+## API
+
+<PropsTable name="IconButton" exclude={['css']} />

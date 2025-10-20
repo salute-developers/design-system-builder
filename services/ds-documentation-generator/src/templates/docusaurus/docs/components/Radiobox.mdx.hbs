@@ -1,0 +1,124 @@
+---
+id: radiobox
+title: Radiobox
+---
+
+import { PropsTable } from '@site/src/components';
+
+# Radiobox
+
+Компонент для выбора одного варианта из нескольких взаимоисключающих опций.
+
+## Быстрый старт
+
+```tsx
+import { Radiobox } from '@salutejs/{{ packageName }}';
+```
+
+Компонент может содержать `label` и `description`.
+
+:::info
+Свойства `description` и `label` могут принимать JSX элементы.
+:::
+
+```tsx live
+import React from 'react';
+import { Radiobox } from '@salutejs/{{ packageName }}';
+
+export function App() {
+    return (
+        <div>
+            <Radiobox name="radio-1" label="Label" description="Description" />
+            <Radiobox name="radio-2" label="Label" description="Description" defaultChecked />
+        </div>
+    );
+}
+```
+
+## Примеры
+
+### Свойство `view`
+
+:::caution Устаревшие значения
+Все значения отличные от `accent` являются `deprecated` и будут удалены в ближайшее время!
+:::
+
+Значением по-умолчанию является `accent`.
+
+```tsx live
+import React from 'react';
+import { Radiobox } from '@salutejs/{{ packageName }}';
+
+export function App() {
+    return (
+        <div className="flex-container">
+          <Radiobox view="accent" label="Label" description="Description"/>
+        </div>
+    );
+}
+```
+
+### Свойство `size`
+
+```tsx live
+import React from 'react';
+import { Radiobox } from '@salutejs/{{ packageName }}';
+
+export function App() {
+    const { sizeList } = useComponentProps();
+
+    return (
+        <div className="flex-container">
+          {
+            sizeList.map((size) => (
+              <Radiobox key={size} name="radio-1" size={size} label={`Size: ${size}`} description="Description"/>
+            ))
+          }
+        </div>
+    );
+}
+```
+
+### Многострочность
+
+По умолчанию, контент внутри лейбла и описания многострочный.
+
+Для того чтобы стал однострочным, необходимо использовать свойство `singleLine`.
+
+```tsx live
+import React from 'react';
+import { Radiobox } from '@salutejs/{{ packageName }}';
+
+export function App() {
+    return (
+        <div className="flex-container">
+          <Radiobox name="radio-1" label="Label" description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris convallis, urna ac molestie luctus, urna odio sollicitudin arcu, sed pretium mi augue sed turpis."/>
+          <Radiobox name="radio-1" label="SingleLine: true" description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris convallis, urna ac molestie luctus, urna odio sollicitudin arcu, sed pretium mi augue sed turpis." singleLine={true}/>
+        </div>
+    );
+}
+```
+
+## RadioGroup
+Компоненты `Radiobox` следует объединять в `RadioGroup`
+
+```tsx live
+import React from 'react';
+import { Radiobox, RadioGroup, H3 } from '@salutejs/{{ packageName }}';
+
+export function App() {
+  return (
+    <div className="flex-container">
+      <RadioGroup aria-labelledby="radiogroup-title-id">
+        <H3 id="radiogroup-title-id" className="mb-16">Тип платежа</H3>
+        <Radiobox className="mb-8" name="radio-1" label="Месячный" description="Списание раз в месяц" defaultChecked />
+        <Radiobox name="radio-1" label="Годовой" description="Списание раз в год" />
+      </RadioGroup>
+    </div>
+  )
+}
+```
+
+## API
+
+<PropsTable name="Radiobox" />

@@ -1,0 +1,48 @@
+FROM node:22
+
+# Системные зависимости для сборки и работы сервиса:
+# - python3, make, g++ - для нативных npm модулей в Docusaurus
+# - s3cmd - CLI утилита для загрузки документации в S3 (используется в S3Service)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    s3cmd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем директории для приложения и npm cache с правильными правами
+# /home/node/.npm - используется DocusaurusService для кеширования npm пакетов
+RUN mkdir -p /home/node/app/node_modules /home/node/.npm && \
+    chown -R node:node /home/node/app /home/node/.npm
+
+WORKDIR /home/node/app
+
+# Копируем package files
+COPY package*.json ./
+
+# Переключаемся на node user перед установкой зависимостей
+USER node
+
+# Устанавливаем зависимости
+RUN npm ci
+
+# Копируем исходный код с правильным владельцем
+COPY --chown=node:node . .
+
+# Порт по умолчанию (может быть переопределен через -e PORT=...)
+ENV PORT=3006
+
+EXPOSE 3006
+
+CMD ["npm", "run", "start:dev"]
+
+## Билд образа
+# docker build -t ds-documentation-generator:dev -f Dockerfile.dev .
+
+## Запуск
+# docker run -d \
+#   --name ds-documentation-generator-dev \
+#   -p 3006:3006 \
+#   -v $(pwd):/home/node/app \
+#   -v /home/node/app/node_modules \
+#   ds-documentation-generator:dev

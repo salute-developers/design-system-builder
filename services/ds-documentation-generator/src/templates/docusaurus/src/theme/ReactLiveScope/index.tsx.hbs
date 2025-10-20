@@ -1,0 +1,22 @@
+import React from 'react';
+import * as Icons from '@salutejs/plasma-icons';
+import * as Tokens from '@salutejs/{{ packageThemesName }}/tokens';
+import * as Package from '@salutejs/{{ packageName }}';
+import styled from 'styled-components';
+import { useForm, Controller } from 'react-hook-form';
+import { useComponentProps } from "../../contexts/ComponentPropsContext";
+
+// Add react-live imports you need here
+const ReactLiveScope = {
+React,
+styled,
+useForm,
+Controller,
+useComponentProps,
+...Icons,
+...Tokens,
+...Package,
+...React,
+};
+
+export default ReactLiveScope;
