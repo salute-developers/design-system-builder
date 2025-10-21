@@ -45,3 +45,6 @@ lerna-debug.log*
 # Output
 /output
 /tmp
+
+# Generated Documentation Projects (local only mode)
+/generated-docs

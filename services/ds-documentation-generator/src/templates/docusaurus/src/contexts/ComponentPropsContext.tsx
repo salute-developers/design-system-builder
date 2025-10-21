@@ -58,18 +58,18 @@ export const ComponentPropsProvider = ({ children, name }: {
 
 /**
  * Хук для доступа к props текущего компонента
- * Используется внутри live code blocks
+ * Используется исключительно для примеров внутри live code blocks
  *
  * @example
  * ```tsx live
  * function App() {
- *   const { componentProps } = useComponentProps();
+ *   const { componentProps } = useMockComponentProps();
  *   console.log(componentProps); // все props текущего компонента
  *   return <Button text="Hello" />;
  * }
  * ```
  */
-export const useComponentProps = (): ContextData => {
+export const useMockComponentProps = (): ContextData => {
   const context = useContext(ComponentPropsContext);
 
   if (context === undefined) {

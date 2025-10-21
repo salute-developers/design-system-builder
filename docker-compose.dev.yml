@@ -151,8 +151,27 @@ services:
       - ds-builder-network
     command: npm run start
 
+  # Documentation Generator Service
+  docs-generator:
+    build:
+      context: ./services/ds-documentation-generator
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      CLIENT_PROXY_URL: http://client-proxy:3003/api
+    ports:
+      - "3006:3006"
+    volumes:
+      - ./services/ds-documentation-generator:/home/node/app
+      - /home/node/app/node_modules
+      - /home/node/app/dist
+    command: npm run start:dev
+
 volumes:
   postgres_data_dev:
+    driver: local
+  docs_output:
     driver: local
 
 networks:

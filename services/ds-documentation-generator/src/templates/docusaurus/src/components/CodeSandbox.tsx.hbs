@@ -20,22 +20,25 @@ const dependencies = Object.entries(packageJson.dependencies)
 
 const indexSource = `
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import styled, { createGlobalStyle } from "styled-components";
-import { {{ underscore packageName }}__light } from "@salutejs/{{ packageThemesName }}";
+import { {{ underscore packageName }}__light } from "@salutejs-ds/{{ packageName }}";
 
 import { App } from "./App";
 import "./style.css";
 
 const Theme = createGlobalStyle({{ underscore packageName }}__light);
+const container = document.getElementById("root");
+const root = createRoot(container);
 
-ReactDOM.render(
+root.render(
     <>
         <Theme />
         <App />
-    </>,
-    document.getElementById("root")
-);`;
+    </>
+);
+
+`;
 
 export const CodeSandbox: FC<{ source: string }> = ({ source }) => {
     return (

@@ -13,12 +13,12 @@ import { PropsTable } from '@site/src/components';
 ## Быстрый старт
 
 ```tsx
-import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconButton } from '@salutejs-ds/{{ packageName }}';
 ```
 
 ```tsx live
 import React from 'react';
-import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconButton } from '@salutejs-ds/{{ packageName }}';
 import { IconClose } from '@salutejs/plasma-icons';
 
 export function App() {
@@ -38,11 +38,11 @@ return (
 
 ```tsx live
 import React from 'react';
-import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconButton } from '@salutejs-ds/{{ packageName }}';
 import { IconClose } from '@salutejs/plasma-icons';
 
 export function App() {
-const { viewList } = useComponentProps();
+const { viewList } = useMockComponentProps();
 
 return (
 <div className="flex-container">
@@ -63,11 +63,11 @@ return (
 
 ```tsx live
 import React from 'react';
-import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconButton } from '@salutejs-ds/{{ packageName }}';
 import { IconClose } from '@salutejs/plasma-icons';
 
 export function App() {
-const { sizeList } = useComponentProps();
+const { sizeList } = useMockComponentProps();
 
 return (
 <div>
@@ -91,7 +91,7 @@ return (
 
 ```tsx live
 import React from 'react';
-import { IconButton } from '@salutejs/{{ packageName }}';
+import { IconButton } from '@salutejs-ds/{{ packageName }}';
 import { IconClose } from '@salutejs/plasma-icons';
 
 export function App() {

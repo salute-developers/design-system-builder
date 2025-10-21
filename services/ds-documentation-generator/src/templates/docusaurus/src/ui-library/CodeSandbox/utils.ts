@@ -1,28 +1,28 @@
 /**
- * Mock реализация useComponentProps для CodeSandbox
+ * Mock реализация useMockComponentProps для CodeSandbox
  * В реальной документации этот хук получает данные из React Context
  */
 export const USE_COMPONENT_PROPS_MOCK = `
 import data from '../data/DATA.json';
 
-export function useComponentProps() {
+export function useMockComponentProps() {
   return data || { viewList: {}, sizeList: [] };
 }
 `.trim();
 
 /**
- * Проверяет, нужно ли добавлять импорт useComponentProps
+ * Проверяет, нужно ли добавлять импорт useMockComponentProps
  */
 const shouldAddImport = (source: string): boolean => {
-  // Проверяем, используется ли useComponentProps в коде
-  if (!source.includes("useComponentProps")) {
+  // Проверяем, используется ли useMockComponentProps в коде
+  if (!source.includes("useMockComponentProps")) {
     return false;
   }
 
-  // Проверяем, есть ли уже импорт useComponentProps
+  // Проверяем, есть ли уже импорт useMockComponentProps
   if (
-    source.includes("from './hooks/useComponentProps'") ||
-    source.includes('from "./hooks/useComponentProps"')
+    source.includes("from './hooks/useMockComponentProps'") ||
+    source.includes('from "./hooks/useMockComponentProps"')
   ) {
     return false;
   }
@@ -61,7 +61,7 @@ const findImportInsertIndex = (lines: string[]): number => {
 };
 
 /**
- * Добавляет импорт useComponentProps в код, если он используется
+ * Добавляет импорт useMockComponentProps в код, если он используется
  *
  * @param source - исходный код
  * @returns трансформированный код с добавленным импортом
@@ -72,7 +72,7 @@ const findImportInsertIndex = (lines: string[]): number => {
  * import React from 'react';
  *
  * export function App() {
- *   const { viewList } = useComponentProps();
+ *   const { viewList } = useMockComponentProps();
  *   return <div>...</div>;
  * }
  * `;
@@ -80,7 +80,7 @@ const findImportInsertIndex = (lines: string[]): number => {
  * const transformed = addUseComponentPropsImport(code);
  * // Результат:
  * // import React from 'react';
- * // import { useComponentProps } from './hooks/useComponentProps';
+ * // import { useMockComponentProps } from './hooks/useMockComponentProps';
  * //
  * // export function App() { ... }
  * ```
@@ -93,7 +93,7 @@ export const addUseComponentPropsImport = (source: string): string => {
   const lines = source.split("\n");
   const insertIndex = findImportInsertIndex(lines);
   const importStatement =
-    "import { useComponentProps } from './hooks/useComponentProps';";
+    "import { useMockComponentProps } from './hooks/useMockComponentProps';";
 
   lines.splice(insertIndex, 0, importStatement);
 

@@ -2,7 +2,16 @@ import { Injectable, Logger } from "@nestjs/common";
 import * as Handlebars from "handlebars";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { GenerateDocsDto } from "../modules/documentation/dto";
+
+/**
+ * Интерфейс для данных генерации проекта
+ */
+export interface GenerateProjectData {
+  projectName: string;
+  packageName: string;
+  packageVersion: string;
+  components: string[];
+}
 
 /**
  * Сервис для работы с Handlebars шаблонами
@@ -31,24 +40,24 @@ export class TemplateService {
 
   /**
    * Главный метод - генерирует полный Docusaurus проект во временной директории
-   * @param dto - Данные о пакете и компонентах
+   * @param data - Данные о пакете и компонентах
    * @param outputDir - Директория для сохранения проекта
    */
   async generateProject(
-    dto: GenerateDocsDto,
+    data: GenerateProjectData,
     outputDir: string,
   ): Promise<void> {
     this.logger.log(
       `Generating Docusaurus project from templates to: ${outputDir}`,
     );
 
-    const context = this.buildContext(dto);
+    const context = this.buildContext(data);
 
     await this.copyTemplateStructure(
       this.templatesDir,
       outputDir,
       context,
-      dto.components,
+      data.components,
     );
 
     this.logger.log("Docusaurus project generation completed");
@@ -138,17 +147,16 @@ export class TemplateService {
   }
 
   /**
-   * Строит контекст для Handlebars из DTO
-   * @param dto - Данные о пакете и компонентах
+   * Строит контекст для Handlebars из данных
+   * @param data - Данные о пакете и компонентах
    * @returns Контекст для шаблонов
    */
-  private buildContext(dto: GenerateDocsDto): Record<string, any> {
+  private buildContext(data: GenerateProjectData): Record<string, any> {
     return {
       // Для *.hbs шаблонов
-      packageName: dto.npm.name,
-      packageVersion: dto.npm.version,
-      packageThemesName: dto.npm.themesName,
-      packageThemesVersion: dto.npm.themesVersion,
+      projectName: data.projectName,
+      packageName: data.packageName,
+      packageVersion: data.packageVersion,
     };
   }
 }

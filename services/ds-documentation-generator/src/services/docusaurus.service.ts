@@ -37,7 +37,7 @@ export class DocusaurusService {
   /**
    * Собирает Docusaurus проект
    * @param projectDir - Путь к директории с проектом
-   * @param extraPackages - Дополнительные пакеты для установки (например @salutejs/*)
+   * @param extraPackages - Дополнительные пакеты для установки (например @salutejs-ds/*)
    * @returns Путь к директории с собранной документацией (build/)
    */
   async build(
@@ -95,7 +95,7 @@ export class DocusaurusService {
 
   /**
    * Устанавливает дополнительные npm пакеты
-   * (например @salutejs/sdds-finai, @salutejs/plasma-themes)
+   * (например @salutejs-ds/sdds_finai)
    * @param projectDir - Путь к директории проекта
    * @param packages - Список пакетов с версиями
    */

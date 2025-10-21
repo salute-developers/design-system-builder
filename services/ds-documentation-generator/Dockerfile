@@ -33,4 +33,4 @@ ENV PORT=3006
 
 EXPOSE 3006
 
-CMD ["npm", "start"]
+CMD ["node", "dist/main.js"]

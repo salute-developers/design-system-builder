@@ -5,7 +5,7 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import { usePrismTheme, useColorMode } from '@docusaurus/theme-common';
 import { PlaygroundPreview } from '@site/src/ui-library';
-import { {{ underscore packageName }}__dark, {{ underscore packageName }}__light } from '@salutejs/{{ packageThemesName }}';
+import { {{ underscore packageName }}__dark, {{ underscore packageName }}__light } from '@salutejs-ds/{{ packageName }}';
 import Translate from '@docusaurus/Translate';
 import clsx from 'clsx';
 
@@ -32,7 +32,7 @@ const StyledPlayground = styled.div`
 * Вырезаем блок с `import` чтобы полученный source вставить в блок "LIVE EDITOR".
 * @example
 * import React from 'react';
-* import { Button } from '@salutejs/sdds-serv';
+* import { Button } from '@salutejs-ds/sdds-serv';
 * // этот строки с import будет заменены на пустую строку
 * // будет взять только блок с function App
 *

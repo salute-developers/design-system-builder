@@ -2,7 +2,7 @@ import React, { FC, HTMLAttributes, useMemo } from "react";
 import { getParameters } from "codesandbox/lib/api/define";
 import styled from "styled-components";
 import qs from "qs";
-import { useComponentProps } from "../../contexts/ComponentPropsContext";
+import { useMockComponentProps } from "../../contexts/ComponentPropsContext";
 import {
   USE_COMPONENT_PROPS_MOCK,
   addUseComponentPropsImport,
@@ -64,10 +64,10 @@ export const CodeSandbox: FC<CodeSandboxProps> = ({
   indexSource,
   content,
 }) => {
-  const componentProps = useComponentProps();
+  const componentProps = useMockComponentProps();
 
   const parameters = useMemo(() => {
-    // Автоматически добавляем импорт useComponentProps, если он используется
+    // Автоматически добавляем импорт useMockComponentProps, если он используется
     const transformedSource = addUseComponentPropsImport(source);
 
     const files: Record<string, { isBinary: boolean; content: any }> = {
@@ -101,7 +101,7 @@ export const CodeSandbox: FC<CodeSandboxProps> = ({
         isBinary: false,
         content: JSON.stringify(componentProps, null, 2),
       },
-      "src/hooks/useComponentProps.js": {
+      "src/hooks/useMockComponentProps.js": {
         isBinary: false,
         content: USE_COMPONENT_PROPS_MOCK,
       },

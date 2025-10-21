@@ -34,15 +34,4 @@ ENV PORT=3006
 
 EXPOSE 3006
 
-CMD ["npm", "run", "start:dev"]
-
-## Билд образа
-# docker build -t ds-documentation-generator:dev -f Dockerfile.dev .
-
-## Запуск
-# docker run -d \
-#   --name ds-documentation-generator-dev \
-#   -p 3006:3006 \
-#   -v $(pwd):/home/node/app \
-#   -v /home/node/app/node_modules \
-#   ds-documentation-generator:dev
+CMD ["node", "dist/main.js"]

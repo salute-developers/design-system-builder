@@ -2,87 +2,51 @@ import { ApiProperty } from "@nestjs/swagger";
 import {
   IsString,
   IsNotEmpty,
-  IsArray,
-  ValidateNested,
-  IsDateString,
+  IsOptional,
+  IsBoolean,
+  IsNumber,
 } from "class-validator";
-import { Type } from "class-transformer";
 
 /**
- * DTO для информации о npm пакете
- */
-export class NpmDto {
-  /** Название npm пакета (короткое, без namespace) */
-  @ApiProperty({
-    example: "sdds-finai",
-    description:
-      "Package name without namespace (e.g., sdds-finai, plasma-giga)",
-  })
-  @IsString()
-  @IsNotEmpty()
-  name: string;
-
-  /** Версия npm пакета */
-  @ApiProperty({ example: "0.316.0" })
-  @IsString()
-  @IsNotEmpty()
-  version: string;
-
-  /** Название пакета с темами */
-  @ApiProperty({
-    example: "sdds-themes",
-    description: "Theme package name (without namespace)",
-  })
-  @IsString()
-  @IsNotEmpty()
-  themesName: string;
-
-  /** Версия пакета с темами */
-  @ApiProperty({
-    example: "0.47.0",
-    description: "Theme package version",
-  })
-  @IsString()
-  @IsNotEmpty()
-  themesVersion: string;
-}
-
-/**
- * DTO для входящего webhook payload с данными о компонентах
+ * DTO для запроса на генерацию документации
  */
 export class GenerateDocsDto {
-  /** Уникальный идентификатор payload */
+  /** Название проекта для отображения в документации */
   @ApiProperty({
-    example: "sdds-1",
-    description: "Unique payload identifier",
+    example: "FinAI Core",
+    description: "Project display name for documentation",
   })
   @IsString()
   @IsNotEmpty()
-  id: string;
+  projectName: string;
 
-  /** Временная метка создания payload */
+  /** Название npm пакета дизайн-системы */
   @ApiProperty({
-    example: "2025-10-02T12:00:00.000Z",
-    description: "Timestamp of the payload",
+    example: "sdds-serv",
+    description: "NPM package name of the design system",
   })
-  @IsDateString()
-  time: Date;
+  @IsString()
+  @IsNotEmpty()
+  packageName: string;
 
-  /** Информация о npm пакете (название и версия) */
+  /** Версия npm пакета дизайн-системы */
   @ApiProperty({
-    type: NpmDto,
-    description: "NPM package information",
+    example: "0.1.0",
+    description: "NPM package version of the design system",
   })
-  @ValidateNested()
-  @Type(() => NpmDto)
-  npm: NpmDto;
+  @IsString()
+  @IsNotEmpty()
+  packageVersion: string;
 
-  /** Массив названий компонентов из пакета */
+  /** Флаг для генерации только локально без сборки и деплоя */
   @ApiProperty({
-    example: ["Button", "Checkbox", "Radiobox"],
-    description: "Array of component names",
+    example: false,
+    description:
+      "Generate only local Docusaurus project without build and deploy to S3",
+    required: false,
+    default: false,
   })
-  @IsArray()
-  @IsString({ each: true })
-  components: string[];
+  @IsOptional()
+  @IsBoolean()
+  localOnly?: boolean;
 }

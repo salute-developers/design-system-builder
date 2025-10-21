@@ -88,15 +88,17 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./services/ds-documentation-generator:/home/node/app
-      - /home/node/app/node_modules
-      - /home/node/app/dist
       - docs_output:/home/node/app/output
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3006/api/docs || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:3006/api/documentation/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
 
 volumes:
   postgres_data:

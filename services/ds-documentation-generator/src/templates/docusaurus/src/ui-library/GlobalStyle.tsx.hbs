@@ -1,7 +1,6 @@
 import React, { FC } from "react";
 import { createGlobalStyle } from "styled-components";
-import { textAccent } from "@salutejs/{{ packageThemesName }}/tokens";
-import { {{ underscore packageName }}__dark, {{ underscore packageName }}__light } from '@salutejs/{{ packageThemesName }}';
+import { textAccent, {{ underscore packageName }}__dark, {{ underscore packageName }}__light } from '@salutejs-ds/{{ packageName }}';
 
 interface GlobalStyleProps {
   theme?: "light" | "dark";
@@ -12,9 +11,6 @@ const themes = {
   light: createGlobalStyle({{ underscore packageName }}__light ),
   dark: createGlobalStyle({{ underscore packageName }}__dark),
 };
-
-// TODO: За чем это в документации
-// const TypoTheme = createGlobalStyle(b2b);
 
 const DocStyle = createGlobalStyle`
     :root {

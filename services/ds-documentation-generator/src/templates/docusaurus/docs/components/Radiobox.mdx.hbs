@@ -12,7 +12,7 @@ import { PropsTable } from '@site/src/components';
 ## Быстрый старт
 
 ```tsx
-import { Radiobox } from '@salutejs/{{ packageName }}';
+import { Radiobox } from '@salutejs-ds/{{ packageName }}';
 ```
 
 Компонент может содержать `label` и `description`.
@@ -23,7 +23,7 @@ import { Radiobox } from '@salutejs/{{ packageName }}';
 
 ```tsx live
 import React from 'react';
-import { Radiobox } from '@salutejs/{{ packageName }}';
+import { Radiobox } from '@salutejs-ds/{{ packageName }}';
 
 export function App() {
     return (
@@ -47,7 +47,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Radiobox } from '@salutejs/{{ packageName }}';
+import { Radiobox } from '@salutejs-ds/{{ packageName }}';
 
 export function App() {
     return (
@@ -62,10 +62,10 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Radiobox } from '@salutejs/{{ packageName }}';
+import { Radiobox } from '@salutejs-ds/{{ packageName }}';
 
 export function App() {
-    const { sizeList } = useComponentProps();
+    const { sizeList } = useMockComponentProps();
 
     return (
         <div className="flex-container">
@@ -87,7 +87,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Radiobox } from '@salutejs/{{ packageName }}';
+import { Radiobox } from '@salutejs-ds/{{ packageName }}';
 
 export function App() {
     return (
@@ -96,26 +96,6 @@ export function App() {
           <Radiobox name="radio-1" label="SingleLine: true" description="Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris convallis, urna ac molestie luctus, urna odio sollicitudin arcu, sed pretium mi augue sed turpis." singleLine={true}/>
         </div>
     );
-}
-```
-
-## RadioGroup
-Компоненты `Radiobox` следует объединять в `RadioGroup`
-
-```tsx live
-import React from 'react';
-import { Radiobox, RadioGroup, H3 } from '@salutejs/{{ packageName }}';
-
-export function App() {
-  return (
-    <div className="flex-container">
-      <RadioGroup aria-labelledby="radiogroup-title-id">
-        <H3 id="radiogroup-title-id" className="mb-16">Тип платежа</H3>
-        <Radiobox className="mb-8" name="radio-1" label="Месячный" description="Списание раз в месяц" defaultChecked />
-        <Radiobox name="radio-1" label="Годовой" description="Списание раз в год" />
-      </RadioGroup>
-    </div>
-  )
 }
 ```
 

@@ -13,7 +13,7 @@ import ThemeTurnOn from './_theme-turn-on/theme-turn-on.mdx';
 import NextAppExample from './_examples/_init_next_app.mdx';
 import WepAppExample from './_examples/_init_web_app.mdx';
 
-# {{ uppercase packageName }}
+# {{ projectName }}
 
 Набор компонентов и утилит для создания web-приложений на базе [ReactJS](https://reactjs.org/).
 
@@ -32,7 +32,7 @@ import WepAppExample from './_examples/_init_web_app.mdx';
 :::
 
 ```bash
-$ npm install --save @salutejs/{{ packageName }} @salutejs/{{ packageThemesName }}
+$ npm install --save @salutejs-ds/{{ packageName }}
 ```
 
 Для работы со `styled-components`, необходимо установить
@@ -47,8 +47,7 @@ $ npm install --save styled-components@5.3.1
 
 ```jsx
 import styled from 'styled-components';
-import { Button } from '@salutejs/{{ packageName }}';
-import { textAccent } from '@salutejs/{{ packageThemesName }}/tokens';
+import { Button, textAccent } from '@salutejs-ds/{{ packageName }}';
 
 export const App = () => {
     const StyledP = styled.p`
