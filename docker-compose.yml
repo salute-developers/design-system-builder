@@ -59,7 +59,51 @@ services:
       - backend
     networks:
       - ds-builder-network
+    volumes:
+      - ./client-proxy/storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Documentation Generator Service
+  docs-generator:
+    build:
+      context: ./services/ds-documentation-generator
+      dockerfile: Dockerfile
+    container_name: ds-builder-docs-generator
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3006
+      OUTPUT_DIR: /home/node/app/output
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+    ports:
+      - "3006:3006"
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./services/ds-documentation-generator:/home/node/app
+      - /home/node/app/node_modules
+      - /home/node/app/dist
+      - docs_output:/home/node/app/output
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3006/api/docs || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  docs_output:
+    driver: local
 
 networks:
   ds-builder-network:
-    driver: bridge 
+    driver: bridge
