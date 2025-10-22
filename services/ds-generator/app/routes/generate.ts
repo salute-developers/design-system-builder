@@ -11,13 +11,7 @@ export const generateRoute = async (server: FastifyInstance) => {
     }>('/generate', async (request, reply) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
-        let int1;
-
         try {
-            int1 = setInterval(() => {
-                reply.raw.write('ping');
-            }, 10000);
-
             const { packageName, packageVersion, exportType } = request.body;
 
             const data = await fetch(
@@ -26,28 +20,32 @@ export const generateRoute = async (server: FastifyInstance) => {
 
             const { componentsData, themeData } = (await data.json()) as any;
 
-            reply.raw.writeHead(200, {
-                'Content-Type': 'application/octet-stream',
-                'Content-Disposition': `attachment; filename=${packageName}@${packageVersion}.${exportType}`,
-                'Access-Control-Allow-Origin': '*',
-            });
-
             const buffer = await generateDesignSystem(
                 { packageName, packageVersion, componentsData, themeData },
                 { pathToDir, exportType, coreVersion: CORE_VERSION },
             );
 
-            reply.raw.write(buffer);
+            // Создаем stream из буфера
+            const stream = require('stream');
+            const readable = new stream.Readable();
+            readable.push(buffer);
+            readable.push(null);
 
-            clearInterval(int1);
+            reply.header('Content-Type', 'application/octet-stream');
+            reply.header(
+                'Content-Disposition',
+                `attachment; filename="${packageName}@${packageVersion}.${exportType}"`,
+            );
+            reply.header('Content-Length', buffer.length);
+            reply.header('Access-Control-Allow-Origin', '*');
 
-            reply.raw.end('Stream finished');
+            return readable;
         } catch (err) {
-            clearInterval(int1);
-
             console.error(err);
-
-            reply.raw.end('Stream broken');
+            reply.status(500).send({
+                error: 'Generation failed',
+                message: err instanceof Error ? err.message : 'Unknown error',
+            });
         } finally {
             fs.rmSync(pathToDir, { recursive: true, force: true });
         }
