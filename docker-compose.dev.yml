@@ -135,10 +135,28 @@ services:
       - /home/node/app/node_modules
     command: npm run dev
 
+  # Publisher service
+  publisher:
+    build:
+      context: ./services/publisher
+      dockerfile: Dockerfile
+    container_name: ds-builder-publisher-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3007
+    ports:
+      - "3007:3007"
+    depends_on:
+      - generator
+    networks:
+      - ds-builder-network
+    command: npm run start
+
 volumes:
   postgres_data_dev:
     driver: local
 
 networks:
   ds-builder-network:
-    driver: bridge 
+    driver: bridge

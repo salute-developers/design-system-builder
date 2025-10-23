@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPM Publish Service</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="file"] { border: 2px dashed #ddd; background: #f9f9f9; }
+        button { background: #cb3837; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 10px 5px; }
+        button:hover { background: #a33130; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .secondary { background: #6c757d; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; padding: 15px; border-radius: 4px; margin: 15px 0; }
+        .file-info { background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .suggestion { background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+<h1>📦 NPM Publish Service</h1>
+<p>Публикация .tgz пакетов в npm registry</p>
+
+<form id="uploadForm" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="package">.tgz файл пакета:</label>
+        <input type="file" id="package" name="package" accept=".tgz,.tar.gz" required>
+        <small>Только файлы с расширением .tgz или .tar.gz</small>
+    </div>
+
+    <div class="form-group">
+        <label for="npmToken">NPM Токен:</label>
+        <input type="password" id="npmToken" name="npmToken" placeholder="npm_xxxxxxxxxxxxxxxx" required>
+        <small>Токен можно получить через: <code>npm token create</code> или на npmjs.com</small>
+    </div>
+
+    <button type="submit" id="publishBtn">🚀 Опубликовать в NPM</button>
+    <button type="button" id="validateBtn" class="secondary">🔍 Проверить файл</button>
+</form>
+
+<div id="validateResult"></div>
+<div id="publishResult"></div>
+
+<script>
+    document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+    document.getElementById('validateBtn').addEventListener('click', validateFile);
+
+    async function validateFile() {
+        const fileInput = document.getElementById('package');
+        if (!fileInput.files[0]) {
+            alert('Сначала выберите файл');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('package', fileInput.files[0]);
+
+        const resultDiv = document.getElementById('validateResult');
+
+        try {
+            const response = await fetch('/validate', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                resultDiv.className = 'info';
+                let html = `<h3>📋 Информация о файле</h3>`;
+                html += `<div class="file-info">`;
+                html += `<p><strong>Имя файла:</strong> ${data.fileInfo.filename}</p>`;
+                html += `<p><strong>Размер:</strong> ${data.fileInfo.sizeHuman}</p>`;
+                html += `<p><strong>Расширение:</strong> ${data.fileInfo.extension}</p>`;
+                html += `<p><strong>Тип:</strong> ${data.fileInfo.isTgz ? '✅ .tgz файл' : '⚠️ Не .tgz файл'}</p>`;
+                html += `</div>`;
+
+                if (data.suggestions && data.suggestions.length > 0) {
+                    html += `<div class="suggestion">`;
+                    html += `<strong>Рекомендации:</strong>`;
+                    data.suggestions.forEach(suggestion => {
+                        html += `<p>${suggestion}</p>`;
+                    });
+                    html += `</div>`;
+                }
+
+                resultDiv.innerHTML = html;
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (error) {
+            resultDiv.className = 'error';
+            resultDiv.innerHTML = `<p>Ошибка проверки: ${error.message}</p>`;
+        }
+    }
+
+    async function handleUpload(e) {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const resultDiv = document.getElementById('publishResult');
+        const publishBtn = document.getElementById('publishBtn');
+
+        publishBtn.disabled = true;
+        publishBtn.textContent = 'Публикация...';
+
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                resultDiv.className = 'success';
+                resultDiv.innerHTML = `
+                        <h3>✅ Успешно опубликовано!</h3>
+                        <p><strong>Пакет:</strong> ${data.package}</p>
+                        <p><strong>Версия:</strong> ${data.version}</p>
+                        <p><a href="${data.npmUrl}" target="_blank">📦 Посмотреть на NPM</a></p>
+                    `;
+
+                document.getElementById('npmToken').value = '';
+            } else {
+                throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+            }
+        } catch (error) {
+            resultDiv.className = 'error';
+            let html = `<h3>❌ Ошибка публикации</h3>`;
+            html += `<p>${error.message}</p>`;
+
+            if (error.message.includes('git')) {
+                html += `
+                        <div class="suggestion">
+                            <strong>Возможное решение:</strong>
+                            <p>npm неправильно интерпретирует файл. Убедитесь что:</p>
+                            <ul>
+                                <li>Файл имеет расширение .tgz</li>
+                                <li>Файл является валидным npm пакетом</li>
+                                <li>Попробуйте пересоздать пакет с помощью <code>npm pack</code></li>
+                            </ul>
+                        </div>
+                    `;
+            }
+
+            resultDiv.innerHTML = html;
+        } finally {
+            publishBtn.disabled = false;
+            publishBtn.textContent = '🚀 Опубликовать в NPM';
+        }
+    }
+</script>
+</body>
+</html>
