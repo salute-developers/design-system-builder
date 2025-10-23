@@ -3,6 +3,7 @@ import createApp from './app';
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3003;
 
 // Create app instance
+// @ts-ignore
 const app = createApp();
 
 app.listen(PORT, () => {

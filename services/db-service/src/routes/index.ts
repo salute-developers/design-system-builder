@@ -11,12 +11,13 @@ import { db } from '../db';
 
 const router = Router();
 
+const timeStart = new Date().toLocaleString();
+
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    startedAt: timeStart,
   });
 });
 

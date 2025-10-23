@@ -1,6 +1,6 @@
 {
   "name": "client-proxy",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "File system proxy for design system storage",
   "main": "dist/index.js",
   "scripts": {

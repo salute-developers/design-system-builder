@@ -21,6 +21,7 @@ export class MockIndexStore extends IndexStore {
     private indexPath: string;
 
     constructor(storageDir: string) {
+        // @ts-ignore
         super(storageDir);
         this.indexPath = path.join(storageDir, 'index.json');
         // Ensure the index file exists
@@ -44,7 +45,7 @@ export class MockIndexStore extends IndexStore {
         );
 
         const now = new Date().toISOString();
-        
+
         if (existingIndex >= 0) {
             // Update existing entry
             index.designSystems[existingIndex]!.updatedAt = now;

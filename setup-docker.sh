@@ -14,7 +14,7 @@
 #
 # Usage: ./setup-docker.sh [dev|prod]
 #   dev, development  - Start development environment
-#   prod, production  - Start production environment  
+#   prod, production  - Start production environment
 #   (no arguments)    - Interactive mode
 # =============================================================================
 
@@ -181,7 +181,7 @@ echo_success "PostgreSQL is ready"
 # Wait for backend to be ready
 echo_step "Waiting for backend to be ready..."
 timeout=60
-while ! docker-compose -f $COMPOSE_FILE exec -T backend curl -f http://localhost:3001/api/health > /dev/null 2>&1; do
+while ! docker-compose -f $COMPOSE_FILE exec -T db-service curl -f http://localhost:3001/health > /dev/null 2>&1; do
     sleep 2
     timeout=$((timeout - 2))
     if [ $timeout -le 0 ]; then
@@ -195,19 +195,19 @@ echo_success "Backend is ready"
 if [ "$FULL_SETUP" = true ]; then
     echo ""
     echo_header "🗄️ Setting up database..."
-    
+
     echo_step "Running migrations..."
-    if docker-compose -f $COMPOSE_FILE exec -T backend npx drizzle-kit migrate; then
+    if docker-compose -f $COMPOSE_FILE exec -T db-service npx drizzle-kit migrate; then
         echo_success "Migrations completed"
     else
         echo_error "Migrations failed"
         exit 1
     fi
-    
+
     # Only seed in development mode
     if [ "$ENV_NAME" = "development" ]; then
         echo_step "Seeding database with saved state..."
-        if docker-compose -f $COMPOSE_FILE exec -T backend npx ts-node src/db/seed-from-saved-state.ts; then
+        if docker-compose -f $COMPOSE_FILE exec -T db-service npx ts-node src/db/seed-from-saved-state.ts; then
             echo_success "Database seeding completed"
         else
             echo_error "Database seeding failed"
@@ -242,7 +242,7 @@ fi
 # Check Backend
 current_service=$((current_service + 1))
 show_progress $current_service $total_services "Checking Backend API..."
-if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
+if curl -f http://localhost:3001/health > /dev/null 2>&1; then
     echo_success "Backend API is healthy"
 else
     echo_error "Backend API is not healthy"
@@ -302,7 +302,7 @@ if [ "$services_healthy" = true ]; then
     echo ""
     echo_header "🎯 Test the CLI tool:"
     echo "   cd generate-ds && npm run dev 1 --dry-run"
-    
+
     if [ "$ENV_NAME" = "production" ]; then
         echo ""
         echo_info "Production mode: Database is ready for your data"

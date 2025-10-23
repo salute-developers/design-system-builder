@@ -14,10 +14,9 @@ RUN npm ci
 
 COPY --chown=node:node . .
 
-RUN npm run build
+EXPOSE 3003
 
-RUN npm ci --only=production
+CMD ["npm", "run", "dev"]
 
-EXPOSE 3001
 
-CMD ["npm", "start"]
+

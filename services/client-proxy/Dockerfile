@@ -1,6 +1,6 @@
 FROM node:22-alpine
 
-RUN apk add --no-cache curl
+ENV BACKEND_URL=https://plasma-db-service.dev.app.sberdevices.ru/api
 
 RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
 
@@ -18,6 +18,9 @@ RUN npm run build
 
 RUN npm ci --only=production
 
-EXPOSE 3001
+EXPOSE 3003
 
 CMD ["npm", "start"]
+
+
+
