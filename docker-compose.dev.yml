@@ -23,11 +23,11 @@ services:
       retries: 5
 
   # Backend API (Development)
-  backend:
+  db-service:
     build:
-      context: ./backend
+      context: ./services/db-service
       dockerfile: Dockerfile.dev
-    container_name: ds-builder-backend-dev
+    container_name: db-service-dev
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -46,9 +46,8 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./backend:/app
+      - ./services/db-service:/app
       - /app/node_modules
-    command: npm run dev
 
   # Frontend Application (Development)
   frontend:
@@ -62,7 +61,7 @@ services:
     ports:
       - "3000:5173"
     depends_on:
-      - backend
+      - db-service
     networks:
       - ds-builder-network
     volumes:
@@ -82,7 +81,7 @@ services:
     ports:
       - "3002:5173"
     depends_on:
-      - backend
+      - db-service
     networks:
       - ds-builder-network
     volumes:
@@ -93,24 +92,24 @@ services:
   # Client Proxy Service (Development)
   client-proxy:
     build:
-      context: ./client-proxy
+      context: ./services/client-proxy
       dockerfile: Dockerfile.dev
     container_name: ds-builder-client-proxy-dev
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3003
-      BACKEND_URL: http://backend:3001/api
+      BACKEND_URL: http://db-service:3001/api
     ports:
       - "3003:3003"
     depends_on:
-      - backend
+      - db-service
     networks:
       - ds-builder-network
     volumes:
-      - ./client-proxy:/app
+      - ./services/client-proxy:/app
       - /app/node_modules
-      - ./client-proxy/storage:/app/storage
+      - ./services/client-proxy/storage:/app/storage
     command: npm run dev
 
   # Generator web library

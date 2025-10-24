@@ -208,6 +208,7 @@ export const ApiResponseSchema = z.object({
 
 export const HealthResponseSchema = z.object({
     status: z.string(),
+    startedAt: z.string(),
     message: z.string(),
 });
 
