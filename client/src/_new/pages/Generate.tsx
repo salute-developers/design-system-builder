@@ -43,6 +43,8 @@ interface GenerateProps {
 }
 
 export const Generate = (props: GenerateProps) => {
+    const [tokenValue, setTokenValue] = useState<string>('');
+
     const navigate = useNavigate();
     const { designSystemName, designSystemVersion } = useParams();
 
@@ -65,7 +67,7 @@ export const Generate = (props: GenerateProps) => {
         return <div>Loading...</div>;
     }
 
-    const currentLocation = `${designSystem.getName()}/${designSystem.getVersion()}`;
+    const currentLocation = `${ designSystem.getName() }/${ designSystem.getVersion() }`;
 
     const exportTypes = [
         {
@@ -83,10 +85,18 @@ export const Generate = (props: GenerateProps) => {
     };
 
     const onGoComponents = () => {
-        navigate(`/${currentLocation}/components`);
+        navigate(`/${ currentLocation }/components`);
     };
 
     const onDesignSystemGenerate = async () => {
+        if (tokenValue) {
+            await generatePublish()
+        } else {
+            await generateDownload()
+        }
+    };
+
+    const generateDownload = async () => {
         const data = {
             packageName: designSystem.getName(),
             packageVersion: designSystem.getVersion(),
@@ -95,11 +105,9 @@ export const Generate = (props: GenerateProps) => {
             exportType,
         };
 
-        console.log('data', data);
-
         setIsLoading(true);
 
-        const result = await fetch(`${HOST}/generate`, {
+        const result = await fetch(`${ HOST }/generate-download`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -152,17 +160,43 @@ export const Generate = (props: GenerateProps) => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
+        a.download = `${ designSystem.getName() }@${ designSystem.getVersion() }.${ exportType }`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
 
         setIsLoading(false);
-    };
+    }
+
+    const generatePublish = async () => {
+        const data = {
+            packageName: designSystem.getName(),
+            packageVersion: designSystem.getVersion(),
+            // componentsMeta: designSystem.getComponentsData(),
+            // themeSource: designSystem.getThemeData('web'),
+            exportType,
+            npmToken: tokenValue,
+        };
+
+        setIsLoading(true);
+
+        const result = await fetch(`${ HOST }/generate-publish`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+        const resultResponse = await result.json();
+
+        console.log('Результат публикации :', resultResponse)
+
+        setIsLoading(false);
+    }
 
     return (
-        <PageWrapper designSystem={designSystem}>
+        <PageWrapper designSystem={ designSystem }>
             <StyledGenerateContent>
                 <StyledExportType>
                     <BodyM>Тип экспорта</BodyM>
@@ -170,19 +204,22 @@ export const Generate = (props: GenerateProps) => {
                         size="m"
                         listMaxHeight="25"
                         listOverflow="scroll"
-                        value={exportType}
-                        items={exportTypes}
-                        onChange={onChangeExportType}
+                        value={ exportType }
+                        items={ exportTypes }
+                        onChange={ onChangeExportType }
                     />
                 </StyledExportType>
             </StyledGenerateContent>
             <StyledActions>
-                <Button view="clear" onClick={onGoComponents} text="Назад" />
+                <input style={ { width: '400px' } } type="text" value={ tokenValue }
+                       onChange={ e => setTokenValue(e.target.value) }
+                       placeholder="Введи npm-токен чтобы опубликовать пакет"/>
+                <Button view="clear" onClick={ onGoComponents } text="Назад"/>
                 <Button
                     view="primary"
-                    onClick={onDesignSystemGenerate}
-                    disabled={isLoading}
-                    isLoading={isLoading}
+                    onClick={ onDesignSystemGenerate }
+                    disabled={ isLoading }
+                    isLoading={ isLoading }
                     text="Создать дизайн систему"
                 />
             </StyledActions>

@@ -293,6 +293,15 @@ app.post('/validate', upload.single('package'), async (req, res) => {
     }
 });
 
+const timeStart = new Date().toLocaleString();
+
+app.get('/health', async (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        startedAt: timeStart,
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Сервер запущен на порту ${PORT}`);
     console.log(`Uploads directory: ${path.resolve('./uploads')}`);

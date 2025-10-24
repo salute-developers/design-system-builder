@@ -123,6 +123,7 @@ services:
       NODE_ENV: development
       PORT: 3005
       CLIENT_PROXY_URL: http://client-proxy:3003/api
+      PUBLISHER_URL: http://publisher:3007
     ports:
       - "3005:3005"
     depends_on:
@@ -146,8 +147,6 @@ services:
       PORT: 3007
     ports:
       - "3007:3007"
-    depends_on:
-      - generator
     networks:
       - ds-builder-network
     command: npm run start
