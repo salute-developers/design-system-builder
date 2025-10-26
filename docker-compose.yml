@@ -26,7 +26,7 @@ services:
   # Backend API
   backend:
     build:
-      context: ./backend
+      context: ./services/db-service
       dockerfile: Dockerfile
     container_name: ds-builder-backend
     restart: unless-stopped
@@ -47,7 +47,7 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./backend:/app
+      - ./services/db-service:/app
       - /app/node_modules
       - /app/dist
     healthcheck:
@@ -99,7 +99,7 @@ services:
   # Client Proxy Service
   client-proxy:
     build:
-      context: ./client-proxy
+      context: ./services/client-proxy
       dockerfile: Dockerfile
     container_name: ds-builder-client-proxy
     restart: unless-stopped
@@ -115,7 +115,7 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./client-proxy/storage:/app/storage
+      - ./services/client-proxy/storage:/app/storage
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
       interval: 30s
