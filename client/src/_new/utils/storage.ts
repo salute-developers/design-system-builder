@@ -1,8 +1,8 @@
 import type { Meta } from '../../componentBuilder';
 import type { ThemeSource } from '../../designSystem';
 
-// Proxy server configuration
-const PROXY_SERVER_URL = 'http://localhost:3003';
+// Proxy server configuration - use env var at build time, fallback to localhost
+const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
 
 // Helper function to handle API calls
 const apiCall = async (url: string, options: RequestInit = {}) => {

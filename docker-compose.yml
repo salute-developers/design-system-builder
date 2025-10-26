@@ -16,16 +16,14 @@ services:
       - "3001:3001"
     networks:
       - ds-builder-network
-    volumes:
-      - ./services/db-service:/app
-      - /app/node_modules
-      - /app/dist
 
   # Frontend Application
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:3001}
     container_name: ds-builder-frontend
     restart: unless-stopped
     ports:
@@ -45,6 +43,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        VITE_PROXY_SERVER_URL: ${VITE_PROXY_SERVER_URL:-http://client-proxy:3003}
     container_name: ds-builder-client
     restart: unless-stopped
     ports:
@@ -76,8 +76,6 @@ services:
       - backend
     networks:
       - ds-builder-network
-    volumes:
-      - ./services/client-proxy/storage:/app/storage
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
       interval: 30s

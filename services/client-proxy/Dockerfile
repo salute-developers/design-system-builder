@@ -1,5 +1,6 @@
 FROM node:22-alpine
 
+# Default BACKEND_URL - can be overridden by docker-compose environment variables
 ENV BACKEND_URL=https://plasma-db-service.dev.app.sberdevices.ru/api
 
 RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app

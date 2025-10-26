@@ -4,6 +4,10 @@ FROM node:20-alpine AS builder
 # Set working directory
 WORKDIR /app
 
+# Accept build arguments for Vite env vars
+ARG VITE_PROXY_SERVER_URL
+ENV VITE_PROXY_SERVER_URL=$VITE_PROXY_SERVER_URL
+
 # Copy package files
 COPY package*.json ./
 
