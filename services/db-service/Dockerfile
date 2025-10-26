@@ -18,4 +18,4 @@ RUN npm ci --only=production
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npm run migrate && npm start"]
+CMD ["sh", "-c", " npm start"]
