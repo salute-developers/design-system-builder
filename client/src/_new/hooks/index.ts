@@ -4,3 +4,4 @@ export { useStory } from './useStory';
 export { useGlobalKeyDown } from './useGlobalKeyDown';
 export { useInputDynamicWidth } from './useInputDynamicWidth';
 export { useHorizontalDraggable } from './useHorizontalDraggable';
+export { useDesignSystem } from './useDesignSystem';
