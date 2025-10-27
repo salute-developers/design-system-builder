@@ -11,10 +11,10 @@ const getDarkSet = ({
     fillAccentColor,
     grayscale,
 }: Omit<ThemeConfig, 'name'>): Record<string, string> => ({
-    'dark.text.default.primary': alphenColor(baseColors.white.value, -0.04, 'hexa', true),
-    'dark.text.default.secondary': alphenColor(baseColors.white.value, -0.44, 'hexa', true),
-    'dark.text.default.tertiary': alphenColor(baseColors.white.value, -0.72, 'hexa', true),
-    'dark.text.default.paragraph': alphenColor(baseColors.white.value, -0.2, 'hexa', true),
+    'dark.text.default.primary': `[general.${grayscale.dark}.50][0.96]`,
+    'dark.text.default.secondary': `[general.${grayscale.dark}.50][0.56]`,
+    'dark.text.default.tertiary': `[general.${grayscale.dark}.50][0.28]`,
+    'dark.text.default.paragraph': `[general.${grayscale.dark}.50][0.8]`,
     'dark.text.default.accent': shiftAccentColor(strokeAccentColor.dark, 'dark'),
     'dark.text.default.accent-minor': updateColorSaturation(strokeAccentColor.dark, 800),
     'dark.text.default.promo': baseColors.white.value,
@@ -44,11 +44,11 @@ const getDarkSet = ({
     'dark.surface.default.solid-tertiary': `[general.${grayscale.dark}.850]`,
     'dark.surface.default.solid-card': `[general.${grayscale.dark}.950]`,
     'dark.surface.default.solid-default': `[general.${grayscale.dark}.50]`,
-    'dark.surface.default.transparent-primary': alphenColor(baseColors.white.value, -0.94, 'hexa', true),
-    'dark.surface.default.transparent-secondary': alphenColor(baseColors.white.value, -0.88, 'hexa', true),
-    'dark.surface.default.transparent-tertiary': alphenColor(baseColors.white.value, -0.8, 'hexa', true),
-    'dark.surface.default.transparent-deep': alphenColor(baseColors.white.value, -0.36, 'hexa', true),
-    'dark.surface.default.transparent-card': alphenColor(baseColors.white.value, -0.94, 'hexa', true),
+    'dark.surface.default.transparent-primary': `[general.${grayscale.dark}.50][0.06]`,
+    'dark.surface.default.transparent-secondary': `[general.${grayscale.dark}.50][0.12]`,
+    'dark.surface.default.transparent-tertiary': `[general.${grayscale.dark}.50][0.2]`,
+    'dark.surface.default.transparent-deep': `[general.${grayscale.dark}.50][0.64]`,
+    'dark.surface.default.transparent-card': `[general.${grayscale.dark}.50][0.06]`,
     'dark.surface.default.clear': baseColors.clear.value,
     'dark.surface.default.accent': fillAccentColor.dark,
     'dark.surface.default.accent-minor': updateColorSaturation(fillAccentColor.dark, 900),
@@ -84,9 +84,9 @@ const getDarkSet = ({
     'dark.outline.default.solid-secondary': `[general.${grayscale.dark}.800]`,
     'dark.outline.default.solid-tertiary': `[general.${grayscale.dark}.500]`,
     'dark.outline.default.solid-default': `[general.${grayscale.dark}.50]`,
-    'dark.outline.default.transparent-primary': alphenColor(baseColors.white.value, -0.88, 'hexa', true),
-    'dark.outline.default.transparent-secondary': alphenColor(baseColors.white.value, -0.72, 'hexa', true),
-    'dark.outline.default.transparent-tertiary': alphenColor(baseColors.white.value, -0.44, 'hexa', true),
+    'dark.outline.default.transparent-primary': `[general.${grayscale.dark}.50][0.12]`,
+    'dark.outline.default.transparent-secondary': `[general.${grayscale.dark}.50][0.28]`,
+    'dark.outline.default.transparent-tertiary': `[general.${grayscale.dark}.50][0.56]`,
     'dark.outline.default.clear': baseColors.clear.value,
     'dark.outline.default.accent': shiftAccentColor(strokeAccentColor.dark, 'dark'),
     'dark.outline.default.accent-minor': updateColorSaturation(strokeAccentColor.dark, 800),
@@ -281,7 +281,7 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
             const [onDarkName, onLightName, inverseName] = getTokensNames(name);
 
             const mode = 'dark';
-            const hoverAndActiveColorTokens = {
+            const additionalColorTokens = {
                 ...getAdditionalColorThemeTokens(name, darkValue, mode),
                 ...getAdditionalColorThemeTokens(onDarkName, darkValue, mode),
                 ...getAdditionalColorThemeTokens(onLightName, lightValue, mode),
@@ -294,7 +294,7 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
                 [onDarkName]: darkValue,
                 [onLightName]: lightValue,
                 [inverseName]: lightValue,
-                ...hoverAndActiveColorTokens,
+                ...additionalColorTokens,
             };
         },
         {},
@@ -308,7 +308,7 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
             const [onDarkName, onLightName, inverseName] = getTokensNames(name);
 
             const mode = 'light';
-            const hoverAndActiveColorTokens = {
+            const additionalColorTokens = {
                 ...getAdditionalColorThemeTokens(name, lightValue, mode),
                 ...getAdditionalColorThemeTokens(onDarkName, darkValue, mode),
                 ...getAdditionalColorThemeTokens(onLightName, lightValue, mode),
@@ -321,7 +321,7 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
                 [onDarkName]: darkValue,
                 [onLightName]: lightValue,
                 [inverseName]: darkValue,
-                ...hoverAndActiveColorTokens,
+                ...additionalColorTokens,
             };
         },
         {},
