@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { Combobox, Select, TextField } from '@salutejs/plasma-b2c';
 
-import { Slider } from '../../components';
+import { SliderOld } from '../../components';
 import type { Theme } from '../../../themeBuilder';
 import { useMemo } from 'react';
 
@@ -11,7 +11,7 @@ const StyledTokenInput = styled.div`
     min-width: 22rem;
 `;
 
-const StyledTokenSlider = styled(Slider)`
+const StyledTokenSlider = styled(SliderOld)`
     width: 80%;
 `;
 
