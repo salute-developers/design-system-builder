@@ -70,7 +70,7 @@ const StyledWrapper = styled.div<{ backgroundColor?: string; saturationType?: Sa
 const StyledText = styled.div<{ color?: string; saturationType?: SaturationType }>`
     color: ${({ saturationType, color }) => (saturationType ? color : textSecondary)};
 
-     ${h6 as CSSObject};
+    ${h6 as CSSObject};
 `;
 
 const StyledContentLeft = styled.div`
@@ -106,10 +106,6 @@ const StyledWarningText = styled.div`
     ${bodyXXS as CSSObject};
 `;
 
-const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
-`;
-
 const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
     margin-right: 0.25rem;
     margin-left: 0.375rem;
@@ -123,12 +119,13 @@ interface EditButtonProps extends HTMLAttributes<HTMLDivElement> {
     color?: string;
     view?: ViewType;
     contentLeft?: ReactNode;
+    contentRight?: ReactNode;
     saturationType?: SaturationType;
     isReady?: boolean;
 }
 
 export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, ref) => {
-    const { label, text, view, color, saturationType, contentLeft, isReady, ...rest } = props;
+    const { label, text, view, color, saturationType, contentLeft, contentRight, isReady, ...rest } = props;
 
     const backgroundColor = view === 'light' ? '#FFFFFF' : '#000000';
     const threshold = saturationType === 'stroke' ? 3 : 2;
@@ -145,9 +142,11 @@ export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, re
                 <StyledText color={textColor} saturationType={saturationType}>
                     {text}
                 </StyledText>
-                <StyledContentRight color={textColor} saturationType={saturationType}>
-                    <StyledIconArrowsMoveVertical color="inherit" />
-                </StyledContentRight>
+                {contentRight && (
+                    <StyledContentRight color={textColor} saturationType={saturationType}>
+                        {contentRight}
+                    </StyledContentRight>
+                )}
             </StyledWrapper>
             {!isColorContrast && saturationType && (
                 <StyledWarning>
