@@ -6,7 +6,7 @@ import { getDataTokens } from '../../utils';
 import { TokensMenu, Workspace } from '../../components';
 import { Theme } from '../../../themeBuilder';
 import { DesignSystem } from '../../../designSystem';
-import { TokenShapeEditor } from '../theme/TokenShapeEditor';
+import { TokenShapeEditor } from '../theme';
 import { Token } from '../../../themeBuilder/tokens/token';
 
 interface ShapesOutletContextProps {

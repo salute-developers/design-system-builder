@@ -6,7 +6,7 @@ import { getDataTokens } from '../../utils';
 import { TokensMenu, Workspace } from '../../components';
 import { Theme } from '../../../themeBuilder';
 import { DesignSystem } from '../../../designSystem';
-import { TokenTypographyEditor } from '../theme/TokenTypographyEditor';
+import { TokenTypographyEditor } from '../theme';
 import { Token } from '../../../themeBuilder/tokens/token';
 
 interface TypographyOutletContextProps {
