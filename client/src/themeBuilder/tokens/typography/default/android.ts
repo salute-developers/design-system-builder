@@ -19,6 +19,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 92,
         letterSpacing: 0,
     },
+    'screen-s.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 88,
+        lineHeight: 92,
+        letterSpacing: 0,
+    },
     'screen-s.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 300,
@@ -30,6 +38,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 56,
+        lineHeight: 62,
+        letterSpacing: 0,
+    },
+    'screen-s.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 56,
         lineHeight: 62,
@@ -51,6 +67,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 46,
         letterSpacing: 0,
     },
+    'screen-s.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 40,
+        lineHeight: 46,
+        letterSpacing: 0,
+    },
     'screen-s.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -62,6 +86,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 28,
+        lineHeight: 34,
+        letterSpacing: 0,
+    },
+    'screen-s.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 28,
         lineHeight: 34,
@@ -83,6 +115,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 30,
         letterSpacing: 0,
     },
+    'screen-s.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 24,
+        lineHeight: 30,
+        letterSpacing: 0,
+    },
     'screen-s.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -94,6 +134,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 20,
+        lineHeight: 26,
+        letterSpacing: 0,
+    },
+    'screen-s.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 20,
         lineHeight: 26,
@@ -115,6 +163,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 24,
         letterSpacing: 0,
     },
+    'screen-s.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 24,
+        letterSpacing: 0,
+    },
     'screen-s.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -126,6 +182,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 22,
+        letterSpacing: 0,
+    },
+    'screen-s.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 16,
         lineHeight: 22,
@@ -147,6 +211,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 22,
         letterSpacing: -0.02,
     },
+    'screen-s.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 22,
+        letterSpacing: -0.02,
+    },
     'screen-s.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -158,6 +230,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
+    'screen-s.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 16,
         lineHeight: 20,
@@ -179,6 +259,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 18,
         letterSpacing: -0.02,
     },
+    'screen-s.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 18,
+        letterSpacing: -0.02,
+    },
     'screen-s.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -190,6 +278,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 14,
+        letterSpacing: -0.02,
+    },
+    'screen-s.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 12,
         lineHeight: 14,
@@ -211,6 +307,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 12,
         letterSpacing: -0.02,
     },
+    'screen-s.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 10,
+        lineHeight: 12,
+        letterSpacing: -0.02,
+    },
     'screen-s.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -222,6 +326,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 26,
+        letterSpacing: -0.02,
+    },
+    'screen-s.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 18,
         lineHeight: 26,
@@ -243,6 +355,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 24,
         letterSpacing: -0.02,
     },
+    'screen-s.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 24,
+        letterSpacing: -0.02,
+    },
     'screen-s.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -254,6 +374,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-s.text.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
+    'screen-s.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 14,
         lineHeight: 20,
@@ -275,6 +403,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 16,
         letterSpacing: -0.02,
     },
+    'screen-s.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 16,
+        letterSpacing: -0.02,
+    },
     'screen-m.display.l.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 300,
@@ -286,6 +422,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.display.l.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 112,
+        lineHeight: 112,
+        letterSpacing: 0,
+    },
+    'screen-m.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 112,
         lineHeight: 112,
@@ -307,6 +451,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 76,
         letterSpacing: 0,
     },
+    'screen-m.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 72,
+        lineHeight: 76,
+        letterSpacing: 0,
+    },
     'screen-m.display.s.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 300,
@@ -318,6 +470,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.display.s.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 48,
+        lineHeight: 54,
+        letterSpacing: 0,
+    },
+    'screen-m.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 48,
         lineHeight: 54,
@@ -339,6 +499,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 46,
         letterSpacing: 0,
     },
+    'screen-m.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 40,
+        lineHeight: 46,
+        letterSpacing: 0,
+    },
     'screen-m.header.h2.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -350,6 +518,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.header.h2.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 28,
+        lineHeight: 34,
+        letterSpacing: 0,
+    },
+    'screen-m.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 28,
         lineHeight: 34,
@@ -371,6 +547,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 26,
         letterSpacing: 0,
     },
+    'screen-m.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 20,
+        lineHeight: 26,
+        letterSpacing: 0,
+    },
     'screen-m.header.h4.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -382,6 +566,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.header.h4.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 24,
+        letterSpacing: 0,
+    },
+    'screen-m.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 18,
         lineHeight: 24,
@@ -403,6 +595,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 22,
         letterSpacing: 0,
     },
+    'screen-m.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 22,
+        letterSpacing: 0,
+    },
     'screen-m.body.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -414,6 +614,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.body.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 22,
+        letterSpacing: -0.02,
+    },
+    'screen-m.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 18,
         lineHeight: 22,
@@ -435,6 +643,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 20,
         letterSpacing: -0.02,
     },
+    'screen-m.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
     'screen-m.body.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -446,6 +662,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.body.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 18,
+        letterSpacing: -0.02,
+    },
+    'screen-m.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 14,
         lineHeight: 18,
@@ -467,6 +691,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 14,
         letterSpacing: -0.02,
     },
+    'screen-m.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 14,
+        letterSpacing: -0.02,
+    },
     'screen-m.body.xxs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -478,6 +710,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.body.xxs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 10,
+        lineHeight: 12,
+        letterSpacing: -0.02,
+    },
+    'screen-m.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 10,
         lineHeight: 12,
@@ -499,6 +739,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 28,
         letterSpacing: -0.02,
     },
+    'screen-m.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 20,
+        lineHeight: 28,
+        letterSpacing: -0.02,
+    },
     'screen-m.text.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -510,6 +758,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.text.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 24,
+        letterSpacing: -0.02,
+    },
+    'screen-m.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 16,
         lineHeight: 24,
@@ -531,6 +787,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 20,
         letterSpacing: -0.02,
     },
+    'screen-m.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
     'screen-m.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -542,6 +806,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-m.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 16,
+        letterSpacing: -0.02,
+    },
+    'screen-m.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 12,
         lineHeight: 16,
@@ -563,6 +835,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 128,
         letterSpacing: 0,
     },
+    'screen-l.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 128,
+        lineHeight: 128,
+        letterSpacing: 0,
+    },
     'screen-l.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 300,
@@ -574,6 +854,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 88,
+        lineHeight: 92,
+        letterSpacing: 0,
+    },
+    'screen-l.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 88,
         lineHeight: 92,
@@ -595,6 +883,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 68,
         letterSpacing: 0,
     },
+    'screen-l.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 64,
+        lineHeight: 68,
+        letterSpacing: 0,
+    },
     'screen-l.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -606,6 +902,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 48,
+        lineHeight: 54,
+        letterSpacing: 0,
+    },
+    'screen-l.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 48,
         lineHeight: 54,
@@ -627,6 +931,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 38,
         letterSpacing: 0,
     },
+    'screen-l.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 32,
+        lineHeight: 38,
+        letterSpacing: 0,
+    },
     'screen-l.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -638,6 +950,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 24,
+        lineHeight: 30,
+        letterSpacing: 0,
+    },
+    'screen-l.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 24,
         lineHeight: 30,
@@ -659,6 +979,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 26,
         letterSpacing: 0,
     },
+    'screen-l.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 20,
+        lineHeight: 26,
+        letterSpacing: 0,
+    },
     'screen-l.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 400,
@@ -670,6 +998,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 24,
+        letterSpacing: 0,
+    },
+    'screen-l.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 18,
         lineHeight: 24,
@@ -691,6 +1027,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 22,
         letterSpacing: -0.02,
     },
+    'screen-l.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 22,
+        letterSpacing: -0.02,
+    },
     'screen-l.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -702,6 +1046,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 16,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
+    'screen-l.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 16,
         lineHeight: 20,
@@ -723,6 +1075,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 18,
         letterSpacing: -0.02,
     },
+    'screen-l.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 18,
+        letterSpacing: -0.02,
+    },
     'screen-l.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -734,6 +1094,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 14,
+        letterSpacing: -0.02,
+    },
+    'screen-l.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 12,
         lineHeight: 14,
@@ -755,6 +1123,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 12,
         letterSpacing: -0.02,
     },
+    'screen-l.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 10,
+        lineHeight: 12,
+        letterSpacing: -0.02,
+    },
     'screen-l.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -766,6 +1142,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 24,
+        lineHeight: 32,
+        letterSpacing: -0.02,
+    },
+    'screen-l.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 24,
         lineHeight: 32,
@@ -787,6 +1171,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 26,
         letterSpacing: -0.02,
     },
+    'screen-l.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 18,
+        lineHeight: 26,
+        letterSpacing: -0.02,
+    },
     'screen-l.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -803,6 +1195,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
         lineHeight: 20,
         letterSpacing: -0.02,
     },
+    'screen-l.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
+        fontStyle: 'normal',
+        textSize: 14,
+        lineHeight: 20,
+        letterSpacing: -0.02,
+    },
     'screen-l.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 400,
@@ -814,6 +1214,14 @@ export const getAndroidTokens = (config: ThemeConfig): AndroidTypographyToken =>
     'screen-l.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: 600,
+        fontStyle: 'normal',
+        textSize: 12,
+        lineHeight: 16,
+        letterSpacing: -0.02,
+    },
+    'screen-l.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: 500,
         fontStyle: 'normal',
         textSize: 12,
         lineHeight: 16,

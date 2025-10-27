@@ -19,6 +19,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '5.75rem',
         letterSpacing: 'normal',
     },
+    'screen-s.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '5.5rem',
+        lineHeight: '5.75rem',
+        letterSpacing: 'normal',
+    },
     'screen-s.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '300',
@@ -30,6 +38,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '3.5rem',
+        lineHeight: '3.875rem',
+        letterSpacing: 'normal',
+    },
+    'screen-s.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '3.5rem',
         lineHeight: '3.875rem',
@@ -51,6 +67,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '2.875rem',
         letterSpacing: 'normal',
     },
+    'screen-s.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '2.5rem',
+        lineHeight: '2.875rem',
+        letterSpacing: 'normal',
+    },
     'screen-s.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -62,6 +86,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.75rem',
+        lineHeight: '2.125rem',
+        letterSpacing: 'normal',
+    },
+    'screen-s.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.75rem',
         lineHeight: '2.125rem',
@@ -83,6 +115,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.875rem',
         letterSpacing: 'normal',
     },
+    'screen-s.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.5rem',
+        lineHeight: '1.875rem',
+        letterSpacing: 'normal',
+    },
     'screen-s.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -94,6 +134,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.25rem',
+        lineHeight: '1.625rem',
+        letterSpacing: 'normal',
+    },
+    'screen-s.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.25rem',
         lineHeight: '1.625rem',
@@ -115,6 +163,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.5rem',
         letterSpacing: 'normal',
     },
+    'screen-s.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.5rem',
+        letterSpacing: 'normal',
+    },
     'screen-s.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -126,6 +182,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.375rem',
+        letterSpacing: 'normal',
+    },
+    'screen-s.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1rem',
         lineHeight: '1.375rem',
@@ -147,6 +211,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.375rem',
         letterSpacing: '-0.02em',
     },
+    'screen-s.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.375rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-s.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -158,6 +230,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-s.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1rem',
         lineHeight: '1.25rem',
@@ -179,6 +259,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.125rem',
         letterSpacing: '-0.02em',
     },
+    'screen-s.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.125rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-s.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -190,6 +278,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '0.875rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-s.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.75rem',
         lineHeight: '0.875rem',
@@ -211,6 +307,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '0.75rem',
         letterSpacing: '-0.02em',
     },
+    'screen-s.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.625rem',
+        lineHeight: '0.75rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-s.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -222,6 +326,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.625rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-s.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.125rem',
         lineHeight: '1.625rem',
@@ -243,6 +355,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.5rem',
         letterSpacing: '-0.02em',
     },
+    'screen-s.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.5rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-s.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -254,6 +374,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-s.text.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-s.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.875rem',
         lineHeight: '1.25rem',
@@ -275,6 +403,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1rem',
         letterSpacing: '-0.02em',
     },
+    'screen-s.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '1rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-m.display.l.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '300',
@@ -286,6 +422,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.display.l.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '7rem',
+        lineHeight: '7rem',
+        letterSpacing: 'normal',
+    },
+    'screen-m.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '7rem',
         lineHeight: '7rem',
@@ -307,6 +451,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '4.75rem',
         letterSpacing: 'normal',
     },
+    'screen-m.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '4.5rem',
+        lineHeight: '4.75rem',
+        letterSpacing: 'normal',
+    },
     'screen-m.display.s.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '300',
@@ -318,6 +470,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.display.s.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '3rem',
+        lineHeight: '3.375rem',
+        letterSpacing: 'normal',
+    },
+    'screen-m.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '3rem',
         lineHeight: '3.375rem',
@@ -339,6 +499,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '2.875rem',
         letterSpacing: 'normal',
     },
+    'screen-m.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '2.5rem',
+        lineHeight: '2.875rem',
+        letterSpacing: 'normal',
+    },
     'screen-m.header.h2.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -350,6 +518,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.header.h2.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.75rem',
+        lineHeight: '2.125rem',
+        letterSpacing: 'normal',
+    },
+    'screen-m.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.75rem',
         lineHeight: '2.125rem',
@@ -371,6 +547,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.625rem',
         letterSpacing: 'normal',
     },
+    'screen-m.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.25rem',
+        lineHeight: '1.625rem',
+        letterSpacing: 'normal',
+    },
     'screen-m.header.h4.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -382,6 +566,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.header.h4.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.5rem',
+        letterSpacing: 'normal',
+    },
+    'screen-m.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.125rem',
         lineHeight: '1.5rem',
@@ -403,6 +595,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.375rem',
         letterSpacing: 'normal',
     },
+    'screen-m.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.375rem',
+        letterSpacing: 'normal',
+    },
     'screen-m.body.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -414,6 +614,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.body.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.375rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-m.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.125rem',
         lineHeight: '1.375rem',
@@ -435,6 +643,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.25rem',
         letterSpacing: '-0.02em',
     },
+    'screen-m.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-m.body.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -446,6 +662,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.body.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.125rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-m.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.875rem',
         lineHeight: '1.125rem',
@@ -467,6 +691,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '0.875rem',
         letterSpacing: '-0.02em',
     },
+    'screen-m.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '0.875rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-m.body.xxs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -478,6 +710,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.body.xxs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.625rem',
+        lineHeight: '0.75rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-m.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.625rem',
         lineHeight: '0.75rem',
@@ -499,6 +739,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.75rem',
         letterSpacing: '-0.02em',
     },
+    'screen-m.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.25rem',
+        lineHeight: '1.75rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-m.text.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -510,6 +758,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.text.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.5rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-m.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1rem',
         lineHeight: '1.5rem',
@@ -531,6 +787,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.25rem',
         letterSpacing: '-0.02em',
     },
+    'screen-m.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-m.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -542,6 +806,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-m.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '1rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-m.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.75rem',
         lineHeight: '1rem',
@@ -563,6 +835,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '8rem',
         letterSpacing: 'normal',
     },
+    'screen-l.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '8rem',
+        lineHeight: '8rem',
+        letterSpacing: 'normal',
+    },
     'screen-l.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '300',
@@ -574,6 +854,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '5.5rem',
+        lineHeight: '5.75rem',
+        letterSpacing: 'normal',
+    },
+    'screen-l.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '5.5rem',
         lineHeight: '5.75rem',
@@ -595,6 +883,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '4.25rem',
         letterSpacing: 'normal',
     },
+    'screen-l.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '4rem',
+        lineHeight: '4.25rem',
+        letterSpacing: 'normal',
+    },
     'screen-l.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -606,6 +902,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '3rem',
+        lineHeight: '3.375rem',
+        letterSpacing: 'normal',
+    },
+    'screen-l.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '3rem',
         lineHeight: '3.375rem',
@@ -627,6 +931,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '2.375rem',
         letterSpacing: 'normal',
     },
+    'screen-l.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '2rem',
+        lineHeight: '2.375rem',
+        letterSpacing: 'normal',
+    },
     'screen-l.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -638,6 +950,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.5rem',
+        lineHeight: '1.875rem',
+        letterSpacing: 'normal',
+    },
+    'screen-l.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.5rem',
         lineHeight: '1.875rem',
@@ -659,6 +979,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.625rem',
         letterSpacing: 'normal',
     },
+    'screen-l.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.25rem',
+        lineHeight: '1.625rem',
+        letterSpacing: 'normal',
+    },
     'screen-l.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '400',
@@ -670,6 +998,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.5rem',
+        letterSpacing: 'normal',
+    },
+    'screen-l.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.125rem',
         lineHeight: '1.5rem',
@@ -691,6 +1027,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.375rem',
         letterSpacing: '-0.02em',
     },
+    'screen-l.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.375rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-l.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -702,6 +1046,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-l.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1rem',
         lineHeight: '1.25rem',
@@ -723,6 +1075,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.125rem',
         letterSpacing: '-0.02em',
     },
+    'screen-l.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.125rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-l.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -734,6 +1094,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '0.875rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-l.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.75rem',
         lineHeight: '0.875rem',
@@ -755,6 +1123,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '0.75rem',
         letterSpacing: '-0.02em',
     },
+    'screen-l.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.625rem',
+        lineHeight: '0.75rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-l.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -766,6 +1142,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '1.5rem',
+        lineHeight: '2rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-l.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '1.5rem',
         lineHeight: '2rem',
@@ -787,6 +1171,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.625rem',
         letterSpacing: '-0.02em',
     },
+    'screen-l.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '1.125rem',
+        lineHeight: '1.625rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-l.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -803,6 +1195,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
         lineHeight: '1.25rem',
         letterSpacing: '-0.02em',
     },
+    'screen-l.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
+        fontStyle: 'normal',
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+        letterSpacing: '-0.02em',
+    },
     'screen-l.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '400',
@@ -814,6 +1214,14 @@ export const getWebTokens = (config: ThemeConfig): WebTypographyToken => ({
     'screen-l.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         fontWeight: '600',
+        fontStyle: 'normal',
+        fontSize: '0.75rem',
+        lineHeight: '1rem',
+        letterSpacing: '-0.02em',
+    },
+    'screen-l.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        fontWeight: '500',
         fontStyle: 'normal',
         fontSize: '0.75rem',
         lineHeight: '1rem',

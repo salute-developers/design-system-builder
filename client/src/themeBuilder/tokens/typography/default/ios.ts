@@ -19,6 +19,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 92,
         kerning: 0,
     },
+    'screen-s.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 88,
+        lineHeight: 92,
+        kerning: 0,
+    },
     'screen-s.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'semibold',
@@ -30,6 +38,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 56,
+        lineHeight: 62,
+        kerning: 0,
+    },
+    'screen-s.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 56,
         lineHeight: 62,
@@ -51,6 +67,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 46,
         kerning: 0,
     },
+    'screen-s.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 40,
+        lineHeight: 46,
+        kerning: 0,
+    },
     'screen-s.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -62,6 +86,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 28,
+        lineHeight: 34,
+        kerning: 0,
+    },
+    'screen-s.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 28,
         lineHeight: 34,
@@ -83,6 +115,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 30,
         kerning: 0,
     },
+    'screen-s.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 24,
+        lineHeight: 30,
+        kerning: 0,
+    },
     'screen-s.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -94,6 +134,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 20,
+        lineHeight: 26,
+        kerning: 0,
+    },
+    'screen-s.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 20,
         lineHeight: 26,
@@ -115,6 +163,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 24,
         kerning: 0,
     },
+    'screen-s.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 18,
+        lineHeight: 24,
+        kerning: 0,
+    },
     'screen-s.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -126,6 +182,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 16,
+        lineHeight: 22,
+        kerning: 0,
+    },
+    'screen-s.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 16,
         lineHeight: 22,
@@ -147,6 +211,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 22,
         kerning: -0.02,
     },
+    'screen-s.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 18,
+        lineHeight: 22,
+        kerning: -0.02,
+    },
     'screen-s.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -158,6 +230,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 16,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
+    'screen-s.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 16,
         lineHeight: 20,
@@ -179,6 +259,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 18,
         kerning: -0.02,
     },
+    'screen-s.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 14,
+        lineHeight: 18,
+        kerning: -0.02,
+    },
     'screen-s.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -190,6 +278,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 12,
+        lineHeight: 14,
+        kerning: -0.02,
+    },
+    'screen-s.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 12,
         lineHeight: 14,
@@ -211,6 +307,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 12,
         kerning: -0.02,
     },
+    'screen-s.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 10,
+        lineHeight: 12,
+        kerning: -0.02,
+    },
     'screen-s.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -222,6 +326,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 18,
+        lineHeight: 26,
+        kerning: -0.02,
+    },
+    'screen-s.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 18,
         lineHeight: 26,
@@ -243,6 +355,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 24,
         kerning: -0.02,
     },
+    'screen-s.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 16,
+        lineHeight: 24,
+        kerning: -0.02,
+    },
     'screen-s.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -254,6 +374,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-s.text.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 14,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
+    'screen-s.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 14,
         lineHeight: 20,
@@ -275,6 +403,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 16,
         kerning: -0.02,
     },
+    'screen-s.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 12,
+        lineHeight: 16,
+        kerning: -0.02,
+    },
     'screen-m.display.l.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'semibold',
@@ -286,6 +422,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.display.l.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 112,
+        lineHeight: 112,
+        kerning: 0,
+    },
+    'screen-m.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 112,
         lineHeight: 112,
@@ -307,6 +451,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 76,
         kerning: 0,
     },
+    'screen-m.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 72,
+        lineHeight: 76,
+        kerning: 0,
+    },
     'screen-m.display.s.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'semibold',
@@ -318,6 +470,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.display.s.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 48,
+        lineHeight: 54,
+        kerning: 0,
+    },
+    'screen-m.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 48,
         lineHeight: 54,
@@ -339,6 +499,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 46,
         kerning: 0,
     },
+    'screen-m.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 40,
+        lineHeight: 46,
+        kerning: 0,
+    },
     'screen-m.header.h2.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -350,6 +518,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.header.h2.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 28,
+        lineHeight: 34,
+        kerning: 0,
+    },
+    'screen-m.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 28,
         lineHeight: 34,
@@ -371,6 +547,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 26,
         kerning: 0,
     },
+    'screen-m.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 20,
+        lineHeight: 26,
+        kerning: 0,
+    },
     'screen-m.header.h4.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -382,6 +566,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.header.h4.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 18,
+        lineHeight: 24,
+        kerning: 0,
+    },
+    'screen-m.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 18,
         lineHeight: 24,
@@ -403,6 +595,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 22,
         kerning: 0,
     },
+    'screen-m.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 16,
+        lineHeight: 22,
+        kerning: 0,
+    },
     'screen-m.body.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -414,6 +614,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.body.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 18,
+        lineHeight: 22,
+        kerning: -0.02,
+    },
+    'screen-m.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 18,
         lineHeight: 22,
@@ -435,6 +643,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 20,
         kerning: -0.02,
     },
+    'screen-m.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 16,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
     'screen-m.body.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -446,6 +662,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.body.s.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 14,
+        lineHeight: 18,
+        kerning: -0.02,
+    },
+    'screen-m.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 14,
         lineHeight: 18,
@@ -467,6 +691,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 14,
         kerning: -0.02,
     },
+    'screen-m.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 12,
+        lineHeight: 14,
+        kerning: -0.02,
+    },
     'screen-m.body.xxs.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -478,6 +710,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.body.xxs.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 10,
+        lineHeight: 12,
+        kerning: -0.02,
+    },
+    'screen-m.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 10,
         lineHeight: 12,
@@ -499,6 +739,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 28,
         kerning: -0.02,
     },
+    'screen-m.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 20,
+        lineHeight: 28,
+        kerning: -0.02,
+    },
     'screen-m.text.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -510,6 +758,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.text.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 16,
+        lineHeight: 24,
+        kerning: -0.02,
+    },
+    'screen-m.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 16,
         lineHeight: 24,
@@ -531,6 +787,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 20,
         kerning: -0.02,
     },
+    'screen-m.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 14,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
     'screen-m.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -542,6 +806,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-m.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 12,
+        lineHeight: 16,
+        kerning: -0.02,
+    },
+    'screen-m.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 12,
         lineHeight: 16,
@@ -563,6 +835,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 128,
         kerning: 0,
     },
+    'screen-l.display.l.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 128,
+        lineHeight: 128,
+        kerning: 0,
+    },
     'screen-l.display.m.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'semibold',
@@ -574,6 +854,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.display.m.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 88,
+        lineHeight: 92,
+        kerning: 0,
+    },
+    'screen-l.display.m.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 88,
         lineHeight: 92,
@@ -595,6 +883,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 68,
         kerning: 0,
     },
+    'screen-l.display.s.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 64,
+        lineHeight: 68,
+        kerning: 0,
+    },
     'screen-l.header.h1.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -606,6 +902,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.header.h1.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 48,
+        lineHeight: 54,
+        kerning: 0,
+    },
+    'screen-l.header.h1.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 48,
         lineHeight: 54,
@@ -627,6 +931,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 38,
         kerning: 0,
     },
+    'screen-l.header.h2.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 32,
+        lineHeight: 38,
+        kerning: 0,
+    },
     'screen-l.header.h3.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -638,6 +950,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.header.h3.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 24,
+        lineHeight: 30,
+        kerning: 0,
+    },
+    'screen-l.header.h3.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 24,
         lineHeight: 30,
@@ -659,6 +979,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 26,
         kerning: 0,
     },
+    'screen-l.header.h4.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
+        style: 'normal',
+        size: 20,
+        lineHeight: 26,
+        kerning: 0,
+    },
     'screen-l.header.h5.normal': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'regular',
@@ -670,6 +998,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.header.h5.bold': {
         fontFamilyRef: 'fontFamily.display',
         weight: 'light',
+        style: 'normal',
+        size: 18,
+        lineHeight: 24,
+        kerning: 0,
+    },
+    'screen-l.header.h5.medium': {
+        fontFamilyRef: 'fontFamily.display',
+        weight: 'medium',
         style: 'normal',
         size: 18,
         lineHeight: 24,
@@ -691,6 +1027,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 22,
         kerning: -0.02,
     },
+    'screen-l.body.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 18,
+        lineHeight: 22,
+        kerning: -0.02,
+    },
     'screen-l.body.m.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -702,6 +1046,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.body.m.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 16,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
+    'screen-l.body.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 16,
         lineHeight: 20,
@@ -723,6 +1075,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 18,
         kerning: -0.02,
     },
+    'screen-l.body.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 14,
+        lineHeight: 18,
+        kerning: -0.02,
+    },
     'screen-l.body.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -734,6 +1094,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.body.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 12,
+        lineHeight: 14,
+        kerning: -0.02,
+    },
+    'screen-l.body.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 12,
         lineHeight: 14,
@@ -755,6 +1123,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 12,
         kerning: -0.02,
     },
+    'screen-l.body.xxs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 10,
+        lineHeight: 12,
+        kerning: -0.02,
+    },
     'screen-l.text.l.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -766,6 +1142,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.text.l.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 24,
+        lineHeight: 32,
+        kerning: -0.02,
+    },
+    'screen-l.text.l.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 24,
         lineHeight: 32,
@@ -787,6 +1171,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 26,
         kerning: -0.02,
     },
+    'screen-l.text.m.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 18,
+        lineHeight: 26,
+        kerning: -0.02,
+    },
     'screen-l.text.s.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -803,6 +1195,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
         lineHeight: 20,
         kerning: -0.02,
     },
+    'screen-l.text.s.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
+        style: 'normal',
+        size: 14,
+        lineHeight: 20,
+        kerning: -0.02,
+    },
     'screen-l.text.xs.normal': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'regular',
@@ -814,6 +1214,14 @@ export const getIOSTokens = (config: ThemeConfig): IOSTypographyToken => ({
     'screen-l.text.xs.bold': {
         fontFamilyRef: 'fontFamily.text',
         weight: 'light',
+        style: 'normal',
+        size: 12,
+        lineHeight: 16,
+        kerning: -0.02,
+    },
+    'screen-l.text.xs.medium': {
+        fontFamilyRef: 'fontFamily.text',
+        weight: 'medium',
         style: 'normal',
         size: 12,
         lineHeight: 16,
