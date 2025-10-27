@@ -1,53 +1,59 @@
-import { useParams } from 'react-router-dom';
-import styled, { CSSObject } from 'styled-components';
-import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { h6 } from '../../utils';
-import { TokensEditor } from '../theme';
-import { Workspace } from '../../components';
+import { getDataTokens } from '../../utils';
+import { TokensMenu, Workspace } from '../../components';
+import { Theme } from '../../../themeBuilder';
+import { DesignSystem } from '../../../designSystem';
+import { TokenShapeEditor } from '../theme/TokenShapeEditor';
+import { Token } from '../../../themeBuilder/tokens/token';
 
-const Header = styled.div`
-    padding: 0 0.5rem;
-    box-sizing: border-box;
-    height: 2.5rem;
-
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-`;
-
-const HeaderTitle = styled.div`
-    overflow: hidden;
-    color: ${textPrimary};
-    text-overflow: ellipsis;
-
-    ${h6 as CSSObject};
-    font-weight: 600;
-`;
+interface ShapesOutletContextProps {
+    designSystem?: DesignSystem;
+    theme?: Theme;
+}
 
 export const Shapes = () => {
-    // TODO: Загружать тему на этой странице и дальше передавать в контент
-    const { designSystemName, designSystemVersion } = useParams();
+    const { designSystem, theme } = useOutletContext<ShapesOutletContextProps>();
+
+    const [tokens, setTokens] = useState<Token[] | undefined>([]);
+    const data = useMemo(() => getDataTokens(theme, 'shape'), [theme]);
+
+    const defaultSelectedTokenIndexes: [number, number, number] = useMemo(() => [0, 1, 0], []);
+
+    const onTokenSelect = (tokens: Token[]) => {
+        setTokens(tokens);
+    };
+
+    useEffect(() => {
+        if (!data) {
+            return;
+        }
+
+        const [tabIndex, groupIndex, tokenIndex] = defaultSelectedTokenIndexes;
+        const tokens = data.groups[tabIndex].data[groupIndex].tokens[tokenIndex].data;
+
+        setTokens(tokens);
+    }, [data, defaultSelectedTokenIndexes]);
+
+    if (!data || !designSystem || !theme) {
+        return null;
+    }
 
     return (
         <Workspace
+            menuBackground={backgroundTertiary}
             menu={
-                <>
-                    <Header>
-                        <HeaderTitle>{designSystemName}</HeaderTitle>
-                        <HeaderTitle style={{ opacity: 0.5 }}>{designSystemVersion}</HeaderTitle>
-                    </Header>
-                    <Header>
-                        <HeaderTitle>Редактирование токенов цвета</HeaderTitle>
-                    </Header>
-                    <Header>
-                        <HeaderTitle style={{ fontWeight: 400 }}>Здесь будет красивый список токенов...</HeaderTitle>
-                    </Header>
-                </>
+                <TokensMenu
+                    header={designSystem.getParameters()?.packagesName}
+                    subheader={designSystem.getParameters()?.packagesName}
+                    data={data}
+                    defaultSelectedTokenIndexes={defaultSelectedTokenIndexes}
+                    onTokenSelect={onTokenSelect}
+                />
             }
-            content={<TokensEditor selectedTokensTypes={['shape', 'shadow', 'spacing']} />}
+            content={<TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} />}
         />
     );
 };
