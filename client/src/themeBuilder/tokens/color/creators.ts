@@ -29,15 +29,15 @@ export const createDefaultColorTokens = (config: ThemeConfig): ColorToken[] => {
 // INFO: Данный метод нужен для того, чтобы на момент формирования инстанса класса Theme
 // не добавлять технические токены состояний active / hover в память объекта,
 // т.к. они никак не используются в визуальном интефрейсе
-const removeHoverAndActiveTokens = (token: TokenType) =>
-    !token.name.includes('-hover') && !token.name.includes('-active');
+const removeExtraTokens = (token: TokenType) =>
+    !token.name.includes('-hover') && !token.name.includes('-active') && !token.name.includes('-brightness');
 
 export const createColorTokens = (
     tokens: Array<TokenType>,
     platforms: PlatformsVariations['color'],
     includeExtraTokens?: boolean,
 ) => {
-    const tokenList = includeExtraTokens ? tokens : tokens.filter(removeHoverAndActiveTokens);
+    const tokenList = includeExtraTokens ? tokens : tokens.filter(removeExtraTokens);
 
     return tokenList.map((token) => {
         const web = platforms.web[token.name];
