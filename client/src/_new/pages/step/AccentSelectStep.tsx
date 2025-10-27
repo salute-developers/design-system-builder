@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { general } from '@salutejs/plasma-colors';
+import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
 
 import { AccentSelect } from '../../components/AccentSelect';
 import { prettifyColorName } from '../../utils';
@@ -9,6 +10,10 @@ import { EditButton } from '../../components/EditButton';
 
 const StyledAccentSelect = styled(AccentSelect)`
     margin: 3rem 0;
+`;
+
+const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
+    --icon-size: 0.75rem !important;
 `;
 
 const accentColors = Object.entries(general)
@@ -52,6 +57,7 @@ export const AccentSelectStep = (props: AccentSelectStepProps) => {
         <EditButton
             label="Цвет бренда"
             text={prettifyColorName(accentColor)}
+            contentRight={<StyledIconArrowsMoveVertical color="inherit" />}
             onClick={() => onChangeEditStep(popupSetupSteps.ACCENT_COLOR)}
         />
     );

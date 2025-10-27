@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import styled, { css } from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general, PlasmaSaturation } from '@salutejs/plasma-colors';
+import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
 
 import { SaturationSelect } from '../../components/SaturationSelect';
 import { GeneralColor, Parameters, SaturationType, ViewType } from '../../types';
@@ -22,6 +23,10 @@ const StyledPreviewSaturation = styled.div<{ color: string; saturationType?: 'fi
         css`
             box-shadow: 0 0 0 0.0625rem rgba(0, 0, 0, 0.12) inset;
         `}
+`;
+
+const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
+    --icon-size: 0.75rem !important;
 `;
 
 interface SaturationSelectStepProps {
@@ -96,6 +101,7 @@ export const SaturationSelectStep = (props: SaturationSelectStepProps) => {
             contentLeft={
                 <StyledPreviewSaturation saturationType={saturationType} color={general[accentColor][saturation]} />
             }
+            contentRight={<StyledIconArrowsMoveVertical color="inherit" />}
             color={general[accentColor][saturation]}
             text={saturation.toString()}
             view={view}

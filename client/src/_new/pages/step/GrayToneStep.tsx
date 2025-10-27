@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
 
 import { HoverSelect } from '../../components/HoverSelect';
 import { EditButton } from '../../components/EditButton';
@@ -11,6 +12,10 @@ const StyledHoverSelect = styled(HoverSelect)`
 
 const StyledEditButton = styled(EditButton)`
     margin: 1.5rem 0;
+`;
+
+const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
+    --icon-size: 0.75rem !important;
 `;
 
 const grayTones = [
@@ -55,6 +60,7 @@ export const GrayToneStep = (props: GrayToneStepProps) => {
         <StyledEditButton
             label="Оттенок серого"
             text={grayTones.find(({ value }) => value === grayTone)?.label || ''}
+            contentRight={<StyledIconArrowsMoveVertical color="inherit" />}
             onClick={() => onChangeEditStep(popupSetupSteps.GRAY_TONE)}
         />
     );

@@ -10,7 +10,7 @@ import { useGlobalKeyDown } from '../hooks';
 import { HeroButton } from '../components/HeroButton';
 
 import { ProjectNameStep, PackagesNameStep, GrayToneStep, AccentSelectStep, SaturationSelectStep } from './step';
-import { h6 } from '../utils';
+import { LinkButton } from '../components/LinkButton';
 
 export const Root = styled.div``;
 
@@ -36,7 +36,6 @@ const StyledSelectedParameters = styled.div<{ isReady?: boolean }>`
 const StyledWrapper = styled.div`
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
 `;
 
 const StyledReadyBlock = styled.div<{ isReady?: boolean }>`
@@ -80,25 +79,6 @@ const StyledDisclaimer = styled.div`
     ${h5 as CSSObject};
 `;
 
-const StyledResetParametersButton = styled.div`
-    cursor: pointer;
-    position: absolute;
-
-    bottom: 3rem;
-
-    color: ${textParagraph};
-
-    &:hover {
-        color: ${textPrimary};
-    }
-
-    display: flex;
-    gap: 0.375rem;
-    align-items: center;
-
-     ${h6 as CSSObject};
-`;
-
 const StyledThemeModeSwitcher = styled.span<{ color: string }>`
     position: relative;
     display: inline-block;
@@ -117,6 +97,11 @@ const StyledThemeModeSwitcher = styled.span<{ color: string }>`
     :active {
         transform: scale(0.99);
     }
+`;
+
+const StyledLinkButton = styled(LinkButton)`
+    position: absolute;
+    bottom: 3rem;
 `;
 
 const StyledSeparator = styled.div`
@@ -374,10 +359,11 @@ export const SetupParameters = (props: SetupParametersProps) => {
                     )}
                 </StyledWrapper>
 
-                <StyledResetParametersButton onClick={handleResetParameters}>
-                    <IconClose size="xs" color="inherit" />
-                    <>Сбросить</>
-                </StyledResetParametersButton>
+                <StyledLinkButton
+                    text="Сбросить"
+                    contentLeft={<IconClose size="xs" color="inherit" />}
+                    onClick={handleResetParameters}
+                />
             </StyledSelectedParameters>
 
             <StyledReadyBlock isReady={isReady}>
