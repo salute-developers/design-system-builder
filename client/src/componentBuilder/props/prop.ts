@@ -1,5 +1,4 @@
-import { camelToKebab } from '../../_new/utils';
-import { capitalize } from '../utils';
+import { camelToKebab, capitalize } from '../../_new/utils';
 import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
 export abstract class Prop {

@@ -5,7 +5,7 @@ import { getStateColor, sectionToFormulaMap } from '../../../_new/utils';
 
 import { ColorToken } from '../../tokens';
 
-export const getHoverAndActiveColorThemeTokens = (
+export const getAdditionalColorThemeTokens = (
     token: ColorToken,
 ): PlatformsVariations['color'][Platform] | undefined => {
     const [mode, category] = token.getName().split('.') as [ThemeMode, string];
@@ -23,5 +23,6 @@ export const getHoverAndActiveColorThemeTokens = (
     return {
         [`${token.getName()}-hover`]: getDefaultStateToken('hover'),
         [`${token.getName()}-active`]: getDefaultStateToken('active'),
+        [`${token.getName()}-brightness`]: getDefaultStateToken('brightness'),
     };
 };

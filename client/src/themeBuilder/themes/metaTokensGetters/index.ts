@@ -1,7 +1,7 @@
-import { getHoverAndActiveMetaTokens } from './getHoverAndActiveMetaTokens';
+import { getAdditionalMetaTokens } from './getAdditionalMetaTokens';
 import { ExtraMetaTokensGetters } from '../createMetaTokens';
 
 export const extraMetaTokenGetters: ExtraMetaTokensGetters = {
-    color: getHoverAndActiveMetaTokens,
-    gradient: getHoverAndActiveMetaTokens,
+    color: getAdditionalMetaTokens,
+    gradient: getAdditionalMetaTokens,
 };
