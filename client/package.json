@@ -14,7 +14,7 @@
     "@salutejs/plasma-colors": "^0.16.0-canary.2127.16721664480.0",
     "@salutejs/plasma-icons": "^1.217.0",
     "@salutejs/plasma-themes": "^0.39.0-canary.2241.18008532487.0",
-    "@salutejs/plasma-tokens-utils": "^0.47.0",
+    "@salutejs/plasma-tokens-utils": "^0.50.0",
     "contrast-ratio-checker": "^1.1.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

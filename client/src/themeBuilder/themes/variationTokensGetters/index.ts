@@ -1,18 +1,18 @@
-import { getHoverAndActiveColorThemeTokens } from './getHoverAndActiveColorThemeTokens';
-import { getHoverAndActiveGradientAndroidThemeTokens } from './getHoverAndActiveGradientAndroidThemeTokens';
-import { getHoverAndActiveGradientIOSThemeTokens } from './getHoverAndActiveGradientIOSThemeTokens';
-import { getHoverAndActiveGradientWebThemeTokens } from './getHoverAndActiveGradientWebThemeTokens';
+import { getAdditionalColorThemeTokens } from './getAdditionalColorThemeTokens';
+import { getAdditionalGradientAndroidThemeTokens } from './getAdditionalGradientAndroidThemeTokens';
+import { getAdditionalGradientIOSThemeTokens } from './getAdditionalGradientIOSThemeTokens';
+import { getAdditionalGradientWebThemeTokens } from './getAdditionalGradientWebThemeTokens';
 import { ExtraThemeTokensGetters } from '../createVariationTokens';
 
 export const extraThemeTokenGetters: ExtraThemeTokensGetters = {
     color: {
-        web: getHoverAndActiveColorThemeTokens,
-        ios: getHoverAndActiveColorThemeTokens,
-        android: getHoverAndActiveColorThemeTokens,
+        web: getAdditionalColorThemeTokens,
+        ios: getAdditionalColorThemeTokens,
+        android: getAdditionalColorThemeTokens,
     },
     gradient: {
-        web: getHoverAndActiveGradientWebThemeTokens,
-        ios: getHoverAndActiveGradientIOSThemeTokens,
-        android: getHoverAndActiveGradientAndroidThemeTokens,
+        web: getAdditionalGradientWebThemeTokens,
+        ios: getAdditionalGradientIOSThemeTokens,
+        android: getAdditionalGradientAndroidThemeTokens,
     },
 };
