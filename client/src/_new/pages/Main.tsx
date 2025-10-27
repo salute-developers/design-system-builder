@@ -1,19 +1,13 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import styled from 'styled-components';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import {
-    IconAppsOutline,
-    IconClose,
-    IconBrightnessmaxOutline,
     IconHelpCircleOutline,
     IconHomeAltOutline,
     IconTree,
-    IconTextUnderline,
-    IconStickerOutline,
     IconArrowLeft,
-    IconBookOutline,
-    IconFloorTypeOutline,
+    IconGroupOutline,
 } from '@salutejs/plasma-icons';
 import { general } from '@salutejs/plasma-colors';
 
@@ -27,6 +21,16 @@ import { CreateFirstName } from './CreateFirstName';
 import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
 import { transliterateToSnakeCase } from '../utils';
+import { DesignSystem } from '../../designSystem';
+import { Theme } from '../../themeBuilder';
+import {
+    IconBookOpenOutline,
+    IconColorSwatchOutline,
+    IconPaletteOutline,
+    IconShapeOutline,
+    IconTypography,
+} from '../_icons';
+import { useDesignSystem } from '../hooks';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -35,7 +39,6 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --text-secondary: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
         --text-tertiary: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
         --text-paragraph: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
-        --text-negative: ${general[grayTone][themeMode === 'dark' ? 600 : 600]};
         --on-dark-text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 150]};
         --on-light-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
         --inverse-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 150]};
@@ -193,6 +196,9 @@ export const Main = () => {
         setShowTokensPanelItems(showPanelItems);
     }, [currentPath]);
 
+    const { designSystemName, designSystemVersion } = useParams();
+    const { designSystem, theme } = useDesignSystem(designSystemName, designSystemVersion);
+
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
@@ -222,7 +228,7 @@ export const Main = () => {
                                 onClickPanelButton('overview');
                             }}
                         >
-                            <IconBookOutline size="xs" color="inherit" />
+                            <IconBookOpenOutline size="xs" color="inherit" />
                         </IconButton>
 
                         {!showTokensPanelItems && (
@@ -231,7 +237,7 @@ export const Main = () => {
                                     onClickPanelButton('colors');
                                 }}
                             >
-                                <IconFloorTypeOutline size="xs" color="inherit" />
+                                <IconColorSwatchOutline size="xs" color="inherit" />
                             </IconButton>
                         )}
 
@@ -241,19 +247,19 @@ export const Main = () => {
                                     selected={currentPath.includes('colors')}
                                     onClick={() => onClickPanelButton('colors')}
                                 >
-                                    <IconBrightnessmaxOutline size="xs" color="inherit" />
+                                    <IconPaletteOutline size="xs" color="inherit" />
                                 </IconButton>
                                 <IconButton
                                     selected={currentPath.includes('typography')}
                                     onClick={() => onClickPanelButton('typography')}
                                 >
-                                    <IconTextUnderline size="xs" color="inherit" />
+                                    <IconTypography size="xs" color="inherit" />
                                 </IconButton>
                                 <IconButton
                                     selected={currentPath.includes('shapes')}
                                     onClick={() => onClickPanelButton('shapes')}
                                 >
-                                    <IconStickerOutline size="xs" color="inherit" />
+                                    <IconShapeOutline size="xs" color="inherit" />
                                 </IconButton>
                             </>
                         )}
@@ -264,7 +270,7 @@ export const Main = () => {
                                 onClickPanelButton('components');
                             }}
                         >
-                            <IconAppsOutline size="xs" color="inherit" />
+                            <IconGroupOutline size="xs" color="inherit" />
                         </IconButton>
                     </BuilderItems>
                 )}
@@ -272,7 +278,7 @@ export const Main = () => {
                     <IconHelpCircleOutline size="xs" color="inherit" />
                 </IconButton>
             </Panel>
-            <Outlet context={{ onOpenPopup, projectName: parameters.projectName }} />
+            <Outlet context={{ onOpenPopup, projectName: parameters.projectName, designSystem, theme }} />
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
