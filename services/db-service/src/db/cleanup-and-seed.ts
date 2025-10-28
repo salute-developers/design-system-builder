@@ -264,7 +264,14 @@ async function cleanupAndSeed() {
     console.log('📊 Creating new Plasma Design System...');
     const [designSystem] = await db.insert(schema.designSystems).values({
       name: 'Plasma Design System',
-      description: 'Design system with Link, IconButton, and Button components with variations and token values'
+      description: 'Design system with Link, IconButton, and Button components with variations and token values',
+      projectName: "Test 66",
+      grayTone: "warmGray",
+      accentColor: "arctic",
+      lightStrokeSaturation: 700,
+      lightFillSaturation: 600,
+      darkStrokeSaturation: 400,
+      darkFillSaturation: 400,
     }).returning();
 
     // Process each component

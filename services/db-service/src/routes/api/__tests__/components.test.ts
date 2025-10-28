@@ -132,7 +132,14 @@ describe('Components API', () => {
       // Create test design system and component
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -205,7 +212,14 @@ describe('Components API', () => {
       // Create test design system, component and token
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -244,7 +258,14 @@ describe('Components API', () => {
       // Create test design system, component and token
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -291,7 +312,14 @@ describe('Components API', () => {
       // Create test design system, component and tokens
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -336,7 +364,14 @@ describe('Components API', () => {
       // Create test design system, component, and token
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -390,7 +425,14 @@ describe('Components API', () => {
       // Create test design system and component
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
@@ -417,7 +459,14 @@ describe('Components API', () => {
       // Create test design system and component
       const [designSystem] = await testDb.insert(designSystems).values({
         name: 'Test Design System',
-        description: 'Test design system'
+        description: 'Test design system',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
       }).returning();
 
       const [component] = await testDb.insert(components).values({
