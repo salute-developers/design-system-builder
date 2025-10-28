@@ -10,10 +10,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      # PORT: 3001
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/ds_builder}
-    # ports:
-    #   - "3001:3001"
     networks:
       - ds-builder-network
 
@@ -26,6 +23,8 @@ services:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:3001}
     container_name: ds-builder-frontend
     restart: unless-stopped
+    ports:
+      - "3000:80"
     depends_on:
       - backend
     networks:
