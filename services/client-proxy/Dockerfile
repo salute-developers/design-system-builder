@@ -21,6 +21,10 @@ RUN npm ci --only=production
 
 EXPOSE 3003
 
+# Health check using wget
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3003/health || exit 1
+
 CMD ["npm", "start"]
 
 

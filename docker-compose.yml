@@ -30,11 +30,6 @@ services:
       - backend
     networks:
       - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Client Application
   client:
@@ -50,11 +45,6 @@ services:
       - client-proxy
     networks:
       - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Client Proxy Service
   client-proxy:
@@ -70,11 +60,6 @@ services:
       - backend
     networks:
       - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 networks:
   ds-builder-network:
