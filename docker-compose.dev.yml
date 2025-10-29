@@ -49,7 +49,7 @@ services:
       - ./services/db-service:/app
       - /app/node_modules
 
-  # Frontend Application (Development)
+  # Frontend Application / Admin Panel (Development)
   frontend:
     build:
       context: ./frontend
