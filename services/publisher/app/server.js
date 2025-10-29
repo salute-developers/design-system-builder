@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
-const { exec, spawn } = require('child_process');
+const publisher = require('./publisher.js');
 
 const app = express();
 const PORT = process.env.PORT || 3007;
@@ -69,10 +69,9 @@ app.post('/upload', upload.single('package'), async (req, res) => {
 
         // Получаем абсолютный путь к файлу
         const absolutePath = path.resolve(filePath);
-        console.log('Публикация файла:', absolutePath);
 
         // Публикуем пакет
-        const result = await publishNpmPackage(absolutePath, npmToken);
+        const result = await publisher.publish(absolutePath, npmToken);
 
         res.json({
             success: true,
@@ -97,156 +96,6 @@ app.post('/upload', upload.single('package'), async (req, res) => {
         }
     }
 });
-
-// Улучшенная функция публикации
-async function publishNpmPackage(tgzPath, npmToken) {
-    return new Promise((resolve, reject) => {
-        // Создаем временный .npmrc в той же директории что и tgz файл
-        const npmrcPath = path.join(path.dirname(tgzPath), '.npmrc');
-        const npmrcContent = `//registry.npmjs.org/:_authToken=${npmToken}
-registry=https://registry.npmjs.org/
-always-auth=true
-`;
-
-        fs.writeFileSync(npmrcPath, npmrcContent);
-
-        console.log('Публикация пакета:', tgzPath);
-        console.log('Временный .npmrc создан:', npmrcPath);
-
-        // Используем абсолютный путь к файлу и явно указываем что это файл
-        const publishCommand = `npm publish "${tgzPath}" --userconfig "${npmrcPath}"`;
-
-        console.log('Выполняется команда:', publishCommand);
-
-        const npmProcess = spawn('npm', [
-            'publish',
-            `"${tgzPath}"`,
-            '--userconfig',
-            `"${npmrcPath}"`
-        ], {
-            stdio: 'pipe',
-            shell: true, // Важно для работы с путями в Windows
-            cwd: path.dirname(tgzPath) // Рабочая директория там же где и файл
-        });
-
-        let stdout = '';
-        let stderr = '';
-
-        npmProcess.stdout.on('data', (data) => {
-            const output = data.toString();
-            stdout += output;
-            console.log('npm stdout:', output);
-        });
-
-        npmProcess.stderr.on('data', (data) => {
-            const output = data.toString();
-            stderr += output;
-            console.error('npm stderr:', output);
-        });
-
-        npmProcess.on('close', (code) => {
-            // Всегда удаляем временный .npmrc
-            if (fs.existsSync(npmrcPath)) {
-                fs.removeSync(npmrcPath);
-            }
-
-            if (code === 0) {
-                const packageInfo = parseNpmPublishOutput(stdout);
-                resolve({
-                    packageName: packageInfo.name,
-                    version: packageInfo.version,
-                    stdout: stdout
-                });
-            } else {
-                const errorMessage = analyzeNpmError(stderr || stdout, tgzPath);
-                reject(new Error(errorMessage));
-            }
-        });
-
-        npmProcess.on('error', (error) => {
-            if (fs.existsSync(npmrcPath)) {
-                fs.removeSync(npmrcPath);
-            }
-            reject(new Error(`Ошибка запуска npm: ${error.message}`));
-        });
-
-        // Таймаут на случай зависания
-        setTimeout(() => {
-            if (npmProcess.exitCode === null) {
-                npmProcess.kill();
-                reject(new Error('Таймаут публикации (60 секунд)'));
-            }
-        }, 60000);
-    });
-}
-
-// Анализ ошибок npm
-function analyzeNpmError(errorOutput, filePath) {
-    if (errorOutput.includes('code 128') && errorOutput.includes('git')) {
-        return `npm ошибочно интерпретирует файл как git URL. Проблема с путем: ${filePath}\nУбедитесь что файл имеет правильное расширение .tgz и доступен для чтения.`;
-    }
-
-    if (errorOutput.includes('EPUBLISHCONFLICT')) {
-        return 'Версия пакета уже существует. Увеличьте версию в package.json.';
-    }
-
-    if (errorOutput.includes('E403')) {
-        if (errorOutput.includes('forbidden') || errorOutput.includes('public')) {
-            return 'Доступ запрещен. Возможно пакет с таким именем уже существует или у токена нет прав на публикацию.';
-        }
-        return 'Доступ запрещен. Проверьте NPM токен.';
-    }
-
-    if (errorOutput.includes('E404')) {
-        return 'Registry недоступен или пакет не найден.';
-    }
-
-    if (errorOutput.includes('Invalid package')) {
-        return 'Невалидный package.json в архиве. Проверьте структуру пакета.';
-    }
-
-    if (errorOutput.includes('incorrect header check')) {
-        return 'Файл поврежден или имеет неверный формат. Убедитесь что это валидный .tgz архив.';
-    }
-
-    return `Ошибка публикации: ${errorOutput.substring(0, 300)}`;
-}
-
-function parseNpmPublishOutput(output) {
-    const patterns = [
-        /\+ (.+?)@(.+?)$/m,
-        /published (.+?)@(.+?) to registry/,
-        /successfully published (.+?)@(.+?)$/,
-        /√ Package (.+?)@(.+?) published/
-    ];
-
-    for (const pattern of patterns) {
-        const match = output.match(pattern);
-        if (match) {
-            return {
-                name: match[1],
-                version: match[2]
-            };
-        }
-    }
-
-    // Пытаемся извлечь из имени файла
-    const fileName = path.basename(output.includes('file:') ? output.split('file:')[1] : '');
-    if (fileName) {
-        const nameMatch = fileName.match(/(.+?)-(\d+\.\d+\.\d+)\.tgz/);
-        if (nameMatch) {
-            return {
-                name: nameMatch[1],
-                version: nameMatch[2]
-            };
-        }
-    }
-
-    return {
-        name: 'unknown-package',
-        version: '1.0.0'
-    };
-}
 
 // Маршрут для проверки файла
 app.post('/validate', upload.single('package'), async (req, res) => {
