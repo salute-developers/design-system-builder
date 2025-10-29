@@ -14,7 +14,7 @@ services:
     networks:
       - ds-builder-network
 
-  # Frontend Application
+  # Frontend Application / Admin Panel
   frontend:
     build:
       context: ./frontend
