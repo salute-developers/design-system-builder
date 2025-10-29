@@ -1,11 +1,10 @@
 node_modules
-dist
 .git
 .gitignore
 README.md
+*.md
 Dockerfile*
 docker-compose*
-.dockerignore
 *.log
 .env
 .env.local
@@ -15,5 +14,7 @@ coverage
 .nyc_output
 .vscode
 .idea
-*.md
-docs 
+tests
+tests/
+.tsbuildinfo
+

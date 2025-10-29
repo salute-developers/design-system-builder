@@ -1,130 +1,64 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: ds-builder-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ds_builder
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ds_builder"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Backend API
   backend:
     build:
-      context: ./backend
+      context: ./services/db-service
       dockerfile: Dockerfile
     container_name: ds-builder-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3001
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ds_builder
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/ds_builder
-    ports:
-      - "3001:3001"
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/ds_builder}
     networks:
       - ds-builder-network
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
-      - /app/dist
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3001/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Frontend Application
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:3001}
     container_name: ds-builder-frontend
     restart: unless-stopped
     ports:
       - "3000:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Client Application
   client:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        VITE_PROXY_SERVER_URL: ${VITE_PROXY_SERVER_URL:-http://client-proxy:3003}
     container_name: ds-builder-client
     restart: unless-stopped
-    ports:
-      - "3002:80"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+      - client-proxy
     networks:
       - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Client Proxy Service
   client-proxy:
     build:
-      context: ./client-proxy
+      context: ./services/client-proxy
       dockerfile: Dockerfile
     container_name: ds-builder-client-proxy
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3003
       BACKEND_URL: http://backend:3001/api
-    ports:
-      - "3003:3003"
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - ds-builder-network
-    volumes:
-      - ./client-proxy/storage:/app/storage
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-volumes:
-  postgres_data:
-    driver: local
 
 networks:
   ds-builder-network:
