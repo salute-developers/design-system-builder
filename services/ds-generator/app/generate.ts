@@ -13,16 +13,10 @@ import {
     createRootIndex,
 } from './creators';
 
-import {
-    BaseFileStructure,
-    ComponentsFiles,
-    DesignSystemData,
-    OutputParams,
-    ThemeFiles,
-} from './types';
+import { BaseFileStructure, ComponentsFiles, DesignSystemData, OutputParams, ThemeFiles } from './types';
 import { Config } from './componentBuilder';
 import JSZip from 'jszip';
-import { addFolderToZip } from './utils';
+import { addFolderToZip, getThemeData } from './utils';
 
 export const generateBaseFileStructure = async ({
     pathToDir,
@@ -103,7 +97,7 @@ export const generateDesignSystem = async (designSystemData: DesignSystemData, o
 
     await generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion });
 
-    await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: themeData });
+    await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: getThemeData(themeData) });
 
     await generateComponentsFiles({ pathToDir, componentsMeta: componentsData });
 

@@ -1,12 +1,12 @@
 import fs from 'fs-extra';
 import path from 'path';
 import JSZip from 'jszip';
+import { ThemeSource } from '../themeBuilder/types';
 
 export const BASE_URL = process.env.CLIENT_PROXY_URL || 'http://localhost:3003/api';
 export const PUBLISHER_URL = process.env.PUBLISHER_URL || 'http://localhost:3007';
 
 export const CORE_VERSION = '0.328.0-canary.1983.15896947411.0';
-
 export const GENERATE_ROOT_DIR = './result';
 
 // TODO: вынести в общее место
@@ -58,3 +58,19 @@ export const addFolderToZip = async (zip: JSZip, folderPath: string, zipFolder: 
         }
     }
 };
+
+// TODO: platform должен приходить в запросе
+export function getThemeData(themeData: ThemeSource) {
+    const { meta, variations } = themeData;
+    const platform = 'web';
+
+    const variationsByPlatform = Object.entries(variations).reduce(
+        (acc, [variation, value]) => ({ ...acc, [variation]: value[platform] }),
+        {},
+    ) as Record<keyof typeof variations, typeof platform>;
+
+    return {
+        meta,
+        variations: variationsByPlatform,
+    };
+}
