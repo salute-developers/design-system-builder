@@ -162,6 +162,7 @@ export class DesignSystem {
         return this.componentsData;
     }
 
+    // TODO: нужно удалить весь функционал, связанный с getThemeData.
     public getThemeData(platform?: Platform) {
         if (!platform) {
             return this.themeData.variations;
