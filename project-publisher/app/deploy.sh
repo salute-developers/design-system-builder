@@ -38,7 +38,7 @@ require() {
 }
 
 healthcheck() {
-  local url="${HEALTH_URL:-http://localhost:8080/health}"
+  local url="${HEALTH_URL:-http://localhost:8081/health}"
   local attempts="${HEALTH_ATTEMPTS:-20}"
   local delay="${HEALTH_DELAY_SEC:-2}"
   for i in $(seq 1 "$attempts"); do

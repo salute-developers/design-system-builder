@@ -25,19 +25,19 @@ internal class DooDJobRunner(
 
     private var _process: Process? = null
     private val processBuilder by lazy {
-        val projectVersion = params.version
         val args = mutableListOf(
             "bash", "scripts/run_build_in_docker.sh",
             "--build-id", id.toString(),
-            "--name", params.name,
-            "--versionMajor", projectVersion.major.toString(),
-            "--versionMinor", projectVersion.minor.toString(),
-            "--versionPatch", projectVersion.patch.toString(),
+            "--job-params", params.toRunParams(),
             "--baseImage", params.target.baseImage(),
             "--image", params.target.imageName(),
-            "--dockerfile", params.target.dockerfile(),
             "--platform", config.platform,
         )
+        val dockerfile = params.target.dockerfile()
+        if (dockerfile != null) {
+            args.add("--dockerfile")
+            args.add(dockerfile)
+        }
         ProcessBuilder(args).apply {
             redirectErrorStream(false)
             directory(File("/app"))
@@ -151,10 +151,31 @@ internal class DooDJobRunner(
 
     private companion object {
 
+        fun JobParams.toRunParams(): String {
+            return when (target) {
+                JobTarget.COMPOSE,
+                JobTarget.XML -> buildString {
+                    append(" --name $name")
+                    append(" --versionMajor ${version.major}")
+                    append(" --versionMinor ${version.minor}")
+                    append(" --versionPatch ${version.patch}")
+                }
+                JobTarget.IOS -> ""
+                JobTarget.WEB -> buildString {
+                    append(" --ds-name $name")
+                    append(" --ds-version $version")
+                    append(" --export-type tgz")
+                    append(" --output /app/ds-generator/out")
+                    append(" --token \"\${NPM_TOKEN}\"")
+                }
+            }
+        }
+
         fun JobTarget.baseImage(): String {
             return when (this) {
                 JobTarget.COMPOSE -> System.getenv("ANDROID_COMPOSE_RUNNER") ?: "plasma/android-runner-compose:dev"
                 JobTarget.XML -> System.getenv("ANDROID_XML_RUNNER") ?: "plasma/android-runner:dev"
+                JobTarget.WEB -> System.getenv("WEB_RUNNER") ?: "plasma/web-runner:dev"
                 else -> throw IllegalArgumentException("Target $this is not supported")
             }
         }
@@ -168,10 +189,11 @@ internal class DooDJobRunner(
             }
         }
 
-        fun JobTarget.dockerfile(): String {
+        fun JobTarget.dockerfile(): String? {
             return when (this) {
                 JobTarget.COMPOSE,
                 JobTarget.XML -> "scripts/android_publish.Dockerfile"
+                JobTarget.WEB -> null
                 else -> throw IllegalArgumentException("Target $this is not supported")
             }
         }

@@ -3,7 +3,7 @@ ktor:
         modules:
             - com.dsbuilder.publisher.app.ApplicationKt.module
     deployment:
-        port: 8080
+        port: 8081
 
 r2dbc:
     url: ${DBC_URL}

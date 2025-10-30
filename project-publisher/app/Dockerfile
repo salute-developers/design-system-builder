@@ -1,5 +1,5 @@
 FROM eclipse-temurin:17-jre-jammy
-EXPOSE 8080:8080
+EXPOSE 8081:8081
 # Установим docker-cli
 RUN apt-get update \
     && apt-get install -y --no-install-recommends docker.io wget \

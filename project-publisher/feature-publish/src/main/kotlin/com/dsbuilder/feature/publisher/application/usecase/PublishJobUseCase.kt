@@ -7,6 +7,7 @@ import com.dsbuilder.feature.publisher.application.port.PayloadFetcher
 import com.dsbuilder.feature.publisher.domain.entity.JobParams
 import com.dsbuilder.feature.publisher.domain.entity.PublishJob
 import com.dsbuilder.feature.publisher.domain.entity.isActive
+import com.dsbuilder.feature.publisher.domain.entity.isAndroid
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -37,7 +38,11 @@ internal class PublishJobUseCaseImpl(
         }
 
         val queuedJob = tx.required { jobLocalSource.create(params) }
-        payloadFetcher.fetch(queuedJob.id, params)
+
+        // TODO Убрать загрузку payload в runner андроида
+        if (params.target.isAndroid) {
+            payloadFetcher.fetch(queuedJob.id, params)
+        }
 
         val queued = jobDispatcher.enqueue(queuedJob)
         val currentStatus = jobDispatcher.getStatus(queuedJob.id)

@@ -6,3 +6,6 @@ enum class JobTarget {
     IOS,
     WEB
 }
+
+val JobTarget.isAndroid: Boolean
+    get() = this == JobTarget.COMPOSE || this == JobTarget.XML
