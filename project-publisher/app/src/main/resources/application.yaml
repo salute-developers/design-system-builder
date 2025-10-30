@@ -1,6 +1,14 @@
 ktor:
     application:
         modules:
-            - ApplicationKt.module
+            - com.dsbuilder.publisher.app.ApplicationKt.module
     deployment:
         port: 8080
+
+r2dbc:
+    url: ${DBC_URL}
+    username: ${DBC_USERNAME}
+    password: ${DBC_PASSWORD}
+    pool:
+        maxSize: 10
+        initialSize: 2

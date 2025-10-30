@@ -17,5 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "project-publisher"
 
 includeBuild("../build-system")
+include(":feature-publish")
 include(":app")
+include(":core")
 

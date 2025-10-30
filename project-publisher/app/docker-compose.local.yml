@@ -1,0 +1,8 @@
+services:
+  backend:
+    environment:
+      ANDROID_COMPOSE_RUNNER: plasma/android-runner-compose:dev
+      ANDROID_XML_RUNNER: plasma/android-runner:dev
+  db:
+    ports:
+      - "5432:5432"

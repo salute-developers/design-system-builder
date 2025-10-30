@@ -24,14 +24,13 @@ dependencies {
         "implementation"(ktor.server.call.logging)
 
         "implementation"(exposed.core)
-        "implementation"(exposed.dao)
         "implementation"(exposed.jdbc)
         "implementation"(exposed.java.time)
 
-        "implementation"(postgresql)
+        "implementation"(postgresql.jdbc)
 
         "implementation"(ktor.serialization.kotlinx.json)
-        "implementation"(logback)
+        "implementation"(logback.classic)
 
         "implementation"(koin.core)
         "implementation"(koin.ktor)
