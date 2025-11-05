@@ -56,8 +56,6 @@ services:
       dockerfile: Dockerfile.dev
     container_name: ds-builder-frontend-dev
     restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://localhost:3001
     ports:
       - "3000:5173"
     depends_on:
@@ -77,9 +75,8 @@ services:
     container_name: ds-builder-client-dev
     restart: unless-stopped
     environment:
-      VITE_API_URL: http://localhost:3001
-      DS_DOCUMENTATION_GENERATOR_API: ${DS_DOCUMENTATION_GENERATOR_API:-http://docs-generator:3006/api}
-      DS_GENERATOR_API: ${DS_GENERATOR_API:-http://generator:3005}
+      VITE_DS_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
+      VITE_DS_GENERATOR_API: http://localhost:3005
     ports:
       - "3002:5173"
     depends_on:

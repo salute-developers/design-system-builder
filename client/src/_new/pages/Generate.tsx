@@ -6,8 +6,8 @@ import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
 
-const DS_GENERATOR_API = import.meta.env.DS_GENERATOR_API;
-const DS_DOCUMENTATION_GENERATOR_API = import.meta.env.DS_DOCUMENTATION_GENERATOR_API;
+const VITE_DS_GENERATOR_API = import.meta.env.VITE_DS_GENERATOR_API;
+const VITE_DS_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DS_DOCUMENTATION_GENERATOR_API;
 
 const StyledGenerateContent = styled.div`
     padding: 1rem;
@@ -112,7 +112,7 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch(`${ DS_GENERATOR_API }/generate-download`, {
+        const result = await fetch(`${ VITE_DS_GENERATOR_API }/generate-download`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -184,7 +184,7 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch(`${ DS_GENERATOR_API }/generate-publish`, {
+        const result = await fetch(`${ VITE_DS_GENERATOR_API }/generate-publish`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -210,7 +210,7 @@ export const Generate = (props: GenerateProps) => {
 
         setIsLoading(true);
 
-        const result = await fetch(`${ DS_DOCUMENTATION_GENERATOR_API }/documentation/generate`, {
+        const result = await fetch(`${ VITE_DS_DOCUMENTATION_GENERATOR_API }/documentation/generate`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
