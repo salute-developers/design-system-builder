@@ -6,7 +6,8 @@ import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { DesignSystem } from '../../designSystem';
 import { PageWrapper } from './PageWrapper';
 
-const HOST = 'http://localhost:3005';
+const DS_GENERATOR_API = import.meta.env.DS_GENERATOR_API;
+const DS_DOCUMENTATION_GENERATOR_API = import.meta.env.DS_DOCUMENTATION_GENERATOR_API;
 
 const StyledGenerateContent = styled.div`
     padding: 1rem;
@@ -90,7 +91,13 @@ export const Generate = (props: GenerateProps) => {
 
     const onDesignSystemGenerate = async () => {
         if (tokenValue) {
-            await generatePublish()
+            const success = await generatePublish();
+
+            if (success) {
+                // INFO: Метод для генерации и загрузки документации
+                // INFO: Работает с сервисом docs-generator (docker-compose)
+                await generateAndDeployDocumentation();
+            }
         } else {
             await generateDownload()
         }
@@ -100,14 +107,12 @@ export const Generate = (props: GenerateProps) => {
         const data = {
             packageName: designSystem.getName(),
             packageVersion: designSystem.getVersion(),
-            // componentsMeta: designSystem.getComponentsData(),
-            // themeSource: designSystem.getThemeData('web'),
             exportType,
         };
 
         setIsLoading(true);
 
-        const result = await fetch(`${ HOST }/generate-download`, {
+        const result = await fetch(`${ DS_GENERATOR_API }/generate-download`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -169,28 +174,53 @@ export const Generate = (props: GenerateProps) => {
         setIsLoading(false);
     }
 
-    const generatePublish = async () => {
+    const generatePublish = async (): Promise<boolean> => {
         const data = {
             packageName: designSystem.getName(),
             packageVersion: designSystem.getVersion(),
-            // componentsMeta: designSystem.getComponentsData(),
-            // themeSource: designSystem.getThemeData('web'),
             exportType,
             npmToken: tokenValue,
         };
 
         setIsLoading(true);
 
-        const result = await fetch(`${ HOST }/generate-publish`, {
+        const result = await fetch(`${ DS_GENERATOR_API }/generate-publish`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
                 'Content-Type': 'application/json',
             },
         });
+
         const resultResponse = await result.json();
 
         console.log('Результат публикации :', resultResponse)
+
+        setIsLoading(false);
+
+        return resultResponse?.message.success || false;
+    }
+
+    const generateAndDeployDocumentation = async () => {
+        const data = {
+            packageName: designSystem.getName(),
+            packageVersion: designSystem.getVersion(),
+            projectName: designSystem.getName(),
+        };
+
+        setIsLoading(true);
+
+        const result = await fetch(`${ DS_DOCUMENTATION_GENERATOR_API }/documentation/generate`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
+
+        const resultResponse = await result.json();
+
+        console.log('Документация опубликована: ', resultResponse)
 
         setIsLoading(false);
     }
