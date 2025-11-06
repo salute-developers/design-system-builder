@@ -130,8 +130,6 @@ export class DesignSystem {
     public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
         this.themeData = data;
 
-        console.log('parameters', this.parameters);
-
         if (!this.name || !this.version) {
             return;
         }
@@ -198,27 +196,12 @@ export class DesignSystem {
         return this.componentsData;
     }
 
-    // TODO: нужно удалить весь функционал, связанный с getThemeData.
-    public getThemeData(platform?: Platform) {
-        if (!platform) {
-            return this.themeData.variations;
-        }
-
-        const { meta, variations } = this.themeData;
-
-        const variationsByPlatform = Object.entries(variations).reduce(
-            (acc, [variation, value]) => ({ ...acc, [variation]: value[platform] }),
-            {},
-        ) as Record<keyof typeof variations, typeof platform>;
-
-        return {
-            meta,
-            variations: variationsByPlatform,
-        };
-    }
-
     public createThemeInstance(data?: { includeExtraTokens?: boolean }) {
         return buildTheme(this.themeData.meta, this.themeData.variations, data?.includeExtraTokens);
+    }
+
+    public createAllComponentInstances() {
+        return this.componentsData.map((item) => new Config(item));
     }
 
     public createComponentInstance(data: { componentName: string }) {

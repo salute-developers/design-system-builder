@@ -43,7 +43,6 @@ function App() {
                         <Route path="typography" element={<Typography />} />
                         <Route path="components" element={<Components />}>
                             <Route index element={<ComponentSelector />} />
-                            <Route path=":componentName" element={<ComponentEditor />} />
                         </Route>
                     </Route>
                 </Route>

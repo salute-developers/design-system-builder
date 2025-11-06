@@ -1,6 +1,6 @@
-import React, { useState, useRef, KeyboardEvent, InputHTMLAttributes, useEffect } from 'react';
+import React, { useState, useRef, KeyboardEvent, InputHTMLAttributes, useEffect, ReactNode } from 'react';
 import { IconArrowBack, IconClose, IconMessageDraftOutline } from '@salutejs/plasma-icons';
-import styled, { css, CSSObject } from 'styled-components';
+import styled, { css, CSSObject, CSSProperties } from 'styled-components';
 import {
     bodyXXS,
     outlineSolidSecondary,
@@ -14,55 +14,89 @@ import {
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { useInputDynamicWidth } from '../hooks';
+import { Tooltip } from './Tooltip';
 
-const Root = styled.div<{ view?: 'default' | 'negative' }>`
+const Root = styled.div<{ view?: 'default' | 'negative'; hasBackground?: boolean; stretched?: boolean }>`
+    --text-field-color: ${({ view }) => (view === 'default' ? textSecondary : textNegative)};
+    --text-field-color-hover: ${({ view }) => (view === 'default' ? textPrimary : textNegative)};
+    --text-field-border-color: ${({ view }) => (view === 'default' ? outlineSolidSecondary : textNegative)};
+
     position: relative;
     cursor: pointer;
 
     height: 1.5rem;
-    width: fit-content;
 
     display: flex;
     gap: 0.375rem;
     align-items: center;
 
+    flex: ${({ stretched }) => (stretched ? 1 : 'unset')};
+
     ${bodyXXS as CSSObject};
-
-    --text-field-color: ${({ view }) => (view === 'default' ? textTertiary : textNegative)};
-    --text-field-color-hover: ${({ view }) => (view === 'default' ? textPrimary : textNegative)};
-    --text-field-border-color: ${({ view }) => (view === 'default' ? outlineSolidSecondary : textNegative)};
-
-    &:not(:focus-within):hover div + div {
-        background: ${surfaceTransparentPrimary};
-        color: var(--text-field-color-hover);
-    }
 
     &:hover > div {
         color: var(--text-field-color-hover);
     }
 
-    &:hover svg {
-        color: ${textSecondary};
+    ${({ hasBackground }) =>
+        hasBackground &&
+        css`
+            & > div {
+                background: ${surfaceTransparentSecondary};
+            }
+        `}
+
+    &:not(:focus-within):hover > div {
+        background: ${surfaceTransparentSecondary};
+        color: var(--text-field-color-hover);
     }
+
+    min-width: 0;
 `;
 
-const StyledLabel = styled.div`
+const StyledLabel = styled.label`
     color: ${textTertiary};
 `;
 
-const StyledWrapper = styled.div<{ readOnly?: boolean }>`
+const StyledContent = styled.div`
+    position: relative;
+
+    cursor: pointer;
+
+    color: ${textTertiary};
+    width: 0.75rem;
+    height: 0.75rem;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover div {
+        display: flex;
+    }
+`;
+
+const StyledWrapper = styled.div<{ readOnly?: boolean; stretched?: boolean }>`
     background: transparent;
+
+    position: relative;
+
+    width: ${({ stretched }) => (stretched ? '100%' : 'fit-content')};
 
     color: var(--text-field-color);
     caret-color: var(--text-field-color);
 
     &:focus-within {
         box-shadow: 0 0 0 0.0625rem var(--text-field-border-color) inset;
-        background: ${surfaceTransparentSecondary};
+        background: ${surfaceTransparentPrimary};
         color: var(--text-field-color-hover);
     }
 
-    &:focus-within div {
+    &:focus-within > div ~ div {
+        color: var(--text-field-color-hover);
+    }
+
+    &:focus-within ${StyledContent} {
         color: ${textParagraph};
     }
 
@@ -80,6 +114,8 @@ const StyledWrapper = styled.div<{ readOnly?: boolean }>`
         css`
             color: ${textPrimary};
         `}
+
+    min-width: 0;
 `;
 
 const StyledInput = styled.input<{ readOnly?: boolean }>`
@@ -109,22 +145,42 @@ const StyledSpan = styled.span`
     box-sizing: content-box;
 `;
 
-const StyledContentRight = styled.div`
-    cursor: pointer;
-
-    color: ${textTertiary};
-    width: 0.75rem;
-    height: 0.75rem;
-
+const StyledIconButton = styled.div`
     display: flex;
     align-items: center;
     justify-content: center;
 `;
 
-const StyledIconButton = styled.div`
+const StyledFieldRow = styled.div`
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    flex-grow: 1;
+    gap: 0.25rem;
+
+    min-width: 0;
+`;
+
+const StyledInputGroup = styled.div`
+    display: flex;
+    gap: 0.125rem;
+
+    flex-shrink: 1;
+    min-width: 0;
+`;
+
+const StyledInputCoreWrapper = styled.div`
+    flex-grow: 1;
+    overflow: hidden;
+    min-width: 0;
+
+    display: flex;
+    align-items: center;
+`;
+
+const StyledTextAfter = styled.div`
+    color: ${textTertiary};
+    flex-shrink: 0;
 `;
 
 const StyledIconMessageDraftOutline = styled(IconMessageDraftOutline)`
@@ -139,14 +195,20 @@ const StyledIconClose = styled(IconClose)`
     --icon-size: 0.75rem !important;
 `;
 
-interface TextAreaProps extends InputHTMLAttributes<HTMLInputElement> {
+interface TextAreaProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
     value?: string;
     view?: 'default' | 'negative';
     label?: string;
     placeholder?: string;
     readOnly?: boolean;
-    style?: React.CSSProperties;
+    stretched?: boolean;
+    hasBackground?: boolean;
+    style?: CSSProperties;
+    contentLeft?: ReactNode;
+    textAfter?: string;
+    tooltipText?: string;
     onCommit?: (value: string) => void;
+    onChange?: (value: string) => void;
 }
 
 export const TextArea = (props: TextAreaProps) => {
@@ -155,11 +217,17 @@ export const TextArea = (props: TextAreaProps) => {
         placeholder,
         label,
         readOnly,
+        hasBackground,
+        stretched,
         view = 'default',
+        contentLeft,
+        textAfter,
+        tooltipText,
         onKeyDown,
         onCommit,
         onFocus,
         onBlur,
+        onChange,
         ...rest
     } = props;
 
@@ -169,18 +237,29 @@ export const TextArea = (props: TextAreaProps) => {
     const spanRef = useRef<HTMLSpanElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
-    const [value, setValue] = useState(externalValue || '');
+    const [innerValue, setInnerValue] = useState(externalValue || '');
+
+    const value = (onChange ? externalValue : innerValue) || '';
     const prevValue = useRef<string>(value);
+
+    // const value = externalValue || innerValue; // TODO - более правильный вариант
 
     const [inputWidth] = useInputDynamicWidth(rootRef, spanRef, {
         value,
         minWidth: 16,
-        maxWidth: 172,
+        maxWidth: stretched ? undefined : 172,
         shiftWidth: 5,
     });
 
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setValue(event.target.value);
+        const value = event.target.value;
+
+        if (onChange) {
+            onChange(value);
+            return;
+        }
+
+        setInnerValue(value);
     };
 
     const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
@@ -206,7 +285,7 @@ export const TextArea = (props: TextAreaProps) => {
 
         setIsFocused(false);
 
-        setValue(prevValue.current);
+        setInnerValue(prevValue.current);
 
         if (onBlur) {
             onBlur(event);
@@ -240,52 +319,65 @@ export const TextArea = (props: TextAreaProps) => {
     };
 
     const handleResetValue = () => {
-        setValue(prevValue.current);
+        setInnerValue(prevValue.current);
     };
 
     useEffect(() => {
-        if (externalValue) {
-            setValue(externalValue);
-            prevValue.current = externalValue;
+        if (!onChange && externalValue !== undefined) {
+            setInnerValue(externalValue || '');
+            prevValue.current = externalValue || '';
         }
-    }, [externalValue]);
+    }, [externalValue, onChange]);
 
     return (
-        <Root view={view} ref={rootRef} {...rest}>
+        <Root view={view} ref={rootRef} hasBackground={hasBackground} stretched={stretched} {...rest}>
             {label && <StyledLabel onClick={handleFocusOnInput}>{label}</StyledLabel>}
-            <StyledWrapper readOnly={readOnly}>
-                <StyledInput
-                    type="text"
-                    ref={inputRef}
-                    value={value}
-                    placeholder={placeholder}
-                    readOnly={readOnly}
-                    style={{ width: `${inputWidth}px` }}
-                    onChange={handleChange}
-                    onKeyDown={handleKeyDown}
-                    onFocus={handleFocus}
-                    onBlur={handleBlur}
-                />
-                <StyledSpan ref={spanRef}>{value || placeholder}</StyledSpan>
-                {!readOnly && (
-                    <StyledContentRight>
-                        {!isFocused && (
-                            <StyledIconButton onClick={handleFocusOnInput}>
-                                <StyledIconMessageDraftOutline color="inherit" />
-                            </StyledIconButton>
-                        )}
-                        {value && isFocused && (
-                            <StyledIconButton onMouseDown={handleCommitValue}>
-                                <StyledIconArrowBack color="inherit" />
-                            </StyledIconButton>
-                        )}
-                        {!value && isFocused && (
-                            <StyledIconButton onMouseDown={handleResetValue}>
-                                <StyledIconClose color="inherit" />
-                            </StyledIconButton>
-                        )}
-                    </StyledContentRight>
+            <StyledWrapper readOnly={readOnly} stretched={stretched} onClick={handleFocusOnInput}>
+                {contentLeft && (
+                    <StyledContent>
+                        {contentLeft}
+                        {tooltipText && <Tooltip placement="bottom" offset={[0.75, 0]} text={tooltipText} />}
+                    </StyledContent>
                 )}
+                <StyledFieldRow>
+                    <StyledInputGroup>
+                        <StyledInputCoreWrapper>
+                            <StyledInput
+                                type="text"
+                                ref={inputRef}
+                                value={value}
+                                placeholder={placeholder}
+                                readOnly={readOnly}
+                                style={{ width: `${inputWidth}px` }}
+                                onChange={handleChange}
+                                onKeyDown={handleKeyDown}
+                                onFocus={handleFocus}
+                                onBlur={handleBlur}
+                            />
+                            <StyledSpan ref={spanRef}>{value || placeholder}</StyledSpan>
+                        </StyledInputCoreWrapper>
+                        {textAfter && <StyledTextAfter>{textAfter}</StyledTextAfter>}
+                    </StyledInputGroup>
+                    {!readOnly && (
+                        <StyledContent>
+                            {!isFocused && !hasBackground && (
+                                <StyledIconButton onClick={handleFocusOnInput}>
+                                    <StyledIconMessageDraftOutline color="inherit" />
+                                </StyledIconButton>
+                            )}
+                            {value && isFocused && (
+                                <StyledIconButton onMouseDown={handleCommitValue}>
+                                    <StyledIconArrowBack color="inherit" />
+                                </StyledIconButton>
+                            )}
+                            {!value && isFocused && (
+                                <StyledIconButton onMouseDown={handleResetValue}>
+                                    <StyledIconClose color="inherit" />
+                                </StyledIconButton>
+                            )}
+                        </StyledContent>
+                    )}
+                </StyledFieldRow>
             </StyledWrapper>
         </Root>
     );
