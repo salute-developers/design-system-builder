@@ -1,17 +1,22 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
-import styled from 'styled-components';
+import { useLayoutEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { general } from '@salutejs/plasma-colors';
 import {
     IconHelpCircleOutline,
     IconHomeAltOutline,
     IconTree,
     IconArrowLeft,
     IconGroupOutline,
+    IconSave,
 } from '@salutejs/plasma-icons';
-import { general } from '@salutejs/plasma-colors';
+import {
+    backgroundSecondary,
+    backgroundPrimary,
+    backgroundTertiary,
+} from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { backgroundSecondary, backgroundPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
 import { IconButton } from '../components/IconButton';
@@ -21,8 +26,6 @@ import { CreateFirstName } from './CreateFirstName';
 import { SetupParameters } from './SetupParameters';
 import { CreationProgress } from './CreationProgress';
 import { transliterateToSnakeCase } from '../utils';
-import { DesignSystem } from '../../designSystem';
-import { Theme } from '../../themeBuilder';
 import {
     IconBookOpenOutline,
     IconColorSwatchOutline,
@@ -31,6 +34,13 @@ import {
     IconTypography,
 } from '../_icons';
 import { useDesignSystem } from '../hooks';
+import { LinkButton } from '../components/LinkButton';
+
+// TODO: Удалить
+import { createVariationTokens } from '../../themeBuilder/themes/createVariationTokens';
+import { createMetaTokens } from '../../themeBuilder/themes/createMetaTokens';
+import { extraMetaTokenGetters } from '../../themeBuilder/themes/metaTokensGetters';
+import { extraThemeTokenGetters } from '../../themeBuilder/themes/variationTokensGetters';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -94,9 +104,30 @@ const BuilderItems = styled.div`
     }
 `;
 
+const BuilderExpandedItems = styled.div`
+    padding: 0.75rem 0 !important;
+
+    display: flex;
+    flex-direction: column;
+
+    & > div {
+        padding: 0.75rem;
+    }
+`;
+
 const StyledPopup = styled(Popup)`
     left: 4rem;
     padding: 3.75rem 5rem 0 22.5rem;
+`;
+
+const StyledLinkButton = styled(LinkButton)`
+    position: absolute;
+    bottom: 0.75rem;
+    right: 0.75rem;
+
+    background: ${backgroundTertiary};
+    border-radius: 0.5rem;
+    padding: 0.375rem 0.5rem;
 `;
 
 const popupContentPages = {
@@ -197,7 +228,19 @@ export const Main = () => {
     }, [currentPath]);
 
     const { designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme } = useDesignSystem(designSystemName, designSystemVersion);
+    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion);
+
+    // TODO: перенести
+    const onThemeSave = () => {
+        if (!designSystem || !theme) {
+            return;
+        }
+
+        const metaTokens = createMetaTokens(theme, extraMetaTokenGetters);
+        const variationTokens = createVariationTokens(theme, extraThemeTokenGetters);
+
+        designSystem.saveThemeData({ meta: metaTokens, variations: variationTokens });
+    };
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
@@ -222,12 +265,7 @@ export const Main = () => {
                 </MainItems>
                 {isEditingDesignSystem && (
                     <BuilderItems>
-                        <IconButton
-                            selected={currentPath.includes('overview')}
-                            onClick={() => {
-                                onClickPanelButton('overview');
-                            }}
-                        >
+                        <IconButton disabled selected={currentPath.includes('overview')}>
                             <IconBookOpenOutline size="xs" color="inherit" />
                         </IconButton>
 
@@ -242,7 +280,7 @@ export const Main = () => {
                         )}
 
                         {showTokensPanelItems && (
-                            <>
+                            <BuilderExpandedItems>
                                 <IconButton
                                     selected={currentPath.includes('colors')}
                                     onClick={() => onClickPanelButton('colors')}
@@ -261,7 +299,7 @@ export const Main = () => {
                                 >
                                     <IconShapeOutline size="xs" color="inherit" />
                                 </IconButton>
-                            </>
+                            </BuilderExpandedItems>
                         )}
 
                         <IconButton
@@ -278,7 +316,8 @@ export const Main = () => {
                     <IconHelpCircleOutline size="xs" color="inherit" />
                 </IconButton>
             </Panel>
-            <Outlet context={{ onOpenPopup, projectName: parameters.projectName, designSystem, theme }} />
+            <Outlet context={{ onOpenPopup, projectName: parameters.projectName, designSystem, theme, components }} />
+            <StyledLinkButton text="Сохранить тему" contentLeft={<IconSave size="s" />} onClick={onThemeSave} />
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
