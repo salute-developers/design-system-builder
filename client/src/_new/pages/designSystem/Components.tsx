@@ -1,52 +1,61 @@
-import { Outlet, useParams } from 'react-router-dom';
-import styled, { CSSObject } from 'styled-components';
-import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { useOutletContext } from 'react-router-dom';
+import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { h6 } from '../../utils';
-import { Workspace } from '../../components';
-
-const Header = styled.div`
-    padding: 0 0.5rem;
-    box-sizing: border-box;
-    height: 2.5rem;
-
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-`;
-
-const HeaderTitle = styled.div`
-    overflow: hidden;
-    color: ${textPrimary};
-    text-overflow: ellipsis;
-
-    ${h6 as CSSObject};
-    font-weight: 600;
-`;
+import { TokensMenu, Workspace } from '../../components';
+import { DesignSystem } from '../../../designSystem';
+import { Theme } from '../../../themeBuilder';
+import { getMenuItems } from '../../utils';
+import { useEffect, useMemo, useState } from 'react';
+import { useSelectItemInMenu } from '../../hooks';
+import { Config } from '../../../componentBuilder';
+import { ComponentEditor } from '../component';
+interface ComponentsOutletContextProps {
+    designSystem?: DesignSystem;
+    theme?: Theme;
+    components?: Config[];
+}
 
 export const Components = () => {
-    // TODO: Загружать тему на этой странице и дальше передавать в контент
-    const { designSystemName, designSystemVersion } = useParams();
+    const { designSystem, theme, components } = useOutletContext<ComponentsOutletContextProps>();
+
+    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 2, 3]);
+
+    const [configs, setConfigs] = useState<Config[] | undefined>([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const data = useMemo(() => getMenuItems(components, 'components'), [theme]);
+
+    useEffect(() => {
+        if (!data) {
+            return;
+        }
+
+        const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
+        const selectedConfigs = data.groups[tabIndex].data[groupIndex].items[itemIndex].data as Config[];
+
+        setConfigs(selectedConfigs);
+    }, [theme, data, selectedItemIndexes]);
+
+    if (!data || !designSystem || !theme || !components) {
+        return null;
+    }
 
     return (
         <Workspace
+            menuBackground={backgroundTertiary}
             menu={
-                <>
-                    <Header>
-                        <HeaderTitle>{designSystemName}</HeaderTitle>
-                        <HeaderTitle style={{ opacity: 0.5 }}>{designSystemVersion}</HeaderTitle>
-                    </Header>
-                    <Header>
-                        <HeaderTitle>Редактирование компонент</HeaderTitle>
-                    </Header>
-                    <Header>
-                        <HeaderTitle style={{ fontWeight: 400 }}>Здесь будет красивый список токенов...</HeaderTitle>
-                    </Header>
-                </>
+                <TokensMenu
+                    header={designSystem.getParameters()?.packagesName}
+                    subheader={designSystem.getParameters()?.packagesName}
+                    data={data}
+                    canAdd={false}
+                    canDisable={false}
+                    sectionTitle="Компоненты"
+                    selectedTokenIndexes={selectedItemIndexes}
+                    onTabSelect={onTabSelect}
+                    onTokenSelect={onItemSelect}
+                />
             }
-            content={<Outlet />}
+            content={<ComponentEditor designSystem={designSystem} theme={theme} configs={configs} />}
         />
     );
 };

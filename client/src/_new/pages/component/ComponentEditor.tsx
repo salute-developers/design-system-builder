@@ -1,229 +1,105 @@
-import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate, useParams } from 'react-router-dom';
-import { type ThemeMode } from '@salutejs/plasma-tokens-utils';
-import { Button } from '@salutejs/plasma-b2c';
+import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { ComponentPlayground } from './ComponentPlayground';
-import { ComponentTokens } from './ComponentTokens';
 import { Theme } from '../../../themeBuilder';
-import { ComponentAddStyle } from './ComponentAddStyle';
-import { Config } from '../../../componentBuilder';
 import { DesignSystem } from '../../../designSystem';
-import { PageWrapper } from '../PageWrapper';
+import { TextField } from '../../components/TextField';
+import { Config } from '../../../componentBuilder';
+import { ComponentEditorSetup } from '../../components/ComponentEditorSetup';
+import { ComponentEditorProperties } from '../../components/ComponentEditorProperties';
+import { useVariationAndStyle } from '../../hooks';
 
-const StyledActions = styled.div`
-    display: flex;
-    gap: 1rem;
-    justify-content: flex-end;
-`;
-
-const StyledBoard = styled.div`
-    display: flex;
-    gap: 1rem;
-    min-height: 0;
+const Root = styled.div`
+    width: 33.75rem;
     height: 100%;
-    margin-bottom: 1rem;
+    background: ${backgroundTertiary};
+
+    box-sizing: border-box;
+    padding: 0.75rem 1.25rem;
+
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
 `;
 
-// TODO: перенести в утилиты?
-const createCSSVars = (config: Config, theme: Theme, args: Record<string, string | boolean>, themeMode: ThemeMode) => {
-    const variations = config.getVariations();
-    const invariants = config.getInvariants();
-    const componentName = config.getName();
+const StyledHeader = styled.div`
+    display: flex;
+    flex-direction: column;
 
-    const items = Object.entries(args).map(([variation, value]) => ({
-        variation,
-        value,
-    }));
+    margin-left: -0.375rem;
+`;
 
-    const variationsVars = items.reduce((vars, obj) => {
-        const variation = variations.find((item) => item.getName() === obj.variation);
-        const style = variation?.getStyles()?.find((item) => item.getID() === obj.value);
+const StyledWrapper = styled.div`
+    display: flex;
+    gap: 1.5rem;
+    margin-left: -0.5rem;
+`;
 
-        const props = style
-            ?.getProps()
-            .getList()
-            .reduce(
-                (acc, prop) => ({
-                    ...acc,
-                    ...prop.getWebTokenValue(componentName, theme, themeMode),
-                }),
-                {},
-            );
-
-        return {
-            ...vars,
-            ...props,
-        };
-    }, {});
-
-    const invariantVars = invariants.getList().reduce(
-        (acc, prop) => ({
-            ...acc,
-            ...prop.getWebTokenValue(componentName, theme, themeMode),
-        }),
-        {},
-    );
-
-    return {
-        ...variationsVars,
-        ...invariantVars,
-    };
-};
-
-// TODO: перенести в утилиты?
-const getDefaults = (config: Config) => {
-    const defaultVariations = config.getDefaults();
-
-    const defaults: Record<string, string | boolean> = {};
-
-    defaultVariations.forEach((item) => {
-        const variation = item.getVariation();
-        const styleID = item.getStyleID();
-
-        defaults[variation] = styleID;
-    });
-
-    return defaults;
-};
-
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface ComponentEditorProps {
-    // designSystem: DesignSystem;
+    designSystem: DesignSystem;
+    theme: Theme;
+    configs?: Config[];
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
-    const { componentName = '', designSystemName, designSystemVersion } = useParams();
-    const navigate = useNavigate();
+    const { designSystem, theme, configs } = props;
 
-    const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
+    const config = configs?.[0];
+    const [selectedVariation, setSelectedVariation, selectedStyle, setSelectedStyle] = useVariationAndStyle(config);
 
-    useEffect(() => {
-        const initializeDesignSystem = async () => {
-            if (designSystemName && designSystemVersion) {
-                const ds = await DesignSystem.get({ name: designSystemName, version: designSystemVersion });
-                setDesignSystem(ds);
-            }
-        };
-        initializeDesignSystem();
-    }, [designSystemName, designSystemVersion]);
-
-    const theme = useMemo(() => designSystem?.createThemeInstance({ includeExtraTokens: true }), [designSystem]);
-    const componentConfig = useMemo(
-        () =>
-            designSystem?.createComponentInstance({
-                componentName,
-            }),
-        [designSystem, componentName],
-    );
-
-    const [, updateState] = useState({});
-    const [componentProps, setComponentProps] = useState({});
-    const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
-    const [addStyleModal, setAddStyleModal] = useState<{
-        open: boolean;
-        variationID?: string;
-    }>({
-        open: false,
-        variationID: undefined,
-    });
-
-    const forceRender = () => updateState({});
-
-    useEffect(() => {
-        if (componentConfig) {
-            setComponentProps((prev) => ({ ...prev, ...getDefaults(componentConfig) }));
-        }
-    }, [componentConfig]);
-
-    if (!designSystem || !theme || !componentConfig) {
-        return <div>Loading...</div>;
-    }
-
-    const onComponentCancel = () => {
-        navigate(-1);
-    };
-
-    const onComponentSave = () => {
-        const name = componentConfig.getName();
-        const description = componentConfig.getDescription();
-        const { defaultVariations, invariantProps, variations } = componentConfig.getMeta();
-
-        const { sources } = designSystem.getComponentDataByName(componentName);
-
-        sources.configs[0] = {
-            ...sources.configs[0],
-            config: {
-                defaultVariations,
-                invariantProps,
-                variations,
-            },
-        };
-
-        const meta = {
-            name,
-            description,
-            sources: {
-                configs: sources.configs,
-                // TODO: подумать, надо ли будет потом это тащить в бд
-                api: sources.api,
-                variations: sources.variations,
-            },
-        };
-
-        designSystem.saveComponentsData({ meta });
-
-        console.log('UPDATED COMPONENT CONFIG', componentConfig);
-        navigate(-1);
-    };
-
-    const onChangeComponentControlValue = (name?: string, value?: unknown) => {
-        if (!name) {
+    const onVariationChange = (value: string) => {
+        if (!config) {
             return;
         }
 
-        setComponentProps({ ...componentProps, [name]: value as string });
+        if (value === 'invariants') {
+            setSelectedVariation(undefined);
+            return;
+        }
+
+        // const variation = config.getVariation(value)?.getName();
+        const style = config.getStyleByVariation(value)?.getID();
+
+        setSelectedVariation(value);
+        setSelectedStyle(style);
+
+        // onChangeComponentControlValue(variation, style);
     };
 
-    const onUpdateComponentProps = (values: Record<string, any>) => {
-        setComponentProps({ ...componentProps, ...values });
+    const onStyleChange = (value: string) => {
+        setSelectedStyle(value);
+
+        // const variation = config.getVariation(variationID)?.getName();
+        // onChangeComponentControlValue(variation, value);
     };
 
-    const vars = createCSSVars(componentConfig, theme, componentProps, themeMode);
+    if (!config) {
+        return null;
+    }
 
     return (
-        <PageWrapper designSystem={designSystem}>
-            <StyledBoard>
-                <ComponentTokens
-                    args={componentProps}
+        <Root>
+            <StyledHeader>
+                <TextField readOnly value={config?.getName()} />
+                <TextField readOnly stretched value={config?.getDescription()} />
+            </StyledHeader>
+            <StyledWrapper>
+                <ComponentEditorSetup
+                    config={config}
                     designSystem={designSystem}
-                    config={componentConfig}
+                    variationID={selectedVariation}
+                    styleID={selectedStyle}
+                    onVariationChange={onVariationChange}
+                    onStyleChange={onStyleChange}
+                />
+                <ComponentEditorProperties
+                    config={config}
+                    designSystem={designSystem}
                     theme={theme}
-                    updateConfig={forceRender}
-                    setAddStyleModal={setAddStyleModal}
-                    onChangeComponentControlValue={onChangeComponentControlValue}
+                    variationID={selectedVariation}
+                    styleID={selectedStyle}
                 />
-                <ComponentPlayground
-                    vars={vars}
-                    args={componentProps}
-                    config={componentConfig}
-                    themeMode={themeMode}
-                    updateThemeMode={setThemeMode}
-                    onUpdateComponentProps={onUpdateComponentProps}
-                    onChange={onChangeComponentControlValue}
-                />
-            </StyledBoard>
-            <StyledActions>
-                <Button view="clear" onClick={onComponentCancel} text="Назад" />
-                <Button view="primary" onClick={onComponentSave} text="Сохранить" />
-            </StyledActions>
-            <ComponentAddStyle
-                designSystem={designSystem}
-                config={componentConfig}
-                addStyleModal={addStyleModal}
-                setAddStyleModal={setAddStyleModal}
-            />
-        </PageWrapper>
+            </StyledWrapper>
+        </Root>
     );
 };

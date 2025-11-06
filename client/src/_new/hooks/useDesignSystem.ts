@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { DesignSystem } from '../../designSystem';
 import { Theme } from '../../themeBuilder';
+import { Config } from '../../componentBuilder';
 
 export const useDesignSystem = (
     designSystemName?: string,
@@ -10,6 +11,7 @@ export const useDesignSystem = (
 ) => {
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
     const [theme, setTheme] = useState<Theme | null>(null);
+    const [components, setComponents] = useState<Config[] | null>(null);
 
     useEffect(() => {
         const loadDesignSystems = async () => {
@@ -24,10 +26,11 @@ export const useDesignSystem = (
                     includeExtraTokens,
                 }),
             );
+            setComponents(ds.createAllComponentInstances());
         };
 
         loadDesignSystems();
     }, [designSystemName, designSystemVersion, includeExtraTokens]);
 
-    return { designSystem, theme };
+    return { designSystem, theme, components };
 };

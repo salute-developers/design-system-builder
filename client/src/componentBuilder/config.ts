@@ -131,10 +131,10 @@ export class Config {
         item?.getProps().removeProp(id);
     }
 
-    public addVariationStyle(api: ComponentAPI[], variationID: string, styleID: string) {
+    public addVariationStyle(api: ComponentAPI[], variationID: string, styleName: string) {
         const item = this.variations.find((item) => item.getID() === variationID);
 
-        item?.addStyle(styleID, api);
+        item?.addStyle(styleName, api);
     }
 
     public removeVariationStyle(variationID?: string, styleID?: string) {
