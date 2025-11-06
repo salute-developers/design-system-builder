@@ -276,7 +276,7 @@ export const convertColor = (input: string): ColorFormats => {
     return { hex, rgb, hsl };
 };
 
-export const getColorAndOpacity = (value: string) => {
+export const getColorAndOpacity = (value: string | string[]) => {
     const extractAlphaFromHex = (hex: string) => {
         hex = hex.replace('#', '').trim();
 
@@ -309,3 +309,11 @@ export const getCorpColor = (accentValue: string, saturationValue: string) =>
 
 export const separatedCorpColor = (value?: string) =>
     value ? (value.split('.').length === 3 ? value.split('.') : ['', '', '']) : '';
+
+export const getAlphaHex = (opacity?: number) =>
+    opacity
+        ? Math.round(opacity * 255)
+              .toString(16)
+              .padStart(2, '0')
+              .toUpperCase()
+        : undefined;

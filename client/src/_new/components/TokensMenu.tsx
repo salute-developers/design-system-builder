@@ -1,4 +1,4 @@
-import React, { Fragment, MouseEvent, useState } from 'react';
+import { Fragment, MouseEvent, useEffect, useState } from 'react';
 import styled, { css, CSSObject } from 'styled-components';
 import {
     IconChevronDown,
@@ -10,7 +10,7 @@ import {
 } from '@salutejs/plasma-icons';
 import {
     bodyXXS,
-    outlineSolidSecondary,
+    outlineTransparentPrimary,
     surfaceTransparentPrimary,
     textPrimary,
     textSecondary,
@@ -19,9 +19,12 @@ import {
 
 import { IconButton } from './IconButton';
 import { h6 } from '../utils';
-import { Data } from '../types';
+import { Data, GroupData } from '../types';
 import { Tooltip } from './Tooltip';
 import { Token } from '../../themeBuilder/tokens/token';
+import { TextField } from './TextField';
+import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { Config } from '../../componentBuilder';
 
 const Root = styled.div`
     height: 100%;
@@ -65,7 +68,7 @@ const HeaderSubtitle = styled.div`
     text-overflow: ellipsis;
 
     color: ${textTertiary};
-    ${bodyXXS as CSSObject};
+    ${h6 as CSSObject};
 `;
 
 const List = styled.div`
@@ -216,7 +219,7 @@ const ListItemPreviewWrapper = styled.div`
 
 const ListItemColorPreview = styled.div<{ color: string }>`
     background: ${({ color }) => color};
-    box-shadow: 0 0 0 0.0625rem ${outlineSolidSecondary} inset;
+    box-shadow: 0 0 0 0.0625rem ${outlineTransparentPrimary} inset;
 
     min-height: 0.75rem;
     min-width: 0.75rem;
@@ -233,9 +236,6 @@ const ListItemShapePreview = styled.div`
     color: ${textTertiary};
 
     ${bodyXXS as CSSObject};
-
-    // TODO: Придумать вариант получше
-    width: 6rem;
 
     white-space: nowrap;
     overflow: hidden;
@@ -261,38 +261,69 @@ const StyledIconChevronUp = styled(IconChevronUp)`
 // TODO: Недорогое и быстрое решение
 const MAX_CHARS_TOKEN_NAME = 32;
 
+const getDefaultDisabledGroups = (groupsData: GroupData[]) => {
+    return groupsData.reduce((acc, group) => {
+        if (group.items.every(({ disabled }) => disabled)) {
+            acc.push(group.name);
+        }
+
+        return acc;
+    }, [] as string[]);
+};
+
 export interface MenuProps {
     header?: string;
     subheader?: string;
     data: Data;
-    defaultSelectedTokenIndexes?: [number, number, number];
-    onTokenSelect?: (tokens: Token[]) => void;
-    onTokenDisable?: () => void;
+    selectedTokenIndexes?: [number, number, number];
+    sectionTitle?: string;
+    canDisable?: boolean;
+    canAdd?: boolean;
+    onTabSelect?: (index: number) => void;
+    onTokenSelect?: (groupIndex: number, tokenIndex: number) => void;
+    onTokenAdd?: (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | Config)[]) => void;
+    onTokenDisable?: (tokens: (Token | Config)[], disabled: boolean) => void;
 }
 
 export const TokensMenu = (props: MenuProps) => {
-    const { header, subheader, data, defaultSelectedTokenIndexes, onTokenSelect } = props;
+    const {
+        header,
+        subheader,
+        data,
+        selectedTokenIndexes,
+        sectionTitle = 'Токены',
+        canAdd = true,
+        canDisable = true,
+        onTabSelect,
+        onTokenSelect,
+        onTokenAdd,
+        onTokenDisable,
+    } = props;
 
     const { groups, tabs } = data;
 
-    const [tabIndex = 0, groupIndex = 0, tokenIndex = 0] = defaultSelectedTokenIndexes || [];
+    const [tabIndex = 0, groupIndex = 0, tokenIndex = 0] = selectedTokenIndexes || [];
 
     const [selectedTab, setSelectedTab] = useState<string | undefined>(tabs?.values[tabIndex]);
     const [groupsData, setGroupsData] = useState(data.groups[tabIndex].data);
     const [openedGroups, setOpenedGroups] = useState<string[]>([groupsData[groupIndex].name]);
-    const [disabledGroups, setDisabledGroups] = useState<string[]>([]);
-    const [selectedToken, setSelectedToken] = useState(groupsData[groupIndex].tokens[tokenIndex].name);
+    const [disabledGroups, setDisabledGroups] = useState<string[]>(getDefaultDisabledGroups(groupsData));
+    const [selectedToken, setSelectedToken] = useState(groupsData[groupIndex].items[tokenIndex].name);
+    const [groupNameWithTokenCreating, setGroupNameWithTokenCreating] = useState<string | undefined>(undefined);
+    const [creatingTokenName, setCreatingTokenName] = useState<string>('NewToken');
 
-    const onTabSelect = (value: string) => {
+    const onTabValueSelect = (value: string) => {
         setSelectedTab(value);
 
-        const foundGroup = groups.find((group) => group.value === value);
+        const groupIndex = groups.findIndex((group) => group.value === value);
 
-        if (!foundGroup) {
+        if (groupIndex === -1) {
             return;
         }
 
-        setGroupsData(foundGroup.data);
+        if (onTabSelect) {
+            onTabSelect(groupIndex);
+        }
     };
 
     const onGroupToggle = (name: string) => {
@@ -303,8 +334,37 @@ export const TokensMenu = (props: MenuProps) => {
         setOpenedGroups(newOpenedGroups);
     };
 
-    const onTokenAdd = (event: MouseEvent<HTMLDivElement>) => {
+    const onItemAdd = (groupName: string) => (event: MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
+
+        setGroupNameWithTokenCreating(groupName);
+    };
+
+    const onItemAddChange = (value: string) => {
+        let newValue = value.replace(/[^a-zA-Z0-9]/g, '');
+
+        if (newValue.length > 0) {
+            newValue = newValue.charAt(0).toUpperCase() + newValue.slice(1);
+        }
+
+        setCreatingTokenName(newValue);
+    };
+
+    const onItemAddCommit = (groupName: string, tokenName: string, tabName?: string) => {
+        setGroupNameWithTokenCreating(undefined);
+        setCreatingTokenName('');
+
+        if (onTokenAdd) {
+            const groupIndex = groupsData.findIndex(({ name }) => name === groupNameWithTokenCreating);
+            const tokens = groupsData[groupIndex].items?.[0].data;
+
+            onTokenAdd(groupName, tokenName, tabName, tokens);
+        }
+    };
+
+    const onItemAddCancel = () => {
+        setGroupNameWithTokenCreating(undefined);
+        setCreatingTokenName('');
     };
 
     const onTokenGroupDisable = (name: string) => (event: MouseEvent<HTMLDivElement>) => {
@@ -314,9 +374,14 @@ export const TokensMenu = (props: MenuProps) => {
         const isDisabled = disabledGroups.includes(name);
 
         const updatedGroupsData = [...groupsData];
-        updatedGroupsData[groupIndex].tokens.forEach((token) => {
+        updatedGroupsData[groupIndex].items.forEach((token) => {
             token.disabled = !isDisabled;
         });
+
+        if (onTokenDisable) {
+            const tokens = updatedGroupsData[groupIndex].items.map(({ data }) => data).flat();
+            onTokenDisable(tokens, isDisabled);
+        }
 
         setGroupsData(updatedGroupsData);
 
@@ -327,7 +392,7 @@ export const TokensMenu = (props: MenuProps) => {
         setDisabledGroups(newDisabledGroups);
     };
 
-    const onItemSelect = (name: string, tokens: Token[], disabled: boolean) => {
+    const onItemSelect = (name: string, disabled: boolean, groupIndex: number, tokenIndex: number) => {
         if (disabled) {
             return;
         }
@@ -335,31 +400,40 @@ export const TokensMenu = (props: MenuProps) => {
         setSelectedToken(name);
 
         if (onTokenSelect) {
-            onTokenSelect(tokens);
+            onTokenSelect(groupIndex, tokenIndex);
         }
     };
 
-    const onTokenDisable =
-        (groupName: string, tokenName: string, disabled: boolean) => (event: MouseEvent<HTMLDivElement>) => {
+    const onItemDisable =
+        (groupName: string, tokenName: string, tokens: (Token | Config)[], disabled: boolean) =>
+        (event: MouseEvent<HTMLDivElement>) => {
             event.stopPropagation();
 
             const groupIndex = groupsData.findIndex((group) => group.name === groupName);
-            const tokenIndex = groupsData[groupIndex].tokens.findIndex((token) => token.name === tokenName);
+            const tokenIndex = groupsData[groupIndex].items.findIndex((token) => token.name === tokenName);
 
             const updatedGroupsData = [...groupsData];
-            updatedGroupsData[groupIndex].tokens[tokenIndex].disabled = !disabled;
+            updatedGroupsData[groupIndex].items[tokenIndex].disabled = !disabled;
+
+            if (onTokenDisable) {
+                onTokenDisable(tokens, disabled);
+            }
 
             setGroupsData(updatedGroupsData);
 
-            if (updatedGroupsData[groupIndex].tokens.every(({ disabled }) => disabled)) {
+            if (updatedGroupsData[groupIndex].items.every(({ disabled }) => disabled)) {
                 setDisabledGroups([...disabledGroups, groupName]);
                 return;
             }
 
-            if (updatedGroupsData[groupIndex].tokens.some(({ disabled }) => !disabled)) {
+            if (updatedGroupsData[groupIndex].items.some(({ disabled }) => !disabled)) {
                 setDisabledGroups(disabledGroups.filter((item) => item !== groupName));
             }
         };
+
+    useEffect(() => {
+        setGroupsData(data.groups[tabIndex].data);
+    }, [data, tabIndex]);
 
     return (
         <Root>
@@ -378,7 +452,7 @@ export const TokensMenu = (props: MenuProps) => {
                     {tabs.values.map((value, index) => (
                         <ListItem
                             selected={value === selectedTab}
-                            onClick={() => onTabSelect(value)}
+                            onClick={() => onTabValueSelect(value)}
                             key={`${value}_${index}`}
                         >
                             <ListItemText>{value}</ListItemText>
@@ -391,9 +465,9 @@ export const TokensMenu = (props: MenuProps) => {
                     minHeight: 0,
                 }}
             >
-                <ListSectionTitle>Токены</ListSectionTitle>
+                <ListSectionTitle>{sectionTitle}</ListSectionTitle>
                 <ListSectionGroups>
-                    {groupsData.map(({ name: groupName, type, tokens }) => (
+                    {groupsData.map(({ name: groupName, type, items: tokens }, groupIndex) => (
                         <ListSectionGroup key={`${groupName}_${selectedToken}_${selectedTab}`}>
                             <ListSectionGroupToggle onClick={() => onGroupToggle(groupName)}>
                                 {openedGroups.includes(groupName) ? (
@@ -410,62 +484,96 @@ export const TokensMenu = (props: MenuProps) => {
                                     <ListItemText>{groupName}</ListItemText>
                                 </ListItemWrapper>
                                 <ListItemContentRight>
-                                    <IconButton onClick={onTokenAdd}>
-                                        <IconPlus size="xs" color="inherit" />
-                                    </IconButton>
-                                    <IconButton onClick={onTokenGroupDisable(groupName)}>
-                                        {disabledGroups.includes(groupName) ? (
-                                            <IconEyeClosedFill size="xs" color="inherit" />
-                                        ) : (
-                                            <IconEye size="xs" color="inherit" />
-                                        )}
-                                    </IconButton>
+                                    {canAdd && (
+                                        <IconButton onClick={onItemAdd(groupName)}>
+                                            <IconPlus size="xs" color="inherit" />
+                                        </IconButton>
+                                    )}
+                                    {canDisable && (
+                                        <IconButton onClick={onTokenGroupDisable(groupName)}>
+                                            {disabledGroups.includes(groupName) ? (
+                                                <IconEyeClosedFill size="xs" color="inherit" />
+                                            ) : (
+                                                <IconEye size="xs" color="inherit" />
+                                            )}
+                                        </IconButton>
+                                    )}
                                 </ListItemContentRight>
                             </ListItem>
-                            {openedGroups.includes(groupName) &&
-                                tokens.map(({ disabled, name: tokenName, previewValues: values, data }) => (
-                                    <ListItem
-                                        key={`${tokenName}_${selectedToken}_${selectedTab}`}
-                                        selected={tokenName === selectedToken}
-                                        disabled={disabled}
-                                        lineThrough
-                                        onClick={() => onItemSelect(tokenName, data, disabled)}
-                                    >
-                                        <ListItemWrapper
-                                            // TODO: Недорогое и быстрое решение
-                                            canShowTooltip={Boolean(tokenName.length > MAX_CHARS_TOKEN_NAME)}
-                                        >
-                                            <ListItemText>{tokenName}</ListItemText>
-                                            <ListItemPreviewWrapper>
-                                                {values.map((value, index) => (
-                                                    <Fragment key={`${tokenName}_${selectedToken}_${value}_${index}`}>
-                                                        {value && type === 'color' && (
-                                                            <ListItemColorPreview color={value} />
-                                                        )}
-                                                        {value && type === 'typography' && (
-                                                            <ListItemTypographyPreview>
-                                                                {value}
-                                                            </ListItemTypographyPreview>
-                                                        )}
-                                                        {value && type === 'shape' && (
-                                                            <ListItemShapePreview>{value}</ListItemShapePreview>
-                                                        )}
-                                                    </Fragment>
-                                                ))}
-                                            </ListItemPreviewWrapper>
-                                        </ListItemWrapper>
-                                        <ListItemContentRight>
-                                            <IconButton onClick={onTokenDisable(groupName, tokenName, disabled)}>
-                                                {disabled ? (
-                                                    <IconEyeClosedFill size="xs" color="inherit" />
-                                                ) : (
-                                                    <IconEye size="xs" color="inherit" />
-                                                )}
-                                            </IconButton>
-                                        </ListItemContentRight>
-                                        <Tooltip offset={[0.5, 0]} placement="top" text={tokenName} />
-                                    </ListItem>
-                                ))}
+                            {openedGroups.includes(groupName) && (
+                                <div style={{ maxHeight: '500px', overflowY: 'scroll' }}>
+                                    {tokens.map(
+                                        ({ disabled, name: tokenName, previewValues: values, data }, tokenIndex) => (
+                                            <ListItem
+                                                key={`${tokenName}_${selectedToken}_${selectedTab}`}
+                                                selected={tokenName === selectedToken}
+                                                disabled={disabled}
+                                                lineThrough={canDisable}
+                                                onClick={() =>
+                                                    onItemSelect(tokenName, disabled, groupIndex, tokenIndex)
+                                                }
+                                            >
+                                                <ListItemWrapper
+                                                    // TODO: Недорогое и быстрое решение
+                                                    canShowTooltip={Boolean(tokenName.length > MAX_CHARS_TOKEN_NAME)}
+                                                >
+                                                    <ListItemText>{tokenName}</ListItemText>
+                                                    <ListItemPreviewWrapper>
+                                                        {values.map((value, index) => (
+                                                            <Fragment
+                                                                key={`${tokenName}_${selectedToken}_${value}_${index}`}
+                                                            >
+                                                                {value && type === 'color' && (
+                                                                    <ListItemColorPreview color={value} />
+                                                                )}
+                                                                {value && type === 'typography' && (
+                                                                    <ListItemTypographyPreview>
+                                                                        {value}
+                                                                    </ListItemTypographyPreview>
+                                                                )}
+                                                                {value && type === 'shape' && (
+                                                                    <ListItemShapePreview>{value}</ListItemShapePreview>
+                                                                )}
+                                                            </Fragment>
+                                                        ))}
+                                                    </ListItemPreviewWrapper>
+                                                </ListItemWrapper>
+                                                <ListItemContentRight>
+                                                    {canDisable && (
+                                                        <IconButton
+                                                            onClick={onItemDisable(
+                                                                groupName,
+                                                                tokenName,
+                                                                data,
+                                                                disabled,
+                                                            )}
+                                                        >
+                                                            {disabled ? (
+                                                                <IconEyeClosedFill size="xs" color="inherit" />
+                                                            ) : (
+                                                                <IconEye size="xs" color="inherit" />
+                                                            )}
+                                                        </IconButton>
+                                                    )}
+                                                </ListItemContentRight>
+                                                <Tooltip offset={[0.5, 0]} placement="top" text={tokenName} />
+                                            </ListItem>
+                                        ),
+                                    )}
+                                    {groupNameWithTokenCreating === groupName && (
+                                        <TextField
+                                            hasBackground
+                                            stretched
+                                            value={creatingTokenName}
+                                            autoFocus
+                                            textBefore={lowerFirstLetter(groupName)}
+                                            onChange={onItemAddChange}
+                                            onCommit={(tokenName) => onItemAddCommit(groupName, tokenName, selectedTab)}
+                                            onBlur={onItemAddCancel}
+                                        />
+                                    )}
+                                </div>
+                            )}
                         </ListSectionGroup>
                     ))}
                 </ListSectionGroups>

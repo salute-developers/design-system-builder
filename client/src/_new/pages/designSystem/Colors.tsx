@@ -5,10 +5,11 @@ import { TokenColorEditor } from '../theme';
 
 import { TokensMenu, Workspace } from '../../components';
 import { DesignSystem } from '../../../designSystem';
-import { Theme } from '../../../themeBuilder';
-import { getDataTokens } from '../../utils';
+import { AndroidColor, ColorToken, IOSColor, Theme, WebColor } from '../../../themeBuilder';
+import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useEffect, useMemo, useState } from 'react';
 import { Token } from '../../../themeBuilder/tokens/token';
+import { useSelectItemInMenu, useForceRerender } from '../../hooks';
 
 interface ColorsOutletContextProps {
     designSystem?: DesignSystem;
@@ -18,13 +19,55 @@ interface ColorsOutletContextProps {
 export const Colors = () => {
     const { designSystem, theme } = useOutletContext<ColorsOutletContextProps>();
 
+    const [updated, updateToken] = useForceRerender();
+    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
+
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getDataTokens(theme, 'color'), [theme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const data = useMemo(() => getMenuItems(theme, 'color'), [theme, updated]);
 
-    const defaultSelectedTokenIndexes: [number, number, number] = useMemo(() => [0, 0, 0], []);
+    const onTokenAdd = (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | unknown)[]) => {
+        if (!theme || !tabName || !tokens) {
+            return;
+        }
 
-    const onTokenSelect = (tokens: Token[]) => {
-        setTokens(tokens);
+        // TODO: Очень не нравится это
+        const normalizedTabName = groupName === 'Background' ? tabName.replace('On', '') : tabName;
+        const rest = [camelToKebab(groupName), camelToKebab(normalizedTabName), camelToKebab(tokenName)];
+
+        const isTokenExist = theme.getToken(['dark', ...rest].join('.'), 'color');
+
+        if (isTokenExist) {
+            console.warn('Токен уже существует');
+            return;
+        }
+
+        const createMeta = (mode: string) => ({
+            tags: [mode, ...rest],
+            name: [mode, ...rest].join('.'),
+            displayName: kebabToCamel(`${camelToKebab(groupName)}-${camelToKebab(tokenName)}`),
+            description: 'New description',
+            enabled: true,
+        });
+
+        tokens.forEach((token) => {
+            const [mode, ..._] = (token as Token).getTags();
+            const newToken = new ColorToken(createMeta(mode), {
+                web: new WebColor('[general.gray.50]'),
+                ios: new IOSColor('[general.gray.50]'),
+                android: new AndroidColor('[general.gray.50]'),
+            });
+
+            theme.addToken('color', newToken);
+        });
+
+        updateToken();
+    };
+
+    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
+        (tokens as Token[]).forEach((token) => {
+            token.setEnabled(disabled);
+        });
     };
 
     useEffect(() => {
@@ -32,11 +75,11 @@ export const Colors = () => {
             return;
         }
 
-        const [tabIndex, groupIndex, tokenIndex] = defaultSelectedTokenIndexes;
-        const tokens = data.groups[tabIndex].data[groupIndex].tokens[tokenIndex].data;
+        const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
+        const selectedTokens = data.groups[tabIndex].data[groupIndex].items[itemIndex].data as Token[];
 
-        setTokens(tokens);
-    }, [theme, data, defaultSelectedTokenIndexes]);
+        setTokens(selectedTokens);
+    }, [theme, data, selectedItemIndexes]);
 
     if (!data || !designSystem || !theme) {
         return null;
@@ -50,11 +93,21 @@ export const Colors = () => {
                     header={designSystem.getParameters()?.packagesName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
-                    defaultSelectedTokenIndexes={defaultSelectedTokenIndexes}
-                    onTokenSelect={onTokenSelect}
+                    selectedTokenIndexes={selectedItemIndexes}
+                    onTabSelect={onTabSelect}
+                    onTokenSelect={onItemSelect}
+                    onTokenAdd={onTokenAdd}
+                    onTokenDisable={onTokenDisable}
                 />
             }
-            content={<TokenColorEditor designSystem={designSystem} theme={theme} tokens={tokens} />}
+            content={
+                <TokenColorEditor
+                    designSystem={designSystem}
+                    theme={theme}
+                    tokens={tokens}
+                    onTokenUpdate={updateToken}
+                />
+            }
         />
     );
 };

@@ -32,3 +32,11 @@ export const inRange = (x: number, [from, to]: number[]) => x >= from && x <= to
 export const isCamelCaseNotation = (value: string) => RegExp(/^[A-Z][a-z0-9]*(?:[A-Z][a-z0-9]+)*$/).test(value);
 
 export const isHEXFormat = (value: string) => RegExp(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/).test(value);
+
+export const prettifyColorName = (input: string) => {
+    const words = input.replace(/([a-z])([A-Z])/g, '$1 $2');
+    return words
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+};

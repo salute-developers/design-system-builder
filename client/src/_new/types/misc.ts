@@ -1,7 +1,8 @@
 import { PlasmaSaturation } from '@salutejs/plasma-colors';
 
 import { GeneralColor } from './general';
-import { Token as TokenBuilder } from '../../themeBuilder/tokens/token';
+import { Token } from '../../themeBuilder/tokens/token';
+import { Config } from '../../componentBuilder';
 
 export type GrayTone = 'gray' | 'warmGray' | 'coolGray';
 
@@ -20,19 +21,20 @@ export interface Parameters {
     darkFillSaturation: PlasmaSaturation;
 }
 
-export type TokenType = 'color' | 'shape' | 'typography';
+export type MenuType = 'color' | 'shape' | 'typography' | 'components';
 
-export interface Token {
+export interface Item {
     name: string;
     disabled: boolean;
     previewValues: string[];
-    data: TokenBuilder[];
+    // TODO: подумать о разделении типов
+    data: (Token | Config)[];
 }
 
 export interface GroupData {
     name: string;
-    type: TokenType;
-    tokens: Token[];
+    type: MenuType;
+    items: Item[];
 }
 
 export interface Group {
@@ -49,3 +51,21 @@ export interface Data {
     tabs?: Tab;
     groups: Group[];
 }
+
+export type DataItems = Record<
+    string,
+    Record<
+        string,
+        Record<
+            string,
+            Record<
+                string,
+                {
+                    enabled: boolean;
+                    value: any;
+                    item: Token | Config;
+                }
+            >
+        >
+    >
+>;
