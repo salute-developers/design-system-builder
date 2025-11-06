@@ -4,8 +4,8 @@ const Menu = styled.div<{ background?: string }>`
     box-sizing: border-box;
     padding: 0.75rem;
     padding-bottom: 0;
-    min-width: 17.5rem;
-    max-width: 17.5rem;
+    min-width: 15rem;
+    max-width: 15rem;
     height: 100vh;
 
     background: ${({ background }) => background || 'transparent'};

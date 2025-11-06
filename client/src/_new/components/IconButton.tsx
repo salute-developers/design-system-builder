@@ -1,3 +1,4 @@
+import { MouseEvent } from 'react';
 import styled, { css } from 'styled-components';
 import {
     inverseTextPrimary,
@@ -47,7 +48,7 @@ interface IconButtonProps {
     disabled?: boolean;
     children: React.ReactNode;
     style?: React.CSSProperties;
-    onClick?: (event: any) => void;
+    onClick?: (event: MouseEvent<HTMLDivElement>) => void;
 }
 
 export const IconButton = (props: IconButtonProps) => {

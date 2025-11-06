@@ -70,3 +70,30 @@ export const transliterateToSnakeCase = (input: string) => {
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '');
 };
+
+export const numberFormatter = (newValue: string, prevValue: string) => {
+    const inputValue = newValue
+        .replace(/[^\d.-]/g, '')
+        .replace(/(?!^)-/g, '')
+        .replace(/(\..*)\./g, '$1');
+
+    if (['-', '.', '-.'].includes(inputValue)) {
+        if (prevValue && prevValue.length > inputValue.length) {
+            return '0';
+        }
+
+        return;
+    }
+
+    let value = parseFloat(inputValue).toString();
+
+    if (inputValue.endsWith('.')) {
+        value = inputValue;
+    }
+
+    if (inputValue === '' || isNaN(parseFloat(value))) {
+        value = '0';
+    }
+
+    return value;
+};

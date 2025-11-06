@@ -102,7 +102,7 @@ interface HeroTextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
     dynamicHelper?: string;
 }
 
-export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props) => {
+export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props, ref) => {
     const {
         value,
         placeholder,
@@ -147,7 +147,7 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
                 <StyledDynamicContent>{dynamicContentRight}</StyledDynamicContent>
                 <StyledSpan ref={spanRef}>{value || placeholder}</StyledSpan>
             </StyleWrapper>
-            <StyledDynamicHelper>{dynamicHelper}</StyledDynamicHelper>
+            <StyledDynamicHelper ref={ref}>{dynamicHelper}</StyledDynamicHelper>
         </Root>
     );
 });

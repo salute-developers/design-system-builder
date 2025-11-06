@@ -2,12 +2,12 @@ import { useState } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import { IconBrightness1Outline, IconPlus, IconTrashOutline } from '@salutejs/plasma-icons';
 import { textSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { general } from '@salutejs/plasma-colors';
 
 import { TextField } from './TextField';
 import { IconCardsGridFill, IconCharX, IconCharY } from '../_icons';
 import { SelectButton, SelectButtonItem } from './SelectButton';
-import { getCorpColor, h6, prettifyColorName, separatedCorpColor } from '../utils';
-import { general } from '@salutejs/plasma-colors';
+import { getCorpColor, h6, numberFormatter, prettifyColorName, separatedCorpColor } from '../utils';
 import { Slider } from './Slider';
 import { LinkButton } from './LinkButton';
 import { IconButton } from './IconButton';
@@ -154,22 +154,28 @@ const Component = (props: ComponentProps) => {
         value: saturationValue,
     });
 
-    const onValueChange = (name: keyof ShadowType) => (newV: string) => {
-        const inputValue = newV.replace(/(?!^-)[^\d]/g, '');
-        let newValue = parseInt(inputValue, 10);
+    const onValueChange = (name: keyof ShadowType) => (newValue: string) => {
+        const prevValue = (value[name] || '').toString();
+        const formattedValue = numberFormatter(newValue, prevValue);
 
-        if (inputValue === '' || isNaN(newValue)) {
-            newValue = 0;
+        if (!formattedValue) {
+            return;
         }
 
-        onChange({ ...value, [name]: newValue.toString() }, index);
+        onChange(
+            {
+                ...value,
+                [name]: formattedValue,
+            },
+            index,
+        );
     };
 
     const onPaletteSelect = (item: SelectButtonItem) => {
         setPalette(item);
 
         if (item.value === 'custom') {
-            onChange({ ...value, color: '#000000' }, index);
+            onChange({ ...value, color: DEFAULT_CUSTOM_COLOR }, index);
         }
 
         if (item.value === 'corp') {

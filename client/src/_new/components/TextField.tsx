@@ -16,7 +16,12 @@ import { useInputDynamicWidth } from '../hooks';
 import { h6 } from '../utils';
 import { Tooltip } from './Tooltip';
 
-const Root = styled.div<{ view?: 'default' | 'negative'; hasBackground?: boolean; stretched?: boolean }>`
+const Root = styled.div<{
+    view?: 'default' | 'negative';
+    hasBackground?: boolean;
+    stretched?: boolean;
+    readOnly?: boolean;
+}>`
     --text-field-color: ${({ view }) => (view === 'default' ? textSecondary : textNegative)};
     --text-field-color-hover: ${({ view }) => (view === 'default' ? textPrimary : textNegative)};
     --text-field-border-color: ${({ view }) => (view === 'default' ? outlineSolidSecondary : textNegative)};
@@ -47,14 +52,14 @@ const Root = styled.div<{ view?: 'default' | 'negative'; hasBackground?: boolean
         `}
 
     &:not(:focus-within):hover > div {
-        background: ${surfaceTransparentSecondary};
+        background: ${({ readOnly }) => (readOnly ? 'transparent' : surfaceTransparentSecondary)};
         color: var(--text-field-color-hover);
     }
 
     min-width: 0;
 `;
 
-const StyledLabel = styled.label`
+const StyledLabel = styled.label<{ width?: string }>`
     color: ${textTertiary};
 `;
 
@@ -132,6 +137,10 @@ const StyledInput = styled.input<{ readOnly?: boolean }>`
     outline: none;
     padding: 0;
     border: 0;
+
+    ::placeholder {
+        color: ${textSecondary};
+    }
 `;
 
 const StyledSpan = styled.span`
@@ -178,6 +187,12 @@ const StyledInputCoreWrapper = styled.div`
     align-items: center;
 `;
 
+const StyledTextBefore = styled.div`
+    color: ${textTertiary};
+    flex-shrink: 0;
+    padding-right: 0.25rem;
+`;
+
 const StyledTextAfter = styled.div`
     color: ${textTertiary};
     flex-shrink: 0;
@@ -198,15 +213,19 @@ const StyledIconClose = styled(IconClose)`
 interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
     value?: string;
     view?: 'default' | 'negative';
-    label?: string;
+    label?: ReactNode;
     placeholder?: string;
     readOnly?: boolean;
     stretched?: boolean;
     hasBackground?: boolean;
     style?: CSSProperties;
     contentLeft?: ReactNode;
+    contentRight?: ReactNode;
+    textBefore?: string;
     textAfter?: string;
     tooltipText?: string;
+    // TODO: возможно лучше отдать ref наружу
+    autoFocus?: boolean;
     onCommit?: (value: string) => void;
     onChange?: (value: string) => void;
 }
@@ -221,8 +240,11 @@ export const TextField = (props: TextFieldProps) => {
         stretched,
         view = 'default',
         contentLeft,
+        contentRight,
+        textBefore,
         textAfter,
         tooltipText,
+        autoFocus,
         onKeyDown,
         onCommit,
         onFocus,
@@ -237,8 +259,12 @@ export const TextField = (props: TextFieldProps) => {
     const spanRef = useRef<HTMLSpanElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
-    const [value, setValue] = useState(externalValue || '');
+    const [innerValue, setInnerValue] = useState(externalValue || '');
+
+    const value = (onChange ? externalValue : innerValue) || '';
     const prevValue = useRef<string>(value);
+
+    // const value = externalValue || innerValue; // TODO - более правильный вариант
 
     const [inputWidth] = useInputDynamicWidth(rootRef, spanRef, {
         value,
@@ -255,7 +281,7 @@ export const TextField = (props: TextFieldProps) => {
             return;
         }
 
-        setValue(value);
+        setInnerValue(value);
     };
 
     const handleFocus = (event: React.FocusEvent<HTMLInputElement>) => {
@@ -281,7 +307,7 @@ export const TextField = (props: TextFieldProps) => {
 
         setIsFocused(false);
 
-        setValue(prevValue.current);
+        setInnerValue(prevValue.current);
 
         if (onBlur) {
             onBlur(event);
@@ -315,18 +341,37 @@ export const TextField = (props: TextFieldProps) => {
     };
 
     const handleResetValue = () => {
-        setValue(prevValue.current);
+        setInnerValue(prevValue.current);
     };
 
     useEffect(() => {
-        if (externalValue !== undefined) {
-            setValue(externalValue || '');
+        if (!onChange && externalValue !== undefined) {
+            setInnerValue(externalValue || '');
             prevValue.current = externalValue || '';
         }
-    }, [externalValue]);
+    }, [externalValue, onChange]);
+
+    useEffect(() => {
+        if (!autoFocus) {
+            return;
+        }
+
+        handleFocusOnInput();
+        inputRef.current?.scrollIntoView({
+            block: 'start',
+            inline: 'center',
+        });
+    }, [autoFocus]);
 
     return (
-        <Root view={view} ref={rootRef} hasBackground={hasBackground} stretched={stretched} {...rest}>
+        <Root
+            view={view}
+            ref={rootRef}
+            hasBackground={hasBackground}
+            stretched={stretched}
+            readOnly={readOnly}
+            {...rest}
+        >
             {label && <StyledLabel onClick={handleFocusOnInput}>{label}</StyledLabel>}
             <StyledWrapper readOnly={readOnly} stretched={stretched} onClick={handleFocusOnInput}>
                 {contentLeft && (
@@ -338,6 +383,7 @@ export const TextField = (props: TextFieldProps) => {
                 <StyledFieldRow>
                     <StyledInputGroup>
                         <StyledInputCoreWrapper>
+                            {textBefore && <StyledTextBefore>{textBefore}</StyledTextBefore>}
                             <StyledInput
                                 type="text"
                                 ref={inputRef}
@@ -354,25 +400,29 @@ export const TextField = (props: TextFieldProps) => {
                         </StyledInputCoreWrapper>
                         {textAfter && <StyledTextAfter>{textAfter}</StyledTextAfter>}
                     </StyledInputGroup>
-                    {!readOnly && (
-                        <StyledContent>
-                            {!isFocused && !hasBackground && (
-                                <StyledIconButton onClick={handleFocusOnInput}>
-                                    <StyledIconMessageDraftOutline color="inherit" />
-                                </StyledIconButton>
-                            )}
-                            {value && isFocused && (
-                                <StyledIconButton onMouseDown={handleCommitValue}>
-                                    <StyledIconArrowBack color="inherit" />
-                                </StyledIconButton>
-                            )}
-                            {!value && isFocused && (
-                                <StyledIconButton onMouseDown={handleResetValue}>
-                                    <StyledIconClose color="inherit" />
-                                </StyledIconButton>
-                            )}
-                        </StyledContent>
-                    )}
+                    <StyledContent>
+                        {contentRight ? (
+                            contentRight
+                        ) : (
+                            <>
+                                {!readOnly && !isFocused && !hasBackground && (
+                                    <StyledIconButton onClick={handleFocusOnInput}>
+                                        <StyledIconMessageDraftOutline color="inherit" />
+                                    </StyledIconButton>
+                                )}
+                                {!readOnly && value && isFocused && (
+                                    <StyledIconButton onMouseDown={handleCommitValue}>
+                                        <StyledIconArrowBack color="inherit" />
+                                    </StyledIconButton>
+                                )}
+                                {!readOnly && !value && isFocused && (
+                                    <StyledIconButton onMouseDown={handleResetValue}>
+                                        <StyledIconClose color="inherit" />
+                                    </StyledIconButton>
+                                )}
+                            </>
+                        )}
+                    </StyledContent>
                 </StyledFieldRow>
             </StyledWrapper>
         </Root>

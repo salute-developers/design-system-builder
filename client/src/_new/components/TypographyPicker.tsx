@@ -6,6 +6,7 @@ import { TextField } from './TextField';
 import { IconLetterSpacing, IconLineHeight } from '../_icons';
 import { SelectButton, SelectButtonItem } from './SelectButton';
 import { WebFontStyle, WebFontWeight } from '../../themeBuilder';
+import { numberFormatter } from '../utils';
 
 const Root = styled.div`
     display: flex;
@@ -117,15 +118,18 @@ export const TypographyPicker = (props: TypographyPickerProps) => {
         onChange({ ...value, fontWeight: item.value as WebFontWeight });
     };
 
-    const onValueChange = (name: keyof TypographyType) => (newV: string) => {
-        const inputValue = newV.replace(/(?!^-)[^\d]/g, '');
-        let newValue = parseInt(inputValue, 10);
+    const onValueChange = (name: keyof TypographyType) => (newValue: string) => {
+        const prevValue = value[name];
+        const formattedValue = numberFormatter(newValue, prevValue);
 
-        if (inputValue === '' || isNaN(newValue)) {
-            newValue = 0;
+        if (!formattedValue) {
+            return;
         }
 
-        onChange({ ...value, [name]: newValue.toString() });
+        onChange({
+            ...value,
+            [name]: formattedValue,
+        });
     };
 
     useEffect(() => {
