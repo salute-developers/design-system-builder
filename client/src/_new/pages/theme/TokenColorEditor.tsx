@@ -11,20 +11,17 @@ import {
     GradientToken,
     IOSColor,
     IOSGradient,
-    ShapeToken,
-    SpacingToken,
     Theme,
     WebColor,
     WebGradient,
 } from '../../../themeBuilder';
-import { camelToKebab, ColorFormats, convertColor, getColorAndOpacity, h6, kebabToCamel } from '../../utils';
+import { camelToKebab, ColorFormats, convertColor, getColorAndOpacity, kebabToCamel } from '../../utils';
 import { Token } from '../../../themeBuilder/tokens/token';
 import { DesignSystem } from '../../../designSystem';
 import { SegmentButton, SegmentButtonItem } from '../../components/SegmentButton';
 import { ColorPicker } from '../../components/ColorPicker';
 import { SelectButton, SelectButtonItem } from '../../components/SelectButton';
 import { TextField } from '../../components/TextField';
-import { TextArea } from '../../components/TextArea';
 import { EditButton } from '../../components/EditButton';
 import { LinkButton } from '../../components/LinkButton';
 
@@ -146,30 +143,6 @@ const updateTokens = (theme: Theme, updatedToken: Token, data: any) => {
         token?.setEnabled(data.enabled);
         token?.setDescription(data.description);
     });
-
-    // TODO: Добавить генерацию для нативных платформ
-
-    if (updatedToken instanceof GradientToken) {
-        updatedToken?.setValue('web', data.value.split('\n'));
-    }
-
-    if (updatedToken instanceof ColorToken) {
-        updatedToken?.setValue('web', data.value);
-    }
-
-    if (updatedToken instanceof ShapeToken) {
-        updatedToken?.setValue('web', data.value);
-    }
-
-    if (updatedToken instanceof SpacingToken) {
-        updatedToken?.setValue('web', data.value);
-    }
-
-    // if (updatedToken instanceof ShadowToken) {
-    //     console.log('data.value', typeof data.value);
-
-    //     updatedToken?.setValue('web', data.value);
-    // }
 };
 
 const modeList = [
@@ -239,11 +212,12 @@ const ColorValueEditButton = (props: ColorValueEditButton) => {
 interface TokenColorEditorProps {
     designSystem: DesignSystem;
     theme: Theme;
-    tokens?: Token[];
+    tokens?: (ColorToken | GradientToken)[];
+    onTokenUpdate: () => void;
 }
 
 export const TokenColorEditor = (props: TokenColorEditorProps) => {
-    const { designSystem, theme, tokens } = props;
+    const { designSystem, theme, tokens, onTokenUpdate } = props;
 
     const [mode, setMode] = useState<SegmentButtonItem>({
         label: 'Тёмный',
@@ -257,7 +231,25 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
     const [opacity, setOpacity] = useState<number>(1);
 
     const token = tokens?.[Number(mode.value)];
-    const value = token?.getValue('web');
+
+    const [description, setDescription] = useState<string | undefined>(token?.getDescription());
+
+    // TODO: Пока только для значений из палитры
+    const updateTokenValue = (color: string, opacity: number) => {
+        if (!token) {
+            return;
+        }
+
+        if (token instanceof ColorToken) {
+            const newColor = `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`;
+
+            token.setValue('web', newColor);
+            token.setValue('ios', newColor);
+            token.setValue('android', newColor);
+
+            onTokenUpdate();
+        }
+    };
 
     const onModeSelect = (item: SegmentButtonItem) => {
         setMode(item);
@@ -267,26 +259,54 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         setType(item);
     };
 
-    const onColorChange = (color: string) => {
-        setColor(color);
+    const onColorChange = (newColor: string) => {
+        setColor(newColor);
+
+        updateTokenValue(newColor, opacity);
     };
 
-    const onOpacityChange = (opacity: number) => {
-        setOpacity(opacity);
+    const onOpacityChange = (newOpacity: number) => {
+        setOpacity(newOpacity);
+
+        updateTokenValue(color, newOpacity);
+    };
+
+    const onDescriptionChange = (newDescription: string) => {
+        if (!token) {
+            return;
+        }
+
+        setDescription(newDescription);
+        token.setDescription(newDescription);
+    };
+
+    const onTokenReset = () => {
+        if (!token) {
+            return;
+        }
+
+        const [colorValue, opacityValue] = getColorAndOpacity(token.getDefaultValue('web'));
+        setColor(colorValue);
+        setOpacity(opacityValue);
+        setDescription(token.getDefaultDescription());
     };
 
     useEffect(() => {
-        const [colorValue, opacityValue] = getColorAndOpacity(value);
+        if (!token) {
+            return;
+        }
 
+        const [colorValue, opacityValue] = getColorAndOpacity(token.getValue('web'));
         setColor(colorValue);
         setOpacity(opacityValue);
-    }, [value]);
+        setDescription(token.getDescription());
+    }, [token]);
 
     return (
         <Root>
             <StyledHeader>
                 <TextField readOnly value={token?.getDisplayName()} />
-                <TextArea value={token?.getDescription()} />
+                <TextField value={description} onCommit={onDescriptionChange} />
             </StyledHeader>
             <StyledSetup>
                 <SegmentButton label="Режим" items={modeList} selected={mode} onSelect={onModeSelect} />
@@ -303,7 +323,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
                 <ColorValueEditButton label="RGB" color={color} opacity={opacity} format="rgb" />
                 <ColorValueEditButton label="HSL" color={color} opacity={opacity} format="hsl" />
             </StyledColorFormats>
-            <StyledLinkButton text="Отменить изменения" contentLeft={<IconClose size="xs" />} />
+            <StyledLinkButton text="Отменить изменения" contentLeft={<IconClose size="xs" />} onClick={onTokenReset} />
         </Root>
     );
 };
