@@ -1,18 +1,3 @@
-export const isString = (value: unknown): value is string => typeof value === 'string';
-
-export const getUUID = () => {
-    const value = window.localStorage.getItem('uuid');
-
-    if (value) {
-        return value;
-    }
-
-    const pluginClientId = window.crypto.randomUUID();
-    window.localStorage.setItem('uuid', pluginClientId);
-
-    return pluginClientId;
-};
-
 export const getFormatDate = (date: string) => {
     const newDate = new Date(date);
     const formatter = new Intl.DateTimeFormat('ru-RU', {
@@ -39,4 +24,12 @@ export const prettifyColorName = (input: string) => {
         .split(' ')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+};
+
+export const h6 = {
+    'font-family': 'SB Sans Display',
+    'font-size': '12px',
+    'font-style': 'normal',
+    'font-weight': '400',
+    'line-height': '16px',
 };

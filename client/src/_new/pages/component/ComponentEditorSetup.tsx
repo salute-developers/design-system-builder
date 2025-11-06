@@ -9,12 +9,12 @@ import {
 import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { Config } from '../../componentBuilder';
-import { TextField } from './TextField';
-import { Dropdown } from './Dropdown';
-import { h6 } from '../utils';
-import { IconButton } from './IconButton';
-import { DesignSystem } from '../../designSystem';
+import { Dropdown } from '../../components/Dropdown';
+import { Config } from '../../../componentBuilder';
+import { DesignSystem } from '../../../designSystem';
+import { h6 } from '../../utils';
+import { IconButton } from '../../components/IconButton';
+import { TextField } from '../../components/TextField';
 
 const Root = styled.div`
     display: flex;

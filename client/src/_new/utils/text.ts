@@ -1,5 +1,3 @@
-//TODO: Вынести наконец в один файл и заменить везде на использование отсюда
-
 export const camelToKebab = (str?: string) => {
     if (!str) {
         return '';
@@ -19,10 +17,6 @@ export const kebabToCamel = (str?: string) => {
     return str?.replace(/-([a-z0-9])/g, (_, group) => {
         return group.toUpperCase();
     });
-};
-
-export const capitalize = (str: string) => {
-    return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
 export const transliterateToSnakeCase = (input: string) => {

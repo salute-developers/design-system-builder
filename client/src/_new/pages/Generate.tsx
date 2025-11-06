@@ -5,7 +5,6 @@ import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { DesignSystem } from '../../designSystem';
-import { PageWrapper } from './PageWrapper';
 
 const VITE_DS_GENERATOR_API = import.meta.env.VITE_DS_GENERATOR_API;
 const VITE_DS_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DS_DOCUMENTATION_GENERATOR_API;
@@ -100,7 +99,7 @@ export const Generate = (props: GenerateProps) => {
                 await generateAndDeployDocumentation();
             }
         } else {
-            await generateDownload()
+            await generateDownload();
         }
     };
 
@@ -173,7 +172,7 @@ export const Generate = (props: GenerateProps) => {
         window.URL.revokeObjectURL(url);
 
         setIsLoading(false);
-    }
+    };
 
     const generatePublish = async (): Promise<boolean> => {
         const data = {
@@ -195,7 +194,7 @@ export const Generate = (props: GenerateProps) => {
 
         const resultResponse = await result.json();
 
-        console.log('Результат публикации :', resultResponse)
+        console.log('Результат публикации :', resultResponse);
 
         setIsLoading(false);
 
@@ -227,7 +226,7 @@ export const Generate = (props: GenerateProps) => {
     }
 
     return (
-        <PageWrapper designSystem={designSystem}>
+        <>
             <StyledGenerateContent>
                 <StyledExportType>
                     <BodyM>Тип экспорта</BodyM>
@@ -242,10 +241,14 @@ export const Generate = (props: GenerateProps) => {
                 </StyledExportType>
             </StyledGenerateContent>
             <StyledActions>
-                <input style={ { width: '400px' } } type="text" value={ tokenValue }
-                       onChange={ e => setTokenValue(e.target.value) }
-                       placeholder="Введи npm-токен чтобы опубликовать пакет"/>
-                <Button view="clear" onClick={ onGoComponents } text="Назад"/>
+                <input
+                    style={{ width: '400px' }}
+                    type="text"
+                    value={tokenValue}
+                    onChange={(e) => setTokenValue(e.target.value)}
+                    placeholder="Введи npm-токен чтобы опубликовать пакет"
+                />
+                <Button view="clear" onClick={onGoComponents} text="Назад" />
                 <Button
                     view="primary"
                     onClick={onDesignSystemGenerate}
@@ -254,6 +257,6 @@ export const Generate = (props: GenerateProps) => {
                     text="Создать дизайн систему"
                 />
             </StyledActions>
-        </PageWrapper>
+        </>
     );
 };

@@ -1,4 +1,4 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import {
     ColorToken,
@@ -9,117 +9,117 @@ import {
     Theme,
     TypographyToken,
 } from '../../themeBuilder';
-import { capitalize, kebabToCamel } from './';
+import { kebabToCamel } from './';
 import { Data, DataItems, MenuType } from '../types';
 import { Config } from '../../componentBuilder';
 
-const generateComponentMap = (componentConfigs: Config[]) => {
-    // TODO: Перенести в БД
-    const componentList = [
-        {
-            groupName: 'Layout',
-            components: [
-                { name: 'Flow', disabled: true },
-                { name: 'Grid', disabled: true },
-            ],
-        },
-        {
-            groupName: 'Data Display',
-            components: [
-                { name: 'Accordion', disabled: true },
-                { name: 'Avatar', disabled: true },
-                { name: 'AvatarGroup', disabled: true },
-                { name: 'Badge', disabled: true },
-                { name: 'Card', disabled: true },
-                { name: 'Cell', disabled: true },
-                { name: 'Chip', disabled: true },
-                { name: 'ChipGroup', disabled: true },
-                { name: 'Counter', disabled: true },
-                { name: 'Divider', disabled: true },
-                { name: 'Image', disabled: true },
-                { name: 'Indicator', disabled: true },
-                { name: 'InformationWrapper', disabled: true },
-                { name: 'List', disabled: true },
-                { name: 'Mask', disabled: true },
-                { name: 'Note', disabled: true },
-                { name: 'Price', disabled: true },
-                { name: 'Rating', disabled: true },
-                { name: 'Skeleton', disabled: true },
-                { name: 'Spinner', disabled: true },
-                { name: 'Table', disabled: true },
-                { name: 'Typography', disabled: true },
-                { name: 'ViewContainer', disabled: true },
-            ],
-        },
-        {
-            groupName: 'Data Entry',
-            components: [
-                { name: 'Attach', disabled: true },
-                { name: 'Accordion', disabled: true },
-                { name: 'Autocomplete', disabled: true },
-                { name: 'Button', disabled: false },
-                { name: 'ButtonGroup', disabled: true },
-                { name: 'Calendar', disabled: true },
-                { name: 'Checkbox', disabled: false },
-                { name: 'CodeField', disabled: true },
-                { name: 'Combobox', disabled: true },
-                { name: 'DatePicker', disabled: true },
-                { name: 'Dropdown', disabled: true },
-                { name: 'Dropzone', disabled: true },
-                { name: 'Editable', disabled: true },
-                { name: 'EmbedIconButton', disabled: true },
-                { name: 'EmptyState', disabled: true },
-                { name: 'IconButton', disabled: false },
-                { name: 'LinkButton', disabled: true },
-                { name: 'NumberFormat', disabled: true },
-                { name: 'NumberInput', disabled: true },
-                { name: 'Portal', disabled: true },
-                { name: 'Radiobox', disabled: false },
-                { name: 'Range', disabled: true },
-                { name: 'Rating', disabled: true },
-                { name: 'Segment', disabled: true },
-                { name: 'Select', disabled: true },
-                { name: 'Slider', disabled: true },
-                { name: 'Switch', disabled: true },
-                { name: 'TextArea', disabled: true },
-                { name: 'TextField', disabled: true },
-                { name: 'TextFieldGroup', disabled: true },
-                { name: 'TimePicker', disabled: true },
-                { name: 'Tree', disabled: true },
-            ],
-        },
-        {
-            groupName: 'Navigation',
-            components: [
-                { name: 'Breadcrumbs', disabled: true },
-                { name: 'Carousel', disabled: true },
-                { name: 'Link', disabled: false },
-                { name: 'Pagination', disabled: true },
-                { name: 'PaginationDots', disabled: true },
-                { name: 'Steps', disabled: true },
-                { name: 'Tabs', disabled: true },
-                { name: 'Tour', disabled: true },
-            ],
-        },
-        {
-            groupName: 'Overlay',
-            components: [
-                { name: 'Drawer', disabled: true },
-                { name: 'Modal', disabled: true },
-                { name: 'Notification', disabled: true },
-                { name: 'Overlay', disabled: true },
-                { name: 'Popover', disabled: true },
-                { name: 'Popup', disabled: true },
-                { name: 'Progress', disabled: true },
-                { name: 'ProgressBarCircular', disabled: true },
-                { name: 'Sheet', disabled: true },
-                { name: 'Toast', disabled: true },
-                { name: 'Toolbar', disabled: true },
-                { name: 'Tooltip', disabled: true },
-            ],
-        },
-    ];
+// TODO: Перенести в БД
+const componentList = [
+    {
+        groupName: 'Layout',
+        components: [
+            { name: 'Flow', disabled: true },
+            { name: 'Grid', disabled: true },
+        ],
+    },
+    {
+        groupName: 'Data Display',
+        components: [
+            { name: 'Accordion', disabled: true },
+            { name: 'Avatar', disabled: true },
+            { name: 'AvatarGroup', disabled: true },
+            { name: 'Badge', disabled: true },
+            { name: 'Card', disabled: true },
+            { name: 'Cell', disabled: true },
+            { name: 'Chip', disabled: true },
+            { name: 'ChipGroup', disabled: true },
+            { name: 'Counter', disabled: true },
+            { name: 'Divider', disabled: true },
+            { name: 'Image', disabled: true },
+            { name: 'Indicator', disabled: true },
+            { name: 'InformationWrapper', disabled: true },
+            { name: 'List', disabled: true },
+            { name: 'Mask', disabled: true },
+            { name: 'Note', disabled: true },
+            { name: 'Price', disabled: true },
+            { name: 'Rating', disabled: true },
+            { name: 'Skeleton', disabled: true },
+            { name: 'Spinner', disabled: true },
+            { name: 'Table', disabled: true },
+            { name: 'Typography', disabled: true },
+            { name: 'ViewContainer', disabled: true },
+        ],
+    },
+    {
+        groupName: 'Data Entry',
+        components: [
+            { name: 'Attach', disabled: true },
+            { name: 'Accordion', disabled: true },
+            { name: 'Autocomplete', disabled: true },
+            { name: 'Button', disabled: false },
+            { name: 'ButtonGroup', disabled: true },
+            { name: 'Calendar', disabled: true },
+            { name: 'Checkbox', disabled: false },
+            { name: 'CodeField', disabled: true },
+            { name: 'Combobox', disabled: true },
+            { name: 'DatePicker', disabled: true },
+            { name: 'Dropdown', disabled: true },
+            { name: 'Dropzone', disabled: true },
+            { name: 'Editable', disabled: true },
+            { name: 'EmbedIconButton', disabled: true },
+            { name: 'EmptyState', disabled: true },
+            { name: 'IconButton', disabled: false },
+            { name: 'LinkButton', disabled: true },
+            { name: 'NumberFormat', disabled: true },
+            { name: 'NumberInput', disabled: true },
+            { name: 'Portal', disabled: true },
+            { name: 'Radiobox', disabled: false },
+            { name: 'Range', disabled: true },
+            { name: 'Rating', disabled: true },
+            { name: 'Segment', disabled: true },
+            { name: 'Select', disabled: true },
+            { name: 'Slider', disabled: true },
+            { name: 'Switch', disabled: true },
+            { name: 'TextArea', disabled: true },
+            { name: 'TextField', disabled: true },
+            { name: 'TextFieldGroup', disabled: true },
+            { name: 'TimePicker', disabled: true },
+            { name: 'Tree', disabled: true },
+        ],
+    },
+    {
+        groupName: 'Navigation',
+        components: [
+            { name: 'Breadcrumbs', disabled: true },
+            { name: 'Carousel', disabled: true },
+            { name: 'Link', disabled: false },
+            { name: 'Pagination', disabled: true },
+            { name: 'PaginationDots', disabled: true },
+            { name: 'Steps', disabled: true },
+            { name: 'Tabs', disabled: true },
+            { name: 'Tour', disabled: true },
+        ],
+    },
+    {
+        groupName: 'Overlay',
+        components: [
+            { name: 'Drawer', disabled: true },
+            { name: 'Modal', disabled: true },
+            { name: 'Notification', disabled: true },
+            { name: 'Overlay', disabled: true },
+            { name: 'Popover', disabled: true },
+            { name: 'Popup', disabled: true },
+            { name: 'Progress', disabled: true },
+            { name: 'ProgressBarCircular', disabled: true },
+            { name: 'Sheet', disabled: true },
+            { name: 'Toast', disabled: true },
+            { name: 'Toolbar', disabled: true },
+            { name: 'Tooltip', disabled: true },
+        ],
+    },
+];
 
+const generateComponentMap = (componentConfigs: Config[]) => {
     const data: DataItems = {};
 
     const addToData = (components: typeof componentList) => {
@@ -293,15 +293,15 @@ const createDataItems = (dataItems: DataItems, tokenType: MenuType, tabsName?: s
     if (tabsName) {
         data.tabs = {
             name: tabsName,
-            values: Object.keys(dataItems).map(capitalize),
+            values: Object.keys(dataItems).map(upperFirstLetter),
         };
     }
 
     Object.entries(dataItems).forEach(([tab, groups]) => {
         data.groups.push({
-            value: tabsName ? capitalize(tab) : undefined,
+            value: tabsName ? upperFirstLetter(tab) : undefined,
             data: Object.entries(groups).map(([group, items]) => ({
-                name: capitalize(group),
+                name: upperFirstLetter(group),
                 type: tokenType,
                 items: Object.entries(items).map(([name, modes]) => {
                     const disabled = !Object.values(modes)[0].enabled;

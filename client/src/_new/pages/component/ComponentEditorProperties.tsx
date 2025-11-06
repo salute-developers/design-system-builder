@@ -1,18 +1,18 @@
+import { Fragment, MouseEvent, useMemo, useState } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 import { bodyXXS, outlineTransparentPrimary, textTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 
-import { ComponentAPI, ComponentVariation, Config, PropType, PropUnion } from '../../componentBuilder';
-import { Theme } from '../../themeBuilder';
-import { TextField } from './TextField';
-import { Fragment, MouseEvent, useMemo, useState } from 'react';
-import { DesignSystem } from '../../designSystem';
-import { h6 } from '../utils';
-import { SelectButton, SelectButtonItem } from './SelectButton';
-import { IconButton } from './IconButton';
-import { Dropdown } from './Dropdown';
-import { useForceRerender } from '../hooks';
+import { Dropdown } from '../../components/Dropdown';
+import { ComponentAPI, ComponentVariation, Config, PropType, PropUnion } from '../../../componentBuilder';
+import { DesignSystem } from '../../../designSystem';
+import { h6 } from '../../utils';
+import { IconButton } from '../../components/IconButton';
+import { TextField } from '../../components/TextField';
+import { SelectButton, SelectButtonItem } from '../../components/SelectButton';
+import { Theme } from '../../../themeBuilder';
+import { useForceRerender } from '../../hooks';
 
 const Root = styled.div`
     min-width: 0;

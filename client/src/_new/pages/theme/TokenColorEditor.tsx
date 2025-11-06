@@ -4,19 +4,8 @@ import { IconClose, IconCopyOutline, IconDone } from '@salutejs/plasma-icons';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import {
-    AndroidColor,
-    AndroidGradient,
-    ColorToken,
-    GradientToken,
-    IOSColor,
-    IOSGradient,
-    Theme,
-    WebColor,
-    WebGradient,
-} from '../../../themeBuilder';
-import { camelToKebab, ColorFormats, convertColor, getColorAndOpacity, kebabToCamel } from '../../utils';
-import { Token } from '../../../themeBuilder/tokens/token';
+import { ColorToken, GradientToken, Theme } from '../../../themeBuilder';
+import { ColorFormats, convertColor, getColorAndOpacity } from '../../utils';
 import { DesignSystem } from '../../../designSystem';
 import { SegmentButton, SegmentButtonItem } from '../../components/SegmentButton';
 import { ColorPicker } from '../../components/ColorPicker';
@@ -69,81 +58,6 @@ const StyledLinkButton = styled(LinkButton)`
     position: absolute;
     bottom: 3rem;
 `;
-
-const createNewTokens = (theme: Theme, context?: (string | undefined)[]) => {
-    const [type, mode, ...rest] = (context as string[]) || [];
-    const replaceTo = mode === 'dark' ? 'light' : 'dark';
-
-    const createMeta = (mode: string) => ({
-        tags: [mode, ...rest, 'initial-name'],
-        name: [mode, ...rest, 'initial-name'].join('.'),
-        displayName: 'displayName',
-        description: 'description',
-        enabled: true,
-    });
-
-    const createTokens = (type: string) => {
-        if (type === 'color') {
-            const newToken = new ColorToken(createMeta(mode), {
-                web: new WebColor(''),
-                ios: new IOSColor(''),
-                android: new AndroidColor(''),
-            });
-            const secondNewToken = new ColorToken(createMeta(replaceTo), {
-                web: new WebColor(''),
-                ios: new IOSColor(''),
-                android: new AndroidColor(''),
-            });
-
-            theme.addToken(type, secondNewToken);
-            return theme.addToken(type, newToken);
-        }
-
-        if (type === 'gradient') {
-            const newToken = new GradientToken(createMeta(mode), {
-                web: new WebGradient(['']),
-                ios: new IOSGradient([]),
-                android: new AndroidGradient([]),
-            });
-            const secondNewToken = new GradientToken(createMeta(replaceTo), {
-                web: new WebGradient(['']),
-                ios: new IOSGradient([]),
-                android: new AndroidGradient([]),
-            });
-
-            theme.addToken(type, secondNewToken);
-            return theme.addToken(type, newToken);
-        }
-    };
-
-    return createTokens(type);
-};
-
-const updateTokens = (theme: Theme, updatedToken: Token, data: any) => {
-    const [, ...rest] = updatedToken.getTags();
-    const lightTokenName = theme.getToken(['light', ...rest].join('.'), updatedToken.getType());
-    const darkTokenName = theme.getToken(['dark', ...rest].join('.'), updatedToken.getType());
-
-    [lightTokenName, darkTokenName].forEach((token) => {
-        if (!token) {
-            return;
-        }
-
-        const [mode, category, subcategory] = token.getTags();
-        const tokenDisplayName = kebabToCamel(
-            (subcategory === 'default' ? category : [subcategory, category].join('-')) + '-' + data.editableName,
-        );
-        const tokenTags = [mode, category, subcategory, camelToKebab(data.editableName)];
-        const tokenName = tokenTags.join('.');
-
-        token?.setName(tokenName);
-        token?.setTags(tokenTags);
-        token?.setDisplayName(tokenDisplayName);
-
-        token?.setEnabled(data.enabled);
-        token?.setDescription(data.description);
-    });
-};
 
 const modeList = [
     {

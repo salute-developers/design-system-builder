@@ -1,4 +1,4 @@
-import { sectionToFormulaMap } from '../../../_new/utils';
+import { sectionToFormulaMap } from '../../../_new/types';
 import type { TokenType } from '../../types';
 
 export const getAdditionalMetaTokens = (data: TokenType) => {

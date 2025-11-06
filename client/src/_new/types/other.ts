@@ -1,6 +1,6 @@
 import { PlasmaSaturation } from '@salutejs/plasma-colors';
+import { general as generalColors } from '@salutejs/plasma-colors';
 
-import { GeneralColor } from './general';
 import { Token } from '../../themeBuilder/tokens/token';
 import { Config } from '../../componentBuilder';
 
@@ -9,6 +9,16 @@ export type GrayTone = 'gray' | 'warmGray' | 'coolGray';
 export type ViewType = 'light' | 'dark';
 
 export type SaturationType = 'fill' | 'stroke';
+
+export type ComplexValue = string | Record<string, string>;
+
+export type GeneralColor = keyof typeof generalColors;
+
+export type ColorFormats = {
+    hex: string;
+    rgb: string;
+    hsl: string;
+};
 
 export interface Parameters {
     projectName: string;

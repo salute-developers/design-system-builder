@@ -1,5 +1,7 @@
-export const BASE_PREFIX = 'base';
-export const THEME_BUILDER_PREFIX = 'theme-builder';
+import { FormulaMode } from './formulas';
+
+export const DEFAULT_WHITE_COLOR = '#FFFFFFFF';
+export const DEFAULT_BLACK_COLOR = '#000000FF';
 
 export const baseColors = {
     white: {
@@ -16,30 +18,11 @@ export const baseColors = {
     },
 };
 
-export const emptyInputData = {
-    section: {
-        value: '',
-        status: undefined,
-    },
-    subsection: {
-        value: '',
-        status: undefined,
-    },
-    name: {
-        value: '',
-        status: undefined,
-    },
-    value: {
-        value: '',
-        status: undefined,
-    },
-    comment: {
-        value: '',
-        status: undefined,
-    },
-};
-
-export const zeroPoint = {
-    x: 0,
-    y: 0,
+// TODO: Подумать как сделать этот список динамическим, либо добавить механизм к группе
+// который будет указывать как применять формулы для генерации active и hover состояний
+export const sectionToFormulaMap: Record<string, FormulaMode> = {
+    text: 'stroke',
+    outline: 'stroke',
+    surface: 'fill',
+    data: 'fill',
 };

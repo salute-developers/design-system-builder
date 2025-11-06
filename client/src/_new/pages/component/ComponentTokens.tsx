@@ -5,8 +5,6 @@ import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
 import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import type { Config } from '../../../componentBuilder';
-import { ComponentToken } from './ComponentToken';
-import { ComponentAddToken } from './ComponentAddToken';
 import type { Theme } from '../../../themeBuilder';
 import { ComponentControl } from './ComponentControl';
 import type { DesignSystem } from '../../../designSystem';
@@ -267,29 +265,7 @@ export const ComponentTokens = (props: ComponentTokensProps) => {
                         />
                     ))
                 ) : (
-                    <>
-                        {tokenList.map((prop) => (
-                            <ComponentToken
-                                key={`token:${prop.getName()}`}
-                                item={prop}
-                                config={config}
-                                theme={theme}
-                                variationID={selectedVariation}
-                                styleID={selectedStyle}
-                                updateConfig={updateConfig}
-                            />
-                        ))}
-                        <ComponentAddToken
-                            designSystem={designSystem}
-                            config={config}
-                            theme={theme}
-                            variationID={selectedVariation}
-                            styleID={selectedStyle}
-                            newToken={newToken}
-                            setNewToken={setNewToken}
-                            updateConfig={updateConfig}
-                        />
-                    </>
+                    <></>
                 )}
             </StyledTokens>
         </StyledRoot>

@@ -1,8 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 import {
-    ComponentEditor,
-    ComponentSelector,
     Projects,
     Home,
     Colors,
@@ -41,9 +39,7 @@ function App() {
                         <Route path="colors" element={<Colors />} />
                         <Route path="shapes" element={<Shapes />} />
                         <Route path="typography" element={<Typography />} />
-                        <Route path="components" element={<Components />}>
-                            <Route index element={<ComponentSelector />} />
-                        </Route>
+                        <Route path="components" element={<Components />} />
                     </Route>
                 </Route>
             </Routes>

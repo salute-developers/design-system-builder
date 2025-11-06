@@ -1,10 +1,9 @@
 import { forwardRef, HTMLAttributes, ReactNode } from 'react';
 import styled, { CSSObject } from 'styled-components';
-import { IconArrowsMoveVertical, IconInfoCircleOutline } from '@salutejs/plasma-icons';
+import { IconInfoCircleOutline } from '@salutejs/plasma-icons';
 import {
     bodyXXS,
     darkBackgroundSecondary,
-    h1,
     lightBackgroundSecondary,
     onDarkTextPrimary,
     onLightTextPrimary,

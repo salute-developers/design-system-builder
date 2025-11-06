@@ -1,4 +1,5 @@
-import { camelToKebab, capitalize } from '../../_new/utils';
+import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { camelToKebab } from '../../_new/utils';
 import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
 export abstract class Prop {
@@ -111,9 +112,9 @@ export abstract class Prop {
     }
 
     protected getFormattedTokenName(tokenName: string, componentName?: string) {
-        return capitalize(tokenName).startsWith(componentName || '')
-            ? capitalize(tokenName)
-            : `${componentName}${capitalize(tokenName)}`;
+        return upperFirstLetter(tokenName).startsWith(componentName || '')
+            ? upperFirstLetter(tokenName)
+            : `${componentName}${upperFirstLetter(tokenName)}`;
     }
 
     protected getAdditionalTokens(

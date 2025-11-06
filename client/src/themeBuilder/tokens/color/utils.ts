@@ -1,6 +1,7 @@
 import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import { getStateColor, sectionToFormulaMap } from '../../../_new/utils';
+import { getStateColor } from '../../../_new/utils';
+import { sectionToFormulaMap } from '../../../_new/types';
 
 export const getTokensNames = (name: string) => {
     // TODO: подумать, может есть решение лучше

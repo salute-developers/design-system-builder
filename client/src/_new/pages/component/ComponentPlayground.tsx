@@ -6,7 +6,6 @@ import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra
 import { ComponentControl } from './ComponentControl';
 import type { Config, Variation } from '../../../componentBuilder';
 
-import { Segment } from '../../components';
 import { useStory } from '../../hooks';
 
 const StyledRoot = styled.div`
@@ -159,9 +158,9 @@ export const ComponentPlayground = (props: ComponentPlaygroundProps) => {
                     <Story {...args} />
                 </StyledComponentWrapper>
                 <StyledStoriesSelector>
-                    <SegmentProvider defaultSelected={[selectedStory.value]} singleSelectedRequired>
-                        <Segment items={items} setActiveItem={setSelectedStory} />
-                    </SegmentProvider>
+                    {/* <SegmentProvider defaultSelected={[selectedStory.value]} singleSelectedRequired> */}
+                    {/* <Segment items={items} setActiveItem={setSelectedStory} /> */}
+                    {/* </SegmentProvider> */}
                 </StyledStoriesSelector>
                 <StyledSwitch checked={themeMode === 'dark'} onChange={onChangeThemeMode} />
             </StyledComponentPreview>

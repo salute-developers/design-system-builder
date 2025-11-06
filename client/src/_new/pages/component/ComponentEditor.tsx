@@ -5,9 +5,9 @@ import { Theme } from '../../../themeBuilder';
 import { DesignSystem } from '../../../designSystem';
 import { TextField } from '../../components/TextField';
 import { Config } from '../../../componentBuilder';
-import { ComponentEditorSetup } from '../../components/ComponentEditorSetup';
-import { ComponentEditorProperties } from '../../components/ComponentEditorProperties';
 import { useVariationAndStyle } from '../../hooks';
+import { ComponentEditorSetup } from './ComponentEditorSetup';
+import { ComponentEditorProperties } from './ComponentEditorProperties';
 
 const Root = styled.div`
     width: 33.75rem;
