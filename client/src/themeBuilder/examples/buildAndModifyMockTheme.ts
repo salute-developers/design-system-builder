@@ -266,7 +266,7 @@ export const buildAndModifyMockTheme = async () => {
     const onlyGradientTokens = mockTheme.getTokens('gradient');
     console.log('onlyGradientTokens', onlyGradientTokens);
 
-    mockTheme.setTokenValue('shadow.name', 'shadow', 'android', { color: 'red', elevation: 0 });
+    mockTheme.setTokenValue('shadow.name', 'shadow', 'android', []);
 
     const allTokens = mockTheme.getTokens();
     console.log('allTokens', allTokens);

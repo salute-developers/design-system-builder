@@ -77,7 +77,6 @@ const paletteList = [
     },
 ];
 
-
 interface ColorPickerProps {
     color: string;
     opacity?: number;

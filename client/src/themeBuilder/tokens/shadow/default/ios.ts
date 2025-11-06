@@ -2,112 +2,146 @@ import { ThemeConfig } from '../../../types';
 import { IOSShadowToken } from '../types';
 
 export const getIOSTokens = (config: ThemeConfig): IOSShadowToken => ({
-    'down.soft.s': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    'down.soft.s': [
+        {
+            color: '#08080814',
+            offsetX: 0,
+            offsetY: 4,
+            spreadRadius: -4,
+            blurRadius: 14,
+            fallbackElevation: 2,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'down.soft.m': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+        {
+            color: '#0000000A',
+            offsetX: 0,
+            offsetY: 1,
+            spreadRadius: -1,
+            blurRadius: 4,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'down.soft.l': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'down.soft.m': [
+        {
+            color: '#00000014',
+            offsetX: 0,
+            offsetY: 24,
+            spreadRadius: -8,
+            blurRadius: 48,
+            fallbackElevation: 4,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'down.hard.s': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'down.soft.l': [
+        {
+            color: '#00000014',
+            offsetX: 0,
+            offsetY: 60,
+            spreadRadius: -8,
+            blurRadius: 112,
+            fallbackElevation: 6,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'down.hard.m': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'down.hard.s': [
+        {
+            color: '#08080829',
+            offsetX: 0,
+            offsetY: 4,
+            spreadRadius: -3,
+            blurRadius: 12,
+            fallbackElevation: 2,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'down.hard.l': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+        {
+            color: '#00000014',
+            offsetX: 0,
+            offsetY: 1,
+            spreadRadius: -2,
+            blurRadius: 4,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.soft.s': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'down.hard.m': [
+        {
+            color: '#0000003D',
+            offsetX: 0,
+            offsetY: 16,
+            spreadRadius: -8,
+            blurRadius: 32,
+            fallbackElevation: 4,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.soft.m': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'down.hard.l': [
+        {
+            color: '#00000066',
+            offsetX: 0,
+            offsetY: 60,
+            spreadRadius: -8,
+            blurRadius: 112,
+            fallbackElevation: 6,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.soft.l': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'up.soft.s': [
+        {
+            color: '#08080814',
+            offsetX: 0,
+            offsetY: -4,
+            spreadRadius: -4,
+            blurRadius: 14,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.hard.s': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+        {
+            color: '#00000008',
+            offsetX: 0,
+            offsetY: -1,
+            spreadRadius: -1,
+            blurRadius: 4,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.hard.m': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'up.soft.m': [
+        {
+            color: '#00000014',
+            offsetX: 0,
+            offsetY: -24,
+            spreadRadius: -8,
+            blurRadius: 48,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
-    'up.hard.l': {
-        color: '#000000',
-        offset: {
-            width: 0,
-            height: 5,
+    ],
+    'up.soft.l': [
+        {
+            color: '#00000014',
+            offsetX: 0,
+            offsetY: -60,
+            spreadRadius: -8,
+            blurRadius: 112,
         },
-        opacity: 0.5,
-        radius: 1.5,
-    },
+    ],
+    'up.hard.s': [
+        {
+            color: '#08080833',
+            offsetX: 0,
+            offsetY: -4,
+            spreadRadius: -3,
+            blurRadius: 12,
+        },
+        {
+            color: '#00000008',
+            offsetX: 0,
+            offsetY: -1,
+            spreadRadius: -1,
+            blurRadius: 4,
+        },
+    ],
+    'up.hard.m': [
+        {
+            color: '#0000003D',
+            offsetX: 0,
+            offsetY: -16,
+            spreadRadius: -8,
+            blurRadius: 32,
+        },
+    ],
+    'up.hard.l': [
+        {
+            color: '#00000066',
+            offsetX: 0,
+            offsetY: -60,
+            spreadRadius: -8,
+            blurRadius: 112,
+        },
+    ],
 });

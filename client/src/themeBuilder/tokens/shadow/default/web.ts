@@ -2,16 +2,16 @@ import { ThemeConfig } from '../../../types';
 import { WebShadowToken } from '../types';
 
 export const getWebTokens = (config: ThemeConfig): WebShadowToken => ({
-    'down.soft.s': ['0px 4px 14px -4px rgba(8, 8, 8, 0.08)', '0px 1px 4px -1px rgba(0, 0, 0, 0.04)'],
-    'down.soft.m': ['0px 24px 48px -8px rgba(0, 0, 0, 0.08)'],
-    'down.soft.l': ['0px 60px 112px -8px rgba(0, 0, 0, 0.08)'],
-    'down.hard.s': ['0px 4px 12px -3px rgba(8, 8, 8, 0.16)', '0px 1px 4px -2px rgba(0, 0, 0, 0.08)'],
-    'down.hard.m': ['0px 16px 32px -8px rgba(0, 0, 0, 0.24)'],
-    'down.hard.l': ['0px 60px 112px -8px rgba(0, 0, 0, 0.40)'],
-    'up.soft.s': ['0px -4px 14px -4px rgba(8, 8, 8, 0.08)', '0px -1px 4px -1px rgba(0, 0, 0, 0.03)'],
-    'up.soft.m': ['0px -24px 48px -8px rgba(0, 0, 0, 0.08)'],
-    'up.soft.l': ['0px -60px 112px -8px rgba(0, 0, 0, 0.08)'],
-    'up.hard.s': ['0px -4px 12px -3px rgba(8, 8, 8, 0.20)', '0px -1px 4px -1px rgba(0, 0, 0, 0.03)'],
-    'up.hard.m': ['0px -16px 32px -8px rgba(0, 0, 0, 0.24)'],
-    'up.hard.l': ['0px -60px 112px -8px rgba(0, 0, 0, 0.40)'],
+    'down.soft.s': ['0rem 0.25rem 0.875rem -0.25rem #08080814', '0rem 0.0625rem 0.25rem -0.0625rem #0000000A'],
+    'down.soft.m': ['0rem 1.5rem 3rem -0.5rem #00000014'],
+    'down.soft.l': ['0rem 3.75rem 7rem -0.5rem #00000014'],
+    'down.hard.s': ['0rem 0.25rem 0.75rem -0.1875rem #08080829', '0rem 0.0625rem 0.25rem -0.125rem #00000014'],
+    'down.hard.m': ['0rem 1rem 2rem -0.5rem #0000003D'],
+    'down.hard.l': ['0rem 3.75rem 7rem -0.5rem #00000066'],
+    'up.soft.s': ['0rem -0.25rem 0.875rem -0.25rem #08080814', '0rem -0.0625rem 0.25rem -0.0625rem #00000008'],
+    'up.soft.m': ['0rem -1.5rem 3rem -0.5rem #00000014'],
+    'up.soft.l': ['0rem -3.75rem 7rem -0.5rem #00000014'],
+    'up.hard.s': ['0rem -0.25rem 0.75rem -0.1875rem #08080833', '0rem -0.0625rem 0.25rem -0.0625rem #00000008'],
+    'up.hard.m': ['0rem -1rem 2rem -0.5rem #0000003D'],
+    'up.hard.l': ['0rem -3.75rem 7rem -0.5rem #00000066'],
 });

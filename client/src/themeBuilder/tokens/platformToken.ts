@@ -6,9 +6,11 @@ export type PlatformClasses<U extends Platforms = Platforms> = {
 
 export abstract class PlatformToken<T extends Platforms[Platform] = Platforms[Platform]> {
     protected value: T[string];
+    protected default: T[string];
 
     constructor(value: T[string]) {
         this.value = value;
+        this.default = value;
     }
 
     public getValue(): T[string] {
@@ -16,4 +18,8 @@ export abstract class PlatformToken<T extends Platforms[Platform] = Platforms[Pl
     }
 
     abstract setValue(value: T[string]): void;
+
+    public getDefault(): T[string] {
+        return this.default;
+    }
 }

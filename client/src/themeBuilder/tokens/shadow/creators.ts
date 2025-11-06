@@ -12,8 +12,8 @@ export const createDefaultShadowTokens = (config: ThemeConfig): ShadowToken[] =>
         const ios = iosTokens[token.name];
         const android = androidTokens[token.name];
 
-        if (!web || !ios || !android) {
-            throw new Error(`Токен '${token.name}' не найден`);
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен теней '${token.name}' не найден`);
         }
 
         const values = {
@@ -32,8 +32,8 @@ export const createShadowTokens = (tokens: Array<TokenType>, platforms: Platform
         const ios = platforms.ios[token.name];
         const android = platforms.android[token.name];
 
-        if (!web || !ios || !android) {
-            throw new Error(`Токен '${token.name}' не найден`);
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен теней '${token.name}' не найден`);
         }
 
         const values = {
@@ -57,16 +57,8 @@ export const createMockShadowTokens = () => {
 
     const values = {
         web: new WebShadow([]),
-        ios: new IOSShadow({
-            color: '#FFF',
-            offset: { width: 0, height: 0 },
-            opacity: 0,
-            radius: 9,
-        }),
-        android: new AndroidShadow({
-            color: '#FFF',
-            elevation: 0,
-        }),
+        ios: new IOSShadow([]),
+        android: new AndroidShadow([]),
     };
 
     const shadow = new ShadowToken(token, values);

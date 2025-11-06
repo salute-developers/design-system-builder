@@ -7,22 +7,25 @@ export interface WebShadowToken {
 /* IOS */
 
 export interface IOSShadowToken {
-    [k: string]: {
+    [k: string]: Array<{
         color: string;
-        offset: {
-            width: number;
-            height: number;
-        };
-        opacity: number;
-        radius: number;
-    };
+        offsetX: number;
+        offsetY: number;
+        spreadRadius: number;
+        blurRadius: number;
+        fallbackElevation?: number;
+    }>;
 }
 
 /* ANDROID */
 
 export interface AndroidShadowToken {
-    [k: string]: {
+    [k: string]: Array<{
         color: string;
-        elevation: number;
-    };
+        offsetX: number;
+        offsetY: number;
+        spreadRadius: number;
+        blurRadius: number;
+        fallbackElevation?: number;
+    }>;
 }

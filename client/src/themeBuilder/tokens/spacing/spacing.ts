@@ -27,7 +27,7 @@ export class AndroidSpacing extends PlatformToken<AndroidSpacingToken> {
 export class SpacingToken extends Token<SpacingPlatforms> {
     constructor(meta: Omit<TokenType, 'type'>, values: PlatformClasses<SpacingPlatforms>) {
         const data: TokenType = {
-            type: 'shape',
+            type: 'spacing',
             ...meta,
         };
 

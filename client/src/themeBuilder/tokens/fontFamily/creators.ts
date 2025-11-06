@@ -12,8 +12,8 @@ export const createDefaultFontFamilyTokens = (config: ThemeConfig): FontFamilyTo
         const ios = iosTokens[token.name];
         const android = androidTokens[token.name];
 
-        if (!web || !ios || !android) {
-            throw new Error(`Токен '${token.name}' не найден`);
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен шрифта '${token.name}' не найден`);
         }
 
         const values = {
@@ -32,8 +32,8 @@ export const createFontFamilyTokens = (tokens: Array<TokenType>, platforms: Plat
         const ios = platforms.ios[token.name];
         const android = platforms.android[token.name];
 
-        if (!web || !ios || !android) {
-            throw new Error(`Токен '${token.name}' не найден`);
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен шрифта '${token.name}' не найден`);
         }
 
         const values = {

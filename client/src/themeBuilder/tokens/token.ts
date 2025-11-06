@@ -12,6 +12,7 @@ export abstract class Token<T extends Platforms = Platforms> {
     private tags: string[];
     private displayName: string;
     private description?: string | undefined;
+    private defaultDescription?: string | undefined;
     private enabled: boolean;
 
     private readonly platforms: PlatformClasses<T>;
@@ -24,6 +25,7 @@ export abstract class Token<T extends Platforms = Platforms> {
         this.tags = tags;
         this.displayName = displayName;
         this.description = description;
+        this.defaultDescription = description;
         this.enabled = enabled;
 
         this.platforms = platforms;
@@ -83,6 +85,14 @@ export abstract class Token<T extends Platforms = Platforms> {
 
     setValue<U extends Platform, K extends Platforms = T>(platform: U, value: K[U][string]): void {
         this.platforms[platform].setValue(value);
+    }
+
+    getDefaultValue<U extends Platform, K extends Platforms = T>(platform: U): K[U][string] {
+        return this.platforms[platform].getDefault();
+    }
+
+    getDefaultDescription() {
+        return this.defaultDescription;
     }
 
     getTokenData(): TokenType {
