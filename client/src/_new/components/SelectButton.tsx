@@ -12,8 +12,7 @@ import {
 
 import { checkIsColorContrast, h6 } from '../utils';
 import { ViewType } from '../types';
-import { Dropdown, DropdownItem } from './Dropdown';
-import { TextField } from './TextField';
+import { Dropdown, DropdownItem, TextField } from '.';
 
 const Root = styled.div<{ view?: ViewType }>`
     position: relative;

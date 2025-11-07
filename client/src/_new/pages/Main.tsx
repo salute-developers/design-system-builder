@@ -19,12 +19,6 @@ import {
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { IconButton } from '../components/IconButton';
-import { Popup } from '../components/Popup';
-import { GrayTone, Parameters } from '../types';
-import { CreateFirstName } from './CreateFirstName';
-import { SetupParameters } from './SetupParameters';
-import { CreationProgress } from './CreationProgress';
 import { transliterateToSnakeCase } from '../utils';
 import {
     IconBookOpenOutline,
@@ -32,11 +26,13 @@ import {
     IconPaletteOutline,
     IconShapeOutline,
     IconTypography,
-} from '../_icons';
+} from '../icons';
 import { useDesignSystem } from '../hooks';
-import { LinkButton } from '../components/LinkButton';
+import { GrayTone, Parameters } from '../types';
+import { Popup, IconButton, LinkButton } from '../components';
+import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
 
-// TODO: Удалить
+// TODO: Перенести?
 import { createVariationTokens } from '../../themeBuilder/themes/createVariationTokens';
 import { createMetaTokens } from '../../themeBuilder/themes/createMetaTokens';
 import { extraMetaTokenGetters } from '../../themeBuilder/themes/metaTokensGetters';

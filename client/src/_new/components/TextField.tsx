@@ -14,7 +14,7 @@ import {
 
 import { useInputDynamicWidth } from '../hooks';
 import { h6 } from '../utils';
-import { Tooltip } from './Tooltip';
+import { Tooltip } from '.';
 
 const Root = styled.div<{
     view?: 'default' | 'negative';

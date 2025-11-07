@@ -1,8 +1,8 @@
-import { useLayoutEffect, useState } from 'react';
+import { RefObject, useLayoutEffect, useState } from 'react';
 
 export const useInputDynamicWidth = (
-    rootRef: React.RefObject<HTMLDivElement>,
-    spanRef: React.RefObject<HTMLSpanElement>,
+    rootRef: RefObject<HTMLDivElement>,
+    spanRef: RefObject<HTMLSpanElement>,
     options: {
         value?: string;
         minWidth: number;
