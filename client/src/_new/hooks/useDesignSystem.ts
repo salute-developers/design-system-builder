@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { DesignSystem } from '../../designSystem';
-import { Theme } from '../../themeBuilder';
-import { Config } from '../../componentBuilder';
+import { DesignSystem, Config, Theme } from '../../controllers';
 
 export const useDesignSystem = (
     designSystemName?: string,

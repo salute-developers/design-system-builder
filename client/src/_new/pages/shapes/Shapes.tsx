@@ -5,6 +5,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useSelectItemInMenu, useForceRerender } from '../../hooks';
 import {
+    DesignSystem,
     AndroidShadow,
     AndroidShape,
     AndroidSpacing,
@@ -19,8 +20,7 @@ import {
     WebShadow,
     WebShape,
     WebSpacing,
-} from '../../../themeBuilder';
-import { DesignSystem } from '../../../designSystem';
+} from '../../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { TokenShapeEditor } from '.';
 

@@ -5,6 +5,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 
 import { getAlphaHex, getColorAndOpacity, numberFormatter } from '../../utils';
 import {
+    DesignSystem,
     ShadowToken,
     ShapeToken,
     SpacingToken,
@@ -12,8 +13,7 @@ import {
     WebShadowToken,
     WebShapeToken,
     WebSpacingToken,
-} from '../../../themeBuilder';
-import { DesignSystem } from '../../../designSystem';
+} from '../../../controllers';
 import { ShadowPicker, ShadowType } from '../../features';
 import { TextField, LinkButton } from '../../components';
 

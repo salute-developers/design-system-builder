@@ -4,14 +4,14 @@ import { IconClose } from '@salutejs/plasma-icons';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import {
+    DesignSystem,
     AndroidFontWeight,
     IOSFontStyle,
     IOSFontWeight,
     Theme,
     TypographyToken,
     WebTypographyToken,
-} from '../../../themeBuilder';
-import { DesignSystem } from '../../../designSystem';
+} from '../../../controllers';
 import { TextField, LinkButton, SegmentButton, SegmentButtonItem } from '../../components';
 import { TypographyPicker, TypographyType } from '../../features';
 

@@ -1,6 +1,7 @@
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import {
+    Config,
     ColorToken,
     GradientToken,
     ShadowToken,
@@ -8,10 +9,9 @@ import {
     SpacingToken,
     Theme,
     TypographyToken,
-} from '../../themeBuilder';
+} from '../../controllers';
 import { kebabToCamel } from './';
 import { Data, DataItems, MenuType } from '../types';
-import { Config } from '../../componentBuilder';
 
 // TODO: Перенести в БД
 const componentList = [

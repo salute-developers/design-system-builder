@@ -4,8 +4,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useSelectItemInMenu, useForceRerender } from '../../hooks';
-import { DesignSystem } from '../../../designSystem';
-import { AndroidColor, ColorToken, IOSColor, Theme, Token, WebColor } from '../../../themeBuilder';
+import { DesignSystem, AndroidColor, ColorToken, IOSColor, Theme, Token, WebColor } from '../../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { TokenColorEditor } from '.';
 

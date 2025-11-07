@@ -1,5 +1,4 @@
-import type { Meta } from '../../componentBuilder';
-import type { ThemeSource } from '../../designSystem';
+import { type Meta, type ThemeSource } from '../../controllers';
 import { Parameters } from '../types';
 
 // Proxy server configuration - use env var at build time, fallback to localhost
@@ -68,7 +67,7 @@ export const saveDesignSystem = async (data: {
 export const loadDesignSystem = async (
     name: string,
     version: string,
-): Promise<{ themeData: ThemeSource; componentsData: Meta[], parameters?: Partial<Parameters> } | undefined> => {
+): Promise<{ themeData: ThemeSource; componentsData: Meta[]; parameters?: Partial<Parameters> } | undefined> => {
     try {
         const data = await apiCall(
             `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,

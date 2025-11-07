@@ -1,7 +1,7 @@
-import type { MetaTupleVariations, MetaVariations, ThemeMeta, TokenType, Variation } from '../types';
+import type { MetaTupleVariations, MetaVariations, ThemeMeta, TokenType, VariationType } from '../types';
 import { Theme } from '.';
 
-export type ExtraMetaTokensGetters = Partial<Record<Variation, (data: TokenType) => Array<TokenType>>>;
+export type ExtraMetaTokensGetters = Partial<Record<VariationType, (data: TokenType) => Array<TokenType>>>;
 
 const getMetaTokens = (theme: Theme, extraMetaTokenGetters?: ExtraMetaTokensGetters) => {
     const tokens: Array<TokenType> = [];
@@ -23,7 +23,7 @@ const getMetaTokens = (theme: Theme, extraMetaTokenGetters?: ExtraMetaTokensGett
     return tokens;
 };
 
-const getMetaTokenKinds = <K extends Variation>(
+const getMetaTokenKinds = <K extends VariationType>(
     type: K,
     fields: MetaTupleVariations[K],
     theme: Theme,

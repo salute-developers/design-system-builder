@@ -1,5 +1,7 @@
-import { baseColors } from '../../../../_new/types';
-import { getPaletteColorByValue, shiftAccentColor, updateColorSaturation } from '../../../../_new/utils';
+import { alphenColor } from '@salutejs/plasma-tokens-utils';
+
+import { baseColors } from '../../../../../_new/types';
+import { getPaletteColorByValue, shiftAccentColor, updateColorSaturation } from '../../../../../_new/utils';
 import type { WebColorToken } from '../types';
 import { getAdditionalColorThemeTokens, getTokensNames } from '../utils';
 import { ThemeConfig } from '../../../types';
@@ -270,7 +272,7 @@ const getLightSet = ({
     'light.data.default.yellow-transparent': '[general.amber.300][0.56]',
 });
 
-export const getWebTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: ThemeConfig): WebColorToken => {
+export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: ThemeConfig): WebColorToken => {
     const darkTokens = Object.entries(getDarkSet({ strokeAccentColor, fillAccentColor, grayscale })).reduce(
         (acc, [name, darkValue]) => {
             const lightName = `light.${name.split('.').slice(1).join('.')}`;

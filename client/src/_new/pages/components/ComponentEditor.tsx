@@ -2,9 +2,7 @@ import styled from 'styled-components';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { useVariationAndStyle } from '../../hooks';
-import { Theme } from '../../../themeBuilder';
-import { DesignSystem } from '../../../designSystem';
-import { Config } from '../../../componentBuilder';
+import { DesignSystem, Config, Theme } from '../../../controllers';
 import { TextField } from '../../components';
 import { ComponentEditorProperties, ComponentEditorSetup } from '.';
 

@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { BodyM, Button, Select } from '@salutejs/plasma-b2c';
 import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { DesignSystem } from '../designSystem';
+import { DesignSystem } from '../controllers';
 
 const VITE_DS_GENERATOR_API = import.meta.env.VITE_DS_GENERATOR_API;
 const VITE_DS_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DS_DOCUMENTATION_GENERATOR_API;

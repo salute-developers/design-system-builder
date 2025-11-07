@@ -1,10 +1,10 @@
-import { Platform, Platforms } from '../types';
+import { PlatformType, Platforms } from '../types';
 
 export type PlatformClasses<U extends Platforms = Platforms> = {
-    [key in Platform]: PlatformToken<U[key]>;
+    [key in PlatformType]: PlatformToken<U[key]>;
 };
 
-export abstract class PlatformToken<T extends Platforms[Platform] = Platforms[Platform]> {
+export abstract class PlatformToken<T extends Platforms[PlatformType] = Platforms[PlatformType]> {
     protected value: T[string];
     protected default: T[string];
 

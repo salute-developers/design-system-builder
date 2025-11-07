@@ -3,8 +3,7 @@ import styled from 'styled-components';
 import { IconButton, Select, TextField } from '@salutejs/plasma-b2c';
 import { IconAddOutline } from '@salutejs/plasma-icons';
 
-import type { Config } from '../../../componentBuilder';
-import type { PropState, State } from '../../../componentBuilder/type';
+import { type Config, type PropState, type State } from '../controllers';
 
 export const StyledRoot = styled.div`
     display: flex;

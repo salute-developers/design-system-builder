@@ -4,10 +4,9 @@ import { IconClose, IconCopyOutline, IconDone } from '@salutejs/plasma-icons';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { ColorToken, GradientToken, Theme } from '../../../themeBuilder';
+import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../controllers';
 import { convertColor, getColorAndOpacity } from '../../utils';
 import { ColorFormats } from '../../types';
-import { DesignSystem } from '../../../designSystem';
 import { ColorPicker } from '../../features';
 import {
     TextField,

@@ -1,8 +1,8 @@
-import type { Platform, PlatformsVariations, TokenVariations, Variation } from '../types';
+import type { PlatformType, PlatformsVariations, TokenVariations, VariationType } from '../types';
 import { Theme } from '.';
 
 export type ExtraThemeTokensGetters = {
-    [variationKey in Variation]?: {
+    [variationKey in VariationType]?: {
         [platformKey in keyof PlatformsVariations[variationKey]]: (
             token: TokenVariations[variationKey],
         ) => PlatformsVariations[variationKey][platformKey] | undefined;
@@ -15,7 +15,7 @@ export type ExtraThemeTokensGetters = {
 export const createVariationTokens = (
     theme: Theme,
     extraThemeTokenGetters?: ExtraThemeTokensGetters,
-    specificPlatform?: Platform,
+    specificPlatform?: PlatformType,
 ) => {
     const tokens = theme.getTokens();
 

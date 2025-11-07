@@ -5,7 +5,7 @@ import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { useGlobalKeyDown } from '../../hooks';
 import { h6 } from '../../utils';
 import { Parameters } from '../../types';
-import { DesignSystem } from '../../../designSystem';
+import { DesignSystem } from '../../../controllers';
 import { Progress } from '../../components';
 
 const Root = styled.div`

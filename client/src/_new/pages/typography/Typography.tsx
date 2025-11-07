@@ -5,8 +5,15 @@ import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useSelectItemInMenu, useForceRerender } from '../../hooks';
-import { AndroidTypography, IOSTypography, Theme, Token, TypographyToken, WebTypography } from '../../../themeBuilder';
-import { DesignSystem } from '../../../designSystem';
+import {
+    DesignSystem,
+    AndroidTypography,
+    IOSTypography,
+    Theme,
+    Token,
+    TypographyToken,
+    WebTypography,
+} from '../../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { TokenTypographyEditor } from '.';
 

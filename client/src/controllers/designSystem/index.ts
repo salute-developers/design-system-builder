@@ -1,7 +1,7 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 // TODO: загружать из бд
-import { componentsData } from '../_pseudo_data_base';
+import { componentsData } from '../../_pseudo_data_base';
 
 import {
     createMetaTokens,
@@ -12,8 +12,8 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, type Meta } from '../componentBuilder';
-import { kebabToCamel, loadDesignSystem, saveDesignSystem } from '../_new/utils';
-import { Parameters } from '../_new/types';
+import { kebabToCamel, loadDesignSystem, saveDesignSystem } from '../../_new/utils';
+import { Parameters } from '../../_new/types';
 
 interface DesignSystemProps {
     name?: string;

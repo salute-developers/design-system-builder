@@ -6,9 +6,15 @@ import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 
 import { h6 } from '../../utils';
 import { useForceRerender } from '../../hooks';
-import { DesignSystem } from '../../../designSystem';
-import { Theme } from '../../../themeBuilder';
-import { ComponentAPI, ComponentVariation, Config, PropType, PropUnion } from '../../../componentBuilder';
+import {
+    DesignSystem,
+    Theme,
+    ComponentAPI,
+    ComponentVariation,
+    Config,
+    PropType,
+    PropUnion,
+} from '../../../controllers';
 import { SelectButton, SelectButtonItem, TextField, IconButton, Dropdown } from '../../components';
 
 const Root = styled.div`

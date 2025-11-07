@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 
-import type { Platform, PlatformsVariations, ThemeMeta } from '../types';
+import type { PlatformType, PlatformsVariations, ThemeMeta } from '../types';
 import { Theme } from '.';
 import { createMetaTokens } from './createMetaTokens';
 import { createVariationTokens } from './createVariationTokens';
@@ -9,7 +9,7 @@ import { extraThemeTokenGetters } from './variationTokensGetters';
 
 type ThemeFileStructure = {
     'meta.json': string;
-} & Record<Platform, Record<string, string>>;
+} & Record<PlatformType, Record<string, string>>;
 
 const createZip = async (content: ThemeFileStructure) => {
     const zip = new JSZip();

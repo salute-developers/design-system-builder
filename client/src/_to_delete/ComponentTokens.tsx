@@ -4,10 +4,8 @@ import { TabItem, Tabs, TextXS } from '@salutejs/plasma-b2c';
 import { IconAddOutline, IconTrash } from '@salutejs/plasma-icons';
 import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import type { Config } from '../../../componentBuilder';
-import type { Theme } from '../../../themeBuilder';
+import { type Config, type Theme, type DesignSystem } from '../controllers';
 import { ComponentControl } from './ComponentControl';
-import type { DesignSystem } from '../../../designSystem';
 
 const StyledRoot = styled.div`
     width: 55%;

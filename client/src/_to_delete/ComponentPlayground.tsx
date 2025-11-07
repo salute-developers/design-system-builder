@@ -1,12 +1,12 @@
 import styled, { css } from 'styled-components';
 import type { ThemeMode } from '@salutejs/plasma-tokens-utils';
-import { Divider, SegmentProvider, Switch, TextXS } from '@salutejs/plasma-b2c';
+import { Divider, Switch, TextXS } from '@salutejs/plasma-b2c';
 import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { ComponentControl } from './ComponentControl';
-import type { Config, Variation } from '../../../componentBuilder';
+import type { Config, Variation } from '../controllers';
 
-import { useStory } from '../../hooks';
+import { useStory } from '../_new/hooks';
 
 const StyledRoot = styled.div`
     display: flex;

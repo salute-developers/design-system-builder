@@ -1,4 +1,4 @@
-import type { Platform, Variation, Variations } from './token';
+import type { PlatformType, VariationType, Variations } from './token';
 
 import {
     type ColorPlatforms,
@@ -41,7 +41,7 @@ export type VariationsClasses = {
     [key in keyof TokenVariations]: Array<TokenVariations[key]>;
 };
 
-export type PlatformsByVariationsMap<T extends Variation = Variation, U extends Platform = Platform> = {
+export type PlatformsByVariationsMap<T extends VariationType = VariationType, U extends PlatformType = PlatformType> = {
     [key in U]: PlatformsVariations[T][key][string];
 };
 

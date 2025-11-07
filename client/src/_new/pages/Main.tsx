@@ -33,10 +33,12 @@ import { Popup, IconButton, LinkButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
 
 // TODO: Перенести?
-import { createVariationTokens } from '../../themeBuilder/themes/createVariationTokens';
-import { createMetaTokens } from '../../themeBuilder/themes/createMetaTokens';
-import { extraMetaTokenGetters } from '../../themeBuilder/themes/metaTokensGetters';
-import { extraThemeTokenGetters } from '../../themeBuilder/themes/variationTokensGetters';
+import {
+    createMetaTokens,
+    createVariationTokens,
+    extraThemeTokenGetters,
+    extraMetaTokenGetters,
+} from '../../controllers';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {

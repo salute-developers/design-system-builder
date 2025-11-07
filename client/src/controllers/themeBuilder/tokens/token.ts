@@ -1,8 +1,8 @@
-import type { MetaVariations, TokenType, Platform, Platforms } from '../types';
+import type { MetaVariations, TokenType, PlatformType, Platforms } from '../types';
 import { PlatformToken } from './platformToken';
 
 export type PlatformClasses<U extends Platforms = Platforms> = {
-    [key in Platform]: PlatformToken<U[key]>;
+    [key in PlatformType]: PlatformToken<U[key]>;
 };
 
 export abstract class Token<T extends Platforms = Platforms> {
@@ -79,15 +79,15 @@ export abstract class Token<T extends Platforms = Platforms> {
         return this.platforms;
     }
 
-    getValue<U extends Platform, K extends Platforms = T>(platform: U): K[U][string] {
+    getValue<U extends PlatformType, K extends Platforms = T>(platform: U): K[U][string] {
         return this.platforms[platform].getValue();
     }
 
-    setValue<U extends Platform, K extends Platforms = T>(platform: U, value: K[U][string]): void {
+    setValue<U extends PlatformType, K extends Platforms = T>(platform: U, value: K[U][string]): void {
         this.platforms[platform].setValue(value);
     }
 
-    getDefaultValue<U extends Platform, K extends Platforms = T>(platform: U): K[U][string] {
+    getDefaultValue<U extends PlatformType, K extends Platforms = T>(platform: U): K[U][string] {
         return this.platforms[platform].getDefault();
     }
 
