@@ -9,7 +9,7 @@ import {
 import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { DesignSystem, Config } from '../../../controllers';
+import { DesignSystem, Config } from '../../controllers';
 import { h6 } from '../../utils';
 import { IconButton, TextField, Dropdown } from '../../components';
 

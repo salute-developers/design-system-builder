@@ -20,7 +20,7 @@ import {
 
 import { h6 } from '../utils';
 import { Data, GroupData } from '../types';
-import { Config, Token } from '../../controllers';
+import { Config, Token } from '../controllers';
 import { IconButton, Tooltip, TextField } from '../components';
 
 const Root = styled.div`

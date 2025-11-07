@@ -9,7 +9,7 @@ import {
     SpacingToken,
     Theme,
     TypographyToken,
-} from '../../controllers';
+} from '../controllers';
 import { kebabToCamel } from './';
 import { Data, DataItems, MenuType } from '../types';
 

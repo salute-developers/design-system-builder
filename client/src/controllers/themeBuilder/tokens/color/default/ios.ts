@@ -1,7 +1,7 @@
 import { alphenColor } from '@salutejs/plasma-tokens-utils';
 
-import { baseColors } from '../../../../../_new/types';
-import { getPaletteColorByValue, shiftAccentColor, updateColorSaturation } from '../../../../../_new/utils';
+import { baseColors } from '../../../../../types';
+import { getPaletteColorByValue, shiftAccentColor, updateColorSaturation } from '../../../../../utils';
 import type { WebColorToken } from '../types';
 import { getAdditionalColorThemeTokens, getTokensNames } from '../utils';
 import { ThemeConfig } from '../../../types';

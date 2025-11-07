@@ -20,7 +20,7 @@ import {
     WebShadow,
     WebShape,
     WebSpacing,
-} from '../../../controllers';
+} from '../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { TokenShapeEditor } from '.';
 

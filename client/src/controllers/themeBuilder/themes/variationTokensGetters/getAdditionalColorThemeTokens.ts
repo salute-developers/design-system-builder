@@ -1,8 +1,8 @@
 import { type ThemeMode, getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import type { PlatformType, PlatformsVariations } from '../../types';
-import { getStateColor } from '../../../../_new/utils';
-import { sectionToFormulaMap } from '../../../../_new/types';
+import { getStateColor } from '../../../../utils';
+import { sectionToFormulaMap } from '../../../../types';
 
 import { ColorToken } from '../../tokens';
 

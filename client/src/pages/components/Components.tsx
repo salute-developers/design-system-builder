@@ -4,7 +4,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 
 import { useSelectItemInMenu } from '../../hooks';
 import { getMenuItems } from '../../utils';
-import { DesignSystem, Theme, Config } from '../../../controllers';
+import { DesignSystem, Theme, Config } from '../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { ComponentEditor } from '.';
 interface ComponentsOutletContextProps {

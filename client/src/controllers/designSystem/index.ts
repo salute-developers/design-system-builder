@@ -12,8 +12,8 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, type Meta } from '../componentBuilder';
-import { kebabToCamel, loadDesignSystem, saveDesignSystem } from '../../_new/utils';
-import { Parameters } from '../../_new/types';
+import { kebabToCamel, loadDesignSystem, saveDesignSystem } from '../../utils';
+import { Parameters } from '../../types';
 
 interface DesignSystemProps {
     name?: string;

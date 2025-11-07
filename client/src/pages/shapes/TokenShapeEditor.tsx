@@ -13,7 +13,7 @@ import {
     WebShadowToken,
     WebShapeToken,
     WebSpacingToken,
-} from '../../../controllers';
+} from '../../controllers';
 import { ShadowPicker, ShadowType } from '../../features';
 import { TextField, LinkButton } from '../../components';
 

@@ -1,4 +1,4 @@
-import { type Meta, type ThemeSource } from '../../controllers';
+import { type Meta, type ThemeSource } from '../controllers';
 import { Parameters } from '../types';
 
 // Proxy server configuration - use env var at build time, fallback to localhost

@@ -13,7 +13,7 @@ import {
     Token,
     TypographyToken,
     WebTypography,
-} from '../../../controllers';
+} from '../../controllers';
 import { TokensMenu, Workspace } from '../../layouts';
 import { TokenTypographyEditor } from '.';
 

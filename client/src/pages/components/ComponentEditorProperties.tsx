@@ -14,7 +14,7 @@ import {
     Config,
     PropType,
     PropUnion,
-} from '../../../controllers';
+} from '../../controllers';
 import { SelectButton, SelectButtonItem, TextField, IconButton, Dropdown } from '../../components';
 
 const Root = styled.div`

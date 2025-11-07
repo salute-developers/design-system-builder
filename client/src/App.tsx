@@ -9,7 +9,7 @@ import {
     Components,
     Main,
     Overview,
-} from './_new/pages';
+} from './pages';
 
 const getBaseName = () => {
     const { pathname } = window.location;

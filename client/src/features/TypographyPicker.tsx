@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { IconSizeMaximize } from '@salutejs/plasma-icons';
 
 import { IconLetterSpacing, IconLineHeight } from '../icons';
-import { WebFontStyle, WebFontWeight } from '../../controllers';
+import { WebFontStyle, WebFontWeight } from '../controllers';
 import { numberFormatter } from '../utils';
 import { TextField, SelectButton, SelectButtonItem } from '../components';
 

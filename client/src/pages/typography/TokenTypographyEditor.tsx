@@ -11,7 +11,7 @@ import {
     Theme,
     TypographyToken,
     WebTypographyToken,
-} from '../../../controllers';
+} from '../../controllers';
 import { TextField, LinkButton, SegmentButton, SegmentButtonItem } from '../../components';
 import { TypographyPicker, TypographyType } from '../../features';
 

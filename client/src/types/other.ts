@@ -1,7 +1,7 @@
 import { PlasmaSaturation } from '@salutejs/plasma-colors';
 import { general as generalColors } from '@salutejs/plasma-colors';
 
-import { Token, Config } from '../../controllers';
+import { Token, Config } from '../controllers';
 
 export type GrayTone = 'gray' | 'warmGray' | 'coolGray';
 

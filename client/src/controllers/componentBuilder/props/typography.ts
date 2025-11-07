@@ -1,4 +1,4 @@
-import { camelToKebab } from '../../../_new/utils';
+import { camelToKebab } from '../../../utils';
 import type { Theme } from '../../themeBuilder';
 import type { PlatformTokens, PropConfig } from '../type';
 import { Prop } from './prop';

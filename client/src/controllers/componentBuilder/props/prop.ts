@@ -1,6 +1,6 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { camelToKebab } from '../../../_new/utils';
+import { camelToKebab } from '../../../utils';
 import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
 
 export abstract class Prop {

@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 
-import { getFileSource } from '../../../_new/api';
+import { getFileSource } from '../../../api';
 import { type PlatformsVariations, type ThemeMeta } from '../types';
 
 const deserializeZip = async (content: string) => {

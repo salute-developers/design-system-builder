@@ -38,7 +38,7 @@ import {
     createVariationTokens,
     extraThemeTokenGetters,
     extraMetaTokenGetters,
-} from '../../controllers';
+} from '../controllers';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {

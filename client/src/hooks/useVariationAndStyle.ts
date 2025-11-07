@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { Config } from '../../controllers';
+import { Config } from '../controllers';
 
 // TODO: перенести в утилиты?
 const getDefaultProps = (config: Config) => {
