@@ -1,0 +1,19 @@
+```jsx
+import React from 'react';
+import { createGlobalStyle } from 'styled-components';
+import {  Button, BodyL, {{ underscore packageName }}__light } from '@salutejs-ds/{{ packageName }}';
+
+const Theme = createGlobalStyle({{ underscore packageName }}__light);
+
+const App = () => {
+    return (
+        <>
+            <Theme />
+            <BodyL>Hello world</BodyL>
+            <Button text="This is themed button" />
+        </>
+    );
+};
+
+export default App;
+```

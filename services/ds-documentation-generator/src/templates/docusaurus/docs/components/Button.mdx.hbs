@@ -1,0 +1,161 @@
+---
+id: button
+title: Button
+---
+
+import { PropsTable } from '@site/src/components';
+
+# Button
+
+Интерактивный элемент интерфейса, который инициирует мгновенное действие или событие при активации пользователем.
+Кнопки могут отображаться в нескольких размерах и цветах, могут содержать текст и/или иконку.
+
+## Быстрый старт
+
+```tsx
+import { Button } from '@salutejs-ds/{{ packageName }}';
+```
+
+Компонент `Button` может содержать текст, который указывается в свойстве `text`, или любой контент напрямую через `children`.
+
+Свойство text можно использовать вместе со свойствами `contentLeft` и `contentRight`.
+С их помощью можно размещать **иконку** слева или справа от текста.
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+import { IconDownload } from '@salutejs/plasma-icons';
+
+export function App() {
+    return (
+        <div className="flex-container">
+          <Button text="Text" contentLeft={<IconDownload size="xs" />} />
+          <Button contentRight={<IconDownload size="xs" />} >Text</Button>
+        </div>
+    );
+}
+```
+
+:::caution Взаимоисключающие свойства
+Свойство `value` - это значение кнопки. Оно отображается справа от основного текста.
+
+`value` и `contentRight` взаимоисключающие: если передано одно, второе передать нельзя.
+:::
+
+## Примеры
+
+### Вид кнопки
+Вид кнопки задается с помощью свойства `view`.
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    const { viewList } = useMockComponentProps();
+
+    return (
+        <div className="flex-container">
+          {
+            viewList && Object.entries(viewList).map(([view, desc]) => (
+              <Button key={view} view={view} text={view} />
+            ))
+          }
+        </div>
+    );
+}
+```
+
+### Размер кнопки
+Размер кнопки задается с помощью свойства `size`:
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    const { sizeList } = useMockComponentProps();
+
+    return (
+        <div className="flex-container">
+            {
+              sizeList && sizeList.map((size) => (
+                <Button key={size} text={`Size: ${size}`} size={size} />
+              ))
+            }
+        </div>
+    );
+}
+```
+
+### Ширина кнопки
+Ширина кнопки регулируется с помощью свойства `stretching`.
+Возможные значения свойства `contentPlacing`:
++ `auto` – ширина подстраивается под контент;
++ `filled` – кнопка растягивается на всю доступную ширину;
++ `fixed` – кнопка фиксированной ширины.
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    return (
+        <div className="flex-container flex-direction-column">
+            <Button text="Button" stretching="fixed" />
+            <Button text="Button" stretching="auto" />
+            <Button text="Button" stretching="filled" />
+        </div>
+    );
+}
+```
+
+### Позиционирование контента внутри
+Позиционирование контента внутри кнопки регулируется с помощью свойства `contentPlacing`.
+Возможные значения свойства `contentPlacing`:
++ `default` – контент центрируется;
++ `relaxed` – контент располагается по краям.
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+
+
+export function App() {
+    return (
+        <div className="flex-container flex-direction-column">
+            <Button text="Hello" value="Plasma" stretching="filled" contentPlacing="default" />
+            <Button text="Hello" value="Plasma" stretching="filled" contentPlacing="relaxed" />
+        </div>
+    );
+}
+```
+
+### Границы кнопки
+Границы кнопки задаются с помощью свойства `pin`. Возможные значения свойства `pin`:
++ `square` – обычное скругление;
++ `circle` – сильное скругление;
++ `clear` – нет скругления.
+
+```tsx live
+import React from 'react';
+import { Button } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    return (
+        <div className="flex-container">
+            <Button pin="square-square">Button</Button>
+            <Button pin="square-clear">Button</Button>
+            <Button pin="clear-square">Button</Button>
+            <Button pin="clear-clear">Button</Button>
+            <Button pin="clear-circle">Button</Button>
+            <Button pin="circle-clear">Button</Button>
+            <Button pin="circle-circle">Button</Button>
+        </div>
+    );
+}
+```
+
+## API
+
+<PropsTable name="Button" />

@@ -56,8 +56,6 @@ services:
       dockerfile: Dockerfile.dev
     container_name: ds-builder-frontend-dev
     restart: unless-stopped
-    environment:
-      - VITE_API_URL=http://localhost:3001
     ports:
       - "3000:5173"
     depends_on:
@@ -77,7 +75,8 @@ services:
     container_name: ds-builder-client-dev
     restart: unless-stopped
     environment:
-      - VITE_API_URL=http://localhost:3001
+      VITE_DS_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
+      VITE_DS_GENERATOR_API: http://localhost:3005
     ports:
       - "3002:5173"
     depends_on:
@@ -151,8 +150,33 @@ services:
       - ds-builder-network
     command: npm run start
 
+  # Documentation Generator Service
+  docs-generator:
+    build:
+      context: ./services/ds-documentation-generator
+      dockerfile: Dockerfile.dev
+    container_name: ds-documentation-generator-dev
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      CLIENT_PROXY_URL: http://client-proxy:3003/api
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT: ${AWS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+    ports:
+      - "3006:3006"
+    volumes:
+      - docs_output:/home/node/app/output
+    networks:
+      - ds-builder-network
+    command: npm run start:dev
+
 volumes:
   postgres_data_dev:
+    driver: local
+  docs_output:
     driver: local
 
 networks:

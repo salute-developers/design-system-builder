@@ -1,0 +1,12 @@
+@import "https://cdn-app.sberdevices.ru/shared-static/0.0.0/styles/SBSansText.0.2.0.css";
+
+/*TODO: как правильно управлять цветом от тем?? Настю спросить*/
+html {
+    background-color: white!important;
+}
+
+
+footer.docusaurus-mt-lg,
+nav.docusaurus-mt-lg {
+    margin-top: 3rem;
+}

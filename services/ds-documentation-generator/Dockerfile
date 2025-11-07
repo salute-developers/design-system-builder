@@ -1,0 +1,36 @@
+FROM node:22
+
+# Системные зависимости для сборки и работы сервиса:
+# - python3, make, g++ - для нативных npm модулей в Docusaurus
+# - s3cmd - CLI утилита для загрузки документации в S3 (используется в S3Service)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    s3cmd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем директории для приложения и npm cache с правильными правами
+# /home/node/.npm - используется DocusaurusService для кеширования npm пакетов
+RUN mkdir -p /home/node/app/node_modules /home/node/.npm && \
+    chown -R node:node /home/node/app /home/node/.npm
+
+WORKDIR /home/node/app
+
+COPY package*.json ./
+
+USER node
+
+RUN npm ci
+
+COPY --chown=node:node . .
+
+# Компилируем TypeScript -> JavaScript
+RUN npm run build
+
+# Порт по умолчанию (может быть переопределен через -e PORT=...)
+ENV PORT=3006
+
+EXPOSE 3006
+
+CMD ["node", "dist/main.js"]

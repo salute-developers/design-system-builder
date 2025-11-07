@@ -1,0 +1,59 @@
+---
+id: link
+title: Link
+---
+
+import { PropsTable } from '@site/src/components';
+
+# Link
+
+Применяется для навигации в интерфейсе, перенаправляет на другую страницу.
+
+## Быстрый старт
+
+```tsx
+import { Link } from '@salutejs-ds/{{ packageName }}';
+```
+
+```tsx live
+import React from 'react';
+import { TextS, Link } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    return (
+        <TextS>
+            Скачайте <Link href="/" target="_blank">приложение.</Link>
+        </TextS>
+    );
+}
+```
+
+
+## Примеры
+
+### Свойство `view`
+
+```tsx live
+import React from 'react';
+import { TextS, Link } from '@salutejs-ds/{{ packageName }}';
+
+export function App() {
+    const { viewList } = useMockComponentProps();
+
+    return (
+        <div className="flex-container">
+          {
+            viewList && Object.entries(viewList).map(([view]) => (
+                <TextS>
+                      Это view: <Link view={view} href="/" target="_blank">{view}.</Link>
+                </TextS>
+            ))
+          }
+        </div>
+    );
+}
+```
+
+## API
+
+<PropsTable name="Link" exclude={['css','focused','size']} />

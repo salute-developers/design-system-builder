@@ -1,0 +1,76 @@
+import React, { FC } from "react";
+import { createGlobalStyle } from "styled-components";
+import { textAccent, {{ underscore packageName }}__dark, {{ underscore packageName }}__light } from '@salutejs-ds/{{ packageName }}';
+
+interface GlobalStyleProps {
+  theme?: "light" | "dark";
+  children?: never;
+}
+
+const themes = {
+  light: createGlobalStyle({{ underscore packageName }}__light ),
+  dark: createGlobalStyle({{ underscore packageName }}__dark),
+};
+
+const DocStyle = createGlobalStyle`
+    :root {
+        --ifm-color-primary: ${textAccent};
+        --ifm-color-primary-dark: #2364de;
+        --ifm-color-primary-darker: #1549ab;
+        --ifm-color-primary-darkest: #0c327a;
+        --ifm-color-primary-light: #3f81fd;
+        --ifm-color-primary-lighter: #5993ff;
+        --ifm-color-primary-lightest: #8bb2fc;
+        --ifm-code-font-size: 95%;
+        --ifm-font-family-base: 'SB Sans Text', system-ui, sans-serif;
+    }
+
+    .docusaurus-highlight-code-line {
+        background-color: rgba(0, 0, 0, 0.1);
+        display: block;
+        margin: 0 calc(-1 * var(--ifm-pre-padding));
+        padding: 0 var(--ifm-pre-padding);
+    }
+
+    html[data-theme='dark'] .docusaurus-highlight-code-line {
+        background-color: rgba(0, 0, 0, 0.3);
+    }
+
+    /* Контент документации */
+    .markdown {
+        /* Чтобы разместить кнопку сторибука справа */
+        position: relative;
+    }
+
+    .flex-container {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .flex-direction-column {
+        flex-direction: column;
+    }
+
+    .mb-8 {
+        margin-bottom: 8px;
+    }
+
+    .mb-16 {
+        margin-bottom: 16px;
+    }
+
+    .codesandbox-link-title +[class*="iconExternalLink"] {
+        margin-top: -2px;
+    }
+`;
+
+export const GlobalStyle: FC<GlobalStyleProps> = ({ theme = "light" }) => {
+  const ColorTheme = themes[theme];
+
+  return (
+    <>
+      <DocStyle />
+      <ColorTheme />
+    </>
+  );
+};

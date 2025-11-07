@@ -1,0 +1,58 @@
+import React, { FC } from 'react';
+import { CodeSandbox as CodeSandboxView } from '@site/src/ui-library';
+import IconExternalLink from '@theme/Icon/ExternalLink';
+import styled from 'styled-components';
+
+import packageJson from '../../package.json';
+
+const StyledText = styled.span`
+    margin-right: 6px;
+`;
+
+const dependencies = Object.entries(packageJson.dependencies)
+    .filter(([key]) => key.startsWith('@salutejs'))
+    .reduce((acc, [key, value]) => {
+        return {
+            ...acc,
+            [key]: value,
+        };
+    }, {});
+
+const indexSource = `
+import React from "react";
+import { createRoot } from "react-dom/client";
+import styled, { createGlobalStyle } from "styled-components";
+import { {{ underscore packageName }}__light } from "@salutejs-ds/{{ packageName }}";
+
+import { App } from "./App";
+import "./style.css";
+
+const Theme = createGlobalStyle({{ underscore packageName }}__light);
+const container = document.getElementById("root");
+const root = createRoot(container);
+
+root.render(
+    <>
+        <Theme />
+        <App />
+    </>
+);
+
+`;
+
+export const CodeSandbox: FC<{ source: string }> = ({ source }) => {
+    return (
+        <CodeSandboxView
+           source={source}
+           content={
+            <>
+                <StyledText className="codesandbox-link-title">Open in CodeSandbox</StyledText>
+                <IconExternalLink />
+            </>
+            }
+            sandboxName="{{ packageName }}-example"
+            dependencies={dependencies}
+            indexSource={indexSource}
+        />
+    );
+};
