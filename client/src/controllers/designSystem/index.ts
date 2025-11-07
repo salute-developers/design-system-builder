@@ -77,11 +77,10 @@ export class DesignSystem {
     private async loadData({ name, version = '0.1.0', parameters }: DesignSystemProps) {
         const loadedData = name && version ? await loadDesignSystem(name, version) : undefined;
 
-        // TODO: попробовать убрать
         if (!loadedData) {
             return {
                 themeData: this.generateThemeData(parameters),
-                componentsData: this.generateComponentData(),
+                componentsData: this.generateComponentData(), // TODO: попробовать убрать
             };
         }
 

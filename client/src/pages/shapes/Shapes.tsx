@@ -21,7 +21,7 @@ import {
     WebShape,
     WebSpacing,
 } from '../../controllers';
-import { TokensMenu, Workspace } from '../../layouts';
+import { Menu, Workspace } from '../../layouts';
 import { TokenShapeEditor } from '.';
 
 interface ShapesOutletContextProps {
@@ -168,14 +168,14 @@ export const Shapes = () => {
         <Workspace
             menuBackground={backgroundTertiary}
             menu={
-                <TokensMenu
+                <Menu
                     header={designSystem.getParameters()?.packagesName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
-                    selectedTokenIndexes={selectedItemIndexes}
-                    onTokenSelect={onItemSelect}
-                    onTokenAdd={onTokenAdd}
-                    onTokenDisable={onTokenDisable}
+                    selectedItemIndexes={selectedItemIndexes}
+                    onItemSelect={onItemSelect}
+                    onItemAdd={onTokenAdd}
+                    onItemDisable={onTokenDisable}
                 />
             }
             content={

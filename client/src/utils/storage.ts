@@ -4,6 +4,21 @@ import { Parameters } from '../types';
 // Proxy server configuration - use env var at build time, fallback to localhost
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
 
+export interface BackendDesignSystem {
+    id: number;
+    name: string;
+    projectName: string;
+    grayTone: string;
+    accentColor: string;
+    lightStrokeSaturation: number;
+    lightFillSaturation: number;
+    darkStrokeSaturation: number;
+    darkFillSaturation: number;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // Helper function to handle API calls
 const apiCall = async (url: string, options: RequestInit = {}) => {
     try {
@@ -101,21 +116,6 @@ export const removeDesignSystem = async (name: string, version: string): Promise
         // localStorage.removeItem(`#${name}@${version}`);
     }
 };
-
-export interface BackendDesignSystem {
-    id: number;
-    name: string;
-    projectName: string;
-    grayTone: string;
-    accentColor: string;
-    lightStrokeSaturation: number;
-    lightFillSaturation: number;
-    darkStrokeSaturation: number;
-    darkFillSaturation: number;
-    description?: string;
-    createdAt: string;
-    updatedAt: string;
-}
 
 export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {

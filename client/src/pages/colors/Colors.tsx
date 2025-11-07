@@ -5,7 +5,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useSelectItemInMenu, useForceRerender } from '../../hooks';
 import { DesignSystem, AndroidColor, ColorToken, IOSColor, Theme, Token, WebColor } from '../../controllers';
-import { TokensMenu, Workspace } from '../../layouts';
+import { Menu, Workspace } from '../../layouts';
 import { TokenColorEditor } from '.';
 
 interface ColorsOutletContextProps {
@@ -86,15 +86,15 @@ export const Colors = () => {
         <Workspace
             menuBackground={backgroundTertiary}
             menu={
-                <TokensMenu
+                <Menu
                     header={designSystem.getParameters()?.packagesName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
-                    selectedTokenIndexes={selectedItemIndexes}
+                    selectedItemIndexes={selectedItemIndexes}
                     onTabSelect={onTabSelect}
-                    onTokenSelect={onItemSelect}
-                    onTokenAdd={onTokenAdd}
-                    onTokenDisable={onTokenDisable}
+                    onItemSelect={onItemSelect}
+                    onItemAdd={onTokenAdd}
+                    onItemDisable={onTokenDisable}
                 />
             }
             content={

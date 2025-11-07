@@ -5,7 +5,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 import { useSelectItemInMenu } from '../../hooks';
 import { getMenuItems } from '../../utils';
 import { DesignSystem, Theme, Config } from '../../controllers';
-import { TokensMenu, Workspace } from '../../layouts';
+import { Menu, Workspace } from '../../layouts';
 import { ComponentEditor } from '.';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
@@ -41,16 +41,16 @@ export const Components = () => {
         <Workspace
             menuBackground={backgroundTertiary}
             menu={
-                <TokensMenu
+                <Menu
                     header={designSystem.getParameters()?.packagesName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     canAdd={false}
                     canDisable={false}
                     sectionTitle="Компоненты"
-                    selectedTokenIndexes={selectedItemIndexes}
+                    selectedItemIndexes={selectedItemIndexes}
                     onTabSelect={onTabSelect}
-                    onTokenSelect={onItemSelect}
+                    onItemSelect={onItemSelect}
                 />
             }
             content={<ComponentEditor designSystem={designSystem} theme={theme} configs={configs} />}

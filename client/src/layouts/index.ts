@@ -1,2 +1,2 @@
-export { TokensMenu } from './TokensMenu';
+export { Menu } from './Menu';
 export { Workspace } from './Workspace';
