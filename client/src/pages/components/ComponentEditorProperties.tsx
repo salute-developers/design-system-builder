@@ -6,15 +6,7 @@ import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 
 import { h6 } from '../../utils';
 import { useForceRerender } from '../../hooks';
-import {
-    DesignSystem,
-    Theme,
-    ComponentAPI,
-    ComponentVariation,
-    Config,
-    PropType,
-    PropUnion,
-} from '../../controllers';
+import { DesignSystem, Theme, ComponentAPI, ComponentVariation, Config, PropType, PropUnion } from '../../controllers';
 import { SelectButton, SelectButtonItem, TextField, IconButton, Dropdown } from '../../components';
 
 const Root = styled.div`
@@ -235,7 +227,14 @@ const getColorsTokens = (theme?: Theme) => {
     const colors = theme.getTokens('color');
 
     const items = colors
-        .filter((item) => item.getEnabled() && item.getTags()[0] === 'dark')
+        .filter(
+            (item) =>
+                item.getEnabled() &&
+                item.getTags()[0] === 'dark' &&
+                !item.getName().includes('hover') &&
+                !item.getName().includes('active') &&
+                !item.getName().includes('brightness'),
+        )
         .map((item) => {
             // TODO: вероятно временное решение
             const [, ...name] = item.getName().split('.');
@@ -385,6 +384,8 @@ type PropMenuItem = (typeof propMenuList)[number];
 
 interface ComponentEditorPropertiesProps {
     config: Config;
+    updated: object;
+    rerender: () => void;
     designSystem: DesignSystem;
     theme: Theme;
     variationID?: string;
@@ -392,9 +393,8 @@ interface ComponentEditorPropertiesProps {
 }
 
 export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps) => {
-    const { config, designSystem, theme, variationID, styleID } = props;
+    const { config, designSystem, theme, variationID, styleID, updated, rerender } = props;
 
-    const [updated, rerender] = useForceRerender();
     const [propTypeWithDropdown, setPropTypeWithDropdown] = useState<string | undefined>();
     const [propNameWithDropdown, setPropNameWithDropdown] = useState<string | undefined>();
 
