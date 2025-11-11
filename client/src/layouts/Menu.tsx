@@ -444,7 +444,7 @@ export const Menu = (props: MenuProps) => {
                     <HeaderTitle>{header}</HeaderTitle>
                     <HeaderSubtitle>{subheader}</HeaderSubtitle>
                 </HeaderContent>
-                <IconButton>
+                <IconButton disabled>
                     <IconSearch size="xs" color="inherit" />
                 </IconButton>
             </Header>

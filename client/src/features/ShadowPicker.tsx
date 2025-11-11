@@ -186,13 +186,13 @@ const Component = (props: ComponentProps) => {
     const onAccentSelect = (item: SelectButtonItem) => {
         setAccent(item);
 
-        onChange({ ...value, color: getCorpColor(item.value, saturation.value) }, index);
+        onChange({ ...value, color: `[${getCorpColor(item.value, saturation.value)}]` }, index);
     };
 
     const onSaturationSelect = (item: SelectButtonItem) => {
         setSaturation(item);
 
-        onChange({ ...value, color: getCorpColor(accent.value, item.value) }, index);
+        onChange({ ...value, color: `[${getCorpColor(accent.value, item.value)}]` }, index);
     };
 
     const onSliderValueChange = (opacity: number) => {

@@ -3,9 +3,10 @@ import styled, { css, CSSObject } from 'styled-components';
 import {
     inverseTextSecondary,
     onLightSurfaceSolidCard,
+    surfaceSolidCard,
+    textParagraph,
     textPrimary,
     textSecondary,
-    textTertiary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { h6 } from '../utils';
@@ -19,7 +20,7 @@ const Root = styled.div`
     position: absolute;
     border-radius: 0.375rem;
     // TODO: использовать токен --Surface-General-Primary
-    background: #32353e;
+    background: ${surfaceSolidCard};
 
     box-shadow: 0 24px 48px -8px rgba(0, 0, 0, 0.08);
 `;
@@ -60,7 +61,7 @@ const StyledItem = styled.div<{ selected?: boolean; disabled?: boolean }>`
         disabled &&
         css`
             cursor: not-allowed;
-            color: ${textTertiary};
+            color: ${textParagraph};
         `}
 
     // TODO: не то чтобы нравится это решение

@@ -33,12 +33,7 @@ import { Popup, IconButton, LinkButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
 
 // TODO: Перенести?
-import {
-    createMetaTokens,
-    createVariationTokens,
-    extraThemeTokenGetters,
-    extraMetaTokenGetters,
-} from '../controllers';
+import { createMetaTokens, createVariationTokens, extraThemeTokenGetters, extraMetaTokenGetters } from '../controllers';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -57,6 +52,7 @@ const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
         --outline-solid-secondary: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
         --background-primary: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
         --background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 250]};
+        --background-tertiary: ${general[grayTone][themeMode === 'dark' ? 900 : 200]};
         --dark-background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
         --light-background-secondary: ${general[grayTone][themeMode === 'dark' ? 250 : 250]};
     `;
@@ -118,15 +114,15 @@ const StyledPopup = styled(Popup)`
     padding: 3.75rem 5rem 0 22.5rem;
 `;
 
-const StyledLinkButton = styled(LinkButton)`
-    position: absolute;
-    bottom: 0.75rem;
-    right: 0.75rem;
+// const StyledLinkButton = styled(LinkButton)`
+//     position: absolute;
+//     bottom: 0.75rem;
+//     right: 0.75rem;
 
-    background: ${backgroundTertiary};
-    border-radius: 0.5rem;
-    padding: 0.375rem 0.5rem;
-`;
+//     background: ${backgroundTertiary};
+//     border-radius: 0.5rem;
+//     padding: 0.375rem 0.5rem;
+// `;
 
 const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
@@ -226,7 +222,7 @@ export const Main = () => {
     }, [currentPath]);
 
     const { designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion);
+    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion, true);
 
     // TODO: перенести
     const onThemeSave = () => {
@@ -315,7 +311,7 @@ export const Main = () => {
                 </IconButton>
             </Panel>
             <Outlet context={{ onOpenPopup, projectName: parameters.projectName, designSystem, theme, components }} />
-            <StyledLinkButton text="Сохранить тему" contentLeft={<IconSave size="s" />} onClick={onThemeSave} />
+            {/* <StyledLinkButton text="Сохранить тему" contentLeft={<IconSave size="s" />} onClick={onThemeSave} /> */}
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (

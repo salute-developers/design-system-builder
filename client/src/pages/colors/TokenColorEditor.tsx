@@ -137,14 +137,8 @@ interface TokenColorEditorProps {
 export const TokenColorEditor = (props: TokenColorEditorProps) => {
     const { designSystem, theme, tokens, onTokenUpdate } = props;
 
-    const [mode, setMode] = useState<SegmentButtonItem>({
-        label: 'Тёмный',
-        value: 0,
-    });
-    const [type, setType] = useState<SelectButtonItem>({
-        label: 'Сплошной',
-        value: 'solid',
-    });
+    const [mode, setMode] = useState<SegmentButtonItem>(modeList[0]);
+    const [type, setType] = useState<SelectButtonItem>(typeList[0]);
     const [color, setColor] = useState<string>('#FFFFFF');
     const [opacity, setOpacity] = useState<number>(1);
 

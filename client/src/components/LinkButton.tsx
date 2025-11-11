@@ -21,17 +21,19 @@ const StyledResetTokeValuesButton = styled.div`
 
 interface LinkButtonProps {
     text: string;
-    contentLeft: ReactNode;
+    contentLeft?: ReactNode;
+    contentRight?: ReactNode;
     onClick?: () => void;
 }
 
 export const LinkButton = (props: LinkButtonProps) => {
-    const { text, contentLeft, onClick, ...rest } = props;
+    const { text, contentLeft, contentRight, onClick, ...rest } = props;
 
     return (
         <StyledResetTokeValuesButton onClick={onClick} {...rest}>
             {contentLeft}
             <>{text}</>
+            {contentRight}
         </StyledResetTokeValuesButton>
     );
 };
