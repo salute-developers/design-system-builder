@@ -164,38 +164,45 @@ const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]
     const data: DataItems = {};
 
     const addToData = (tokens: ColorToken[] | GradientToken[]) => {
-        tokens.forEach((token) => {
-            const [mode, group, subgroup] = token.getTags();
-            const name = token.getDisplayName();
-            const tab = subgroup === 'light' ? 'onLight' : subgroup === 'dark' ? 'onDark' : kebabToCamel(subgroup);
+        tokens
+            .filter(
+                (token) =>
+                    !token.getName().includes('hover') &&
+                    !token.getName().includes('active') &&
+                    !token.getName().includes('brightness'),
+            )
+            .forEach((token) => {
+                const [mode, group, subgroup] = token.getTags();
+                const name = token.getDisplayName();
+                const tab = subgroup === 'light' ? 'onLight' : subgroup === 'dark' ? 'onDark' : kebabToCamel(subgroup);
 
-            const enabled = token.getEnabled();
-            let value = '';
-            if (token instanceof ColorToken) {
-                value = getRestoredColorFromPalette(token.getValue('web') as string, -1);
-            }
-            if (token instanceof GradientToken) {
-                value = token.getValue('web').join(' ');
-            }
+                const enabled = token.getEnabled();
+                let value = '';
+                if (token instanceof ColorToken) {
+                    value = getRestoredColorFromPalette(token.getValue('web') as string, -1);
+                }
+                if (token instanceof GradientToken) {
+                    value = token.getValue('web').join(' ');
+                }
 
-            if (!data[tab]) {
-                data[tab] = {};
-            }
+                if (!data[tab]) {
+                    data[tab] = {};
+                }
 
-            if (!data[tab][group]) {
-                data[tab][group] = {};
-            }
+                if (!data[tab][group]) {
+                    data[tab][group] = {};
+                }
 
-            if (!data[tab][group][name]) {
-                data[tab][group][name] = {};
-            }
+                if (!data[tab][group][name]) {
+                    data[tab][group][name] = {};
+                }
 
-            data[tab][group][name][mode] = {
-                enabled,
-                value,
-                item: token,
-            };
-        });
+                data[tab][group][name][mode] = {
+                    enabled,
+                    value,
+                    item: token,
+                };
+            });
     };
 
     addToData(colors);

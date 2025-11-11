@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import styled, { CSSObject } from 'styled-components';
-import { IconButton, TextS } from '@salutejs/plasma-b2c';
-import { IconTrash } from '@salutejs/plasma-icons';
+import { IconArrowDiagRightUp } from '@salutejs/plasma-icons';
 import {
     h1,
     textParagraph,
@@ -11,11 +10,12 @@ import {
     textTertiary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { BackendDesignSystem, h6, loadAllDesignSystems, removeDesignSystem } from '../../utils';
+import { BackendDesignSystem, getFormatDate, h6, loadAllDesignSystems } from '../../utils';
+import { LinkButton } from '../../components';
+import { IconLongArrowDownRight } from '../../icons';
 
 const ContentWrapper = styled.div`
-    margin-top: 3.25rem;
-    margin-left: 3.75rem;
+    padding: 3.75rem 0 0 7.5rem;
 `;
 
 const ContentHeader = styled.div`
@@ -52,67 +52,95 @@ const StyledProjectName = styled.div`
     transition: color 0.2s ease-in-out;
 `;
 
-const StyledDesignSystem = styled.div`
-    padding-top: 0.5rem;
-    height: calc(100vh - 15.5rem);
+const StyledDesignSystems = styled.div`
     display: flex;
     flex-direction: column;
-`;
+    gap: 2rem;
 
-const StyledLoadedDesignSystems = styled.div`
-    margin: 1rem 0;
-
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
     overflow: scroll;
-    height: calc(100vh - 4rem);
+    height: calc(100vh - 8rem);
     width: 100%;
 `;
 
-const StyledLoadedDesignSystemItem = styled.div`
+const StyledDesignSystemItem = styled.div`
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 1.125rem;
 `;
 
-const StyledButton = styled.div`
-    position: relative;
+const StyledDesignSystemData = styled.div`
+    display: flex;
+    flex-direction: column;
 
-    height: 10rem;
-    width: 100%;
-    padding: 1.5rem;
+    gap: 0.5rem;
 
     cursor: pointer;
 
-    background: var(--surface-transparent-primary);
-    font-weight: 400;
+    &:hover > div {
+        color: ${textPrimary};
+    }
 `;
 
-const StyledButtonContent = styled.div`
-    align-items: center;
-    justify-content: space-between;
-    flex: 1;
+const StyledDesignSystemInfo = styled.div`
     display: flex;
+    align-items: center;
+    gap: 1rem;
 `;
 
-const StyledLoadedDesignSystemName = styled.div``;
+const StyledDesignSystemName = styled.div`
+    color: ${textSecondary};
 
-const StyledLoadedDesignSystemVersion = styled.div`
-    opacity: 0.5;
+    ${h1 as CSSObject}
+`;
 
+const StyledDesignSystemVersion = styled.div`
+    color: ${textSecondary};
+
+    ${h6 as CSSObject};
+`;
+
+const StyledDesignSystemDate = styled.div`
+    color: ${textTertiary};
+
+    ${h6 as CSSObject};
+`;
+
+const StyledDesignSystemLastUpdated = styled.div`
+    position: relative;
+
+    display: flex;
+    gap: 1rem;
+`;
+
+const StyledDesignSystemLastUpdatedLabel = styled.div`
+    margin-left: 1.5rem;
+    color: ${textTertiary};
+
+    ${h6 as CSSObject};
+`;
+
+const StyledIconLongArrowDownRight = styled(IconLongArrowDownRight)`
     position: absolute;
-    bottom: 1.5rem;
-    right: 1.5rem;
+
+    top: -0.75rem;
+    left: 0.25rem;
 `;
 
-const StyledLoadedDesignSystemDate = styled.div`
-    opacity: 0.5;
-
-    position: absolute;
-    bottom: 1.5rem;
-    left: 1.5rem;
-`;
+// TODO: Переделать когда научимся определять, что менялось последним
+const fakeLastUpdatedList = [
+    { label: 'Типографика', value: 'typography' },
+    { label: 'IconButton', value: 'components' },
+    { label: 'Форма', value: 'shapes' },
+    { label: 'Цвета', value: 'colors' },
+    { label: 'Button', value: 'components' },
+    { label: 'Цвета', value: 'colors' },
+    { label: 'Link', value: 'components' },
+    { label: 'Цвета', value: 'colors' },
+    { label: 'Checkbox', value: 'components' },
+    { label: 'Типографика', value: 'typography' },
+    { label: 'Radiobox', value: 'components' },
+    { label: 'Форма', value: 'shapes' },
+];
 
 interface ProjectsOutletContextProps {
     projectName?: string;
@@ -134,15 +162,18 @@ export const Projects = () => {
         loadDesignSystems();
     }, []);
 
-    const onRemoveDesignSystem = async (name: string, version: string) => {
-        await removeDesignSystem(name, version);
-        const updatedSystems = await loadAllDesignSystems();
-        setLoadedDesignSystems(updatedSystems);
-    };
+    // const onRemoveDesignSystem = async (name: string, version: string) => {
+    //     await removeDesignSystem(name, version);
+    //     const updatedSystems = await loadAllDesignSystems();
+    //     setLoadedDesignSystems(updatedSystems);
+    // };
 
     const onLoadDesignSystem = (name: string, version: string) => {
-        // setDesignSystem(new DesignSystem({ name, version }));
         navigate(`/${name}/${version}/colors`);
+    };
+
+    const onGoTo = (name: string, version: string, path: string) => {
+        navigate(`/${name}/${version}/${path}`);
     };
 
     // TODO: Перенести в базу данных
@@ -162,28 +193,30 @@ export const Projects = () => {
                 </>
             )}
             {loadedDesignSystems && (
-                <StyledDesignSystem>
-                    <TextS>Список не опубликованных дизайн систем</TextS>
-                    <StyledLoadedDesignSystems>
-                        {loadedDesignSystems.map(({ name, projectName, grayTone, accentColor, createdAt }) => (
-                            <StyledLoadedDesignSystemItem key={`${name}@${version}`}>
-                                <StyledButton onClick={() => onLoadDesignSystem(name, version)}>
-                                    <StyledButtonContent>
-                                        <StyledLoadedDesignSystemName>{projectName}</StyledLoadedDesignSystemName>
-                                        <StyledLoadedDesignSystemName>{name}</StyledLoadedDesignSystemName>
-                                        <StyledLoadedDesignSystemName>{grayTone}</StyledLoadedDesignSystemName>
-                                        <StyledLoadedDesignSystemName>{accentColor}</StyledLoadedDesignSystemName>
-                                        <StyledLoadedDesignSystemVersion>{version}</StyledLoadedDesignSystemVersion>
-                                        <StyledLoadedDesignSystemDate>{createdAt}</StyledLoadedDesignSystemDate>
-                                    </StyledButtonContent>
-                                </StyledButton>
-                                <IconButton size="m" view="clear" onClick={() => onRemoveDesignSystem(name, version)}>
-                                    <IconTrash size="s" />
-                                </IconButton>
-                            </StyledLoadedDesignSystemItem>
-                        ))}
-                    </StyledLoadedDesignSystems>
-                </StyledDesignSystem>
+                <StyledDesignSystems>
+                    {loadedDesignSystems.map(({ name, projectName, updatedAt }, index) => (
+                        <StyledDesignSystemItem key={`${name}@${version}`}>
+                            <StyledDesignSystemData onClick={() => onLoadDesignSystem(name, version)}>
+                                <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
+                                <StyledDesignSystemInfo>
+                                    <StyledDesignSystemVersion>{version}</StyledDesignSystemVersion>
+                                    <StyledDesignSystemDate>{getFormatDate(updatedAt)}</StyledDesignSystemDate>
+                                </StyledDesignSystemInfo>
+                            </StyledDesignSystemData>
+                            <StyledDesignSystemLastUpdated>
+                                <StyledDesignSystemLastUpdatedLabel>
+                                    <StyledIconLongArrowDownRight color="inherit" size="xs" />
+                                    Последнее изменение
+                                </StyledDesignSystemLastUpdatedLabel>
+                                <LinkButton
+                                    contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
+                                    text={fakeLastUpdatedList[index].label}
+                                    onClick={() => onGoTo(name, version, fakeLastUpdatedList[index].value)}
+                                />
+                            </StyledDesignSystemLastUpdated>
+                        </StyledDesignSystemItem>
+                    ))}
+                </StyledDesignSystems>
             )}
         </ContentWrapper>
     );
