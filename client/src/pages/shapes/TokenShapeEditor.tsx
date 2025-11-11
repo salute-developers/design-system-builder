@@ -16,18 +16,14 @@ import {
 } from '../../controllers';
 import { ShadowPicker, ShadowType } from '../../features';
 import { TextField, LinkButton } from '../../components';
+import { TokenShapePreview } from '.';
+import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 const Root = styled.div`
-    width: 20rem;
     height: 100%;
     background: ${backgroundTertiary};
 
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
 `;
 
 const StyledHeader = styled.div`
@@ -38,6 +34,10 @@ const StyledHeader = styled.div`
 `;
 
 const StyledSetup = styled.div`
+    box-sizing: border-box;
+    padding: 0.75rem 1.25rem;
+
+    min-width: 20rem;
     height: calc(100% - 10rem);
 
     // TODO: подумать как это обойти
@@ -118,16 +118,17 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
             });
         }
 
+        // TODO: Перенести в utils
         if (token instanceof ShadowToken && typeof value === 'object') {
             const webValues = value.map(
                 ({ offsetX, offsetY, blur, spread, color, opacity }) =>
                     `${parseFloat(offsetX) / 16}rem ${parseFloat(offsetY) / 16}rem ${parseFloat(blur) / 16}rem ${
                         parseFloat(spread) / 16
-                    }rem ${color}${getAlphaHex(opacity)}`,
+                    }rem ${getRestoredColorFromPalette(color)}${getAlphaHex(opacity)}`,
             );
 
             const nativeValues = value.map(({ offsetX, offsetY, blur, spread, color, opacity }, index) => ({
-                color: `${color}${getAlphaHex(opacity)}`,
+                color: `${getRestoredColorFromPalette(color)}${getAlphaHex(opacity)}`,
                 offsetX: parseFloat(offsetX),
                 offsetY: parseFloat(offsetY),
                 blurRadius: parseFloat(blur),
@@ -194,19 +195,24 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
 
     return (
         <Root>
-            <StyledHeader>
-                <TextField readOnly value={token?.getDisplayName()} />
-                <TextField value={description} onChange={onDescriptionChange} />
-            </StyledHeader>
             <StyledSetup>
+                <StyledHeader>
+                    <TextField readOnly value={token?.getDisplayName()} />
+                    <TextField value={description} onChange={onDescriptionChange} />
+                </StyledHeader>
                 {(token?.getType() === 'shape' || token?.getType() === 'spacing') && typeof value === 'string' && (
                     <TextField label="Значение" hasBackground value={value} onChange={onValueChange} />
                 )}
                 {token?.getType() === 'shadow' && typeof value === 'object' && (
                     <ShadowPicker values={value} onChange={onValueChange} />
                 )}
+                <StyledLinkButton
+                    text="Отменить изменения"
+                    contentLeft={<IconClose size="xs" />}
+                    onClick={onTokenReset}
+                />
             </StyledSetup>
-            <StyledLinkButton text="Отменить изменения" contentLeft={<IconClose size="xs" />} onClick={onTokenReset} />
+            <TokenShapePreview value={value} tokenType={token?.getType()} />
         </Root>
     );
 };
