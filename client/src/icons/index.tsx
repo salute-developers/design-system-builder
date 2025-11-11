@@ -8,3 +8,4 @@ export { IconTypography } from './Icons/IconTypography';
 export { IconCharX } from './Icons/IconCharX';
 export { IconCharY } from './Icons/IconCharY';
 export { IconCardsGridFill } from './Icons/IconCardsGridFill';
+export { IconLongArrowDownRight } from './Icons/IconLongArrowDownRight';
