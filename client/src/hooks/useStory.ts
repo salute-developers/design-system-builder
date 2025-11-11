@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 
 import { IconButtonStories, LinkStories, ButtonStories, CheckboxStories, RadioboxStories } from '../stories';
+import { Config } from '../controllers';
 
 interface Story {
     name: string;
@@ -8,6 +9,7 @@ interface Story {
     render: (props: any) => JSX.Element;
 }
 
+// TODO: Подумать как сделать автоматически расширяемый список
 const componentMapper: Record<string, Story[]> = {
     IconButton: IconButtonStories,
     Link: LinkStories,
@@ -16,7 +18,11 @@ const componentMapper: Record<string, Story[]> = {
     Radiobox: RadioboxStories,
 };
 
-export const useStory = (componentName: string, onUpdateComponentProps: (values: Record<string, any>) => void) => {
+export const useStory = (
+    componentName: string,
+    config: Config,
+    onUpdateComponentProps: (values: Record<string, any>) => void,
+) => {
     const [selectedStory, setSelectedStory] = useState({ value: 'Default', label: 'Default' });
 
     const items = componentMapper[componentName].map(({ name }) => ({ value: name, label: name }));
@@ -26,13 +32,13 @@ export const useStory = (componentName: string, onUpdateComponentProps: (values:
         [componentName, selectedStory],
     );
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const values = story.args.reduce((acc, { name, value }) => ({ ...acc, [name]: value }), {});
 
         if (values) {
             onUpdateComponentProps(values);
         }
-    }, [selectedStory]);
+    }, [selectedStory, config]);
 
-    return [selectedStory, setSelectedStory, story.args, items, story.render] as const;
+    return { selectedStory, setSelectedStory, storyArgs: story.args, items, Story: story.render } as const;
 };

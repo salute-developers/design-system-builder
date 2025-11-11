@@ -29,7 +29,8 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
         return { variationID: undefined, styleID: undefined };
     }
 
-    const [variation, value] = entries[0];
+    // TODO: Подумать, нужно ли завязываться на size
+    const [variation, value] = entries[entries.length - 1]; // entries.find(([key]) => key === 'size') || [0];
 
     const variationID = config
         .getVariations()
@@ -39,8 +40,8 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
     return { variationID, styleID: value };
 };
 
-export const useVariationAndStyle = (config?: Config) => {
-    const [componentProps, setComponentProps] = useState({});
+export const useComponentData = (config?: Config) => {
+    const [componentProps, setComponentProps] = useState<Record<string, string | boolean>>({});
     const { variationID, styleID } = getDefaults(config, componentProps);
 
     const [selectedVariation, setSelectedVariation] = useState<undefined | string>(variationID);
@@ -57,5 +58,12 @@ export const useVariationAndStyle = (config?: Config) => {
         setSelectedStyle(styleID);
     }, [variationID, styleID]);
 
-    return [selectedVariation, setSelectedVariation, selectedStyle, setSelectedStyle] as const;
+    return [
+        selectedVariation,
+        setSelectedVariation,
+        selectedStyle,
+        setSelectedStyle,
+        componentProps,
+        setComponentProps,
+    ] as const;
 };
