@@ -12,14 +12,13 @@ RUN npm ci
 
 COPY --chown=node:node . .
 
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+
 RUN npm run build
 
 RUN npm ci --only=production
 
 EXPOSE 3001
 
-# Health check using wget
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost:3001/health || exit 1
-
-CMD ["sh", "-c", "npm run migrate && npm start"]
+CMD ["npm", "start"]
