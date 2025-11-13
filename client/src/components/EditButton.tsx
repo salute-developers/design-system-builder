@@ -119,6 +119,7 @@ interface EditButtonProps extends HTMLAttributes<HTMLDivElement> {
     view?: ViewType;
     contentLeft?: ReactNode;
     contentRight?: ReactNode;
+    // TODO: Не уверен, что это нужно в данной кнопке
     saturationType?: SaturationType;
     isReady?: boolean;
 }

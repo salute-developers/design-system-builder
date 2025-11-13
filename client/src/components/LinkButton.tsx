@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { HTMLAttributes, ReactNode } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import { textParagraph, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
@@ -19,7 +19,7 @@ const StyledResetTokeValuesButton = styled.div`
     ${h6 as CSSObject};
 `;
 
-interface LinkButtonProps {
+interface LinkButtonProps extends HTMLAttributes<HTMLDivElement>{
     text: string;
     contentLeft?: ReactNode;
     contentRight?: ReactNode;

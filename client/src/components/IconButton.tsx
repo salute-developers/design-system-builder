@@ -52,10 +52,16 @@ interface IconButtonProps {
 }
 
 export const IconButton = (props: IconButtonProps) => {
-    const { children, selected, ...rest } = props;
+    const { children, selected, disabled, onClick, ...rest } = props;
+
+    const onButtonClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (onClick && !disabled) {
+            onClick(event);
+        }
+    };
 
     return (
-        <Root selected={selected} {...rest}>
+        <Root selected={selected} onClick={onButtonClick} disabled={disabled} {...rest}>
             {children}
         </Root>
     );
