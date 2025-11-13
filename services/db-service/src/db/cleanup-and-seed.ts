@@ -3,8 +3,7 @@ import postgres from 'postgres';
 import * as schema from './schema';
 import { eq, and } from 'drizzle-orm';
 
-// Get database URL from environment or use default
-const connectionString = `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'ds_builder'}`;
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ds_builder';
 
 // Create the connection
 const client = postgres(connectionString);
@@ -227,18 +226,18 @@ const componentConfigs = {
 function parseTokenValues(cssString: string): Record<string, string> {
   const tokenValues: Record<string, string> = {};
   const lines = cssString.trim().split('\n');
-  
+
   for (const line of lines) {
     const trimmedLine = line.trim();
     if (!trimmedLine || trimmedLine.endsWith(':')) continue;
-    
+
     const match = trimmedLine.match(/^(\w+):\s*([^;]+);?$/);
     if (match) {
       const [, tokenName, value] = match;
       tokenValues[tokenName] = value.trim();
     }
   }
-  
+
   return tokenValues;
 }
 
@@ -248,11 +247,11 @@ async function cleanupAndSeed() {
   try {
     // Delete all Plasma Design Systems and their related data
     console.log('Deleting existing Plasma Design Systems...');
-    
+
     const plasmaDesignSystems = await db.query.designSystems.findMany({
       where: (ds, { eq }) => eq(ds.name, 'Plasma Design System')
     });
-    
+
     for (const ds of plasmaDesignSystems) {
       console.log(`Deleting design system ${ds.id}: ${ds.name}`);
       await db.delete(schema.variationValues).where(eq(schema.variationValues.designSystemId, ds.id));
@@ -276,10 +275,10 @@ async function cleanupAndSeed() {
 
     // Process each component
     const componentData = [];
-    
+
     for (const [componentName, config] of Object.entries(componentConfigs)) {
       console.log(`\n🔧 Processing ${componentName} component...`);
-      
+
       // Get or create component
       let component = await db.query.components.findFirst({
         where: eq(schema.components.name, componentName)
@@ -346,9 +345,9 @@ async function cleanupAndSeed() {
 
         for (const [valueName, cssString] of Object.entries(variationValues)) {
           console.log(`  Creating: ${componentName}.${variationName}.${valueName}`);
-          
+
           const tokenValues = parseTokenValues(cssString as string);
-          
+
           // Create variation value
           const [variationValue] = await db.insert(schema.variationValues).values({
             designSystemId: designSystem.id,
@@ -377,7 +376,7 @@ async function cleanupAndSeed() {
             await db.insert(schema.tokenValues).values(tokenValueInserts);
             console.log(`    ✅ Created ${tokenValueInserts.length} token values`);
           }
-          
+
           totalVariationValues++;
         }
       }
@@ -414,4 +413,4 @@ if (require.main === module) {
   });
 }
 
-export default cleanupAndSeed; 
+export default cleanupAndSeed;

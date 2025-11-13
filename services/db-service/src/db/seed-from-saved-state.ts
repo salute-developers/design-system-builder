@@ -4,12 +4,7 @@ import * as schema from "./schema";
 import { eq, and } from "drizzle-orm";
 import { allComponentsData } from "./all-components-data";
 
-// Get database URL from environment or use default
-const connectionString = `postgres://${process.env.DB_USER || "postgres"}:${
-  process.env.DB_PASSWORD || "postgres"
-}@${process.env.DB_HOST || "localhost"}:${process.env.DB_PORT || 5432}/${
-  process.env.DB_NAME || "ds_builder"
-}`;
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ds_builder';
 
 // Create the connection
 const client = postgres(connectionString);
