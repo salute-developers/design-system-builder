@@ -123,6 +123,12 @@ export const Home = () => {
     const currentPage = useLocation().pathname.split('/').filter(Boolean).pop();
     const selectedListItem = currentPage === undefined ? 'projects' : currentPage;
 
+    const onOpenPopup = () => {
+        if (context.onOpenPopup) {
+            context.onOpenPopup();
+        }
+    };
+
     const onChangeListItem = (ListItem: '' | 'drafts') => {
         navigate(`/${ListItem}`);
     };
@@ -133,20 +139,14 @@ export const Home = () => {
                 <Root>
                     <Header>
                         <HeaderTitle>ID 081b5359</HeaderTitle>
-                        <IconButton>
+                        <IconButton disabled>
                             <IconSettingsOutline size="xs" color="inherit" />
                         </IconButton>
                     </Header>
                     <List>
                         <ListItem selected={selectedListItem === 'projects'} onClick={() => onChangeListItem('')}>
                             <ListItemText>Мои проекты</ListItemText>
-                            <ListItemContentRight
-                                onClick={() => {
-                                    if (context.onOpenPopup) {
-                                        context.onOpenPopup();
-                                    }
-                                }}
-                            >
+                            <ListItemContentRight onClick={onOpenPopup}>
                                 <IconPlus size="xs" color="inherit" />
                             </ListItemContentRight>
                         </ListItem>
