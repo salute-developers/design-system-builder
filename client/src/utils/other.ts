@@ -33,3 +33,7 @@ export const h6 = {
     'font-weight': '400',
     'line-height': '16px',
 };
+
+export const roundTo = (num: number, precision = 2) => {
+    return (Math.round(num * 100) / 100).toFixed(precision);
+};

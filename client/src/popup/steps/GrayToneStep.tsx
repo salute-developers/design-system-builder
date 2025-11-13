@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
 
-import { GrayTone, Parameters } from '../../types';
+import { GrayTone, grayTones, Parameters } from '../../types';
 import { HoverSelect } from '../../features';
 import { EditButton } from '../../components';
 import { popupSetupSteps } from '.';
@@ -17,12 +17,6 @@ const StyledEditButton = styled(EditButton)`
 const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
     --icon-size: 0.75rem !important;
 `;
-
-const grayTones = [
-    { value: 'gray', label: 'Без примесей' },
-    { value: 'warmGray', label: 'Тёплый' },
-    { value: 'coolGray', label: 'Холодный' },
-];
 
 interface GrayToneStepProps {
     editMode: boolean;

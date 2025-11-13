@@ -144,7 +144,15 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
 
     const items = hasSearch ? innerItems : externalItems;
 
-    const triggerText = useMemo(() => items.find((item) => item.value === selected?.value)?.label, [selected]);
+    const triggerText = useMemo(
+        () =>
+            items.find(
+                (item) =>
+                    item.value === selected?.value &&
+                    (selected?.label !== undefined ? selected.label === item.label : true),
+            )?.label,
+        [selected, items],
+    );
 
     const onClick = (value: SelectButtonItem) => {
         if (value.disabled) {

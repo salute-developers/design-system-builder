@@ -155,7 +155,7 @@ export const Dropdown = <T extends DropdownItem>(props: DropdownProps<T>) => {
         }
 
         const container = itemsRef.current;
-        const target = itemRefs.current[selected.value];
+        const target = itemRefs.current[`${selected.label}_${selected.value}`];
 
         if (!autoAlign && target) {
             target.scrollIntoView({
@@ -224,9 +224,12 @@ export const Dropdown = <T extends DropdownItem>(props: DropdownProps<T>) => {
                     <StyledItem
                         key={`${item.value}_${index}`}
                         ref={(el) => {
-                            itemRefs.current[item.value] = el;
+                            itemRefs.current[`${item.label}_${item.value}`] = el;
                         }}
-                        selected={selected?.value === item.value}
+                        selected={
+                            selected?.value === item.value &&
+                            (selected.label !== undefined ? selected.label === item.label : true)
+                        }
                         disabled={item.disabled}
                         onClick={() => onClick(item)}
                         onMouseEnter={() => onMouseEnter(item)}

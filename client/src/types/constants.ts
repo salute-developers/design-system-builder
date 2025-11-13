@@ -26,3 +26,9 @@ export const sectionToFormulaMap: Record<string, FormulaMode> = {
     surface: 'fill',
     data: 'fill',
 };
+
+export const grayTones = [
+    { value: 'gray', label: 'Без примесей' },
+    { value: 'warmGray', label: 'Тёплый' },
+    { value: 'coolGray', label: 'Холодный' },
+];

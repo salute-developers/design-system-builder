@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general, PlasmaSaturation } from '@salutejs/plasma-colors';
 import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
+import { surfaceTransparentPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { GeneralColor, Parameters, SaturationType, ViewType } from '../../types';
 import { SaturationSelect } from '../../features';
@@ -12,17 +13,13 @@ const StyledSaturationSelect = styled(SaturationSelect)`
     margin: 3rem 0;
 `;
 
-const StyledPreviewSaturation = styled.div<{ color: string; saturationType?: 'fill' | 'stroke' }>`
+export const StyledPreviewSaturation = styled.div<{ color: string }>`
     border-radius: 50%;
     width: 0.75rem;
     height: 0.75rem;
     background: ${({ color }) => color};
 
-    ${({ saturationType }) =>
-        saturationType === 'stroke' &&
-        css`
-            box-shadow: 0 0 0 0.0625rem rgba(0, 0, 0, 0.12) inset;
-        `}
+    box-shadow: 0 0 0 0.0625rem ${surfaceTransparentPrimary} inset;
 `;
 
 const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
@@ -98,9 +95,7 @@ export const SaturationSelectStep = (props: SaturationSelectStepProps) => {
     ) : (
         <EditButton
             label={label}
-            contentLeft={
-                <StyledPreviewSaturation saturationType={saturationType} color={general[accentColor][saturation]} />
-            }
+            contentLeft={<StyledPreviewSaturation color={general[accentColor][saturation]} />}
             contentRight={<StyledIconArrowsMoveVertical color="inherit" />}
             color={general[accentColor][saturation]}
             text={saturation.toString()}

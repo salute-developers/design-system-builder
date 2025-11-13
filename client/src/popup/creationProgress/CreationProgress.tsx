@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import { textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { useGlobalKeyDown } from '../../hooks';
 import { h6 } from '../../utils';
 import { Parameters } from '../../types';
 import { DesignSystem } from '../../controllers';
@@ -38,7 +37,7 @@ const StyledProgress = styled(Progress)`
     position: absolute;
     width: 17.5rem;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateY(-1.875rem);
 `;
 
 interface CreationProgressProps {
@@ -49,14 +48,8 @@ interface CreationProgressProps {
 }
 
 export const CreationProgress = (props: CreationProgressProps) => {
-    const { parameters, accentColor, onPrevPage, onNextPage } = props;
+    const { parameters, accentColor, onNextPage } = props;
     const [designSystemCreated, setDesignSystemCreated] = useState(false);
-
-    useGlobalKeyDown((event) => {
-        if (event.key === 'Escape') {
-            onPrevPage();
-        }
-    });
 
     //TODO: Временная демонстрация прогресса
     const [value, setValue] = useState(0);

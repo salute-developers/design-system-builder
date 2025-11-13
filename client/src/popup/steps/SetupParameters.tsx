@@ -7,7 +7,7 @@ import { h1, h5, textParagraph, textPrimary } from '@salutejs/plasma-themes/toke
 
 import { Parameters } from '../../types';
 import { useGlobalKeyDown } from '../../hooks';
-import { LinkButton, HeroButton } from '../../components';
+import { LinkButton, BasicButton } from '../../components';
 import {
     ProjectNameStep,
     PackagesNameStep,
@@ -161,7 +161,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
     const isReady = popupSetupStep === popupSetupSteps.DONE && editStep === null;
     const canShowSeparator =
-    editStep !== popupSetupSteps.LIGHT_FILL_SATURATION &&
+        editStep !== popupSetupSteps.LIGHT_FILL_SATURATION &&
         editStep !== popupSetupSteps.DARK_STROKE_SATURATION &&
         popupSetupStep !== popupSetupSteps.LIGHT_FILL_SATURATION &&
         popupSetupStep !== popupSetupSteps.DARK_STROKE_SATURATION;
@@ -370,7 +370,8 @@ export const SetupParameters = (props: SetupParametersProps) => {
                     </StyledThemeModeSwitcher>
                     теме
                 </StyledHeader>
-                <HeroButton
+                <BasicButton
+                    size="l"
                     text="Сгенерировать"
                     backgroundColor={general[accentColor][darkFillSaturation]}
                     contentRight={<IconArrowRight size="xs" color="inherit" />}

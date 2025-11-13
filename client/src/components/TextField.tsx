@@ -61,6 +61,7 @@ const Root = styled.div<{
 
 const StyledLabel = styled.label<{ width?: string }>`
     color: ${textTertiary};
+    white-space: nowrap;
 `;
 
 const StyledContent = styled.div`

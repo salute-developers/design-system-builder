@@ -1,13 +1,15 @@
 import styled from 'styled-components';
-import { surfaceTransparentSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { surfaceTransparentSecondary, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 const Root = styled.div`
     background: ${surfaceTransparentSecondary};
     height: 0.125rem;
+    overflow: hidden;
+    width: 100%;
 `;
 
-const StyledProgress = styled.div<{ color: string; value: number }>`
-    background: ${({ color }) => color};
+const StyledProgress = styled.div<{ color?: string; value: number }>`
+    background: ${({ color }) => color || textPrimary};
     height: 0.125rem;
     width: ${({ value }) => value}%;
 
@@ -16,7 +18,7 @@ const StyledProgress = styled.div<{ color: string; value: number }>`
 
 interface ProgressProps {
     value: number;
-    color: string;
+    color?: string;
 }
 
 export const Progress = (props: ProgressProps) => {

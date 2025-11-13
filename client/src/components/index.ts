@@ -1,5 +1,5 @@
 export { Dropdown, type DropdownItem } from './Dropdown';
-export { HeroButton } from './HeroButton';
+export { BasicButton } from './BasicButton';
 export { IconButton } from './IconButton';
 export { LinkButton } from './LinkButton';
 export { Progress } from './Progress';
