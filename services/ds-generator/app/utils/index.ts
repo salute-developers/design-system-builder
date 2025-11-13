@@ -6,7 +6,7 @@ import { ThemeSource } from '../themeBuilder/types';
 export const BASE_URL = process.env.CLIENT_PROXY_URL || 'http://localhost:3003/api';
 export const PUBLISHER_URL = process.env.PUBLISHER_URL || 'http://localhost:3007';
 
-export const CORE_VERSION = '0.328.0-canary.1983.15896947411.0';
+export const CORE_VERSION = '0.341.0-canary.1983.19295272379.0';
 export const GENERATE_ROOT_DIR = './result';
 
 // TODO: вынести в общее место

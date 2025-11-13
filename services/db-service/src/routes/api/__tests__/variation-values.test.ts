@@ -31,6 +31,13 @@ describe('Variation Values API', () => {
     const [system] = await testDb.insert(designSystems).values({
       name: 'Test System',
       description: 'Test Description',
+        projectName: "Test 66",
+        grayTone: "warmGray",
+        accentColor: "arctic",
+        lightStrokeSaturation: 700,
+        lightFillSaturation: 600,
+        darkStrokeSaturation: 400,
+        darkFillSaturation: 400,
     }).returning();
     designSystemId = system.id;
 

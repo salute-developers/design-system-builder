@@ -10,6 +10,14 @@ export const designSystems = pgTable('design_systems', {
   id: serial('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description'),
+  projectName: text('project_name').notNull(),
+  // packagesName: text('packages_name').notNull(), // это поле name;
+  grayTone: text('gray_tone').notNull(),
+  accentColor: text('accent_color').notNull(),
+  lightStrokeSaturation: integer('light_stroke_saturation').notNull(),
+  lightFillSaturation: integer('light_fill_saturation').notNull(),
+  darkStrokeSaturation: integer('dark_stroke_saturation').notNull(),
+  darkFillSaturation: integer('dark_fill_saturation').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

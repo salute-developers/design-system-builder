@@ -239,7 +239,7 @@ export class BackendThemeStore {
                 throw new Error(`Failed to create design system: ${response.status} ${response.statusText}`);
             }
         } catch (error) {
-            Logger.error(`❌ Failed to ensure design system exists: ${name}`, error);
+            Logger.error(`❌ Failed to ensure design system exists in theme layer: ${name}`, error);
             throw error;
         }
     }

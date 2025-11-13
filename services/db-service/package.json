@@ -12,6 +12,7 @@
     "studio": "drizzle-kit studio",
     "clear-db": "ts-node src/db/clear-database.ts",
     "extract-state": "ts-node src/db/extract-and-save-state.ts",
+    "seed-from-saved-state": "ts-node src/db/seed-from-saved-state.ts",
     "test": "vitest --run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest watch"

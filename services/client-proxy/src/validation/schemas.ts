@@ -189,10 +189,23 @@ export const ThemeSourceSchema = z.object({
     variations: PlatformsVariationsSchema,
 });
 
+// Parameters schema
+export const ParametersSchema = z.object({
+    projectName: z.string(),
+    packagesName: z.string(),
+    grayTone: z.string(),
+    accentColor: z.string(),
+    lightStrokeSaturation: z.number(),
+    lightFillSaturation: z.number(),
+    darkStrokeSaturation:z.number(),
+    darkFillSaturation: z.number(),
+})
+
 // Main design system data schema
 export const DesignSystemDataSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     version: z.string().min(1, 'Version is required'),
+    parameters: ParametersSchema,
     themeData: ThemeSourceSchema,
     componentsData: z.array(MetaSchema),
 });
@@ -258,6 +271,7 @@ export type Platform = 'web' | 'ios' | 'android';
 export type Platforms = z.infer<typeof PlatformsSchema>;
 export type PlatformsVariations = z.infer<typeof PlatformsVariationsSchema>;
 export type ThemeSource = z.infer<typeof ThemeSourceSchema>;
+export type Parameters  = z.infer<typeof ParametersSchema>;
 
 // Schemas for separate file storage
 export const StoredThemeDataSchema = z.object({

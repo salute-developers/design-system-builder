@@ -89,10 +89,30 @@ export function createDesignSystemsRouter(db: Database) {
     validateBody(CreateDesignSystemSchema),
     async (req: Request, res: Response) => {
     try {
-      const { name, description } = req.body;
+      const { 
+          name, 
+          description, 
+          projectName, 
+          grayTone, 
+          accentColor, 
+          lightStrokeSaturation, 
+          lightFillSaturation, 
+          darkStrokeSaturation, 
+          darkFillSaturation  
+      } = req.body;
 
       const [system] = await db.insert(designSystems)
-        .values({ name, description })
+        .values({ 
+          name, 
+          description, 
+          projectName, 
+          grayTone, 
+          accentColor, 
+          lightStrokeSaturation, 
+          lightFillSaturation, 
+          darkStrokeSaturation, 
+          darkFillSaturation  
+        })
         .returning();
 
       res.status(201).json(system);

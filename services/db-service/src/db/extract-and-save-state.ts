@@ -5,8 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
-// Get database URL from environment or use default
-const connectionString = `postgres://${process.env.DB_USER || 'postgres'}:${process.env.DB_PASSWORD || 'postgres'}@${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'ds_builder'}`;
+const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ds_builder';
 
 // Create the connection
 const client = postgres(connectionString);
@@ -346,24 +345,24 @@ async function main() {
     // Extract current state
     console.log('🚀 Starting extraction and save process...');
     const data = await extractCurrentState();
-    
+
     // Save raw data as JSON
     const jsonPath = path.join(__dirname, 'current-state.json');
     fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
     console.log(`📁 Raw data saved to: ${jsonPath}`);
-    
+
     // Generate seed script with inline data
     const seedScript = generateSeedScript(data);
     const scriptPath = path.join(__dirname, 'seed-from-saved-state.ts');
     fs.writeFileSync(scriptPath, seedScript);
     console.log(`📁 Seed script saved to: ${scriptPath}`);
-    
+
     console.log('\n✅ Extraction and save completed!');
     console.log('📋 You can now:');
     console.log('  1. Use the raw JSON data for other purposes');
     console.log('  2. Run: npm run seed-saved-state');
     console.log('  3. The seed script contains all your data inline');
-    
+
   } catch (error) {
     console.error('❌ Error:', error);
     process.exit(1);

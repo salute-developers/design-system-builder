@@ -7,6 +7,13 @@ interface BackendFormat {
     id: number;
     name: string;
     description: string;
+    projectName: string;
+    grayTone: string;
+    accentColor: string;
+    lightStrokeSaturation: number;
+    lightFillSaturation: number;
+    darkStrokeSaturation: number;
+    darkFillSaturation: number;
     createdAt: string;
     updatedAt: string;
   };
@@ -216,6 +223,13 @@ interface ClientFormat {
     id: string;
     name: string;
     description: string;
+    projectName: string;
+    grayTone: string;
+    accentColor: string;
+    lightStrokeSaturation: number;
+    lightFillSaturation: number;
+    darkStrokeSaturation: number;
+    darkFillSaturation: number;
     createdAt: string;
     updatedAt: string;
   };
@@ -373,6 +387,13 @@ class FormatTransformer {
         id: this.generateUUID(),
         name: backendData.designSystem.name,
         description: backendData.designSystem.description,
+        projectName: backendData.designSystem.projectName,
+        grayTone: backendData.designSystem.grayTone,
+        accentColor: backendData.designSystem.accentColor,
+        lightStrokeSaturation: backendData.designSystem.lightStrokeSaturation,
+        lightFillSaturation: backendData.designSystem.lightFillSaturation,
+        darkStrokeSaturation: backendData.designSystem.darkStrokeSaturation,
+        darkFillSaturation: backendData.designSystem.darkFillSaturation,
         createdAt: backendData.designSystem.createdAt,
         updatedAt: backendData.designSystem.updatedAt
       }
@@ -521,6 +542,13 @@ class FormatTransformer {
         id: 1, // Default ID
         name: clientData.designSystem?.name || 'Transformed Design System',
         description: clientData.designSystem?.description || 'Transformed from client format',
+        projectName: clientData.designSystem?.projectName || 'Transformed Project Name',
+        grayTone: clientData.designSystem?.grayTone || 'warmGray',
+        accentColor: clientData.designSystem?.accentColor || 'blue',
+        lightStrokeSaturation: clientData.designSystem?.lightStrokeSaturation || 500,
+        lightFillSaturation: clientData.designSystem?.lightFillSaturation || 400,
+        darkStrokeSaturation: clientData.designSystem?.darkStrokeSaturation || 500,
+        darkFillSaturation: clientData.designSystem?.darkFillSaturation || 400,
         // RESTORE: Design system timestamps
         createdAt: clientData.designSystem?.createdAt || new Date().toISOString(),
         updatedAt: clientData.designSystem?.updatedAt || new Date().toISOString()

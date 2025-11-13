@@ -1,0 +1,108 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
+import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+
+import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
+import { useSelectItemInMenu } from '../../hooks';
+import { DesignSystem, AndroidColor, ColorToken, IOSColor, Theme, Token, WebColor } from '../../controllers';
+import { Menu, Workspace } from '../../layouts';
+import { TokenColorEditor } from '.';
+
+interface ColorsOutletContextProps {
+    designSystem?: DesignSystem;
+    theme?: Theme;
+    updated: object;
+    rerender: () => void;
+}
+
+export const Colors = () => {
+    const { designSystem, theme, updated, rerender } = useOutletContext<ColorsOutletContextProps>();
+
+    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
+
+    const [tokens, setTokens] = useState<Token[] | undefined>([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const data = useMemo(() => getMenuItems(theme, 'color'), [theme, updated]);
+
+    const onTokenAdd = (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | unknown)[]) => {
+        if (!theme || !tabName || !tokens) {
+            return;
+        }
+
+        // TODO: Очень не нравится это
+        const normalizedTabName = groupName === 'Background' ? tabName.replace('On', '') : tabName;
+        const rest = [camelToKebab(groupName), camelToKebab(normalizedTabName), camelToKebab(tokenName)];
+
+        const isTokenExist = theme.getToken(['dark', ...rest].join('.'), 'color');
+
+        if (isTokenExist) {
+            console.warn('Токен уже существует');
+            return;
+        }
+
+        const createMeta = (mode: string) => ({
+            tags: [mode, ...rest],
+            name: [mode, ...rest].join('.'),
+            displayName: kebabToCamel(`${camelToKebab(groupName)}-${camelToKebab(tokenName)}`),
+            description: 'New description',
+            enabled: true,
+        });
+
+        tokens.forEach((token) => {
+            const [mode, ..._] = (token as Token).getTags();
+            const newToken = new ColorToken(createMeta(mode), {
+                web: new WebColor('[general.gray.50]'),
+                ios: new IOSColor('[general.gray.50]'),
+                android: new AndroidColor('[general.gray.50]'),
+            });
+
+            theme.addToken('color', newToken);
+        });
+
+        rerender();
+    };
+
+    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
+        (tokens as Token[]).forEach((token) => {
+            token.setEnabled(disabled);
+        });
+
+        rerender();
+    };
+
+    useEffect(() => {
+        if (!data) {
+            return;
+        }
+
+        const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
+        const selectedTokens = data.groups[tabIndex].data[groupIndex].items[itemIndex].data as Token[];
+
+        setTokens(selectedTokens);
+    }, [theme, data, selectedItemIndexes]);
+
+    if (!data || !designSystem || !theme) {
+        return null;
+    }
+
+    return (
+        <Workspace
+            menuBackground={backgroundTertiary}
+            menu={
+                <Menu
+                    header={designSystem.getParameters()?.projectName}
+                    subheader={designSystem.getParameters()?.packagesName}
+                    data={data}
+                    selectedItemIndexes={selectedItemIndexes}
+                    onTabSelect={onTabSelect}
+                    onItemSelect={onItemSelect}
+                    onItemAdd={onTokenAdd}
+                    onItemDisable={onTokenDisable}
+                />
+            }
+            content={
+                <TokenColorEditor designSystem={designSystem} theme={theme} tokens={tokens} onTokenUpdate={rerender} />
+            }
+        />
+    );
+};

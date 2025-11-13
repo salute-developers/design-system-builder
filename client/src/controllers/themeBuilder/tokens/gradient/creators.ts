@@ -1,0 +1,94 @@
+import { AndroidGradient, GradientToken, IOSGradient, WebGradient } from './gradient';
+import { gradientTokens, getWebTokens, getIOSTokens, getAndroidTokens } from './default';
+import { PlatformsVariations, ThemeConfig, TokenType } from '../../types';
+
+export const createDefaultGradientTokens = (config: ThemeConfig): GradientToken[] => {
+    const webTokens = getWebTokens(config);
+    const iosTokens = getIOSTokens(config);
+    const androidTokens = getAndroidTokens(config);
+
+    return gradientTokens.map((token) => {
+        const web = webTokens[token.name];
+        const ios = iosTokens[token.name];
+        const android = androidTokens[token.name];
+
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен градиента '${token.name}' не найден`);
+        }
+
+        const values = {
+            web: new WebGradient(web),
+            ios: new IOSGradient(ios),
+            android: new AndroidGradient(android),
+        };
+
+        return new GradientToken(token, values);
+    });
+};
+
+// INFO: Данный метод нужен для того, чтобы на момент формирования инстанса класса Theme
+// не добавлять технические токены состояний active / hover в память объекта,
+// т.к. они никак не используются в визуальном интефрейсе
+const removeExtraTokens = (token: TokenType) =>
+    !token.name.includes('-hover') && !token.name.includes('-active') && !token.name.includes('-brightness');
+
+export const createGradientTokens = (
+    tokens: Array<TokenType>,
+    platforms: PlatformsVariations['gradient'],
+    includeExtraTokens?: boolean,
+) => {
+    const tokenList = includeExtraTokens ? tokens : tokens.filter(removeExtraTokens);
+
+    return tokenList.map((token) => {
+        const web = platforms.web[token.name];
+        const ios = platforms.ios[token.name];
+        const android = platforms.android[token.name];
+
+        if (web === undefined || ios === undefined || android === undefined) {
+            throw new Error(`Токен градиента '${token.name}' не найден`);
+        }
+
+        const values = {
+            web: new WebGradient(web),
+            ios: new IOSGradient(ios),
+            android: new AndroidGradient(android),
+        };
+
+        return new GradientToken(token, values);
+    });
+};
+
+// TODO: Удалить метод после завершения разработки разделов с токенами
+export const createMockGradientTokens = () => {
+    const token = {
+        displayName: 'gradientName',
+        enabled: true,
+        name: 'gradient.name',
+        tags: ['gradient', 'name'],
+        description: 'Description',
+    };
+
+    const values = {
+        web: new WebGradient([]),
+        ios: new IOSGradient([
+            {
+                kind: 'linear',
+                angle: 90,
+                colors: [],
+                locations: [],
+            },
+        ]),
+        android: new AndroidGradient([
+            {
+                kind: 'linear',
+                angle: 90,
+                colors: [],
+                locations: [],
+            },
+        ]),
+    };
+
+    const gradient = new GradientToken(token, values);
+
+    return [gradient];
+};

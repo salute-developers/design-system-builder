@@ -6,7 +6,7 @@ export const iconbuttonData = {
     description: "Кнопка с иконкой.",
     createdAt: "2025-01-27T12:00:00.000Z",
     updatedAt: "2025-01-27T12:00:00.000Z",
-    tokenVariations: []
+    tokenVariations: [],
   },
   variations: [
     {
@@ -16,7 +16,7 @@ export const iconbuttonData = {
       description: "View variation",
       createdAt: "2025-01-27T12:00:00.000Z",
       updatedAt: "2025-01-27T12:00:00.000Z",
-      tokenVariations: []
+      tokenVariations: [],
     },
     {
       id: 2,
@@ -25,7 +25,7 @@ export const iconbuttonData = {
       description: "Size variation",
       createdAt: "2025-01-27T12:00:00.000Z",
       updatedAt: "2025-01-27T12:00:00.000Z",
-      tokenVariations: []
+      tokenVariations: [],
     },
     {
       id: 3,
@@ -34,8 +34,8 @@ export const iconbuttonData = {
       description: "Shape variation",
       createdAt: "2025-01-27T12:00:00.000Z",
       updatedAt: "2025-01-27T12:00:00.000Z",
-      tokenVariations: []
-    }
+      tokenVariations: [],
+    },
   ],
   tokens: [
     // Invariant tokens (не меняются в зависимости от вариаций)
@@ -51,7 +51,7 @@ export const iconbuttonData = {
       iosParam: "loadingAlpha",
       webParam: null,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 2,
@@ -65,7 +65,7 @@ export const iconbuttonData = {
       iosParam: "disableAlpha",
       webParam: "iconButtonDisabledOpacity",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 3,
@@ -79,7 +79,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonFocusColor",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // View variation tokens (меняются в зависимости от view)
     {
@@ -94,7 +94,7 @@ export const iconbuttonData = {
       iosParam: "backgroundColor",
       webParam: "iconButtonBackgroundColor",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 5,
@@ -108,7 +108,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonLoadingBackgroundColor",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 6,
@@ -122,7 +122,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonColor",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 7,
@@ -136,7 +136,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonSpinnerColor",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Size variation tokens (меняются в зависимости от size)
     {
@@ -151,7 +151,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonHeight",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 9,
@@ -165,7 +165,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonPadding",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 10,
@@ -179,7 +179,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonPadding",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 11,
@@ -193,7 +193,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonWidth",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 12,
@@ -207,7 +207,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: null,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 13,
@@ -221,7 +221,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonSpinnerSize",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 14,
@@ -235,7 +235,7 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: null,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Shape variation tokens (меняются в зависимости от shape)
     {
@@ -250,73 +250,78 @@ export const iconbuttonData = {
       iosParam: null,
       webParam: "iconButtonRadius",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    }
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
   ],
   tokenVariations: [
     // View variations (tokens that change based on view)
     {
       id: 1,
       tokenId: 4, // backgroundColor
-      variationId: 1
+      variationId: 1,
     },
     {
       id: 2,
       tokenId: 5, // loadingBackgroundColor
-      variationId: 1
+      variationId: 1,
     },
     {
       id: 3,
       tokenId: 6, // iconColor
-      variationId: 1
+      variationId: 1,
     },
     {
       id: 4,
       tokenId: 7, // spinnerColor
-      variationId: 1
+      variationId: 1,
     },
     // Size variations (tokens that change based on size)
     {
       id: 5,
       tokenId: 8, // height
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 6,
       tokenId: 9, // paddingStart
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 7,
       tokenId: 10, // paddingEnd
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 8,
       tokenId: 11, // minWidth
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 9,
       tokenId: 12, // iconSize
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 10,
       tokenId: 13, // spinnerSize
-      variationId: 2
+      variationId: 2,
     },
     {
       id: 11,
       tokenId: 14, // spinnerStrokeWidth
-      variationId: 2
+      variationId: 2,
+    },
+    {
+      id: 12,
+      tokenId: 15, // height
+      variationId: 2,
     },
     // Shape variations (tokens that change based on shape)
     {
-      id: 12,
+      id: 13,
       tokenId: 15, // shape
-      variationId: 3
-    }
+      variationId: 3,
+    },
   ],
   variationValues: [
     // View variation values (из конфигов)
@@ -327,7 +332,7 @@ export const iconbuttonData = {
       description: "Default view",
       isDefaultValue: true,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 2,
@@ -335,7 +340,7 @@ export const iconbuttonData = {
       value: "secondary",
       description: "Secondary view",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 3,
@@ -343,7 +348,7 @@ export const iconbuttonData = {
       value: "accent",
       description: "Accent view",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Size variation values (из конфигов)
     {
@@ -352,7 +357,7 @@ export const iconbuttonData = {
       value: "xl",
       description: "Extra large size",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 5,
@@ -360,7 +365,7 @@ export const iconbuttonData = {
       value: "l",
       description: "Large size",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 6,
@@ -369,7 +374,7 @@ export const iconbuttonData = {
       description: "Medium size",
       isDefaultValue: true,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Shape variation values (из конфигов)
     {
@@ -379,7 +384,7 @@ export const iconbuttonData = {
       description: "Rounded shape",
       isDefaultValue: true,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 8,
@@ -387,8 +392,8 @@ export const iconbuttonData = {
       value: "pilled",
       description: "Pilled shape",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    }
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
   ],
   tokenValues: [
     // View variation token values (из конфигов)
@@ -401,12 +406,12 @@ export const iconbuttonData = {
       type: "variation",
       states: [
         { state: ["pressed"], value: "text.inverse.primary-active" },
-        { state: ["hovered"], value: "text.inverse.primary-hover" }
+        { state: ["hovered"], value: "text.inverse.primary-hover" },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 2,
@@ -417,7 +422,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 3,
@@ -428,7 +433,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 4,
@@ -438,12 +443,12 @@ export const iconbuttonData = {
       type: "variation",
       states: [
         { state: ["pressed"], value: "surface.default.solid-default-active" },
-        { state: ["hovered"], value: "surface.default.solid-default-hover" }
+        { state: ["hovered"], value: "surface.default.solid-default-hover" },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Secondary view
     {
@@ -454,12 +459,12 @@ export const iconbuttonData = {
       type: "variation",
       states: [
         { state: ["pressed"], value: "text.default.primary-active" },
-        { state: ["hovered"], value: "text.default.primary-hover" }
+        { state: ["hovered"], value: "text.default.primary-hover" },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 6,
@@ -470,7 +475,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 7,
@@ -481,7 +486,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 8,
@@ -490,13 +495,19 @@ export const iconbuttonData = {
       value: "surface.default.transparent-secondary",
       type: "variation",
       states: [
-        { state: ["pressed"], value: "surface.default.transparent-secondary-active" },
-        { state: ["hovered"], value: "surface.default.transparent-secondary-hover" }
+        {
+          state: ["pressed"],
+          value: "surface.default.transparent-secondary-active",
+        },
+        {
+          state: ["hovered"],
+          value: "surface.default.transparent-secondary-hover",
+        },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Accent view
     {
@@ -507,12 +518,12 @@ export const iconbuttonData = {
       type: "variation",
       states: [
         { state: ["pressed"], value: "text.on-dark.primary-active" },
-        { state: ["hovered"], value: "text.on-dark.primary-hover" }
+        { state: ["hovered"], value: "text.on-dark.primary-hover" },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 10,
@@ -523,7 +534,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 11,
@@ -534,7 +545,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 12,
@@ -544,12 +555,12 @@ export const iconbuttonData = {
       type: "variation",
       states: [
         { state: ["pressed"], value: "surface.default.accent-active" },
-        { state: ["hovered"], value: "surface.default.accent-hover" }
+        { state: ["hovered"], value: "surface.default.accent-hover" },
       ],
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Size variation token values (из конфигов)
     // XL size
@@ -562,7 +573,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 14,
@@ -573,7 +584,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 15,
@@ -584,7 +595,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 16,
@@ -595,7 +606,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 17,
@@ -606,7 +617,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 18,
@@ -617,7 +628,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 19,
@@ -628,11 +639,22 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
+    {
+      id: 20,
+      variationValueId: 4, // xl size
+      tokenId: 15, // shape
+      value: "round.l",
+      type: "variation",
+      componentId: 1,
+      designSystemId: 1,
+      createdAt: "2025-01-27T12:00:00.000Z",
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // L size
     {
-      id: 20,
+      id: 21,
       variationValueId: 5, // l size
       tokenId: 8, // height
       value: "56",
@@ -640,32 +662,32 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    },
-    {
-      id: 21,
-      variationValueId: 5, // l size
-      tokenId: 9, // paddingStart
-      value: "16",
-      type: "variation",
-      componentId: 1,
-      designSystemId: 1,
-      createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 22,
       variationValueId: 5, // l size
+      tokenId: 9, // paddingStart
+      value: "16",
+      type: "variation",
+      componentId: 1,
+      designSystemId: 1,
+      createdAt: "2025-01-27T12:00:00.000Z",
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
+    {
+      id: 23,
+      variationValueId: 5, // l size
       tokenId: 10, // paddingEnd
       value: "16",
       type: "variation",
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 23,
+      id: 24,
       variationValueId: 5, // l size
       tokenId: 11, // minWidth
       value: "56",
@@ -673,10 +695,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 24,
+      id: 25,
       variationValueId: 5, // l size
       tokenId: 12, // iconSize
       value: "24",
@@ -684,10 +706,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 25,
+      id: 26,
       variationValueId: 5, // l size
       tokenId: 13, // spinnerSize
       value: "22",
@@ -695,10 +717,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 26,
+      id: 27,
       variationValueId: 5, // l size
       tokenId: 14, // spinnerStrokeWidth
       value: "2",
@@ -706,11 +728,22 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
+    {
+      id: 28,
+      variationValueId: 5, // xl size
+      tokenId: 15, // shape
+      value: "round.l",
+      type: "variation",
+      componentId: 1,
+      designSystemId: 1,
+      createdAt: "2025-01-27T12:00:00.000Z",
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // M size
     {
-      id: 27,
+      id: 29,
       variationValueId: 6, // m size
       tokenId: 8, // height
       value: "48",
@@ -718,10 +751,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 28,
+      id: 30,
       variationValueId: 6, // m size
       tokenId: 9, // paddingStart
       value: "12",
@@ -729,10 +762,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 29,
+      id: 31,
       variationValueId: 6, // m size
       tokenId: 10, // paddingEnd
       value: "12",
@@ -740,10 +773,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 30,
+      id: 32,
       variationValueId: 6, // m size
       tokenId: 11, // minWidth
       value: "48",
@@ -751,10 +784,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 31,
+      id: 33,
       variationValueId: 6, // m size
       tokenId: 12, // iconSize
       value: "24",
@@ -762,10 +795,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 32,
+      id: 34,
       variationValueId: 6, // m size
       tokenId: 13, // spinnerSize
       value: "22",
@@ -773,10 +806,10 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
-      id: 33,
+      id: 35,
       variationValueId: 6, // m size
       tokenId: 14, // spinnerStrokeWidth
       value: "2",
@@ -784,12 +817,23 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
+    {
+      id: 36,
+      variationValueId: 6, // xl size
+      tokenId: 15, // shape
+      value: "round.m",
+      type: "variation",
+      componentId: 1,
+      designSystemId: 1,
+      createdAt: "2025-01-27T12:00:00.000Z",
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     // Shape variation token values (из конфигов)
     // rounded shape не имеет токенов (props: null в конфигах)
     {
-      id: 34,
+      id: 37,
       variationValueId: 8, // pilled shape
       tokenId: 15, // shape
       value: "round.circle",
@@ -797,8 +841,8 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    }
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
   ],
   propsAPI: [
     {
@@ -809,7 +853,7 @@ export const iconbuttonData = {
       description: "Значение прозрачности в режиме загрузки",
       defaultValue: "0",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 2,
@@ -819,7 +863,7 @@ export const iconbuttonData = {
       description: "Значение прозрачности в отключенном варианте",
       defaultValue: "0.4",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 3,
@@ -829,8 +873,8 @@ export const iconbuttonData = {
       description: "Цвет обводки компонента",
       defaultValue: "text.default.accent",
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    }
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
   ],
   invariantTokenValues: [
     {
@@ -841,7 +885,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 2,
@@ -851,7 +895,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
+      updatedAt: "2025-01-27T12:00:00.000Z",
     },
     {
       id: 3,
@@ -861,7 +905,7 @@ export const iconbuttonData = {
       componentId: 1,
       designSystemId: 1,
       createdAt: "2025-01-27T12:00:00.000Z",
-      updatedAt: "2025-01-27T12:00:00.000Z"
-    }
-  ]
+      updatedAt: "2025-01-27T12:00:00.000Z",
+    },
+  ],
 };
