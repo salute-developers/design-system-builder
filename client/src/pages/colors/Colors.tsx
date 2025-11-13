@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
-import { useSelectItemInMenu, useForceRerender } from '../../hooks';
+import { useSelectItemInMenu } from '../../hooks';
 import { DesignSystem, AndroidColor, ColorToken, IOSColor, Theme, Token, WebColor } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
 import { TokenColorEditor } from '.';
@@ -11,12 +11,13 @@ import { TokenColorEditor } from '.';
 interface ColorsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
+    updated: object;
+    rerender: () => void;
 }
 
 export const Colors = () => {
-    const { designSystem, theme } = useOutletContext<ColorsOutletContextProps>();
+    const { designSystem, theme, updated, rerender } = useOutletContext<ColorsOutletContextProps>();
 
-    const [updated, updateToken] = useForceRerender();
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
@@ -58,13 +59,15 @@ export const Colors = () => {
             theme.addToken('color', newToken);
         });
 
-        updateToken();
+        rerender();
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
         });
+
+        rerender();
     };
 
     useEffect(() => {
@@ -87,7 +90,7 @@ export const Colors = () => {
             menuBackground={backgroundTertiary}
             menu={
                 <Menu
-                    header={designSystem.getParameters()?.packagesName}
+                    header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     selectedItemIndexes={selectedItemIndexes}
@@ -98,12 +101,7 @@ export const Colors = () => {
                 />
             }
             content={
-                <TokenColorEditor
-                    designSystem={designSystem}
-                    theme={theme}
-                    tokens={tokens}
-                    onTokenUpdate={updateToken}
-                />
+                <TokenColorEditor designSystem={designSystem} theme={theme} tokens={tokens} onTokenUpdate={rerender} />
             }
         />
     );
