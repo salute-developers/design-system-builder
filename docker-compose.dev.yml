@@ -77,6 +77,7 @@ services:
     environment:
       VITE_DS_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
       VITE_DS_GENERATOR_API: http://localhost:3005
+      VITE_NPM_REGISTRY: ${VITE_NPM_REGISTRY}
     ports:
       - "3002:5173"
     depends_on:
