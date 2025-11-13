@@ -171,9 +171,6 @@ const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; lineThroug
             }
         `}
 
-
-
-
     &:hover > div:nth-child(2) {
         display: flex;
     }

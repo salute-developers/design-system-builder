@@ -219,10 +219,11 @@ interface ComponentEditorSetupProps {
     styleID?: string;
     onVariationChange: (value: string) => void;
     onStyleChange: (value: string) => void;
+    onConfigUpdate: () => void;
 }
 
 export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
-    const { config, designSystem, variationID, styleID, onVariationChange, onStyleChange } = props;
+    const { config, designSystem, variationID, styleID, onVariationChange, onStyleChange, onConfigUpdate } = props;
 
     const [styleIDWithDropdown, setStyledIDWithDropdown] = useState<string | undefined>();
     const [variationIDWithCreating, setSelectedVariationWithCreating] = useState<string | undefined>(undefined);
@@ -239,6 +240,8 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
         if (item.value === 'delete_style') {
             config.removeVariationStyle(variationID, styleID);
         }
+
+        onConfigUpdate();
     };
 
     const onStyleMenuOpen = (styleID: string) => (event: MouseEvent<HTMLDivElement>) => {
@@ -271,6 +274,8 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
 
         const { api } = designSystem.getComponentDataByName(config.getName()).sources;
         config.addVariationStyle(api, variationID, tokenName);
+
+        onConfigUpdate();
     };
 
     const onStyleAddCancel = () => {

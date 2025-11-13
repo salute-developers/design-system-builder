@@ -158,6 +158,15 @@ const getAllowedProps = (
     });
 };
 
+// TODO: хранить это в бд?
+const propTypeMap: Record<string, string> = {
+    typography: 'Типографика',
+    color: 'Цвет',
+    shape: 'Форма',
+    float: 'Число',
+    dimension: 'Размер',
+};
+
 const getPropList = (
     config: Config,
     api: ComponentAPI[],
@@ -165,15 +174,6 @@ const getPropList = (
     selectedVariation?: string,
     selectedStyle?: string,
 ) => {
-    // TODO: хранить это в бд?
-    const propTypeMap: Record<string, string> = {
-        typography: 'Типографика',
-        color: 'Цвет',
-        shape: 'Форма',
-        float: 'Число',
-        dimension: 'Размер',
-    };
-
     const allProps = getPropsByVariation(api, variations, selectedVariation);
 
     const groupingProps = (props: PropUnion[]) => {
@@ -385,15 +385,15 @@ type PropMenuItem = (typeof propMenuList)[number];
 interface ComponentEditorPropertiesProps {
     config: Config;
     updated: object;
-    rerender: () => void;
     designSystem: DesignSystem;
     theme: Theme;
     variationID?: string;
     styleID?: string;
+    onConfigUpdate: () => void;
 }
 
 export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps) => {
-    const { config, designSystem, theme, variationID, styleID, updated, rerender } = props;
+    const { config, designSystem, theme, variationID, styleID, updated, onConfigUpdate } = props;
 
     const [propTypeWithDropdown, setPropTypeWithDropdown] = useState<string | undefined>();
     const [propNameWithDropdown, setPropNameWithDropdown] = useState<string | undefined>();
@@ -410,12 +410,14 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
 
     const allowedProps = useMemo(
         () =>
-            getAllowedProps(config, api, variations, variationID, styleID).map((item) => ({
-                label: item.name,
-                value: item.id,
-                type: item.type,
-            })),
-        [updated, config, variationID, styleID],
+            getAllowedProps(config, api, variations, variationID, styleID)
+                .filter((item) => propTypeMap[item.type] === propTypeWithDropdown)
+                .map((item) => ({
+                    label: item.name,
+                    value: item.id,
+                    type: item.type,
+                })),
+        [propTypeWithDropdown, updated, config, variationID, styleID],
     );
 
     const onPropValueChange = (prop: PropUnion) => (param: SelectButtonItem | string) => {
@@ -424,13 +426,13 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
 
         config.updateToken(propID, value, variationID, styleID);
 
-        rerender();
+        onConfigUpdate();
     };
 
     const onPropTypeMenuSelect = (item: (typeof allowedProps)[number]) => {
         config.addToken(item.value, undefined as any, api, variationID, styleID);
 
-        rerender();
+        onConfigUpdate();
     };
 
     const onPropTypeMenuOpen = (value: string) => (event: MouseEvent<HTMLDivElement>) => {
@@ -455,7 +457,7 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
             config.removeToken(propID, variationID, styleID);
         }
 
-        rerender();
+        onConfigUpdate();
     };
 
     const onPropMenuOpen = (value: string) => (event: MouseEvent<HTMLDivElement>) => {

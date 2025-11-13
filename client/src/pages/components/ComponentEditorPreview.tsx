@@ -53,7 +53,7 @@ const StyledComponentControls = styled.div`
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
-
+    width: fit-content;
 `;
 
 const StyledDivider = styled.div`
@@ -132,14 +132,20 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             value: style.getID(),
         }));
 
+        const value = args[name];
+        const label = item
+            .getStyles()
+            ?.find((style) => style.getID() === value)
+            ?.getName();
+
         return (
-            typeof args[name] === 'string' &&
+            typeof value === 'string' &&
             list && (
                 <SelectButton
                     key={`dynamic:${item.getName()}`}
                     label={upperFirstLetter(name)}
                     items={list}
-                    selected={{ value: args[name], label: args[name] }}
+                    selected={{ label, value }}
                     onItemSelect={(item) => onChange(name, item.value)}
                 />
             )

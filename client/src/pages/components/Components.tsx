@@ -11,10 +11,12 @@ interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
     components?: Config[];
+    updated: object;
+    rerender: () => void;
 }
 
 export const Components = () => {
-    const { designSystem, theme, components } = useOutletContext<ComponentsOutletContextProps>();
+    const { designSystem, theme, components, updated, rerender } = useOutletContext<ComponentsOutletContextProps>();
 
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 2, 3]);
 
@@ -42,7 +44,7 @@ export const Components = () => {
             menuBackground={backgroundTertiary}
             menu={
                 <Menu
-                    header={designSystem.getParameters()?.packagesName}
+                    header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     canAdd={false}
@@ -53,7 +55,15 @@ export const Components = () => {
                     onItemSelect={onItemSelect}
                 />
             }
-            content={<ComponentEditor designSystem={designSystem} theme={theme} configs={configs} />}
+            content={
+                <ComponentEditor
+                    designSystem={designSystem}
+                    theme={theme}
+                    configs={configs}
+                    updated={updated}
+                    onConfigUpdate={rerender}
+                />
+            }
         />
     );
 };

@@ -115,11 +115,12 @@ interface ComponentEditorProps {
     designSystem: DesignSystem;
     theme: Theme;
     configs?: Config[];
+    updated: object;
+    onConfigUpdate: () => void;
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
-    const { designSystem, theme, configs } = props;
-    const [updated, rerender] = useForceRerender();
+    const { designSystem, theme, configs, updated, onConfigUpdate } = props;
 
     const config = configs?.[0];
     const [
@@ -202,15 +203,16 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                         styleID={selectedStyle}
                         onVariationChange={onVariationChange}
                         onStyleChange={onStyleChange}
+                        onConfigUpdate={onConfigUpdate}
                     />
                     <ComponentEditorProperties
                         config={config}
                         updated={updated}
-                        rerender={rerender}
                         designSystem={designSystem}
                         theme={theme}
                         variationID={selectedVariation}
                         styleID={selectedStyle}
+                        onConfigUpdate={onConfigUpdate}
                     />
                 </StyledWrapper>
             </StyledSetup>
