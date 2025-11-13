@@ -24,6 +24,10 @@ jobs:
 
       # 2 папки, так как названия разные - в первом случае нужно для replace
       - name: Build Design System Builder
+        env:
+          VITE_PROXY_SERVER_URL: ${{ secrets.VITE_PROXY_SERVER_URL }}
+          VITE_DS_GENERATOR_API: ${{ secrets.VITE_DS_GENERATOR_API }}
+          VITE_DS_DOCUMENTATION_GENERATOR_API: ${{ secrets.VITE_DS_DOCUMENTATION_GENERATOR_API }}
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
           npm run build --prefix="./client"

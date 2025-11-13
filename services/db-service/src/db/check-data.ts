@@ -57,7 +57,7 @@ async function checkData() {
     const plasmaDS = designSystems.find(ds => ds.name === 'Plasma Design System');
     if (plasmaDS) {
       console.log(`\n🔍 Checking Plasma Design System (ID: ${plasmaDS.id}) details...`);
-      
+
       const fullDS = await db.query.designSystems.findFirst({
         where: (ds, { eq }) => eq(ds.id, plasmaDS.id),
         with: {
@@ -76,7 +76,7 @@ async function checkData() {
 
       console.log('  Components:', fullDS?.components?.length || 0);
       console.log('  Variation Values:', fullDS?.variationValues?.length || 0);
-      
+
       if (fullDS?.components) {
         fullDS.components.forEach(comp => {
           console.log(`    Component: ${comp.component.name} (variations: ${comp.component.variations?.length || 0})`);
@@ -100,4 +100,4 @@ if (require.main === module) {
   });
 }
 
-export default checkData; 
+export default checkData;

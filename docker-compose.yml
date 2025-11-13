@@ -2,15 +2,16 @@ version: '3.8'
 
 services:
   # Backend API
-  backend:
+  db-service:
     build:
       context: ./services/db-service
       dockerfile: Dockerfile
-    container_name: ds-builder-backend
+    container_name: db-service
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/ds_builder}
+    ports:
+      - "3001:3001"
     networks:
       - ds-builder-network
 
@@ -19,14 +20,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:3001}
-    container_name: ds-builder-frontend
+    container_name: frontend
     restart: unless-stopped
     ports:
-      - "3000:80"
-    depends_on:
-      - backend
+      - "3000:5173"
     networks:
       - ds-builder-network
 
@@ -35,13 +32,10 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
-      args:
-        VITE_PROXY_SERVER_URL: ${VITE_PROXY_SERVER_URL:-http://client-proxy:3003}
-    container_name: ds-builder-client
+    container_name: client
     restart: unless-stopped
-    depends_on:
-      - backend
-      - client-proxy
+    ports:
+      - "3002:4173"
     networks:
       - ds-builder-network
 
@@ -50,34 +44,65 @@ services:
     build:
       context: ./services/client-proxy
       dockerfile: Dockerfile
-    container_name: ds-builder-client-proxy
+    container_name: client-proxy
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      BACKEND_URL: http://backend:3001/api
+      BACKEND_URL: ${BACKEND_URL}
+    ports:
+      - "3003:3003"
     depends_on:
-      - backend
+      - db-service
     networks:
       - ds-builder-network
     volumes:
       - ./client-proxy/storage:/app/storage
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+  # Generator web library
+  generator:
+    build:
+      context: ./services/ds-generator
+      dockerfile: Dockerfile
+    container_name: generator
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CLIENT_PROXY_URL: ${CLIENT_PROXY_URL}
+      PUBLISHER_URL: ${PUBLISHER_URL}
+    ports:
+      - "3005:3005"
+    networks:
+      - ds-builder-network
+    volumes:
+#      - ./services/ds-generator:/home/node/app
+      - /home/node/app/node_modules
+
+  # Publisher service
+  publisher:
+    build:
+      context: ./services/publisher
+      dockerfile: Dockerfile
+    container_name: publisher
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3007
+    ports:
+      - "3007:3007"
+    networks:
+      - ds-builder-network
 
   # Documentation Generator Service
   docs-generator:
     build:
       context: ./services/ds-documentation-generator
       dockerfile: Dockerfile
-    container_name: ds-builder-docs-generator
+    container_name: docs-generator
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3006
-      OUTPUT_DIR: /home/node/app/output
+      CLIENT_PROXY_URL: ${CLIENT_PROXY_URL}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}
@@ -89,16 +114,7 @@ services:
       - ds-builder-network
     volumes:
       - docs_output:/home/node/app/output
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -f http://localhost:3006/api/documentation/health || exit 1",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    command: npm run start:dev
 
 volumes:
   postgres_data:

@@ -25,9 +25,6 @@ RUN npm ci
 
 COPY --chown=node:node . .
 
-# Компилируем TypeScript -> JavaScript
-RUN npm run build
-
 # Порт по умолчанию (может быть переопределен через -e PORT=...)
 ENV PORT=3006
 
