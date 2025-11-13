@@ -100,7 +100,7 @@ export class DesignSystem {
         }
 
         const {
-            projectName = 'default',
+            packagesName = 'default',
             accentColor,
             grayTone = 'gray',
             darkStrokeSaturation,
@@ -110,7 +110,7 @@ export class DesignSystem {
         } = parameters;
 
         const userConfig = {
-            name: projectName,
+            name: packagesName,
             strokeAccentColor: {
                 dark: `[general.${accentColor}.${darkStrokeSaturation}]`,
                 light: `[general.${accentColor}.${lightStrokeSaturation}]`,
@@ -139,7 +139,7 @@ export class DesignSystem {
             return;
         }
 
-        await saveDesignSystem({
+        return await saveDesignSystem({
             name: this.name,
             version: this.version,
             parameters: this.parameters,
@@ -148,20 +148,34 @@ export class DesignSystem {
         });
     }
 
-    public async saveComponentsData(data: { meta: Meta }) {
-        const { meta } = data;
-        const { name } = meta;
-
-        const componentName = name;
-        const componentIndex = this.componentsData?.findIndex(({ name }) => name === componentName);
-
-        this.componentsData[componentIndex] = meta;
+    public async saveComponentsData(data: Meta[]) {
+        this.componentsData = data;
 
         if (!this.name || !this.version) {
             return;
         }
 
-        await saveDesignSystem({
+        return await saveDesignSystem({
+            name: this.name,
+            version: this.version,
+            parameters: this.parameters,
+            themeData: this.themeData,
+            componentsData: this.componentsData,
+        });
+    }
+
+    public async saveDesignSystemData(
+        themeData: { meta: ThemeMeta; variations: PlatformsVariations },
+        componentsData: Meta[],
+    ) {
+        this.themeData = themeData;
+        this.componentsData = componentsData;
+
+        if (!this.name || !this.version) {
+            return;
+        }
+
+        return await saveDesignSystem({
             name: this.name,
             version: this.version,
             parameters: this.parameters,

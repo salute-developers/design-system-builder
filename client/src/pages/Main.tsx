@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
@@ -11,11 +11,7 @@ import {
     IconGroupOutline,
     IconSave,
 } from '@salutejs/plasma-icons';
-import {
-    backgroundSecondary,
-    backgroundPrimary,
-    backgroundTertiary,
-} from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { backgroundSecondary, backgroundPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
@@ -27,13 +23,14 @@ import {
     IconShapeOutline,
     IconTypography,
 } from '../icons';
-import { useDesignSystem } from '../hooks';
+import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
-import { Popup, IconButton, LinkButton } from '../components';
-import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
+import { Popup, IconButton, LinkButton, BasicButton } from '../components';
+import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
 
 // TODO: Перенести?
-import { createMetaTokens, createVariationTokens, extraThemeTokenGetters, extraMetaTokenGetters } from '../controllers';
+import { createMetaTokens, createVariationTokens, DesignSystem } from '../controllers';
+import { getNpmMeta } from '../api';
 
 // TODO: Добавить оставшиеся переменные из макетов
 const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -109,26 +106,18 @@ const BuilderExpandedItems = styled.div`
     }
 `;
 
+const StyledBasicButton = styled(BasicButton)`
+    position: absolute;
+
+    width: 13.5rem;
+    bottom: 1rem;
+    left: 4.5rem;
+`;
+
 const StyledPopup = styled(Popup)`
     left: 4rem;
     padding: 3.75rem 5rem 0 22.5rem;
 `;
-
-// const StyledLinkButton = styled(LinkButton)`
-//     position: absolute;
-//     bottom: 0.75rem;
-//     right: 0.75rem;
-
-//     background: ${backgroundTertiary};
-//     border-radius: 0.5rem;
-//     padding: 0.375rem 0.5rem;
-// `;
-
-const popupContentPages = {
-    CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
-    SETUP_PARAMETERS: 'SETUP_PARAMETERS',
-    CREATION_PROGRESS: 'CREATION_PROGRESS',
-} as const;
 
 const getNewPath = (value: string) => {
     const parts = location.pathname.split('/');
@@ -142,9 +131,19 @@ const getNewPath = (value: string) => {
     return '/' + [designSystemName, designSystemVersion].join('/') + '/' + value;
 };
 
+const popupContentPages = {
+    CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
+    SETUP_PARAMETERS: 'SETUP_PARAMETERS',
+    CREATION_PROGRESS: 'CREATION_PROGRESS',
+    PUBLISH_PROGRESS: 'PUBLISH_PROGRESS',
+} as const;
+
 export const Main = () => {
     const navigate = useNavigate();
     const currentPath = useLocation().pathname.split('/').filter(Boolean);
+
+    // TODO: Временное решение для обновления и отображения кнопки "Опубликовать"
+    const [updated, rerender] = useForceRerender();
 
     const isEditingDesignSystem = !['/', '/drafts'].includes(useLocation().pathname);
 
@@ -155,6 +154,10 @@ export const Main = () => {
         popupContentPages.CREATE_FIRST_NAME,
     );
 
+    const [isOverviewEnabled, setIsOverviewEnabled] = useState(false);
+
+    const isHome = !isPopupOpen && currentPath.length === 0;
+
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
 
@@ -162,12 +165,16 @@ export const Main = () => {
 
     const { accentColor = 'blue', darkFillSaturation = 50 } = parameters;
 
+    const { designSystemName, designSystemVersion } = useParams();
+    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion);
+
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
     };
 
     const onOpenPopup = () => {
         setIsPopupOpen(true);
+        setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
     };
 
     const onPopupClose = () => {
@@ -197,13 +204,11 @@ export const Main = () => {
         setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
     };
 
-    const onNextPageCreateSetupParameters = (data: Partial<Parameters>) => {
-        console.log('data', data);
-
+    const onNextPageCreateSetupParameters = () => {
         setPopupContentPage(popupContentPages.CREATION_PROGRESS);
     };
 
-    const onGoThemeEditor = (designSystemName: string, designSystemVersion = '0.1.0') => {
+    const onCreateComplete = (designSystemName: string, designSystemVersion = '0.1.0') => {
         onPopupClose();
         navigate(`/${designSystemName}/${designSystemVersion}/colors`);
         onResetParameters();
@@ -215,38 +220,127 @@ export const Main = () => {
         navigate(newPath, { replace: true });
     };
 
+    const onHomeClick = () => {
+        if (isHome) {
+            return;
+        }
+
+        onPopupClose();
+        onClickPanelButton('');
+        rerender(null);
+        setIsOverviewEnabled(false);
+    };
+
+    // // TODO: перенести
+    // const onDesignSystemDownload = async () => {
+    //     if (!designSystem) {
+    //         return;
+    //     }
+
+    //     return await generateDownload(designSystem, 'tgz');
+    // };
+
+    // // TODO: перенести
+    // const onDesignSystemPublish = async () => {
+    //     if (!designSystem) {
+    //         return;
+    //     }
+
+    //     return await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
+    // };
+
+    // // TODO: перенести
+    // const onDesignSystemDocs = async () => {
+    //     if (!designSystem) {
+    //         return;
+    //     }
+
+    //     return await generateAndDeployDocumentation(designSystem);
+    // };
+
+    // TODO: перенести
+    // const onDesignSystemSave = async () => {
+    //     if (!designSystem || !theme || !components) {
+    //         return;
+    //     }
+
+    //     const themeData = {
+    //         meta: createMetaTokens(theme),
+    //         variations: createVariationTokens(theme),
+    //     };
+
+    //     const componentsData = components.map((component) => {
+    //         const name = component.getName();
+    //         const description = component.getDescription();
+    //         const { defaultVariations, invariantProps, variations } = component.getMeta();
+
+    //         const { sources } = designSystem.getComponentDataByName(name);
+
+    //         sources.configs[0] = {
+    //             ...sources.configs[0],
+    //             config: {
+    //                 defaultVariations,
+    //                 invariantProps,
+    //                 variations,
+    //             },
+    //         };
+
+    //         return {
+    //             name,
+    //             description,
+    //             sources: {
+    //                 configs: sources.configs,
+    //                 // TODO: подумать, надо ли будет потом это тащить в бд
+    //                 api: sources.api,
+    //                 variations: sources.variations,
+    //             },
+    //         };
+    //     });
+
+    //     return await designSystem.saveDesignSystemData(themeData, componentsData);
+    // };
+
+    const onPublishButtonClick = async () => {
+        setIsPopupOpen(true);
+        setPopupContentPage(popupContentPages.PUBLISH_PROGRESS);
+        rerender(null);
+    };
+
+    const onPublishComplete = () => {
+        onClickPanelButton('overview');
+        onPopupClose();
+    };
+
     useLayoutEffect(() => {
         const showPanelItems = ['colors', 'typography', 'shapes'].some((item) => currentPath.includes(item));
 
         setShowTokensPanelItems(showPanelItems);
     }, [currentPath]);
 
-    const { designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion, true);
-
-    // TODO: перенести
-    const onThemeSave = () => {
-        if (!designSystem || !theme) {
+    // TODO: Временное решение, потом забирать из бд
+    useLayoutEffect(() => {
+        if (!designSystem) {
             return;
         }
 
-        const metaTokens = createMetaTokens(theme, extraMetaTokenGetters);
-        const variationTokens = createVariationTokens(theme, extraThemeTokenGetters);
+        const getPackagePublished = async () => {
+            const packagesName = designSystem.getParameters()?.packagesName;
+            const result = await getNpmMeta(`@salutejs-ds/${packagesName}`);
 
-        designSystem.saveThemeData({ meta: metaTokens, variations: variationTokens });
-    };
+            if ('versions' in result) {
+                setIsOverviewEnabled(true);
+                return;
+            }
+        };
+
+        getPackagePublished();
+    }, [designSystem]);
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
                 <MainItems>
-                    <IconButton
-                        selected={!isPopupOpen && currentPath.length === 0}
-                        onClick={() => {
-                            onPopupClose();
-                            onClickPanelButton('');
-                        }}
-                    >
+                    <IconButton selected={isHome} onClick={onHomeClick}>
                         {isPopupOpen ? (
                             <IconArrowLeft size="xs" color="inherit" />
                         ) : (
@@ -259,16 +353,16 @@ export const Main = () => {
                 </MainItems>
                 {isEditingDesignSystem && (
                     <BuilderItems>
-                        <IconButton disabled selected={currentPath.includes('overview')}>
+                        <IconButton
+                            disabled={!isOverviewEnabled}
+                            selected={currentPath.includes('overview')}
+                            onClick={() => onClickPanelButton('overview')}
+                        >
                             <IconBookOpenOutline size="xs" color="inherit" />
                         </IconButton>
 
                         {!showTokensPanelItems && (
-                            <IconButton
-                                onClick={() => {
-                                    onClickPanelButton('colors');
-                                }}
-                            >
+                            <IconButton onClick={() => onClickPanelButton('colors')}>
                                 <IconColorSwatchOutline size="xs" color="inherit" />
                             </IconButton>
                         )}
@@ -298,20 +392,62 @@ export const Main = () => {
 
                         <IconButton
                             selected={currentPath.includes('components')}
-                            onClick={() => {
-                                onClickPanelButton('components');
-                            }}
+                            onClick={() => onClickPanelButton('components')}
                         >
                             <IconGroupOutline size="xs" color="inherit" />
                         </IconButton>
                     </BuilderItems>
                 )}
-                <IconButton style={{ padding: '0.75rem' }}>
+                <IconButton style={{ padding: '0.75rem' }} disabled>
                     <IconHelpCircleOutline size="xs" color="inherit" />
                 </IconButton>
             </Panel>
-            <Outlet context={{ onOpenPopup, projectName: parameters.projectName, designSystem, theme, components }} />
-            {/* <StyledLinkButton text="Сохранить тему" contentLeft={<IconSave size="s" />} onClick={onThemeSave} /> */}
+            <Outlet
+                context={{
+                    projectName: parameters.projectName,
+                    designSystem,
+                    theme,
+                    components,
+                    updated,
+                    rerender,
+                    onOpenPopup,
+                }}
+            />
+            {updated && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />}
+            {/* TODO: Для дев окружения */}
+            {/* <div
+                style={{
+                    zIndex: 99999,
+                    background: 'black',
+                    padding: '0.25rem',
+                    borderRadius: '0.5rem',
+                    position: 'fixed',
+                    bottom: '1rem',
+                    right: '1rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                }}
+            >
+                <LinkButton
+                    text="Сохранить тему и компоненты"
+                    contentRight={<IconSave size="s" />}
+                    onClick={onDesignSystemSave}
+                />
+                <LinkButton
+                    text="Скачать дизайн систему"
+                    contentRight={<IconSave size="s" />}
+                    onClick={onDesignSystemDownload}
+                />
+                <LinkButton text="Опубликовать" contentRight={<IconSave size="s" />} onClick={onDesignSystemPublish} />
+                <LinkButton
+                    text="Опубликовать документацию"
+                    contentRight={<IconSave size="s" />}
+                    onClick={onDesignSystemDocs}
+                />
+            </div> */}
+            {/*  */}
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
@@ -334,7 +470,16 @@ export const Main = () => {
                             parameters={parameters}
                             accentColor={general[accentColor][darkFillSaturation]}
                             onPrevPage={onPopupClose}
-                            onNextPage={onGoThemeEditor}
+                            onNextPage={onCreateComplete}
+                        />
+                    )}
+                    {popupContentPage === popupContentPages.PUBLISH_PROGRESS && (
+                        <PublishProgress
+                            designSystem={designSystem}
+                            theme={theme}
+                            components={components}
+                            onPrevPage={onPopupClose}
+                            onNextPage={onPublishComplete}
                         />
                     )}
                 </StyledPopup>

@@ -60,12 +60,14 @@ export const saveDesignSystem = async (data: {
     parameters?: Partial<Parameters>;
     themeData: ThemeSource;
     componentsData: Meta[];
-}): Promise<void> => {
+}): Promise<any> => {
     try {
-        await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
+        const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
             method: 'POST',
             body: JSON.stringify(data),
         });
+
+        return response;
     } catch (error) {
         // // If server is not running, fall back to localStorage
         // console.warn('Proxy server not available, falling back to localStorage');

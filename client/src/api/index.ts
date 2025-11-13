@@ -12,3 +12,4 @@ export {
     getDefaultBranch,
     getPullRequestList,
 } from './githubAPIMethods';
+export { getNpmMeta } from './getNpmMeta';
