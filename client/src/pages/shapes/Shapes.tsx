@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
-import { useSelectItemInMenu, useForceRerender } from '../../hooks';
+import { useSelectItemInMenu } from '../../hooks';
 import {
     DesignSystem,
     AndroidShadow,
@@ -27,12 +27,13 @@ import { TokenShapeEditor } from '.';
 interface ShapesOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
+    updated: object;
+    rerender: () => void;
 }
 
 export const Shapes = () => {
-    const { designSystem, theme } = useOutletContext<ShapesOutletContextProps>();
+    const { designSystem, theme, updated, rerender } = useOutletContext<ShapesOutletContextProps>();
 
-    const [updated, updateToken] = useForceRerender();
     const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
@@ -140,13 +141,15 @@ export const Shapes = () => {
             theme.addToken('spacing', newToken);
         }
 
-        updateToken();
+        rerender();
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
         });
+
+        rerender();
     };
 
     useEffect(() => {
@@ -169,7 +172,7 @@ export const Shapes = () => {
             menuBackground={backgroundTertiary}
             menu={
                 <Menu
-                    header={designSystem.getParameters()?.packagesName}
+                    header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     selectedItemIndexes={selectedItemIndexes}
@@ -179,12 +182,7 @@ export const Shapes = () => {
                 />
             }
             content={
-                <TokenShapeEditor
-                    designSystem={designSystem}
-                    theme={theme}
-                    tokens={tokens}
-                    onTokenUpdate={updateToken}
-                />
+                <TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} onTokenUpdate={rerender} />
             }
         />
     );

@@ -152,15 +152,12 @@ export const Projects = () => {
 
     const navigate = useNavigate();
 
-    const [loadedDesignSystems, setLoadedDesignSystems] = useState<BackendDesignSystem[] | undefined>(undefined);
+    const [loadedDesignSystems, setLoadedDesignSystems] = useState<BackendDesignSystem[] | undefined | 'pending'>(
+        undefined,
+    );
 
-    useEffect(() => {
-        const loadDesignSystems = async () => {
-            const systems = await loadAllDesignSystems();
-            setLoadedDesignSystems(systems);
-        };
-        loadDesignSystems();
-    }, []);
+    // TODO: Перенести в базу данных
+    const version = '0.1.0';
 
     // const onRemoveDesignSystem = async (name: string, version: string) => {
     //     await removeDesignSystem(name, version);
@@ -176,8 +173,16 @@ export const Projects = () => {
         navigate(`/${name}/${version}/${path}`);
     };
 
-    // TODO: Перенести в базу данных
-    const version = '0.1.0';
+    useEffect(() => {
+        const loadDesignSystems = async () => {
+            // TODO: Сделать обработку состояний лучше
+            setLoadedDesignSystems('pending');
+
+            const systems = await loadAllDesignSystems();
+            setLoadedDesignSystems(systems);
+        };
+        loadDesignSystems();
+    }, []);
 
     return (
         <ContentWrapper>
@@ -192,7 +197,7 @@ export const Projects = () => {
                     </StyledStartWrapper>
                 </>
             )}
-            {loadedDesignSystems && (
+            {loadedDesignSystems && loadedDesignSystems !== 'pending' && (
                 <StyledDesignSystems>
                     {loadedDesignSystems.map(({ name, projectName, updatedAt }, index) => (
                         <StyledDesignSystemItem key={`${name}@${version}`}>

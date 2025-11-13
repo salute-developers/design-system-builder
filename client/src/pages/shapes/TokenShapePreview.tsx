@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import {
     backgroundPrimary,
@@ -181,6 +181,13 @@ export const TokenShapePreview = (props: TokenShapePreviewProps) => {
             [name]: value,
         });
     };
+
+    useEffect(() => {
+        if (tokenType === 'shape' || tokenType === 'spacing') {
+            setShadowThemeMode(modeList[0]);
+            setShadowBackground(backgroundList[0]);
+        }
+    }, [tokenType]);
 
     return (
         <Root className={styles[shadowThemeMode.value]} background={shadowBackground.value}>

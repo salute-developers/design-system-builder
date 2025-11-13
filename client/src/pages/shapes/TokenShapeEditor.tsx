@@ -170,6 +170,8 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
 
         setDescription(newDescription);
         token.setDescription(newDescription);
+
+        onTokenUpdate();
     };
 
     const onTokenReset = () => {
