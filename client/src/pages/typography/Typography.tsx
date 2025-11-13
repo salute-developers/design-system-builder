@@ -4,7 +4,7 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
-import { useSelectItemInMenu, useForceRerender } from '../../hooks';
+import { useSelectItemInMenu } from '../../hooks';
 import {
     DesignSystem,
     AndroidTypography,
@@ -20,13 +20,14 @@ import { TokenTypographyEditor } from '.';
 interface TypographyOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
+    updated: object;
+    rerender: () => void;
 }
 
 export const Typography = () => {
-    const { designSystem, theme } = useOutletContext<TypographyOutletContextProps>();
+    const { designSystem, theme, updated, rerender } = useOutletContext<TypographyOutletContextProps>();
 
-    const [updated, updateToken] = useForceRerender();
-    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
+    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu([0, 1, 0]);
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,13 +92,15 @@ export const Typography = () => {
             });
         });
 
-        updateToken();
+        rerender();
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
         });
+
+        rerender();
     };
 
     useEffect(() => {
@@ -120,7 +123,7 @@ export const Typography = () => {
             menuBackground={backgroundTertiary}
             menu={
                 <Menu
-                    header={designSystem.getParameters()?.packagesName}
+                    header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
                     selectedItemIndexes={selectedItemIndexes}
@@ -134,7 +137,7 @@ export const Typography = () => {
                     designSystem={designSystem}
                     theme={theme}
                     tokens={tokens}
-                    onTokenUpdate={updateToken}
+                    onTokenUpdate={rerender}
                 />
             }
         />

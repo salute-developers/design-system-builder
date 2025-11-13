@@ -14,18 +14,13 @@ import {
 } from '../../controllers';
 import { TextField, LinkButton, SegmentButton, SegmentButtonItem } from '../../components';
 import { TypographyPicker, TypographyType } from '../../features';
+import { TokenTypographyPreview } from '.';
 
 const Root = styled.div`
-    width: 20rem;
     height: 100%;
     background: ${backgroundTertiary};
 
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
 `;
 
 const StyledHeader = styled.div`
@@ -36,6 +31,11 @@ const StyledHeader = styled.div`
 `;
 
 const StyledSetup = styled.div`
+    box-sizing: border-box;
+    padding: 0.75rem 1.25rem;
+
+    min-width: 20rem;
+
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -176,6 +176,8 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
 
         setDescription(newDescription);
         token.setDescription(newDescription);
+
+        onTokenUpdate();
     };
 
     const onTokenReset = () => {
@@ -201,20 +203,25 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
 
     return (
         <Root>
-            <StyledHeader>
-                <TextField readOnly value={token?.getDisplayName()} />
-                <TextField value={description} onCommit={onDescriptionChange} />
-            </StyledHeader>
             <StyledSetup>
+                <StyledHeader>
+                    <TextField readOnly value={token?.getDisplayName()} />
+                    <TextField value={description} onCommit={onDescriptionChange} />
+                </StyledHeader>
                 <SegmentButton
                     label="Экран"
                     items={screenSizeList}
                     selected={screenSize}
                     onSelect={onScreenSizeSelect}
                 />
+                <TypographyPicker value={value} onChange={onValueChange} />
+                <StyledLinkButton
+                    text="Отменить изменения"
+                    contentLeft={<IconClose size="xs" />}
+                    onClick={onTokenReset}
+                />
             </StyledSetup>
-            <TypographyPicker value={value} onChange={onValueChange} />
-            <StyledLinkButton text="Отменить изменения" contentLeft={<IconClose size="xs" />} onClick={onTokenReset} />
+            <TokenTypographyPreview value={value} theme={theme} />
         </Root>
     );
 };

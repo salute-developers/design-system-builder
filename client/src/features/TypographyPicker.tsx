@@ -80,6 +80,8 @@ const fontWeightList = [
     },
 ];
 
+const getLabelByItem = (items: SelectButtonItem[], value: string) => items.find((item) => item.value === value)?.label;
+
 export interface TypographyType {
     fontFamily: string;
     fontWeight: WebFontWeight;
@@ -98,10 +100,12 @@ export const TypographyPicker = (props: TypographyPickerProps) => {
     const { value, onChange } = props;
 
     const [fontStyle, setFontStyle] = useState<SelectButtonItem>({
+        label: getLabelByItem(fontStyleList, value.fontStyle),
         value: value.fontStyle,
     });
 
     const [fontWeight, setFontWeight] = useState<SelectButtonItem>({
+        label: getLabelByItem(fontWeightList, value.fontWeight),
         value: value.fontWeight,
     });
 
@@ -132,8 +136,14 @@ export const TypographyPicker = (props: TypographyPickerProps) => {
     };
 
     useEffect(() => {
-        setFontStyle({ value: value.fontStyle });
-        setFontWeight({ value: value.fontWeight });
+        setFontStyle({
+            label: getLabelByItem(fontStyleList, value.fontStyle),
+            value: value.fontStyle,
+        });
+        setFontWeight({
+            label: getLabelByItem(fontWeightList, value.fontWeight),
+            value: value.fontWeight,
+        });
     }, [value]);
 
     return (
