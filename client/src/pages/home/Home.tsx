@@ -113,7 +113,7 @@ const ListItemContentRight = styled.div`
 
 interface HomeOutletContextProps {
     projectName?: string;
-    onOpenPopup?: () => void;
+    onDesignSystemCreate?: () => void;
 }
 
 export const Home = () => {
@@ -123,9 +123,9 @@ export const Home = () => {
     const currentPage = useLocation().pathname.split('/').filter(Boolean).pop();
     const selectedListItem = currentPage === undefined ? 'projects' : currentPage;
 
-    const onOpenPopup = () => {
-        if (context.onOpenPopup) {
-            context.onOpenPopup();
+    const onDesignSystemCreate = () => {
+        if (context.onDesignSystemCreate) {
+            context.onDesignSystemCreate();
         }
     };
 
@@ -146,7 +146,7 @@ export const Home = () => {
                     <List>
                         <ListItem selected={selectedListItem === 'projects'} onClick={() => onChangeListItem('')}>
                             <ListItemText>Мои проекты</ListItemText>
-                            <ListItemContentRight onClick={onOpenPopup}>
+                            <ListItemContentRight onClick={onDesignSystemCreate}>
                                 <IconPlus size="xs" color="inherit" />
                             </ListItemContentRight>
                         </ListItem>

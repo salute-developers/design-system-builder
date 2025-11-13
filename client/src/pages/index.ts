@@ -7,3 +7,4 @@ export * from './shapes';
 export * from './typography';
 
 export { Main } from './Main';
+export * from './Main.utils';

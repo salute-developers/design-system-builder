@@ -144,11 +144,11 @@ const fakeLastUpdatedList = [
 
 interface ProjectsOutletContextProps {
     projectName?: string;
-    onOpenPopup?: () => void;
+    onDesignSystemCreate?: () => void;
 }
 
 export const Projects = () => {
-    const { projectName, onOpenPopup } = useOutletContext<ProjectsOutletContextProps>();
+    const { projectName, onDesignSystemCreate } = useOutletContext<ProjectsOutletContextProps>();
 
     const navigate = useNavigate();
 
@@ -189,7 +189,7 @@ export const Projects = () => {
             {!loadedDesignSystems && (
                 <>
                     <ContentHeader>Пока ничего не создано</ContentHeader>
-                    <StyledStartWrapper onClick={onOpenPopup}>
+                    <StyledStartWrapper onClick={onDesignSystemCreate}>
                         <StyledStartButton>
                             {projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
                         </StyledStartButton>
