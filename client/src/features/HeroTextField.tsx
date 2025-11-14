@@ -95,15 +95,18 @@ const StyledDynamicHelper = styled.div`
 `;
 
 interface HeroTextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+    type?: 'text' | 'password';
     value?: string;
     view?: 'default' | 'negative';
     placeholder?: string;
     dynamicContentRight?: ReactNode;
     dynamicHelper?: string;
+    compensativeWidth?: number;
 }
 
 export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((props, ref) => {
     const {
+        type = 'text',
         value,
         placeholder,
         dynamicContentRight,
@@ -111,6 +114,7 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
         view = 'default',
         onChange,
         onKeyDown,
+        compensativeWidth = 78,
         ...rest
     } = props;
 
@@ -135,7 +139,7 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
         <Root view={view} ref={rootRef} {...rest}>
             <StyleWrapper>
                 <StyledInput
-                    type="text"
+                    type={type}
                     ref={inputRef}
                     value={value}
                     placeholder={placeholder}
@@ -145,7 +149,11 @@ export const HeroTextField = forwardRef<HTMLInputElement, HeroTextFieldProps>((p
                     onKeyDown={onKeyDown}
                 />
                 <StyledDynamicContent>{dynamicContentRight}</StyledDynamicContent>
-                <StyledSpan ref={spanRef}>{value || placeholder}</StyledSpan>
+                <StyledSpan ref={spanRef}>
+                    {type === 'text' || (type === 'password' && !value)
+                        ? value || placeholder
+                        : (value || '').replace(/./g, '•')}
+                </StyledSpan>
             </StyleWrapper>
             <StyledDynamicHelper ref={ref}>{dynamicHelper}</StyledDynamicHelper>
         </Root>
