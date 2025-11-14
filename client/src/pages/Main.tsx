@@ -8,6 +8,7 @@ import {
     IconTree,
     IconArrowLeft,
     IconGroupOutline,
+    IconProfileCrossOutline,
 } from '@salutejs/plasma-icons';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
@@ -142,6 +143,11 @@ export const Main = () => {
         onPopupClose();
     };
 
+    const handleSignOut = () => {
+        localStorage.removeItem('status');
+        navigate('/login');
+    };
+
     useLayoutEffect(() => {
         const showPanelItems = ['colors', 'typography', 'shapes'].some((item) => currentPath.includes(item));
 
@@ -229,8 +235,8 @@ export const Main = () => {
                         </IconButton>
                     </BuilderItems>
                 )}
-                <IconButton style={{ padding: '0.75rem' }} disabled>
-                    <IconHelpCircleOutline size="xs" color="inherit" />
+                <IconButton style={{ padding: '0.75rem' }} onClick={handleSignOut}>
+                    <IconProfileCrossOutline size="xs" color="inherit" />
                 </IconButton>
             </Panel>
             <Outlet
