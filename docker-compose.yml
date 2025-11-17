@@ -9,7 +9,7 @@ services:
     container_name: db-service
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
     ports:
       - "3001:3001"
     networks:
@@ -47,7 +47,7 @@ services:
     container_name: client-proxy
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       BACKEND_URL: ${BACKEND_URL}
     ports:
       - "3003:3003"
@@ -73,9 +73,6 @@ services:
       - "3005:3005"
     networks:
       - ds-builder-network
-    volumes:
-#      - ./services/ds-generator:/home/node/app
-      - /home/node/app/node_modules
 
   # Publisher service
   publisher:
