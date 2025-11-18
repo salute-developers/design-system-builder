@@ -14,4 +14,7 @@ export default defineConfig({
     define: {
         'process.env': {},
     },
+    preview: {
+        allowedHosts: true,
+    },
 });
