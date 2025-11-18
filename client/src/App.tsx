@@ -32,8 +32,6 @@ const PublicRoute = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
-    console.log('basename', getBaseName());
-
     return (
         <Router basename={getBaseName()}>
             <Routes>

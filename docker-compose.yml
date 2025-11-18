@@ -12,8 +12,6 @@ services:
       NODE_ENV: development
     ports:
       - "3001:3001"
-    networks:
-      - ds-builder-network
 
   # Frontend Application / Admin Panel
   frontend:
@@ -24,8 +22,6 @@ services:
     restart: unless-stopped
     ports:
       - "3000:5173"
-    networks:
-      - ds-builder-network
 
   # Client Application
   client:
@@ -36,8 +32,6 @@ services:
     restart: unless-stopped
     ports:
       - "3002:4173"
-    networks:
-      - ds-builder-network
 
   # Client Proxy Service
   client-proxy:
@@ -53,8 +47,6 @@ services:
       - "3003:3003"
     depends_on:
       - db-service
-    networks:
-      - ds-builder-network
     volumes:
       - ./client-proxy/storage:/app/storage
 
@@ -71,8 +63,6 @@ services:
       PUBLISHER_URL: ${PUBLISHER_URL}
     ports:
       - "3005:3005"
-    networks:
-      - ds-builder-network
 
   # Publisher service
   publisher:
@@ -86,8 +76,6 @@ services:
       PORT: 3007
     ports:
       - "3007:3007"
-    networks:
-      - ds-builder-network
 
   # Documentation Generator Service
   docs-generator:
@@ -107,8 +95,6 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
     ports:
       - "3006:3006"
-    networks:
-      - ds-builder-network
     volumes:
       - docs_output:/home/node/app/output
     command: npm run start:dev
@@ -118,7 +104,3 @@ volumes:
     driver: local
   docs_output:
     driver: local
-
-networks:
-  ds-builder-network:
-    driver: bridge

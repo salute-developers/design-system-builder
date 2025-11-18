@@ -8,8 +8,6 @@ import { healthCheckRoute, removeResultRoute, generateAndDownloadRoute, generate
 (async () => {
     await fastify.register(cors, {
         origin: '*',
-        methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
     await fastify.register(healthCheckRoute);
