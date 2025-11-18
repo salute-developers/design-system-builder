@@ -7,6 +7,8 @@ import App from './App.tsx';
 
 const DarkThemeStyle = createGlobalStyle(plasma_infra__dark);
 
+console.log('env', import.meta.env);
+
 createRoot(document.getElementById('root')!).render(
     <>
         <DarkThemeStyle />
