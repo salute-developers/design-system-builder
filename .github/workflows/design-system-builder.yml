@@ -28,6 +28,7 @@ jobs:
           VITE_PROXY_SERVER_URL: ${{ secrets.VITE_PROXY_SERVER_URL }}
           VITE_DS_GENERATOR_API: ${{ secrets.VITE_DS_GENERATOR_API }}
           VITE_DS_DOCUMENTATION_GENERATOR_API: ${{ secrets.VITE_DS_DOCUMENTATION_GENERATOR_API }}
+          VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
           npm run build --prefix="./client"
