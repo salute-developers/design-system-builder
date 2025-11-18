@@ -14,8 +14,8 @@ const getBaseName = () => {
         return prMatch[0];
     }
 
-    if (pathname.startsWith('/design-system-builder')) {
-        return '/design-system-builder';
+    if (pathname.startsWith('/design-system-builder/')) {
+        return '/design-system-builder/';
     }
 
     return '/';
@@ -32,6 +32,8 @@ const PublicRoute = ({ children }: { children: ReactNode }) => {
 };
 
 function App() {
+    console.log('basename', getBaseName());
+
     return (
         <Router basename={getBaseName()}>
             <Routes>
