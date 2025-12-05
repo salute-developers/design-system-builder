@@ -38,18 +38,6 @@ export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
     `;
 };
 
-export const getNewPath = (value: string) => {
-    const parts = location.pathname.split('/');
-
-    if (parts.length === 0) {
-        return '/';
-    }
-
-    const [designSystemName, designSystemVersion] = parts.filter(Boolean);
-
-    return '/' + [designSystemName, designSystemVersion].join('/') + '/' + value;
-};
-
 export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
     const data = {
         packageName: designSystem.getName(),

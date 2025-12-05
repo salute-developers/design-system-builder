@@ -10,6 +10,7 @@ const getBaseName = () => {
     const { pathname } = window.location;
 
     const prMatch = pathname.match(/^\/pr\/design-system-builder-pr-\d+/);
+
     if (prMatch) {
         return prMatch[0];
     }
@@ -43,7 +44,6 @@ function App() {
                         </PublicRoute>
                     }
                 />
-
                 <Route path="/" element={<ProtectedRoute />}>
                     <Route path="/" element={<Main />}>
                         <Route path="/" element={<Home />}>

@@ -3,7 +3,6 @@ import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 import {
-    IconHelpCircleOutline,
     IconHomeAltOutline,
     IconTree,
     IconArrowLeft,
@@ -27,7 +26,7 @@ import { IconButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
 import { getNpmMeta } from '../api';
 
-import { getNewPath, popupContentPages } from './Main.utils';
+import { popupContentPages } from './Main.utils';
 import {
     BuilderExpandedItems,
     BuilderItems,
@@ -116,7 +115,10 @@ export const Main = () => {
     };
 
     const onClickPanelButton = (path: string) => {
-        const newPath = path === '' ? '/' : getNewPath(path);
+        const parts = [...currentPath];
+        parts[parts.length - 1] = path;
+
+        const newPath = path === '' ? '/' : parts.join('/');
 
         navigate(newPath, { replace: true });
     };
