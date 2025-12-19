@@ -24,7 +24,7 @@ Visit:
 - 📚 **API Documentation**: http://localhost:3001/api-docs
 - 🗄️ **Database**: localhost:5432
 
-## 📁 Client-Proxy Server (File System Storage)
+## 📁 Client-Proxy Server (File System Storage) 
 
 For local development and file-based storage, you can use the client-proxy server:
 
