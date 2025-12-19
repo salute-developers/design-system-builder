@@ -18,6 +18,7 @@ import {
     SelectButtonItem,
 } from '../../components';
 import { TokenColorPreview } from '.';
+import { getAdditionalColorValues } from './Colors';
 
 const Root = styled.div`
     height: 100%;
@@ -153,11 +154,34 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         }
 
         if (token instanceof ColorToken) {
-            const newColor = `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`;
+            const newValue = `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`;
 
-            token.setValue('web', newColor);
-            token.setValue('ios', newColor);
-            token.setValue('android', newColor);
+            token.setValue('web', newValue);
+            token.setValue('ios', newValue);
+            token.setValue('android', newValue);
+
+            const [themeMode, groupName, subgroupName, ..._] = token.getTags();
+
+            const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName);
+
+            if (!additionalValues) {
+                return;
+            }
+
+            const activeToken = theme.getToken(`${token.getName()}-active`, 'color');
+            const hoverToken = theme.getToken(`${token.getName()}-hover`, 'color');
+
+            if (activeToken && hoverToken) {
+                const [activeValue, hoverValue] = additionalValues;
+
+                activeToken.setValue('web', activeValue);
+                activeToken.setValue('ios', activeValue);
+                activeToken.setValue('android', activeValue);
+
+                hoverToken.setValue('web', hoverValue);
+                hoverToken.setValue('ios', hoverValue);
+                hoverToken.setValue('android', hoverValue);
+            }
 
             onTokenUpdate();
         }
