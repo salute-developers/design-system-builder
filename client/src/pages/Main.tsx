@@ -24,7 +24,7 @@ import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
 import { IconButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
-import { getNpmMeta } from '../api';
+// import { getNpmMeta } from '../api';
 
 import { popupContentPages } from './Main.utils';
 import {
@@ -54,7 +54,7 @@ export const Main = () => {
         popupContentPages.CREATE_FIRST_NAME,
     );
 
-    const [isOverviewEnabled, setIsOverviewEnabled] = useState(false);
+    const [isOverviewEnabled, setIsOverviewEnabled] = useState(true);
 
     const isHome = !isPopupOpen && currentPath.length === 0;
 
@@ -156,24 +156,24 @@ export const Main = () => {
         setShowTokensPanelItems(showPanelItems);
     }, [currentPath]);
 
-    // TODO: Временное решение, потом забирать из бд
-    useLayoutEffect(() => {
-        if (!designSystem) {
-            return;
-        }
+    // // TODO: Временное решение, потом забирать из бд
+    // useLayoutEffect(() => {
+    //     if (!designSystem) {
+    //         return;
+    //     }
 
-        const getPackagePublished = async () => {
-            const packagesName = designSystem.getParameters()?.packagesName;
-            const result = await getNpmMeta(`@salutejs-ds/${packagesName}`);
+    //     const getPackagePublished = async () => {
+    //         const packagesName = designSystem.getParameters()?.packagesName;
+    //         const result = await getNpmMeta(`@salutejs-ds/${packagesName}`);
 
-            if ('versions' in result) {
-                setIsOverviewEnabled(true);
-                return;
-            }
-        };
+    //         if ('versions' in result) {
+    //             setIsOverviewEnabled(true);
+    //             return;
+    //         }
+    //     };
 
-        getPackagePublished();
-    }, [designSystem]);
+    //     getPackagePublished();
+    // }, [designSystem]);
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>

@@ -56,7 +56,7 @@ export const getTransparentColor = (color: string, type: FormulaMode, mode: Them
 
         const newAlpha = result.operation[state]?.(a);
 
-        if (!newAlpha) {
+        if (newAlpha === undefined) {
             return '#FFFFFFFF';
         }
 
@@ -83,7 +83,7 @@ export const getSolidColor = (color: string, type: FormulaMode, mode: ThemeMode)
 
         const newLightness = result.operation[state]?.(l);
 
-        if (!newLightness) {
+        if (newLightness === undefined) {
             return '#FFFFFFFF';
         }
 

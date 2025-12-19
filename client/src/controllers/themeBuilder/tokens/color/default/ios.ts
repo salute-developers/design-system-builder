@@ -280,12 +280,11 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
 
             const [onDarkName, onLightName, inverseName] = getTokensNames(name);
 
-            const mode = 'dark';
             const additionalColorTokens = {
-                ...getAdditionalColorThemeTokens(name, darkValue, mode),
-                ...getAdditionalColorThemeTokens(onDarkName, darkValue, mode),
-                ...getAdditionalColorThemeTokens(onLightName, lightValue, mode),
-                ...getAdditionalColorThemeTokens(inverseName, lightValue, mode),
+                ...getAdditionalColorThemeTokens(name, darkValue, 'dark'),
+                ...getAdditionalColorThemeTokens(onDarkName, darkValue, 'dark'),
+                ...getAdditionalColorThemeTokens(onLightName, lightValue, 'light'),
+                ...getAdditionalColorThemeTokens(inverseName, lightValue, 'light'),
             };
 
             return {
@@ -307,12 +306,11 @@ export const getIOSTokens = ({ strokeAccentColor, fillAccentColor, grayscale }: 
 
             const [onDarkName, onLightName, inverseName] = getTokensNames(name);
 
-            const mode = 'light';
             const additionalColorTokens = {
-                ...getAdditionalColorThemeTokens(name, lightValue, mode),
-                ...getAdditionalColorThemeTokens(onDarkName, darkValue, mode),
-                ...getAdditionalColorThemeTokens(onLightName, lightValue, mode),
-                ...getAdditionalColorThemeTokens(inverseName, darkValue, mode),
+                ...getAdditionalColorThemeTokens(name, lightValue, 'light'),
+                ...getAdditionalColorThemeTokens(onDarkName, darkValue, 'dark'),
+                ...getAdditionalColorThemeTokens(onLightName, lightValue, 'light'),
+                ...getAdditionalColorThemeTokens(inverseName, darkValue, 'dark'),
             };
 
             return {
