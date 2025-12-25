@@ -52,6 +52,11 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
     });
 };
 
+const bumpPathVersion = (version: string) => {
+    const [major, minor, patch] = version.split('.');
+    return `${major}.${minor}.${Number(patch) + 1}`;
+};
+
 export const generateAndPublishRoute = async (server: FastifyInstance) => {
     server.post<{
         Body: GenerateRouteBody;
@@ -61,18 +66,24 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
         try {
             const { packageName, packageVersion, exportType, npmToken } = request.body;
 
+            // const response2 = await fetch(`https://registry.npmjs.org/vxcasdasd`);
+            const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
+            const packageMeta = (await npmPackage.json()) as any;
+
+            const version = 'error' in packageMeta ? packageVersion : bumpPathVersion(packageMeta['dist-tags'].latest);
+
             if (!npmToken) {
                 throw new Error('Отсутствует npm-токен');
             }
 
             const data = await fetch(
-                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
+                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`, // здесь остаётся packageVersion т.к. пока значение 0.1.0 захардкодено
             );
 
             const { componentsData, themeData } = (await data.json()) as any;
 
             const buffer = await generateDesignSystem(
-                { packageName, packageVersion, componentsData, themeData },
+                { packageName, packageVersion: version, componentsData, themeData },
                 { pathToDir, exportType, coreVersion: CORE_VERSION },
             );
 
@@ -80,6 +91,8 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
             formData.append('npmToken', npmToken);
             const blob = new Blob([buffer], { type: 'application/gzip' });
             formData.append('package', blob, 'package.tgz');
+            formData.append('packageName', packageName);
+            formData.append('packageVersion', version);
 
             const response = await fetch(`${PUBLISHER_URL}/upload`, {
                 method: 'POST',

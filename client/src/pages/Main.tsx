@@ -131,7 +131,7 @@ export const Main = () => {
         onPopupClose();
         onClickPanelButton('');
         rerender(null);
-        setIsOverviewEnabled(false);
+        // setIsOverviewEnabled(false);
     };
 
     const onPublishButtonClick = async () => {

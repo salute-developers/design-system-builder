@@ -154,7 +154,8 @@ export const PublishProgress = (props: PublishProgressProps) => {
             <StyledD>
                 <StyledStatus>Публикуем новую версию…</StyledStatus>
                 <StyledProgress value={value} color={progressColor} />
-                <StyledVersion>{version}</StyledVersion>
+                {/* TODO: Сделать нормальную систему версионирования */}
+                {/* <StyledVersion>{version}</StyledVersion> */}
             </StyledD>
         </Root>
     );
