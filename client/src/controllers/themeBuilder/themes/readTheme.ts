@@ -3,11 +3,25 @@ import JSZip from 'jszip';
 import { getFileSource } from '../../../api';
 import { type PlatformsVariations, type ThemeMeta } from '../types';
 
+const base64ToUint8Array = (base64: string) => {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return bytes;
+};
+
 const deserializeZip = async (content: string) => {
     // TODO: Вообще убрать?
-    // const buf = Buffer.from(content, 'base64') as any;
+    const buf = base64ToUint8Array(content);
+    return await JSZip.loadAsync(buf);
 
-    return await JSZip.loadAsync("");
+    // const buf = Buffer.from(content, 'base64') as any;
+    // return await JSZip.loadAsync("");
 };
 
 const getAllRelativePath = async (zip: JSZip) => {

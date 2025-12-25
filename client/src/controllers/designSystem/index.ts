@@ -19,6 +19,7 @@ interface DesignSystemProps {
     name?: string;
     version?: string;
     parameters?: Partial<Parameters>;
+    themeData?: ThemeSource;
 }
 
 export interface ThemeSource {
@@ -43,11 +44,16 @@ export class DesignSystem {
         this.componentsData = [];
     }
 
-    public static async create({ name, version = '0.1.0', parameters }: DesignSystemProps): Promise<DesignSystem> {
+    public static async create({
+        name,
+        version = '0.1.0',
+        parameters,
+        themeData: externalThemeData,
+    }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version, parameters });
 
         const { themeData, componentsData } = await instance.loadData({ name, version, parameters });
-        instance.themeData = themeData;
+        instance.themeData = externalThemeData ?? themeData;
         instance.componentsData = componentsData;
 
         if (name && version) {
@@ -132,37 +138,37 @@ export class DesignSystem {
         };
     }
 
-    public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
-        this.themeData = data;
+    // public async saveThemeData(data: { meta: ThemeMeta; variations: PlatformsVariations }) {
+    //     this.themeData = data;
 
-        if (!this.name || !this.version) {
-            return;
-        }
+    //     if (!this.name || !this.version) {
+    //         return;
+    //     }
 
-        return await saveDesignSystem({
-            name: this.name,
-            version: this.version,
-            parameters: this.parameters,
-            themeData: this.themeData,
-            componentsData: this.componentsData,
-        });
-    }
+    //     return await saveDesignSystem({
+    //         name: this.name,
+    //         version: this.version,
+    //         parameters: this.parameters,
+    //         themeData: this.themeData,
+    //         componentsData: this.componentsData,
+    //     });
+    // }
 
-    public async saveComponentsData(data: Meta[]) {
-        this.componentsData = data;
+    // public async saveComponentsData(data: Meta[]) {
+    //     this.componentsData = data;
 
-        if (!this.name || !this.version) {
-            return;
-        }
+    //     if (!this.name || !this.version) {
+    //         return;
+    //     }
 
-        return await saveDesignSystem({
-            name: this.name,
-            version: this.version,
-            parameters: this.parameters,
-            themeData: this.themeData,
-            componentsData: this.componentsData,
-        });
-    }
+    //     return await saveDesignSystem({
+    //         name: this.name,
+    //         version: this.version,
+    //         parameters: this.parameters,
+    //         themeData: this.themeData,
+    //         componentsData: this.componentsData,
+    //     });
+    // }
 
     public async saveDesignSystemData(
         themeData: { meta: ThemeMeta; variations: PlatformsVariations },
