@@ -86,8 +86,16 @@ export const loadDesignSystem = async (
     version: string,
 ): Promise<{ themeData: ThemeSource; componentsData: Meta[]; parameters?: Partial<Parameters> } | undefined> => {
     try {
+        const login = localStorage.getItem('login');
+        const password = localStorage.getItem('password');
+
         const data = await apiCall(
             `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+            {
+                headers: {
+                    Authorization: `Basic ${btoa(`${login}:${password}`)}`,
+                },
+            },
         );
 
         return data;
@@ -121,7 +129,15 @@ export const removeDesignSystem = async (name: string, version: string): Promise
 
 export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {
-        const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`);
+        const login = localStorage.getItem('login');
+        const password = localStorage.getItem('password');
+
+        const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
+            headers: {
+                Authorization: `Basic ${btoa(`${login}:${password}`)}`,
+            },
+        });
+
         return data || undefined;
     } catch (error) {
         // // If server is not running, fall back to localStorage

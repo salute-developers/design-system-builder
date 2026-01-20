@@ -168,6 +168,20 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
             // TODO: Remove hardcoded version and use dynamic version from params
             const version = '0.1.0';
 
+            const authHeader = req.headers.authorization;
+            const [, token] = authHeader.split(' ');
+
+            // TODO: Переделать на группы доступов
+            const permittedDesignSystems = await store.permittedDesignSystems(token);
+            if (name === 'sdds_finai' && !permittedDesignSystems) {
+                res.status(404).json({
+                    error: 'Design system not found',
+                    details: 'Design system not found'
+                });
+
+                return;
+            }
+
             // Use the enhanced DesignSystemStore which now handles transformation internally
             const { themeData, componentsData, parameters } = await store.loadDesignSystem(name, version);
 
@@ -203,6 +217,9 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
     // List all design systems
     app.get('/api/design-systems', async (req: Request, res: Response<any>): Promise<void> => {
         try {
+            const authHeader = req.headers.authorization;
+            const [, token] = authHeader.split(' ');
+
             const designSystems = await store.listDesignSystems();
 
             if (designSystems.length === 0) {
@@ -210,7 +227,14 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
                 return;
             }
 
-            res.json(designSystems);
+            // TODO: Переделать на группы доступов
+            const result = designSystems.filter((designSystem) => designSystem.name !== 'sdds_finai');
+            const permittedDesignSystems = await store.permittedDesignSystems(token);
+            if (permittedDesignSystems) {
+                result.push(...permittedDesignSystems);
+            }
+
+            res.json(result);
 
         } catch (error) {
             Logger.error('Error listing design systems:', error);

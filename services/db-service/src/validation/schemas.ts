@@ -90,6 +90,23 @@ export const ThemeParamsSchema = z.object({
   version: z.string().min(1, 'Version is required')
 });
 
+// User schemas
+export const CreateUserSchema = z.object({
+  user: z.string().trim().min(1, 'User name is required').max(255, 'User name must be less than 255 characters'),
+  token: z.string().trim().min(1, 'Token is required'),
+  designSystems: z.array(z.number().int().positive('Design system ID must be a positive integer')).default([]),
+});
+
+export const UpdateUserSchema = z.object({
+  user: z.string().trim().min(1, 'User name is required').max(255, 'User name must be less than 255 characters').optional(),
+  token: z.string().trim().min(1, 'Token is required').optional(),
+  designSystems: z.array(z.number().int().positive('Design system ID must be a positive integer')).optional(),
+});
+
+export const TokenQuerySchema = z.object({
+  token: z.string().trim().min(1, 'Token is required'),
+});
+
 // Export inferred types for use in route handlers
 export type IdParam = z.infer<typeof IdParamSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
@@ -103,3 +120,6 @@ export type AddInvariantTokenValuesRequest = z.infer<typeof AddInvariantTokenVal
 export type CreateThemeRequest = z.infer<typeof CreateThemeSchema>;
 export type UpdateThemeRequest = z.infer<typeof UpdateThemeSchema>;
 export type ThemeParams = z.infer<typeof ThemeParamsSchema>;
+export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
+export type UpdateUserRequest = z.infer<typeof UpdateUserSchema>;
+export type TokenQuery = z.infer<typeof TokenQuerySchema>;

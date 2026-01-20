@@ -177,6 +177,9 @@ export const Main = () => {
     //     getPackagePublished();
     // }, [designSystem]);
 
+    // TODO: Временное решение для показа/скрытия панели компонентов для определённых пользователей
+    const showComponentPanelItems = localStorage.getItem('login') !== 'sdds_finai';
+
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
@@ -231,12 +234,14 @@ export const Main = () => {
                             </BuilderExpandedItems>
                         )}
 
-                        <IconButton
-                            selected={currentPath.includes('components')}
-                            onClick={() => onClickPanelButton('components')}
-                        >
-                            <IconGroupOutline size="xs" color="inherit" />
-                        </IconButton>
+                        {showComponentPanelItems && (
+                            <IconButton
+                                selected={currentPath.includes('components')}
+                                onClick={() => onClickPanelButton('components')}
+                            >
+                                <IconGroupOutline size="xs" color="inherit" />
+                            </IconButton>
+                        )}
                     </BuilderItems>
                 )}
                 <IconButton style={{ padding: '0.75rem' }} onClick={handleSignOut}>
