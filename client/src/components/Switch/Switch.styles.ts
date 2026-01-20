@@ -1,4 +1,3 @@
-import { forwardRef, HTMLAttributes } from 'react';
 import styled, { CSSObject } from 'styled-components';
 import {
     onDarkSurfaceSolidCard,
@@ -7,9 +6,9 @@ import {
     textTertiary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { h6 } from '../utils';
+import { h6 } from '../../utils';
 
-const Root = styled.div`
+export const Root = styled.div`
     position: relative;
     cursor: default;
 
@@ -25,13 +24,13 @@ const Root = styled.div`
     }
 `;
 
-const StyledLabel = styled.div`
+export const StyledLabel = styled.div`
     color: ${textTertiary};
 
     ${h6 as CSSObject};
 `;
 
-const StyledTrack = styled.div<{ checked: boolean; backgroundColor?: string }>`
+export const StyledTrack = styled.div<{ checked: boolean; backgroundColor?: string }>`
     position: relative;
     cursor: pointer;
 
@@ -52,7 +51,7 @@ const StyledTrack = styled.div<{ checked: boolean; backgroundColor?: string }>`
     transition: background 0.1s ease-in-out;
 `;
 
-const StyledThumb = styled.div<{ checked: boolean }>`
+export const StyledThumb = styled.div<{ checked: boolean }>`
     height: 1rem;
     width: 1rem;
     border-radius: 50%;
@@ -64,28 +63,3 @@ const StyledThumb = styled.div<{ checked: boolean }>`
     transition: transform 0.1s ease-in-out;
 `;
 
-interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
-    checked: boolean;
-    label?: string;
-    backgroundColor?: string;
-    onToggle: (value: boolean) => void;
-}
-
-export const Switch = forwardRef<HTMLDivElement, SwitchProps>((props, ref) => {
-    const { checked, label, backgroundColor, onToggle, ...rest } = props;
-
-    const onClick = () => {
-        if (onToggle) {
-            onToggle(!checked);
-        }
-    };
-
-    return (
-        <Root {...rest} ref={ref}>
-            <StyledLabel>{label}</StyledLabel>
-            <StyledTrack checked={checked} backgroundColor={backgroundColor} onClick={onClick}>
-                <StyledThumb checked={checked} />
-            </StyledTrack>
-        </Root>
-    );
-});

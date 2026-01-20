@@ -1,25 +1,8 @@
 import { HTMLAttributes, ReactNode } from 'react';
-import styled, { CSSObject } from 'styled-components';
-import { textParagraph, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { h6 } from '../utils';
+import { StyledResetTokeValuesButton } from './LinkButton.styles';
 
-const StyledResetTokeValuesButton = styled.div`
-    cursor: pointer;
-    color: ${textParagraph};
-
-    &:hover {
-        color: ${textPrimary};
-    }
-
-    display: flex;
-    gap: 0.375rem;
-    align-items: center;
-
-    ${h6 as CSSObject};
-`;
-
-interface LinkButtonProps extends HTMLAttributes<HTMLDivElement>{
+interface LinkButtonProps extends HTMLAttributes<HTMLDivElement> {
     text: string;
     contentLeft?: ReactNode;
     contentRight?: ReactNode;
@@ -37,3 +20,4 @@ export const LinkButton = (props: LinkButtonProps) => {
         </StyledResetTokeValuesButton>
     );
 };
+

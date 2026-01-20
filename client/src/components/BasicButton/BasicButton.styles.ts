@@ -1,9 +1,7 @@
-import { HTMLAttributes, ReactNode } from 'react';
 import styled, { css, CSSObject } from 'styled-components';
-import { checkIsColorContrast } from '../utils';
 import { bodyM, bodyXS } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-const Root = styled.div<{ backgroundColor?: string; color?: string; size?: 'l' | 'm' }>`
+export const Root = styled.div<{ backgroundColor?: string; color?: string; size?: 'l' | 'm' }>`
     position: relative;
     z-index: 999;
 
@@ -49,33 +47,12 @@ const Root = styled.div<{ backgroundColor?: string; color?: string; size?: 'l' |
     }
 `;
 
-const StyledText = styled.div`
+export const StyledText = styled.div`
     user-select: none;
 `;
 
-const StyledContentRight = styled.div`
+export const StyledContentRight = styled.div`
     display: inline-flex;
     justify-content: center;
     align-items: center;
 `;
-
-interface BasicButtonProps extends HTMLAttributes<HTMLDivElement> {
-    text: string;
-    size?: 'l' | 'm';
-    backgroundColor?: string;
-    contentRight?: ReactNode;
-}
-
-export const BasicButton = (props: BasicButtonProps) => {
-    // INFO: backgroundColor = surfaceSolidCard
-    const { text, size = 'm', backgroundColor = '#4B4C58', contentRight, ...rest } = props;
-
-    const color = checkIsColorContrast(backgroundColor, '#FFFFFF') ? '#FFFFFF' : '#000000';
-
-    return (
-        <Root backgroundColor={backgroundColor} color={color} size={size} {...rest}>
-            <StyledText>{text}</StyledText>
-            {contentRight && <StyledContentRight>{contentRight}</StyledContentRight>}
-        </Root>
-    );
-};

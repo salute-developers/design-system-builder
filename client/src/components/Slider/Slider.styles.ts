@@ -1,6 +1,4 @@
-import { ChangeEvent, FocusEvent, useEffect, useRef } from 'react';
 import styled, { css, CSSObject } from 'styled-components';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import {
     backgroundTertiary,
     onDarkTextPrimary,
@@ -9,9 +7,9 @@ import {
     onLightTextPrimary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { checkIsColorContrast, h6 } from '../utils';
+import { h6 } from '../../utils';
 
-const Root = styled.div<{ color?: string }>`
+export const Root = styled.div<{ color?: string }>`
     position: relative;
 
     display: flex;
@@ -28,7 +26,7 @@ const Root = styled.div<{ color?: string }>`
     transition: background 0.25s linear;
 `;
 
-const StyledBackground = styled.div`
+export const StyledBackground = styled.div`
     position: absolute;
     inset: 0;
 
@@ -37,7 +35,7 @@ const StyledBackground = styled.div`
 `;
 
 // TODO: Подумать, можно ли по-лучше сделать
-const StyledBorder = styled.div`
+export const StyledBorder = styled.div`
     position: absolute;
     inset: 0;
 
@@ -68,7 +66,7 @@ const thumbStyle = css`
     }
 `;
 
-const Thumb = styled.div`
+export const Thumb = styled.div`
     position: absolute;
     left: 0;
 
@@ -78,7 +76,7 @@ const Thumb = styled.div`
     will-change: transform;
 `;
 
-const TrackInput = styled.input<{ color?: string }>`
+export const TrackInput = styled.input<{ color?: string }>`
     cursor: pointer;
     appearance: none;
     background: transparent;
@@ -122,7 +120,7 @@ const TrackInput = styled.input<{ color?: string }>`
     }
 `;
 
-const TextInput = styled.input`
+export const TextInput = styled.input`
     position: absolute;
     background: transparent;
     border: none;
@@ -143,72 +141,3 @@ const TextInput = styled.input`
     ${h6 as CSSObject};
 `;
 
-interface SliderProps {
-    color?: string;
-    min?: number;
-    max?: number;
-    value: number;
-    onChange: (value: number) => void;
-}
-
-export const Slider = (props: SliderProps) => {
-    const { value = 0, min = 0, max = 100, color, onChange } = props;
-
-    const thumbRef = useRef<HTMLDivElement>(null);
-    const sliderRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const scaledColorValue = Number(((value - min) / (max - min)).toFixed(3));
-
-        if (thumbRef.current && sliderRef.current) {
-            thumbRef.current.style.transform = `translateX(calc(${scaledColorValue} * calc(${sliderRef.current.offsetWidth}px - 1px))`;
-        }
-    }, [value, min, max]);
-
-    const onChangeTrackValue = (event: ChangeEvent<HTMLInputElement>) => {
-        const value = parseInt(event.target.value);
-
-        onChange(value);
-    };
-
-    const onChangeTextValue = (event: ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.value.replace(/\D/g, '');
-        let newValue = parseInt(value, 10);
-
-        if (value === '' || newValue < 0 || isNaN(newValue)) {
-            newValue = 0;
-        }
-
-        if (newValue > 100) {
-            newValue = 100;
-        }
-
-        onChange(newValue);
-    };
-
-    const onFocusTextValue = (event: FocusEvent<HTMLInputElement, Element>) => {
-        event.target.select();
-    };
-
-    const resultColor = getRestoredColorFromPalette(`[${color}]`) ?? color;
-
-    const contrastColor =
-        resultColor && (checkIsColorContrast('#FFFFFF', resultColor, 3) ? onDarkTextPrimary : onLightTextPrimary);
-
-    return (
-        <Root ref={sliderRef} color={resultColor}>
-            <StyledBackground />
-            <StyledBorder />
-            <TrackInput
-                type="range"
-                color={contrastColor}
-                min={min}
-                max={max}
-                value={value}
-                onChange={onChangeTrackValue}
-            />
-            <Thumb ref={thumbRef} />
-            <TextInput type="text" value={`${value}%`} onFocus={onFocusTextValue} onChange={onChangeTextValue} />
-        </Root>
-    );
-};

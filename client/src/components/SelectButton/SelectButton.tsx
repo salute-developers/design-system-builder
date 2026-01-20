@@ -1,113 +1,19 @@
-import { forwardRef, HTMLAttributes, MouseEvent, ReactNode, useMemo, useState } from 'react';
-import styled, { CSSObject } from 'styled-components';
-import { IconArrowsMoveVertical, IconSearch } from '@salutejs/plasma-icons';
+import { forwardRef, MouseEvent, useMemo, useState, HTMLAttributes, ReactNode } from 'react';
+
+import { checkIsColorContrast } from '../../utils';
+import { onDarkTextPrimary, onLightTextPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { Dropdown, DropdownItem } from '../Dropdown';
 import {
-    onDarkTextPrimary,
-    onLightTextPrimary,
-    surfaceTransparentSecondary,
-    textPrimary,
-    textSecondary,
-    textTertiary,
-} from '@salutejs/plasma-themes/tokens/plasma_infra';
-
-import { checkIsColorContrast, h6 } from '../utils';
-import { ViewType } from '../types';
-import { Dropdown, DropdownItem, TextField } from '.';
-
-const Root = styled.div<{ view?: ViewType }>`
-    position: relative;
-    cursor: default;
-
-    height: 1.5rem;
-    min-width: 0;
-
-    display: flex;
-    gap: 0.375rem;
-    align-items: center;
-
-    &:hover > div {
-        color: ${textPrimary};
-    }
-`;
-
-const StyledLabel = styled.div`
-    color: ${textTertiary};
-
-    ${h6 as CSSObject};
-`;
-
-const StyledWrapper = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-
-    position: relative;
-
-    min-width: 0;
-`;
-
-const StyledTrigger = styled.div<{ color?: string }>`
-    cursor: pointer;
-
-    white-space: nowrap;
-    min-height: 1rem;
-
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.25rem;
-
-    background: transparent;
-    padding: 0.25rem 0.375rem;
-    border-radius: 0.375rem;
-
-    color: ${({ color }) => color || textSecondary};
-
-    &:hover {
-        background: ${surfaceTransparentSecondary};
-    }
-
-    min-width: 0;
-`;
-
-const StyledTigerText = styled.div`
-    color: inherit;
-    user-select: none;
-
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
-    flex: 1;
-    min-width: 0;
-
-    ${h6 as CSSObject};
-`;
-
-const StyledContentRight = styled.div`
-    color: inherit;
-    width: 0.75rem;
-    height: 0.75rem;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-`;
-
-const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledIconSearch = styled(IconSearch)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledTextField = styled(TextField)`
-    position: absolute;
-    inset: 0;
-    // TODO: заменить на токен
-    border-bottom: 0.0625rem solid rgba(247, 248, 251, 0.04);
-`;
+    Root,
+    StyledLabel,
+    StyledWrapper,
+    StyledTrigger,
+    StyledTigerText,
+    StyledContentRight,
+    StyledIconArrowsMoveVertical,
+    StyledIconSearch,
+    StyledTextField,
+} from './SelectButton.styles';
 
 export type SelectButtonItem = DropdownItem;
 
@@ -217,3 +123,4 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
         </Root>
     );
 });
+
