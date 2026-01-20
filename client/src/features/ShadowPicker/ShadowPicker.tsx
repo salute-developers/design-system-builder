@@ -1,128 +1,29 @@
 import { useState } from 'react';
-import styled, { CSSObject } from 'styled-components';
-import { IconBrightness1Outline, IconPlus, IconTrashOutline } from '@salutejs/plasma-icons';
-import { textSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-import { general } from '@salutejs/plasma-colors';
+import { IconPlus, IconTrashOutline } from '@salutejs/plasma-icons';
 
-import { IconCardsGridFill, IconCharX, IconCharY } from '../icons';
-import { getCorpColor, h6, numberFormatter, prettifyColorName, separatedCorpColor } from '../utils';
-import { Slider, LinkButton, IconButton, TextField, SelectButton, SelectButtonItem } from '../components';
-
-const Root = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 1.75rem;
-`;
-
-const StyledLayer = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-
-    &:hover > div > div + div {
-        display: flex;
-    }
-`;
-
-const StyledLayerHeader = styled.div`
-    display: flex;
-
-    align-items: center;
-    justify-content: space-between;
-`;
-
-const StyledIconButton = styled(IconButton)`
-    display: none;
-`;
-
-const StyledLayerName = styled.div`
-    padding: 0.25rem 0.375rem;
-
-    color: ${textSecondary};
-
-    ${h6 as CSSObject};
-`;
-
-const StyledShadowParams = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-`;
-
-const StyledRowParams = styled.div`
-    display: flex;
-    gap: 0.25rem;
-`;
-
-const StyledIconCharX = styled(IconCharX)`
-    --icon-size: 0.75rem !important;
-    flex: 0 0 0.75rem;
-    width: 0.75rem;
-    height: 0.75rem;
-`;
-
-const StyledIconCharY = styled(IconCharY)`
-    --icon-size: 0.75rem !important;
-    flex: 0 0 0.75rem;
-    width: 0.75rem;
-    height: 0.75rem;
-`;
-
-const StyledIconCardsGridFill = styled(IconCardsGridFill)`
-    --icon-size: 0.75rem !important;
-    flex: 0 0 0.75rem;
-    width: 0.75rem;
-    height: 0.75rem;
-`;
-
-const StyledIconBrightness1Outline = styled(IconBrightness1Outline)`
-    --icon-size: 0.75rem !important;
-    flex: 0 0 0.75rem;
-    width: 0.75rem;
-    height: 0.75rem;
-`;
-
-const accentColors = Object.entries(general).map(([name]) => ({
-    label: prettifyColorName(name),
-    value: name,
-}));
-
-const saturationColors = Object.keys(general.amber).map((name) => ({
-    label: name,
-    value: name,
-}));
-
-const paletteList = [
-    {
-        label: 'Корпоративная',
-        value: 'corp',
-    },
-    {
-        label: 'Кастомная',
-        value: 'custom',
-    },
-];
-
-const colorFormatList = [
-    {
-        label: 'HEX',
-        value: 'hex',
-    },
-    {
-        label: 'RGB',
-        value: 'rgb',
-        disabled: true,
-    },
-    {
-        label: 'HSL',
-        value: 'hsl',
-        disabled: true,
-    },
-];
-
-const DEFAULT_CORP_COLOR = 'general.red.50';
-
-const DEFAULT_CUSTOM_COLOR = '#000000';
+import { getCorpColor, numberFormatter, prettifyColorName, separatedCorpColor } from '../../utils';
+import { Slider, LinkButton, TextField, SelectButton, SelectButtonItem } from '../../components';
+import {
+    Root,
+    StyledLayer,
+    StyledLayerHeader,
+    StyledIconButton,
+    StyledLayerName,
+    StyledShadowParams,
+    StyledRowParams,
+    StyledIconCharX,
+    StyledIconCharY,
+    StyledIconCardsGridFill,
+    StyledIconBrightness1Outline,
+} from './ShadowPicker.styles';
+import {
+    accentColors,
+    colorFormatList,
+    DEFAULT_CORP_COLOR,
+    DEFAULT_CUSTOM_COLOR,
+    paletteList,
+    saturationColors,
+} from './ShadowPicker.utils';
 
 interface ComponentProps {
     value: ShadowType;

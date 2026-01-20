@@ -1,80 +1,10 @@
 import { useEffect, useState } from 'react';
-import styled from 'styled-components';
 import { general } from '@salutejs/plasma-colors';
 
-import { SelectButton, SelectButtonItem, Slider } from '../components';
-import { getCorpColor, prettifyColorName, separatedCorpColor } from '../utils';
-
-const Root = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-`;
-
-const ColorPreview = styled.div`
-    position: relative;
-    height: 10rem;
-    width: 100%;
-
-    border-radius: 1.25rem;
-
-    --sq: 1.25rem;
-    --c1: rgba(36, 36, 43, 1);
-    --c2: rgba(46, 47, 53, 1);
-
-    background-color: var(--c1);
-    background-image: linear-gradient(45deg, var(--c2) 25%, transparent 25%, transparent 75%, var(--c2) 75%, var(--c2)),
-        linear-gradient(45deg, var(--c2) 25%, transparent 25%, transparent 75%, var(--c2) 75%, var(--c2));
-    background-position: 0 0, var(--sq) var(--sq);
-    background-size: calc(var(--sq) * 2) calc(var(--sq) * 2);
-`;
-
-const ColorPreviewBackground = styled.div<{ color: string; opacity?: number }>`
-    border-radius: 1.25rem;
-
-    background: ${({ color }) => color};
-    opacity: ${({ opacity }) => opacity};
-
-    position: absolute;
-    inset: 0;
-
-    // TODO: Заменить на токен
-    box-shadow: 0 0 0 0.0625rem rgba(247, 248, 251, 0.04) inset;
-
-    transition: background 0.25s linear;
-`;
-
-const ColorSelector = styled.div`
-    display: flex;
-    gap: 0.375rem;
-    align-items: center;
-
-    position: absolute;
-    left: 1.25rem;
-    bottom: 1.125rem;
-`;
-
-const accentColors = Object.entries(general).map(([name]) => ({
-    label: prettifyColorName(name),
-    value: name,
-}));
-
-const saturationColors = Object.keys(general.amber).map((name) => ({
-    label: name,
-    value: name,
-}));
-
-const paletteList = [
-    {
-        label: 'Корпоративная',
-        value: 'corp',
-    },
-    {
-        label: 'Кастомная',
-        value: 'custom',
-        disabled: true,
-    },
-];
+import { SelectButton, SelectButtonItem, Slider } from '../../components';
+import { getCorpColor, prettifyColorName, separatedCorpColor } from '../../utils';
+import { Root, ColorPreview, ColorPreviewBackground, ColorSelector } from './ColorPicker.styles';
+import { accentColors, paletteList, saturationColors } from './ColorPicker.utils';
 
 interface ColorPickerProps {
     color: string;
@@ -82,6 +12,7 @@ interface ColorPickerProps {
     onColorChange?: (color: string) => void;
     onOpacityChange?: (opacity: number) => void;
 }
+
 export const ColorPicker = (props: ColorPickerProps) => {
     const { color: outerColor, opacity, onColorChange, onOpacityChange } = props;
 
