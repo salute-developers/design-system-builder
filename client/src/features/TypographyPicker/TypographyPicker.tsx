@@ -1,86 +1,16 @@
 import { useEffect, useState } from 'react';
-import styled from 'styled-components';
-import { IconSizeMaximize } from '@salutejs/plasma-icons';
 
-import { IconLetterSpacing, IconLineHeight } from '../icons';
-import { WebFontStyle, WebFontWeight } from '../controllers';
-import { numberFormatter } from '../utils';
-import { TextField, SelectButton, SelectButtonItem } from '../components';
-
-const Root = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-`;
-
-const StyledTypographyParams = styled.div`
-    display: flex;
-    gap: 0.25rem;
-`;
-
-const StyledIconSizeMaximize = styled(IconSizeMaximize)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledIconLineHeight = styled(IconLineHeight)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledIconLetterSpacing = styled(IconLetterSpacing)`
-    --icon-size: 0.75rem !important;
-`;
-
-const fontStyleList = [
-    {
-        label: 'Normal',
-        value: 'normal',
-    },
-    {
-        label: 'Italic',
-        value: 'italic',
-    },
-];
-
-const fontWeightList = [
-    {
-        label: 'Thin',
-        value: '100',
-    },
-    {
-        label: 'Extra Light',
-        value: '200',
-    },
-    {
-        label: 'Light',
-        value: '300',
-    },
-    {
-        label: 'Regular',
-        value: '400',
-    },
-    {
-        label: 'Medium',
-        value: '500',
-    },
-    {
-        label: 'Semi Bold',
-        value: '600',
-    },
-    {
-        label: 'Bold',
-        value: '700',
-    },
-    {
-        label: 'Extra Bold',
-        value: '800',
-    },
-    {
-        label: 'Black',
-        value: '900',
-    },
-];
-
-const getLabelByItem = (items: SelectButtonItem[], value: string) => items.find((item) => item.value === value)?.label;
+import { WebFontStyle, WebFontWeight } from '../../controllers';
+import { numberFormatter } from '../../utils';
+import { TextField, SelectButton, SelectButtonItem } from '../../components';
+import {
+    Root,
+    StyledTypographyParams,
+    StyledIconSizeMaximize,
+    StyledIconLineHeight,
+    StyledIconLetterSpacing,
+} from './TypographyPicker.styles';
+import { fontStyleList, fontWeightList, getLabelByItem } from './TypographyPicker.utils';
 
 export interface TypographyType {
     fontFamily: string;
