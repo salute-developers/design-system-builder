@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { camelToKebab, getMenuItems, getStateColor, kebabToCamel } from '../../utils';
+import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
 import {
     DesignSystem,
@@ -12,44 +12,11 @@ import {
     Theme,
     Token,
     WebColor,
-    createMetaTokens,
-    createVariationTokens,
 } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
-import { TokenColorEditor } from '.';
-import { getRestoredColorFromPalette, ThemeMode } from '@salutejs/plasma-tokens-utils';
-import { Parameters, sectionToFormulaMap } from '../../types';
-import { readThemeBuildInstanceAndWrite } from '../../controllers/themeBuilder/examples/readThemeBuildInstanceAndWrite';
 
-export const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
-    const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
-
-    if (!sectionName) {
-        return undefined;
-    }
-
-    let mode = themeMode as ThemeMode;
-
-    if (
-        (themeMode === 'dark' && (subgroupName === 'default' || subgroupName.includes('dark'))) ||
-        (themeMode === 'light' && (subgroupName === 'inverse' || subgroupName.includes('dark')))
-    ) {
-        mode = 'dark';
-    }
-    if (
-        (themeMode === 'dark' && (subgroupName === 'inverse' || subgroupName.includes('light'))) ||
-        (themeMode === 'light' && (subgroupName === 'default' || subgroupName.includes('light')))
-    ) {
-        mode = 'light';
-    }
-
-    const restoredValue = getRestoredColorFromPalette(value);
-    const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
-    const activeValue = getDefaultStateToken('active');
-    const hoverValue = getDefaultStateToken('hover');
-
-    return [activeValue, hoverValue] as const;
-};
+import { TokenColorEditor } from './features/TokenColorEditor';
+import { getAdditionalColorValues } from './Colors.utils';
 
 interface ColorsOutletContextProps {
     designSystem?: DesignSystem;
@@ -64,7 +31,6 @@ export const Colors = () => {
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const data = useMemo(() => getMenuItems(theme, 'color'), [theme, updated]);
 
     const onTokenAdd = async (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | unknown)[]) => {
@@ -136,6 +102,28 @@ export const Colors = () => {
         });
 
         rerender();
+
+        // const readTheme = await readThemeBuildInstanceAndWrite();
+        // const themeData = {
+        //     meta: createMetaTokens(readTheme),
+        //     variations: createVariationTokens(readTheme),
+        // };
+        // const parameters = {
+        //     projectName: 'SDDS FINAI',
+        //     packagesName: 'sdds_finai',
+        //     grayTone: 'gray',
+        //     accentColor: 'blue',
+        //     lightStrokeSaturation: 50,
+        //     lightFillSaturation: 50,
+        //     darkStrokeSaturation: 50,
+        //     darkFillSaturation: 50,
+        // } as Partial<Parameters>;
+        // await DesignSystem.create({
+        //     name: 'sdds_finai',
+        //     version: '0.1.0',
+        //     parameters,
+        //     themeData,
+        // });
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {

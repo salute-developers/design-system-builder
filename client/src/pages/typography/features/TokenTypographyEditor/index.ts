@@ -1,0 +1,1 @@
+export { TokenTypographyEditor } from './TokenTypographyEditor';

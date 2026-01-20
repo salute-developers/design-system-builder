@@ -1,80 +1,21 @@
 import { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { IconClose } from '@salutejs/plasma-icons';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { getAlphaHex, getColorAndOpacity, numberFormatter } from '../../utils';
+import { getAlphaHex, numberFormatter } from '../../../../utils';
 import {
     DesignSystem,
     ShadowToken,
     ShapeToken,
     SpacingToken,
     Theme,
-    WebShadowToken,
-    WebShapeToken,
-    WebSpacingToken,
-} from '../../controllers';
-import { ShadowPicker, ShadowType } from '../../features';
-import { TextField, LinkButton } from '../../components';
-import { TokenShapePreview } from '.';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+} from '../../../../controllers';
+import { ShadowPicker, ShadowType } from '../../../../features';
+import { TextField } from '../../../../components';
+import { TokenShapePreview } from '../TokenShapePreview';
 
-const Root = styled.div`
-    height: 100%;
-    background: ${backgroundTertiary};
-
-    display: flex;
-`;
-
-const StyledHeader = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    margin-left: -0.375rem;
-`;
-
-const StyledSetup = styled.div`
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
-    min-width: 20rem;
-    height: calc(100% - 10rem);
-
-    // TODO: подумать как это обойти
-    // overflow-y: scroll;
-    // overflow-x: hidden;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-`;
-
-const StyledLinkButton = styled(LinkButton)`
-    position: absolute;
-    bottom: 3rem;
-`;
-
-const getTokenValue = (
-    token: WebShadowToken[string] | WebShapeToken[string] | WebSpacingToken[string],
-): string | ShadowType[] => {
-    if (typeof token === 'string') {
-        return `${parseFloat(token) * 16}`;
-    }
-
-    return token.map((shadow) => {
-        const [offsetX, offsetY, blur, spread, ...value] = shadow.split(' ');
-        const [color, opacity] = getColorAndOpacity(value.join(' '));
-
-        return {
-            offsetX: (parseFloat(offsetX) * 16).toString(),
-            offsetY: (parseFloat(offsetY) * 16).toString(),
-            blur: (parseFloat(blur) * 16).toString(),
-            spread: (parseFloat(spread) * 16).toString(),
-            color,
-            opacity,
-        };
-    });
-};
+import { Root, StyledHeader, StyledSetup, StyledLinkButton } from './TokenShapeEditor.styles';
+import { getTokenValue } from './TokenShapeEditor.utils';
 
 interface TokenShapeEditorProps {
     designSystem: DesignSystem;

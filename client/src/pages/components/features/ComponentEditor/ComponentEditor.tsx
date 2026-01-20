@@ -1,115 +1,14 @@
 import { useMemo, useState } from 'react';
-import styled from 'styled-components';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { useComponentData, useForceRerender } from '../../hooks';
-import { DesignSystem, Config, Theme } from '../../controllers';
-import { SegmentButtonItem, TextField } from '../../components';
-import { ComponentEditorPreview, ComponentEditorProperties, ComponentEditorSetup } from '.';
+import { useComponentData } from '../../../../hooks';
+import { DesignSystem, Config, Theme } from '../../../../controllers';
+import { SegmentButtonItem, TextField } from '../../../../components';
+import { ComponentEditorPreview } from '../ComponentEditorPreview';
+import { ComponentEditorProperties } from '../ComponentEditorProperties';
+import { ComponentEditorSetup } from '../ComponentEditorSetup';
 
-const Root = styled.div`
-    height: 100%;
-    background: ${backgroundTertiary};
-
-    display: flex;
-`;
-
-const StyledSetup = styled.div`
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
-    min-width: 33.75rem;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-`;
-
-const StyledHeader = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    margin-left: -0.375rem;
-`;
-
-const StyledWrapper = styled.div`
-    display: flex;
-    gap: 1.5rem;
-    margin-left: -0.5rem;
-`;
-
-const createThemeVars = (theme: Theme, themeMode: any) => {
-    return theme
-        .getTokens('color')
-        .filter((item) => item.getEnabled() && item.getTags()[0] === themeMode)
-        .reduce((acc, token) => {
-            const [, category, subcategory, name] = token.getName().split('.');
-            const tokenName = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
-
-            return {
-                ...acc,
-                [tokenName]: getRestoredColorFromPalette(token.getValue('web')),
-            };
-        }, {});
-};
-
-// TODO: перенести в утилиты?
-const createComponentVars = (config: Config, theme: Theme, args: Record<string, string | boolean>, themeMode: any) => {
-    const variations = config.getVariations();
-    const invariants = config.getInvariants();
-    const componentName = config.getName();
-
-    const items = Object.entries(args).map(([variation, value]) => ({
-        variation,
-        value,
-    }));
-
-    const variationsVars = items.reduce((vars, obj) => {
-        const variation = variations.find((item) => item.getName() === obj.variation);
-        const style = variation?.getStyles()?.find((item) => item.getID() === obj.value);
-
-        const props = style
-            ?.getProps()
-            .getList()
-            .reduce(
-                (acc, prop) => ({
-                    ...acc,
-                    ...prop.getWebTokenValue(componentName, theme, themeMode),
-                }),
-                {},
-            );
-
-        return {
-            ...vars,
-            ...props,
-        };
-    }, {});
-
-    const invariantVars = invariants.getList().reduce(
-        (acc, prop) => ({
-            ...acc,
-            ...prop.getWebTokenValue(componentName, theme, themeMode),
-        }),
-        {},
-    );
-
-    return {
-        ...variationsVars,
-        ...invariantVars,
-    };
-};
-
-const modeList = [
-    {
-        label: 'Тёмный',
-        value: 'dark',
-    },
-    {
-        label: 'Светлый',
-        value: 'light',
-    },
-];
+import { Root, StyledSetup, StyledHeader, StyledWrapper } from './ComponentEditor.styles';
+import { createThemeVars, createComponentVars, modeList } from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
     designSystem: DesignSystem;

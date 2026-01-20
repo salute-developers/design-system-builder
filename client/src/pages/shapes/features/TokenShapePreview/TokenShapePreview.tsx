@@ -1,142 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import styled from 'styled-components';
-import {
-    backgroundPrimary,
-    backgroundSecondary,
-    backgroundTertiary,
-} from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { VariationType } from '../../controllers';
-import { ShadowType } from '../../features';
-import { getAlphaHex } from '../../utils';
-import { SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem, TextField } from '../../components';
+import { VariationType } from '../../../../controllers';
+import { ShadowType } from '../../../../features';
+import { getAlphaHex } from '../../../../utils';
+import { SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem, TextField } from '../../../../components';
 
-const Root = styled.div<{ background?: string }>`
-    position: relative;
-
-    width: 100%;
-    height: 100%;
-    background: ${({ background }) => background || backgroundSecondary};
-`;
-
-const StyledPreviewShape = styled.div`
-    padding: 0.75rem;
-    box-sizing: border-box;
-
-    display: grid;
-    grid-template-rows: 60% 30% 10%;
-    gap: 0.25rem;
-
-    height: 100%;
-`;
-
-const StyledPreviewShapeItem = styled.div<{ borderRadius: string }>`
-    width: 100%;
-    height: 100%;
-    border-radius: ${({ borderRadius }) => borderRadius}px;
-
-    // TODO: использовать токен
-    background: #32353e;
-
-    transition: border-radius 0.2s ease-in-out;
-`;
-
-const StyledPreviewShadow = styled.div`
-    position: relative;
-
-    padding: 0.75rem;
-    box-sizing: border-box;
-
-    height: 100%;
-`;
-
-const StyledPreviewShadowBackgroundEditor = styled.div`
-    position: absolute;
-
-    top: 0.75rem;
-    left: 0.75rem;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-`;
-
-const StyledPreviewShadowSizeEditor = styled.div`
-    position: absolute;
-
-    bottom: 0.75rem;
-    left: 0.75rem;
-`;
-
-const StyledPreviewShadowItem = styled.div<{ width: string; height: string; boxShadow: string }>`
-    background: #ffffff;
-
-    width: ${({ width }) => width}px;
-    height: ${({ height }) => height}px;
-
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 2rem;
-
-    box-shadow: ${({ boxShadow }) => boxShadow};
-
-    transition: box-shadow 0.2s ease-in-out, width 0.2s ease-in-out, height 0.2s ease-in-out;
-`;
-
-const StyledPreviewSpacing = styled.div<{ spacing: string }>`
-    padding: calc(0.75rem + ${({ spacing }) => spacing}px);
-
-    box-sizing: border-box;
-
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: ${({ spacing }) => spacing}px;
-
-    height: 100%;
-
-    transition: gap 0.2s ease-in-out, padding 0.2s ease-in-out;
-`;
-
-const StyledPreviewSpacingItem = styled.div<{ spacing: string }>`
-    width: 100%;
-    height: 100%;
-    border-radius: 0.25rem;
-
-    // TODO: использовать токен
-    background: #32353e;
-`;
-
-const modeList = [
-    {
-        label: 'Тёмный',
-        value: 'dark',
-    },
-    {
-        label: 'Светлый',
-        value: 'light',
-    },
-];
-
-const backgroundList = [
-    {
-        label: 'backgroundPrimary',
-        value: backgroundPrimary,
-    },
-    {
-        label: 'backgroundSecondary',
-        value: backgroundSecondary,
-    },
-    {
-        label: 'backgroundTertiary',
-        value: backgroundTertiary,
-    },
-];
+import {
+    Root,
+    StyledPreviewShape,
+    StyledPreviewShapeItem,
+    StyledPreviewShadow,
+    StyledPreviewShadowBackgroundEditor,
+    StyledPreviewShadowSizeEditor,
+    StyledPreviewShadowItem,
+    StyledPreviewSpacing,
+    StyledPreviewSpacingItem,
+} from './TokenShapePreview.styles';
+import { modeList, backgroundList } from './TokenShapePreview.utils';
 
 interface TokenShapePreviewProps {
     value: string | ShadowType[];

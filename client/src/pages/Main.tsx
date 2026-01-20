@@ -24,6 +24,7 @@ import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
 import { IconButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
+import { Debug } from './Debug';
 // import { getNpmMeta } from '../api';
 
 import { popupContentPages } from './Main.utils';
@@ -36,7 +37,6 @@ import {
     StyledBasicButton,
     StyledPopup,
 } from './Main.styles';
-import { Debug } from './Debug';
 
 export const Main = () => {
     const navigate = useNavigate();
@@ -147,6 +147,8 @@ export const Main = () => {
 
     const handleSignOut = () => {
         localStorage.removeItem('status');
+        localStorage.removeItem('login');
+        localStorage.removeItem('password');
         navigate('/login');
     };
 

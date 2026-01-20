@@ -1,146 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import styled, { CSSObject } from 'styled-components';
 import { IconArrowDiagRightUp } from '@salutejs/plasma-icons';
-import {
-    h1,
-    textParagraph,
-    textPrimary,
-    textSecondary,
-    textTertiary,
-} from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { BackendDesignSystem, getFormatDate, h6, loadAllDesignSystems } from '../../utils';
+import { BackendDesignSystem, getFormatDate, loadAllDesignSystems } from '../../utils';
 import { LinkButton } from '../../components';
-import { IconLongArrowDownRight } from '../../icons';
 
-const ContentWrapper = styled.div`
-    padding: 3.75rem 0 0 7.5rem;
-`;
-
-const ContentHeader = styled.div`
-    width: 20rem;
-
-    color: ${textTertiary};
-
-    ${h1 as CSSObject};
-`;
-
-const StyledStartWrapper = styled.div`
-    cursor: pointer;
-
-    &:hover div {
-        color: ${textPrimary};
-    }
-`;
-
-const StyledStartButton = styled.div`
-    color: ${textSecondary};
-
-    ${h1 as CSSObject};
-
-    transition: color 0.2s ease-in-out;
-`;
-
-const StyledProjectName = styled.div`
-    color: ${textParagraph};
-
-    margin-top: 0.25rem;
-
-    ${h6 as CSSObject};
-
-    transition: color 0.2s ease-in-out;
-`;
-
-const StyledDesignSystems = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-
-    overflow: scroll;
-    height: calc(100vh - 8rem);
-    width: 100%;
-`;
-
-const StyledDesignSystemItem = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 1.125rem;
-`;
-
-const StyledDesignSystemData = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    gap: 0.5rem;
-
-    cursor: pointer;
-
-    &:hover > div {
-        color: ${textPrimary};
-    }
-`;
-
-const StyledDesignSystemInfo = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-`;
-
-const StyledDesignSystemName = styled.div`
-    color: ${textSecondary};
-
-    ${h1 as CSSObject}
-`;
-
-const StyledDesignSystemVersion = styled.div`
-    color: ${textSecondary};
-
-    ${h6 as CSSObject};
-`;
-
-const StyledDesignSystemDate = styled.div`
-    color: ${textTertiary};
-
-    ${h6 as CSSObject};
-`;
-
-const StyledDesignSystemLastUpdated = styled.div`
-    position: relative;
-
-    display: flex;
-    gap: 1rem;
-`;
-
-const StyledDesignSystemLastUpdatedLabel = styled.div`
-    margin-left: 1.5rem;
-    color: ${textTertiary};
-
-    ${h6 as CSSObject};
-`;
-
-const StyledIconLongArrowDownRight = styled(IconLongArrowDownRight)`
-    position: absolute;
-
-    top: -0.75rem;
-    left: 0.25rem;
-`;
-
-// TODO: Переделать когда научимся определять, что менялось последним
-const fakeLastUpdatedList = [
-    { label: 'Типографика', value: 'typography' },
-    { label: 'IconButton', value: 'components' },
-    { label: 'Форма', value: 'shapes' },
-    { label: 'Цвета', value: 'colors' },
-    { label: 'Button', value: 'components' },
-    { label: 'Цвета', value: 'colors' },
-    { label: 'Link', value: 'components' },
-    { label: 'Цвета', value: 'colors' },
-    { label: 'Checkbox', value: 'components' },
-    { label: 'Типографика', value: 'typography' },
-    { label: 'Radiobox', value: 'components' },
-    { label: 'Форма', value: 'shapes' },
-];
+import {
+    ContentWrapper,
+    ContentHeader,
+    StyledStartWrapper,
+    StyledStartButton,
+    StyledProjectName,
+    StyledDesignSystems,
+    StyledDesignSystemItem,
+    StyledDesignSystemData,
+    StyledDesignSystemInfo,
+    StyledDesignSystemName,
+    StyledDesignSystemVersion,
+    StyledDesignSystemDate,
+    StyledDesignSystemLastUpdated,
+    StyledDesignSystemLastUpdatedLabel,
+    StyledIconLongArrowDownRight,
+} from './Projects.styles';
+import { fakeLastUpdatedList } from './Projects.utils';
 
 interface ProjectsOutletContextProps {
     projectName?: string;

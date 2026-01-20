@@ -1,0 +1,1 @@
+export { ComponentEditorProperties } from './ComponentEditorProperties';

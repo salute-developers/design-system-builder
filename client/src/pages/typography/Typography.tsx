@@ -15,7 +15,8 @@ import {
     WebTypography,
 } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
-import { TokenTypographyEditor } from '.';
+
+import { TokenTypographyEditor } from './features/TokenTypographyEditor';
 
 interface TypographyOutletContextProps {
     designSystem?: DesignSystem;
@@ -30,7 +31,6 @@ export const Typography = () => {
     const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu([0, 1, 0]);
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const data = useMemo(() => getMenuItems(theme, 'typography'), [theme, updated]);
 
     const onTokenAdd = (groupName: string, tokenName: string, _?: string, tokens?: (Token | unknown)[]) => {
