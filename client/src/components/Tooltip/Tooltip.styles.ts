@@ -1,7 +1,6 @@
 import styled, { css, CSSObject } from 'styled-components';
 import { bodyXXS, surfaceSolidCard, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-
-type PlacementType = 'top' | 'bottom';
+import { PlacementType } from './Tooltip';
 
 export const Root = styled.div<{ offset?: [number, number]; placement?: PlacementType }>`
     position: absolute;
@@ -56,18 +55,3 @@ export const Root = styled.div<{ offset?: [number, number]; placement?: Placemen
     ${bodyXXS as CSSObject};
 `;
 
-interface TooltipProps {
-    text: string;
-    offset?: [number, number];
-    placement?: PlacementType;
-}
-
-export const Tooltip = (props: TooltipProps) => {
-    const { text, offset = [0, 0], placement = 'top' } = props;
-
-    return (
-        <Root offset={offset} placement={placement}>
-            {text}
-        </Root>
-    );
-};
