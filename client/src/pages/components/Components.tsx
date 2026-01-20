@@ -6,7 +6,8 @@ import { useSelectItemInMenu } from '../../hooks';
 import { getMenuItems } from '../../utils';
 import { DesignSystem, Theme, Config } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
-import { ComponentEditor } from '.';
+
+import { ComponentEditor } from './features/ComponentEditor';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -21,7 +22,6 @@ export const Components = () => {
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 2, 3]);
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const data = useMemo(() => getMenuItems(components, 'components'), [theme]);
 
     useEffect(() => {

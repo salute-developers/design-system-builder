@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { KeyboardEvent, useState } from 'react';
 
 import { Root } from '../Main.styles.ts';
@@ -5,7 +6,6 @@ import { Wrapper, StyledIconButton } from './Login.styles.ts';
 import { HeroTextField } from '../../features';
 
 import { IconButton, TextField } from '../../components';
-import { useNavigate } from 'react-router-dom';
 
 type Step = 'login' | 'password';
 
@@ -94,6 +94,8 @@ const Login = () => {
     const handleSubmit = () => {
         console.log('Authorized');
         localStorage.setItem('status', 'authorized');
+        localStorage.setItem('login', login);
+        localStorage.setItem('password', password);
         navigate('/');
     };
 

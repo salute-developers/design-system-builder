@@ -9,13 +9,13 @@ import {
 import { general } from '@salutejs/plasma-colors';
 import { IconArrowDiagRightUp, IconHistory } from '@salutejs/plasma-icons';
 
+// TODO: Уйдёт после редизайна этой страницы
+import { StyledPreviewSaturation } from '../../popup/SetupParameters/steps/SaturationSelectStep/SaturationSelectStep.styles';
 import { h6, prettifyColorName } from '../../utils';
 import { Workspace } from '../../layouts';
 import { DesignSystem, Theme } from '../../controllers';
 import { EditButton, LinkButton } from '../../components';
 import { grayTones } from '../../types';
-// TODO: Уйдёт после редизайна этой страницы
-import { StyledPreviewSaturation } from '../../popup/steps/SaturationSelectStep';
 
 const Root = styled.div`
     display: flex;

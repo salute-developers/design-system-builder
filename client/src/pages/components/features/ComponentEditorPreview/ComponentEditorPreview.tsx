@@ -1,84 +1,19 @@
 import { Fragment, useMemo, useState } from 'react';
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
-import styled from 'styled-components';
-import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { Config, Theme, Variation } from '../../controllers';
-import { SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem, Switch, TextField } from '../../components';
-import { useStory } from '../../hooks';
+import { Config, Theme, Variation } from '../../../../controllers';
+import { SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem, Switch, TextField } from '../../../../components';
+import { useStory } from '../../../../hooks';
 
-const Root = styled.div<{ background?: string }>`
-    position: relative;
-
-    width: 100%;
-    height: 100%;
-    background: ${backgroundSecondary};
-`;
-
-const StyledPreviewShadow = styled.div`
-    position: relative;
-
-    padding: 0.75rem;
-    box-sizing: border-box;
-
-    width: 100%;
-    height: 100%;
-
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-`;
-
-const StyledPreviewBackgroundEditor = styled.div`
-    position: relative;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-`;
-
-const StyledComponentWrapper = styled.div<{ background: string }>`
-    background: ${({ background }) => background};
-    border-radius: 1.25rem;
-
-    flex: 1;
-    height: 20.75rem;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-`;
-
-const StyledComponentControls = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    width: fit-content;
-`;
-
-const StyledDivider = styled.div`
-    margin: 0.75rem 0;
-`;
-
-// TODO: Подумать, нужно ли формировать его автоматически
-const backgroundList = [
-    {
-        label: 'backgroundPrimary',
-        value: 'var(--background-primary)',
-    },
-    {
-        label: 'backgroundSecondary',
-        value: 'var(--background-secondary)',
-    },
-    {
-        label: 'backgroundTertiary',
-        value: 'var(--background-tertiary)',
-    },
-    {
-        label: 'surfaceAccent',
-        value: 'var(--surface-accent)',
-    },
-];
+import {
+    Root,
+    StyledPreviewShadow,
+    StyledPreviewBackgroundEditor,
+    StyledComponentWrapper,
+    StyledComponentControls,
+    StyledDivider,
+} from './ComponentEditorPreview.styles';
+import { backgroundList } from './ComponentEditorPreview.utils';
 
 interface ComponentEditorPreviewProps {
     config: Config;

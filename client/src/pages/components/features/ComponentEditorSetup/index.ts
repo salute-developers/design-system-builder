@@ -1,0 +1,1 @@
+export { ComponentEditorSetup } from './ComponentEditorSetup';

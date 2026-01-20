@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { IconClose } from '@salutejs/plasma-icons';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import {
     DesignSystem,
@@ -10,75 +8,13 @@ import {
     IOSFontWeight,
     Theme,
     TypographyToken,
-    WebTypographyToken,
-} from '../../controllers';
-import { TextField, LinkButton, SegmentButton, SegmentButtonItem } from '../../components';
-import { TypographyPicker, TypographyType } from '../../features';
-import { TokenTypographyPreview } from '.';
+} from '../../../../controllers';
+import { TextField, SegmentButton, SegmentButtonItem } from '../../../../components';
+import { TypographyPicker, TypographyType } from '../../../../features';
+import { TokenTypographyPreview } from '../TokenTypographyPreview';
 
-const Root = styled.div`
-    height: 100%;
-    background: ${backgroundTertiary};
-
-    display: flex;
-`;
-
-const StyledHeader = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    margin-left: -0.375rem;
-`;
-
-const StyledSetup = styled.div`
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
-    min-width: 20rem;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-`;
-
-const StyledLinkButton = styled(LinkButton)`
-    position: absolute;
-    bottom: 3rem;
-`;
-
-const getTokenValue = (token: WebTypographyToken[string], theme: Theme) => {
-    const { fontFamilyRef, fontStyle, fontWeight, ...values } = token;
-
-    const fontFamily =
-        theme.getTokenValue(fontFamilyRef.replace('fontFamily.', ''), 'fontFamily', 'web')?.name || 'Font Family';
-    const fontSize = (parseFloat(values.fontSize) * 16).toString();
-    const lineHeight = (parseFloat(values.lineHeight) * 16).toString();
-    const letterSpacing = values.letterSpacing === 'normal' ? '0' : Number(parseFloat(values.letterSpacing)).toString();
-
-    return {
-        fontFamily,
-        fontWeight,
-        fontStyle,
-        fontSize,
-        lineHeight,
-        letterSpacing,
-    };
-};
-
-const screenSizeList = [
-    {
-        label: 'Большой',
-        value: 0,
-    },
-    {
-        label: 'Средний',
-        value: 1,
-    },
-    {
-        label: 'Маленький',
-        value: 2,
-    },
-];
+import { Root, StyledHeader, StyledSetup, StyledLinkButton } from './TokenTypographyEditor.styles';
+import { getTokenValue, screenSizeList } from './TokenTypographyEditor.utils';
 
 interface TokenTypographyEditorProps {
     designSystem: DesignSystem;

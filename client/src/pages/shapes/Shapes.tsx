@@ -22,7 +22,8 @@ import {
     WebSpacing,
 } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
-import { TokenShapeEditor } from '.';
+
+import { TokenShapeEditor } from './features/TokenShapeEditor';
 
 interface ShapesOutletContextProps {
     designSystem?: DesignSystem;
@@ -37,7 +38,6 @@ export const Shapes = () => {
     const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const data = useMemo(() => getMenuItems(theme, 'shape'), [theme, updated]);
 
     const onTokenAdd = (_: string, tokenName: string, __?: string, tokens?: (Token | unknown)[]) => {

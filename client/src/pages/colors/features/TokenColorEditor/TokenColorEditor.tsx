@@ -1,100 +1,41 @@
 import { useState, useEffect, useMemo, MouseEvent } from 'react';
-import styled from 'styled-components';
-import { IconClose, IconCopyOutline, IconDone } from '@salutejs/plasma-icons';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { IconClose } from '@salutejs/plasma-icons';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { DesignSystem, ColorToken, GradientToken, Theme } from '../../controllers';
-import { convertColor, getColorAndOpacity } from '../../utils';
-import { ColorFormats } from '../../types';
-import { ColorPicker } from '../../features';
+import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
+import { convertColor, getColorAndOpacity } from '../../../../utils';
+import { ColorFormats } from '../../../../types';
+import { ColorPicker } from '../../../../features';
 import {
     TextField,
     EditButton,
-    LinkButton,
     SegmentButton,
     SegmentButtonItem,
     SelectButton,
     SelectButtonItem,
-} from '../../components';
-import { TokenColorPreview } from '.';
-import { getAdditionalColorValues } from './Colors';
+} from '../../../../components';
+import { TokenColorPreview } from '../TokenColorPreview';
+import { getAdditionalColorValues } from '../../Colors.utils';
 
-const Root = styled.div`
-    height: 100%;
-    background: ${backgroundTertiary};
+import {
+    Root,
+    StyledHeader,
+    StyledSetup,
+    StyledColorFormats,
+    StyledLinkButton,
+    StyledIconDone,
+    StyledIconCopyOutline,
+} from './TokenColorEditor.styles';
+import { modeList, typeList } from './TokenColorEditor.utils';
 
-    display: flex;
-`;
-
-const StyledHeader = styled.div`
-    display: flex;
-    flex-direction: column;
-
-    margin-left: -0.375rem;
-`;
-
-const StyledSetup = styled.div`
-    box-sizing: border-box;
-    padding: 0.75rem 1.25rem;
-
-    min-width: 20rem;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-`;
-
-const StyledColorFormats = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-`;
-
-const StyledIconCopyOutline = styled(IconCopyOutline)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledIconDone = styled(IconDone)`
-    --icon-size: 0.75rem !important;
-`;
-
-const StyledLinkButton = styled(LinkButton)`
-    position: absolute;
-    bottom: 3rem;
-`;
-
-const modeList = [
-    {
-        label: 'Тёмный',
-        value: 0,
-    },
-    {
-        label: 'Светлый',
-        value: 1,
-    },
-];
-
-const typeList = [
-    {
-        label: 'Сплошной',
-        value: 'solid',
-    },
-    {
-        label: 'Градиент',
-        value: 'gradient',
-        disabled: true,
-    },
-];
-
-interface ColorValueEditButton {
+interface ColorValueEditButtonProps {
     label: string;
     format: keyof ColorFormats;
     color: string;
     opacity: number;
 }
 
-const ColorValueEditButton = (props: ColorValueEditButton) => {
+const ColorValueEditButton = (props: ColorValueEditButtonProps) => {
     const { label, color, opacity, format } = props;
 
     const [copied, setCopied] = useState<boolean | undefined>();
