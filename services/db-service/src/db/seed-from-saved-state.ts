@@ -28,6 +28,7 @@ async function seedFromExtractedData(clearDatabase = false) {
     await db.delete(schema.designSystemComponents);
     await db.delete(schema.components);
     await db.delete(schema.designSystems);
+    await db.delete(schema.users);
   } else {
     console.log("ℹ️  Adding data to existing database (no clearing)");
   }
@@ -253,6 +254,19 @@ async function seedFromExtractedData(clearDatabase = false) {
       `✅ Created ${invariantTokenValueInserts.length} invariant token values`
     );
 
+    // Insert Test User
+    console.log("👤 Creating test user...");
+    const firstDesignSystemId = insertedDesignSystems[0]?.id;
+    const [testUser] = await db
+      .insert(schema.users)
+      .values({
+        user: "test_user",
+        token: "test_token",
+        designSystems: firstDesignSystemId ? [firstDesignSystemId] : [],
+      })
+      .returning();
+    console.log(`✅ Created test user with ID ${testUser.id}`);
+
     console.log("\n✅ Seed from extracted data completed successfully!");
     console.log("📊 Summary:");
     console.log(`  • ${insertedDesignSystems.length} Design Systems`);
@@ -273,6 +287,7 @@ async function seedFromExtractedData(clearDatabase = false) {
     console.log(
       `  • ${invariantTokenValueInserts.length} Invariant Token Values`
     );
+    console.log(`  • 1 Test User`);
   } catch (error) {
     console.error("❌ Error during seed:", error);
     throw error;

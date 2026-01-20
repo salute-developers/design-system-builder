@@ -1,7 +1,4 @@
-import {
-    DesignSystemData,
-    Parameters
-} from '../validation';
+import { DesignSystemData, Parameters } from '../validation';
 import { BackendThemeStore } from './backendThemes';
 import { BackendComponentStore } from './backendComponents';
 import { BackendDesignSystem, IndexStore } from './indexStore';
@@ -22,7 +19,7 @@ export class DesignSystemStore {
     // Save design system data with enhanced transformation
     async saveDesignSystem(data: DesignSystemData): Promise<void> {
         const { name, version, parameters, themeData, componentsData } = data;
-        
+
         Logger.log(`🔄 Processing design system: ${name}@${version}`);
         Logger.log(`📊 Components: ${componentsData.length}, Theme: ${themeData ? 'present' : 'missing'}`);
 
@@ -40,7 +37,10 @@ export class DesignSystemStore {
     }
 
     // Load design system data with enhanced transformation
-    async loadDesignSystem(name: string, version: string): Promise<{ themeData: ThemeSource; componentsData: Meta[], parameters?: Partial<Parameters> }> {
+    async loadDesignSystem(
+        name: string,
+        version: string,
+    ): Promise<{ themeData: ThemeSource; componentsData: Meta[]; parameters?: Partial<Parameters> }> {
         // First check if design system exists in index
         const existsInIndex = await this.indexStore.existsInIndex(name, version);
         if (!existsInIndex) {
@@ -53,7 +53,6 @@ export class DesignSystemStore {
         //     this.componentStore.componentsExist(name, version)
         // ]);
 
-
         // if (!themeExists || !componentsExist) {
         //     // Files are missing - clean up index
         //     await this.indexStore.removeFromIndex(name, version);
@@ -64,7 +63,7 @@ export class DesignSystemStore {
         const [themeData, componentsData, designSystem] = await Promise.all([
             this.themeStore.loadTheme(name, version),
             this.componentStore.loadComponents(name, version),
-            this.getDesignSystem(name)
+            this.getDesignSystem(name),
         ]);
 
         const parameters = {
@@ -75,8 +74,8 @@ export class DesignSystemStore {
             lightStrokeSaturation: designSystem.lightStrokeSaturation,
             lightFillSaturation: designSystem.lightFillSaturation,
             darkStrokeSaturation: designSystem.darkStrokeSaturation,
-            darkFillSaturation: designSystem.darkFillSaturation
-        }
+            darkFillSaturation: designSystem.darkFillSaturation,
+        };
 
         Logger.log(`✅ Loaded design system from storage: ${name}@${version} (theme + components with transformation)`);
         return { themeData, componentsData, parameters };
@@ -99,6 +98,19 @@ export class DesignSystemStore {
         return designSystems as BackendDesignSystem[];
     }
 
+    async permittedDesignSystems(token: string): Promise<BackendDesignSystem[] | null> {
+        try {
+            const user = await this.indexStore?.getUserByToken(token);
+            const designSystems = await this.indexStore.listFromIndex();
+
+            return designSystems.filter((designSystem) => {
+                return user.designSystems.includes(designSystem.id);
+            });
+        } catch {
+            return null;
+        }
+    }
+
     // Delete design system with enhanced cleanup
     async deleteDesignSystem(name: string, version: string): Promise<void> {
         // Check if design system exists in index
@@ -111,15 +123,16 @@ export class DesignSystemStore {
         await Promise.all([
             this.themeStore.deleteTheme(name, version),
             // INFO: здесь удаляется дизайн система
-            this.componentStore.deleteComponents(name, version)
+            this.componentStore.deleteComponents(name, version),
         ]);
 
         // Remove from index
         // await this.indexStore.removeFromIndex(name, version);
-        
-        Logger.log(`🗑️ Deleted design system from storage: ${name}@${version} (theme + components with transformation)`);
+
+        Logger.log(
+            `🗑️ Deleted design system from storage: ${name}@${version} (theme + components with transformation)`,
+        );
     }
-    
 }
 
 // Factory function to create a store instance

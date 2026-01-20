@@ -14,6 +14,15 @@ export interface BackendDesignSystem {
     updatedAt: string;
 }
 
+export interface BackendUser {
+    id: number;
+    name: string;
+    token: string;
+    designSystems: number[];
+    createdAt: string;
+    updatedAt: string;
+}
+
 // Interface for creating a design system
 export interface CreateDesignSystemRequest {
     name: string;
@@ -89,6 +98,18 @@ export class IndexStore {
         const backendDesignSystem = await response.json() as BackendDesignSystem;
 
         return backendDesignSystem;
+    }
+
+    async getUserByToken(token: string): Promise<BackendUser> {
+      const response = await fetch(`${this.baseUrl}/users/by-token?token=${token}`);
+        
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        }
+
+        const user = await response.json();
+
+        return user;
     }
 
     // List all design systems from backend

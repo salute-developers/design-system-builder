@@ -99,6 +99,13 @@
       "when": 1759750361466,
       "tag": "0013_public_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1768827633502,
+      "tag": "0014_old_franklin_richards",
+      "breakpoints": true
     }
   ]
 }

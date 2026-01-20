@@ -163,35 +163,32 @@ export const Menu = (props: MenuProps) => {
         }
     };
 
-    const onItemDisabledButtonClick = (
-        groupName: string,
-        itemName: string,
-        items: (Token | Config)[],
-        disabled: boolean,
-    ) => (event: MouseEvent<HTMLDivElement>) => {
-        event.stopPropagation();
+    const onItemDisabledButtonClick =
+        (groupName: string, itemName: string, items: (Token | Config)[], disabled: boolean) =>
+        (event: MouseEvent<HTMLDivElement>) => {
+            event.stopPropagation();
 
-        const groupIndex = groupsData.findIndex((group) => group.name === groupName);
-        const itemIndex = groupsData[groupIndex].items.findIndex((item) => item.name === itemName);
+            const groupIndex = groupsData.findIndex((group) => group.name === groupName);
+            const itemIndex = groupsData[groupIndex].items.findIndex((item) => item.name === itemName);
 
-        const updatedGroupsData = [...groupsData];
-        updatedGroupsData[groupIndex].items[itemIndex].disabled = !disabled;
+            const updatedGroupsData = [...groupsData];
+            updatedGroupsData[groupIndex].items[itemIndex].disabled = !disabled;
 
-        if (onItemDisable) {
-            onItemDisable(items, disabled);
-        }
+            if (onItemDisable) {
+                onItemDisable(items, disabled);
+            }
 
-        setGroupsData(updatedGroupsData);
+            setGroupsData(updatedGroupsData);
 
-        if (updatedGroupsData[groupIndex].items.every(({ disabled }) => disabled)) {
-            setDisabledGroups([...disabledGroups, groupName]);
-            return;
-        }
+            if (updatedGroupsData[groupIndex].items.every(({ disabled }) => disabled)) {
+                setDisabledGroups([...disabledGroups, groupName]);
+                return;
+            }
 
-        if (updatedGroupsData[groupIndex].items.some(({ disabled }) => !disabled)) {
-            setDisabledGroups(disabledGroups.filter((item) => item !== groupName));
-        }
-    };
+            if (updatedGroupsData[groupIndex].items.some(({ disabled }) => !disabled)) {
+                setDisabledGroups(disabledGroups.filter((item) => item !== groupName));
+            }
+        };
 
     useEffect(() => {
         setGroupsData(data.groups[tabIndex].data);

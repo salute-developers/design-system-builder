@@ -241,3 +241,13 @@ export const themesRelations = relations(themes, ({ one }) => ({
     references: [designSystems.id],
   }),
 }));
+
+// Users table
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  user: text('user').notNull(),
+  token: text('token').notNull().unique(),
+  designSystems: integer('design_systems').array().default(sql`'{}'::integer[]`),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
