@@ -1,20 +1,10 @@
 import { ChangeEvent, KeyboardEvent, MutableRefObject } from 'react';
-import styled from 'styled-components';
-import { IconArrowBack } from '@salutejs/plasma-icons';
 
-import { Parameters } from '../../types';
-import { transliterateToSnakeCase } from '../../utils';
-import { HeroTextField } from '../../features';
-import { IconButton, TextField } from '../../components';
-import { popupSetupSteps } from '.';
-
-const StyledHeroTextField = styled(HeroTextField)`
-    margin-bottom: 3rem;
-`;
-
-const StyledIconButton = styled(IconArrowBack)`
-    --icon-size: 3.25rem !important;
-`;
+import { Parameters } from '../../../../types';
+import { transliterateToSnakeCase } from '../../../../utils';
+import { IconButton, TextField } from '../../../../components';
+import { popupSetupSteps } from '../../SetupParameters.utils';
+import { StyledHeroTextField, StyledIconButton } from './ProjectNameStep.styles';
 
 interface ProjectNameStepProps {
     packagesNameEdited: MutableRefObject<boolean>;

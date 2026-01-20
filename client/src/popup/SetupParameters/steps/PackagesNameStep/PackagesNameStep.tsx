@@ -1,8 +1,8 @@
 import { MutableRefObject } from 'react';
 
-import { Parameters } from '../../types';
-import { TextField } from '../../components';
-import { popupSetupSteps } from '.';
+import { Parameters } from '../../../../types';
+import { TextField } from '../../../../components';
+import { popupSetupSteps } from '../../SetupParameters.utils';
 
 interface PackagesNameStepProps {
     packagesName?: string;

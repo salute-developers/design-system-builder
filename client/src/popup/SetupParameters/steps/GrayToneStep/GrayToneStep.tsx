@@ -1,22 +1,6 @@
-import styled from 'styled-components';
-import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
-
-import { GrayTone, grayTones, Parameters } from '../../types';
-import { HoverSelect } from '../../features';
-import { EditButton } from '../../components';
-import { popupSetupSteps } from '.';
-
-const StyledHoverSelect = styled(HoverSelect)`
-    margin: 3rem 0;
-`;
-
-const StyledEditButton = styled(EditButton)`
-    margin: 1.5rem 0;
-`;
-
-const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
-`;
+import { GrayTone, grayTones, Parameters } from '../../../../types';
+import { popupSetupSteps } from '../../SetupParameters.utils';
+import { StyledHoverSelect, StyledEditButton, StyledIconArrowsMoveVertical } from './GrayToneStep.styles';
 
 interface GrayToneStepProps {
     editMode: boolean;

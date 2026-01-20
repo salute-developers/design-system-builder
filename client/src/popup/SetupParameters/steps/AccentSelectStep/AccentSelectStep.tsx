@@ -1,28 +1,9 @@
-import styled from 'styled-components';
-import { general } from '@salutejs/plasma-colors';
-import { IconArrowsMoveVertical } from '@salutejs/plasma-icons';
-
-import { prettifyColorName } from '../../utils';
-import { GeneralColor, Parameters } from '../../types';
-import { AccentSelect } from '../../features';
-import { EditButton } from '../../components';
-import { popupSetupSteps } from '.';
-
-const StyledAccentSelect = styled(AccentSelect)`
-    margin: 3rem 0;
-`;
-
-const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
-`;
-
-const accentColors = Object.entries(general)
-    .slice(0, -3)
-    .map(([name, item]) => ({
-        label: prettifyColorName(name),
-        value: name,
-        color: item[600],
-    }));
+import { prettifyColorName } from '../../../../utils';
+import { GeneralColor, Parameters } from '../../../../types';
+import { EditButton } from '../../../../components';
+import { popupSetupSteps } from '../../SetupParameters.utils';
+import { accentColors } from './AccentSelectStep.utils';
+import { StyledAccentSelect, StyledIconArrowsMoveVertical } from './AccentSelectStep.styles';
 
 interface AccentSelectStepProps {
     accentColor: GeneralColor;

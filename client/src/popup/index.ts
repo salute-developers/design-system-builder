@@ -1,4 +1,4 @@
-export { CreationProgress } from './creationProgress';
-export { CreateFirstName } from './createFirstName';
-export { SetupParameters } from './steps';
-export { PublishProgress } from './publishProgress';
+export { CreationProgress } from './CreationProgress';
+export { CreateFirstName } from './CreateFirstName';
+export { SetupParameters } from './SetupParameters';
+export { PublishProgress } from './PublishProgress';

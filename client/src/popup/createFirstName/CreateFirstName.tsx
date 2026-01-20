@@ -1,15 +1,8 @@
 import { ChangeEvent, KeyboardEvent, useState } from 'react';
-import styled from 'styled-components';
-import { IconArrowBack } from '@salutejs/plasma-icons';
 
 import { IconButton } from '../../components';
 import { HeroTextField } from '../../features';
-
-const Root = styled.div``;
-
-const StyledIconButton = styled(IconArrowBack)`
-    --icon-size: 3.25rem !important;
-`;
+import { Root, StyledIconButton } from './CreateFirstName.styles';
 
 interface CreateFirstNameProps {
     onPrevPage: () => void;
