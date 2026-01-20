@@ -1,62 +1,15 @@
 import { useEffect, useState } from 'react';
-import styled, { CSSObject } from 'styled-components';
-import { h1, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { general } from '@salutejs/plasma-colors';
 
-import { h6 } from '../../utils';
 import { Config, DesignSystem, Theme } from '../../controllers';
-import { Progress } from '../../components';
 import { designSystemSave, generateAndDeployDocumentation, generatePublish, longPollNpm } from '../../pages';
-
-const Root = styled.div`
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-
-    height: 100%;
-`;
-
-const StyledDesignSystemName = styled.div`
-    position: absolute;
-    left: 0.75rem;
-    top: 0.75rem;
-
-    display: flex;
-    align-items: center;
-    width: 16rem;
-    height: 2.5rem;
-    padding: 0 0.5rem;
-
-    color: ${textPrimary};
-
-    ${h6 as CSSObject};
-    font-weight: 600;
-`;
-
-const StyledD = styled.div`
-    position: absolute;
-    width: 17.5rem;
-    left: 50%;
-    transform: translateX(-50%) translateY(-1.875rem);
-
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.75rem;
-`;
-
-const StyledStatus = styled.div`
-    color: ${textPrimary};
-    ${h6 as CSSObject};
-`;
-
-const StyledVersion = styled.div`
-    color: ${textPrimary};
-    ${h1 as CSSObject};
-`;
-
-const StyledProgress = styled(Progress)``;
+import {
+    Root,
+    StyledDescription,
+    StyledDesignSystemName,
+    StyledProgress,
+    StyledStatus,
+} from './PublishProgress.styles';
 
 interface PublishProgressProps {
     designSystem: DesignSystem | null;
@@ -151,12 +104,12 @@ export const PublishProgress = (props: PublishProgressProps) => {
     return (
         <Root>
             <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
-            <StyledD>
+            <StyledDescription>
                 <StyledStatus>Публикуем новую версию…</StyledStatus>
                 <StyledProgress value={value} color={progressColor} />
                 {/* TODO: Сделать нормальную систему версионирования */}
                 {/* <StyledVersion>{version}</StyledVersion> */}
-            </StyledD>
+            </StyledDescription>
         </Root>
     );
 };
