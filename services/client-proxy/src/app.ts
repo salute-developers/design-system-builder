@@ -169,10 +169,17 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
             const version = '0.1.0';
 
             const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                res.status(401).json({
+                    error: 'Unauthorized',
+                    details: 'Authorization header is required'
+                });
+                return;
+            }
             const [, token] = authHeader.split(' ');
 
             // TODO: Переделать на группы доступов
-            const permittedDesignSystems = await store.permittedDesignSystems(token);
+            const permittedDesignSystems = await store.permittedDesignSystems(token || '');
             if (name === 'sdds_finai' && !permittedDesignSystems) {
                 res.status(404).json({
                     error: 'Design system not found',
@@ -218,6 +225,13 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
     app.get('/api/design-systems', async (req: Request, res: Response<any>): Promise<void> => {
         try {
             const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                res.status(401).json({
+                    error: 'Unauthorized',
+                    details: 'Authorization header is required'
+                });
+                return;
+            }
             const [, token] = authHeader.split(' ');
 
             const designSystems = await store.listDesignSystems();
@@ -229,7 +243,7 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
 
             // TODO: Переделать на группы доступов
             const result = designSystems.filter((designSystem) => designSystem.name !== 'sdds_finai');
-            const permittedDesignSystems = await store.permittedDesignSystems(token);
+            const permittedDesignSystems = await store.permittedDesignSystems(token || '');
             if (permittedDesignSystems) {
                 result.push(...permittedDesignSystems);
             }

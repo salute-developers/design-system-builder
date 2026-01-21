@@ -107,7 +107,7 @@ export class IndexStore {
             throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
         }
 
-        const user = await response.json();
+        const user = await response.json() as BackendUser;
 
         return user;
     }
