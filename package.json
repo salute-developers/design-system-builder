@@ -1,7 +1,7 @@
 {
   "name": "ds-builder",
   "version": "1.0.0",
-  "description": "Design System Builder Application",
+  "description": "Design System Builder Application.",
   "scripts": {
     "dev": "concurrently \"npm run dev:services\" \"npm run dev:client\" \"npm run dev:frontend\"",
     "dev:services": "concurrently \"npm run dev:db-service\" \"npm run dev:client-proxy\" \"npm run dev:ds-generator\"",
