@@ -1,5 +1,4 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { IconChevronDown, IconChevronUp } from '@salutejs/plasma-icons';
 
 import { IconButton, SelectButtonItem } from '../../../../components';
@@ -14,7 +13,8 @@ import {
     StyledWCAGStatusText,
     StyledSelectButton,
 } from './TokenColorPreview.styles';
-import { getColorsTokens, getContrastRatio, getContrastStatus } from './TokenColorPreview.utils';
+import { getColorsTokens, getContrastStatus } from './TokenColorPreview.utils';
+import { getNormalizedColor, getContrastRatio } from '../../../../utils';
 
 interface PreviewItemProps {
     defaultBackground: string;
@@ -53,7 +53,7 @@ const PreviewItem = (props: PreviewItemProps) => {
     const renderExample = (size: 'small' | 'large') => {
         return (
             <StyledWCAGStatus>
-                <StyledWCAGStatusText size={size} color={color}>
+                <StyledWCAGStatusText size={size} style={{ color }}>
                     {getContrastStatus(contrastRatio, size)}
                     <IconButton onClick={() => onExampleToggle(size)}>
                         {openExamples.includes(size) ? (
@@ -64,7 +64,7 @@ const PreviewItem = (props: PreviewItemProps) => {
                     </IconButton>
                 </StyledWCAGStatusText>
                 {openExamples.includes(size) && (
-                    <StyledWCAGStatusText size={size} color={color}>
+                    <StyledWCAGStatusText size={size} style={{ color }}>
                         Эх, жирафы честно в цель шагают, да щук объять за память ёлкой...
                     </StyledWCAGStatusText>
                 )}
@@ -84,7 +84,7 @@ const PreviewItem = (props: PreviewItemProps) => {
                     onItemSelect={onBackgroundSelect}
                 />
             </StyledPreviewBackgroundEditor>
-            <StyledWCAGRating color={color}>{contrastRatio}</StyledWCAGRating>
+            <StyledWCAGRating style={{ color }}>{contrastRatio}</StyledWCAGRating>
             {renderExample('large')}
             {renderExample('small')}
         </StyledPreview>
@@ -100,7 +100,7 @@ interface TokenColorPreviewProps {
 export const TokenColorPreview = (props: TokenColorPreviewProps) => {
     const { color, opacity, theme } = props;
 
-    const colorValue = getRestoredColorFromPalette(`[${color}][${opacity}]`, -1) ?? color;
+    const colorValue = getNormalizedColor(color, opacity);
     const tokenList = getColorsTokens(theme);
 
     return (

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { general } from '@salutejs/plasma-colors';
+import { useEffect, useMemo, useState } from 'react';
 
-import { SelectButton, SelectButtonItem, Slider } from '../../components';
-import { getCorpColor, prettifyColorName, separatedCorpColor } from '../../utils';
-import { Root, ColorPreview, ColorPreviewBackground, ColorSelector } from './ColorPicker.styles';
-import { accentColors, paletteList, saturationColors } from './ColorPicker.utils';
+import { SelectButton, SelectButtonItem, Slider, TextField } from '../../components';
+import { getNormalizedColor, isValidColorValue } from '../../utils';
+
+import { Root } from './ColorPicker.styles';
+import { paletteList } from './ColorPicker.utils';
+
+import { CustomColorSelector, PaletteColorSelector } from './ui';
 
 interface ColorPickerProps {
     color: string;
@@ -14,59 +16,19 @@ interface ColorPickerProps {
 }
 
 export const ColorPicker = (props: ColorPickerProps) => {
-    const { color: outerColor, opacity, onColorChange, onOpacityChange } = props;
+    const { color, opacity, onColorChange, onOpacityChange } = props;
 
+    const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
     const [palette, setPalette] = useState({
         value: 'corp',
     });
 
-    const [innerColor, setInnerColor] = useState(outerColor);
-    const [, accentValue, saturationValue] = separatedCorpColor(innerColor);
+    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true));
 
-    const [accent, setAccent] = useState<SelectButtonItem>({
-        label: prettifyColorName(accentValue),
-        value: accentValue,
-    });
-
-    const [saturation, setSaturation] = useState<SelectButtonItem>({
-        label: saturationValue,
-        value: saturationValue,
-    });
+    // const colorValue = useMemo(() => getNormalizedColor(color, undefined, true), [color]);
 
     const onPaletteSelect = (item: SelectButtonItem) => {
         setPalette(item);
-    };
-
-    const onAccentSelect = (item: SelectButtonItem) => {
-        setAccent(item);
-
-        if (onColorChange) {
-            onColorChange(getCorpColor(item.value, saturation.value));
-        }
-    };
-
-    const onAccentHover = (item: SelectButtonItem) => {
-        const value = getCorpColor(item.value, saturation.value);
-
-        setInnerColor(value);
-    };
-
-    const onSaturationSelect = (item: SelectButtonItem) => {
-        setSaturation(item);
-
-        if (onColorChange) {
-            onColorChange(getCorpColor(accent.value, item.value));
-        }
-    };
-
-    const onSaturationHover = (item: SelectButtonItem) => {
-        const value = getCorpColor(accent.value, item.value);
-
-        setInnerColor(value);
-    };
-
-    const onOutsideClick = () => {
-        setInnerColor(outerColor);
     };
 
     const onSliderValueChange = (opacity: number) => {
@@ -75,45 +37,72 @@ export const ColorPicker = (props: ColorPickerProps) => {
         }
     };
 
+    const onColorValueChange = (value: string) => {
+        if (onColorChange) {
+            onColorChange(value);
+            setColorValueStatus('default');
+        }
+    };
+
+    const onInputValueChange = (value: string) => {
+        setColorValueStatus('default');
+
+        setInputValue(value);
+    };
+
+    const onInputValueBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+        const value = event.target.value;
+
+        if (!onColorChange) {
+            return;
+        }
+
+        if (isValidColorValue(value)) {
+            onColorChange(value);
+            return;
+        }
+
+        if (value === '') {
+            setInputValue(getNormalizedColor(color, undefined, true));
+            return;
+        }
+
+        setColorValueStatus('negative');
+    };
+
     useEffect(() => {
-        setInnerColor(outerColor);
+        setInputValue(getNormalizedColor(color, undefined, true));
+    }, [color]);
 
-        const [, accentValue, saturationValue] = separatedCorpColor(outerColor);
-        setAccent({ label: prettifyColorName(accentValue), value: accentValue });
-        setSaturation({ label: saturationValue, value: saturationValue });
-    }, [outerColor]);
+    useEffect(() => {
+        const currentPalette = color.startsWith('general.') ? 'corp' : 'custom';
 
-    const resultColor = (general as any)[accentValue]?.[saturationValue] ?? innerColor;
+        setPalette({ value: currentPalette });
+    }, [color]);
 
     return (
         <Root>
             <SelectButton label="Палитра" items={paletteList} selected={palette} onItemSelect={onPaletteSelect} />
-            <ColorPreview>
-                <ColorPreviewBackground color={resultColor} opacity={opacity} />
-                <ColorSelector>
-                    <SelectButton
-                        items={accentColors}
-                        selected={accent}
-                        onBackgroundColor={resultColor}
-                        onItemSelect={onAccentSelect}
-                        onItemHover={onAccentHover}
-                        onOutsideClick={onOutsideClick}
+            {palette.value === 'corp' && (
+                <PaletteColorSelector color={color} opacity={opacity} onChange={onColorValueChange} />
+            )}
+            {palette.value === 'custom' && <CustomColorSelector color={color} onChange={onColorValueChange} />}
+            <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', width: '100%', alignItems: 'center' }}>
+                {palette.value === 'custom' && (
+                    <TextField
+                        value={inputValue}
+                        stretched
+                        onChange={onInputValueChange}
+                        onBlur={onInputValueBlur}
+                        view={colorValueStatus}
                     />
-                    <SelectButton
-                        items={saturationColors}
-                        selected={saturation}
-                        onBackgroundColor={resultColor}
-                        onItemSelect={onSaturationSelect}
-                        onItemHover={onSaturationHover}
-                        onOutsideClick={onOutsideClick}
-                    />
-                </ColorSelector>
-            </ColorPreview>
-            <Slider
-                color={resultColor}
-                value={Number(((opacity ?? 1) * 100).toFixed(0))}
-                onChange={onSliderValueChange}
-            />
+                )}
+                <Slider
+                    color={color}
+                    value={Number(((opacity ?? 1) * 100).toFixed(0))}
+                    onChange={onSliderValueChange}
+                />
+            </div>
         </Root>
     );
 };

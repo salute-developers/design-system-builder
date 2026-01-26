@@ -1,0 +1,1 @@
+export { PaletteColorSelector } from './PaletteColorSelector';

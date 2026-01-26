@@ -1,15 +1,11 @@
 import { ReactNode } from 'react';
-import { ContrastRatioChecker } from 'contrast-ratio-checker';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { textNegative } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { IconInfoCircleOutline } from '@salutejs/plasma-icons';
 
-import { roundTo } from '../../../../utils';
 import { Theme } from '../../../../controllers';
 
 import { StyledWCAGBadStatus } from './TokenColorPreview.styles';
-
-const checker = new ContrastRatioChecker();
 
 export const getColorsTokens = (theme?: Theme) => {
     if (!theme) {
@@ -34,13 +30,6 @@ export const getColorsTokens = (theme?: Theme) => {
         });
 
     return items;
-};
-
-export const getContrastRatio = (color: string, background: string) => {
-    const first = color?.length === 9 ? color.slice(0, -2) : color;
-    const second = background?.length === 9 ? background.slice(0, -2) : background;
-
-    return Number(roundTo(checker.getContrastRatioByHex(first || '#FFFFFF', second || '#000000'), 2));
 };
 
 export const getContrastStatus = (contrastRatio: number, textSize: 'small' | 'large'): ReactNode => {

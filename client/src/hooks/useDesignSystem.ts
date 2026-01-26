@@ -2,11 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { DesignSystem, Config, Theme } from '../controllers';
 
-export const useDesignSystem = (
-    designSystemName?: string,
-    designSystemVersion?: string,
-    includeExtraTokens = true,
-) => {
+export const useDesignSystem = (designSystemName?: string, designSystemVersion?: string, includeExtraTokens = true) => {
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
     const [theme, setTheme] = useState<Theme | null>(null);
     const [components, setComponents] = useState<Config[] | null>(null);

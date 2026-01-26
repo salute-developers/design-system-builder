@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, MouseEvent } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
-import { convertColor, getColorAndOpacity } from '../../../../utils';
+import { convertColor, getColorAndOpacity, getNormalizedColor } from '../../../../utils';
 import { ColorFormats } from '../../../../types';
 import { ColorPicker } from '../../../../features';
 import {
@@ -41,7 +40,7 @@ const ColorValueEditButton = (props: ColorValueEditButtonProps) => {
     const [copied, setCopied] = useState<boolean | undefined>();
 
     const value = useMemo(() => {
-        const colorValue = getRestoredColorFromPalette(`[${color}][${opacity}]`, -1) ?? color;
+        const colorValue = getNormalizedColor(color, opacity);
 
         return convertColor(colorValue)[format];
     }, [color, opacity, format]);
@@ -88,14 +87,15 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
 
     const [description, setDescription] = useState<string | undefined>(token?.getDescription());
 
-    // TODO: Пока только для значений из палитры
     const updateTokenValue = (color: string, opacity: number) => {
         if (!token) {
             return;
         }
 
         if (token instanceof ColorToken) {
-            const newValue = `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`;
+            const newValue = color.startsWith('general.')
+                ? `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`
+                : getNormalizedColor(color, opacity);
 
             token.setValue('web', newValue);
             token.setValue('ios', newValue);

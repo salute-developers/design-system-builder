@@ -1,4 +1,4 @@
-import { forwardRef, MouseEvent, useMemo, useState, HTMLAttributes, ReactNode } from 'react';
+import { forwardRef, MouseEvent, useMemo, useState, HTMLAttributes, ReactNode, useEffect } from 'react';
 
 import { checkIsColorContrast } from '../../utils';
 import { onDarkTextPrimary, onLightTextPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
@@ -82,6 +82,10 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
         setInnerItems(externalItems.filter((item) => item.label?.toLowerCase().includes(value.toLowerCase())));
     };
 
+    useEffect(() => {
+        setInnerItems(externalItems);
+    }, [externalItems]);
+
     const contrastColor =
         onBackgroundColor &&
         (checkIsColorContrast('#FFFFFF', onBackgroundColor, 2.5) ? onDarkTextPrimary : onLightTextPrimary);
@@ -123,4 +127,3 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
         </Root>
     );
 });
-
