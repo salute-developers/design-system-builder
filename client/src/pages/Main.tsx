@@ -178,7 +178,7 @@ export const Main = () => {
     // }, [designSystem]);
 
     // TODO: Временное решение для показа/скрытия панели компонентов для определённых пользователей
-    const showComponentPanelItems = localStorage.getItem('login') !== 'sdds_finai';
+    const showComponentPanelItems = !localStorage.getItem('login')?.includes('sdds_finai');
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>

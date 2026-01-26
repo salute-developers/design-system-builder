@@ -1,5 +1,6 @@
 import { type Meta, type ThemeSource } from '../controllers';
 import { Parameters } from '../types';
+import { btoaUtf8 } from './other';
 
 // Proxy server configuration - use env var at build time, fallback to localhost
 const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
@@ -86,14 +87,13 @@ export const loadDesignSystem = async (
     version: string,
 ): Promise<{ themeData: ThemeSource; componentsData: Meta[]; parameters?: Partial<Parameters> } | undefined> => {
     try {
-        const login = localStorage.getItem('login');
-        const password = localStorage.getItem('password');
+        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
         const data = await apiCall(
             `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
             {
                 headers: {
-                    Authorization: `Basic ${btoa(`${login}:${password}`)}`,
+                    Authorization: `Basic ${token}`,
                 },
             },
         );
@@ -129,12 +129,11 @@ export const removeDesignSystem = async (name: string, version: string): Promise
 
 export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {
-        const login = localStorage.getItem('login');
-        const password = localStorage.getItem('password');
+        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
         const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
             headers: {
-                Authorization: `Basic ${btoa(`${login}:${password}`)}`,
+                Authorization: `Basic ${token}`,
             },
         });
 
