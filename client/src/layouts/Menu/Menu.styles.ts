@@ -204,8 +204,7 @@ export const ListItemPreviewWrapper = styled.div`
     gap: 0.375rem;
 `;
 
-export const ListItemColorPreview = styled.div<{ color: string }>`
-    background: ${({ color }) => color};
+export const ListItemColorPreview = styled.div`
     box-shadow: 0 0 0 0.0625rem ${outlineTransparentPrimary} inset;
 
     min-height: 0.75rem;

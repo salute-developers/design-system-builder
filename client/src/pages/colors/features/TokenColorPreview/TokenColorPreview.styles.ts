@@ -36,9 +36,7 @@ export const StyledPreviewBackgroundEditor = styled.div`
     gap: 0.5rem;
 `;
 
-export const StyledWCAGRating = styled.div<{ color: string }>`
-    color: ${({ color }) => color};
-
+export const StyledWCAGRating = styled.div`
     ${dsplMBold as CSSObject};
 `;
 
@@ -55,9 +53,7 @@ export const StyledWCAGBadStatus = styled.span`
     gap: 0.375rem;
 `;
 
-export const StyledWCAGStatusText = styled.div<{ color: string; size: 'small' | 'large' }>`
-    color: ${({ color }) => color};
-
+export const StyledWCAGStatusText = styled.div<{ size: 'small' | 'large' }>`
     ${({ size }) => (size === 'small' ? (bodyM as CSSObject) : (h3 as CSSObject))};
 
     display: flex;

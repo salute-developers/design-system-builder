@@ -1,17 +1,53 @@
 import { ContrastRatioChecker } from 'contrast-ratio-checker';
 import { general as generalColors } from '@salutejs/plasma-colors';
-import { type ThemeMode, extractColors, getHEXAColor, getHSLARawColor } from '@salutejs/plasma-tokens-utils';
+import {
+    type ThemeMode,
+    extractColors,
+    getHEXAColor,
+    getHSLARawColor,
+    getRestoredColorFromPalette,
+} from '@salutejs/plasma-tokens-utils';
 import type { PlasmaSaturation } from '@salutejs/plasma-colors';
 
 import type { ColorFormats, ComplexValue, FormulaMode, GeneralColor, OperationKind } from '../types';
 import { formulas } from './formulas';
-import { inRange } from './other';
+import { inRange, roundTo } from './other';
 
 export { getHEXAColor, getHSLARawColor };
 
+const checker = new ContrastRatioChecker();
+
 // const excludeColors = [DEFAULT_WHITE_COLOR, DEFAULT_BLACK_COLOR];
 
-// const isValidColorValue = (value: string) => /((rgba?|hsla?)\([\d.%\s,()#\w]*\))|(#\w{6,8})/m.test(value);
+export const isValidColorValue = (value: string): boolean => {
+    const trimmed = value.trim().toLowerCase();
+
+    const hexPattern = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+    const rgbPattern = /^rgb\(\s*(\d{1,3}%?\s*,\s*){2}\d{1,3}%?\s*\)$/i;
+    const hslPattern = /^hsl\(\s*\d{1,3}(\.\d+)?\s*,\s*\d{1,3}(\.\d+)?%\s*,\s*\d{1,3}(\.\d+)?%\s*\)$/i;
+
+    return hexPattern.test(trimmed) || rgbPattern.test(trimmed) || hslPattern.test(trimmed);
+};
+
+export type ColorFormat = 'hex' | 'rgb' | 'hsl';
+
+export const detectColorFormat = (color: string): ColorFormat => {
+    const trimmed = color.trim().toLowerCase();
+
+    if (trimmed.startsWith('#')) {
+        return 'hex';
+    }
+
+    if (trimmed.startsWith('rgb')) {
+        return 'rgb';
+    }
+
+    if (trimmed.startsWith('hsl')) {
+        return 'hsl';
+    }
+
+    return 'hex';
+};
 
 // export const getPaletteColorByHEX = (inputColor: string) => {
 //     const hexInputColor = getHEXAColor(inputColor);
@@ -108,6 +144,23 @@ export const getPaletteColorByValue = (value: ComplexValue) => {
     return [undefined, undefined];
 };
 
+export const getNormalizedColor = (color: string, opacity?: number, preserveFormat?: boolean) => {
+    if (color.startsWith('general.')) {
+        const value = opacity !== undefined ? `[${color}][${opacity}]` : `[${color}]`;
+        return getRestoredColorFromPalette(value, -1);
+    }
+
+    const baseHex = getHEXAColor(color).slice(0, 7);
+    const alphaHex = opacity !== undefined && opacity < 1 ? getAlphaHex(opacity) : '';
+    const finalHex = baseHex + alphaHex;
+
+    if (!preserveFormat) {
+        return finalHex;
+    }
+
+    return convertColor(finalHex)[detectColorFormat(color)];
+};
+
 export const shiftAccentColor = (color: ComplexValue, theme: ThemeMode, opacity?: number) => {
     const [min, max] = theme === 'dark' ? [150, 700] : [400, 800];
     const shiftDirection = theme === 'dark' ? -1 : 1;
@@ -127,23 +180,22 @@ export const shiftAccentColor = (color: ComplexValue, theme: ThemeMode, opacity?
     return opacity ? `${newValue}[${(opacity - 1).toPrecision(2)}]` : newValue;
 };
 
-export const checkIsColorContrast = (firstColor?: string, secondColor?: string, threshold = 2) => {
-    const checker = new ContrastRatioChecker();
-
-    const first = firstColor?.length === 9 ? firstColor.slice(0, -2) : firstColor;
-    const second = secondColor?.length === 9 ? secondColor.slice(0, -2) : secondColor;
-
-    let contrastRatio = 0;
-
+export const checkIsColorContrast = (color?: string, background?: string, threshold = 2) => {
     try {
-        contrastRatio = checker.getContrastRatioByHex(first || '#FFFFFF', second || '#000000');
-    } catch (e) {
-        // console.warn(e);
+        return getContrastRatio(color, background) > threshold;
+    } catch {
+        return 0;
     }
+};
 
-    const ratio = Math.round(contrastRatio * 100) / 100;
+export const getContrastRatio = (color?: string, background?: string) => {
+    const colorHex = getHEXAColor(color || '#FFFFFF');
+    const backgroundHex = getHEXAColor(background || '#000000');
 
-    return ratio > threshold;
+    const first = colorHex?.length === 9 ? colorHex.slice(0, -2) : colorHex;
+    const second = backgroundHex?.length === 9 ? backgroundHex.slice(0, -2) : backgroundHex;
+
+    return Number(roundTo(checker.getContrastRatioByHex(first, second), 2));
 };
 
 export const convertColor = (input: string): ColorFormats => {
@@ -170,7 +222,7 @@ export const convertColor = (input: string): ColorFormats => {
     const hex = '#' + toHex(r) + toHex(g) + toHex(b) + (a < 1 ? toHex(Math.round(a * 255)) : '');
 
     const hsla = getHSLARawColor(rgb);
-    const [l, h, s] = hsla.color.map(Math.round);
+    const [h, s, l] = hsla.color.map(Math.round);
     const hsl = a < 1 ? `hsla(${h}, ${s}%, ${l}%, ${a})` : `hsl(${h}, ${s}%, ${l}%)`;
 
     return { hex, rgb, hsl };
@@ -211,7 +263,7 @@ export const separatedCorpColor = (value?: string) =>
     value ? (value.split('.').length === 3 ? value.split('.') : ['', '', '']) : '';
 
 export const getAlphaHex = (opacity?: number) =>
-    opacity
+    opacity !== undefined
         ? Math.round(opacity * 255)
               .toString(16)
               .padStart(2, '0')

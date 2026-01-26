@@ -3,14 +3,7 @@ import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { checkIsColorContrast } from '../../utils';
 import { onDarkTextPrimary, onLightTextPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-import {
-    Root,
-    StyledBackground,
-    StyledBorder,
-    TrackInput,
-    Thumb,
-    TextInput,
-} from './Slider.styles';
+import { Root, StyledBackground, StyledBorder, TrackInput, Thumb, TextInput } from './Slider.styles';
 
 interface SliderProps {
     color?: string;
@@ -65,7 +58,7 @@ export const Slider = (props: SliderProps) => {
         resultColor && (checkIsColorContrast('#FFFFFF', resultColor, 3) ? onDarkTextPrimary : onLightTextPrimary);
 
     return (
-        <Root ref={sliderRef} color={resultColor}>
+        <Root ref={sliderRef} style={{ background: resultColor ?? '#32353e' }}>
             <StyledBackground />
             <StyledBorder />
             <TrackInput
@@ -81,4 +74,3 @@ export const Slider = (props: SliderProps) => {
         </Root>
     );
 };
-

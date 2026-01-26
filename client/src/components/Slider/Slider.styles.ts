@@ -4,24 +4,21 @@ import {
     onDarkTextPrimary,
     onDarkTextSecondary,
     onDarkTextTertiary,
-    onLightTextPrimary,
 } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { h6 } from '../../utils';
 
-export const Root = styled.div<{ color?: string }>`
+export const Root = styled.div`
     position: relative;
 
     display: flex;
     flex-direction: column;
     align-items: center;
 
-    height: 1.75rem;
-    width: 100%;
+    height: 1.5rem;
+    flex: 1;
 
     border-radius: 1.25rem;
-
-    background: ${({ color = '#32353e' }) => color};
 
     transition: background 0.25s linear;
 `;
@@ -140,4 +137,3 @@ export const TextInput = styled.input`
 
     ${h6 as CSSObject};
 `;
-
