@@ -180,7 +180,7 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
 
             // TODO: Переделать на группы доступов
             const permittedDesignSystems = await store.permittedDesignSystems(token || '');
-            if (name === 'sdds_finai' && !permittedDesignSystems) {
+            if (name.includes('sdds_finai') && !permittedDesignSystems) {
                 res.status(404).json({
                     error: 'Design system not found',
                     details: 'Design system not found'
@@ -242,7 +242,7 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
             }
 
             // TODO: Переделать на группы доступов
-            const result = designSystems.filter((designSystem) => designSystem.name !== 'sdds_finai');
+            const result = designSystems.filter((designSystem) => !designSystem.name.includes('sdds_finai'));
             const permittedDesignSystems = await store.permittedDesignSystems(token || '');
             if (permittedDesignSystems) {
                 result.push(...permittedDesignSystems);

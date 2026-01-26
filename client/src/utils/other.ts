@@ -37,3 +37,5 @@ export const h6 = {
 export const roundTo = (num: number, precision = 2) => {
     return (Math.round(num * 100) / 100).toFixed(precision);
 };
+
+export const btoaUtf8 = (value: string) => btoa(String.fromCharCode(...new TextEncoder().encode(value)));
