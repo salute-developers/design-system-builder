@@ -49,4 +49,14 @@ export class GenerateDocsDto {
   @IsOptional()
   @IsBoolean()
   localOnly?: boolean;
+
+  /** Токен авторизации для запросов к client-proxy */
+  @ApiProperty({
+    example: "dXNlcjpwYXNz",
+    description: "Auth token for client-proxy authorization",
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  authToken?: string;
 }

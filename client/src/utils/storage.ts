@@ -24,11 +24,11 @@ export interface BackendDesignSystem {
 const apiCall = async (url: string, options: RequestInit = {}) => {
     try {
         const response = await fetch(url, {
+            ...options,
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers,
             },
-            ...options,
         });
 
         if (!response.ok) {
@@ -63,9 +63,14 @@ export const saveDesignSystem = async (data: {
     componentsData: Meta[];
 }): Promise<any> => {
     try {
+        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
         const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
             method: 'POST',
             body: JSON.stringify(data),
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
         });
 
         return response;

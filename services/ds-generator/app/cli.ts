@@ -12,9 +12,10 @@ program
     .option('--ds-version <string>', 'Design system version')
     .option('--export-type <string>', 'Export type (tgz, zip, source)', 'source')
     .option('--output <dir>', 'Output directory', './output')
+    .option('--auth-token <string>', 'Auth token for client-proxy')
     .action(async (options) => {
         try {
-            const { dsName: packageName, dsVersion: packageVersion, exportType, output: pathToDir } = options;
+            const { dsName: packageName, dsVersion: packageVersion, exportType, output: pathToDir, authToken } = options;
 
             console.log('Design system generation params');
             console.log(`Name: ${packageName}`);
@@ -22,8 +23,14 @@ program
             console.log(`Export type: ${exportType}`);
             console.log(`Output path: ${pathToDir}`);
 
+            const headers: Record<string, string> = {};
+            if (authToken) {
+                headers['Authorization'] = `Basic ${authToken}`;
+            }
+
             const data = await fetch(
                 `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
+                { headers },
             );
             const { componentsData, themeData } = (await data.json()) as any;
 

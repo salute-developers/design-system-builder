@@ -4,6 +4,7 @@ import { general } from '@salutejs/plasma-colors';
 import { GrayTone } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
 import { getNpmMeta } from '../api';
+import { btoaUtf8 } from '../utils/other';
 
 export const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
@@ -39,10 +40,13 @@ export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
 };
 
 export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
+    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         exportType,
+        authToken,
     };
 
     const result = await fetch(`${VITE_DS_GENERATOR_API}/generate-download`, {
@@ -108,11 +112,14 @@ export const generatePublish = async (
     exportType: 'tgz' | 'zip',
     tokenValue: string,
 ): Promise<boolean> => {
+    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         exportType,
         npmToken: tokenValue,
+        authToken,
     };
 
     const result = await fetch(`${VITE_DS_GENERATOR_API}/generate-publish`, {
@@ -131,10 +138,13 @@ export const generatePublish = async (
 };
 
 export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
+    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         projectName: designSystem.getName(),
+        authToken,
     };
 
     const result = await fetch(`${VITE_DS_DOCUMENTATION_GENERATOR_API}/documentation/generate`, {

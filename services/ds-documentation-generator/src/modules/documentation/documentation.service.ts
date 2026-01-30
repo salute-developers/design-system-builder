@@ -89,6 +89,7 @@ export class DocumentationService implements OnModuleInit {
     const designSystemData = await this.fetchDesignSystemData(
       dto.packageName,
       dto.packageVersion,
+      dto.authToken,
     );
 
     this.logger.log(
@@ -216,6 +217,7 @@ export class DocumentationService implements OnModuleInit {
   async fetchDesignSystemData(
     packageName: string,
     packageVersion: string,
+    authToken?: string,
   ): Promise<FetchDesignSystemResponseDto> {
     const baseUrl =
       this.configService.get<string>("CLIENT_PROXY_URL") ||
@@ -226,7 +228,12 @@ export class DocumentationService implements OnModuleInit {
     this.logger.log(`Fetching design system data from: ${url}`);
 
     try {
-      const response = await fetch(url);
+      const headers: Record<string, string> = {};
+      if (authToken) {
+        headers['Authorization'] = `Basic ${authToken}`;
+      }
+
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
         throw new HttpException(

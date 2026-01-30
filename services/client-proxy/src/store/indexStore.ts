@@ -101,8 +101,8 @@ export class IndexStore {
     }
 
     async getUserByToken(token: string): Promise<BackendUser> {
-      const response = await fetch(`${this.baseUrl}/users/by-token?token=${token}`);
-        
+      const response = await fetch(`${this.baseUrl}/users/by-token?token=${encodeURIComponent(token)}`);
+
         if (!response.ok) {
             throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
         }
@@ -110,6 +110,42 @@ export class IndexStore {
         const user = await response.json() as BackendUser;
 
         return user;
+    }
+
+    async addDesignSystemToUser(token: string, designSystemId: number): Promise<void> {
+        try {
+            // Get user by token
+            const user = await this.getUserByToken(token);
+
+            // Check if design system is already in user's list
+            if (user.designSystems.includes(designSystemId)) {
+                console.log(`Design system ${designSystemId} already in user's list`);
+                return;
+            }
+
+            // Add design system to user's list
+            const updatedDesignSystems = [...user.designSystems, designSystemId];
+
+            // Update user
+            const response = await fetch(`${this.baseUrl}/users/${user.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    designSystems: updatedDesignSystems
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to update user: ${response.status} ${response.statusText}`);
+            }
+
+            console.log(`✅ Added design system ${designSystemId} to user ${user.id}`);
+        } catch (error) {
+            console.error(`❌ Failed to add design system to user:`, error);
+            throw error;
+        }
     }
 
     // List all design systems from backend

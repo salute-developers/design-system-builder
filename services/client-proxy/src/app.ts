@@ -137,9 +137,19 @@ const createApp = (storageDir: string, indexStore?: IndexStore, componentStore?:
             const designSystemData = req.body;
             Logger.log(`✅ [POST] Validation passed, proceeding to save design system: ${designSystemData.name}@${designSystemData.version}`);
 
+            const authHeader = req.headers.authorization;
+            if (!authHeader) {
+                res.status(401).json({
+                    error: 'Unauthorized',
+                    details: 'Authorization header is required'
+                });
+                return;
+            }
+            const [, token] = authHeader.split(' ');
+
             // Use the enhanced DesignSystemStore which now handles transformation internally
             Logger.log(`🔄 [POST] Calling store.saveDesignSystem...`);
-            await store.saveDesignSystem(designSystemData);
+            await store.saveDesignSystem(designSystemData, token);
             Logger.log(`✅ [POST] store.saveDesignSystem completed successfully`);
 
             res.json({

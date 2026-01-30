@@ -17,7 +17,7 @@ export class DesignSystemStore {
     }
 
     // Save design system data with enhanced transformation
-    async saveDesignSystem(data: DesignSystemData): Promise<void> {
+    async saveDesignSystem(data: DesignSystemData, token?: string): Promise<void> {
         const { name, version, parameters, themeData, componentsData } = data;
 
         Logger.log(`🔄 Processing design system: ${name}@${version}`);
@@ -32,6 +32,24 @@ export class DesignSystemStore {
         // Add to index
 
         // await this.indexStore.addToIndex(name, version);
+
+        // If user token is provided, add design system to user's list
+        Logger.log(`🔑 Token provided: ${token ? 'yes' : 'no'}`);
+        if (token) {
+            try {
+                const designSystemId = await this.componentStore.getDesignSystemId(name);
+                Logger.log(`🔍 Got design system ID: ${designSystemId}`);
+                if (designSystemId) {
+                    await this.indexStore.addDesignSystemToUser(token, designSystemId);
+                    Logger.log(`✅ Added design system ${name} (ID: ${designSystemId}) to user's list`);
+                } else {
+                    Logger.error(`❌ Could not get design system ID for ${name}`);
+                }
+            } catch (error) {
+                Logger.error(`⚠️ Failed to add design system to user's list:`, error);
+                // Don't throw - this is not critical for saving the design system
+            }
+        }
 
         Logger.log(`✅ Saved design system to backend: ${name}@${version} (theme + components with transformation)`);
     }
