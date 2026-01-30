@@ -13,10 +13,16 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion, exportType } = request.body;
+            const { packageName, packageVersion, exportType, authToken } = request.body;
+
+            const headers: Record<string, string> = {};
+            if (authToken) {
+                headers['Authorization'] = `Basic ${authToken}`;
+            }
 
             const data = await fetch(
                 `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
+                { headers },
             );
 
             const { componentsData, themeData } = (await data.json()) as any;
@@ -64,7 +70,7 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion, exportType, npmToken } = request.body;
+            const { packageName, packageVersion, exportType, npmToken, authToken } = request.body;
 
             // const response2 = await fetch(`https://registry.npmjs.org/vxcasdasd`);
             const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
@@ -76,8 +82,14 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
                 throw new Error('Отсутствует npm-токен');
             }
 
+            const headers: Record<string, string> = {};
+            if (authToken) {
+                headers['Authorization'] = `Basic ${authToken}`;
+            }
+
             const data = await fetch(
                 `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`, // здесь остаётся packageVersion т.к. пока значение 0.1.0 захардкодено
+                { headers },
             );
 
             const { componentsData, themeData } = (await data.json()) as any;
