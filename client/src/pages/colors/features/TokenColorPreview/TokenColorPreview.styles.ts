@@ -1,5 +1,5 @@
 import styled, { CSSObject } from 'styled-components';
-import { backgroundSecondary, bodyM, dsplMBold, h3 } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { backgroundSecondary, bodyM, dsplMBold, h3, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { SelectButton } from '../../../../components';
 
@@ -64,4 +64,9 @@ export const StyledWCAGStatusText = styled.div<{ size: 'small' | 'large' }>`
 
 export const StyledSelectButton = styled(SelectButton)`
     top: 0;
+
+    & > div:first-child {
+        color: ${textPrimary};
+        opacity: 0.28;
+    }
 `;

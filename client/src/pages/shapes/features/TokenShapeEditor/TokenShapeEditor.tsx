@@ -3,13 +3,7 @@ import { IconClose } from '@salutejs/plasma-icons';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { getAlphaHex, numberFormatter } from '../../../../utils';
-import {
-    DesignSystem,
-    ShadowToken,
-    ShapeToken,
-    SpacingToken,
-    Theme,
-} from '../../../../controllers';
+import { DesignSystem, ShadowToken, ShapeToken, SpacingToken, Theme } from '../../../../controllers';
 import { ShadowPicker, ShadowType } from '../../../../features';
 import { TextField } from '../../../../components';
 import { TokenShapePreview } from '../TokenShapePreview';
@@ -141,7 +135,12 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
             <StyledSetup>
                 <StyledHeader>
                     <TextField readOnly value={token?.getDisplayName()} />
-                    <TextField value={description} onChange={onDescriptionChange} />
+                    <TextField
+                        value={description}
+                        maxWidth={286}
+                        placeholder="Добавить описание"
+                        onChange={onDescriptionChange}
+                    />
                 </StyledHeader>
                 {(token?.getType() === 'shape' || token?.getType() === 'spacing') && typeof value === 'string' && (
                     <TextField label="Значение" hasBackground value={value} onChange={onValueChange} />

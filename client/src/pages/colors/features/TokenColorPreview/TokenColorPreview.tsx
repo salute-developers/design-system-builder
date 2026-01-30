@@ -47,6 +47,7 @@ const PreviewItem = (props: PreviewItemProps) => {
     // TODO: Придумать решение по-лучше
     useLayoutEffect(() => {
         const newBackground = tokenList.find((item) => item.label === defaultBackground) || tokenList[0];
+
         setBackground(newBackground);
     }, [tokenList, defaultBackground]);
 
@@ -76,7 +77,7 @@ const PreviewItem = (props: PreviewItemProps) => {
         <StyledPreview background={background.value}>
             <StyledPreviewBackgroundEditor>
                 <StyledSelectButton
-                    label="На фоне"
+                    label="Цвет на фоне"
                     items={tokenList}
                     hasSearch
                     autoAlign={false}
