@@ -19,6 +19,11 @@
     "@fastify/cors": "8.5.0",
     "fastify": "^4.29.1"
   },
+  "overrides": {
+    "@salutejs/plasma-tokens-utils": {
+      "@salutejs/plasma-colors": "^0.16.0"
+    }
+  },
   "devDependencies": {
     "@babel/cli": "^7.24.1",
     "@babel/plugin-proposal-class-properties": "^7.18.6",
