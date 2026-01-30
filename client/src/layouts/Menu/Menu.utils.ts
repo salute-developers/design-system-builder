@@ -1,8 +1,5 @@
 import { GroupData } from '../../types';
 
-// TODO: Недорогое и быстрое решение
-export const MAX_CHARS_ITEM_NAME = 32;
-
 export const getDefaultDisabledGroups = (groupsData: GroupData[]) => {
     return groupsData.reduce((acc, group) => {
         if (group.items.every(({ disabled }) => disabled)) {
@@ -11,4 +8,13 @@ export const getDefaultDisabledGroups = (groupsData: GroupData[]) => {
 
         return acc;
     }, [] as string[]);
+};
+
+// TODO: Быстрое решение, переделать на что-то более универсальное
+export const canShowTooltip = (name: string, isDisabled: boolean) => {
+    const maxCharsItemName = 22;
+    const maxCharsItemDisabledName = 27;
+
+    const maxChars = isDisabled ? maxCharsItemDisabledName : maxCharsItemName;
+    return name.length >= maxChars;
 };

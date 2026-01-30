@@ -131,7 +131,6 @@ export const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; lin
         disabled &&
         css`
             text-decoration: ${lineThrough ? 'line-through' : 'none'};
-            cursor: not-allowed;
             color: ${textTertiary};
 
             & > div:nth-child(2) {
@@ -140,10 +139,10 @@ export const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; lin
 
             & > div:nth-child(2) div {
                 color: inherit;
+            }
 
-                &:hover {
-                    color: ${textPrimary};
-                }
+            &:hover > div:nth-child(2) div {
+                color: ${textPrimary};
             }
         `}
 
@@ -172,8 +171,9 @@ export const ListItem = styled.div<{ selected?: boolean; disabled?: boolean; lin
 
 export const ListItemWrapper = styled.div<{ canShowTooltip?: boolean }>`
     display: flex;
-    gap: 0.25rem;
+    gap: 0.375rem;
     align-items: center;
+    padding-right: 0.0625rem;
 
     overflow: hidden;
 
@@ -201,14 +201,14 @@ export const ListItemText = styled.span`
 export const ListItemPreviewWrapper = styled.div`
     display: none;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.25rem;
 `;
 
 export const ListItemColorPreview = styled.div`
-    box-shadow: 0 0 0 0.0625rem ${outlineTransparentPrimary} inset;
+    box-shadow: 0 0 0 0.0625rem ${outlineTransparentPrimary};
 
-    min-height: 0.75rem;
-    min-width: 0.75rem;
+    height: 0.75rem;
+    width: 0.75rem;
     border-radius: 50%;
 `;
 

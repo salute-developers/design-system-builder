@@ -1,11 +1,11 @@
 import { Fragment, MouseEvent, useEffect, useState } from 'react';
-import { IconEye, IconEyeClosedFill, IconPlus, IconSearch } from '@salutejs/plasma-icons';
+import { IconEyeClosedOutline, IconEyeOutline, IconPlus, IconSearch } from '@salutejs/plasma-icons';
 import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Data } from '../../types';
 import { Config, Token } from '../../controllers';
 import { IconButton, TextField, Tooltip } from '../../components';
-import { getDefaultDisabledGroups, MAX_CHARS_ITEM_NAME } from './Menu.utils';
+import { canShowTooltip, getDefaultDisabledGroups } from './Menu.utils';
 import {
     Header,
     HeaderContent,
@@ -151,17 +151,28 @@ export const Menu = (props: MenuProps) => {
         setDisabledGroups(newDisabledGroups);
     };
 
-    const onItemClick = (name: string, disabled: boolean, groupIndex: number, itemIndex: number) => {
-        if (disabled) {
-            return;
-        }
+    const onItemClick =
+        (
+            name: string,
+            disabled: boolean,
+            groupIndex: number,
+            itemIndex: number,
+            items: (Token | Config)[],
+            groupName: string,
+            itemName: string,
+        ) =>
+        (event: MouseEvent<HTMLDivElement>) => {
+            if (disabled) {
+                onItemDisabledButtonClick(groupName, itemName, items, disabled)(event);
+                return;
+            }
 
-        setSelectedItem(name);
+            setSelectedItem(name);
 
-        if (onItemSelect) {
-            onItemSelect(groupIndex, itemIndex);
-        }
-    };
+            if (onItemSelect) {
+                onItemSelect(groupIndex, itemIndex);
+            }
+        };
 
     const onItemDisabledButtonClick =
         (groupName: string, itemName: string, items: (Token | Config)[], disabled: boolean) =>
@@ -251,9 +262,9 @@ export const Menu = (props: MenuProps) => {
                                     {canDisable && (
                                         <IconButton onClick={onItemGroupDisable(groupName)}>
                                             {disabledGroups.includes(groupName) ? (
-                                                <IconEyeClosedFill size="xs" color="inherit" />
+                                                <IconEyeClosedOutline size="xs" color="inherit" />
                                             ) : (
-                                                <IconEye size="xs" color="inherit" />
+                                                <IconEyeOutline size="xs" color="inherit" />
                                             )}
                                         </IconButton>
                                     )}
@@ -268,11 +279,19 @@ export const Menu = (props: MenuProps) => {
                                                 selected={itemName === selectedItem}
                                                 disabled={disabled}
                                                 lineThrough={canDisable}
-                                                onClick={() => onItemClick(itemName, disabled, groupIndex, itemIndex)}
+                                                onClick={onItemClick(
+                                                    itemName,
+                                                    disabled,
+                                                    groupIndex,
+                                                    itemIndex,
+                                                    data,
+                                                    groupName,
+                                                    itemName,
+                                                )}
                                             >
                                                 <ListItemWrapper
                                                     // TODO: Недорогое и быстрое решение
-                                                    canShowTooltip={Boolean(itemName.length > MAX_CHARS_ITEM_NAME)}
+                                                    canShowTooltip={canShowTooltip(itemName, disabled)}
                                                 >
                                                     <ListItemText>{itemName}</ListItemText>
                                                     <ListItemPreviewWrapper>
@@ -281,7 +300,9 @@ export const Menu = (props: MenuProps) => {
                                                                 key={`${itemName}_${selectedItem}_${value}_${index}`}
                                                             >
                                                                 {value && type === 'color' && (
-                                                                    <ListItemColorPreview color={value} />
+                                                                    <ListItemColorPreview
+                                                                        style={{ background: value }}
+                                                                    />
                                                                 )}
                                                                 {value && type === 'typography' && (
                                                                     <ListItemTypographyPreview>
@@ -306,9 +327,9 @@ export const Menu = (props: MenuProps) => {
                                                             )}
                                                         >
                                                             {disabled ? (
-                                                                <IconEyeClosedFill size="xs" color="inherit" />
+                                                                <IconEyeClosedOutline size="xs" color="inherit" />
                                                             ) : (
-                                                                <IconEye size="xs" color="inherit" />
+                                                                <IconEyeOutline size="xs" color="inherit" />
                                                             )}
                                                         </IconButton>
                                                     )}

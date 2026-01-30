@@ -137,7 +137,7 @@ export const StyledInput = styled.input<{ readOnly?: boolean }>`
     border: 0;
 
     ::placeholder {
-        color: ${textSecondary};
+        color: ${textTertiary};
     }
 `;
 
@@ -207,4 +207,3 @@ export const StyledIconArrowBack = styled(IconArrowBack)`
 export const StyledIconClose = styled(IconClose)`
     --icon-size: 0.75rem !important;
 `;
-

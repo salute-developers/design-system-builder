@@ -1,4 +1,12 @@
-import React, { useState, useRef, KeyboardEvent, useEffect, InputHTMLAttributes, ReactNode, CSSProperties } from 'react';
+import React, {
+    useState,
+    useRef,
+    KeyboardEvent,
+    useEffect,
+    InputHTMLAttributes,
+    ReactNode,
+    CSSProperties,
+} from 'react';
 
 import { useInputDynamicWidth } from '../../hooks';
 import { Tooltip } from '../Tooltip';
@@ -34,6 +42,8 @@ interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'on
     textBefore?: string;
     textAfter?: string;
     tooltipText?: string;
+    minWidth?: number;
+    maxWidth?: number;
     // TODO: возможно лучше отдать ref наружу
     autoFocus?: boolean;
     onCommit?: (value: string) => void;
@@ -55,6 +65,8 @@ export const TextField = (props: TextFieldProps) => {
         textAfter,
         tooltipText,
         autoFocus,
+        minWidth = 16,
+        maxWidth = 172,
         onKeyDown,
         onCommit,
         onFocus,
@@ -78,8 +90,8 @@ export const TextField = (props: TextFieldProps) => {
 
     const [inputWidth] = useInputDynamicWidth(rootRef, spanRef, {
         value,
-        minWidth: 16,
-        maxWidth: stretched ? undefined : 172,
+        minWidth,
+        maxWidth: stretched ? undefined : maxWidth,
         shiftWidth: 2,
     });
 
@@ -238,4 +250,3 @@ export const TextField = (props: TextFieldProps) => {
         </Root>
     );
 };
-

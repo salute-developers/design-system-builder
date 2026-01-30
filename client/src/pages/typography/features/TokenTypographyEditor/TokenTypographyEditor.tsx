@@ -142,7 +142,12 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
             <StyledSetup>
                 <StyledHeader>
                     <TextField readOnly value={token?.getDisplayName()} />
-                    <TextField value={description} onCommit={onDescriptionChange} />
+                    <TextField
+                        value={description}
+                        maxWidth={286}
+                        placeholder="Добавить описание"
+                        onCommit={onDescriptionChange}
+                    />
                 </StyledHeader>
                 <SegmentButton
                     label="Экран"

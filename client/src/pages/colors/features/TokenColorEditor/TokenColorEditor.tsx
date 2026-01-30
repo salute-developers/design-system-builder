@@ -188,7 +188,12 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
             <StyledSetup>
                 <StyledHeader>
                     <TextField readOnly value={token?.getDisplayName()} />
-                    <TextField value={description} onCommit={onDescriptionChange} />
+                    <TextField
+                        value={description}
+                        maxWidth={286}
+                        placeholder="Добавить описание"
+                        onCommit={onDescriptionChange}
+                    />
                 </StyledHeader>
                 <SegmentButton label="Режим" items={modeList} selected={mode} onSelect={onModeSelect} />
                 <SelectButton label="Тип" items={typeList} selected={type} onItemSelect={onTypeSelect} />
