@@ -1,0 +1,150 @@
+// Design System Builder — Database Schema
+// PostgreSQL / Drizzle ORM
+
+Table design_systems {
+  id serial [pk, increment]
+  name text [not null]
+  description text
+  project_name text [not null]
+  gray_tone text [not null]
+  accent_color text [not null]
+  light_stroke_saturation integer [not null]
+  light_fill_saturation integer [not null]
+  dark_stroke_saturation integer [not null]
+  dark_fill_saturation integer [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+
+Table tenants {
+  id serial [pk, increment]
+  name text [not null]
+}
+
+Table components {
+  id serial [pk, increment]
+  name text [not null]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table design_system_components {
+  id serial [pk, increment]
+  design_system_id integer [not null, ref: > design_systems.id]
+  component_id integer [not null, ref: > components.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  Note: 'Junction table: M:N between design_systems and components'
+}
+
+Table variations {
+  id serial [pk, increment]
+  component_id integer [not null, ref: > components.id]
+  name text [not null]
+  description text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table tokens {
+  id serial [pk, increment]
+  component_id integer [ref: > components.id, note: 'nullable — global tokens have no component']
+  name text [not null]
+  type text [not null]
+  default_value text
+  description text
+  xml_param text
+  compose_param text
+  ios_param text
+  web_param text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table token_variations {
+  id serial [pk, increment]
+  token_id integer [not null, ref: > tokens.id]
+  variation_id integer [not null, ref: > variations.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (token_id, variation_id) [unique]
+  }
+
+  Note: 'Junction table: M:N between tokens and variations'
+}
+
+Table variation_values {
+  id serial [pk, increment]
+  design_system_id integer [not null, ref: > design_systems.id]
+  component_id integer [not null, ref: > components.id]
+  variation_id integer [not null, ref: > variations.id]
+  name text [not null]
+  description text
+  is_default_value text [default: 'false']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table token_values {
+  id serial [pk, increment]
+  token_id integer [not null, ref: > tokens.id]
+  value text [not null]
+  type text [not null, default: 'variation', note: 'variation | invariant']
+  states jsonb [default: `'[]'::jsonb`]
+  variation_value_id integer [ref: > variation_values.id, note: 'set when type = variation']
+  component_id integer [ref: > components.id, note: 'set when type = invariant']
+  design_system_id integer [ref: > design_systems.id, note: 'set when type = invariant']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (variation_value_id, token_id) [unique]
+    (design_system_id, component_id, token_id) [unique]
+  }
+
+  Note: '''
+    Polymorphic table:
+    - type=variation  → value tied to a variation_value
+    - type=invariant  → value tied to design_system + component
+  '''
+}
+
+Table themes {
+  id serial [pk, increment]
+  design_system_id integer [not null, ref: > design_systems.id]
+  name text [not null]
+  version text [not null]
+  theme_data jsonb [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    (design_system_id, name, version) [unique]
+  }
+}
+
+
+// INFO: Пропсы для сторей - удалить
+Table props_api {
+  id serial [pk, increment]
+  component_id integer [not null, ref: > components.id]
+  name text [not null]
+  value text [not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+// INFO: Удалить 
+Table users {
+  id serial [pk, increment]
+  user text [not null]
+  token text [not null, unique]
+  design_systems "integer[]" [default: `'{}'::integer[]`]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}

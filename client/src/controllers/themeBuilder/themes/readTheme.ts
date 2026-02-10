@@ -39,6 +39,10 @@ const getThemeContent = async (zip: JSZip, allFiles: Array<string>) => {
     let variations = {} as PlatformsVariations;
 
     for (const relativePath of allFiles) {
+        if (!relativePath.endsWith('.json')) {
+            continue;
+        }
+
         const data = await zip.file(relativePath)?.async('string');
 
         if (!data) {
@@ -66,20 +70,29 @@ const getThemeContent = async (zip: JSZip, allFiles: Array<string>) => {
     return { meta, variations };
 };
 
-export const readTheme = async (themeName: string, themeVersion: string) => {
-    const response = await getFileSource(
-        undefined,
-        'salute-developers',
-        'theme-converter',
-        `themes/${themeName}/${themeVersion}.zip`,
-        'main',
-        '',
-        'full',
-    );
+export const readTheme = async (themeName: string, themeVersion: string, local?: boolean) => {
+    let zip: JSZip;
 
-    const content = (response && 'content' in response && response.content) || '';
+    if (local) {
+        const response = await fetch(`/${themeName}.zip`);
+        const content = await response.arrayBuffer();
+        zip = await JSZip.loadAsync(content);
+    } else {
+        const response = await getFileSource(
+            undefined,
+            'salute-developers',
+            'theme-converter',
+            `themes/${themeName}/${themeVersion}.zip`,
+            'main',
+            '',
+            'full',
+        );
 
-    const zip = await deserializeZip(content);
+        const content = (response && 'content' in response && response.content) || '';
+        zip = await deserializeZip(content);
+    }
+
+    console.log(zip);
 
     const allFiles = await getAllRelativePath(zip);
 

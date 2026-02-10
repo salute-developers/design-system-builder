@@ -121,10 +121,20 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
             return;
         }
 
+        const defaultDescription = token.getDefaultDescription();
+        const platforms = Object.keys(token.getPlatforms());
+
+        for (const platform of platforms) {
+            token.setValue(platform, token.getDefaultValue(platform));
+            token.setDescription(defaultDescription);
+        }
+
         const tokenValue = getTokenValue(token.getDefaultValue('web'), theme);
+
         setValue(tokenValue);
-        setDescription(token.getDescription());
-        setDescription(token.getDefaultDescription());
+        setDescription(defaultDescription);
+
+        onTokenUpdate();
     };
 
     useEffect(() => {

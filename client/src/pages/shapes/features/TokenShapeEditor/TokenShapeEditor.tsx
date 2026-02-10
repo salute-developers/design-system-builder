@@ -26,6 +26,7 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
     const token = tokens?.[0];
     const [description, setDescription] = useState<string | undefined>(token?.getDescription());
 
+    // TODO: Перенести в utils
     const updateTokenValue = (value: string | ShadowType[]) => {
         if (!token) {
             return;
@@ -53,7 +54,6 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
             });
         }
 
-        // TODO: Перенести в utils
         if (token instanceof ShadowToken && typeof value === 'object') {
             const webValues = value.map(
                 ({ offsetX, offsetY, blur, spread, color, opacity }) =>
@@ -114,10 +114,20 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
             return;
         }
 
+        const defaultDescription = token.getDefaultDescription();
+        const platforms = Object.keys(token.getPlatforms());
+
+        for (const platform of platforms) {
+            token.setValue(platform, token.getDefaultValue(platform) as any);
+            token.setDescription(defaultDescription);
+        }
+
         const tokenValue = getTokenValue(token.getDefaultValue('web'));
+
         setValue(tokenValue);
-        setDescription(token.getDescription());
-        setDescription(token.getDefaultDescription());
+        setDescription(defaultDescription);
+
+        onTokenUpdate();
     };
 
     useEffect(() => {

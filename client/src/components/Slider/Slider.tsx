@@ -18,14 +18,36 @@ export const Slider = (props: SliderProps) => {
 
     const thumbRef = useRef<HTMLDivElement>(null);
     const sliderRef = useRef<HTMLDivElement>(null);
+    const updateThumbRef = useRef<() => void>();
 
     useEffect(() => {
-        const scaledColorValue = Number(((value - min) / (max - min)).toFixed(3));
+        updateThumbRef.current = () => {
+            const scaledColorValue = Number(((value - min) / (max - min)).toFixed(3));
 
-        if (thumbRef.current && sliderRef.current) {
-            thumbRef.current.style.transform = `translateX(calc(${scaledColorValue} * calc(${sliderRef.current.offsetWidth}px - 1px))`;
-        }
+            if (thumbRef.current && sliderRef.current) {
+                thumbRef.current.style.transform = `translateX(calc(${scaledColorValue} * calc(${sliderRef.current.offsetWidth}px - 1px))`;
+            }
+        };
+
+        updateThumbRef.current();
     }, [value, min, max]);
+
+    useEffect(() => {
+        const slider = sliderRef.current;
+        const updateThumb = updateThumbRef.current;
+
+        if (!slider || !updateThumb) {
+            return;
+        }
+
+        const observer = new ResizeObserver(() => {
+            updateThumb();
+        });
+
+        observer.observe(slider);
+
+        return () => observer.disconnect();
+    }, [value]);
 
     const onChangeTrackValue = (event: ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(event.target.value);

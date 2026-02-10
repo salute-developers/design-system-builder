@@ -164,10 +164,19 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
             return;
         }
 
+        const defaultDescription = token.getDefaultDescription();
+        const platforms = Object.keys(token.getPlatforms());
+
+        for (const platform of platforms) {
+            token.setValue(platform, token.getDefaultValue(platform));
+            token.setDescription(defaultDescription);
+        }
+
         const [colorValue, opacityValue] = getColorAndOpacity(token.getDefaultValue('web'));
+
         setColor(colorValue);
         setOpacity(opacityValue);
-        setDescription(token.getDefaultDescription());
+        setDescription(defaultDescription);
 
         onTokenUpdate();
     };
