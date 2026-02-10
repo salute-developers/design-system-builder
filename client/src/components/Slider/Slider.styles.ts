@@ -16,6 +16,7 @@ export const Root = styled.div`
     align-items: center;
 
     height: 1.5rem;
+    min-height: 1.5rem;
     flex: 1;
 
     border-radius: 1.25rem;

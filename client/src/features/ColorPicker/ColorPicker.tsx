@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { SelectButton, SelectButtonItem, Slider, TextField } from '../../components';
 import { getNormalizedColor, isValidColorValue } from '../../utils';
 
-import { Root } from './ColorPicker.styles';
+import { Root, StyledWrapper } from './ColorPicker.styles';
 import { paletteList } from './ColorPicker.utils';
 
 import { CustomColorSelector, PaletteColorSelector } from './ui';
@@ -24,8 +24,6 @@ export const ColorPicker = (props: ColorPickerProps) => {
     });
 
     const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true));
-
-    // const colorValue = useMemo(() => getNormalizedColor(color, undefined, true), [color]);
 
     const onPaletteSelect = (item: SelectButtonItem) => {
         setPalette(item);
@@ -87,7 +85,7 @@ export const ColorPicker = (props: ColorPickerProps) => {
                 <PaletteColorSelector color={color} opacity={opacity} onChange={onColorValueChange} />
             )}
             {palette.value === 'custom' && <CustomColorSelector color={color} onChange={onColorValueChange} />}
-            <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', width: '100%', alignItems: 'center' }}>
+            <StyledWrapper>
                 {palette.value === 'custom' && (
                     <TextField
                         value={inputValue}
@@ -102,7 +100,7 @@ export const ColorPicker = (props: ColorPickerProps) => {
                     value={Number(((opacity ?? 1) * 100).toFixed(0))}
                     onChange={onSliderValueChange}
                 />
-            </div>
+            </StyledWrapper>
         </Root>
     );
 };

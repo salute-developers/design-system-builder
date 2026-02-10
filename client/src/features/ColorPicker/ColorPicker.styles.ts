@@ -5,3 +5,11 @@ export const Root = styled.div`
     flex-direction: column;
     gap: 0.5rem;
 `;
+
+export const StyledWrapper = styled.div`
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    width: 100%;
+    align-items: center;
+`;

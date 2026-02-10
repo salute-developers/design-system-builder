@@ -14,13 +14,13 @@ export class WebShadow extends PlatformToken<WebShadowToken> {
 
 export class IOSShadow extends PlatformToken<IOSShadowToken> {
     public setValue(value: IOSShadowToken[string]) {
-        this.value = { ...this.value, ...value };
+        this.value = [...value];
     }
 }
 
 export class AndroidShadow extends PlatformToken<AndroidShadowToken> {
     public setValue(value: AndroidShadowToken[string]) {
-        this.value = { ...this.value, ...value };
+        this.value = [...value];
     }
 }
 
