@@ -1,11 +1,11 @@
-import { Fragment, MouseEvent, useEffect, useState } from 'react';
+import { Fragment, MouseEvent, useEffect, useMemo, useState } from 'react';
 import { IconEyeClosedOutline, IconEyeOutline, IconPlus, IconSearch } from '@salutejs/plasma-icons';
 import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Data } from '../../types';
 import { Config, Token } from '../../controllers';
 import { IconButton, TextField, Tooltip } from '../../components';
-import { canShowTooltip, getDefaultDisabledGroups } from './Menu.utils';
+import { canShowTooltip, getDefaultDisabledGroups, isGroupChanged, isTokenChanged } from './Menu.utils';
 import {
     Header,
     HeaderContent,
@@ -13,6 +13,7 @@ import {
     HeaderTitle,
     List,
     ListItem,
+    ListItemChangedIndicator,
     ListItemColorPreview,
     ListItemContentRight,
     ListItemPreviewWrapper,
@@ -70,6 +71,11 @@ export const Menu = (props: MenuProps) => {
     const [selectedItem, setSelectedItem] = useState(groupsData[groupIndex].items[itemIndex].name);
     const [groupNameWithItemCreating, setGroupNameWithItemCreating] = useState<string | undefined>(undefined);
     const [creatingItemName, setCreatingItemName] = useState<string>('NewItem');
+
+    const changedGroups = useMemo(
+        () => new Set(groupsData.filter(({ items }) => isGroupChanged(items)).map(({ name }) => name)),
+        [groupsData],
+    );
 
     const onTabValueSelect = (value: string) => {
         setSelectedTab(value);
@@ -162,6 +168,10 @@ export const Menu = (props: MenuProps) => {
             itemName: string,
         ) =>
         (event: MouseEvent<HTMLDivElement>) => {
+            if (disabled && !canDisable) {
+                return;
+            }
+
             if (disabled) {
                 onItemDisabledButtonClick(groupName, itemName, items, disabled)(event);
                 return;
@@ -252,6 +262,9 @@ export const Menu = (props: MenuProps) => {
                             >
                                 <ListItemWrapper>
                                     <ListItemText>{groupName}</ListItemText>
+                                    {!openedGroups.includes(groupName) && changedGroups.has(groupName) && (
+                                        <ListItemChangedIndicator />
+                                    )}
                                 </ListItemWrapper>
                                 <ListItemContentRight>
                                     {canAdd && (
@@ -315,6 +328,7 @@ export const Menu = (props: MenuProps) => {
                                                             </Fragment>
                                                         ))}
                                                     </ListItemPreviewWrapper>
+                                                    {isTokenChanged(data) && <ListItemChangedIndicator />}
                                                 </ListItemWrapper>
                                                 <ListItemContentRight>
                                                     {canDisable && (
