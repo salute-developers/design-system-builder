@@ -1,20 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-import { camelToKebab, getMenuItems, kebabToCamel } from '../../utils';
+import { getMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
-import {
-    DesignSystem,
-    AndroidTypography,
-    IOSTypography,
-    Theme,
-    Token,
-    TypographyToken,
-    WebTypography,
-} from '../../controllers';
+import { DesignSystem, Theme, Token } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
+import { typographyTokenActions } from '../../actions';
 
 import { TokenTypographyEditor } from './features/TokenTypographyEditor';
 
@@ -34,71 +26,13 @@ export const Typography = () => {
     const data = useMemo(() => getMenuItems(theme, 'typography'), [theme, updated]);
 
     const onTokenAdd = (groupName: string, tokenName: string, _?: string, tokens?: (Token | unknown)[]) => {
-        if (!theme || !tokens) {
-            return;
-        }
-
-        const rest = [camelToKebab(groupName), camelToKebab(tokenName)];
-
-        const isTokenExist = theme.getToken(['screen-s', ...rest, 'normal'].join('.'), 'typography');
-
-        if (isTokenExist) {
-            console.warn('Токен уже существует');
-            return;
-        }
-
-        const createMeta = (screenSize: string, fontMode: string) => ({
-            tags: [screenSize, ...rest, fontMode],
-            name: [screenSize, ...rest, fontMode].join('.'),
-            displayName: kebabToCamel(
-                `${camelToKebab(groupName)}-${camelToKebab(tokenName)} ${upperFirstLetter(fontMode)[0]}`,
-            ),
-            description: 'New description',
-            enabled: true,
-        });
-
-        tokens.forEach((token) => {
-            const [screenSize, ..._] = (token as Token).getTags();
-
-            ['normal', 'medium', 'bold'].forEach((fontMode) => {
-                const newToken = new TypographyToken(createMeta(screenSize, fontMode), {
-                    web: new WebTypography({
-                        fontFamilyRef: 'fontFamily.display',
-                        fontWeight: '100',
-                        fontStyle: 'normal',
-                        fontSize: '0',
-                        lineHeight: '0',
-                        letterSpacing: '0',
-                    }),
-                    ios: new IOSTypography({
-                        fontFamilyRef: 'fontFamily.display',
-                        weight: 'black',
-                        style: 'normal',
-                        size: 0,
-                        lineHeight: 0,
-                        kerning: 0,
-                    }),
-                    android: new AndroidTypography({
-                        fontFamilyRef: 'fontFamily.display',
-                        fontWeight: 100,
-                        fontStyle: 'normal',
-                        textSize: 0,
-                        lineHeight: 0,
-                        letterSpacing: 0,
-                    }),
-                });
-
-                theme.addToken('typography', newToken);
-            });
-        });
+        typographyTokenActions.addToken({ groupName, tokenName, tokens, theme, designSystem });
 
         rerender();
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
-        (tokens as Token[]).forEach((token) => {
-            token.setEnabled(disabled);
-        });
+        typographyTokenActions.disableToken({ disabled, tokens, designSystem });
 
         rerender();
     };
@@ -137,7 +71,7 @@ export const Typography = () => {
                     designSystem={designSystem}
                     theme={theme}
                     tokens={tokens}
-                    onTokenUpdate={rerender}
+                    rerender={rerender}
                 />
             }
         />

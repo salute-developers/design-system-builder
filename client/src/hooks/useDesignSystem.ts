@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { DesignSystem, Config, Theme } from '../controllers';
+import { applyDraftChanges } from '../utils';
 
 export const useDesignSystem = (designSystemName?: string, designSystemVersion?: string, includeExtraTokens = true) => {
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
@@ -15,11 +16,11 @@ export const useDesignSystem = (designSystemName?: string, designSystemVersion?:
 
             const ds = await DesignSystem.get({ name: designSystemName, version: designSystemVersion });
             setDesignSystem(ds);
-            setTheme(
-                ds.createThemeInstance({
-                    includeExtraTokens,
-                }),
-            );
+
+            const themeInstance = ds.createThemeInstance({ includeExtraTokens });
+            applyDraftChanges(themeInstance, designSystemName, designSystemVersion);
+            setTheme(themeInstance);
+
             setComponents(ds.createAllComponentInstances());
         };
 
