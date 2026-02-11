@@ -12,7 +12,7 @@ import {
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { transliterateToSnakeCase } from '../utils';
+import { transliterateToSnakeCase, hasDraft } from '../utils';
 import {
     IconBookOpenOutline,
     IconColorSwatchOutline,
@@ -180,6 +180,9 @@ export const Main = () => {
     // TODO: Временное решение для показа/скрытия панели компонентов для определённых пользователей
     const showComponentPanelItems = !localStorage.getItem('login')?.includes('sdds_finai');
 
+    const showPublishButton =
+        !isHome && designSystemName && designSystemVersion && hasDraft(designSystemName, designSystemVersion);
+
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <Panel>
@@ -259,7 +262,7 @@ export const Main = () => {
                     onDesignSystemCreate,
                 }}
             />
-            {updated && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />}
+            {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />}
             <Debug designSystem={designSystem} theme={theme} components={components} />
             {isPopupOpen && (
                 <StyledPopup>

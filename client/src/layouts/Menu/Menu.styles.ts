@@ -236,6 +236,18 @@ export const ListItemContentRight = styled.div`
     gap: 0.5rem;
 `;
 
+export const ListItemChangedIndicator = styled.div<{ canShowTooltip?: boolean }>`
+    display: flex;
+    align-items: center;
+
+    width: 0.25rem;
+    height: 0.25rem;
+    border-radius: 50%;
+
+    // TODO: Поменять на токен Surfaces/Default/Accent/Solid/Accent
+    background: rgba(63, 129, 253, 1);
+`;
+
 export const StyledIconChevronDown = styled(IconChevronDown)`
     --icon-size: 0.5rem !important;
 `;
