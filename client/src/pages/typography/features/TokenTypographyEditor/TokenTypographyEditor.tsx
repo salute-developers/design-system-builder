@@ -1,16 +1,11 @@
 import { useState, useEffect } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
 
-import {
-    DesignSystem,
-    AndroidFontWeight,
-    IOSFontStyle,
-    IOSFontWeight,
-    Theme,
-    TypographyToken,
-} from '../../../../controllers';
+import { DesignSystem, Theme, TypographyToken } from '../../../../controllers';
 import { TextField, SegmentButton, SegmentButtonItem } from '../../../../components';
 import { TypographyPicker, TypographyType } from '../../../../features';
+import { typographyTokenActions } from '../../../../actions';
+import { updateTokenChange } from '../../../../utils';
 import { TokenTypographyPreview } from '../TokenTypographyPreview';
 
 import { Root, StyledHeader, StyledSetup, StyledLinkButton } from './TokenTypographyEditor.styles';
@@ -20,11 +15,11 @@ interface TokenTypographyEditorProps {
     designSystem: DesignSystem;
     theme: Theme;
     tokens?: TypographyToken[];
-    onTokenUpdate: () => void;
+    rerender: () => void;
 }
 
 export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
-    const { designSystem, theme, tokens, onTokenUpdate } = props;
+    const { designSystem, theme, tokens, rerender } = props;
 
     const [screenSize, setScreenSize] = useState<SegmentButtonItem>({
         label: 'Большой',
@@ -42,58 +37,8 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
     const token = tokens?.[Number(screenSize.value)];
     const [description, setDescription] = useState<string | undefined>(token?.getDescription());
 
-    const updateTokenValue = (value: TypographyType) => {
-        if (!token) {
-            return;
-        }
-
-        const { fontSize, lineHeight, fontStyle, fontWeight, letterSpacing } = value;
-
-        const webValue = {
-            fontFamilyRef: token.getValue('web').fontFamilyRef,
-            fontWeight,
-            fontStyle,
-            fontSize: `${Number(fontSize) / 16}rem`,
-            lineHeight: `${Number(lineHeight) / 16}rem`,
-            letterSpacing: Number(letterSpacing) === 0 ? 'normal' : `${Number(letterSpacing) / 16}em`,
-        };
-
-        const iosFontWeightMap = {
-            '900': 'black',
-            '800': 'bold',
-            '700': 'heavy',
-            '600': 'semibold',
-            '500': 'medium',
-            '400': 'regular',
-            '300': 'light',
-            '200': 'ultraLight',
-            '100': 'thin',
-        };
-
-        const iosValue = {
-            fontFamilyRef: token.getValue('ios').fontFamilyRef,
-            weight: iosFontWeightMap[fontWeight] as IOSFontWeight,
-            style: fontStyle as IOSFontStyle,
-            size: Number(fontSize),
-            lineHeight: Number(lineHeight),
-            kerning: Number(letterSpacing),
-        };
-
-        const androidValue = {
-            fontFamilyRef: token.getValue('android').fontFamilyRef,
-            fontWeight: Number(fontWeight) as AndroidFontWeight,
-            fontStyle,
-            textSize: Number(fontSize),
-            lineHeight: Number(lineHeight),
-            letterSpacing: Number(letterSpacing),
-        };
-
-        token.setValue('web', webValue);
-        token.setValue('ios', iosValue);
-        token.setValue('android', androidValue);
-
-        onTokenUpdate();
-    };
+    const dsName = designSystem.getName() || '';
+    const dsVersion = designSystem.getVersion() || '';
 
     const onScreenSizeSelect = (item: SegmentButtonItem) => {
         setScreenSize(item);
@@ -102,7 +47,8 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
     const onValueChange = (value: TypographyType) => {
         setValue(value);
 
-        updateTokenValue(value);
+        typographyTokenActions.updateToken({ value, token, designSystem });
+        rerender();
     };
 
     const onDescriptionChange = (newDescription: string) => {
@@ -111,9 +57,11 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
         }
 
         setDescription(newDescription);
+        // TODO: Перенести в экшены?
         token.setDescription(newDescription);
+        updateTokenChange(dsName, dsVersion, token);
 
-        onTokenUpdate();
+        rerender();
     };
 
     const onTokenReset = () => {
@@ -121,20 +69,14 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
             return;
         }
 
-        const defaultDescription = token.getDefaultDescription();
-        const platforms = Object.keys(token.getPlatforms());
-
-        for (const platform of platforms) {
-            token.setValue(platform, token.getDefaultValue(platform));
-            token.setDescription(defaultDescription);
-        }
+        typographyTokenActions.resetToken({ token, designSystem });
 
         const tokenValue = getTokenValue(token.getDefaultValue('web'), theme);
 
         setValue(tokenValue);
-        setDescription(defaultDescription);
+        setDescription(token.getDefaultDescription());
 
-        onTokenUpdate();
+        rerender();
     };
 
     useEffect(() => {

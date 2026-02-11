@@ -3,6 +3,7 @@ import { general } from '@salutejs/plasma-colors';
 
 import { Config, DesignSystem, Theme } from '../../controllers';
 import { designSystemSave, generateAndDeployDocumentation, generatePublish, longPollNpm } from '../../pages';
+import { clearDraft } from '../../utils';
 import {
     Root,
     StyledDescription,
@@ -62,6 +63,12 @@ export const PublishProgress = (props: PublishProgressProps) => {
             const result1 = await designSystemSave(designSystem, theme, components);
             if (!result1.success) {
                 throw new Error(`Ошибка при сохранении дизайн системы: ${result1}`);
+            }
+
+            const dsName = designSystem.getName();
+            const dsVersion = designSystem.getVersion();
+            if (dsName && dsVersion) {
+                clearDraft(dsName, dsVersion);
             }
 
             const result2 = await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);

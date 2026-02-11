@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, MouseEvent } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
 
 import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
-import { convertColor, getColorAndOpacity, getNormalizedColor } from '../../../../utils';
+import { convertColor, getColorAndOpacity, getNormalizedColor, updateTokenChange } from '../../../../utils';
 import { ColorFormats } from '../../../../types';
 import { ColorPicker } from '../../../../features';
 import {
@@ -13,8 +13,8 @@ import {
     SelectButton,
     SelectButtonItem,
 } from '../../../../components';
+import { colorTokenActions } from '../../../../actions';
 import { TokenColorPreview } from '../TokenColorPreview';
-import { getAdditionalColorValues } from '../../Colors.utils';
 
 import {
     Root,
@@ -72,11 +72,11 @@ interface TokenColorEditorProps {
     designSystem: DesignSystem;
     theme: Theme;
     tokens?: (ColorToken | GradientToken)[];
-    onTokenUpdate: () => void;
+    rerender: () => void;
 }
 
 export const TokenColorEditor = (props: TokenColorEditorProps) => {
-    const { designSystem, theme, tokens, onTokenUpdate } = props;
+    const { designSystem, theme, tokens, rerender } = props;
 
     const [mode, setMode] = useState<SegmentButtonItem>(modeList[0]);
     const [type, setType] = useState<SelectButtonItem>(typeList[0]);
@@ -87,46 +87,8 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
 
     const [description, setDescription] = useState<string | undefined>(token?.getDescription());
 
-    const updateTokenValue = (color: string, opacity: number) => {
-        if (!token) {
-            return;
-        }
-
-        if (token instanceof ColorToken) {
-            const newValue = color.startsWith('general.')
-                ? `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`
-                : getNormalizedColor(color, opacity);
-
-            token.setValue('web', newValue);
-            token.setValue('ios', newValue);
-            token.setValue('android', newValue);
-
-            const [themeMode, groupName, subgroupName, ..._] = token.getTags();
-
-            const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName);
-
-            if (!additionalValues) {
-                return;
-            }
-
-            const activeToken = theme.getToken(`${token.getName()}-active`, 'color');
-            const hoverToken = theme.getToken(`${token.getName()}-hover`, 'color');
-
-            if (activeToken && hoverToken) {
-                const [activeValue, hoverValue] = additionalValues;
-
-                activeToken.setValue('web', activeValue);
-                activeToken.setValue('ios', activeValue);
-                activeToken.setValue('android', activeValue);
-
-                hoverToken.setValue('web', hoverValue);
-                hoverToken.setValue('ios', hoverValue);
-                hoverToken.setValue('android', hoverValue);
-            }
-
-            onTokenUpdate();
-        }
-    };
+    const dsName = designSystem.getName() || '';
+    const dsVersion = designSystem.getVersion() || '';
 
     const onModeSelect = (item: SegmentButtonItem) => {
         setMode(item);
@@ -139,13 +101,29 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
     const onColorChange = (newColor: string) => {
         setColor(newColor);
 
-        updateTokenValue(newColor, opacity);
+        colorTokenActions.updateToken({
+            color: newColor,
+            opacity,
+            token,
+            theme,
+            designSystem,
+        });
+
+        rerender();
     };
 
     const onOpacityChange = (newOpacity: number) => {
         setOpacity(newOpacity);
 
-        updateTokenValue(color, newOpacity);
+        colorTokenActions.updateToken({
+            color,
+            opacity: newOpacity,
+            token,
+            theme,
+            designSystem,
+        });
+
+        rerender();
     };
 
     const onDescriptionChange = (newDescription: string) => {
@@ -154,31 +132,26 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         }
 
         setDescription(newDescription);
+        
+        // TODO: Перенести в экшены?
         token.setDescription(newDescription);
+        updateTokenChange(dsName, dsVersion, token, 'save');
 
-        onTokenUpdate();
+        rerender();
     };
 
     const onTokenReset = () => {
-        if (!token) {
-            return;
-        }
+        const { color, opacity, description } = colorTokenActions.resetToken({
+            token,
+            theme,
+            designSystem,
+        });
 
-        const defaultDescription = token.getDefaultDescription();
-        const platforms = Object.keys(token.getPlatforms());
+        setColor(color);
+        setOpacity(opacity);
+        setDescription(description);
 
-        for (const platform of platforms) {
-            token.setValue(platform, token.getDefaultValue(platform));
-            token.setDescription(defaultDescription);
-        }
-
-        const [colorValue, opacityValue] = getColorAndOpacity(token.getDefaultValue('web'));
-
-        setColor(colorValue);
-        setOpacity(opacityValue);
-        setDescription(defaultDescription);
-
-        onTokenUpdate();
+        rerender();
     };
 
     useEffect(() => {
