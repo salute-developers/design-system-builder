@@ -96,7 +96,7 @@ export const createPackageJSON = ({
                 'pregenerate:typings': 'rm -rf components/**/*.d.ts && rm -f index.d.ts',
                 'generate:typings': 'tsc --outDir . --emitDeclarationOnly',
                 'copy-css-files': 'mkdir -p ${CSS_BUILD_PATH} && cp -R src/theme/css/* ${CSS_BUILD_PATH}',
-                lint: '../node_modules/.bin/eslint ./src --ext .ts --quiet',
+                lint: '[ -f ../node_modules/.bin/eslint ] && ../node_modules/.bin/eslint ./src --ext .ts --quiet || eslint ./src --ext .ts --quiet',
             },
             sideEffects: ['*.css'],
         },
