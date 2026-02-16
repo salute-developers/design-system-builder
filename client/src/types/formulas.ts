@@ -40,6 +40,7 @@ interface OpacityMode {
 }
 
 export interface Formula {
+    text: OpacityMode;
     stroke: OpacityMode;
     fill: OpacityMode;
 }

@@ -21,7 +21,7 @@ export const baseColors = {
 // TODO: Подумать как сделать этот список динамическим, либо добавить механизм к группе
 // который будет указывать как применять формулы для генерации active и hover состояний
 export const sectionToFormulaMap: Record<string, FormulaMode> = {
-    text: 'stroke',
+    text: 'text',
     outline: 'stroke',
     surface: 'fill',
     data: 'fill',

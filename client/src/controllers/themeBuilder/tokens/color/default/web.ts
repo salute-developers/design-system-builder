@@ -72,6 +72,7 @@ const getDarkSet = ({
         getPaletteColorByValue(fillAccentColor.dark)[1]
     }][0.2]`,
     'dark.surface.default.transparent-info': `[general.blue.${getPaletteColorByValue(fillAccentColor.dark)[1]}][0.2]`,
+    'dark.surface.default.read-only': `[general.${grayscale.dark}.50][0.02]`,
     'dark.background.default.primary': `[general.${grayscale.dark}.1000]`,
     'dark.background.default.secondary': baseColors.white.value,
     'dark.background.default.tertiary': baseColors.white.value,
@@ -131,6 +132,7 @@ const getDarkSet = ({
         'dark',
         1 + 0.28,
     ),
+    'dark.outline.default.read-only': `[general.${grayscale.dark}.50][0.12]`,
     'dark.data.default.yellow': '[general.amber.300]',
     'dark.data.default.yellow-minor': '[general.amber.700]',
     'dark.data.default.yellow-transparent': '[general.amber.300][0.56]',
@@ -206,6 +208,7 @@ const getLightSet = ({
     'light.surface.default.transparent-info': `[general.blue.${
         getPaletteColorByValue(fillAccentColor.light)[1]
     }][0.12]`,
+    'light.surface.default.read-only': `[general.${grayscale.light}.50][0.01]`,
     'light.background.default.primary': `[general.${grayscale.light}.50]`,
     'light.background.default.secondary': baseColors.white.value,
     'light.background.default.tertiary': baseColors.white.value,
@@ -265,6 +268,7 @@ const getLightSet = ({
         'light',
         1 + 0.2,
     ),
+    'light.outline.default.read-only': `[general.${grayscale.light}.50][0.01]`,
     'light.data.default.yellow': '[general.amber.300]',
     'light.data.default.yellow-minor': '[general.amber.200]',
     'light.data.default.yellow-transparent': '[general.amber.300][0.56]',
