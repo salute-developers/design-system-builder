@@ -251,7 +251,7 @@ export const getColorAndOpacity = (value: string | string[]) => {
 
     const hex = value.startsWith('#') ? value : getHEXAColor(value);
     const opacity = extractAlphaFromHex(hex);
-    const color = hex.slice(0, -2);
+    const color = opacity < 1 ? hex.slice(0, -2) : hex;
 
     return [color, opacity] as const;
 };
