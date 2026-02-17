@@ -10,8 +10,15 @@ import {
     Token,
     WebColor,
 } from '../controllers';
+import {
+    camelToKebab,
+    getColorAndOpacity,
+    getNormalizedColor,
+    getStateColor,
+    kebabToCamel,
+    updateTokenChange,
+} from '../utils';
 import { sectionToFormulaMap } from '../types';
-import { camelToKebab, getColorAndOpacity, getNormalizedColor, getStateColor, kebabToCamel, updateTokenChange } from '../utils';
 
 const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
     const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
@@ -84,7 +91,7 @@ interface ColorTokenActions {
 }
 
 export const colorTokenActions: ColorTokenActions = {
-    addToken: ({ groupName, tokenName, tabName, tokens, theme }) => {
+    addToken: async ({ groupName, tokenName, tabName, tokens, theme }) => {
         if (!theme || !tabName || !tokens) {
             return;
         }
@@ -153,14 +160,14 @@ export const colorTokenActions: ColorTokenActions = {
             theme.addToken('color', hoverToken);
         });
 
-        // const readTheme = await readThemeBuildInstanceAndWrite();
+        // const readTheme = await readThemeBuildInstanceAndWrite('sdds_platform_ai');
         // const themeData = {
         //     meta: createMetaTokens(readTheme),
         //     variations: createVariationTokens(readTheme),
         // };
         // const parameters = {
-        //     projectName: 'SDDS FINAI',
-        //     packagesName: 'sdds_finai',
+        //     projectName: 'SDDS PLATFORM AI',
+        //     packagesName: 'sdds_platform_ai',
         //     grayTone: 'gray',
         //     accentColor: 'blue',
         //     lightStrokeSaturation: 50,
@@ -169,7 +176,7 @@ export const colorTokenActions: ColorTokenActions = {
         //     darkFillSaturation: 50,
         // } as Partial<Parameters>;
         // await DesignSystem.create({
-        //     name: 'sdds_finai',
+        //     name: 'sdds_platform_ai',
         //     version: '0.1.0',
         //     parameters,
         //     themeData,
