@@ -4,11 +4,11 @@ import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra'
 
 import { getMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
-import { DesignSystem, Theme, Token } from '../../controllers';
+import { DesignSystem, GradientToken, Theme, Token } from '../../controllers';
 import { Menu, Workspace } from '../../layouts';
 
 import { TokenColorEditor } from './features/TokenColorEditor';
-import { colorTokenActions } from '../../actions';
+import { colorTokenActions, gradientTokenActions } from '../../actions';
 
 interface ColorsOutletContextProps {
     designSystem?: DesignSystem;
@@ -26,12 +26,26 @@ export const Colors = () => {
     const data = useMemo(() => getMenuItems(theme, 'color'), [theme, updated]);
 
     const onTokenAdd = async (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | unknown)[]) => {
+        if (tokenName.toLocaleLowerCase().includes('gradient')) {
+            gradientTokenActions.addToken({ groupName, tokenName, tabName, tokens, theme, designSystem });
+
+            rerender();
+            return;
+        }
+
         colorTokenActions.addToken({ groupName, tokenName, tabName, tokens, theme, designSystem });
 
         rerender();
     };
 
     const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
+        if (tokens[0] instanceof GradientToken) {
+            gradientTokenActions.disableToken({ disabled, tokens, designSystem });
+
+            rerender();
+            return;
+        }
+
         colorTokenActions.disableToken({ disabled, tokens, designSystem });
 
         rerender();

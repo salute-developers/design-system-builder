@@ -20,17 +20,19 @@ interface PreviewItemProps {
     defaultBackground: string;
     color: string;
     tokenList: SelectButtonItem[];
+    type: string;
 }
 
 const PreviewItem = (props: PreviewItemProps) => {
-    const { tokenList, color, defaultBackground } = props;
+    const { tokenList, color, defaultBackground, type } = props;
+    const isGradient = type === 'gradient';
 
     const [background, setBackground] = useState<SelectButtonItem>(
         tokenList.find((item) => item.label === defaultBackground) || tokenList[0],
     );
     const [openExamples, setOpenExamples] = useState<Array<string | undefined>>([]);
 
-    const contrastRatio = useMemo(() => getContrastRatio(color, background.value ?? ''), [color, background]);
+    const contrastRatio = useMemo(() => isGradient ? 0 : getContrastRatio(color, background.value ?? ''), [color, background]);
 
     const onBackgroundSelect = (item: SelectButtonItem) => {
         setBackground(item);
@@ -51,11 +53,13 @@ const PreviewItem = (props: PreviewItemProps) => {
         setBackground(newBackground);
     }, [tokenList, defaultBackground]);
 
+    const colorStyle = isGradient ? { backgroundImage: color } : { color };
+
     const renderExample = (size: 'small' | 'large') => {
         return (
             <StyledWCAGStatus>
-                <StyledWCAGStatusText size={size} style={{ color }}>
-                    {getContrastStatus(contrastRatio, size)}
+                <StyledWCAGStatusText size={size} isGradient={isGradient} style={colorStyle}>
+                    {isGradient ? null : getContrastStatus(contrastRatio, size)}
                     <IconButton onClick={() => onExampleToggle(size)}>
                         {openExamples.includes(size) ? (
                             <IconChevronUp size="xs" color="inherit" />
@@ -65,7 +69,7 @@ const PreviewItem = (props: PreviewItemProps) => {
                     </IconButton>
                 </StyledWCAGStatusText>
                 {openExamples.includes(size) && (
-                    <StyledWCAGStatusText size={size} style={{ color }}>
+                    <StyledWCAGStatusText size={size} isGradient={isGradient} style={colorStyle}>
                         Эх, жирафы честно в цель шагают, да щук объять за память ёлкой...
                     </StyledWCAGStatusText>
                 )}
@@ -85,7 +89,9 @@ const PreviewItem = (props: PreviewItemProps) => {
                     onItemSelect={onBackgroundSelect}
                 />
             </StyledPreviewBackgroundEditor>
-            <StyledWCAGRating style={{ color }}>{contrastRatio}</StyledWCAGRating>
+            <StyledWCAGRating isGradient={isGradient} style={colorStyle}>
+                {isGradient ? 0 : contrastRatio}
+            </StyledWCAGRating>
             {renderExample('large')}
             {renderExample('small')}
         </StyledPreview>
@@ -96,18 +102,29 @@ interface TokenColorPreviewProps {
     color: string;
     opacity?: number;
     theme?: Theme;
+    type: string;
 }
 
 export const TokenColorPreview = (props: TokenColorPreviewProps) => {
-    const { color, opacity, theme } = props;
+    const { color, opacity, theme, type } = props;
 
-    const colorValue = getNormalizedColor(color, opacity);
+    const colorValue = type === 'gradient' ? color : getNormalizedColor(color, opacity);
     const tokenList = getColorsTokens(theme);
 
     return (
         <Root>
-            <PreviewItem defaultBackground="dark.background.default.primary" color={colorValue} tokenList={tokenList} />
-            <PreviewItem defaultBackground="dark.surface.default.accent" color={colorValue} tokenList={tokenList} />
+            <PreviewItem
+                defaultBackground="dark.background.default.primary"
+                color={colorValue}
+                tokenList={tokenList}
+                type={type}
+            />
+            <PreviewItem
+                defaultBackground="dark.surface.default.accent"
+                color={colorValue}
+                tokenList={tokenList}
+                type={type}
+            />
         </Root>
     );
 };

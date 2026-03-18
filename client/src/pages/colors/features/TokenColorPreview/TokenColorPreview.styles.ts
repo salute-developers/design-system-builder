@@ -36,8 +36,16 @@ export const StyledPreviewBackgroundEditor = styled.div`
     gap: 0.5rem;
 `;
 
-export const StyledWCAGRating = styled.div`
+export const StyledWCAGRating = styled.div<{ isGradient?: boolean }>`
     ${dsplMBold as CSSObject};
+
+    ${({ isGradient }) =>
+        isGradient &&
+        `
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    `}
 `;
 
 export const StyledWCAGStatus = styled.div`
@@ -53,13 +61,21 @@ export const StyledWCAGBadStatus = styled.span`
     gap: 0.375rem;
 `;
 
-export const StyledWCAGStatusText = styled.div<{ size: 'small' | 'large' }>`
+export const StyledWCAGStatusText = styled.div<{ size: 'small' | 'large'; isGradient?: boolean }>`
     ${({ size }) => (size === 'small' ? (bodyM as CSSObject) : (h3 as CSSObject))};
 
     display: flex;
     justify-content: space-between;
 
     transition: color 0.2s ease-in-out;
+
+    ${({ isGradient }) =>
+        isGradient &&
+        `
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    `}
 `;
 
 export const StyledSelectButton = styled(SelectButton)`

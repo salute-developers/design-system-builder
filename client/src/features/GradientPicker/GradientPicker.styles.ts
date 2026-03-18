@@ -13,9 +13,3 @@ export const StyledWrapper = styled.div`
     width: 100%;
     align-items: center;
 `;
-
-export const StyledColorFormats = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-`;
