@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react';
 import { SelectButton, SelectButtonItem, Slider, TextField } from '../../components';
 import { getNormalizedColor, isValidColorValue } from '../../utils';
 
-import { Root, StyledWrapper } from './ColorPicker.styles';
+import { Root, StyledColorFormats, StyledWrapper } from './ColorPicker.styles';
 import { paletteList } from './ColorPicker.utils';
 
-import { CustomColorSelector, PaletteColorSelector } from './ui';
+import { ColorValueEditButton, CustomColorSelector, PaletteColorSelector } from './ui';
 
 interface ColorPickerProps {
     color: string;
-    opacity?: number;
+    opacity: number;
     onColorChange?: (color: string) => void;
     onOpacityChange?: (opacity: number) => void;
 }
@@ -101,6 +101,11 @@ export const ColorPicker = (props: ColorPickerProps) => {
                     onChange={onSliderValueChange}
                 />
             </StyledWrapper>
+            <StyledColorFormats>
+                <ColorValueEditButton label="Hex" color={color} opacity={opacity} format="hex" />
+                <ColorValueEditButton label="RGB" color={color} opacity={opacity} format="rgb" />
+                <ColorValueEditButton label="HSL" color={color} opacity={opacity} format="hsl" />
+            </StyledColorFormats>
         </Root>
     );
 };

@@ -17,10 +17,10 @@ export interface IOSRadialGradient {
     kind: 'radial';
     locations: Array<number>;
     colors: Array<string>;
-    startPointX: number;
-    startPointY: number;
-    endPointX: number;
-    endPointY: number;
+    centerX: number;
+    centerY: number;
+    startRadius: number;
+    endRadius: number;
 }
 
 export interface IOSAngularGradient {

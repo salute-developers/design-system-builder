@@ -1,72 +1,15 @@
-import { useState, useEffect, useMemo, MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
 
 import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
-import { convertColor, getColorAndOpacity, getNormalizedColor, updateTokenChange } from '../../../../utils';
-import { ColorFormats } from '../../../../types';
-import { ColorPicker } from '../../../../features';
-import {
-    TextField,
-    EditButton,
-    SegmentButton,
-    SegmentButtonItem,
-    SelectButton,
-    SelectButtonItem,
-} from '../../../../components';
-import { colorTokenActions } from '../../../../actions';
+import { getColorAndOpacity, updateTokenChange } from '../../../../utils';
+import { ColorPicker, GradientPicker } from '../../../../features';
+import { TextField, SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem } from '../../../../components';
+import { colorTokenActions, gradientTokenActions } from '../../../../actions';
 import { TokenColorPreview } from '../TokenColorPreview';
 
-import {
-    Root,
-    StyledHeader,
-    StyledSetup,
-    StyledColorFormats,
-    StyledLinkButton,
-    StyledIconDone,
-    StyledIconCopyOutline,
-} from './TokenColorEditor.styles';
+import { Root, StyledHeader, StyledSetup, StyledLinkButton } from './TokenColorEditor.styles';
 import { modeList, typeList } from './TokenColorEditor.utils';
-
-interface ColorValueEditButtonProps {
-    label: string;
-    format: keyof ColorFormats;
-    color: string;
-    opacity: number;
-}
-
-const ColorValueEditButton = (props: ColorValueEditButtonProps) => {
-    const { label, color, opacity, format } = props;
-
-    const [copied, setCopied] = useState<boolean | undefined>();
-
-    const value = useMemo(() => {
-        const colorValue = getNormalizedColor(color, opacity);
-
-        return convertColor(colorValue)[format];
-    }, [color, opacity, format]);
-
-    const colorFormatContentRight =
-        copied === undefined ? undefined : copied ? <StyledIconDone /> : <StyledIconCopyOutline />;
-
-    const onButtonInteract = (newValue: boolean | undefined, toCopy?: boolean) => (_: MouseEvent<HTMLDivElement>) => {
-        setCopied(newValue);
-
-        if (toCopy) {
-            navigator.clipboard.writeText(value);
-        }
-    };
-
-    return (
-        <EditButton
-            label={label}
-            text={value}
-            contentRight={colorFormatContentRight}
-            onClick={onButtonInteract(true, true)}
-            onMouseEnter={onButtonInteract(false)}
-            onMouseLeave={onButtonInteract(undefined)}
-        />
-    );
-};
 
 interface TokenColorEditorProps {
     designSystem: DesignSystem;
@@ -98,16 +41,27 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         setType(item);
     };
 
-    const onColorChange = (newColor: string) => {
-        setColor(newColor);
+    const onColorChange = (newValue: string | string[]) => {
+        setColor(Array.isArray(newValue) ? newValue.join(', ') : newValue);
 
-        colorTokenActions.updateToken({
-            color: newColor,
-            opacity,
-            token,
-            theme,
-            designSystem,
-        });
+        if (token instanceof ColorToken) {
+            colorTokenActions.updateToken({
+                color: newValue as string,
+                opacity,
+                token,
+                theme,
+                designSystem,
+            });
+        }
+
+        if (token instanceof GradientToken) {
+            gradientTokenActions.updateToken({
+                gradient: newValue as string[],
+                token,
+                theme,
+                designSystem,
+            });
+        }
 
         rerender();
     };
@@ -115,13 +69,15 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
     const onOpacityChange = (newOpacity: number) => {
         setOpacity(newOpacity);
 
-        colorTokenActions.updateToken({
-            color,
-            opacity: newOpacity,
-            token,
-            theme,
-            designSystem,
-        });
+        if (token instanceof ColorToken) {
+            colorTokenActions.updateToken({
+                color,
+                opacity: newOpacity,
+                token,
+                theme,
+                designSystem,
+            });
+        }
 
         rerender();
     };
@@ -132,7 +88,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         }
 
         setDescription(newDescription);
-        
+
         // TODO: Перенести в экшены?
         token.setDescription(newDescription);
         updateTokenChange(dsName, dsVersion, token, 'save');
@@ -141,15 +97,17 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
     };
 
     const onTokenReset = () => {
-        const { color, opacity, description } = colorTokenActions.resetToken({
-            token,
-            theme,
-            designSystem,
-        });
+        if (token instanceof ColorToken) {
+            const { color, opacity, description } = colorTokenActions.resetToken({
+                token,
+                theme,
+                designSystem,
+            });
 
-        setColor(color);
-        setOpacity(opacity);
-        setDescription(description);
+            setColor(color);
+            setOpacity(opacity);
+            setDescription(description);
+        }
 
         rerender();
     };
@@ -160,7 +118,8 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         }
 
         const [colorValue, opacityValue] = getColorAndOpacity(token.getValue('web'));
-        setColor(colorValue);
+        setType(token instanceof GradientToken ? typeList[1] : typeList[0]);
+        setColor(token instanceof GradientToken ? token.getValue('web').join(', ') : colorValue);
         setOpacity(opacityValue);
         setDescription(token.getDescription());
     }, [token]);
@@ -179,24 +138,22 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
                 </StyledHeader>
                 <SegmentButton label="Режим" items={modeList} selected={mode} onSelect={onModeSelect} />
                 <SelectButton label="Тип" items={typeList} selected={type} onItemSelect={onTypeSelect} />
-                <ColorPicker
-                    opacity={opacity}
-                    color={color}
-                    onColorChange={onColorChange}
-                    onOpacityChange={onOpacityChange}
-                />
-                <StyledColorFormats>
-                    <ColorValueEditButton label="Hex" color={color} opacity={opacity} format="hex" />
-                    <ColorValueEditButton label="RGB" color={color} opacity={opacity} format="rgb" />
-                    <ColorValueEditButton label="HSL" color={color} opacity={opacity} format="hsl" />
-                </StyledColorFormats>
+                {type.value === 'gradient' && <GradientPicker color={color} onColorChange={onColorChange} />}
+                {type.value === 'color' && (
+                    <ColorPicker
+                        opacity={opacity}
+                        color={color}
+                        onColorChange={onColorChange}
+                        onOpacityChange={onOpacityChange}
+                    />
+                )}
                 <StyledLinkButton
                     text="Отменить изменения"
                     contentLeft={<IconClose size="xs" />}
                     onClick={onTokenReset}
                 />
             </StyledSetup>
-            <TokenColorPreview color={color} opacity={opacity} theme={theme} />
+            <TokenColorPreview color={color} opacity={opacity} theme={theme} type={type.value} />
         </Root>
     );
 };

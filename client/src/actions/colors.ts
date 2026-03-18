@@ -1,15 +1,7 @@
 import { getRestoredColorFromPalette, ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import {
-    AndroidColor,
-    ColorToken,
-    DesignSystem,
-    GradientToken,
-    IOSColor,
-    Theme,
-    Token,
-    WebColor,
-} from '../controllers';
+import { AndroidColor, ColorToken, DesignSystem, IOSColor, Theme, Token, WebColor } from '../controllers';
+import { sectionToFormulaMap } from '../types';
 import {
     camelToKebab,
     getColorAndOpacity,
@@ -18,7 +10,6 @@ import {
     kebabToCamel,
     updateTokenChange,
 } from '../utils';
-import { sectionToFormulaMap } from '../types';
 
 const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
     const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
@@ -68,13 +59,13 @@ interface DisableTokenProps {
 interface UpdateTokenProps {
     color: string;
     opacity: number;
-    token?: ColorToken | GradientToken;
+    token?: ColorToken;
     theme?: Theme;
     designSystem?: DesignSystem;
 }
 
 interface ResetTokenProps {
-    token?: ColorToken | GradientToken;
+    token?: ColorToken;
     theme?: Theme;
     designSystem?: DesignSystem;
 }
@@ -91,8 +82,8 @@ interface ColorTokenActions {
 }
 
 export const colorTokenActions: ColorTokenActions = {
-    addToken: async ({ groupName, tokenName, tabName, tokens, theme }) => {
-        if (!theme || !tabName || !tokens) {
+    addToken: ({ groupName, tokenName, tabName, tokens, theme, designSystem }) => {
+        if (!theme || !tabName || !tokens || !designSystem) {
             return;
         }
 
@@ -158,6 +149,13 @@ export const colorTokenActions: ColorTokenActions = {
 
             theme.addToken('color', activeToken);
             theme.addToken('color', hoverToken);
+
+            const dsName = designSystem.getName() || '';
+            const dsVersion = designSystem.getVersion() || '';
+
+            updateTokenChange(dsName, dsVersion, newToken);
+            updateTokenChange(dsName, dsVersion, activeToken);
+            updateTokenChange(dsName, dsVersion, hoverToken);
         });
 
         // const readTheme = await readThemeBuildInstanceAndWrite('sdds_platform_ai');

@@ -117,7 +117,7 @@ export const typographyTokenActions: TypographyTokenActions = {
 
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
-            updateTokenChange(dsName, dsVersion, token);
+            updateTokenChange(dsName, dsVersion, token, 'toggle');
         });
     },
     updateToken: ({ value, token, designSystem }: UpdateTokenProps) => {

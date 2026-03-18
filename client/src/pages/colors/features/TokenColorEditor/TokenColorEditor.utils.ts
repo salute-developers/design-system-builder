@@ -12,7 +12,8 @@ export const modeList = [
 export const typeList = [
     {
         label: 'Сплошной',
-        value: 'solid',
+        value: 'color',
+        disabled: true,
     },
     {
         label: 'Градиент',
