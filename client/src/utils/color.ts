@@ -176,8 +176,7 @@ export const shiftAccentColor = (color: ComplexValue, theme: ThemeMode, opacity?
 
     const newValue = `[general.${shade}.${Math.min(max, Math.max(min, newSaturation))}]`;
 
-    // TODO: удалить opacity - 1 и обновить использование метода в новой архитектуре
-    return opacity ? `${newValue}[${(opacity - 1).toPrecision(2)}]` : newValue;
+    return opacity ? `${newValue}[${(opacity).toPrecision(2)}]` : newValue;
 };
 
 export const checkIsColorContrast = (color?: string, background?: string, threshold = 2) => {

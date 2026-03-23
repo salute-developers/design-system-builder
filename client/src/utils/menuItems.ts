@@ -13,7 +13,7 @@ import {
 import { kebabToCamel } from './';
 import { Data, DataItems, MenuType } from '../types';
 
-// TODO: Перенести в БД
+// TODO: Перенести в БД?
 const componentList = [
     {
         groupName: 'Layout',
@@ -117,7 +117,7 @@ const componentList = [
             { name: 'Tooltip', disabled: true },
         ],
     },
-];
+].sort((a, b) => a.groupName.localeCompare(b.groupName));
 
 const generateComponentMap = (componentConfigs: Config[]) => {
     const data: DataItems = {};
@@ -300,29 +300,33 @@ const createDataItems = (dataItems: DataItems, tokenType: MenuType, tabsName?: s
     if (tabsName) {
         data.tabs = {
             name: tabsName,
-            values: Object.keys(dataItems).map(upperFirstLetter),
+            values: Object.keys(dataItems)
+                .map(upperFirstLetter)
+                .sort((a, b) => a.localeCompare(b)),
         };
     }
 
     Object.entries(dataItems).forEach(([tab, groups]) => {
         data.groups.push({
             value: tabsName ? upperFirstLetter(tab) : undefined,
-            data: Object.entries(groups).map(([group, items]) => ({
-                name: upperFirstLetter(group),
-                type: tokenType,
-                items: Object.entries(items).map(([name, modes]) => {
-                    const disabled = !Object.values(modes)[0].enabled;
-                    const previewValues = Object.values(modes).map(({ value }) => value);
-                    const data = Object.values(modes).map(({ item: token }) => token);
+            data: Object.entries(groups)
+                .map(([group, items]) => ({
+                    name: upperFirstLetter(group),
+                    type: tokenType,
+                    items: Object.entries(items).map(([name, modes]) => {
+                        const disabled = !Object.values(modes)[0].enabled;
+                        const previewValues = Object.values(modes).map(({ value }) => value);
+                        const data = Object.values(modes).map(({ item: token }) => token);
 
-                    return {
-                        name,
-                        disabled,
-                        previewValues,
-                        data,
-                    };
-                }),
-            })),
+                        return {
+                            name,
+                            disabled,
+                            previewValues,
+                            data,
+                        };
+                    }),
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name)),
         });
     });
 

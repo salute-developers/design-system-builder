@@ -248,7 +248,7 @@ export const Menu = (props: MenuProps) => {
                 <ListSectionTitle>{sectionTitle}</ListSectionTitle>
                 <ListSectionGroups>
                     {groupsData.map(({ name: groupName, type, items }, groupIndex) => (
-                        <ListSectionGroup key={`${groupName}_${selectedItem}_${selectedTab}`}>
+                        <ListSectionGroup key={`${groupName}_${selectedTab}`}>
                             <ListSectionGroupToggle onClick={() => onGroupToggle(groupName)}>
                                 {openedGroups.includes(groupName) ? (
                                     <StyledIconChevronUp color="inherit" />
@@ -288,7 +288,7 @@ export const Menu = (props: MenuProps) => {
                                     {items.map(
                                         ({ disabled, name: itemName, previewValues: values, data }, itemIndex) => (
                                             <ListItem
-                                                key={`${itemName}_${selectedItem}_${selectedTab}`}
+                                                key={`${itemName}_${selectedTab}`}
                                                 selected={itemName === selectedItem}
                                                 disabled={disabled}
                                                 lineThrough={canDisable}

@@ -19,7 +19,7 @@ interface ComponentsOutletContextProps {
 export const Components = () => {
     const { designSystem, theme, components, updated, rerender } = useOutletContext<ComponentsOutletContextProps>();
 
-    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 2, 3]);
+    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 1, 3]);
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
     const data = useMemo(() => getMenuItems(components, 'components'), [theme]);
