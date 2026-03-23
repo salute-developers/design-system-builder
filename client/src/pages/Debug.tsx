@@ -1,9 +1,11 @@
-import { IconSave } from '@salutejs/plasma-icons';
+import { ChangeEvent } from 'react';
 import styled from 'styled-components';
+import { IconSave } from '@salutejs/plasma-icons';
 
 import { LinkButton } from '../components';
 import { Config, DesignSystem, Theme } from '../controllers';
 import { designSystemSave, generateAndDeployDocumentation, generateDownload, generatePublish } from './Main.utils';
+import { importTokensToTheme } from '../utils';
 
 const Root = styled.div`
     z-index: 99999;
@@ -23,11 +25,12 @@ interface DebugProps {
     designSystem: DesignSystem | null;
     theme: Theme | null;
     components: Config[] | null;
+    rerender: () => void;
 }
 
 // TODO: Временный компонент, выводить только в дев окружении, завязаться на ENV
 export const Debug = (props: DebugProps) => {
-    const { designSystem, theme, components } = props;
+    const { designSystem, theme, components, rerender } = props;
 
     const onDebugDesignSystemDownload = async () => {
         if (!designSystem) {
@@ -61,6 +64,41 @@ export const Debug = (props: DebugProps) => {
         return await designSystemSave(designSystem, theme, components);
     };
 
+    const onUploadDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        if (!file || !theme) {
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = async (event: ProgressEvent<FileReader>) => {
+            const content = event.target?.result;
+
+            if (typeof content !== 'string') {
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(content);
+
+                if (parsed.name !== designSystem?.getName()) {
+                    throw new Error('Имя дизайн системы в файле не совпадает с текущей дизайн системой');
+                }
+
+                importTokensToTheme(parsed, theme);
+                rerender();
+
+                console.log('Tokens imported successfully');
+            } catch (error) {
+                console.error('Failed to import tokens:', error);
+            }
+        };
+
+        reader.readAsText(file);
+    };
+
     return (
         <Root>
             <LinkButton
@@ -78,6 +116,12 @@ export const Debug = (props: DebugProps) => {
                 text="Опубликовать документацию"
                 contentRight={<IconSave size="s" />}
                 onClick={onDebugDesignSystemDocs}
+            />
+            <LinkButton
+                text="Импортировать токены"
+                contentRight={<IconSave size="s" />}
+                accept=".json"
+                onFileChange={onUploadDesignSystem}
             />
         </Root>
     );
