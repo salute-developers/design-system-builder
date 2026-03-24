@@ -32,7 +32,7 @@ export const CreationProgress = (props: CreationProgressProps) => {
         const createDesignSystem = async () => {
             console.log('Creating design system...', parameters);
 
-            await DesignSystem.create({ name: parameters.packagesName, parameters });
+            await DesignSystem.create({ name: parameters.packagesName || 'Unnamed Design System', parameters });
             setDesignSystemCreated(true);
         };
 

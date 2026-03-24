@@ -12,11 +12,11 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, type Meta } from '../componentBuilder';
-import { kebabToCamel, loadDesignSystem, saveDesignSystem } from '../../utils';
+import { kebabToCamel, loadDesignSystem, saveDesignSystem, updateDesignSystem } from '../../utils';
 import { Parameters } from '../../types';
 
 interface DesignSystemProps {
-    name?: string;
+    name: string;
     version?: string;
     parameters?: Partial<Parameters>;
     themeData?: ThemeSource;
@@ -52,7 +52,11 @@ export class DesignSystem {
     }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version, parameters });
 
-        const { themeData, componentsData } = await instance.loadData({ name, version, parameters });
+        const { themeData, componentsData } = {
+            themeData: instance.generateThemeData(parameters),
+            componentsData: instance.generateComponentData(), // TODO: попробовать убрать
+        };
+
         instance.themeData = externalThemeData ?? themeData;
         instance.componentsData = componentsData;
 
@@ -72,25 +76,21 @@ export class DesignSystem {
     public static async get({ name, version = '0.1.0' }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version });
 
-        const { themeData, componentsData, parameters } = await instance.loadData({ name, version });
+        const data = await loadDesignSystem(name, version);
+
+        if (!data) {
+            throw new Error('Дизайн-система не найдена');
+        }
+
+        const { themeData, componentsData, parameters } = data;
+
+        console.log('parameters,', parameters);
+
         instance.themeData = themeData;
         instance.componentsData = componentsData;
         instance.parameters = parameters;
 
         return instance;
-    }
-
-    private async loadData({ name, version = '0.1.0', parameters }: DesignSystemProps) {
-        const loadedData = name && version ? await loadDesignSystem(name, version) : undefined;
-
-        if (!loadedData) {
-            return {
-                themeData: this.generateThemeData(parameters),
-                componentsData: this.generateComponentData(), // TODO: попробовать убрать
-            };
-        }
-
-        return loadedData;
     }
 
     private generateComponentData() {
@@ -170,7 +170,7 @@ export class DesignSystem {
     //     });
     // }
 
-    public async saveDesignSystemData(
+    public async updateDesignSystemData(
         themeData: { meta: ThemeMeta; variations: PlatformsVariations },
         componentsData: Meta[],
     ) {
@@ -181,7 +181,7 @@ export class DesignSystem {
             return;
         }
 
-        return await saveDesignSystem({
+        return await updateDesignSystem({
             name: this.name,
             version: this.version,
             parameters: this.parameters,

@@ -207,7 +207,7 @@ if [ "$FULL_SETUP" = true ]; then
     # Only seed in development mode
     if [ "$ENV_NAME" = "development" ]; then
         echo_step "Seeding database with saved state..."
-        if docker-compose -f $COMPOSE_FILE exec -T db-service npx ts-node src/db/seed-from-saved-state.ts; then
+        if docker-compose -f $COMPOSE_FILE exec -T db-service npx tsx src/db/seed-from-saved-state.ts; then
             echo_success "Database seeding completed"
         else
             echo_error "Database seeding failed"

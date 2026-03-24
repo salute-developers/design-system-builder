@@ -52,7 +52,7 @@ services:
   # Frontend Application / Admin Panel (Development)
   frontend:
     build:
-      context: ./frontend
+      context: ./apps/frontend
       dockerfile: Dockerfile.dev
     container_name: ds-builder-frontend-dev
     restart: unless-stopped
@@ -63,14 +63,14 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./frontend:/app
+      - ./apps/frontend:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
   # Client Application (Development)
   client:
     build:
-      context: ./client
+      context: ./apps/client
       dockerfile: Dockerfile.dev
     container_name: ds-builder-client-dev
     restart: unless-stopped
@@ -85,7 +85,7 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./client:/app
+      - ./apps/client:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
@@ -123,6 +123,7 @@ services:
       NODE_ENV: development
       PORT: 3005
       CLIENT_PROXY_URL: http://client-proxy:3003/api
+      CLIENT_URL: http://host.docker.internal:8081/api
       PUBLISHER_URL: http://publisher:3007
     ports:
       - "3005:3005"
@@ -161,6 +162,7 @@ services:
       NODE_ENV: development
       PORT: 3006
       CLIENT_PROXY_URL: http://client-proxy:3003/api
+      CLIENT_URL: http://host.docker.internal:8081/api
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}

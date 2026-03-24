@@ -16,7 +16,7 @@ services:
   # Frontend Application / Admin Panel
   frontend:
     build:
-      context: ./frontend
+      context: ./apps/frontend
       dockerfile: Dockerfile
     container_name: frontend
     restart: unless-stopped
@@ -26,7 +26,7 @@ services:
   # Client Application
   client:
     build:
-      context: ./client
+      context: ./apps/client
       dockerfile: Dockerfile
     container_name: client
     restart: unless-stopped

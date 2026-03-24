@@ -8,16 +8,16 @@
     "dev:db-service": "cd services/db-service && npm run dev",
     "dev:client-proxy": "cd services/client-proxy && npm run dev",
     "dev:ds-generator": "cd services/ds-generator && npm run dev",
-    "dev:client": "cd client && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
+    "dev:client": "cd apps/client && npm run dev",
+    "dev:frontend": "cd apps/frontend && npm run dev",
     "build": "concurrently \"npm run build:services\" \"npm run build:client\" \"npm run build:frontend\"",
     "build:services": "concurrently \"npm run build:db-service\" \"npm run build:client-proxy\" \"npm run build:ds-generator\"",
     "build:db-service": "cd services/db-service && npm run build",
     "build:client-proxy": "cd services/client-proxy && npm run build",
     "build:ds-generator": "cd services/ds-generator && npm run build",
-    "build:client": "cd client && npm run build",
-    "build:frontend": "cd frontend && npm run build",
-    "install:all": "npm install && cd services/db-service && npm install && cd ../client-proxy && npm install && cd ../ds-generator && npm install && cd ../publisher && npm install && cd ../../client && npm install && cd ../frontend && npm install"
+    "build:client": "cd apps/client && npm run build",
+    "build:frontend": "cd apps/frontend && npm run build",
+    "install:all": "npm install && cd services/db-service && npm install && cd ../client-proxy && npm install && cd ../ds-generator && npm install && cd ../publisher && npm install && cd ../../apps/client && npm install && cd ../frontend && npm install"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

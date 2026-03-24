@@ -222,7 +222,11 @@ export class DocumentationService implements OnModuleInit {
     const baseUrl =
       this.configService.get<string>("CLIENT_PROXY_URL") ||
       "http://localhost:3003/api";
+    // const baseUrl =
+    // this.configService.get<string>("CLIENT_URL") ||
+    // "http://localhost:8081/api";
 
+    // const url = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
     const url = `${baseUrl}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`;
 
     this.logger.log(`Fetching design system data from: ${url}`);
@@ -243,12 +247,14 @@ export class DocumentationService implements OnModuleInit {
       }
 
       const data = await response.json();
+      // const componentsData = await response.json();
 
       this.logger.log(
         `Successfully fetched design system data for package: ${packageName}@${packageVersion}`,
       );
 
       return data as FetchDesignSystemResponseDto;
+      // return { componentsData } as FetchDesignSystemResponseDto;
     } catch (error) {
       this.logger.error(`Failed to fetch design system data: ${error.message}`);
 

@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { ThemeSource } from '../themeBuilder/types';
 
 export const BASE_URL = process.env.CLIENT_PROXY_URL || 'http://localhost:3003/api';
+export const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173/api';
 export const PUBLISHER_URL = process.env.PUBLISHER_URL || 'http://localhost:3007';
 
 export const CORE_VERSION = '0.341.0-canary.1983.19295272379.0';

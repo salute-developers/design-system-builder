@@ -178,7 +178,7 @@ The `docker-compose.dev.yml` uses:
 ### Development Volumes
 - `postgres_data_dev`: Development database data
 - `./backend:/app`: Backend source code mounting (hot reload)
-- `./frontend:/app`: Frontend source code mounting (hot reload)
+- `./apps/frontend:/app`: Frontend source code mounting (hot reload)
 - Excluded `node_modules` directories for performance
 
 ## Network Configuration
