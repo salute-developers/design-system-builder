@@ -120,9 +120,9 @@ always-auth=true
 
         const npmProcess = spawn('npm', [
             'publish',
-            `"${tgzPath}"`,
+            tgzPath,
             '--userconfig',
-            `"${npmrcPath}"`
+            npmrcPath
         ], {
             stdio: 'pipe',
             shell: true, // Важно для работы с путями в Windows

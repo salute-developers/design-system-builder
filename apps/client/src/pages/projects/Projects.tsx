@@ -41,12 +41,6 @@ export const Projects = () => {
     // TODO: Перенести в базу данных
     const version = '0.1.0';
 
-    // const onRemoveDesignSystem = async (name: string, version: string) => {
-    //     await removeDesignSystem(name, version);
-    //     const updatedSystems = await loadAllDesignSystems();
-    //     setLoadedDesignSystems(updatedSystems);
-    // };
-
     const onLoadDesignSystem = (name: string, version: string) => {
         navigate(`/${name}/${version}/colors`);
     };
@@ -68,7 +62,7 @@ export const Projects = () => {
 
     return (
         <ContentWrapper>
-            {!loadedDesignSystems && (
+            {(!loadedDesignSystems || loadedDesignSystems.length === 0) && (
                 <>
                     <ContentHeader>Пока ничего не создано</ContentHeader>
                     <StyledStartWrapper onClick={onDesignSystemCreate}>

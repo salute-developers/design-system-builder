@@ -1,7 +1,7 @@
 import { buildTheme, readTheme, writeTheme } from '../themes';
 
-export const readThemeBuildInstanceAndWrite = async () => {
-    const { meta, variations } = await readTheme('sdds_finai', 'latest');
+export const readThemeBuildInstanceAndWrite = async (themeName: string) => {
+    const { meta, variations } = await readTheme(themeName, 'latest', true);
     const theme = buildTheme(meta, variations, true);
 
     return theme;

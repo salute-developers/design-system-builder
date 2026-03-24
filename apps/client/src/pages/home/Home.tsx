@@ -4,15 +4,7 @@ import { IconPlus, IconSettingsOutline } from '@salutejs/plasma-icons';
 import { Workspace } from '../../layouts';
 import { IconButton } from '../../components';
 
-import {
-    Root,
-    Header,
-    HeaderTitle,
-    List,
-    ListItem,
-    ListItemText,
-    ListItemContentRight,
-} from './Home.styles';
+import { Root, Header, HeaderTitle, List, ListItem, ListItemText, ListItemContentRight } from './Home.styles';
 
 interface HomeOutletContextProps {
     projectName?: string;
@@ -41,7 +33,7 @@ export const Home = () => {
             menu={
                 <Root>
                     <Header>
-                        <HeaderTitle>ID 081b5359</HeaderTitle>
+                        <HeaderTitle>{localStorage.getItem('login')}</HeaderTitle>
                         <IconButton disabled>
                             <IconSettingsOutline size="xs" color="inherit" />
                         </IconButton>

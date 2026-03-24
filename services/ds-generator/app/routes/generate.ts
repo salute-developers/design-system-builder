@@ -5,6 +5,8 @@ import { BASE_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../uti
 import { GenerateRouteBody } from '../types';
 import { generateDesignSystem } from '../generate';
 import stream from 'stream';
+// import { Meta } from '../componentBuilder';
+// import { ThemeSource } from '../themeBuilder/types';
 
 export const generateAndDownloadRoute = async (server: FastifyInstance) => {
     server.post<{
@@ -13,7 +15,7 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion, exportType, authToken } = request.body;
+            const { packageName, packageVersion = '0.1.0', exportType, authToken } = request.body;
 
             const headers: Record<string, string> = {};
             if (authToken) {
@@ -26,6 +28,17 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
             );
 
             const { componentsData, themeData } = (await data.json()) as any;
+
+            // const themeData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/theme-data`, {
+            //     headers,
+            // }).then((response) => response.json())) as unknown as ThemeSource;
+
+            // const componentsData = (await fetch(
+            //     `${CLIENT_URL}/legacy/design-systems/${packageName}/component-configs`,
+            //     {
+            //         headers,
+            //     },
+            // ).then((response) => response.json())) as unknown as Meta[];
 
             const buffer = await generateDesignSystem(
                 { packageName, packageVersion, componentsData, themeData },
@@ -70,9 +83,8 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion, exportType, npmToken, authToken } = request.body;
+            const { packageName, packageVersion = '0.1.0', exportType, npmToken, authToken } = request.body;
 
-            // const response2 = await fetch(`https://registry.npmjs.org/vxcasdasd`);
             const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
             const packageMeta = (await npmPackage.json()) as any;
 
@@ -94,6 +106,13 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
 
             const { componentsData, themeData } = (await data.json()) as any;
 
+            // const themeData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/theme-data`, {
+            //     headers,
+            // }).then((response) => response.json())) as unknown as ThemeSource;
+            // const componentsData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/component-configs`, {
+            //     headers,
+            // }).then((response) => response.json())) as unknown as Meta[];
+
             const buffer = await generateDesignSystem(
                 { packageName, packageVersion: version, componentsData, themeData },
                 { pathToDir, exportType, coreVersion: CORE_VERSION },
@@ -112,8 +131,6 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
             });
 
             const publishResponse = await response.json();
-
-            // console.log('publishResponse', typeof publishResponse, publishResponse);
 
             if (!response.ok) {
                 throw new Error(JSON.stringify(publishResponse));

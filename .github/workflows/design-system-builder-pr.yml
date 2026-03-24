@@ -34,14 +34,14 @@ jobs:
       # TODO: https://github.com/salute-developers/plasma/issues/255
       - name: Npm install
         run: |
-          npm install --prefix="./client"
+          npm install --prefix="./apps/client"
 
       # TODO: https://github.com/salute-developers/plasma/issues/603
       - name: Build Design System Builder
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
-          npm run build --prefix="./client"
-          cp -R ./client/dist ./s3_build/design-system-builder-${PR_NAME}
+          npm run build --prefix="./apps/client"
+          cp -R ./apps/client/dist ./s3_build/design-system-builder-${PR_NAME}
 
       - name: Install s3cmd
         run: |

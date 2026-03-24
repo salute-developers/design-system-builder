@@ -73,6 +73,55 @@ export const saveDesignSystem = async (data: {
             },
         });
 
+        // const response = (await fetch(`http://localhost:5173/api/legacy/design-systems/create`, {
+        //     method: 'POST',
+        //     body: JSON.stringify(data),
+        //     headers: {
+        //         'Content-Type': 'application/json',
+        //         Authorization: `Basic ${token}`,
+        //     },
+        // }).then((res) => res.json())) as unknown as any;
+
+        return response;
+    } catch (error) {
+        // // If server is not running, fall back to localStorage
+        // console.warn('Proxy server not available, falling back to localStorage');
+        // const { name, version, themeData, componentsData } = data;
+        // const key = `#${name}@${version}`;
+        // const value = JSON.stringify({
+        //     themeData,
+        //     componentsData,
+        // });
+        // localStorage.setItem(key, value);
+    }
+};
+
+export const updateDesignSystem = async (data: {
+    name: string;
+    version: string;
+    parameters?: Partial<Parameters>;
+    themeData: ThemeSource;
+    componentsData: Meta[];
+}): Promise<any> => {
+    try {
+        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
+        const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        });
+
+        // const response = (await fetch(`http://localhost:5173/api/legacy/design-systems/${data.name}/update`, {
+        //     method: 'POST',
+        //     body: JSON.stringify(data),
+        //     headers: {
+        //         'Content-Type': 'application/json',
+        //     },
+        // }).then((res) => res.json())) as unknown as any;
+
         return response;
     } catch (error) {
         // // If server is not running, fall back to localStorage
@@ -93,6 +142,33 @@ export const loadDesignSystem = async (
 ): Promise<{ themeData: ThemeSource; componentsData: Meta[]; parameters?: Partial<Parameters> } | undefined> => {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
+        // const themeData = (await fetch(`http://localhost:5173/api/legacy/design-systems/${name}/theme-data`, {
+        //     headers: {
+        //         Authorization: `Basic ${token}`,
+        //     },
+        // }).then((response) => response.json())) as unknown as ThemeSource;
+
+        // const componentsData = (await fetch(
+        //     `http://localhost:5173/api/legacy/design-systems/${name}/component-configs`,
+        //     {
+        //         headers: {
+        //             Authorization: `Basic ${token}`,
+        //         },
+        //     },
+        // ).then((response) => response.json())) as unknown as Meta[];
+
+        // const parameters = (await fetch(`http://localhost:5173/api/legacy/design-systems/${name}/tenant-params`, {
+        //     headers: {
+        //         Authorization: `Basic ${token}`,
+        //     },
+        // }).then((response) => response.json())) as unknown as Partial<Parameters>;
+
+        // return {
+        //     themeData,
+        //     componentsData,
+        //     parameters,
+        // };
 
         const data = await apiCall(
             `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
@@ -117,21 +193,6 @@ export const loadDesignSystem = async (
     }
 };
 
-export const removeDesignSystem = async (name: string, version: string): Promise<void> => {
-    try {
-        await apiCall(
-            `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
-            {
-                method: 'DELETE',
-            },
-        );
-    } catch (error) {
-        // If server is not running, fall back to localStorage
-        // console.warn('Proxy server not available, falling back to localStorage');
-        // localStorage.removeItem(`#${name}@${version}`);
-    }
-};
-
 export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
@@ -141,6 +202,12 @@ export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | un
                 Authorization: `Basic ${token}`,
             },
         });
+
+        // const data = await fetch('http://localhost:5173/api/design-systems', {
+        //     headers: {
+        //         Authorization: `Basic ${token}`,
+        //     },
+        // }).then((response) => response.json());
 
         return data || undefined;
     } catch (error) {

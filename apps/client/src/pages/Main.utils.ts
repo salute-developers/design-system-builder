@@ -196,7 +196,7 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
         };
     });
 
-    return await designSystem.saveDesignSystemData(themeData, componentsData);
+    return await designSystem.updateDesignSystemData(themeData, componentsData);
 };
 
 // TODO: временная функция проверяющая опубликован ли пакет в npm
