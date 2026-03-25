@@ -76,7 +76,7 @@ export class DocumentationService implements OnModuleInit {
 
   /**
    * Обрабатывает запрос на генерацию документации
-   * Получает данные о дизайн-системе из CLIENT_PROXY_URL и генерирует Docusaurus проект
+   * Получает данные о дизайн-системе из DS_REGISTRY_URL и генерирует Docusaurus проект
    * @param dto - ID дизайн-системы
    * @returns Метаданные об обработке (путь, ID, время, количество компонентов)
    */
@@ -85,7 +85,7 @@ export class DocumentationService implements OnModuleInit {
       `Received documentation generation request for DS Package: ${dto.packageName}@${dto.packageVersion}`,
     );
 
-    // Получаем данные о дизайн-системе из CLIENT_PROXY_URL
+    // Получаем данные о дизайн-системе из DS_REGISTRY_URL
     const designSystemData = await this.fetchDesignSystemData(
       dto.packageName,
       dto.packageVersion,
@@ -212,24 +212,17 @@ export class DocumentationService implements OnModuleInit {
   }
 
   /**
-   * Получает данные о дизайн-системе из CLIENT_PROXY_URL
+   * Получает данные о дизайн-системе из DS_REGISTRY_URL
    */
   async fetchDesignSystemData(
     packageName: string,
     packageVersion: string,
     authToken?: string,
   ): Promise<FetchDesignSystemResponseDto> {
-    const baseUrl =
-      this.configService.get<string>("CLIENT_PROXY_URL") ||
-      "http://localhost:3003/api";
-    // const baseUrl =
-    // this.configService.get<string>("CLIENT_URL") ||
-    // "http://localhost:8081/api";
+    const baseUrl = this.configService.get<string>("DS_REGISTRY_URL") || "http://localhost:3008/api";
 
-    // const url = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
-    const url = `${baseUrl}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`;
-
-    this.logger.log(`Fetching design system data from: ${url}`);
+    const configsUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
+    const themeUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/theme-data`;
 
     try {
       const headers: Record<string, string> = {};
@@ -237,24 +230,20 @@ export class DocumentationService implements OnModuleInit {
         headers['Authorization'] = `Basic ${authToken}`;
       }
 
-      const response = await fetch(url, { headers });
+      const configResponse = await fetch(configsUrl, { headers });
+      const themeResponse = await fetch(themeUrl, { headers });
 
-      if (!response.ok) {
+      if (!configResponse.ok || !themeResponse.ok) {
         throw new HttpException(
-          `Failed to fetch design system data: ${response.statusText}`,
-          response.status,
+          `Failed to fetch design system data: ${configResponse.statusText} | ${themeResponse.statusText}`,
+          configResponse.status || themeResponse.status
         );
       }
 
-      const data = await response.json();
-      // const componentsData = await response.json();
+      const componentsData = await configResponse.json();
+      const themeData = await themeResponse.json();
 
-      this.logger.log(
-        `Successfully fetched design system data for package: ${packageName}@${packageVersion}`,
-      );
-
-      return data as FetchDesignSystemResponseDto;
-      // return { componentsData } as FetchDesignSystemResponseDto;
+      return { componentsData, themeData } as FetchDesignSystemResponseDto; // TODO тут не только componentsData будет, нужно расширить типизацию
     } catch (error) {
       this.logger.error(`Failed to fetch design system data: ${error.message}`);
 

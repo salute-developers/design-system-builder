@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import fs from 'fs-extra';
 
-import { BASE_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../utils';
+import { DS_REGISTRY_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../utils';
 import { GenerateRouteBody } from '../types';
 import { generateDesignSystem } from '../generate';
 import stream from 'stream';
-// import { Meta } from '../componentBuilder';
-// import { ThemeSource } from '../themeBuilder/types';
+import { ThemeSource } from '../themeBuilder/types';
+import { Meta } from '../componentBuilder';
 
 export const generateAndDownloadRoute = async (server: FastifyInstance) => {
     server.post<{
@@ -22,23 +22,16 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const data = await fetch(
-                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
-                { headers },
-            );
+            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+                headers,
+            }).then((response) => response.json())) as unknown as ThemeSource;
 
-            const { componentsData, themeData } = (await data.json()) as any;
-
-            // const themeData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/theme-data`, {
-            //     headers,
-            // }).then((response) => response.json())) as unknown as ThemeSource;
-
-            // const componentsData = (await fetch(
-            //     `${CLIENT_URL}/legacy/design-systems/${packageName}/component-configs`,
-            //     {
-            //         headers,
-            //     },
-            // ).then((response) => response.json())) as unknown as Meta[];
+            const componentsData = (await fetch(
+                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                {
+                    headers,
+                },
+            ).then((response) => response.json())) as unknown as Meta[];
 
             const buffer = await generateDesignSystem(
                 { packageName, packageVersion, componentsData, themeData },
@@ -99,19 +92,15 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const data = await fetch(
-                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`, // здесь остаётся packageVersion т.к. пока значение 0.1.0 захардкодено
-                { headers },
-            );
-
-            const { componentsData, themeData } = (await data.json()) as any;
-
-            // const themeData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/theme-data`, {
-            //     headers,
-            // }).then((response) => response.json())) as unknown as ThemeSource;
-            // const componentsData = (await fetch(`${CLIENT_URL}/legacy/design-systems/${packageName}/component-configs`, {
-            //     headers,
-            // }).then((response) => response.json())) as unknown as Meta[];
+            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+                headers,
+            }).then((response) => response.json())) as unknown as ThemeSource;
+            const componentsData = (await fetch(
+                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                {
+                    headers,
+                },
+            ).then((response) => response.json())) as unknown as Meta[];
 
             const buffer = await generateDesignSystem(
                 { packageName, packageVersion: version, componentsData, themeData },

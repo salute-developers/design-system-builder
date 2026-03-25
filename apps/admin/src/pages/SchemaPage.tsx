@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
-import { API_BASE } from '../api/client';
+import { VITE_DS_REGISTRY_API } from '../api/client';
 import './Page.css';
 
 mermaid.initialize({
@@ -36,7 +36,7 @@ function SchemaPage() {
   }, [applyTransform]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/schema`)
+    fetch(`${VITE_DS_REGISTRY_API}/schema`)
       .then((r) => r.json())
       .then((data) => {
         setDbml(data.dbml);

@@ -20,6 +20,7 @@ import {
   components,
   variationPlatformParamAdjustments,
   invariantPlatformParamAdjustments,
+  designSystemUsers,
 } from "../../db/schema";
 import { optionalAuthenticate } from "../../validation/middleware";
 import { assertDsAccess, assertFound, tryCatch } from "./utils";
@@ -559,6 +560,14 @@ router.post("/create", optionalAuthenticate, (req, res) =>
       .insert(designSystems)
       .values({ name: packagesName, projectName })
       .returning();
+
+    // ── 1a. Owner ───────────────────────────────────────────────────────────
+    if (req.user) {
+      await db.insert(designSystemUsers).values({
+        userId: req.user.id,
+        designSystemId: ds.id,
+      });
+    }
 
     // ── 2. Tenant ────────────────────────────────────────────────────────────
     const tenantName = `${name}_default`;

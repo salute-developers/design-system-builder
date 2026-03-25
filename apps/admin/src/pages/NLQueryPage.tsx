@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { API_BASE } from '../api/client';
+import { VITE_DS_REGISTRY_API } from '../api/client';
 import './Page.css';
 
 interface NLQueryResult {
@@ -31,7 +31,7 @@ function NLQueryPage() {
     setSaved(false);
 
     try {
-      const res = await fetch(`${API_BASE}/nl-query`, {
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/nl-query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query.trim() }),
@@ -58,7 +58,7 @@ function NLQueryPage() {
 
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/saved-queries`, {
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/saved-queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: query.trim(), sql: result.sql }),
