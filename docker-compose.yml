@@ -1,6 +1,25 @@
-version: '3.8'
-
 services:
+  # PostgreSQL Database (ds-registry)
+  postgres-registry:
+    image: postgres:16-alpine
+    container_name: ds-registry-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ds_registry
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_registry_data:/var/lib/postgresql/data
+    networks:
+      - ds-builder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ds_registry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Backend API
   db-service:
     build:
@@ -13,6 +32,25 @@ services:
     ports:
       - "3001:3001"
 
+  # DS Registry API
+  ds-registry:
+    build:
+      context: ./services/ds-registry
+      dockerfile: Dockerfile
+    container_name: ds-registry
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3008
+      DATABASE_URL: postgresql://postgres:postgres@postgres-registry:5432/ds_registry
+    ports:
+      - "3008:3008"
+    depends_on:
+      postgres-registry:
+        condition: service_healthy
+    networks:
+      - ds-builder-network
+
   # Frontend Application / Admin Panel
   frontend:
     build:
@@ -22,6 +60,22 @@ services:
     restart: unless-stopped
     ports:
       - "3000:5173"
+
+  # Admin Panel for DS Registry
+  admin:
+    build:
+      context: ./apps/admin
+      dockerfile: Dockerfile
+    container_name: admin
+    restart: unless-stopped
+    environment:
+      VITE_DS_REGISTRY_API: http://localhost:3008/api
+    ports:
+      - "3004:5173"
+    depends_on:
+      - ds-registry
+    networks:
+      - ds-builder-network
 
   # Client Application
   client:
@@ -60,9 +114,14 @@ services:
     environment:
       NODE_ENV: development
       CLIENT_PROXY_URL: ${CLIENT_PROXY_URL}
+      DS_REGISTRY_URL: http://ds-registry:3008/api
       PUBLISHER_URL: ${PUBLISHER_URL}
     ports:
       - "3005:3005"
+    depends_on:
+      - ds-registry
+    networks:
+      - ds-builder-network
 
   # Publisher service
   publisher:
@@ -76,6 +135,8 @@ services:
       PORT: 3007
     ports:
       - "3007:3007"
+    networks:
+      - ds-builder-network
 
   # Documentation Generator Service
   docs-generator:
@@ -88,6 +149,7 @@ services:
       NODE_ENV: development
       PORT: 3006
       CLIENT_PROXY_URL: ${CLIENT_PROXY_URL}
+      DS_REGISTRY_URL: http://ds-registry:3008/api
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}
@@ -95,12 +157,20 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
     ports:
       - "3006:3006"
+    depends_on:
+      - ds-registry
     volumes:
       - docs_output:/home/node/app/output
+    networks:
+      - ds-builder-network
     command: npm run start:dev
 
 volumes:
-  postgres_data:
+  postgres_registry_data:
     driver: local
   docs_output:
     driver: local
+
+networks:
+  ds-builder-network:
+    driver: bridge

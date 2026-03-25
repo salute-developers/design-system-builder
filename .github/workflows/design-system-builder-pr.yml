@@ -38,16 +38,29 @@ jobs:
 
       # TODO: https://github.com/salute-developers/plasma/issues/603
       - name: Build Design System Builder
+        env:
+          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
           npm run build --prefix="./apps/client"
           cp -R ./apps/client/dist ./s3_build/design-system-builder-${PR_NAME}
 
+      - name: Npm install admin
+        run: |
+          npm install --prefix="./apps/admin"
+
+      - name: Build Admin
+        env:
+          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+        run: |
+          npm run build --prefix="./apps/admin"
+          cp -R ./apps/admin/dist ./s3_build/admin-${PR_NAME}
+
       - name: Install s3cmd
         run: |
           pip3 install s3cmd
 
-      - name: s3 Upload build
+      - name: s3 Upload client build
         run: >
           s3cmd
           --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -62,15 +75,31 @@ jobs:
           ./s3_build/design-system-builder-${PR_NAME}/
           s3://${{ secrets.AWS_S3_BUCKET_2 }}/pr/design-system-builder-${PR_NAME}/
 
+      - name: s3 Upload admin build
+        run: >
+          s3cmd
+          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
+          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          --host ${{ secrets.AWS_ENDPOINT }}
+          --host-bucket ${{ secrets.AWS_ENDPOINT }}
+          --bucket-location ${{ secrets.AWS_REGION }}
+          --signature-v2
+          --delete-removed
+          --no-mime-magic
+          sync
+          ./s3_build/admin-${PR_NAME}/
+          s3://${{ secrets.AWS_S3_BUCKET_2 }}/pr/admin-${PR_NAME}/
+
       - name: Create success comment
         id: success-comment
         uses: actions/github-script@v3
         with:
           result-encoding: string
           script: |
-            const url = `https://plasma.sberdevices.ru/pr/design-system-builder-pr-${context.issue.number}/`
+            const clientUrl = `https://plasma.sberdevices.ru/pr/design-system-builder-pr-${context.issue.number}/`
+            const adminUrl = `https://plasma.sberdevices.ru/pr/admin-pr-${context.issue.number}/`
 
-            return "Design System Builder app deployed!" + "\n\n" + url;
+            return "Design System Builder app deployed!" + "\n\n" + clientUrl + "\n\n" + "Admin app deployed!" + "\n\n" + adminUrl;
 
       -   name: Attach comment
           uses: marocchino/sticky-pull-request-comment@v2
