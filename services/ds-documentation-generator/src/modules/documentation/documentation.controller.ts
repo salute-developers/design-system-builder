@@ -25,7 +25,7 @@ export class DocumentationController {
 
   /**
    * Генерирует документацию для дизайн-системы по её ID
-   * Получает данные из CLIENT_PROXY_URL и создаёт Docusaurus проект
+   * Получает данные из DS_REGISTRY_URL и создаёт Docusaurus проект
    * @param dto - ID дизайн-системы
    * @returns Метаданные об обработанном запросе
    */
@@ -57,13 +57,13 @@ export class DocumentationController {
   }
 
   /**
-   * Получает данные о дизайн-системе из CLIENT_PROXY_URL
+   * Получает данные о дизайн-системе из DS_REGISTRY_URL
    * @param packageName - Название npm пакета дизайн-системы
    * @param packageVersion - Версия npm пакета дизайн-системы
    * @returns Данные о компонентах и теме дизайн-системы
    */
   @Get("design-systems/:packageName/:packageVersion")
-  @ApiOperation({ summary: "Fetch design system data from CLIENT_PROXY_URL" })
+  @ApiOperation({ summary: "Fetch design system data from DS_REGISTRY_URL" })
   @ApiParam({
     name: "packageName",
     description: "NPM package name of the design system",

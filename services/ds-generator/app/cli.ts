@@ -2,8 +2,10 @@
 import { program } from 'commander';
 import * as fs from 'fs-extra';
 
-import { BASE_URL, CORE_VERSION } from './utils';
+import { CORE_VERSION, DS_REGISTRY_URL } from './utils';
 import { generateDesignSystem } from './generate';
+import { ThemeSource } from './themeBuilder/types';
+import { Meta } from './componentBuilder';
 
 program
     .name('plasma-ds-generate')
@@ -15,7 +17,13 @@ program
     .option('--auth-token <string>', 'Auth token for client-proxy')
     .action(async (options) => {
         try {
-            const { dsName: packageName, dsVersion: packageVersion, exportType, output: pathToDir, authToken } = options;
+            const {
+                dsName: packageName,
+                dsVersion: packageVersion,
+                exportType,
+                output: pathToDir,
+                authToken,
+            } = options;
 
             console.log('Design system generation params');
             console.log(`Name: ${packageName}`);
@@ -28,11 +36,16 @@ program
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const data = await fetch(
-                `${BASE_URL}/design-systems/${encodeURIComponent(packageName)}/${encodeURIComponent(packageVersion)}`,
-                { headers },
-            );
-            const { componentsData, themeData } = (await data.json()) as any;
+            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+                headers,
+            }).then((response) => response.json())) as unknown as ThemeSource;
+
+            const componentsData = (await fetch(
+                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                {
+                    headers,
+                },
+            ).then((response) => response.json())) as unknown as Meta[];
 
             console.log(`Generating ${exportType}...`);
 

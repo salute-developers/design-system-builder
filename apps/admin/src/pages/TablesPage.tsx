@@ -6,7 +6,7 @@ import {
   createColumnHelper,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { API_BASE } from '../api/client';
+import { VITE_DS_REGISTRY_API } from '../api/client';
 import './Page.css';
 
 interface TableMeta {
@@ -92,7 +92,7 @@ function TablesPage() {
   const allRowsTableRef = useRef<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/tables`)
+    fetch(`${VITE_DS_REGISTRY_API}/tables`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -112,7 +112,7 @@ function TablesPage() {
 
   const fetchRows = useCallback((tableName: string, pageNum: number) => {
     setRowsLoading(true);
-    fetch(`${API_BASE}/tables/${tableName}?limit=${PAGE_SIZE}&offset=${pageNum * PAGE_SIZE}`)
+    fetch(`${VITE_DS_REGISTRY_API}/tables/${tableName}?limit=${PAGE_SIZE}&offset=${pageNum * PAGE_SIZE}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -131,7 +131,7 @@ function TablesPage() {
     if (allRowsTableRef.current === tableName && allRows !== null) return;
 
     setRowsLoading(true);
-    fetch(`${API_BASE}/tables/${tableName}?all=true`)
+    fetch(`${VITE_DS_REGISTRY_API}/tables/${tableName}?all=true`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

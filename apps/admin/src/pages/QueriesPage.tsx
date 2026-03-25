@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { API_BASE } from '../api/client';
+import { VITE_DS_REGISTRY_API } from '../api/client';
 import './Page.css';
 
 interface ParamOption {
@@ -64,7 +64,7 @@ function NLQueryContent({ onSaved }: { onSaved: () => void }) {
     setSaved(false);
 
     try {
-      const res = await fetch(`${API_BASE}/nl-query`, {
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/nl-query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query.trim() }),
@@ -91,7 +91,7 @@ function NLQueryContent({ onSaved }: { onSaved: () => void }) {
 
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/saved-queries`, {
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/saved-queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: query.trim(), sql: result.sql }),
@@ -221,7 +221,7 @@ function QueriesPage() {
 
   const fetchSavedQueries = async () => {
     try {
-      const res = await fetch(`${API_BASE}/saved-queries`);
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/saved-queries`);
       const data = await res.json();
       setSavedQueries(data.queries ?? []);
     } catch {
@@ -231,7 +231,7 @@ function QueriesPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE}/queries`)
+      fetch(`${VITE_DS_REGISTRY_API}/queries`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();
@@ -252,7 +252,7 @@ function QueriesPage() {
       const qs = params
         ? '?' + new URLSearchParams(params).toString()
         : '';
-      const res = await fetch(`${API_BASE}/queries/${id}${qs}`);
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/queries/${id}${qs}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Query failed');
       setQueryResult(data);
@@ -269,7 +269,7 @@ function QueriesPage() {
     setQueryResult(null);
 
     try {
-      const res = await fetch(`${API_BASE}/saved-queries/${id}/run`);
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/saved-queries/${id}/run`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Query failed');
       setQueryResult(data);
@@ -324,7 +324,7 @@ function QueriesPage() {
   const handleDeleteSaved = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     try {
-      const res = await fetch(`${API_BASE}/saved-queries/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${VITE_DS_REGISTRY_API}/saved-queries/${id}`, { method: 'DELETE' });
       if (!res.ok) return;
       setSavedQueries((prev) => prev.filter((q) => q.id !== id));
       if (activeId === id) {
