@@ -28,6 +28,7 @@ jobs:
           VITE_PROXY_SERVER_URL: ${{ secrets.VITE_PROXY_SERVER_URL }}
           VITE_DS_GENERATOR_API: ${{ secrets.VITE_DS_GENERATOR_API }}
           VITE_DS_DOCUMENTATION_GENERATOR_API: ${{ secrets.VITE_DS_DOCUMENTATION_GENERATOR_API }}
+          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
           BASE_URL: '/design-system-builder/'
         run: |
@@ -35,11 +36,22 @@ jobs:
           npm run build --prefix="./apps/client"
           cp -R ./apps/client/dist ./s3_build/design-system-builder-next
 
+      - name: Npm install admin
+        run: |
+          npm install --prefix="./apps/admin"
+
+      - name: Build Admin
+        env:
+          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+        run: |
+          npm run build --prefix="./apps/admin"
+          cp -R ./apps/admin/dist ./s3_build/admin
+
       - name: Install s3cmd
         run: |
           pip3 install s3cmd
 
-      - name: s3 Upload build
+      - name: s3 Upload client build
         run: >
           s3cmd
           --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -53,3 +65,18 @@ jobs:
           sync
           ./s3_build/design-system-builder-next/
           s3://${{ secrets.AWS_S3_BUCKET_2 }}/design-system-builder/
+
+      - name: s3 Upload admin build
+        run: >
+          s3cmd
+          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
+          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          --host ${{ secrets.AWS_ENDPOINT }}
+          --host-bucket ${{ secrets.AWS_ENDPOINT }}
+          --bucket-location ${{ secrets.AWS_REGION }}
+          --signature-v2
+          --delete-removed
+          --no-mime-magic
+          sync
+          ./s3_build/admin/
+          s3://${{ secrets.AWS_S3_BUCKET_2 }}/admin/

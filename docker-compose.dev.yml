@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (db-service)
   postgres:
     image: postgres:15-alpine
     container_name: ds-builder-postgres-dev
@@ -18,6 +16,27 @@ services:
       - ds-builder-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d ds_builder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Database (ds-registry)
+  postgres-registry:
+    image: postgres:16-alpine
+    container_name: ds-registry-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ds_registry
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_registry_data_dev:/var/lib/postgresql/data
+    networks:
+      - ds-builder-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ds_registry"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,6 +68,28 @@ services:
       - ./services/db-service:/app
       - /app/node_modules
 
+  # DS Registry API (Development)
+  ds-registry:
+    build:
+      context: ./services/ds-registry
+      dockerfile: Dockerfile.dev
+    container_name: ds-registry-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3008
+      DATABASE_URL: postgresql://postgres:postgres@postgres-registry:5432/ds_registry
+    ports:
+      - "3008:3008"
+    depends_on:
+      postgres-registry:
+        condition: service_healthy
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./services/ds-registry:/home/node/app
+      - /home/node/app/node_modules
+
   # Frontend Application / Admin Panel (Development)
   frontend:
     build:
@@ -67,6 +108,26 @@ services:
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
+  # Admin Panel for DS Registry (Development)
+  admin:
+    build:
+      context: ./apps/admin
+      dockerfile: Dockerfile.dev
+    container_name: ds-builder-admin-dev
+    restart: unless-stopped
+    environment:
+      VITE_DS_REGISTRY_API: http://localhost:3008/api
+    ports:
+      - "3004:5173"
+    depends_on:
+      - ds-registry
+    networks:
+      - ds-builder-network
+    volumes:
+      - ./apps/admin:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
   # Client Application (Development)
   client:
     build:
@@ -77,6 +138,7 @@ services:
     environment:
       VITE_DS_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
       VITE_DS_GENERATOR_API: http://localhost:3005
+      VITE_DS_REGISTRY_API: http://localhost:3008/api
       VITE_NPM_REGISTRY: ${VITE_NPM_REGISTRY}
     ports:
       - "3002:5173"
@@ -123,7 +185,8 @@ services:
       NODE_ENV: development
       PORT: 3005
       CLIENT_PROXY_URL: http://client-proxy:3003/api
-      CLIENT_URL: http://host.docker.internal:8081/api
+      CLIENT_URL: http://host.docker.internal:3008/api
+      DS_REGISTRY_URL: http://ds-registry:3008/api
       PUBLISHER_URL: http://publisher:3007
     ports:
       - "3005:3005"
@@ -162,7 +225,8 @@ services:
       NODE_ENV: development
       PORT: 3006
       CLIENT_PROXY_URL: http://client-proxy:3003/api
-      CLIENT_URL: http://host.docker.internal:8081/api
+      CLIENT_URL: http://host.docker.internal:3008/api
+      DS_REGISTRY_URL: http://ds-registry:3008/api
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}
@@ -178,6 +242,8 @@ services:
 
 volumes:
   postgres_data_dev:
+    driver: local
+  postgres_registry_data_dev:
     driver: local
   docs_output:
     driver: local

@@ -3,7 +3,8 @@ import { Parameters } from '../types';
 import { btoaUtf8 } from './other';
 
 // Proxy server configuration - use env var at build time, fallback to localhost
-const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
+const DS_REGISTRY_URL = import.meta.env.VITE_DS_REGISTRY_API || 'http://localhost:3008/api';
+// const PROXY_SERVER_URL = import.meta.env.VITE_PROXY_SERVER_URL || 'http://localhost:3003';
 
 export interface BackendDesignSystem {
     id: number;
@@ -65,22 +66,22 @@ export const saveDesignSystem = async (data: {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: {
-                Authorization: `Basic ${token}`,
-            },
-        });
-
-        // const response = (await fetch(`http://localhost:5173/api/legacy/design-systems/create`, {
+        // const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
         //     method: 'POST',
         //     body: JSON.stringify(data),
         //     headers: {
-        //         'Content-Type': 'application/json',
         //         Authorization: `Basic ${token}`,
         //     },
-        // }).then((res) => res.json())) as unknown as any;
+        // });
+
+        const response = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/create`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Basic ${token}`,
+            },
+        }).then((res) => res.json())) as unknown as any;
 
         return response;
     } catch (error) {
@@ -106,21 +107,21 @@ export const updateDesignSystem = async (data: {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: {
-                Authorization: `Basic ${token}`,
-            },
-        });
-
-        // const response = (await fetch(`http://localhost:5173/api/legacy/design-systems/${data.name}/update`, {
+        // const response = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
         //     method: 'POST',
         //     body: JSON.stringify(data),
         //     headers: {
-        //         'Content-Type': 'application/json',
+        //         Authorization: `Basic ${token}`,
         //     },
-        // }).then((res) => res.json())) as unknown as any;
+        // });
+
+        const response = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${data.name}/update`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        }).then((res) => res.json())) as unknown as any;
 
         return response;
     } catch (error) {
@@ -143,43 +144,40 @@ export const loadDesignSystem = async (
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        // const themeData = (await fetch(`http://localhost:5173/api/legacy/design-systems/${name}/theme-data`, {
-        //     headers: {
-        //         Authorization: `Basic ${token}`,
-        //     },
-        // }).then((response) => response.json())) as unknown as ThemeSource;
+        const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/theme-data`, {
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        }).then((response) => response.json())) as unknown as ThemeSource;
 
-        // const componentsData = (await fetch(
-        //     `http://localhost:5173/api/legacy/design-systems/${name}/component-configs`,
+        const componentsData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/component-configs`, {
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        }).then((response) => response.json())) as unknown as Meta[];
+
+        const parameters = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/tenant-params`, {
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        }).then((response) => response.json())) as unknown as Partial<Parameters>;
+
+        return {
+            themeData,
+            componentsData,
+            parameters,
+        };
+
+        // const data = await apiCall(
+        //     `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
         //     {
         //         headers: {
         //             Authorization: `Basic ${token}`,
         //         },
         //     },
-        // ).then((response) => response.json())) as unknown as Meta[];
+        // );
 
-        // const parameters = (await fetch(`http://localhost:5173/api/legacy/design-systems/${name}/tenant-params`, {
-        //     headers: {
-        //         Authorization: `Basic ${token}`,
-        //     },
-        // }).then((response) => response.json())) as unknown as Partial<Parameters>;
-
-        // return {
-        //     themeData,
-        //     componentsData,
-        //     parameters,
-        // };
-
-        const data = await apiCall(
-            `${PROXY_SERVER_URL}/api/design-systems/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
-            {
-                headers: {
-                    Authorization: `Basic ${token}`,
-                },
-            },
-        );
-
-        return data;
+        // return data;
     } catch (error) {
         // // If server is not running, fall back to localStorage
         // console.warn('Proxy server not available, falling back to localStorage');
@@ -197,17 +195,17 @@ export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | un
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
-            headers: {
-                Authorization: `Basic ${token}`,
-            },
-        });
-
-        // const data = await fetch('http://localhost:5173/api/design-systems', {
+        // const data = await apiCall(`${PROXY_SERVER_URL}/api/design-systems`, {
         //     headers: {
         //         Authorization: `Basic ${token}`,
         //     },
-        // }).then((response) => response.json());
+        // });
+
+        const data = await fetch(`${DS_REGISTRY_URL}/design-systems`, {
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        }).then((response) => response.json());
 
         return data || undefined;
     } catch (error) {
