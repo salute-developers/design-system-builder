@@ -1,5 +1,5 @@
 // Export all validation schemas
-export * from "./schemas";
+export * from "./schema";
 
 // Export validation middleware
 export * from "./middleware";
