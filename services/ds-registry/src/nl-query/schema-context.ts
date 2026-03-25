@@ -15,7 +15,7 @@ function buildTableDescription(table: PgTable): string {
 
   const columnLines = Object.entries(cols).map(([_key, col]) => {
     const parts: string[] = [`  - ${col.name}: ${col.dataType}`];
-    if (col.primaryKey) parts.push("(PK)");
+    if ((col as any).primaryKey) parts.push("(PK)");
     if (col.notNull) parts.push("(NOT NULL)");
     return parts.join(" ");
   });

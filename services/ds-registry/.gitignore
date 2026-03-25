@@ -7,9 +7,6 @@ dist/
 # Environment
 .env
 
-# Drizzle generated migrations
-drizzle/
-
 # Logs
 *.log
 npm-debug.log*

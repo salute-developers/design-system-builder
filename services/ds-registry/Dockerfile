@@ -14,6 +14,9 @@ RUN npm ci
 
 COPY --chown=node:node . .
 
+ARG DATABASE_URL
+ENV DATABASE_URL=$DATABASE_URL
+
 RUN npm run build
 
 RUN npm ci --only=production
