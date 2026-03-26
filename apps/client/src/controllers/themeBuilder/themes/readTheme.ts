@@ -70,14 +70,22 @@ const getThemeContent = async (zip: JSZip, allFiles: Array<string>) => {
     return { meta, variations };
 };
 
-export const readTheme = async (themeName: string, themeVersion: string, local?: boolean) => {
-    let zip: JSZip;
+export const readTheme = async (themeName: string, themeVersion: string, local?: boolean, content?: ArrayBuffer) => {
+    let zip: JSZip = {} as JSZip;
 
-    if (local) {
+    if (content) {
+        zip = await JSZip.loadAsync(content);
+    }
+
+    if (local && !content) {
         const response = await fetch(`/${themeName}.zip`);
         const content = await response.arrayBuffer();
+
+        console.log('content', content);
         zip = await JSZip.loadAsync(content);
-    } else {
+    }
+
+    if (!local && !content) {
         const response = await getFileSource(
             undefined,
             'salute-developers',
@@ -91,8 +99,6 @@ export const readTheme = async (themeName: string, themeVersion: string, local?:
         const content = (response && 'content' in response && response.content) || '';
         zip = await deserializeZip(content);
     }
-
-    console.log(zip);
 
     const allFiles = await getAllRelativePath(zip);
 

@@ -157,28 +157,6 @@ export const colorTokenActions: ColorTokenActions = {
             updateTokenChange(dsName, dsVersion, activeToken);
             updateTokenChange(dsName, dsVersion, hoverToken);
         });
-
-        // const readTheme = await readThemeBuildInstanceAndWrite('sdds_platform_ai');
-        // const themeData = {
-        //     meta: createMetaTokens(readTheme),
-        //     variations: createVariationTokens(readTheme),
-        // };
-        // const parameters = {
-        //     projectName: 'SDDS PLATFORM AI',
-        //     packagesName: 'sdds_platform_ai',
-        //     grayTone: 'gray',
-        //     accentColor: 'blue',
-        //     lightStrokeSaturation: 50,
-        //     lightFillSaturation: 50,
-        //     darkStrokeSaturation: 50,
-        //     darkFillSaturation: 50,
-        // } as Partial<Parameters>;
-        // await DesignSystem.create({
-        //     name: 'sdds_platform_ai',
-        //     version: '0.1.0',
-        //     parameters,
-        //     themeData,
-        // });
     },
     disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
         const dsName = designSystem?.getName() || '';

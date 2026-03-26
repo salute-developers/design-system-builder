@@ -6,6 +6,7 @@ import { LinkButton } from '../components';
 import { Config, DesignSystem, Theme } from '../controllers';
 import { designSystemSave, generateAndDeployDocumentation, generateDownload, generatePublish } from './Main.utils';
 import { importTokensToTheme } from '../utils';
+import { importDesignSystem } from '../utils/importDesignSystem';
 
 const Root = styled.div`
     z-index: 99999;
@@ -64,7 +65,7 @@ export const Debug = (props: DebugProps) => {
         return await designSystemSave(designSystem, theme, components);
     };
 
-    const onUploadDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
+    const onUploadTokens = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
 
         if (!file || !theme) {
@@ -99,6 +100,31 @@ export const Debug = (props: DebugProps) => {
         reader.readAsText(file);
     };
 
+    const onUploadDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        try {
+            const content = file.name.endsWith('.json') ? await file.text() : await file.arrayBuffer();
+
+            const { name, parameters, themeData } = await importDesignSystem(content);
+
+            await DesignSystem.create({
+                name,
+                version: '0.1.0',
+                parameters,
+                themeData,
+            });
+
+            console.log('Design system imported successfully');
+        } catch (error) {
+            console.error('Failed to import design system:', error);
+        }
+    };
+
     return (
         <Root>
             <LinkButton
@@ -121,6 +147,12 @@ export const Debug = (props: DebugProps) => {
                 text="Импортировать токены"
                 contentRight={<IconSave size="s" />}
                 accept=".json"
+                onFileChange={onUploadTokens}
+            />
+            <LinkButton
+                text="Импортировать дизайн систему"
+                contentRight={<IconSave size="s" />}
+                accept=".zip, .json"
                 onFileChange={onUploadDesignSystem}
             />
         </Root>
