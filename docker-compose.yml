@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      ZAI_API_KEY: ${ZAI_API_KEY}
       NODE_ENV: production
       PORT: 3008
     ports:
@@ -43,8 +42,6 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      DS_REGISTRY_URL: ${DS_REGISTRY_URL}
-      PUBLISHER_URL: ${PUBLISHER_URL}
     ports:
       - "3005:3005"
     depends_on:
@@ -71,12 +68,6 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3006
-      DS_REGISTRY_URL: ${DS_REGISTRY_URL}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
     ports:
       - "3006:3006"
     depends_on:
