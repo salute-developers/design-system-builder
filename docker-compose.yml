@@ -5,110 +5,78 @@ services:
     build:
       context: ./services/ds-registry
       dockerfile: Dockerfile
-    container_name: ds-registry
     restart: unless-stopped
     environment:
-      ZAI_API_KEY: ${ZAI_API_KEY}
       NODE_ENV: production
       PORT: 3008
     ports:
       - "3008:3008"
-    networks:
-      - ds-builder-network
 
   # Admin Panel for DS Registry
   admin:
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
-    container_name: admin
     restart: unless-stopped
-    environment:
-      VITE_DS_REGISTRY_API: http://localhost:3008/api
     ports:
       - "3004:5173"
     depends_on:
       - ds-registry
-    networks:
-      - ds-builder-network
 
   # Client Application
   client:
     build:
       context: ./apps/client
       dockerfile: Dockerfile
-    container_name: client
     restart: unless-stopped
     ports:
       - "3002:4173"
     depends_on:
       - ds-registry
-    networks:
-      - ds-builder-network
 
   # Generator web library
   generator:
     build:
       context: ./services/ds-generator
       dockerfile: Dockerfile
-    container_name: generator
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      DS_REGISTRY_URL: http://ds-registry:3008/api
-      PUBLISHER_URL: ${PUBLISHER_URL}
     ports:
       - "3005:3005"
     depends_on:
       - ds-registry
-    networks:
-      - ds-builder-network
 
   # Publisher service
   publisher:
     build:
       context: ./services/publisher
       dockerfile: Dockerfile
-    container_name: publisher
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3007
     ports:
       - "3007:3007"
-    networks:
-      - ds-builder-network
 
   # Documentation Generator Service
   docs-generator:
     build:
       context: ./services/ds-documentation-generator
       dockerfile: Dockerfile
-    container_name: docs-generator
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3006
-      DS_REGISTRY_URL: http://ds-registry:3008/api
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
     ports:
       - "3006:3006"
     depends_on:
       - ds-registry
     volumes:
       - docs_output:/home/node/app/output
-    networks:
-      - ds-builder-network
     command: npm run start:dev
 
 volumes:
   docs_output:
     driver: local
 
-networks:
-  ds-builder-network:
-    driver: bridge
