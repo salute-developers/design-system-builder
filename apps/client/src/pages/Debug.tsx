@@ -11,9 +11,10 @@ import {
 
 import { BasicButton, LinkButton, Modal, Switch, TextField } from '../components';
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
-import { importTokensToTheme, importDesignSystem } from '../utils';
+import { importTokensToTheme, importDesignSystem, btoaUtf8 } from '../utils';
 import { Parameters } from '../types';
-import { designSystemSave, generateAndDeployDocumentation, generateDownload, generatePublish } from './Main.utils';
+import { DS_REGISTRY_URL } from '../api';
+import { designSystemSave, generateAndDeployDocumentation, generatePublish } from './Main.utils';
 
 const Root = styled.div`
     z-index: 99999;
@@ -50,15 +51,46 @@ export const Debug = (props: DebugProps) => {
     const [isDefaultName, setIsDefaultName] = useState(true);
     const [customName, setCustomName] = useState('');
 
-    const onDebugDesignSystemDownload = async () => {
+    // const onDebugDesignSystemDownload = async () => {
+    //     if (!designSystem) {
+    //         return;
+    //     }
+
+    //     return await generateDownload(designSystem, 'tgz');
+    // };
+
+    const onDesignSystemDownload = async () => {
         if (!designSystem) {
             return;
         }
 
-        return await generateDownload(designSystem, 'tgz');
+        const name = designSystem.getName();
+        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+
+        const response = await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/download-theme`, {
+            headers: {
+                Authorization: `Basic ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            console.error('Failed to download theme:', response.statusText);
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+
+        a.href = url;
+        a.download = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] ?? `${name}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     };
 
-    const onDebugDesignSystemPublish = async () => {
+    const onDesignSystemPublish = async () => {
         if (!designSystem) {
             return;
         }
@@ -66,7 +98,7 @@ export const Debug = (props: DebugProps) => {
         return await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
     };
 
-    const onDebugDesignSystemDocs = async () => {
+    const onDesignSystemDocs = async () => {
         if (!designSystem) {
             return;
         }
@@ -74,7 +106,7 @@ export const Debug = (props: DebugProps) => {
         return await generateAndDeployDocumentation(designSystem);
     };
 
-    const onDebugDesignSystemSave = async () => {
+    const onDesignSystemSave = async () => {
         if (!designSystem || !theme || !components) {
             return;
         }
@@ -171,25 +203,25 @@ export const Debug = (props: DebugProps) => {
                 <LinkButton
                     text="Сохранить тему и компоненты"
                     contentRight={<IconSave size="s" />}
-                    onClick={onDebugDesignSystemSave}
+                    onClick={onDesignSystemSave}
                 />
-                <LinkButton
+                {/* <LinkButton
                     text="Скачать дизайн систему"
                     contentRight={<IconDownload size="s" />}
                     onClick={onDebugDesignSystemDownload}
-                />
+                /> */}
                 <LinkButton
                     text="Опубликовать"
                     contentRight={<IconCloudUploadOutline size="s" />}
-                    onClick={onDebugDesignSystemPublish}
+                    onClick={onDesignSystemPublish}
                 />
                 <LinkButton
                     text="Опубликовать документацию"
                     contentRight={<IconFileTextOutline size="s" />}
-                    onClick={onDebugDesignSystemDocs}
+                    onClick={onDesignSystemDocs}
                 />
                 <LinkButton
-                    text="Импортировать токены"
+                    text="Импортировать токены (PIXSO)"
                     contentRight={<IconDocumentImportOutline size="s" />}
                     accept=".json"
                     onFileChange={onUploadTokens}
@@ -199,6 +231,11 @@ export const Debug = (props: DebugProps) => {
                     contentRight={<IconUploadOutline size="s" />}
                     accept=".zip, .json"
                     onFileChange={onUploadDesignSystem}
+                />
+                <LinkButton
+                    text="Скачать дизайн систему"
+                    contentRight={<IconDownload size="s" />}
+                    onClick={onDesignSystemDownload}
                 />
             </Root>
             {importDialogData && (
