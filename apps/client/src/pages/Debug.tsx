@@ -1,12 +1,19 @@
-import { ChangeEvent } from 'react';
+import { ChangeEvent, useState } from 'react';
 import styled from 'styled-components';
-import { IconSave } from '@salutejs/plasma-icons';
+import {
+    IconSave,
+    IconDownload,
+    IconCloudUploadOutline,
+    IconDocumentImportOutline,
+    IconUploadOutline,
+    IconFileTextOutline,
+} from '@salutejs/plasma-icons';
 
-import { LinkButton } from '../components';
-import { Config, DesignSystem, Theme } from '../controllers';
+import { BasicButton, LinkButton, Modal, Switch, TextField } from '../components';
+import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
+import { importTokensToTheme, importDesignSystem } from '../utils';
+import { Parameters } from '../types';
 import { designSystemSave, generateAndDeployDocumentation, generateDownload, generatePublish } from './Main.utils';
-import { importTokensToTheme } from '../utils';
-import { importDesignSystem } from '../utils/importDesignSystem';
 
 const Root = styled.div`
     z-index: 99999;
@@ -22,6 +29,12 @@ const Root = styled.div`
     justify-content: flex-end;
 `;
 
+interface ImportDialogData {
+    defaultName: string;
+    parameters: Partial<Parameters>;
+    themeData: ThemeSource;
+}
+
 interface DebugProps {
     designSystem: DesignSystem | null;
     theme: Theme | null;
@@ -32,6 +45,10 @@ interface DebugProps {
 // TODO: Временный компонент, выводить только в дев окружении, завязаться на ENV
 export const Debug = (props: DebugProps) => {
     const { designSystem, theme, components, rerender } = props;
+
+    const [importDialogData, setImportDialogData] = useState<ImportDialogData | null>(null);
+    const [isDefaultName, setIsDefaultName] = useState(true);
+    const [customName, setCustomName] = useState('');
 
     const onDebugDesignSystemDownload = async () => {
         if (!designSystem) {
@@ -112,10 +129,27 @@ export const Debug = (props: DebugProps) => {
 
             const { name, parameters, themeData } = await importDesignSystem(content);
 
+            setImportDialogData({ defaultName: name, parameters, themeData });
+            setCustomName(name);
+            setIsDefaultName(true);
+        } catch (error) {
+            console.error('Failed to import design system:', error);
+        }
+    };
+
+    const onImportConfirm = async () => {
+        if (!importDialogData) {
+            return;
+        }
+
+        const { defaultName, parameters, themeData } = importDialogData;
+        const name = isDefaultName ? defaultName : customName;
+
+        try {
             await DesignSystem.create({
                 name,
                 version: '0.1.0',
-                parameters,
+                parameters: { ...parameters, projectName: name.split('_').join(' ').toUpperCase(), packagesName: name },
                 themeData,
             });
 
@@ -123,38 +157,79 @@ export const Debug = (props: DebugProps) => {
         } catch (error) {
             console.error('Failed to import design system:', error);
         }
+
+        setImportDialogData(null);
+    };
+
+    const onImportCancel = () => {
+        setImportDialogData(null);
     };
 
     return (
-        <Root>
-            <LinkButton
-                text="Сохранить тему и компоненты"
-                contentRight={<IconSave size="s" />}
-                onClick={onDebugDesignSystemSave}
-            />
-            <LinkButton
-                text="Скачать дизайн систему"
-                contentRight={<IconSave size="s" />}
-                onClick={onDebugDesignSystemDownload}
-            />
-            <LinkButton text="Опубликовать" contentRight={<IconSave size="s" />} onClick={onDebugDesignSystemPublish} />
-            <LinkButton
-                text="Опубликовать документацию"
-                contentRight={<IconSave size="s" />}
-                onClick={onDebugDesignSystemDocs}
-            />
-            <LinkButton
-                text="Импортировать токены"
-                contentRight={<IconSave size="s" />}
-                accept=".json"
-                onFileChange={onUploadTokens}
-            />
-            <LinkButton
-                text="Импортировать дизайн систему"
-                contentRight={<IconSave size="s" />}
-                accept=".zip, .json"
-                onFileChange={onUploadDesignSystem}
-            />
-        </Root>
+        <>
+            <Root>
+                <LinkButton
+                    text="Сохранить тему и компоненты"
+                    contentRight={<IconSave size="s" />}
+                    onClick={onDebugDesignSystemSave}
+                />
+                <LinkButton
+                    text="Скачать дизайн систему"
+                    contentRight={<IconDownload size="s" />}
+                    onClick={onDebugDesignSystemDownload}
+                />
+                <LinkButton
+                    text="Опубликовать"
+                    contentRight={<IconCloudUploadOutline size="s" />}
+                    onClick={onDebugDesignSystemPublish}
+                />
+                <LinkButton
+                    text="Опубликовать документацию"
+                    contentRight={<IconFileTextOutline size="s" />}
+                    onClick={onDebugDesignSystemDocs}
+                />
+                <LinkButton
+                    text="Импортировать токены"
+                    contentRight={<IconDocumentImportOutline size="s" />}
+                    accept=".json"
+                    onFileChange={onUploadTokens}
+                />
+                <LinkButton
+                    text="Импортировать дизайн систему"
+                    contentRight={<IconUploadOutline size="s" />}
+                    accept=".zip, .json"
+                    onFileChange={onUploadDesignSystem}
+                />
+            </Root>
+            {importDialogData && (
+                <Modal
+                    title="Импортировать дизайн систему"
+                    onClickOutside={onImportCancel}
+                    actions={[
+                        <BasicButton text="Отмена" backgroundColor="transparent" onClick={onImportCancel} />,
+                        <BasicButton text="Импортировать" onClick={onImportConfirm} />,
+                    ]}
+                >
+                    <Switch
+                        checked={isDefaultName}
+                        label="Оставить название по умолчанию"
+                        onToggle={(checked) => {
+                            setIsDefaultName(checked);
+                            if (checked) {
+                                setCustomName(importDialogData.defaultName);
+                            }
+                        }}
+                    />
+                    <TextField
+                        value={isDefaultName ? importDialogData.defaultName : customName}
+                        readOnly={isDefaultName}
+                        label="Название дизайн системы"
+                        stretched
+                        hasBackground
+                        onChange={(value) => setCustomName(value)}
+                    />
+                </Modal>
+            )}
+        </>
     );
 };
