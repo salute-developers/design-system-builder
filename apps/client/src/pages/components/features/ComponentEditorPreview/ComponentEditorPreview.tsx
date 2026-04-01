@@ -2,7 +2,14 @@ import { Fragment, useMemo, useState } from 'react';
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, Variation } from '../../../../controllers';
-import { SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem, Switch, TextField } from '../../../../components';
+import {
+    SegmentButton,
+    SegmentButtonItem,
+    SelectButton,
+    SelectButtonItem,
+    Switch,
+    TextField,
+} from '../../../../components';
 import { useStory } from '../../../../hooks';
 
 import {
@@ -104,10 +111,10 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                         onToggle={(value) => onChange(name, value)}
                     />
                 )}
-                {typeof args[name] === 'string' && !list && (
+                {(typeof args[name] === 'string' || typeof args[name] === 'number') && !list && (
                     <TextField
                         label={upperFirstLetter(name)}
-                        value={args[name]}
+                        value={String(args[name])}
                         onChange={(value) => onChange(name, value)}
                     />
                 )}

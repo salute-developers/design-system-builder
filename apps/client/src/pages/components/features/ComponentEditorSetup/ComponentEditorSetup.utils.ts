@@ -28,7 +28,6 @@ export const getVariations = (config: Config) => {
     return variations;
 };
 
-// TODO: хранить это в бд
 export const variationMap: Record<string, string> = {
     view: 'Вид',
     size: 'Размер',
