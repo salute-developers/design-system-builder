@@ -13,8 +13,10 @@ type ComponentDep = components['schemas']['ComponentDep'];
 type PropertyVariation = components['schemas']['PropertyVariation'];
 type DesignSystemUser = components['schemas']['DesignSystemUser'];
 
+type DesignSystemComponent = components['schemas']['DesignSystemComponent'];
+
 type Section = 'users' | 'design-systems' | 'components';
-type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations';
+type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations' | 'design-systems';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -948,6 +950,117 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
   );
 }
 
+// ─── Design Systems Tab ──────────────────────────────────────────────────────
+
+function DesignSystemsTab({ componentId }: { componentId: string }) {
+  const [allDs, setAllDs] = useState<DesignSystem[]>([]);
+  const [dsComponents, setDsComponents] = useState<DesignSystemComponent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addErr, setAddErr] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addDsId, setAddDsId] = useState('');
+
+  const load = useCallback(async () => {
+    const [dsRes, dscRes] = await Promise.all([
+      api.GET('/design-systems'),
+      api.GET('/design-system-components'),
+    ]);
+    if (dsRes.data) setAllDs(dsRes.data);
+    if (dscRes.data) setDsComponents(dscRes.data.filter((dsc: DesignSystemComponent) => dsc.componentId === componentId));
+    setLoading(false);
+  }, [componentId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function addToDs(e: React.FormEvent) {
+    e.preventDefault();
+    setAddErr(null);
+    setAdding(true);
+    const { error } = await api.POST('/design-system-components', {
+      body: { designSystemId: addDsId, componentId },
+    });
+    setAdding(false);
+    if (error) { setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
+    setAddDsId('');
+    load();
+  }
+
+  async function removeFromDs(dscId: string) {
+    await api.DELETE('/design-system-components/{id}', { params: { path: { id: dscId } } });
+    load();
+  }
+
+  if (loading) return <p className="page-hint">Loading…</p>;
+
+  const linkedDsIds = new Set(dsComponents.map((dsc) => dsc.designSystemId));
+  const unlinkedDs = allDs.filter((ds) => !linkedDsIds.has(ds.id));
+  const dsMap = Object.fromEntries(allDs.map((d) => [d.id, d]));
+
+  return (
+    <div>
+      {/* Add to DS */}
+      {unlinkedDs.length > 0 && (
+        <div className="adm-card">
+          <h3 className="adm-card-title">Add to design system</h3>
+          <form className="adm-form" onSubmit={addToDs}>
+            <div className="adm-form-row">
+              <select className="adm-select" value={addDsId} onChange={(e) => setAddDsId(e.target.value)} required>
+                <option value="">Select design system…</option>
+                {unlinkedDs.map((ds) => <option key={ds.id} value={ds.id}>{ds.name}</option>)}
+              </select>
+              <button className="adm-btn adm-btn--primary" disabled={adding}>{adding ? 'Adding…' : 'Add'}</button>
+            </div>
+            <ErrMsg msg={addErr} />
+          </form>
+        </div>
+      )}
+
+      {/* Linked DS list */}
+      <div className="adm-card">
+        <h3 className="adm-card-title">Design systems ({dsComponents.length})</h3>
+        {dsComponents.length === 0 ? (
+          <p className="page-hint">Not added to any design system</p>
+        ) : (
+          <table className="adm-table">
+            <thead><tr><th>Name</th><th>Project name</th><th></th></tr></thead>
+            <tbody>
+              {dsComponents.map((dsc) => {
+                const ds = dsMap[dsc.designSystemId];
+                return (
+                  <tr key={dsc.id}>
+                    <td>{ds?.name ?? dsc.designSystemId}</td>
+                    <td className="adm-mono">{ds?.projectName ?? '—'}</td>
+                    <td>
+                      <button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => removeFromDs(dsc.id)}>Remove</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Unlinked DS */}
+      {unlinkedDs.length > 0 && (
+        <div className="adm-card">
+          <h3 className="adm-card-title">
+            Not in
+            <span className="adm-card-count"> ({unlinkedDs.length})</span>
+          </h3>
+          <div className="adm-tags">
+            {unlinkedDs.map((ds) => (
+              <span key={ds.id} className="adm-tag" style={{ background: '#2a2020', borderColor: '#4a2a2a', color: '#c0a0a0' }}>
+                {ds.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Component Detail ─────────────────────────────────────────────────────────
 
 function ComponentDetail({ component, allComponents }: { component: Comp; allComponents: Comp[] }) {
@@ -958,6 +1071,7 @@ function ComponentDetail({ component, allComponents }: { component: Comp; allCom
     { id: 'variations', label: 'Variations' },
     { id: 'prop-variations', label: 'Prop → Variation' },
     { id: 'deps', label: 'Dependencies' },
+    { id: 'design-systems', label: 'Design Systems' },
   ];
 
   return (
@@ -978,6 +1092,7 @@ function ComponentDetail({ component, allComponents }: { component: Comp; allCom
         {tab === 'deps' && <DepsTab key={component.id} componentId={component.id} allComponents={allComponents} />}
         {tab === 'variations' && <VariationsTab key={component.id} componentId={component.id} />}
         {tab === 'prop-variations' && <PropVariationsTab key={component.id} componentId={component.id} />}
+        {tab === 'design-systems' && <DesignSystemsTab key={component.id} componentId={component.id} />}
       </div>
     </div>
   );
@@ -1007,11 +1122,26 @@ function ComponentsSection() {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { error } = await api.POST('/components', {
+    const { data, error } = await api.POST('/components', {
       body: { name: cName, description: cDesc || undefined },
     });
+    if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
+
+    // Auto-add to all design systems
+    if (data) {
+      const dsRes = await api.GET('/design-systems');
+      if (dsRes.data) {
+        await Promise.all(
+          dsRes.data.map((ds) =>
+            api.POST('/design-system-components', {
+              body: { designSystemId: ds.id, componentId: data.id },
+            }),
+          ),
+        );
+      }
+    }
+
     setAdding(false);
-    if (error) { setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
     setCName(''); setCDesc('');
     load();
   }
