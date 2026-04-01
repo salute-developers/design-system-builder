@@ -1,4 +1,5 @@
 import { Router } from "express";
+import archiver from "archiver";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "../../db/index";
 import {
@@ -1539,5 +1540,175 @@ interface LegacyConfig {
     }[];
   };
 }
+
+// GET /legacy/design-systems/:name/download-theme
+// Возвращает zip-архив с токенами дизайн-системы для дефолтного тенанта
+router.get("/:name/download-theme", optionalAuthenticate, (req, res) =>
+  tryCatch(res, async () => {
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!(await assertDsAccess(req, res, ds.id))) return;
+
+    // Берём первый (дефолтный) тенант
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.designSystemId, ds.id))
+      .limit(1);
+
+    if (!assertFound(tenant, res)) return;
+
+    // Последняя версия для meta.json
+    const [latestVersion] = await db
+      .select({ version: designSystemVersions.version })
+      .from(designSystemVersions)
+      .where(eq(designSystemVersions.designSystemId, ds.id))
+      .orderBy(desc(designSystemVersions.publishedAt))
+      .limit(1);
+
+    // Токены дизайн-системы
+    const tokenRows = await db
+      .select()
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+
+    const tokenIds = tokenRows.map((t) => t.id);
+
+    // Значения токенов только для дефолтного тенанта
+    const tokenValueRows =
+      tokenIds.length > 0
+        ? await db
+            .select({
+              tokenId: tokenValues.tokenId,
+              platform: tokenValues.platform,
+              mode: tokenValues.mode,
+              value: tokenValues.value,
+              paletteType: palette.type,
+              paletteShade: palette.shade,
+              paletteSaturation: palette.saturation,
+            })
+            .from(tokenValues)
+            .leftJoin(palette, eq(tokenValues.paletteId, palette.id))
+            .where(
+              and(
+                inArray(tokenValues.tokenId, tokenIds),
+                eq(tokenValues.tenantId, tenant.id),
+              ),
+            )
+        : [];
+
+    const tokenById = new Map(tokenRows.map((t) => [t.id, t]));
+
+    // Собираем режимы (light/dark) для каждого токена
+    const tokenModes = new Map<string, Set<string>>();
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.mode) continue;
+      if (!tokenModes.has(tv.tokenId)) tokenModes.set(tv.tokenId, new Set());
+      tokenModes.get(tv.tokenId)!.add(tv.mode);
+    }
+
+    // meta.json
+    const metaTokens = tokenRows.flatMap((t) => {
+      const modes = tokenModes.get(t.id);
+      if (modes && modes.size > 0) {
+        return [...modes].map((mode) => {
+          const fullName = `${mode}.${t.name}`;
+          return {
+            type: t.type,
+            name: fullName,
+            tags: fullName.split("."),
+            displayName: t.displayName,
+            description: t.description,
+            enabled: t.enabled,
+          };
+        });
+      }
+      return [
+        {
+          type: t.type,
+          name: t.name,
+          tags: t.name.split("."),
+          displayName: t.displayName,
+          description: t.description,
+          enabled: t.enabled,
+        },
+      ];
+    });
+
+    const meta = {
+      name: ds.name,
+      version: latestVersion?.version ?? "0.0.0",
+      tokens: metaTokens,
+    };
+
+    // Группируем значения: { [tokenType]: { [platform]: { [key]: value } } }
+    const grouped: Record<string, Record<string, Record<string, unknown>>> = {};
+
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.platform) continue;
+      const token = tokenById.get(tv.tokenId);
+      if (!token?.type) continue;
+
+      let value: unknown;
+      if (tv.paletteType != null) {
+        value = `[${tv.paletteType}.${tv.paletteShade}.${tv.paletteSaturation}]`;
+      } else if (token.type === "shadow" || token.type === "gradient") {
+        value = tv.value;
+      } else {
+        value = Array.isArray(tv.value) ? tv.value[0] : tv.value;
+      }
+
+      const key = tv.mode != null ? `${tv.mode}.${token.name}` : token.name;
+
+      grouped[token.type] ??= {};
+      grouped[token.type][tv.platform] ??= {};
+      grouped[token.type][tv.platform][key] = value;
+    }
+
+    // Формируем zip
+    const projectName = ds.projectName ?? ds.name;
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${projectName}.zip"`,
+    );
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    // meta.json
+    archive.append(JSON.stringify(meta, null, 4), { name: "meta.json" });
+
+    // {platform}/{platform}_{tokenType}.json
+    const platforms = ["web", "ios", "android"] as const;
+    const tokenTypes = [
+      "color",
+      "gradient",
+      "typography",
+      "fontFamily",
+      "spacing",
+      "shape",
+      "shadow",
+    ];
+
+    for (const platform of platforms) {
+      for (const tokenType of tokenTypes) {
+        const data = grouped[tokenType]?.[platform];
+        if (!data || Object.keys(data).length === 0) continue;
+
+        archive.append(JSON.stringify(data, null, 4), {
+          name: `${platform}/${platform}_${tokenType}.json`,
+        });
+      }
+    }
+
+    await archive.finalize();
+  }),
+);
 
 export default router;

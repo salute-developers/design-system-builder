@@ -3739,6 +3739,57 @@
         }
       }
     },
+    "/legacy/design-systems/{name}/download-theme": {
+      "get": {
+        "tags": [
+          "Legacy"
+        ],
+        "summary": "Download theme as ZIP archive (legacy)",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "plasma_test"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ZIP archive with theme files",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/design-system-versions": {
       "get": {
         "tags": [

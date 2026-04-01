@@ -1,8 +1,7 @@
 import { type Meta, type ThemeSource } from '../controllers';
 import { Parameters } from '../types';
 import { btoaUtf8 } from './other';
-
-const DS_REGISTRY_URL = import.meta.env.VITE_DS_REGISTRY_API || 'http://localhost:3008/api';
+import { DS_REGISTRY_URL } from '../api';
 
 export interface BackendDesignSystem {
     id: number;

@@ -437,6 +437,22 @@ registry.registerPath({
   },
 });
 
+registry.registerPath({
+  method: "get",
+  path: "/legacy/design-systems/{name}/download-theme",
+  tags: ["Legacy"],
+  summary: "Download theme as ZIP archive (legacy)",
+  request: { params: z.object({ name: z.string().openapi({ example: "plasma_test" }) }) },
+  responses: {
+    200: {
+      description: "ZIP archive with theme files",
+      content: { "application/zip": { schema: z.any() } },
+    },
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
 registerCrud("/design-system-versions", "Design System Versions", DesignSystemVersionSchema, schemas.CreateDesignSystemVersion, schemas.UpdateDesignSystemVersion);
 registry.registerPath({
   method: "get",
