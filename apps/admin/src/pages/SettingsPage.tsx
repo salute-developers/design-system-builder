@@ -20,11 +20,6 @@ type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations' | '
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function useToggle(initial = false): [boolean, () => void] {
-  const [v, set] = useState(initial);
-  return [v, () => set((x) => !x)];
-}
-
 function ErrMsg({ msg }: { msg: string | null }) {
   if (!msg) return null;
   return <p className="adm-error">{msg}</p>;
@@ -744,6 +739,10 @@ function VariationsTab({ componentId }: { componentId: string }) {
   const [addErr, setAddErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
+  // Inline editing state: variationId -> { name, description }
+  const [editing, setEditing] = useState<Record<string, { name: string; description: string }>>({});
+  const [editErr, setEditErr] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     const { data } = await api.GET('/components/{id}/variations', { params: { path: { id: componentId } } });
     if (data) setVariations(data);
@@ -770,6 +769,27 @@ function VariationsTab({ componentId }: { componentId: string }) {
     load();
   }
 
+  function startEdit(v: Variation) {
+    setEditing((prev) => ({ ...prev, [v.id]: { name: v.name, description: v.description ?? '' } }));
+  }
+
+  function cancelEdit(id: string) {
+    setEditing((prev) => { const c = { ...prev }; delete c[id]; return c; });
+  }
+
+  async function saveEdit(id: string) {
+    const edit = editing[id];
+    if (!edit?.name?.trim()) return;
+    setEditErr(null);
+    const { error } = await api.PATCH('/variations/{id}', {
+      params: { path: { id } },
+      body: { name: edit.name.trim(), description: edit.description.trim() || undefined },
+    });
+    if (error) { setEditErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
+    cancelEdit(id);
+    load();
+  }
+
   if (loading) return <p className="page-hint">Loading…</p>;
 
   return (
@@ -788,6 +808,7 @@ function VariationsTab({ componentId }: { componentId: string }) {
 
       <div className="adm-card">
         <h3 className="adm-card-title">Variations ({variations.length})</h3>
+        <ErrMsg msg={editErr} />
         {variations.length === 0 ? (
           <p className="page-hint">No variations</p>
         ) : (
@@ -796,9 +817,51 @@ function VariationsTab({ componentId }: { componentId: string }) {
             <tbody>
               {variations.map((v) => (
                 <tr key={v.id}>
-                  <td className="adm-mono">{v.name}</td>
-                  <td className="adm-muted">{v.description ?? '—'}</td>
-                  <td><button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => deleteVar(v.id)}>Delete</button></td>
+                  <td>
+                    {editing[v.id] !== undefined ? (
+                      <input
+                        className="adm-input adm-input--sm"
+                        value={editing[v.id].name}
+                        onChange={(e) => setEditing((prev) => ({ ...prev, [v.id]: { ...prev[v.id], name: e.target.value } }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEdit(v.id);
+                          if (e.key === 'Escape') cancelEdit(v.id);
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="adm-mono">{v.name}</span>
+                    )}
+                  </td>
+                  <td>
+                    {editing[v.id] !== undefined ? (
+                      <input
+                        className="adm-input adm-input--sm"
+                        value={editing[v.id].description}
+                        onChange={(e) => setEditing((prev) => ({ ...prev, [v.id]: { ...prev[v.id], description: e.target.value } }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEdit(v.id);
+                          if (e.key === 'Escape') cancelEdit(v.id);
+                        }}
+                        placeholder="Description (optional)"
+                      />
+                    ) : (
+                      <span>{v.description ?? '—'}</span>
+                    )}
+                  </td>
+                  <td>
+                    {editing[v.id] !== undefined ? (
+                      <div className="adm-inline-edit">
+                        <button className="adm-btn adm-btn--primary adm-btn--sm" onClick={() => saveEdit(v.id)}>Save</button>
+                        <button className="adm-btn adm-btn--sm" onClick={() => cancelEdit(v.id)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="adm-inline-edit">
+                        <button className="adm-btn adm-btn--sm" onClick={() => startEdit(v)}>Edit</button>
+                        <button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => deleteVar(v.id)}>Delete</button>
+                      </div>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
