@@ -15,6 +15,18 @@ const getDefaultProps = (config: Config) => {
         defaults[variation] = styleID;
     });
 
+    if (defaultVariations.length) {
+        return defaults;
+    }
+
+    config.getVariations().forEach((variation) => {
+        const firstStyle = variation.getStyles()?.[0];
+
+        if (firstStyle) {
+            defaults[variation.getName()] = firstStyle.getID();
+        }
+    });
+
     return defaults;
 };
 
@@ -23,19 +35,25 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
         return { variationID: undefined, styleID: undefined };
     }
 
-    const entries = Object.entries(args as Record<string, string>);
+    const variations = config.getVariations();
+    const variationNames = new Set(variations.map((item) => item.getName()));
+    const entries = Object.entries(args as Record<string, string>).filter(([key]) => variationNames.has(key));
 
     if (entries.length === 0) {
         return { variationID: undefined, styleID: undefined };
     }
 
-    // TODO: Подумать, нужно ли завязываться на size
-    const [variation, value] = entries[entries.length - 1]; // entries.find(([key]) => key === 'size') || [0];
+    if (entries.length === 0 && variations.length > 0) {
+        const [firstVariation] = variations;
+        const firstStyle = firstVariation.getStyles()?.[0];
 
-    const variationID = config
-        .getVariations()
-        .find((item) => item.getName() === variation)
-        ?.getID();
+        return { variationID: firstVariation.getID(), styleID: firstStyle?.getID() };
+    }
+
+    const [entry] = entries[0];
+    const [variation, value] = entry;
+
+    const variationID = variations.find((item) => item.getName() === variation)?.getID();
 
     return { variationID, styleID: value };
 };

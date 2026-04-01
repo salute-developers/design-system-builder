@@ -22,12 +22,13 @@ export class Config {
 
         const { api, configs, variations } = sources;
 
-        const { config } = configs[0];
+        const config = configs[0]?.config;
 
         if (!config) {
             this.defaults = [];
-            this.variations = [];
-            this.invariants = {} as any;
+            this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
+            this.invariants = new Props(null, api);
+
             return;
         }
 

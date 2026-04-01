@@ -99,11 +99,11 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
                         onClick={() => onVariationChange(value)}
                         key={`${value}_${index}`}
                     >
-                        <ListItemText>{variationMap[label]}</ListItemText>
+                        <ListItemText>{variationMap[label.toLowerCase()] || label}</ListItemText>
                     </ListItem>
                 ))}
             </List>
-            {Boolean(styleList?.length) && (
+            {styleList !== undefined && (
                 <List>
                     <ListItemWrapper>
                         <ListSectionTitle>Стили</ListSectionTitle>
@@ -113,7 +113,7 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
                             </IconButton>
                         </ListItemContentRight>
                     </ListItemWrapper>
-                    {styleList?.map(({ label, value: selectedStyle, isDefault }) => (
+                    {styleList.map(({ label, value: selectedStyle, isDefault }) => (
                         <ListItem
                             key={`item_inner:${label}`}
                             selected={styleID === selectedStyle}
