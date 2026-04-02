@@ -56,14 +56,27 @@ interface ImportGradientStop {
     color: string;
 }
 
-interface ImportPaintGradient {
+interface ImportPaintLinearGradient {
     type: 'gradient';
-    kind: 'linear' | 'radial';
+    kind: 'linear';
     opacity: string;
     gradientAngle: number;
     gradientStops: ImportGradientStop[];
     gradientTransform: number[][];
 }
+
+interface ImportPaintRadialGradient {
+    type: 'gradient';
+    kind: 'radial';
+    opacity: string;
+    locations: string[];
+    colors: string[];
+    centerX: number;
+    centerY: number;
+    radius: number;
+}
+
+type ImportPaintGradient = ImportPaintLinearGradient | ImportPaintRadialGradient;
 
 type ImportPaint = ImportPaintColor | ImportPaintGradient;
 
@@ -107,8 +120,8 @@ const resolveColorValue = (color: string, opacity: string): string => {
     return getPaletteValue(color, opacity) ?? getNormalizedColor(color, parseFloat(opacity));
 };
 
-const linearGradientToWebCSS = (paint: ImportPaintGradient): string => {
-    const stops = paint.gradientStops
+const linearGradientStopsToCSS = (paint: ImportPaintLinearGradient): string => {
+    return paint.gradientStops
         .map((stop) => {
             const opacity = parseFloat(paint.opacity);
             const color = getNormalizedColor(stop.color, opacity);
@@ -117,22 +130,93 @@ const linearGradientToWebCSS = (paint: ImportPaintGradient): string => {
             return `${color} ${position}%`;
         })
         .join(', ');
-
-    return `linear-gradient(${paint.gradientAngle}deg, ${stops})`;
 };
 
-const linearGradientToNative = (paint: ImportPaintGradient) => {
+const radialGradientStopsToCSS = (paint: ImportPaintRadialGradient): string => {
     const opacity = parseFloat(paint.opacity);
 
-    const colors = paint.gradientStops.map((stop) => getNormalizedColor(stop.color, opacity));
-    const locations = paint.gradientStops.map((stop) => parseFloat(stop.stop));
+    return paint.colors
+        .map((color, index) => {
+            const normalizedColor = getNormalizedColor(color, opacity);
+            const position = (parseFloat(paint.locations[index]) * 100).toFixed(1);
+
+            return `${normalizedColor} ${position}%`;
+        })
+        .join(', ');
+};
+
+const linearGradientToWebCSS = (paint: ImportPaintLinearGradient): string => {
+    return `linear-gradient(${paint.gradientAngle}deg, ${linearGradientStopsToCSS(paint)})`;
+};
+
+const radialGradientToWebCSS = (paint: ImportPaintRadialGradient): string => {
+    const cx = (paint.centerX * 100).toFixed(1);
+    const cy = (paint.centerY * 100).toFixed(1);
+    const r = (paint.radius * 100).toFixed(1);
+
+    return `radial-gradient(${r}% ${r}% at ${cx}% ${cy}%, ${radialGradientStopsToCSS(paint)})`;
+};
+
+const gradientToWebCSS = (paint: ImportPaintGradient): string => {
+    if (paint.kind === 'radial') {
+        return radialGradientToWebCSS(paint);
+    }
+
+    return linearGradientToWebCSS(paint);
+};
+
+const linearGradientToNative = (paint: ImportPaintLinearGradient) => {
+    const opacity = parseFloat(paint.opacity);
 
     return {
         kind: 'linear' as const,
-        colors,
-        locations,
+        colors: paint.gradientStops.map((stop) => getNormalizedColor(stop.color, opacity)),
+        locations: paint.gradientStops.map((stop) => parseFloat(stop.stop)),
         angle: paint.gradientAngle,
     };
+};
+
+const radialGradientToIOSNative = (paint: ImportPaintRadialGradient) => {
+    const opacity = parseFloat(paint.opacity);
+
+    return {
+        kind: 'radial' as const,
+        colors: paint.colors.map((color) => getNormalizedColor(color, opacity)),
+        locations: paint.locations.map((loc) => parseFloat(loc)),
+        centerX: paint.centerX,
+        centerY: paint.centerY,
+        startRadius: 0,
+        endRadius: paint.radius,
+    };
+};
+
+const radialGradientToAndroidNative = (paint: ImportPaintRadialGradient) => {
+    const opacity = parseFloat(paint.opacity);
+
+    return {
+        kind: 'radial' as const,
+        colors: paint.colors.map((color) => getNormalizedColor(color, opacity)),
+        locations: paint.locations.map((loc) => parseFloat(loc)),
+        centerX: paint.centerX,
+        centerY: paint.centerY,
+        radius: paint.radius,
+    };
+};
+
+const gradientToIOSNative = (paint: ImportPaintGradient) => {
+    if (paint.kind === 'radial') {
+        return radialGradientToIOSNative(paint);
+    }
+
+    return linearGradientToNative(paint);
+};
+
+const gradientToAndroidNative = (paint: ImportPaintGradient) => {
+    if (paint.kind === 'radial') {
+        return radialGradientToAndroidNative(paint);
+    }
+
+    return linearGradientToNative(paint);
 };
 
 const createColorToken = (style: ImportLocalStyle, paint: ImportPaintColor): ColorToken => {
@@ -151,39 +235,41 @@ const createColorToken = (style: ImportLocalStyle, paint: ImportPaintColor): Col
     );
 };
 
-const createGradientToken = (style: ImportLocalStyle, paint: ImportPaintGradient): GradientToken => {
+const createGradientToken = (style: ImportLocalStyle, paints: ImportPaintGradient[]): GradientToken => {
     const { name } = style;
     const tags = name.split('.');
     const displayName = getDisplayName(name);
-    const webValue = [linearGradientToWebCSS(paint)];
-    const nativeValue = [linearGradientToNative(paint)];
+
+    const webValue = paints.map(gradientToWebCSS);
+    const iosValue = paints.map(gradientToIOSNative);
+    const androidValue = paints.map(gradientToAndroidNative);
 
     return new GradientToken(
         { name, tags, displayName, enabled: style.enabled ?? true },
         {
             web: new WebGradient(webValue),
-            ios: new IOSGradient(nativeValue),
-            android: new AndroidGradient(nativeValue),
+            ios: new IOSGradient(iosValue),
+            android: new AndroidGradient(androidValue),
         },
     );
 };
 
 export const importTokensToTheme = (data: ImportData, theme: Theme): void => {
     for (const style of data.localStyles) {
-        const paint = style.paints[0];
-
         const nameParts = style.name.split('.');
         const isExcluded = nameParts.includes('syntax') || nameParts.includes('custom');
 
-        if (!paint || style.enabled === false || isExcluded) {
+        if (!style.paints.length || style.enabled === false || isExcluded) {
             continue;
         }
 
-        if (paint.type === 'color') {
+        const firstPaint = style.paints[0];
+
+        if (firstPaint.type === 'color') {
             const existingToken = theme.getToken(style.name, 'color');
 
             if (existingToken) {
-                const value = resolveColorValue(paint.color, paint.opacity);
+                const value = resolveColorValue(firstPaint.color, firstPaint.opacity);
 
                 existingToken.setValue('web', value);
                 existingToken.setValue('ios', value);
@@ -192,25 +278,28 @@ export const importTokensToTheme = (data: ImportData, theme: Theme): void => {
                 continue;
             }
 
-            const token = createColorToken(style, paint);
+            const token = createColorToken(style, firstPaint);
             theme.addToken('color', token);
         }
 
-        if (paint.type === 'gradient') {
+        if (firstPaint.type === 'gradient') {
+            const gradientPaints = style.paints.filter((paint) => paint.type === 'gradient');
+
             const existingToken = theme.getToken(style.name, 'gradient');
 
             if (existingToken) {
-                const webValue = [linearGradientToWebCSS(paint)];
-                const nativeValue = [linearGradientToNative(paint)];
+                const webValue = gradientPaints.map(gradientToWebCSS);
+                const iosValue = gradientPaints.map(gradientToIOSNative);
+                const androidValue = gradientPaints.map(gradientToAndroidNative);
 
                 existingToken.setValue('web', webValue);
-                existingToken.setValue('ios', nativeValue);
-                existingToken.setValue('android', nativeValue);
+                existingToken.setValue('ios', iosValue);
+                existingToken.setValue('android', androidValue);
 
                 continue;
             }
 
-            const token = createGradientToken(style, paint);
+            const token = createGradientToken(style, gradientPaints);
             theme.addToken('gradient', token);
         }
     }
