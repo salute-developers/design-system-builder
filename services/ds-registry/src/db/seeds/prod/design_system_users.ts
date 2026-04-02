@@ -3,18 +3,17 @@ import * as schema from '../../schema';
 export async function seedDesignSystemUsers(
   db: any,
   ctx: {
-    users: { neretin: any; client: any };
-    designSystems: { plasmaTest: any };
+    users: { admin: any };
+    designSystems: { base: any };
   },
 ) {
-  const { neretin, client } = ctx.users;
-  const { plasmaTest } = ctx.designSystems;
+  const { admin } = ctx.users;
+  const { base } = ctx.designSystems;
 
   const rows = await db
     .insert(schema.designSystemUsers)
     .values([
-      { userId: neretin.id, designSystemId: plasmaTest.id },
-      { userId: client.id, designSystemId: plasmaTest.id },
+      { userId: admin.id, designSystemId: base.id },
     ])
     .returning();
 

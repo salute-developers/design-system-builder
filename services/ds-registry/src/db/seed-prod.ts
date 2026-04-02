@@ -67,7 +67,7 @@ async function seed() {
   const tenants = await seedTenants(db, { designSystems });
   await seedPalette(db);
   const tokenMap = await seedTokens(db, { designSystems });
-  await seedTokenValues(db, { tokenMap, tenant: tenants.plasmaTestTenant });
+  await seedTokenValues(db, { tokenMap, tenant: tenants.baseDefaultTenant });
 
   const components = {
     iconButton: await seedIconButtonComponent(db),

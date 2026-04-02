@@ -4,14 +4,14 @@ export async function seedUsers(db: any) {
   const rows = await db
     .insert(schema.users)
     .values([
-      { login: 'neretin', token: 'bmVyZXRpbjpwYXNzd29yZA==' }, // password
-      { login: 'client', token: 'Y2xpZW50OmNsaWVudA==' }, // client
+      { login: 'admin', token: 'YWRtaW46YWRtaW4=' },
+      { login: 'neretin', token: 'bmVyZXRpbjpwYXNzd29yZA==' },
     ])
     .returning();
 
+  const admin = rows.find((r: any) => r.login === 'admin')!;
   const neretin = rows.find((r: any) => r.login === 'neretin')!;
-  const client = rows.find((r: any) => r.login === 'client')!;
 
-  console.log(`  users: neretin(${neretin.id}), client(${client.id})`);
-  return { neretin, client };
+  console.log(`  users: admin(${admin.id}), neretin(${neretin.id})`);
+  return { admin, neretin };
 }

@@ -2482,9 +2482,9 @@ function stripModePrefix(name: string, type: string): string {
 
 export async function seedTokens(
   db: any,
-  ctx: { designSystems: { plasmaTest: any } },
+  ctx: { designSystems: { base: any } },
 ) {
-  const { plasmaTest } = ctx.designSystems;
+  const { base } = ctx.designSystems;
 
   // Deduplicate after stripping dark./light. prefix from color/gradient tokens
   const seen = new Set<string>();
@@ -2496,7 +2496,7 @@ export async function seedTokens(
   });
 
   const tokenRows = deduped.map(t => ({
-    designSystemId: plasmaTest.id,
+    designSystemId: base.id,
     name: stripModePrefix(t.name, t.type),
     type: t.type,
     displayName: t.displayName,
