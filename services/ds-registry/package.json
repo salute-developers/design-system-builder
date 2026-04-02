@@ -7,9 +7,11 @@
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:clear": "tsx src/db/clear.ts",
     "db:reset": "tsx src/db/reset.ts",
     "db:seed:dev": "tsx src/db/seed-dev.ts",
     "db:seed:prod": "tsx src/db/seed-prod.ts",
+    "db:seed-generate:prod": "tsx src/db/seed-generate-prod.ts",
     "db:studio": "drizzle-kit studio",
     "openapi:gen": "tsx src/openapi/generate.ts"
   },
