@@ -262,7 +262,8 @@ export const Main = () => {
                     onDesignSystemCreate,
                 }}
             />
-            {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />}
+            {/* TODO: Временно спрячем */}
+            {/* {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />} */}
             <Debug designSystem={designSystem} theme={theme} components={components} rerender={rerender} />
             {isPopupOpen && (
                 <StyledPopup>
