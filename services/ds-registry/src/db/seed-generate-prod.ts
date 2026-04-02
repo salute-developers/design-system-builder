@@ -471,7 +471,7 @@ export async function seed${componentName}Component(db: any) {
     // ── 10. Patch variation_property_values.ts ─────────────────────────────────
 
     patchFile(path.join(seedsDir, 'variation_property_values.ts'), (c) => {
-        if (c.includes(`// ${componentName}\n    // ═`)) return c;
+        if (c.includes(`// ${componentName}`) && c.includes(`${prefix}App`)) return c;
 
         // Add appearance variable
         const appVarName = `${prefix}App`;
@@ -523,7 +523,7 @@ export async function seed${componentName}Component(db: any) {
 
     if (ipvRows.length > 0) {
         patchFile(path.join(seedsDir, 'invariant_property_values.ts'), (c) => {
-            if (c.includes(`// ${componentName}\n`)) return c;
+            if (c.includes(`// ${componentName}`) && c.includes(`${prefix}_`)) return c;
 
             if (!c.includes(`${varName}: any`)) {
                 c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);

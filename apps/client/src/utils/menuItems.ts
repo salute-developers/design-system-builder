@@ -33,7 +33,7 @@ const componentList = [
             { name: 'Cell', disabled: true },
             { name: 'Chip', disabled: true },
             { name: 'ChipGroup', disabled: true },
-            { name: 'Counter', disabled: true },
+            { name: 'Counter', disabled: false },
             { name: 'Divider', disabled: true },
             { name: 'Image', disabled: true },
             { name: 'Indicator', disabled: true },

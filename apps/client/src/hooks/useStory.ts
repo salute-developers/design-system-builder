@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useState } from 'react';
 
-import { IconButtonStories, LinkStories, ButtonStories, CheckboxStories, RadioboxStories } from '../stories';
+import { IconButtonStories, LinkStories, ButtonStories, CheckboxStories, RadioboxStories, CounterStories } from '../stories';
 import { Config } from '../controllers';
 
 interface Story {
@@ -16,6 +16,7 @@ const componentMapper: Record<string, Story[]> = {
     Button: ButtonStories,
     Checkbox: CheckboxStories,
     Radiobox: RadioboxStories,
+    Counter: CounterStories,
 };
 
 export const useStory = (

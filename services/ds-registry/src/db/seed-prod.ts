@@ -12,6 +12,7 @@ import {
     seedLinkComponent,
     seedCheckboxComponent,
     seedRadioboxComponent,
+    seedCounterComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -67,7 +68,10 @@ async function clearComponentData(componentIds: string[], designSystemId: string
         .select({ id: schema.appearances.id })
         .from(schema.appearances)
         .where(
-            and(inArray(schema.appearances.componentId, componentIds), eq(schema.appearances.designSystemId, designSystemId)),
+            and(
+                inArray(schema.appearances.componentId, componentIds),
+                eq(schema.appearances.designSystemId, designSystemId),
+            ),
         );
     const appIds = appRows.map((r) => r.id);
 
@@ -165,6 +169,7 @@ async function seed() {
         link: await seedLinkComponent(db),
         checkbox: await seedCheckboxComponent(db),
         radiobox: await seedRadioboxComponent(db),
+        counter: await seedCounterComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -175,6 +180,7 @@ async function seed() {
         Link: 'link',
         Checkbox: 'checkbox',
         Radiobox: 'radiobox',
+        Counter: 'counter',
     };
 
     let componentIdsToReseed: string[];
@@ -182,9 +188,7 @@ async function seed() {
     if (targetComponent) {
         const key = keyMap[targetComponent];
         if (!key) {
-            console.error(
-                `Unknown component: "${targetComponent}". Available: ${Object.keys(keyMap).join(', ')}`,
-            );
+            console.error(`Unknown component: "${targetComponent}". Available: ${Object.keys(keyMap).join(', ')}`);
             process.exit(1);
         }
         componentIdsToReseed = [components[key].id];
