@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import * as schema from '../../schema';
 
 export async function seedStyles(
@@ -69,6 +70,13 @@ export async function seedStyles(
       { designSystemId: base.id, variationId: v.radioboxSize.id, name: 'm', description: 'Medium size', isDefault: true },
       { designSystemId: base.id, variationId: v.radioboxSize.id, name: 'l', description: 'Large size', isDefault: false },
     ])
+    .onConflictDoUpdate({
+      target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
+      set: {
+        description: sql`excluded.description`,
+        isDefault: sql`excluded.is_default`,
+      },
+    })
     .returning();
 
   const find = (varId: string, name: string) =>

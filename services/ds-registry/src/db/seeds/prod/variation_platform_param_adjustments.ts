@@ -79,6 +79,7 @@ export async function seedVariationPlatformParamAdjustments(
     const rows = await db
       .insert(schema.variationPlatformParamAdjustments)
       .values(values)
+      .onConflictDoNothing()
       .returning();
     console.log(`  variation_platform_param_adjustments: ${rows.length} rows`);
     return rows;

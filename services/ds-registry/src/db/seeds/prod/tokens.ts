@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import * as schema from '../../schema';
 
 const TOKEN_DEFS: { name: string; type: any; displayName: string; description: string; enabled: boolean }[] = [
@@ -2508,7 +2509,19 @@ export async function seedTokens(
   const allInserted: any[] = [];
   for (let i = 0; i < tokenRows.length; i += BATCH_SIZE) {
     const batch = tokenRows.slice(i, i + BATCH_SIZE);
-    const inserted = await db.insert(schema.tokens).values(batch).returning();
+    const inserted = await db
+      .insert(schema.tokens)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [schema.tokens.designSystemId, schema.tokens.name],
+        set: {
+          type: sql`excluded.type`,
+          displayName: sql`excluded.display_name`,
+          description: sql`excluded.description`,
+          enabled: sql`excluded.enabled`,
+        },
+      })
+      .returning();
     allInserted.push(...inserted);
   }
 

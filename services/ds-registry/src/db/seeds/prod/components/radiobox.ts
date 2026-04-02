@@ -1,13 +1,16 @@
+import { sql } from 'drizzle-orm';
 import * as schema from '../../../schema';
 
 export async function seedRadioboxComponent(db: any) {
-  const [radiobox] = await db
-    .insert(schema.components)
-    .values([
-      { name: 'Radiobox', description: 'Переключатель (радиокнопка).' },
-    ])
-    .returning();
+    const [radiobox] = await db
+        .insert(schema.components)
+        .values([{ name: 'Radiobox', description: 'Переключатель (радиокнопка).' }])
+        .onConflictDoUpdate({
+            target: schema.components.name,
+            set: { description: sql`excluded.description` },
+        })
+        .returning();
 
-  console.log(`  components: Radiobox(${radiobox.id})`);
-  return radiobox;
+    console.log(`  components: Radiobox(${radiobox.id})`);
+    return radiobox;
 }

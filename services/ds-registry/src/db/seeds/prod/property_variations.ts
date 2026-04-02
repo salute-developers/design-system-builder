@@ -118,6 +118,7 @@ export async function seedPropertyVariations(
       { propertyId: p.rb_labelStyle.id, variationId: v.radioboxSize.id },
       { propertyId: p.rb_descriptionStyle.id, variationId: v.radioboxSize.id },
     ])
+    .onConflictDoNothing()
     .returning();
 
   console.log(`  property_variations: ${rows.length} rows`);

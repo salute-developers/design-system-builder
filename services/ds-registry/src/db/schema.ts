@@ -87,17 +87,23 @@ export const users = pgTable("users", {
     .$onUpdateFn(() => new Date()),
 });
 
-export const designSystems = pgTable("design_systems", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  projectName: text("project_name").notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdateFn(() => new Date()),
-});
+export const designSystems = pgTable(
+  "design_systems",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    projectName: text("project_name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("design_systems_name_unique").on(t.name),
+  ],
+);
 
 export const designSystemVersions = pgTable(
   "design_system_versions",
@@ -176,6 +182,9 @@ export const variations = pgTable(
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
+  (t) => [
+    uniqueIndex("variations_component_id_name_unique").on(t.componentId, t.name),
+  ],
 );
 
 export const properties = pgTable(
@@ -193,6 +202,9 @@ export const properties = pgTable(
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
+  (t) => [
+    uniqueIndex("properties_component_id_name_unique").on(t.componentId, t.name),
+  ],
 );
 
 export const propertyPlatformParams = pgTable(
@@ -210,6 +222,9 @@ export const propertyPlatformParams = pgTable(
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
+  (t) => [
+    uniqueIndex("ppp_property_id_platform_name_unique").on(t.propertyId, t.platform, t.name),
+  ],
 );
 
 export const propertyVariations = pgTable(
@@ -279,6 +294,7 @@ export const styles = pgTable(
       .$onUpdateFn(() => new Date()),
   },
   (t) => [
+    uniqueIndex("styles_ds_id_variation_id_name_unique").on(t.designSystemId, t.variationId, t.name),
     uniqueIndex("styles_variation_id_ds_id_is_default_unique")
       .on(t.variationId, t.designSystemId)
       .where(sql`is_default = true`),
@@ -650,20 +666,26 @@ export const designSystemChanges = pgTable(
 );
 
 // Временная таблица
-export const designSystemUsers = pgTable("design_system_users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id),
-  designSystemId: uuid("design_system_id")
-    .notNull()
-    .references(() => designSystems.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdateFn(() => new Date()),
-});
+export const designSystemUsers = pgTable(
+  "design_system_users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    designSystemId: uuid("design_system_id")
+      .notNull()
+      .references(() => designSystems.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("dsu_user_id_design_system_id_unique").on(t.userId, t.designSystemId),
+  ],
+);
 
 // Сохранённые пользовательские запросы (сгенерированные через NL Query)
 export const savedQueries = pgTable("saved_queries", {
