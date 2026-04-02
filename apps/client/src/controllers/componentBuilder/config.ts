@@ -25,8 +25,8 @@ export class Config {
         const config = configs[0]?.config;
 
         if (!config) {
-            this.defaults = [];
             this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
+            this.defaults = [];
             this.invariants = new Props(null, api);
 
             return;
@@ -100,7 +100,15 @@ export class Config {
         const defaultItem = this.defaults.find((item) => item.getVariationID() === variationID);
         const style = this.getStyleName(variationID, newStyledID);
 
-        defaultItem?.setStyle(style, newStyledID);
+        if (defaultItem) {
+            defaultItem.setStyle(style, newStyledID);
+
+            return;
+        }
+
+        const variation = this.variations.find((v) => v.getID() === variationID);
+        const newDefault = new Default(variation?.getName() || '', variationID, style, newStyledID);
+        this.defaults.push(newDefault);
     }
 
     public updateToken(tokenID: string, value: string | number, variationID?: string, styleID?: string) {

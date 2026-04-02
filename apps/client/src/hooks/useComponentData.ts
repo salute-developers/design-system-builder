@@ -39,19 +39,18 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
     const variationNames = new Set(variations.map((item) => item.getName()));
     const entries = Object.entries(args as Record<string, string>).filter(([key]) => variationNames.has(key));
 
-    if (entries.length === 0) {
-        return { variationID: undefined, styleID: undefined };
-    }
-
     if (entries.length === 0 && variations.length > 0) {
-        const [firstVariation] = variations;
+        const firstVariation = variations[0];
         const firstStyle = firstVariation.getStyles()?.[0];
 
         return { variationID: firstVariation.getID(), styleID: firstStyle?.getID() };
     }
 
-    const [entry] = entries[0];
-    const [variation, value] = entry;
+    if (entries.length === 0) {
+        return { variationID: undefined, styleID: undefined };
+    }
+
+    const [variation, value] = entries[0];
 
     const variationID = variations.find((item) => item.getName() === variation)?.getID();
 
