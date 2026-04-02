@@ -161,6 +161,14 @@ export const loadDesignSystem = async (
     }
 };
 
+export const loadBaseComponentsData = async (): Promise<Meta[]> => {
+    const componentsData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/base/component-configs`).then(
+        (response) => response.json(),
+    )) as unknown as Meta[];
+
+    return componentsData;
+};
+
 export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | undefined> => {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);

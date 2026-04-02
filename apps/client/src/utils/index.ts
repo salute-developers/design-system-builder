@@ -2,7 +2,7 @@ export * from './text';
 export * from './color';
 export * from './formulas';
 export * from './other';
-export * from './storage';
+export * from './api';
 export * from './menuItems';
 export * from './designSystemDraft';
 export * from './importTokens';

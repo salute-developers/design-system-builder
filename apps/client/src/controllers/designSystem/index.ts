@@ -1,8 +1,5 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
-// TODO: загружать из бд
-import { componentsData } from '../../_pseudo_data_base';
-
 import {
     createMetaTokens,
     createVariationTokens,
@@ -12,7 +9,7 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, type Meta } from '../componentBuilder';
-import { kebabToCamel, loadDesignSystem, saveDesignSystem, updateDesignSystem } from '../../utils';
+import { kebabToCamel, loadBaseComponentsData, loadDesignSystem, saveDesignSystem, updateDesignSystem } from '../../utils';
 import { Parameters } from '../../types';
 
 interface DesignSystemProps {
@@ -52,10 +49,10 @@ export class DesignSystem {
     }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version, parameters });
 
-        const { themeData, componentsData } = {
-            themeData: instance.generateThemeData(parameters),
-            componentsData: instance.generateComponentData(), // TODO: попробовать убрать
-        };
+        const [themeData, componentsData] = await Promise.all([
+            Promise.resolve(instance.generateThemeData(parameters)),
+            loadBaseComponentsData(),
+        ]);
 
         instance.themeData = externalThemeData ?? themeData;
         instance.componentsData = componentsData;
@@ -84,17 +81,11 @@ export class DesignSystem {
 
         const { themeData, componentsData, parameters } = data;
 
-        console.log('parameters,', parameters);
-
         instance.themeData = themeData;
         instance.componentsData = componentsData;
         instance.parameters = parameters;
 
         return instance;
-    }
-
-    private generateComponentData() {
-        return componentsData as Meta[];
     }
 
     private generateThemeData(parameters?: Partial<Parameters>) {

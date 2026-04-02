@@ -1,1 +1,0 @@
-export { componentsData } from './components';
