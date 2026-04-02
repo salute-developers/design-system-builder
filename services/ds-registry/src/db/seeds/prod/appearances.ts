@@ -5,11 +5,11 @@ export async function seedAppearances(
     db: any,
     ctx: {
         designSystems: { base: any };
-        components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any };
+        components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any; counter: any };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter } = ctx.components;
 
     const values = [
         { designSystemId: base.id, componentId: iconButton.id, name: 'default' },
@@ -17,16 +17,19 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: link.id, name: 'default' },
         { designSystemId: base.id, componentId: checkbox.id, name: 'default' },
         { designSystemId: base.id, componentId: radiobox.id, name: 'default' },
+        { designSystemId: base.id, componentId: counter.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
 
     // Load all appearances for this DS (includes both newly inserted and pre-existing)
-    const componentIds = [iconButton.id, button.id, link.id, checkbox.id, radiobox.id];
+    const componentIds = [iconButton.id, button.id, link.id, checkbox.id, radiobox.id, counter.id];
     const rows = await db
         .select()
         .from(schema.appearances)
-        .where(and(eq(schema.appearances.designSystemId, base.id), inArray(schema.appearances.componentId, componentIds)));
+        .where(
+            and(eq(schema.appearances.designSystemId, base.id), inArray(schema.appearances.componentId, componentIds)),
+        );
 
     const findByComp = (compId: string) => rows.find((r: any) => r.componentId === compId)!;
 
@@ -36,6 +39,7 @@ export async function seedAppearances(
         base_link_default: findByComp(link.id),
         base_cb_default: findByComp(checkbox.id),
         base_rb_default: findByComp(radiobox.id),
+        base_cou_default: findByComp(counter.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);

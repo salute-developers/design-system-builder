@@ -3,9 +3,9 @@ import * as schema from '../../schema';
 
 export async function seedVariations(
     db: any,
-    ctx: { components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any } },
+    ctx: { components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any; counter: any } },
 ) {
-    const { iconButton, button, link, checkbox, radiobox } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter } = ctx.components;
 
     const rows = await db
         .insert(schema.variations)
@@ -27,6 +27,9 @@ export async function seedVariations(
             // Radiobox
             { componentId: radiobox.id, name: 'view', description: 'View variation' },
             { componentId: radiobox.id, name: 'size', description: 'Size variation' },
+            // Counter
+            { componentId: counter.id, name: 'size', description: 'Размер.' },
+            { componentId: counter.id, name: 'view', description: 'Вид.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -34,8 +37,7 @@ export async function seedVariations(
         })
         .returning();
 
-    const find = (compId: string, name: string) =>
-        rows.find((r: any) => r.componentId === compId && r.name === name)!;
+    const find = (compId: string, name: string) => rows.find((r: any) => r.componentId === compId && r.name === name)!;
 
     const v = {
         iconButtonView: find(iconButton.id, 'view'),
@@ -50,6 +52,9 @@ export async function seedVariations(
         checkboxSize: find(checkbox.id, 'size'),
         radioboxView: find(radiobox.id, 'view'),
         radioboxSize: find(radiobox.id, 'size'),
+        // Counter
+        counterSize: find(counter.id, 'size'),
+        counterView: find(counter.id, 'view'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
