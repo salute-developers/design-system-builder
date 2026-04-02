@@ -19,6 +19,7 @@ export async function seedDesignSystemComponents(
       { designSystemId: base.id, componentId: checkbox.id },
       { designSystemId: base.id, componentId: radiobox.id },
     ])
+    .onConflictDoNothing()
     .returning();
 
   console.log(`  design_system_components: ${rows.length} rows`);

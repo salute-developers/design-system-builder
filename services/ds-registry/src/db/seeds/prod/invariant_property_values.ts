@@ -37,6 +37,7 @@ export async function seedInvariantPropertyValues(
       { propertyId: p.rb_disableAlpha.id, designSystemId: base.id, componentId: radiobox.id, appearanceId: a.base_rb_default.id, value: '0.4', state: null },
       { propertyId: p.rb_focusColor.id, designSystemId: base.id, componentId: radiobox.id, appearanceId: a.base_rb_default.id, tokenId: t['text.default.accent'].id, state: null },
     ])
+    .onConflictDoNothing()
     .returning();
 
   console.log(`  invariant_property_values: ${rows.length} rows`);

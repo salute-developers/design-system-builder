@@ -1,3 +1,4 @@
+import { sql, inArray } from 'drizzle-orm';
 import * as schema from '../../schema';
 
 export async function seedProperties(
@@ -112,6 +113,14 @@ export async function seedProperties(
       { componentId: radiobox.id, name: 'toggleCheckedBorderColor', type: 'color' as const, defaultValue: '', description: 'Цвет бордера тоггла' },
       { componentId: radiobox.id, name: 'toggleBorderColor', type: 'color' as const, defaultValue: '', description: 'Цвет бордера тоггла в невыбранном варианте' },
     ])
+    .onConflictDoUpdate({
+      target: [schema.properties.componentId, schema.properties.name],
+      set: {
+        type: sql`excluded.type`,
+        defaultValue: sql`excluded.default_value`,
+        description: sql`excluded.description`,
+      },
+    })
     .returning();
 
   const findIb = (name: string) => rows.find((r: any) => r.componentId === iconButton.id && r.name === name)!;
@@ -240,7 +249,16 @@ export async function seedProperties(
 
   let platformParams: any[] = [];
   if (platformParamsData.length > 0) {
-    platformParams = await db.insert(schema.propertyPlatformParams).values(platformParamsData).returning();
+    await db
+      .insert(schema.propertyPlatformParams)
+      .values(platformParamsData)
+      .onConflictDoNothing();
+    // Load all params for our properties (includes both new and pre-existing)
+    const propIdSet = rows.map((r: any) => r.id);
+    platformParams = await db
+      .select()
+      .from(schema.propertyPlatformParams)
+      .where(inArray(schema.propertyPlatformParams.propertyId, propIdSet));
   }
   console.log(`  property_platform_params: ${platformParams.length} rows`);
 

@@ -1,3 +1,4 @@
+import { inArray } from 'drizzle-orm';
 import * as schema from '../../schema';
 
 type State = 'pressed' | 'hovered' | 'focused' | 'selected' | 'readonly' | 'disabled';
@@ -417,7 +418,15 @@ export async function seedVariationPropertyValues(
     { propertyId: p.rb_descriptionStyle.id, styleId: s.base_rb_size_l.id, appearanceId: rbApp, tokenId: tokenMap['screen-s.body.m.normal'].id, state: null },
   ];
 
-  const inserted = await db.insert(schema.variationPropertyValues).values(rows).returning();
-  console.log(`  variation_property_values: ${inserted.length} rows`);
-  return inserted;
+  await db.insert(schema.variationPropertyValues).values(rows).onConflictDoNothing();
+
+  // Load all VPV rows for the styles we just inserted into
+  const styleIds = [...new Set(rows.map((r: any) => r.styleId))];
+  const allRows = await db
+    .select()
+    .from(schema.variationPropertyValues)
+    .where(inArray(schema.variationPropertyValues.styleId, styleIds));
+
+  console.log(`  variation_property_values: ${allRows.length} rows`);
+  return allRows;
 }
