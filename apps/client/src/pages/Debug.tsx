@@ -1,5 +1,5 @@
-import { ChangeEvent, useState } from 'react';
-import styled from 'styled-components';
+import { ChangeEvent, useCallback, useState } from 'react';
+import styled, { keyframes } from 'styled-components';
 import {
     IconSave,
     IconDownload,
@@ -16,6 +16,10 @@ import { Parameters } from '../types';
 import { DS_REGISTRY_URL } from '../api';
 import { designSystemSave, generateAndDeployDocumentation, generatePublish } from './Main.utils';
 
+const spin = keyframes`
+    to { transform: rotate(360deg); }
+`;
+
 const Root = styled.div`
     z-index: 99999;
     background: black;
@@ -28,6 +32,28 @@ const Root = styled.div`
     flex-direction: column;
     align-items: flex-end;
     justify-content: flex-end;
+    /* для позиционирования оверлея */
+    isolation: isolate;
+`;
+
+const Overlay = styled.div`
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+`;
+
+const Spinner = styled.div`
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: ${spin} 0.6s linear infinite;
 `;
 
 interface ImportDialogData {
@@ -50,6 +76,20 @@ export const Debug = (props: DebugProps) => {
     const [importDialogData, setImportDialogData] = useState<ImportDialogData | null>(null);
     const [isDefaultName, setIsDefaultName] = useState(true);
     const [customName, setCustomName] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const withLoading = useCallback(
+        <T,>(fn: () => Promise<T>) =>
+            async () => {
+                setLoading(true);
+                try {
+                    await fn();
+                } finally {
+                    setLoading(false);
+                }
+            },
+        [],
+    );
 
     // const onDebugDesignSystemDownload = async () => {
     //     if (!designSystem) {
@@ -121,32 +161,25 @@ export const Debug = (props: DebugProps) => {
             return;
         }
 
-        const reader = new FileReader();
+        setLoading(true);
 
-        reader.onload = async (event: ProgressEvent<FileReader>) => {
-            const content = event.target?.result;
+        try {
+            const content = await file.text();
+            const parsed = JSON.parse(content);
 
-            if (typeof content !== 'string') {
-                return;
+            if (parsed.name !== designSystem?.getName()) {
+                throw new Error('Имя дизайн системы в файле не совпадает с текущей дизайн системой');
             }
 
-            try {
-                const parsed = JSON.parse(content);
+            importTokensToTheme(parsed, theme);
+            rerender();
 
-                if (parsed.name !== designSystem?.getName()) {
-                    throw new Error('Имя дизайн системы в файле не совпадает с текущей дизайн системой');
-                }
-
-                importTokensToTheme(parsed, theme);
-                rerender();
-
-                console.log('Tokens imported successfully');
-            } catch (error) {
-                console.error('Failed to import tokens:', error);
-            }
-        };
-
-        reader.readAsText(file);
+            console.log('Tokens imported successfully');
+        } catch (error) {
+            console.error('Failed to import tokens:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const onUploadDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -177,6 +210,8 @@ export const Debug = (props: DebugProps) => {
         const { defaultName, parameters, themeData } = importDialogData;
         const name = isDefaultName ? defaultName : customName;
 
+        setLoading(true);
+
         try {
             await DesignSystem.create({
                 name,
@@ -188,6 +223,8 @@ export const Debug = (props: DebugProps) => {
             console.log('Design system imported successfully');
         } catch (error) {
             console.error('Failed to import design system:', error);
+        } finally {
+            setLoading(false);
         }
 
         setImportDialogData(null);
@@ -200,10 +237,15 @@ export const Debug = (props: DebugProps) => {
     return (
         <>
             <Root>
+                {loading && (
+                    <Overlay>
+                        <Spinner />
+                    </Overlay>
+                )}
                 <LinkButton
                     text="Сохранить тему и компоненты"
                     contentRight={<IconSave size="s" />}
-                    onClick={onDesignSystemSave}
+                    onClick={withLoading(onDesignSystemSave)}
                 />
                 {/* <LinkButton
                     text="Скачать дизайн систему"
@@ -213,12 +255,12 @@ export const Debug = (props: DebugProps) => {
                 <LinkButton
                     text="Опубликовать"
                     contentRight={<IconCloudUploadOutline size="s" />}
-                    onClick={onDesignSystemPublish}
+                    onClick={withLoading(onDesignSystemPublish)}
                 />
                 <LinkButton
                     text="Опубликовать документацию"
                     contentRight={<IconFileTextOutline size="s" />}
-                    onClick={onDesignSystemDocs}
+                    onClick={withLoading(onDesignSystemDocs)}
                 />
                 <LinkButton
                     text="Импортировать токены (PIXSO)"
@@ -235,7 +277,7 @@ export const Debug = (props: DebugProps) => {
                 <LinkButton
                     text="Скачать дизайн систему"
                     contentRight={<IconDownload size="s" />}
-                    onClick={onDesignSystemDownload}
+                    onClick={withLoading(onDesignSystemDownload)}
                 />
             </Root>
             {importDialogData && (
