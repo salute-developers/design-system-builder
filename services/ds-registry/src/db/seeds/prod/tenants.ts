@@ -2,16 +2,16 @@ import * as schema from '../../schema';
 
 export async function seedTenants(
   db: any,
-  ctx: { designSystems: { plasmaTest: any } },
+  ctx: { designSystems: { base: any } },
 ) {
-  const { plasmaTest } = ctx.designSystems;
+  const { base } = ctx.designSystems;
 
-  const [plasmaTestTenant] = await db
+  const [baseDefaultTenant] = await db
     .insert(schema.tenants)
     .values([
       {
-        designSystemId: plasmaTest.id,
-        name: 'plasma_test_default',
+        designSystemId: base.id,
+        name: 'base_default',
         colorConfig: {
           grayTone: 'warmGray',
           accentColor: 'arctic',
@@ -22,6 +22,6 @@ export async function seedTenants(
     ])
     .returning();
 
-  console.log(`  tenants: plasmaTestTenant(${plasmaTestTenant.id})`);
-  return { plasmaTestTenant };
+  console.log(`  tenants: baseDefaultTenant(${baseDefaultTenant.id})`);
+  return { baseDefaultTenant };
 }

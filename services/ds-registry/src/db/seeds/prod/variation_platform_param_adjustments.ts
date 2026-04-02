@@ -54,7 +54,7 @@ export async function seedVariationPlatformParamAdjustments(
   }
 
   // ── Button shape — adjustment -2 (style "l" only, all platforms) ───────
-  const btnShapeLStyleId = styles.plasmaTest_btn_size_l.id;
+  const btnShapeLStyleId = styles.base_btn_size_l.id;
   for (const vpv of findVpv(btn_shape.id, btnShapeLStyleId)) {
     values.push(
       { vpvId: vpv.id, platformParamId: findParam(btn_shape.id, 'xml', 'sd_shapeAppearance').id, value: '-2', template: null },
@@ -65,7 +65,7 @@ export async function seedVariationPlatformParamAdjustments(
   }
 
   // ── IconButton shape — adjustment -2 (style "l" only, all platforms) ───
-  const ibShapeLStyleId = styles.plasmaTest_ib_size_l.id;
+  const ibShapeLStyleId = styles.base_ib_size_l.id;
   for (const vpv of findVpv(ib_shape.id, ibShapeLStyleId)) {
     values.push(
       { vpvId: vpv.id, platformParamId: findParam(ib_shape.id, 'xml', 'sd_shapeAppearance').id, value: '-2', template: null },

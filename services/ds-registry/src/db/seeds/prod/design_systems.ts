@@ -5,15 +5,15 @@ export async function seedDesignSystems(db: any) {
     .insert(schema.designSystems)
     .values([
       {
-        name: 'plasma_test',
-        projectName: 'Plasma Test',
-        description: 'Design System with all components',
+        name: 'base',
+        projectName: 'Base',
+        description: 'Default design system for creating base components',
       },
     ])
     .returning();
 
-  const plasmaTest = rows[0]!;
+  const base = rows[0]!;
 
-  console.log(`  design_systems: plasmaTest(${plasmaTest.id})`);
-  return { plasmaTest };
+  console.log(`  design_systems: base(${base.id})`);
+  return { base };
 }
