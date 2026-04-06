@@ -177,6 +177,7 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
 
         sources.configs[0] = {
             ...sources.configs[0],
+            name: sources.configs[0]?.name ?? 'default',
             config: {
                 defaultVariations,
                 invariantProps,
