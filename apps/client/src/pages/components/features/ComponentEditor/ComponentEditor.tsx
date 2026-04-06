@@ -76,7 +76,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     };
 
     const onUpdateComponentProps = (values: Record<string, any>) => {
-        setComponentProps({ ...values });
+        setComponentProps((prev) => ({ ...prev, ...values }));
     };
 
     const themeVars = useMemo(() => createThemeVars(theme, themeMode.value), [theme, themeMode]);
