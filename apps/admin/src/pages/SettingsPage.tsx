@@ -1013,6 +1013,155 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
   );
 }
 
+// ─── Copy base DS values ─────────────────────────────────────────────────────
+
+/**
+ * After adding a component to a design system, copies appearances, styles,
+ * invariant and variation property values from the "base" design system.
+ * Tokens are mapped by name; if the target DS has no matching token the
+ * reference is omitted (the plain `value` is still copied).
+ */
+async function copyBaseValues(targetDsId: string, componentId: string) {
+  // 1. Find the base design system
+  const dsRes = await api.GET('/design-systems');
+  const baseDs = dsRes.data?.find((ds) => ds.name === 'base');
+  if (!baseDs || baseDs.id === targetDsId) return;
+
+  // 2. Get component variations
+  const varRes = await api.GET('/components/{id}/variations', { params: { path: { id: componentId } } });
+  const componentVariations = varRes.data ?? [];
+  if (componentVariations.length === 0) return;
+
+  // 3. Load base appearances for this component
+  const baseAppRes = await api.GET('/design-systems/{id}/appearances', { params: { path: { id: baseDs.id } } });
+  const baseAppearances = (baseAppRes.data ?? []).filter((a) => a.componentId === componentId);
+  if (baseAppearances.length === 0) return;
+
+  // 4. Create appearances in the target DS
+  const createdAppearances = await Promise.all(
+    baseAppearances.map((a) =>
+      api.POST('/appearances', {
+        body: { designSystemId: targetDsId, componentId, name: a.name ?? 'default' },
+      }),
+    ),
+  );
+
+  // Build appearance ID map: base → target (by name)
+  const appIdMap = new Map<string, string>();
+  for (let i = 0; i < baseAppearances.length; i++) {
+    const created = createdAppearances[i].data;
+    if (created) appIdMap.set(baseAppearances[i].id, created.id);
+  }
+
+  // 5. Load base styles for each variation, create in target DS
+  const styleIdMap = new Map<string, string>();
+
+  for (const variation of componentVariations) {
+    const baseStylesRes = await api.GET(
+      '/styles/by-variation/{variationId}/by-design-system/{designSystemId}',
+      { params: { path: { variationId: variation.id, designSystemId: baseDs.id } } },
+    );
+    const baseStyles = baseStylesRes.data ?? [];
+
+    const createdStyles = await Promise.all(
+      baseStyles.map((s) =>
+        api.POST('/styles', {
+          body: {
+            designSystemId: targetDsId,
+            variationId: variation.id,
+            name: s.name,
+            description: s.description ?? undefined,
+            isDefault: s.isDefault ?? false,
+          },
+        }),
+      ),
+    );
+
+    for (let i = 0; i < baseStyles.length; i++) {
+      const created = createdStyles[i].data;
+      if (created) styleIdMap.set(baseStyles[i].id, created.id);
+    }
+  }
+
+  // 6. Build token name map: base DS token name → target DS token ID
+  const [baseTokensRes, targetTokensRes] = await Promise.all([
+    api.GET('/design-systems/{id}/tokens', { params: { path: { id: baseDs.id } } }),
+    api.GET('/design-systems/{id}/tokens', { params: { path: { id: targetDsId } } }),
+  ]);
+  const baseTokens = baseTokensRes.data ?? [];
+  const targetTokens = targetTokensRes.data ?? [];
+
+  const tokenIdMap = new Map<string, string>();
+  for (const bt of baseTokens) {
+    const tt = targetTokens.find((t) => t.name === bt.name);
+    if (tt) tokenIdMap.set(bt.id, tt.id);
+  }
+
+  const mapTokenId = (id: string | null): string | undefined => {
+    if (!id) return undefined;
+    return tokenIdMap.get(id) ?? undefined;
+  };
+
+  // 7. Copy invariant property values
+  const baseIpvRes = await api.GET(
+    '/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}',
+    { params: { path: { componentId, designSystemId: baseDs.id } } },
+  );
+  const baseIpvs = baseIpvRes.data ?? [];
+
+  if (baseIpvs.length > 0) {
+    await Promise.all(
+      baseIpvs
+        .filter((ipv) => appIdMap.has(ipv.appearanceId))
+        .map((ipv) =>
+          api.POST('/invariant-property-values', {
+            body: {
+              propertyId: ipv.propertyId,
+              designSystemId: targetDsId,
+              componentId,
+              appearanceId: appIdMap.get(ipv.appearanceId)!,
+              tokenId: mapTokenId(ipv.tokenId),
+              value: ipv.value ?? undefined,
+              state: ipv.state ?? undefined,
+            },
+          }),
+        ),
+    );
+  }
+
+  // 8. Copy variation property values (for each base style that was copied)
+  const baseStyleIds = [...styleIdMap.keys()];
+  if (baseStyleIds.length > 0) {
+    const vpvArrays = await Promise.all(
+      baseStyleIds.map((styleId) =>
+        api.GET('/variation-property-values/by-style/{styleId}', {
+          params: { path: { styleId } },
+        }),
+      ),
+    );
+    const allBaseVpvs = vpvArrays.flatMap((r) => r.data ?? []);
+
+    if (allBaseVpvs.length > 0) {
+      await Promise.all(
+        allBaseVpvs
+          .filter((vpv) => styleIdMap.has(vpv.styleId) && appIdMap.has(vpv.appearanceId))
+          .map((vpv) =>
+            api.POST('/variation-property-values', {
+              body: {
+                propertyId: vpv.propertyId,
+                styleId: styleIdMap.get(vpv.styleId)!,
+                appearanceId: appIdMap.get(vpv.appearanceId)!,
+                tokenId: mapTokenId(vpv.tokenId),
+                value: vpv.value ?? undefined,
+                state: vpv.state ?? undefined,
+              },
+            }),
+          ),
+      );
+    }
+  }
+}
+
 // ─── Design Systems Tab ──────────────────────────────────────────────────────
 
 function DesignSystemsTab({ componentId }: { componentId: string }) {
@@ -1039,11 +1188,16 @@ function DesignSystemsTab({ componentId }: { componentId: string }) {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
+
     const { error } = await api.POST('/design-system-components', {
       body: { designSystemId: addDsId, componentId },
     });
+    if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
+
+    // Copy appearances, styles, and property values from the base design system
+    await copyBaseValues(addDsId, componentId);
+
     setAdding(false);
-    if (error) { setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
     setAddDsId('');
     load();
   }
@@ -1190,7 +1344,7 @@ function ComponentsSection() {
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
 
-    // Auto-add to all design systems
+    // Auto-add to all design systems and copy base values
     if (data) {
       const dsRes = await api.GET('/design-systems');
       if (dsRes.data) {
@@ -1201,6 +1355,12 @@ function ComponentsSection() {
             }),
           ),
         );
+        // Copy base DS values for each non-base DS
+        for (const ds of dsRes.data) {
+          if (ds.name !== 'base') {
+            await copyBaseValues(ds.id, data.id);
+          }
+        }
       }
     }
 
