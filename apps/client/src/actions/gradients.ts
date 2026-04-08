@@ -1,5 +1,5 @@
 import { AndroidGradient, DesignSystem, GradientToken, Theme, WebGradient, IOSGradient, Token } from '../controllers';
-import { camelToKebab, kebabToCamel, updateTokenChange } from '../utils';
+import { camelToKebab, kebabToCamel, createDraftToken, updateDraftToken } from '../utils';
 import { parseGradient } from '../utils/gradient';
 
 // const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
@@ -113,6 +113,9 @@ export const gradientTokenActions: GradientTokenActions = {
             },
         ];
 
+        const dsName = designSystem.getName() || '';
+        const dsVersion = designSystem.getVersion() || '';
+
         tokens.forEach((token) => {
             const [themeMode, ..._] = (token as Token).getTags();
             const newToken = new GradientToken(createMeta(themeMode), {
@@ -121,8 +124,8 @@ export const gradientTokenActions: GradientTokenActions = {
                 android: new AndroidGradient(defaultNativeValue),
             });
 
-            // TODO: Подумать о том, надо ли добавлять в черновики новые токены
             theme.addToken('gradient', newToken);
+            createDraftToken(dsName, dsVersion, newToken);
 
             const additionalValues = [defaultValue, defaultValue];
             const additionalNativeValues = [defaultNativeValue, defaultNativeValue];
@@ -148,12 +151,8 @@ export const gradientTokenActions: GradientTokenActions = {
             theme.addToken('gradient', activeToken);
             theme.addToken('gradient', hoverToken);
 
-            const dsName = designSystem.getName() || '';
-            const dsVersion = designSystem.getVersion() || '';
-
-            updateTokenChange(dsName, dsVersion, newToken);
-            updateTokenChange(dsName, dsVersion, activeToken);
-            updateTokenChange(dsName, dsVersion, hoverToken);
+            createDraftToken(dsName, dsVersion, activeToken);
+            createDraftToken(dsName, dsVersion, hoverToken);
         });
     },
     disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
@@ -163,7 +162,7 @@ export const gradientTokenActions: GradientTokenActions = {
         (tokens as Token[]).forEach((token) => {
             // TODO: Подумать про то, надо ли отключать / включать hover и active токены
             token.setEnabled(disabled);
-            updateTokenChange(dsName, dsVersion, token, 'toggle');
+            updateDraftToken(dsName, dsVersion, token, 'toggle');
         });
     },
     updateToken: ({ gradient, token, theme, designSystem }: UpdateTokenProps) => {
@@ -178,7 +177,7 @@ export const gradientTokenActions: GradientTokenActions = {
         token.setValue('ios', parseGradient(gradient, 'ios'));
         token.setValue('android', parseGradient(gradient, 'android'));
 
-        updateTokenChange(dsName, dsVersion, token, 'save');
+        updateDraftToken(dsName, dsVersion, token, 'save');
     },
     resetToken: ({ token, theme, designSystem }: ResetTokenProps) => {
         if (!token || !designSystem || !theme) {
@@ -211,9 +210,9 @@ export const gradientTokenActions: GradientTokenActions = {
 
         const [gradientValue] = token.getDefaultValue('web');
 
-        updateTokenChange(dsName, dsVersion, token, 'remove');
-        updateTokenChange(dsName, dsVersion, activeToken, 'remove');
-        updateTokenChange(dsName, dsVersion, hoverToken, 'remove');
+        updateDraftToken(dsName, dsVersion, token, 'remove');
+        updateDraftToken(dsName, dsVersion, activeToken, 'remove');
+        updateDraftToken(dsName, dsVersion, hoverToken, 'remove');
 
         return {
             color: gradientValue,

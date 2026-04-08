@@ -8,7 +8,8 @@ import {
     getNormalizedColor,
     getStateColor,
     kebabToCamel,
-    updateTokenChange,
+    createDraftToken,
+    updateDraftToken,
 } from '../utils';
 
 const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
@@ -117,6 +118,9 @@ export const colorTokenActions: ColorTokenActions = {
 
         const defaultValue = '[general.gray.50]';
 
+        const dsName = designSystem.getName() || '';
+        const dsVersion = designSystem.getVersion() || '';
+
         tokens.forEach((token) => {
             const [themeMode, groupName, subgroupName, ..._] = (token as Token).getTags();
             const newToken = new ColorToken(createMeta(themeMode), {
@@ -125,8 +129,8 @@ export const colorTokenActions: ColorTokenActions = {
                 android: new AndroidColor(defaultValue),
             });
 
-            // TODO: Подумать о том, надо ли добавлять в черновики новые токены
             theme.addToken('color', newToken);
+            createDraftToken(dsName, dsVersion, newToken);
 
             const additionalValues = getAdditionalColorValues(defaultValue, themeMode, groupName, subgroupName);
 
@@ -150,12 +154,8 @@ export const colorTokenActions: ColorTokenActions = {
             theme.addToken('color', activeToken);
             theme.addToken('color', hoverToken);
 
-            const dsName = designSystem.getName() || '';
-            const dsVersion = designSystem.getVersion() || '';
-
-            updateTokenChange(dsName, dsVersion, newToken);
-            updateTokenChange(dsName, dsVersion, activeToken);
-            updateTokenChange(dsName, dsVersion, hoverToken);
+            createDraftToken(dsName, dsVersion, activeToken);
+            createDraftToken(dsName, dsVersion, hoverToken);
         });
     },
     disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
@@ -165,7 +165,7 @@ export const colorTokenActions: ColorTokenActions = {
         (tokens as Token[]).forEach((token) => {
             // TODO: Подумать про то, надо ли отключать / включать hover и active токены
             token.setEnabled(disabled);
-            updateTokenChange(dsName, dsVersion, token, 'toggle');
+            updateDraftToken(dsName, dsVersion, token, 'toggle');
         });
     },
     updateToken: ({ color, opacity, token, theme, designSystem }: UpdateTokenProps) => {
@@ -187,7 +187,7 @@ export const colorTokenActions: ColorTokenActions = {
             token.setValue(platform, newValue);
         }
 
-        updateTokenChange(dsName, dsVersion, token, 'save');
+        updateDraftToken(dsName, dsVersion, token, 'save');
 
         const [themeMode, groupName, subgroupName, ..._] = token.getTags();
         const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName);
@@ -210,8 +210,8 @@ export const colorTokenActions: ColorTokenActions = {
             hoverToken.setValue(platform, hoverValue);
         }
 
-        updateTokenChange(dsName, dsVersion, activeToken, 'save');
-        updateTokenChange(dsName, dsVersion, hoverToken, 'save');
+        updateDraftToken(dsName, dsVersion, activeToken, 'save');
+        updateDraftToken(dsName, dsVersion, hoverToken, 'save');
     },
     resetToken: ({ token, theme, designSystem }: ResetTokenProps) => {
         if (!token || !designSystem || !theme) {
@@ -244,9 +244,9 @@ export const colorTokenActions: ColorTokenActions = {
 
         const [colorValue, opacityValue] = getColorAndOpacity(token.getDefaultValue('web'));
 
-        updateTokenChange(dsName, dsVersion, token, 'remove');
-        updateTokenChange(dsName, dsVersion, activeToken, 'remove');
-        updateTokenChange(dsName, dsVersion, hoverToken, 'remove');
+        updateDraftToken(dsName, dsVersion, token, 'remove');
+        updateDraftToken(dsName, dsVersion, activeToken, 'remove');
+        updateDraftToken(dsName, dsVersion, hoverToken, 'remove');
 
         return {
             color: colorValue,

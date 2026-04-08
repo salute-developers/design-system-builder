@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
 
-import { numberFormatter, updateTokenChange } from '../../../../utils';
+import { numberFormatter, updateDraftToken } from '../../../../utils';
 import { DesignSystem, ShadowToken, ShapeToken, SpacingToken, Theme } from '../../../../controllers';
 import { ShadowPicker, ShadowType } from '../../../../features';
 import { TextField } from '../../../../components';
@@ -30,9 +30,7 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
     const dsVersion = designSystem.getVersion() || '';
 
     const onValueChange = (newValue: string | ShadowType[]) => {
-        const resolvedValue = typeof newValue === 'object'
-            ? newValue
-            : numberFormatter(newValue, value as string);
+        const resolvedValue = typeof newValue === 'object' ? newValue : numberFormatter(newValue, value as string);
 
         if (!resolvedValue) {
             return;
@@ -51,7 +49,7 @@ export const TokenShapeEditor = (props: TokenShapeEditorProps) => {
         setDescription(newDescription);
         // TODO: Перенести в экшены?
         token.setDescription(newDescription);
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
 
         rerender();
     };
