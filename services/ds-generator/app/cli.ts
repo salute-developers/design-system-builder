@@ -14,7 +14,7 @@ program
     .option('--ds-version <string>', 'Design system version')
     .option('--export-type <string>', 'Export type (tgz, zip, source)', 'source')
     .option('--output <dir>', 'Output directory', './output')
-    .option('--auth-token <string>', 'Auth token for client-proxy')
+    .option('--auth-token <string>', 'Auth token for ds-registry')
     .action(async (options) => {
         try {
             const {

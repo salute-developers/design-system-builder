@@ -50,10 +50,10 @@ export class GenerateDocsDto {
   @IsBoolean()
   localOnly?: boolean;
 
-  /** Токен авторизации для запросов к client-proxy */
+  /** Токен авторизации для запросов к ds-registry */
   @ApiProperty({
     example: "dXNlcjpwYXNz",
-    description: "Auth token for client-proxy authorization",
+    description: "Auth token for ds-registry authorization",
     required: false,
   })
   @IsOptional()

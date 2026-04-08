@@ -1,0 +1,497 @@
+// Design System Builder — Database Schema
+// PostgreSQL / Drizzle ORM
+// Источник правды: services/ds-registry/src/db/schema.ts
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+Enum property_type {
+  color
+  typography
+  shape
+  shadow
+  dimension
+  float
+}
+
+Enum token_type {
+  color
+  gradient
+  typography
+  fontFamily
+  spacing
+  shape
+  shadow
+}
+
+Enum platform {
+  web
+  android
+  ios
+}
+
+Enum property_platform {
+  xml
+  compose
+  ios
+  web
+}
+
+Enum mode {
+  light
+  dark
+}
+
+Enum publication_status {
+  publishing
+  published
+  failed
+}
+
+Enum operation {
+  created
+  updated
+  deleted
+  moved
+}
+
+Enum relation_type {
+  reuse
+  compose
+}
+
+Enum state {
+  pressed
+  hovered
+  focused
+  selected
+  readonly
+  disabled
+}
+
+Enum palette_type {
+  general
+  additional
+}
+
+// ─── Tables ──────────────────────────────────────────────────────────────────
+
+// Дизайн-системы
+Table design_systems {
+  id uuid [pk]
+  name text [not null]
+  project_name text [not null]
+  description text
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (name) [unique]
+  }
+}
+
+// Компоненты (общий каталог, не привязан к конкретной дизайн-системе)
+Table components {
+  id uuid [pk]
+  name text [not null]
+  description text
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (name) [unique]
+  }
+}
+
+// Связь Дизайн-система <-> Компонент
+// Не используется для формирования "конфига", нужна для отображения
+// списка доступных компонентов в дизайн-системе.
+Table design_system_components {
+  id uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  component_id uuid [not null, ref: > components.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, component_id) [unique]
+  }
+}
+
+// Вариации, привязанные к конкретному компоненту (view, size и т.д.)
+Table variations {
+  id uuid [pk]
+  component_id uuid [not null, ref: > components.id, note: 'on delete cascade']
+  name text [not null]
+  description text
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (component_id, name) [unique]
+  }
+}
+
+// Пропсы (бывшие tokens), привязанные к конкретному компоненту
+Table properties {
+  id uuid [pk]
+  component_id uuid [ref: > components.id, note: 'on delete cascade']
+  name text [not null]
+  type property_type [not null]
+  default_value text
+  description text
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (component_id, name) [unique]
+  }
+}
+
+// Платформенные параметры пропса (xml/compose/ios/web)
+// Заменяет собой бывшее jsonb-поле properties.platform_params.
+Table property_platform_params {
+  id uuid [pk]
+  property_id uuid [not null, ref: > properties.id, note: 'on delete cascade']
+  platform property_platform [not null]
+  name text [not null, note: 'имя параметра в рамках платформы']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (property_id, platform, name) [unique]
+  }
+}
+
+// Связь Пропс <-> Вариация
+// Не используется для формирования "конфига", нужна для отображения
+// доступных пропсов в выбранных вариациях.
+Table property_variations {
+  id uuid [pk]
+  property_id uuid [not null, ref: > properties.id, note: 'on delete cascade']
+  variation_id uuid [not null, ref: > variations.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (property_id, variation_id) [unique]
+  }
+}
+
+// Стили (бывшие styles) у вариаций — s, l, secondary, primary и т.д.
+// Привязаны к дизайн-системе и вариации.
+Table styles {
+  id uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  variation_id uuid [not null, ref: > variations.id, note: 'on delete cascade']
+  name text [not null]
+  description text
+  is_default boolean [default: false]
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, variation_id, name) [unique]
+    (variation_id, design_system_id) [unique, note: 'WHERE is_default = true']
+  }
+}
+
+// Значения пропсов для вариативной части (зависят от style + appearance)
+Table variation_property_values {
+  id            uuid [pk]
+  property_id   uuid [not null, ref: > properties.id, note: 'on delete cascade']
+  style_id      uuid [not null, ref: > styles.id, note: 'on delete cascade']
+  appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  token_id      uuid [ref: > tokens.id, note: 'on delete set null; если задан, value берётся отсюда (например dark.text.default.primary | down.soft.s)']
+  value         text [note: 'например 0.4']
+  state         state [note: 'null = основное значение']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (style_id, property_id, appearance_id) [unique, note: 'WHERE state IS NULL']
+    (style_id, property_id, appearance_id, state) [unique, note: 'WHERE state IS NOT NULL']
+  }
+}
+
+// Значения пропсов для инвариантной части (зависят от ds + component + appearance)
+Table invariant_property_values {
+  id               uuid [pk]
+  property_id      uuid [not null, ref: > properties.id, note: 'on delete cascade']
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  component_id     uuid [not null, ref: > components.id, note: 'on delete cascade']
+  appearance_id    uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  token_id         uuid [ref: > tokens.id, note: 'on delete set null; если задан, value берётся отсюда']
+  value            text
+  state            state [note: 'null = основное значение']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, component_id, property_id, appearance_id) [unique, note: 'WHERE state IS NULL']
+    (design_system_id, component_id, property_id, appearance_id, state) [unique, note: 'WHERE state IS NOT NULL']
+  }
+}
+
+// Корректировки платформенных параметров для вариативных пропсов
+Table variation_platform_param_adjustments {
+  id                uuid [pk]
+  vpv_id            uuid [not null, ref: > variation_property_values.id, note: 'on delete cascade']
+  platform_param_id uuid [not null, ref: > property_platform_params.id, note: 'on delete cascade']
+  value             text [note: 'корректировка значения, напр. -2']
+  template          text [note: 'шаблон, напр. 0 $1 -0.125rem']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (vpv_id, platform_param_id) [unique]
+  }
+}
+
+// Корректировки платформенных параметров для инвариантных пропсов
+Table invariant_platform_param_adjustments {
+  id                uuid [pk]
+  ipv_id            uuid [not null, ref: > invariant_property_values.id, note: 'on delete cascade']
+  platform_param_id uuid [not null, ref: > property_platform_params.id, note: 'on delete cascade']
+  value             text [note: 'корректировка значения, напр. -2']
+  template          text [note: 'шаблон, напр. var(--#{value})']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (ipv_id, platform_param_id) [unique]
+  }
+}
+
+// Представления (appearances) для компонентов в рамках дизайн-системы
+Table appearances {
+  id                uuid [pk]
+  design_system_id  uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  component_id      uuid [not null, ref: > components.id, note: 'on delete cascade']
+  name              text [default: 'default', note: 'например outline']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, component_id, name) [unique]
+  }
+}
+
+// Темы (тенанты) внутри дизайн-системы
+Table tenants {
+  id uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  name text [note: 'например sdds_serv']
+  description text
+  color_config jsonb [not null, default: `'{}'::jsonb`, note: '{ grayTone?, accentColor?, light?: { strokeSaturation, fillSaturation }, dark?: { strokeSaturation, fillSaturation } }']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, name) [unique]
+  }
+}
+
+// Токены тем
+Table tokens {
+  id uuid [pk]
+  design_system_id uuid [ref: > design_systems.id, note: 'on delete cascade']
+  name text [not null, note: 'например dark.text.default.primary-hover']
+  type token_type
+  display_name text [note: 'например textPrimaryHover']
+  description text [note: 'например "основной цвет текста"']
+  enabled boolean [default: true]
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, name) [unique]
+  }
+}
+
+// Значения токенов
+// paletteId и value могут сосуществовать: paletteId задаёт цвет из палитры,
+// а value — дополнительные параметры (например прозрачность).
+Table token_values {
+  id uuid [pk]
+  token_id uuid [ref: > tokens.id, note: 'on delete cascade']
+  tenant_id uuid [ref: > tenants.id, note: 'on delete cascade']
+  palette_id uuid [ref: > palette.id, note: 'on delete set null; ссылка на цвет из палитры']
+  platform platform
+  mode mode [note: 'для color/gradient токенов; иначе null']
+  value jsonb [default: `'[]'::jsonb`]
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (token_id, tenant_id, platform) [unique, note: 'WHERE mode IS NULL']
+    (token_id, tenant_id, platform, mode) [unique, note: 'WHERE mode IS NOT NULL']
+  }
+}
+
+// "Главная" страница документации, по одной на дизайн-систему
+Table documentation_pages {
+  id               uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  content          text [not null, note: 'markdown или html']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id) [unique, note: 'одна страница на дизайн-систему']
+  }
+}
+
+// Зависимости между компонентами
+Table component_deps {
+  id        uuid [pk]
+  parent_id uuid [not null, ref: > components.id, note: 'on delete cascade; например dropdown']
+  child_id  uuid [not null, ref: > components.id, note: 'on delete cascade; например textField | button | popover']
+  type      relation_type [not null]
+  order     integer [note: 'порядок дочерних компонентов']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (parent_id, child_id) [unique]
+  }
+}
+
+// Конфигурация reuse-связей компонентов в контексте дизайн-системы.
+// Для каждой reuse-зависимости указывает, с каким appearance, variation и style
+// дочерний компонент используется в конкретной дизайн-системе.
+Table component_reuse_configs {
+  id uuid [pk]
+  component_dep_id uuid [not null, ref: > component_deps.id, note: 'on delete cascade; только связи с type = reuse']
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  variation_id uuid [not null, ref: > variations.id, note: 'on delete cascade']
+  style_id uuid [not null, ref: > styles.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (component_dep_id, design_system_id, appearance_id, variation_id) [unique]
+  }
+}
+
+// Таблицы для реализации "пересечения" стилей
+Table style_combinations {
+  id uuid [pk]
+  property_id uuid [not null, ref: > properties.id, note: 'on delete cascade']
+  appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  value text [not null]
+  states jsonb
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  note: 'без уникального индекса здесь, он реализуется через style_combination_members'
+}
+
+Table style_combination_members {
+  id uuid [pk]
+  combination_id uuid [not null, ref: > style_combinations.id, note: 'on delete cascade']
+  style_id       uuid [not null, ref: > styles.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (combination_id, style_id) [unique]
+  }
+}
+
+// Версионирование дизайн-систем
+// Создаётся в момент "публикации" и делает снапшот один раз.
+Table design_system_versions {
+  id               uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  user_id          uuid [ref: > users.id]
+  version          text [not null, note: 'semver, например 0.1.0 | 0.2.0']
+  snapshot         jsonb [not null, note: 'полное состояние на момент публикации']
+  changelog        text [note: 'описание изменений, можно markdown']
+  publication_status publication_status
+
+  published_at     timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, version) [unique]
+  }
+}
+
+// Аудит-лог: вызывается при каждом изменении и записи в БД
+Table design_system_changes {
+  id               uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  user_id          uuid [ref: > users.id]
+  entity_type      text [not null]
+  entity_id        uuid [not null]
+  operation        operation [not null]
+  data             jsonb [note: 'полный слепок строки; null при удалении']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (design_system_id, created_at)
+  }
+}
+
+// Временная таблица пользователей
+Table users {
+  id uuid [pk]
+  login text [not null]
+  token text [not null, unique]
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// Цветовая палитра (general / additional)
+Table palette {
+  id uuid [pk]
+  type palette_type [not null]
+  shade text [not null, note: 'например red, orange, h0, h10']
+  saturation integer [not null, note: '1000, 950, 900 ... 50']
+  value text [not null, note: 'например #FF0000']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (type, shade, saturation) [unique]
+  }
+}
+
+// Временная таблица связи пользователь <-> дизайн-система
+Table design_system_users {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (user_id, design_system_id) [unique]
+  }
+}
