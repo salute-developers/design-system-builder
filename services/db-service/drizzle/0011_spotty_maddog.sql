@@ -1,1 +1,0 @@
-ALTER TABLE "token_values" ADD COLUMN "states" jsonb DEFAULT '[]'::jsonb;
