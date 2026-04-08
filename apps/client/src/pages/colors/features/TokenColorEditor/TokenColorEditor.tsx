@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { IconClose } from '@salutejs/plasma-icons';
 
 import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
-import { getColorAndOpacity, updateTokenChange } from '../../../../utils';
+import { getColorAndOpacity, updateDraftToken } from '../../../../utils';
 import { ColorPicker, GradientPicker } from '../../../../features';
 import { TextField, SegmentButton, SegmentButtonItem, SelectButton, SelectButtonItem } from '../../../../components';
 import { colorTokenActions, gradientTokenActions } from '../../../../actions';
@@ -91,7 +91,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
 
         // TODO: Перенести в экшены?
         token.setDescription(newDescription);
-        updateTokenChange(dsName, dsVersion, token, 'save');
+        updateDraftToken(dsName, dsVersion, token, 'save');
 
         rerender();
     };

@@ -1,5 +1,6 @@
 import { Config, Token } from '../../controllers';
 import { GroupData } from '../../types';
+import { isDraftAddedToken } from '../../utils';
 
 export const getDefaultDisabledGroups = (groupsData: GroupData[]) => {
     return groupsData.reduce((acc, group) => {
@@ -28,6 +29,10 @@ export const isTokenChanged = (items: (Token | Config)[]) => {
     // TODO: Подумать, можно ли сделать по-другому
     if (!items.length || items[0] === undefined || items[0] instanceof Config) {
         return false;
+    }
+
+    if ((items as Token[]).some((item) => isDraftAddedToken(item.getName()))) {
+        return true;
     }
 
     const platforms = Object.keys(items[0].getPlatforms());

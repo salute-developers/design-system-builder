@@ -18,7 +18,7 @@ import {
     WebSpacing,
 } from '../controllers';
 import { ShadowType } from '../features';
-import { camelToKebab, getAlphaHex, kebabToCamel, updateTokenChange } from '../utils';
+import { camelToKebab, getAlphaHex, kebabToCamel, createDraftToken, updateDraftToken } from '../utils';
 import { getTokenValue } from '../pages/shapes/features/TokenShapeEditor/TokenShapeEditor.utils';
 
 interface AddTokenProps {
@@ -93,7 +93,7 @@ export const shapeTokenActions: ShapeTokenActions = {
             });
 
             theme.addToken('shape', newToken);
-            updateTokenChange(dsName, dsVersion, newToken);
+            createDraftToken(dsName, dsVersion, newToken);
         }
 
         if (tokens[0] instanceof ShadowToken) {
@@ -122,7 +122,7 @@ export const shapeTokenActions: ShapeTokenActions = {
                     });
 
                     theme.addToken('shadow', newToken);
-                    updateTokenChange(dsName, dsVersion, newToken);
+                    createDraftToken(dsName, dsVersion, newToken);
                 });
             });
         }
@@ -157,7 +157,7 @@ export const shapeTokenActions: ShapeTokenActions = {
             });
 
             theme.addToken('spacing', newToken);
-            updateTokenChange(dsName, dsVersion, newToken);
+            createDraftToken(dsName, dsVersion, newToken);
         }
     },
     disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
@@ -166,7 +166,7 @@ export const shapeTokenActions: ShapeTokenActions = {
 
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
-            updateTokenChange(dsName, dsVersion, token, 'toggle');
+            updateDraftToken(dsName, dsVersion, token, 'toggle');
         });
     },
     updateToken: ({ value, token, designSystem }: UpdateTokenProps) => {
@@ -221,7 +221,7 @@ export const shapeTokenActions: ShapeTokenActions = {
             token.setValue('android', nativeValues);
         }
 
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
     },
     resetToken: ({ token, designSystem }: ResetTokenProps) => {
         if (!token || !designSystem) {
@@ -239,7 +239,7 @@ export const shapeTokenActions: ShapeTokenActions = {
             token.setDescription(defaultDescription);
         }
 
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
 
         return getTokenValue(token.getDefaultValue('web'));
     },

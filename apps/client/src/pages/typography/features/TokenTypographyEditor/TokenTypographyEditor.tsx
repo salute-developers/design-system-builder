@@ -5,7 +5,7 @@ import { DesignSystem, Theme, TypographyToken } from '../../../../controllers';
 import { TextField, SegmentButton, SegmentButtonItem } from '../../../../components';
 import { TypographyPicker, TypographyType } from '../../../../features';
 import { typographyTokenActions } from '../../../../actions';
-import { updateTokenChange } from '../../../../utils';
+import { updateDraftToken } from '../../../../utils';
 import { TokenTypographyPreview } from '../TokenTypographyPreview';
 
 import { Root, StyledHeader, StyledSetup, StyledLinkButton } from './TokenTypographyEditor.styles';
@@ -59,7 +59,7 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
         setDescription(newDescription);
         // TODO: Перенести в экшены?
         token.setDescription(newDescription);
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
 
         rerender();
     };

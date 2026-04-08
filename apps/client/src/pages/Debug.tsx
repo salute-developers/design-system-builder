@@ -7,17 +7,20 @@ import {
     IconDocumentImportOutline,
     IconUploadOutline,
     IconFileTextOutline,
+    IconTrashOutline,
 } from '@salutejs/plasma-icons';
 
 import { BasicButton, LinkButton, Modal, Switch, TextField } from '../components';
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
-import { importTokensToTheme, importDesignSystem, btoaUtf8 } from '../utils';
+import { importTokensToTheme, importDesignSystem, btoaUtf8, clearDraft } from '../utils';
 import { Parameters } from '../types';
 import { DS_REGISTRY_URL } from '../api';
 import { designSystemSave, generateAndDeployDocumentation, generatePublish } from './Main.utils';
 
 const spin = keyframes`
-    to { transform: rotate(360deg); }
+    to { 
+        transform: rotate(360deg); 
+    }
 `;
 
 const Root = styled.div`
@@ -32,7 +35,7 @@ const Root = styled.div`
     flex-direction: column;
     align-items: flex-end;
     justify-content: flex-end;
-    /* для позиционирования оверлея */
+
     isolation: isolate;
 `;
 
@@ -146,6 +149,15 @@ export const Debug = (props: DebugProps) => {
         return await generateAndDeployDocumentation(designSystem);
     };
 
+    const onDesignSystemClearDraft = async () => {
+        if (!designSystem) {
+            return;
+        }
+
+        clearDraft(designSystem.getName(), designSystem.getVersion());
+        rerender();
+    };
+
     const onDesignSystemSave = async () => {
         if (!designSystem || !theme || !components) {
             return;
@@ -246,6 +258,11 @@ export const Debug = (props: DebugProps) => {
                     text="Сохранить тему и компоненты"
                     contentRight={<IconSave size="s" />}
                     onClick={withLoading(onDesignSystemSave)}
+                />
+                <LinkButton
+                    text="Очистить черновик дизайн системы"
+                    contentRight={<IconTrashOutline size="s" />}
+                    onClick={withLoading(onDesignSystemClearDraft)}
                 />
                 {/* <LinkButton
                     text="Скачать дизайн систему"

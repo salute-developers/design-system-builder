@@ -13,7 +13,7 @@ import {
     WebTypography,
 } from '../controllers';
 import { TypographyType } from '../features';
-import { camelToKebab, kebabToCamel, updateTokenChange } from '../utils';
+import { camelToKebab, kebabToCamel, createDraftToken, updateDraftToken } from '../utils';
 
 interface AddTokenProps {
     groupName: string;
@@ -107,7 +107,7 @@ export const typographyTokenActions: TypographyTokenActions = {
                 });
 
                 theme.addToken('typography', newToken);
-                updateTokenChange(dsName, dsVersion, newToken);
+                createDraftToken(dsName, dsVersion, newToken);
             });
         });
     },
@@ -117,7 +117,7 @@ export const typographyTokenActions: TypographyTokenActions = {
 
         (tokens as Token[]).forEach((token) => {
             token.setEnabled(disabled);
-            updateTokenChange(dsName, dsVersion, token, 'toggle');
+            updateDraftToken(dsName, dsVersion, token, 'toggle');
         });
     },
     updateToken: ({ value, token, designSystem }: UpdateTokenProps) => {
@@ -172,7 +172,7 @@ export const typographyTokenActions: TypographyTokenActions = {
         token.setValue('web', webValue);
         token.setValue('ios', iosValue);
         token.setValue('android', androidValue);
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
     },
     resetToken: ({ token, designSystem }: ResetTokenProps) => {
         if (!token || !designSystem) {
@@ -190,6 +190,6 @@ export const typographyTokenActions: TypographyTokenActions = {
             token.setDescription(defaultDescription);
         }
 
-        updateTokenChange(dsName, dsVersion, token);
+        updateDraftToken(dsName, dsVersion, token);
     },
 };
