@@ -66,7 +66,7 @@ export const Main = () => {
     const { accentColor = 'blue', darkFillSaturation = 50 } = parameters;
 
     const { designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme, components } = useDesignSystem(designSystemName, designSystemVersion);
+    const { designSystem, theme, components, reload } = useDesignSystem(designSystemName, designSystemVersion);
 
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
@@ -264,7 +264,7 @@ export const Main = () => {
             />
             {/* TODO: Временно спрячем */}
             {/* {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />} */}
-            <Debug designSystem={designSystem} theme={theme} components={components} rerender={rerender} />
+            <Debug designSystem={designSystem} theme={theme} components={components} rerender={rerender} reload={reload} />
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (

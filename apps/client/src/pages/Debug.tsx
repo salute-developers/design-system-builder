@@ -70,16 +70,18 @@ interface DebugProps {
     theme: Theme | null;
     components: Config[] | null;
     rerender: () => void;
+    reload: () => void;
 }
 
 // TODO: Временный компонент, выводить только в дев окружении, завязаться на ENV
 export const Debug = (props: DebugProps) => {
-    const { designSystem, theme, components, rerender } = props;
+    const { designSystem, theme, components, rerender, reload } = props;
 
     const [importDialogData, setImportDialogData] = useState<ImportDialogData | null>(null);
     const [isDefaultName, setIsDefaultName] = useState(true);
     const [customName, setCustomName] = useState('');
     const [loading, setLoading] = useState(false);
+    const [isClearDraftDialogOpen, setIsClearDraftDialogOpen] = useState(false);
 
     const withLoading = useCallback(
         <T,>(fn: () => Promise<T>) =>
@@ -149,13 +151,23 @@ export const Debug = (props: DebugProps) => {
         return await generateAndDeployDocumentation(designSystem);
     };
 
-    const onDesignSystemClearDraft = async () => {
+    const onClearDraftClick = () => {
+        setIsClearDraftDialogOpen(true);
+    };
+
+    const onClearDraftConfirm = async () => {
+        setIsClearDraftDialogOpen(false);
+
         if (!designSystem) {
             return;
         }
 
         clearDraft(designSystem.getName(), designSystem.getVersion());
-        rerender();
+        reload();
+    };
+
+    const onClearDraftCancel = () => {
+        setIsClearDraftDialogOpen(false);
     };
 
     const onDesignSystemSave = async () => {
@@ -262,7 +274,7 @@ export const Debug = (props: DebugProps) => {
                 <LinkButton
                     text="Очистить черновик дизайн системы"
                     contentRight={<IconTrashOutline size="s" />}
-                    onClick={withLoading(onDesignSystemClearDraft)}
+                    onClick={onClearDraftClick}
                 />
                 {/* <LinkButton
                     text="Скачать дизайн систему"
@@ -297,6 +309,18 @@ export const Debug = (props: DebugProps) => {
                     onClick={withLoading(onDesignSystemDownload)}
                 />
             </Root>
+            {isClearDraftDialogOpen && (
+                <Modal
+                    title="Очистить черновик"
+                    onClickOutside={onClearDraftCancel}
+                    actions={[
+                        <BasicButton text="Отмена" backgroundColor="transparent" onClick={onClearDraftCancel} />,
+                        <BasicButton text="Очистить" onClick={onClearDraftConfirm} />,
+                    ]}
+                >
+                    Все несохранённые изменения будут потеряны. Продолжить?
+                </Modal>
+            )}
             {importDialogData && (
                 <Modal
                     title="Импортировать дизайн систему"
