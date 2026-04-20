@@ -19,6 +19,8 @@ export const useSelectItemInMenu = (
 
     const onTabSelect = (index: number) => {
         setTabIndex(index);
+        setGroupIndex(0);
+        setItemIndex(0);
     };
 
     return [selectedItemIndexes, onItemSelect, onTabSelect] as const;
