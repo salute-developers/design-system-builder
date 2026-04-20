@@ -77,7 +77,10 @@ export const gradientTokenActions: GradientTokenActions = {
             return;
         }
 
-        const rest = [camelToKebab(groupName), camelToKebab(tabName), camelToKebab(tokenName)];
+        // TODO: Убрать, когда сделаем background с OnDark/OnLight
+        const normalizedTabName = groupName === 'Background' ? tabName.replace('On', '') : tabName;
+        const prefix = normalizedTabName === 'Default' ? '' : `${normalizedTabName}-`;
+        const rest = [camelToKebab(groupName), camelToKebab(normalizedTabName), camelToKebab(tokenName)];
 
         const isTokenExist = theme.getToken(['dark', ...rest].join('.'), 'color');
 
@@ -97,7 +100,9 @@ export const gradientTokenActions: GradientTokenActions = {
             return {
                 tags: [mode, ...parts],
                 name: [mode, ...parts].join('.'),
-                displayName: kebabToCamel(`${camelToKebab(groupName)}-${camelToKebab(tokenName)}`),
+                displayName: kebabToCamel(
+                    `${camelToKebab(prefix)}${camelToKebab(groupName)}-${camelToKebab(tokenName)}`,
+                ),
                 description: 'New description',
                 enabled: true,
             };
@@ -116,8 +121,9 @@ export const gradientTokenActions: GradientTokenActions = {
         const dsName = designSystem.getName() || '';
         const dsVersion = designSystem.getVersion() || '';
 
-        tokens.forEach((token) => {
-            const [themeMode, ..._] = (token as Token).getTags();
+        const themeModes = ['dark', 'light'];
+
+        themeModes.forEach((themeMode) => {
             const newToken = new GradientToken(createMeta(themeMode), {
                 web: new WebGradient(defaultValue),
                 ios: new IOSGradient(defaultNativeValue),

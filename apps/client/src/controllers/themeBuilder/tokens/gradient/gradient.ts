@@ -14,13 +14,13 @@ export class WebGradient extends PlatformToken<WebGradientToken> {
 
 export class IOSGradient extends PlatformToken<IOSGradientToken> {
     public setValue(value: IOSGradientToken[string]) {
-        this.value = { ...this.value, ...value };
+        this.value = value;
     }
 }
 
 export class AndroidGradient extends PlatformToken<AndroidGradientToken> {
     public setValue(value: AndroidGradientToken[string]) {
-        this.value = { ...this.value, ...value };
+        this.value = value;
     }
 }
 
