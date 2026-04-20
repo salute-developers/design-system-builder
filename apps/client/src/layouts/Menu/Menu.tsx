@@ -77,6 +77,19 @@ export const Menu = (props: MenuProps) => {
         [groupsData],
     );
 
+    const getNewTokenNamePrefix = (groupName: string) => {
+        if (selectedTab === 'Default' || !selectedTab) {
+            return lowerFirstLetter(groupName);
+        }
+
+        // TODO: Убрать, когда сделаем background с OnDark/OnLight
+        if ((selectedTab === 'OnDark' || selectedTab === 'OnLight') && groupName === 'Background') {
+            return `${lowerFirstLetter(selectedTab.replace('On', ''))}${groupName}`;
+        }
+
+        return `${lowerFirstLetter(selectedTab)}${groupName}`;
+    };
+
     const onTabValueSelect = (value: string) => {
         setSelectedTab(value);
 
@@ -214,6 +227,14 @@ export const Menu = (props: MenuProps) => {
     useEffect(() => {
         setGroupsData(data.groups[tabIndex].data);
     }, [data, tabIndex]);
+
+    useEffect(() => {
+        const newGroupsData = data.groups[tabIndex].data;
+
+        setOpenedGroups([newGroupsData[groupIndex].name]);
+        setDisabledGroups(getDefaultDisabledGroups(newGroupsData));
+        setSelectedItem(newGroupsData[groupIndex].items[itemIndex].name);
+    }, [tabIndex]);
 
     return (
         <Root>
@@ -358,7 +379,7 @@ export const Menu = (props: MenuProps) => {
                                             stretched
                                             value={creatingItemName}
                                             autoFocus
-                                            textBefore={lowerFirstLetter(groupName)}
+                                            textBefore={getNewTokenNamePrefix(groupName)}
                                             onChange={onItemAddChange}
                                             onCommit={(itemName) => onItemAddCommit(groupName, itemName, selectedTab)}
                                             onBlur={onItemAddCancel}

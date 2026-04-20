@@ -88,8 +88,9 @@ export const colorTokenActions: ColorTokenActions = {
             return;
         }
 
-        // TODO: Очень не нравится это
+        // TODO: Убрать, когда сделаем background с OnDark/OnLight
         const normalizedTabName = groupName === 'Background' ? tabName.replace('On', '') : tabName;
+        const prefix = normalizedTabName === 'Default' ? '' : `${normalizedTabName}-`;
         const rest = [camelToKebab(groupName), camelToKebab(normalizedTabName), camelToKebab(tokenName)];
 
         const isTokenExist = theme.getToken(['dark', ...rest].join('.'), 'color');
@@ -110,7 +111,9 @@ export const colorTokenActions: ColorTokenActions = {
             return {
                 tags: [mode, ...parts],
                 name: [mode, ...parts].join('.'),
-                displayName: kebabToCamel(`${camelToKebab(groupName)}-${camelToKebab(tokenName)}`),
+                displayName: kebabToCamel(
+                    `${camelToKebab(prefix)}${camelToKebab(groupName)}-${camelToKebab(tokenName)}`,
+                ),
                 description: 'New description',
                 enabled: true,
             };
@@ -121,8 +124,10 @@ export const colorTokenActions: ColorTokenActions = {
         const dsName = designSystem.getName() || '';
         const dsVersion = designSystem.getVersion() || '';
 
-        tokens.forEach((token) => {
-            const [themeMode, groupName, subgroupName, ..._] = (token as Token).getTags();
+        const themeModes = ['dark', 'light'];
+        const [, , subgroupName] = (tokens[0] as Token).getTags();
+
+        themeModes.forEach((themeMode) => {
             const newToken = new ColorToken(createMeta(themeMode), {
                 web: new WebColor(defaultValue),
                 ios: new IOSColor(defaultValue),
