@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { DesignSystem, Config, Theme } from '../controllers';
 import { applyDraftChanges } from '../utils';
@@ -7,6 +7,7 @@ export const useDesignSystem = (designSystemName?: string, designSystemVersion?:
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
     const [theme, setTheme] = useState<Theme | null>(null);
     const [components, setComponents] = useState<Config[] | null>(null);
+    const [reloadTrigger, setReloadTrigger] = useState<object>({});
 
     useEffect(() => {
         const loadDesignSystems = async () => {
@@ -25,7 +26,9 @@ export const useDesignSystem = (designSystemName?: string, designSystemVersion?:
         };
 
         loadDesignSystems();
-    }, [designSystemName, designSystemVersion, includeExtraTokens]);
+    }, [designSystemName, designSystemVersion, includeExtraTokens, reloadTrigger]);
 
-    return { designSystem, theme, components };
+    const reload = useCallback(() => setReloadTrigger({}), []);
+
+    return { designSystem, theme, components, reload };
 };
