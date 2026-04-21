@@ -76,7 +76,7 @@ export class DocumentationService implements OnModuleInit {
 
   /**
    * Обрабатывает запрос на генерацию документации
-   * Получает данные о дизайн-системе из DS_REGISTRY_URL и генерирует Docusaurus проект
+   * Получает данные о дизайн-системе из DB_SERVICE_URL и генерирует Docusaurus проект
    * @param dto - ID дизайн-системы
    * @returns Метаданные об обработке (путь, ID, время, количество компонентов)
    */
@@ -85,7 +85,7 @@ export class DocumentationService implements OnModuleInit {
       `Received documentation generation request for DS Package: ${dto.packageName}@${dto.packageVersion}`,
     );
 
-    // Получаем данные о дизайн-системе из DS_REGISTRY_URL
+    // Получаем данные о дизайн-системе из DB_SERVICE_URL
     const designSystemData = await this.fetchDesignSystemData(
       dto.packageName,
       dto.packageVersion,
@@ -212,14 +212,14 @@ export class DocumentationService implements OnModuleInit {
   }
 
   /**
-   * Получает данные о дизайн-системе из DS_REGISTRY_URL
+   * Получает данные о дизайн-системе из DB_SERVICE_URL
    */
   async fetchDesignSystemData(
     packageName: string,
     packageVersion: string,
     authToken?: string,
   ): Promise<FetchDesignSystemResponseDto> {
-    const baseUrl = this.configService.get<string>("DS_REGISTRY_URL") || "http://localhost:3008/api";
+    const baseUrl = this.configService.get<string>("DB_SERVICE_URL") || "http://localhost:3008/api";
 
     const configsUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
     const themeUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/theme-data`;

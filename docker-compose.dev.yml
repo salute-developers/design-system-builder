@@ -1,8 +1,8 @@
 services:
-  # PostgreSQL Database (ds-registry)
+  # PostgreSQL Database (db-service)
   postgres-registry:
     image: postgres:16-alpine
-    container_name: ds-registry-postgres-dev
+    container_name: db-service-postgres-dev
     restart: unless-stopped
     environment:
       POSTGRES_DB: ds_registry
@@ -20,12 +20,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # DS Registry API (Development)
-  ds-registry:
+  # DB Service API (Development)
+  db-service:
     build:
-      context: ./services/ds-registry
+      context: ./services/db-service
       dockerfile: Dockerfile.dev
-    container_name: ds-registry-dev
+    container_name: db-service-dev
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -40,10 +40,10 @@ services:
     networks:
       - ds-builder-network
     volumes:
-      - ./services/ds-registry:/home/node/app
+      - ./services/db-service:/home/node/app
       - /home/node/app/node_modules
 
-  # Admin Panel for DS Registry (Development)
+  # Admin Panel for DB Service (Development)
   admin:
     build:
       context: ./apps/admin
@@ -51,11 +51,11 @@ services:
     container_name: ds-builder-admin-dev
     restart: unless-stopped
     environment:
-      VITE_DS_REGISTRY_API: http://localhost:3008/api
+      VITE_DB_SERVICE_API: http://localhost:3008/api
     ports:
       - "3004:5173"
     depends_on:
-      - ds-registry
+      - db-service
     networks:
       - ds-builder-network
     volumes:
@@ -71,14 +71,14 @@ services:
     container_name: ds-builder-client-dev
     restart: unless-stopped
     environment:
-      VITE_DS_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
-      VITE_DS_GENERATOR_API: http://localhost:3005
-      VITE_DS_REGISTRY_API: http://localhost:3008/api
+      VITE_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
+      VITE_GENERATOR_API: http://localhost:3005
+      VITE_DB_SERVICE_API: http://localhost:3008/api
       VITE_NPM_REGISTRY: ${VITE_NPM_REGISTRY}
     ports:
       - "3002:5173"
     depends_on:
-      - ds-registry
+      - db-service
     networks:
       - ds-builder-network
     volumes:
@@ -89,23 +89,23 @@ services:
   # Generator web library
   generator:
     build:
-      context: ./services/ds-generator
+      context: ./services/generator
       dockerfile: Dockerfile.dev
     container_name: ds-builder-generator-dev
     restart: unless-stopped
     environment:
       NODE_ENV: development
       PORT: 3005
-      DS_REGISTRY_URL: http://ds-registry:3008/api
+      DB_SERVICE_URL: http://db-service:3008/api
       PUBLISHER_URL: http://publisher:3007
     ports:
       - "3005:3005"
     depends_on:
-      - ds-registry
+      - db-service
     networks:
       - ds-builder-network
     volumes:
-      - ./services/ds-generator:/home/node/app
+      - ./services/generator:/home/node/app
       - /home/node/app/node_modules
     command: npm run dev
 
@@ -128,13 +128,13 @@ services:
   # Documentation Generator Service
   docs-generator:
     build:
-      context: ./services/ds-documentation-generator
+      context: ./services/documentation-generator
       dockerfile: Dockerfile.dev
-    container_name: ds-documentation-generator-dev
+    container_name: documentation-generator-dev
     environment:
       NODE_ENV: development
       PORT: 3006
-      DS_REGISTRY_URL: http://ds-registry:3008/api
+      DB_SERVICE_URL: http://db-service:3008/api
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}

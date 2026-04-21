@@ -1,11 +1,11 @@
 import { ApiReferenceReact } from "@scalar/api-reference-react";
 import "@scalar/api-reference-react/style.css";
-import { VITE_DS_REGISTRY_API } from "../api/client";
+import { VITE_DB_SERVICE_API } from "../api/client";
 
 const DocsPage = () => (
   <ApiReferenceReact
     configuration={{
-      url: `${VITE_DS_REGISTRY_API}/openapi.json`,
+      url: `${VITE_DB_SERVICE_API}/openapi.json`,
       hideModels: false,
     }}
   />

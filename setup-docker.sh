@@ -5,7 +5,7 @@
 # =============================================================================
 # This script performs a complete setup of the Design System Builder
 # development environment including:
-# - Building and starting all services (postgres-registry, ds-registry, admin, client, generator, docs-generator)
+# - Building and starting all services (postgres-registry, db-service, admin, client, generator, docs-generator)
 # - Running database migrations
 # - Seeding initial data (seed-dev.ts)
 # - Comprehensive health checks for all services
@@ -77,7 +77,7 @@ echo_success "docker-compose is available"
 
 echo ""
 echo_header "🚀 Setting up development environment..."
-echo "   📦 Services: postgres-registry, ds-registry, admin, client, generator, publisher, docs-generator"
+echo "   📦 Services: postgres-registry, db-service, admin, client, generator, publisher, docs-generator"
 echo "   🗄️ Database: migrations + seeding (dev seeds)"
 echo "   🔍 Health checks: all services"
 
@@ -106,57 +106,60 @@ else
     exit 1
 fi
 
-echo_info "Starting services..."
-docker-compose -f $COMPOSE_FILE up -d
+# Start only postgres + db-service first (migrate before other services connect)
+echo_info "Starting postgres and db-service..."
+docker-compose -f $COMPOSE_FILE up -d postgres-registry db-service
 
-# Wait for PostgreSQL (ds-registry) to be ready
+# Wait for PostgreSQL (db-service) to be ready
 echo ""
-echo_step "Waiting for PostgreSQL (ds-registry) to be ready..."
+echo_step "Waiting for PostgreSQL (db-service) to be ready..."
 timeout=60
 while ! docker-compose -f $COMPOSE_FILE exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; do
     sleep 2
     timeout=$((timeout - 2))
     if [ $timeout -le 0 ]; then
-        echo_error "PostgreSQL (ds-registry) did not start in time"
+        echo_error "PostgreSQL (db-service) did not start in time"
         exit 1
     fi
 done
-echo_success "PostgreSQL (ds-registry) is ready"
+echo_success "PostgreSQL (db-service) is ready"
 
-# Wait for ds-registry to be ready
-echo_step "Waiting for ds-registry to be ready..."
-timeout=60
-while ! docker-compose -f $COMPOSE_FILE exec -T ds-registry curl -sf http://localhost:3008/api/tables > /dev/null 2>&1; do
-    sleep 2
-    timeout=$((timeout - 2))
-    if [ $timeout -le 0 ]; then
-        echo_warning "ds-registry health check timed out, continuing..."
-        break
-    fi
-done
-echo_success "ds-registry is ready"
-
-# Database setup
+# Database setup — run BEFORE other services start
 echo ""
 echo_header "🗄️ Setting up databases..."
 
-# --- ds-registry migrations ---
-echo_step "Running ds-registry migrations..."
-if docker-compose -f $COMPOSE_FILE exec -T ds-registry npx drizzle-kit migrate; then
-    echo_success "ds-registry migrations completed"
+# --- db-service migrations ---
+echo_step "Running db-service migrations..."
+if docker-compose -f $COMPOSE_FILE exec -T db-service npx drizzle-kit migrate; then
+    echo_success "db-service migrations completed"
 else
-    echo_error "ds-registry migrations failed"
+    echo_error "db-service migrations failed"
     exit 1
 fi
 
 # --- Seeding ---
-echo_step "Seeding ds-registry database (dev)..."
-if docker-compose -f $COMPOSE_FILE exec -T ds-registry npx tsx src/db/seed-dev.ts; then
-    echo_success "ds-registry database seeding (dev) completed"
+echo_step "Seeding db-service database (dev)..."
+if docker-compose -f $COMPOSE_FILE exec -T db-service npx tsx src/db/seed-dev.ts; then
+    echo_success "db-service database seeding (dev) completed"
 else
-    echo_error "ds-registry database seeding (dev) failed"
+    echo_error "db-service database seeding (dev) failed"
     exit 1
 fi
+
+# Now start the remaining services (client, admin, generator, etc.)
+echo_info "Starting remaining services..."
+docker-compose -f $COMPOSE_FILE up -d
+
+# Wait for frontend services to be ready
+echo_step "Waiting for services to start..."
+timeout=30
+while ! curl -sf http://localhost:3002 > /dev/null 2>&1 || ! curl -sf http://localhost:3004 > /dev/null 2>&1; do
+    sleep 2
+    timeout=$((timeout - 2))
+    if [ $timeout -le 0 ]; then
+        break
+    fi
+done
 
 # Check final health
 echo ""
@@ -166,23 +169,23 @@ services_healthy=true
 total_services=4
 current_service=0
 
-# Check PostgreSQL (ds-registry)
+# Check PostgreSQL (db-service)
 current_service=$((current_service + 1))
-show_progress $current_service $total_services "Checking PostgreSQL (ds-registry)..."
+show_progress $current_service $total_services "Checking PostgreSQL (db-service)..."
 if docker-compose -f $COMPOSE_FILE exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; then
-    echo_success "PostgreSQL (ds-registry) is healthy"
+    echo_success "PostgreSQL (db-service) is healthy"
 else
-    echo_error "PostgreSQL (ds-registry) is not healthy"
+    echo_error "PostgreSQL (db-service) is not healthy"
     services_healthy=false
 fi
 
-# Check DS Registry
+# Check DB Service
 current_service=$((current_service + 1))
-show_progress $current_service $total_services "Checking DS Registry..."
+show_progress $current_service $total_services "Checking DB Service..."
 if curl -sf http://localhost:3008/api/tables > /dev/null 2>&1; then
-    echo_success "DS Registry is healthy"
+    echo_success "DB Service is healthy"
 else
-    echo_error "DS Registry is not healthy"
+    echo_error "DB Service is not healthy"
     services_healthy=false
 fi
 
@@ -213,10 +216,10 @@ if [ "$services_healthy" = true ]; then
     echo_header "📋 Service Information:"
     echo "   🛠️ Admin:          http://localhost:3004"
     echo "   🎨 Client:         http://localhost:3002"
-    echo "   📋 DS Registry:    http://localhost:3008"
+    echo "   📋 DB Service:     http://localhost:3008"
     echo "   🏗️ Generator:      http://localhost:3005"
     echo "   📄 Docs Generator: http://localhost:3006"
-    echo "   🗄️ DB (ds-registry):  localhost:5433"
+    echo "   🗄️ DB (db-service):  localhost:5433"
     echo ""
     echo_header "📦 View running services:"
     docker-compose -f $COMPOSE_FILE ps

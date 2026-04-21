@@ -13,8 +13,8 @@ export const popupContentPages = {
     PUBLISH_PROGRESS: 'PUBLISH_PROGRESS',
 } as const;
 
-const VITE_DS_GENERATOR_API = import.meta.env.VITE_DS_GENERATOR_API;
-const VITE_DS_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DS_DOCUMENTATION_GENERATOR_API;
+const VITE_GENERATOR_API = import.meta.env.VITE_GENERATOR_API;
+const VITE_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DOCUMENTATION_GENERATOR_API;
 
 // TODO: Добавить оставшиеся переменные из макетов
 export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -49,7 +49,7 @@ export const generateDownload = async (designSystem: DesignSystem, exportType: '
         authToken,
     };
 
-    const result = await fetch(`${VITE_DS_GENERATOR_API}/generate-download`, {
+    const result = await fetch(`${VITE_GENERATOR_API}/generate-download`, {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {
@@ -122,7 +122,7 @@ export const generatePublish = async (
         authToken,
     };
 
-    const result = await fetch(`${VITE_DS_GENERATOR_API}/generate-publish`, {
+    const result = await fetch(`${VITE_GENERATOR_API}/generate-publish`, {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {
@@ -147,7 +147,7 @@ export const generateAndDeployDocumentation = async (designSystem: DesignSystem)
         authToken,
     };
 
-    const result = await fetch(`${VITE_DS_DOCUMENTATION_GENERATOR_API}/documentation/generate`, {
+    const result = await fetch(`${VITE_DOCUMENTATION_GENERATOR_API}/documentation/generate`, {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {

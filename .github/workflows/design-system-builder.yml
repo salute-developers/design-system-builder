@@ -25,9 +25,9 @@ jobs:
       # 2 папки, так как названия разные - в первом случае нужно для replace
       - name: Build Design System Builder
         env:
-          VITE_DS_GENERATOR_API: ${{ secrets.VITE_DS_GENERATOR_API }}
-          VITE_DS_DOCUMENTATION_GENERATOR_API: ${{ secrets.VITE_DS_DOCUMENTATION_GENERATOR_API }}
-          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+          VITE_GENERATOR_API: ${{ secrets.VITE_GENERATOR_API }}
+          VITE_DOCUMENTATION_GENERATOR_API: ${{ secrets.VITE_DOCUMENTATION_GENERATOR_API }}
+          VITE_DB_SERVICE_API: ${{ secrets.VITE_DB_SERVICE_API }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
           BASE_URL: '/design-system-builder/'
         run: |
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Admin
         env:
-          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+          VITE_DB_SERVICE_API: ${{ secrets.VITE_DB_SERVICE_API }}
         run: |
           npm run build --prefix="./apps/admin"
           cp -R ./apps/admin/dist ./s3_build/admin

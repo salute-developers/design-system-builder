@@ -1,9 +1,9 @@
 services:
 
-  # DS Registry API
-  ds-registry:
+  # DB Service API
+  db-service:
     build:
-      context: ./services/ds-registry
+      context: ./services/db-service
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -12,7 +12,7 @@ services:
     ports:
       - "3008:3008"
 
-  # Admin Panel for DS Registry
+  # Admin Panel for DB Service
   admin:
     build:
       context: ./apps/admin
@@ -21,7 +21,7 @@ services:
     ports:
       - "3004:5173"
     depends_on:
-      - ds-registry
+      - db-service
 
   # Client Application
   client:
@@ -32,12 +32,12 @@ services:
     ports:
       - "3002:4173"
     depends_on:
-      - ds-registry
+      - db-service
 
   # Generator web library
   generator:
     build:
-      context: ./services/ds-generator
+      context: ./services/generator
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -45,7 +45,7 @@ services:
     ports:
       - "3005:3005"
     depends_on:
-      - ds-registry
+      - db-service
 
   # Publisher service
   publisher:
@@ -62,7 +62,7 @@ services:
   # Documentation Generator Service
   docs-generator:
     build:
-      context: ./services/ds-documentation-generator
+      context: ./services/documentation-generator
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -71,7 +71,7 @@ services:
     ports:
       - "3006:3006"
     depends_on:
-      - ds-registry
+      - db-service
     volumes:
       - docs_output:/home/node/app/output
     command: npm run start:dev

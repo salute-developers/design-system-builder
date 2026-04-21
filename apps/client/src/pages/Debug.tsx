@@ -14,7 +14,7 @@ import { BasicButton, LinkButton, Modal, Switch, TextField } from '../components
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
 import { importTokensToTheme, importDesignSystem, btoaUtf8, clearDraft } from '../utils';
 import { Parameters } from '../types';
-import { DS_REGISTRY_URL } from '../api';
+import { DB_SERVICE_URL } from '../api';
 import { designSystemSave, generateAndDeployDocumentation, generatePublish } from './Main.utils';
 
 const spin = keyframes`
@@ -112,7 +112,7 @@ export const Debug = (props: DebugProps) => {
         const name = designSystem.getName();
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const response = await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/download-theme`, {
+        const response = await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${name}/download-theme`, {
             headers: {
                 Authorization: `Basic ${token}`,
             },

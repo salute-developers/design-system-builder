@@ -1,4 +1,4 @@
-# DS Documentation Generator
+# Documentation Generator
 
 Сервис автоматической генерации документации для дизайн-систем.
 
@@ -12,7 +12,7 @@
          │
          ▼
 ┌──────────────────┐
-│    DS-REGiSTRY   │  Запрос данных о дизайн-системе
+│   DB-SERVICE     │  Запрос данных о дизайн-системе
 │  (Fetch API)     │  GET /legacy/design-systems/{package}/component-configs
 └────────┬─────────┘
          │
@@ -73,7 +73,7 @@
 - Endpoint: `POST /api/documentation/generate`
 
 ### 2. **DocumentationService** (`src/modules/documentation/`)
-- **Fetch данных о дизайн-системе** из `DS_REGISTRY_URL`
+- **Fetch данных о дизайн-системе** из `DB_SERVICE_URL`
 - **Оркестрация процесса**: генерация → сборка → деплой
 - **Управление временными файлами**: создание/очистка temp директорий
 - **Два режима работы**:
@@ -105,7 +105,7 @@ npm install
 
 # Настройка окружения
 cp .env.example .env
-# Заполните DS_REGISTRY_URL и AWS credentials в .env
+# Заполните DB_SERVICE_URL и AWS credentials в .env
 
 # Запуск
 npm run start:dev
@@ -120,7 +120,7 @@ npm run start:dev
 PORT=3000
 
 # External API
-DS_REGISTRY_URL=http://localhost:3003/api
+DB_SERVICE_URL=http://localhost:3008/api
 
 # AWS S3
 AWS_ACCESS_KEY_ID=your_access_key

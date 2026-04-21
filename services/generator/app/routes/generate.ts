@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import fs from 'fs-extra';
 
-import { DS_REGISTRY_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../utils';
+import { DB_SERVICE_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../utils';
 import { GenerateRouteBody } from '../types';
 import { generateDesignSystem } from '../generate';
 import stream from 'stream';
@@ -22,12 +22,12 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
                 headers,
             }).then((response) => response.json())) as unknown as ThemeSource;
 
             const componentsData = (await fetch(
-                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
                 {
                     headers,
                 },
@@ -92,11 +92,11 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
                 headers,
             }).then((response) => response.json())) as unknown as ThemeSource;
             const componentsData = (await fetch(
-                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
                 {
                     headers,
                 },

@@ -50,10 +50,10 @@ export class GenerateDocsDto {
   @IsBoolean()
   localOnly?: boolean;
 
-  /** Токен авторизации для запросов к ds-registry */
+  /** Токен авторизации для запросов к db-service */
   @ApiProperty({
     example: "dXNlcjpwYXNz",
-    description: "Auth token for ds-registry authorization",
+    description: "Auth token for db-service authorization",
     required: false,
   })
   @IsOptional()
