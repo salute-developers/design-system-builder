@@ -1,7 +1,7 @@
 import { type Meta, type ThemeSource } from '../controllers';
 import { Parameters } from '../types';
 import { btoaUtf8 } from './other';
-import { DS_REGISTRY_URL } from '../api';
+import { DB_SERVICE_URL } from '../api';
 
 export interface BackendDesignSystem {
     id: number;
@@ -63,7 +63,7 @@ export const saveDesignSystem = async (data: {
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const response = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/create`, {
+        const response = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/create`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -96,7 +96,7 @@ export const updateDesignSystem = async (data: {
     try {
         // const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const response = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${data.name}/update`, {
+        const response = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${data.name}/update`, {
             method: 'POST',
             body: JSON.stringify(data),
             headers: {
@@ -125,19 +125,19 @@ export const loadDesignSystem = async (
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/theme-data`, {
+        const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${name}/theme-data`, {
             headers: {
                 Authorization: `Basic ${token}`,
             },
         }).then((response) => response.json())) as unknown as ThemeSource;
 
-        const componentsData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/component-configs`, {
+        const componentsData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${name}/component-configs`, {
             headers: {
                 Authorization: `Basic ${token}`,
             },
         }).then((response) => response.json())) as unknown as Meta[];
 
-        const parameters = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${name}/tenant-params`, {
+        const parameters = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${name}/tenant-params`, {
             headers: {
                 Authorization: `Basic ${token}`,
             },
@@ -162,7 +162,7 @@ export const loadDesignSystem = async (
 };
 
 export const loadBaseComponentsData = async (): Promise<Meta[]> => {
-    const componentsData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/base/component-configs`).then(
+    const componentsData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/base/component-configs`).then(
         (response) => response.json(),
     )) as unknown as Meta[];
 
@@ -173,7 +173,7 @@ export const loadAllDesignSystems = async (): Promise<BackendDesignSystem[] | un
     try {
         const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
 
-        const data = await fetch(`${DS_REGISTRY_URL}/design-systems`, {
+        const data = await fetch(`${DB_SERVICE_URL}/design-systems`, {
             headers: {
                 Authorization: `Basic ${token}`,
             },

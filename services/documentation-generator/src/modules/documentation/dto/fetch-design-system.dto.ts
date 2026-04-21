@@ -39,7 +39,7 @@ export class ComponentDto {
 }
 
 /**
- * DTO для ответа от DS_REGISTRY_URL с данными дизайн-системы
+ * DTO для ответа от DB_SERVICE_URL с данными дизайн-системы
  */
 export class FetchDesignSystemResponseDto {
   @ApiProperty({

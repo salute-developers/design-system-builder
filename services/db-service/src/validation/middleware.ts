@@ -73,13 +73,17 @@ export const optionalAuthenticate = async (
 
   const token = header.slice("Basic ".length);
 
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.token, token));
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.token, token));
 
-  if (user) {
-    req.user = user;
+    if (user) {
+      req.user = user;
+    }
+  } catch {
+    // DB may not be migrated yet — skip auth silently
   }
 
   next();

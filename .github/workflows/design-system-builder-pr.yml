@@ -39,7 +39,7 @@ jobs:
       # TODO: https://github.com/salute-developers/plasma/issues/603
       - name: Build Design System Builder
         env:
-          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+          VITE_DB_SERVICE_API: ${{ secrets.VITE_DB_SERVICE_API }}
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
           npm run build --prefix="./apps/client"
@@ -51,7 +51,7 @@ jobs:
 
       - name: Build Admin
         env:
-          VITE_DS_REGISTRY_API: ${{ secrets.VITE_DS_REGISTRY_API }}
+          VITE_DB_SERVICE_API: ${{ secrets.VITE_DB_SERVICE_API }}
         run: |
           npm run build --prefix="./apps/admin"
           cp -R ./apps/admin/dist ./s3_build/admin-${PR_NAME}

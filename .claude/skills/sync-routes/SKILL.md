@@ -1,23 +1,23 @@
 ---
 name: sync-routes
-description: Sync ds-registry/src/routes/api/ and routes/index.ts with the current DB schema. Use when tables are added or removed in ds-registry/src/db/schema.ts.
+description: Sync db-service/src/routes/api/ and routes/index.ts with the current DB schema. Use when tables are added or removed in db-service/src/db/schema.ts.
 ---
 
 Synchronize route files and their registration with the current state of the project.
 
 ## Steps
 
-1. Read `ds-registry/src/db/schema.ts` — collect all exported table names.
-2. Read `ds-registry/src/routes/api/` — list existing route files.
-3. Read `ds-registry/src/validation/schema.ts` — check which Create/Update schemas exist.
-4. Read `ds-registry/src/routes/index.ts` — check which routers are already imported and registered.
+1. Read `db-service/src/db/schema.ts` — collect all exported table names.
+2. Read `db-service/src/routes/api/` — list existing route files.
+3. Read `db-service/src/validation/schema.ts` — check which Create/Update schemas exist.
+4. Read `db-service/src/routes/index.ts` — check which routers are already imported and registered.
 5. Diff: determine which tables have no corresponding route file.
 
 ## Rules
 
 ### New table detected (no route file)
 
-**1. Create `ds-registry/src/routes/api/my-table.ts`**
+**1. Create `db-service/src/routes/api/my-table.ts`**
 
 Follow this exact structure (look at existing files for reference):
 
@@ -109,7 +109,7 @@ export default router;
 - If the table is a join table (no mutable fields) → omit `PATCH`.
 - File name: `kebab-case` matching the table name (e.g. `design_system_users` → `design-system-users.ts`).
 
-**2. Register in `ds-registry/src/routes/index.ts`**
+**2. Register in `db-service/src/routes/index.ts`**
 
 Add import after the last existing api import:
 ```typescript

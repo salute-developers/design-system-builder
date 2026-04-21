@@ -1,6 +1,6 @@
 // Design System Builder — Database Schema
 // PostgreSQL / Drizzle ORM
-// Источник правды: services/ds-registry/src/db/schema.ts
+// Источник правды: services/db-service/src/db/schema.ts
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 

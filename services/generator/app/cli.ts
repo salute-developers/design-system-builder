@@ -2,7 +2,7 @@
 import { program } from 'commander';
 import * as fs from 'fs-extra';
 
-import { CORE_VERSION, DS_REGISTRY_URL } from './utils';
+import { CORE_VERSION, DB_SERVICE_URL } from './utils';
 import { generateDesignSystem } from './generate';
 import { ThemeSource } from './themeBuilder/types';
 import { Meta } from './componentBuilder';
@@ -14,7 +14,7 @@ program
     .option('--ds-version <string>', 'Design system version')
     .option('--export-type <string>', 'Export type (tgz, zip, source)', 'source')
     .option('--output <dir>', 'Output directory', './output')
-    .option('--auth-token <string>', 'Auth token for ds-registry')
+    .option('--auth-token <string>', 'Auth token for db-service')
     .action(async (options) => {
         try {
             const {
@@ -36,12 +36,12 @@ program
                 headers['Authorization'] = `Basic ${authToken}`;
             }
 
-            const themeData = (await fetch(`${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/theme-data`, {
+            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
                 headers,
             }).then((response) => response.json())) as unknown as ThemeSource;
 
             const componentsData = (await fetch(
-                `${DS_REGISTRY_URL}/legacy/design-systems/${packageName}/component-configs`,
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
                 {
                     headers,
                 },

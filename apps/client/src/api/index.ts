@@ -14,4 +14,4 @@ export {
 } from './githubAPIMethods';
 export { getNpmMeta } from './getNpmMeta';
 
-export const DS_REGISTRY_URL = import.meta.env.VITE_DS_REGISTRY_API || 'http://localhost:3008/api';
+export const DB_SERVICE_URL = import.meta.env.VITE_DB_SERVICE_API || 'http://localhost:3008/api';

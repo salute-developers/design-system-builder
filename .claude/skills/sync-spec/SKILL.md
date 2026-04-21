@@ -1,17 +1,17 @@
 ---
 name: sync-spec
-description: Sync ds-registry/src/openapi/spec.ts with the current DB schema and routes. Use when tables are added/removed, columns change, or route files are added/removed/changed in ds-registry/src/routes/api/.
+description: Sync db-service/src/openapi/spec.ts with the current DB schema and routes. Use when tables are added/removed, columns change, or route files are added/removed/changed in db-service/src/routes/api/.
 ---
 
-Synchronize `ds-registry/src/openapi/spec.ts` with the current state of the project.
+Synchronize `db-service/src/openapi/spec.ts` with the current state of the project.
 
 ## Steps
 
-1. Read `ds-registry/src/db/schema.ts` — collect all exported table names.
-2. Read `ds-registry/src/openapi/spec.ts` — collect which tables already have a response schema (`createSelectSchema`) and which are registered in `registerCrud` / `registerPath`. Also collect all paths already registered via `registry.registerPath`.
-3. Run `git diff --name-only HEAD` (or check git status) — identify which files in `ds-registry/src/routes/api/` were added or modified.
+1. Read `db-service/src/db/schema.ts` — collect all exported table names.
+2. Read `db-service/src/openapi/spec.ts` — collect which tables already have a response schema (`createSelectSchema`) and which are registered in `registerCrud` / `registerPath`. Also collect all paths already registered via `registry.registerPath`.
+3. Run `git diff --name-only HEAD` (or check git status) — identify which files in `db-service/src/routes/api/` were added or modified.
 4. Read **every** added or modified route file in full — look for all endpoints (both CRUD and non-CRUD). Compare each endpoint's path against the paths already registered in `spec.ts`. Any missing path must be added.
-5. Read `ds-registry/src/validation/schema.ts` — check which Create/Update schemas exist for new tables.
+5. Read `db-service/src/validation/schema.ts` — check which Create/Update schemas exist for new tables.
 
 ## Rules
 
@@ -65,7 +65,7 @@ Use the helper functions already defined in `spec.ts`: `list()`, `one()`, `creat
 
 ## Conventions
 
-- Keep entries in the same order as tables appear in `ds-registry/src/db/schema.ts`.
+- Keep entries in the same order as tables appear in `db-service/src/db/schema.ts`.
 - Table name in camelCase → `tables.myTable`; schema name → `"MyTable"`; path → `"/my-table"`.
 - Tables with both `createdAt` and `updatedAt` use the `ts` shorthand (`{ createdAt: DateTimeSchema, updatedAt: DateTimeSchema }`).
 - Tables with only `createdAt` use `{ createdAt: DateTimeSchema }`.

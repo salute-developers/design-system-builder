@@ -27,16 +27,16 @@ The platform is a small set of independent services around a central registry. A
                                  │ REST (OpenAPI-typed)
                                  ▼
 ┌────────────────────┐  REST   ┌────────────────────┐    ┌──────────────────┐
-│       Client       │ ──────▶ │     DS Registry    │◀──▶│  PostgreSQL      │
-│  apps/client :3002 │         │   ds-registry :3008│    │  (postgres-      │
+│       Client       │ ──────▶ │     DB Service     │◀──▶│  PostgreSQL      │
+│  apps/client :3002 │         │   db-service :3008 │    │  (postgres-      │
 │  (DS builder UI)   │         │  Express + Drizzle │    │   registry :5433)│
 └─────┬───────┬──────┘         └─────────┬──────────┘    └──────────────────┘
       │       │                          ▲
       │       │                          │ fetch DS data
       │       │                          │
-      │       │                ┌─────────┴──────────┐    ┌──────────────────┐
-      │       └──────REST─────▶│    DS Generator    │───▶│    Publisher     │
-      │                        │  ds-generator :3005│    │  publisher :3007 │
+      │       │                ┌─────────┴──────────┐    ┌────────────���─────┐
+      │       └──────REST─────▶│      Generator     │───▶│    Publisher     │
+      │                        │    generator :3005 │    │  publisher :3007 │
       │                        │  Fastify + CLI     │    │  npm publish     │
       │                        └────────────────────┘    └──────────────────┘
       │
@@ -47,24 +47,24 @@ The platform is a small set of independent services around a central registry. A
                                └─────────┬──────────┘    └──────────────────┘
                                          │ fetch DS data
                                          ▼
-                                  (DS Registry)
+                                  (DB Service)
 ```
 
 ### Services
 
 | Service | Path | Port | Stack | Purpose |
 |---|---|---|---|---|
-| **DS Registry** | [services/ds-registry](services/ds-registry/) | 3008 | Express, Drizzle ORM, Postgres, Zod, OpenAPI | Source of truth. Stores design systems, components, variations, tokens. Exposes a typed REST API and an auto-generated OpenAPI spec. |
-| **DS Generator** | [services/ds-generator](services/ds-generator/) | 3005 | Fastify | Builds an npm package from a design system stored in the registry. Available both as a web service and as a CLI (`plasma-ds-generate`). |
+| **DB Service** | [services/db-service](services/db-service/) | 3008 | Express, Drizzle ORM, Postgres, Zod, OpenAPI | Source of truth. Stores design systems, components, variations, tokens. Exposes a typed REST API and an auto-generated OpenAPI spec. |
+| **Generator** | [services/generator](services/generator/) | 3005 | Fastify | Builds an npm package from a design system stored in the registry. Available both as a web service and as a CLI (`plasma-ds-generate`). |
 | **Publisher** | [services/publisher](services/publisher/) | 3007 | Express | Receives a packaged design system from the generator and publishes it to a configured npm registry. |
-| **Docs Generator** | [services/ds-documentation-generator](services/ds-documentation-generator/) | 3006 | NestJS, Handlebars, Docusaurus | Pulls a design system from the registry, renders a Docusaurus project from templates, builds the static site, and uploads it to S3. |
+| **Docs Generator** | [services/documentation-generator](services/documentation-generator/) | 3006 | NestJS, Handlebars, Docusaurus | Pulls a design system from the registry, renders a Docusaurus project from templates, builds the static site, and uploads it to S3. |
 | **Client** | [apps/client](apps/client/) | 3002 | React 18, Vite, `@salutejs/plasma-*` | The end-user UI for composing a design system, editing tokens, and triggering generation/publication/documentation. |
 | **Admin** | [apps/admin](apps/admin/) | 3004 | React 18, Vite, OpenAPI types | Inspector for the registry: schema view, table browser, OpenAPI reference, saved/NL queries. |
 
 ### How a design system flows through the system
 
-1. **Authoring.** A user opens the **Client** ([apps/client](apps/client/)) and composes a design system — picks components, edits tokens, previews the result. The client persists everything to the **DS Registry** over REST.
-2. **Generation.** From the same UI the user triggers `generate-download` or `generate-publish` on the **DS Generator**. The generator fetches the design system from the registry, builds an npm package, and either streams it back to the client or hands it off to the **Publisher**.
+1. **Authoring.** A user opens the **Client** ([apps/client](apps/client/)) and composes a design system — picks components, edits tokens, previews the result. The client persists everything to the **DB Service** over REST.
+2. **Generation.** From the same UI the user triggers `generate-download` or `generate-publish` on the **Generator**. The generator fetches the design system from the registry, builds an npm package, and either streams it back to the client or hands it off to the **Publisher**.
 3. **Publication.** The **Publisher** receives the tarball and pushes it to a configured npm registry, making the design system installable as `@salutejs-ds/<name>`.
 4. **Documentation.** The user (still from the client UI) triggers `documentation/generate` on the **Docs Generator**. It fetches the design system from the registry, renders a Docusaurus project from Handlebars templates, builds the static site, and uploads the result to **S3**.
 5. **Inspection.** The **Admin** app talks to the registry directly through its OpenAPI-typed client, used for debugging schema, browsing tables, and running ad-hoc queries.
@@ -95,7 +95,7 @@ design-system-builder/
 │       ├── vite.config.ts
 │       └── package.json
 ├── services/
-│   ├── ds-registry/                    # Express + Drizzle, central registry API
+│   ├── db-service/                     # Express + Drizzle, central registry API
 │   │   ├── src/
 │   │   │   ├── db/
 │   │   │   │   ├── index.ts            # DB connection (postgres-js + Drizzle)
@@ -137,8 +137,8 @@ design-system-builder/
 │   │   ├── drizzle.config.ts
 │   │   ├── .env.example
 │   │   └── package.json
-│   ├── ds-generator/                   # Fastify, builds DS npm packages
-│   ├── ds-documentation-generator/     # NestJS, builds Docusaurus + S3 deploy
+│   ├── generator/                      # Fastify, builds DS npm packages
+│   ├── documentation-generator/        # NestJS, builds Docusaurus + S3 deploy
 │   └── publisher/                      # Express, npm publishing
 ├── docs/                               # Internal docs (schema, status, todo)
 ├── .github/
@@ -173,7 +173,7 @@ design-system-builder/
 git clone <repo-url>
 cd design-system-builder
 
-# Start everything (postgres + registry + admin + client + generator + publisher + docs-generator)
+# Start everything (postgres + db-service + admin + client + generator + publisher + docs-generator)
 ./setup-docker.sh
 ```
 
@@ -185,11 +185,11 @@ Once it's done:
 |---|---|
 | Client (DS builder UI) | http://localhost:3002 |
 | Admin (registry inspector) | http://localhost:3004 |
-| DS Registry API | http://localhost:3008/api |
-| DS Generator | http://localhost:3005 |
+| DB Service API | http://localhost:3008/api |
+| Generator | http://localhost:3005 |
 | Docs Generator | http://localhost:3006 |
 | Publisher | http://localhost:3007 |
-| Postgres (ds-registry) | localhost:5433 |
+| Postgres (db-service) | localhost:5433 |
 
 Common commands:
 
@@ -204,27 +204,27 @@ docker-compose -f docker-compose.dev.yml down
 docker-compose -f docker-compose.dev.yml down -v
 
 # Re-run migrations / re-seed manually
-docker-compose -f docker-compose.dev.yml exec ds-registry npx drizzle-kit migrate
-docker-compose -f docker-compose.dev.yml exec ds-registry npx tsx src/db/seed-dev.ts
+docker-compose -f docker-compose.dev.yml exec db-service npx drizzle-kit migrate
+docker-compose -f docker-compose.dev.yml exec db-service npx tsx src/db/seed-dev.ts
 ```
 
 ### Run locally without Docker
 
-You'll need a Postgres instance reachable from `ds-registry` and the right env vars in each service.
+You'll need a Postgres instance reachable from `db-service` and the right env vars in each service.
 
 ```bash
 # 1. Start Postgres (you can still use the dev compose for the DB only)
 docker-compose -f docker-compose.dev.yml up -d postgres-registry
 
-# 2. Configure ds-registry
-cp services/ds-registry/.env.example services/ds-registry/.env
+# 2. Configure db-service
+cp services/db-service/.env.example services/db-service/.env
 # default values already point at localhost:5433/ds_registry
 
 # 3. Install dependencies for every workspace
 npm run install:all
 
 # 4. Apply migrations and seed
-cd services/ds-registry
+cd services/db-service
 npm run db:migrate
 npm run db:seed:dev
 cd ../..
@@ -238,17 +238,17 @@ The root [package.json](package.json) exposes per-service scripts so you can als
 | Script | What it runs |
 |---|---|
 | `npm run dev` | All services and apps in parallel |
-| `npm run dev:services` | Backend services only (registry, generator, publisher, docs-generator) |
-| `npm run dev:ds-registry` | DS Registry only (port 3008) |
-| `npm run dev:ds-generator` | DS Generator only (port 3005) |
+| `npm run dev:services` | Backend services only (db-service, generator, publisher, documentation-generator) |
+| `npm run dev:db-service` | DB Service only (port 3008) |
+| `npm run dev:generator` | Generator only (port 3005) |
 | `npm run dev:publisher` | Publisher only (port 3007) |
-| `npm run dev:ds-documentation-generator` | Docs Generator only (port 3006) |
+| `npm run dev:documentation-generator` | Docs Generator only (port 3006) |
 | `npm run dev:client` | Client app only (port 3002) |
 | `npm run dev:admin` | Admin app only (port 3004) |
 | `npm run build` | Production build of every service and app |
 | `npm run install:all` | Install dependencies in every workspace |
 
-## DS Registry: database
+## DB Service: database
 
 Postgres lives in the dev compose as `postgres-registry` (host port `5433`). The registry connects with:
 
@@ -258,11 +258,11 @@ PORT=3008
 ZAI_API_KEY=your-zai-api-key-here   # for /api/nl-query
 ```
 
-Inside Docker the host becomes `postgres-registry:5432`. See [services/ds-registry/.env.example](services/ds-registry/.env.example).
+Inside Docker the host becomes `postgres-registry:5432`. See [services/db-service/.env.example](services/db-service/.env.example).
 
 ### Drizzle ORM commands
 
-Run from `services/ds-registry`:
+Run from `services/db-service`:
 
 | Command | Description |
 |---|---|
@@ -279,14 +279,14 @@ Run from `services/ds-registry`:
 **First run (without Docker):**
 ```bash
 docker-compose -f docker-compose.dev.yml up -d postgres-registry
-cd services/ds-registry
+cd services/db-service
 npm run db:migrate
 npm run db:seed:dev
 ```
 
 **Schema (`schema.ts`) or routes (`routes/api/`) changed:**
 ```bash
-# Inside services/ds-registry
+# Inside services/db-service
 npm run db:generate   # only if schema.ts changed
 npm run db:migrate    # only if schema.ts changed
 
@@ -296,7 +296,7 @@ npm run db:migrate    # only if schema.ts changed
 
 **Reset to a clean state:**
 ```bash
-cd services/ds-registry
+cd services/db-service
 npm run db:reset
 npm run db:migrate
 npm run db:seed:dev
@@ -342,9 +342,9 @@ Skills for keeping the registry's generated artifacts in sync with the schema an
 | Skill | What it does |
 |---|---|
 | `/sync-all` | Runs the four skills below in order |
-| `/sync-validation` | Updates `services/ds-registry/src/validation/schema.ts` |
-| `/sync-routes` | Creates/removes files in `services/ds-registry/src/routes/api/`, updates `routes/index.ts` |
-| `/sync-spec` | Updates `services/ds-registry/src/openapi/spec.ts` |
+| `/sync-validation` | Updates `services/db-service/src/validation/schema.ts` |
+| `/sync-routes` | Creates/removes files in `services/db-service/src/routes/api/`, updates `routes/index.ts` |
+| `/sync-spec` | Updates `services/db-service/src/openapi/spec.ts` |
 | `/sync-api-types` | Regenerates `apps/admin/src/api/openapi.json` and `types.gen.ts` |
 
 ## CI / Deployment
@@ -354,13 +354,13 @@ GitHub Actions in [.github/workflows/](.github/workflows/) build the two fronten
 - [design-system-builder.yml](.github/workflows/design-system-builder.yml) — runs on `master`, builds `apps/client` and `apps/admin` and uploads the dists to the production S3 bucket.
 - [design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same flow for pull requests.
 
-Backend services (`ds-registry`, `ds-generator`, `publisher`, `ds-documentation-generator`) are deployed separately from this repo's CI.
+Backend services (`db-service`, `generator`, `publisher`, `documentation-generator`) are deployed separately from this repo's CI.
 
 ## Documentation
 
 - [docs/database-schema.md](docs/database-schema.md) — registry database schema
 - [docs/component creation.md](docs/database-schema.md) — how to create a component
-- [services/ds-documentation-generator/README.md](services/ds-documentation-generator/README.md) — docs-generator deep-dive
+- [services/documentation-generator/README.md](services/documentation-generator/README.md) — docs-generator deep-dive
 
 ## License
 
