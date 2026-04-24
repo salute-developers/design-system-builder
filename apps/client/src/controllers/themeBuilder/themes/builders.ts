@@ -52,13 +52,15 @@ export const buildTheme = (meta: ThemeMeta, variations: PlatformsVariations, inc
         };
     }, {} as Record<TokenType['type'], Array<TokenType>>);
 
-    const color = createColorTokens(metaGrouped.color, variations.color, includeExtraTokens);
-    const gradient = createGradientTokens(metaGrouped.gradient, variations.gradient, includeExtraTokens);
-    const shadow = createShadowTokens(metaGrouped.shadow, variations.shadow);
-    const shape = createShapeTokens(metaGrouped.shape, variations.shape);
-    const spacing = createSpacingTokens(metaGrouped.spacing, variations.spacing);
-    const typography = createTypographyTokens(metaGrouped.typography, variations.typography);
-    const fontFamily = createFontFamilyTokens(metaGrouped.fontFamily, variations.fontFamily);
+    const byName = <T extends { getName(): string }>(a: T, b: T) => a.getName().localeCompare(b.getName());
+
+    const color = createColorTokens(metaGrouped.color, variations.color, includeExtraTokens).sort(byName);
+    const gradient = createGradientTokens(metaGrouped.gradient, variations.gradient, includeExtraTokens).sort(byName);
+    const shadow = createShadowTokens(metaGrouped.shadow, variations.shadow).sort(byName);
+    const shape = createShapeTokens(metaGrouped.shape, variations.shape).sort(byName);
+    const spacing = createSpacingTokens(metaGrouped.spacing, variations.spacing).sort(byName);
+    const typography = createTypographyTokens(metaGrouped.typography, variations.typography).sort(byName);
+    const fontFamily = createFontFamilyTokens(metaGrouped.fontFamily, variations.fontFamily).sort(byName);
 
     return new Theme(meta.name, meta.version, {
         color,

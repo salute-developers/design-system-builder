@@ -1,11 +1,11 @@
 export const modeList = [
     {
         label: 'Тёмный',
-        value: 0,
+        value: 'dark',
     },
     {
         label: 'Светлый',
-        value: 1,
+        value: 'light',
     },
 ];
 

@@ -26,7 +26,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
     const [color, setColor] = useState<string>('#FFFFFF');
     const [opacity, setOpacity] = useState<number>(1);
 
-    const token = tokens?.[Number(mode.value)];
+    const token = tokens?.find((token) => token.getTags()[0] === mode.value);
 
     const [description, setDescription] = useState<string | undefined>(token?.getDescription());
 
