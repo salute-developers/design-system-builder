@@ -34,7 +34,7 @@ const getAdditionalColorValues = (value: string, themeMode: string, groupName: s
         mode = 'light';
     }
 
-    const restoredValue = getRestoredColorFromPalette(value);
+    const restoredValue = getRestoredColorFromPalette(value, -1);
     const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
     const activeValue = getDefaultStateToken('active');
     const hoverValue = getDefaultStateToken('hover');
@@ -54,6 +54,7 @@ interface AddTokenProps {
 interface DisableTokenProps {
     disabled: boolean;
     tokens?: (Token | unknown)[];
+    theme?: Theme;
     designSystem?: DesignSystem;
 }
 
@@ -163,14 +164,31 @@ export const colorTokenActions: ColorTokenActions = {
             createDraftToken(dsName, dsVersion, hoverToken);
         });
     },
-    disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
+    disableToken: ({ disabled, tokens, theme, designSystem }: DisableTokenProps) => {
         const dsName = designSystem?.getName() || '';
         const dsVersion = designSystem?.getVersion() || '';
 
         (tokens as Token[]).forEach((token) => {
-            // TODO: Подумать про то, надо ли отключать / включать hover и active токены
             token.setEnabled(disabled);
             updateDraftToken(dsName, dsVersion, token, 'toggle');
+
+            if (!theme) {
+                return;
+            }
+
+            const stateTokens = [
+                theme.getToken(`${token.getName()}-hover`, 'color'),
+                theme.getToken(`${token.getName()}-active`, 'color'),
+            ];
+
+            stateTokens.forEach((stateToken) => {
+                if (!stateToken || stateToken.getEnabled() === disabled) {
+                    return;
+                }
+
+                stateToken.setEnabled(disabled);
+                updateDraftToken(dsName, dsVersion, stateToken, 'toggle');
+            });
         });
     },
     updateToken: ({ color, opacity, token, theme, designSystem }: UpdateTokenProps) => {

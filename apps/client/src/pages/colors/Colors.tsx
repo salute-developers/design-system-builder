@@ -46,7 +46,7 @@ export const Colors = () => {
             return;
         }
 
-        colorTokenActions.disableToken({ disabled, tokens, designSystem });
+        colorTokenActions.disableToken({ disabled, tokens, theme, designSystem });
 
         rerender();
     };
