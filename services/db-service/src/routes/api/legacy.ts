@@ -1670,12 +1670,10 @@ router.get("/:name/download-theme", optionalAuthenticate, (req, res) =>
     }
 
     // Формируем zip
-    const projectName = ds.projectName ?? ds.name;
-
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${projectName}.zip"`,
+      `attachment; filename="${ds.name}.zip"`,
     );
 
     const archive = archiver("zip", { zlib: { level: 9 } });
