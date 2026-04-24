@@ -20,7 +20,7 @@ export const getColorsTokens = (theme?: Theme) => {
         .map((item) => {
             return {
                 label: item.getName(),
-                value: getRestoredColorFromPalette(item.getValue('web')),
+                value: getRestoredColorFromPalette(item.getValue('web'), -1),
             };
         });
 };

@@ -178,7 +178,7 @@ export const Debug = (props: DebugProps) => {
         return await designSystemSave(designSystem, theme, components);
     };
 
-    const onUploadTokens = async (event: ChangeEvent<HTMLInputElement>) => {
+    const onImportTokens = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
 
         if (!file || !theme) {
@@ -206,7 +206,7 @@ export const Debug = (props: DebugProps) => {
         }
     };
 
-    const onUploadDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
+    const onImportDesignSystem = async (event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
 
         if (!file) {
@@ -295,13 +295,13 @@ export const Debug = (props: DebugProps) => {
                     text="Импортировать токены (PIXSO)"
                     contentRight={<IconDocumentImportOutline size="s" />}
                     accept=".json"
-                    onFileChange={onUploadTokens}
+                    onFileChange={onImportTokens}
                 />
                 <LinkButton
                     text="Импортировать дизайн систему"
                     contentRight={<IconUploadOutline size="s" />}
                     accept=".zip, .json"
-                    onFileChange={onUploadDesignSystem}
+                    onFileChange={onImportDesignSystem}
                 />
                 <LinkButton
                     text="Скачать дизайн систему"
