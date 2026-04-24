@@ -11,8 +11,10 @@ import {
 } from '../controllers';
 
 import { general } from '@salutejs/plasma-colors';
+import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import { getNormalizedColor } from './color';
+import { getColorAndOpacity, getNormalizedColor, getStateColor } from './color';
+import { sectionToFormulaMap } from '../types';
 
 const buildPaletteMap = (): Map<string, string> => {
     const map = new Map<string, string>();
@@ -120,11 +122,15 @@ const resolveColorValue = (color: string, opacity: string): string => {
     return getPaletteValue(color, opacity) ?? getNormalizedColor(color, parseFloat(opacity));
 };
 
+const normalizeGradientColor = (rawColor: string): string => {
+    const [color, opacity] = getColorAndOpacity(rawColor);
+    return getNormalizedColor(color, opacity);
+};
+
 const linearGradientStopsToCSS = (paint: ImportPaintLinearGradient): string => {
     return paint.gradientStops
         .map((stop) => {
-            const opacity = parseFloat(paint.opacity);
-            const color = getNormalizedColor(stop.color, opacity);
+            const color = normalizeGradientColor(stop.color);
             const position = (parseFloat(stop.stop) * 100).toFixed(1);
 
             return `${color} ${position}%`;
@@ -133,11 +139,9 @@ const linearGradientStopsToCSS = (paint: ImportPaintLinearGradient): string => {
 };
 
 const radialGradientStopsToCSS = (paint: ImportPaintRadialGradient): string => {
-    const opacity = parseFloat(paint.opacity);
-
     return paint.colors
         .map((color, index) => {
-            const normalizedColor = getNormalizedColor(color, opacity);
+            const normalizedColor = normalizeGradientColor(color);
             const position = (parseFloat(paint.locations[index]) * 100).toFixed(1);
 
             return `${normalizedColor} ${position}%`;
@@ -166,22 +170,18 @@ const gradientToWebCSS = (paint: ImportPaintGradient): string => {
 };
 
 const linearGradientToNative = (paint: ImportPaintLinearGradient) => {
-    const opacity = parseFloat(paint.opacity);
-
     return {
         kind: 'linear' as const,
-        colors: paint.gradientStops.map((stop) => getNormalizedColor(stop.color, opacity)),
+        colors: paint.gradientStops.map((stop) => normalizeGradientColor(stop.color)),
         locations: paint.gradientStops.map((stop) => parseFloat(stop.stop)),
         angle: paint.gradientAngle,
     };
 };
 
 const radialGradientToIOSNative = (paint: ImportPaintRadialGradient) => {
-    const opacity = parseFloat(paint.opacity);
-
     return {
         kind: 'radial' as const,
-        colors: paint.colors.map((color) => getNormalizedColor(color, opacity)),
+        colors: paint.colors.map((color) => normalizeGradientColor(color)),
         locations: paint.locations.map((loc) => parseFloat(loc)),
         centerX: paint.centerX,
         centerY: paint.centerY,
@@ -191,11 +191,9 @@ const radialGradientToIOSNative = (paint: ImportPaintRadialGradient) => {
 };
 
 const radialGradientToAndroidNative = (paint: ImportPaintRadialGradient) => {
-    const opacity = parseFloat(paint.opacity);
-
     return {
         kind: 'radial' as const,
-        colors: paint.colors.map((color) => getNormalizedColor(color, opacity)),
+        colors: paint.colors.map((color) => normalizeGradientColor(color)),
         locations: paint.locations.map((loc) => parseFloat(loc)),
         centerX: paint.centerX,
         centerY: paint.centerY,
@@ -254,6 +252,86 @@ const createGradientToken = (style: ImportLocalStyle, paints: ImportPaintGradien
     );
 };
 
+const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
+    const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
+
+    if (!sectionName) {
+        return undefined;
+    }
+
+    let mode = themeMode as ThemeMode;
+
+    if (
+        (themeMode === 'dark' && (subgroupName === 'default' || subgroupName.includes('dark'))) ||
+        (themeMode === 'light' && (subgroupName === 'inverse' || subgroupName.includes('dark')))
+    ) {
+        mode = 'dark';
+    }
+    if (
+        (themeMode === 'dark' && (subgroupName === 'inverse' || subgroupName.includes('light'))) ||
+        (themeMode === 'light' && (subgroupName === 'default' || subgroupName.includes('light')))
+    ) {
+        mode = 'light';
+    }
+
+    const restoredValue = getRestoredColorFromPalette(value, -1);
+    const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
+    const activeValue = getDefaultStateToken('active');
+    const hoverValue = getDefaultStateToken('hover');
+
+    return [activeValue, hoverValue] as const;
+};
+
+const isStateToken = (name: string): boolean => {
+    return name.endsWith('-hover') || name.endsWith('-active');
+};
+
+const generateStateTokens = (name: string, value: string, theme: Theme): void => {
+    const [themeMode, groupName, subgroupName] = name.split('.');
+    const additionalValues = getAdditionalColorValues(value, themeMode, groupName, subgroupName);
+
+    if (!additionalValues) {
+        return;
+    }
+
+    const [activeValue, hoverValue] = additionalValues;
+    const tags = name.split('.');
+
+    const createStateMeta = (postfix: string) => {
+        const stateTags = [...tags];
+        const last = stateTags.pop()!;
+        stateTags.push(last + postfix);
+
+        return {
+            name: stateTags.join('.'),
+            tags: stateTags,
+            displayName: getDisplayName(stateTags.join('.')),
+            enabled: true,
+        };
+    };
+
+    for (const [postfix, stateValue] of [
+        ['-active', activeValue],
+        ['-hover', hoverValue],
+    ] as const) {
+        const stateName = createStateMeta(postfix).name;
+        const existingToken = theme.getToken(stateName, 'color');
+
+        if (existingToken) {
+            existingToken.setValue('web', stateValue);
+            existingToken.setValue('ios', stateValue);
+            existingToken.setValue('android', stateValue);
+        } else {
+            const stateToken = new ColorToken(createStateMeta(postfix), {
+                web: new WebColor(stateValue),
+                ios: new IOSColor(stateValue),
+                android: new AndroidColor(stateValue),
+            });
+            theme.addToken('color', stateToken);
+        }
+    }
+};
+
 export const importTokensToTheme = (data: ImportData, theme: Theme): void => {
     for (const style of data.localStyles) {
         const nameParts = style.name.split('.');
@@ -263,23 +341,29 @@ export const importTokensToTheme = (data: ImportData, theme: Theme): void => {
             continue;
         }
 
+        if (isStateToken(style.name)) {
+            continue;
+        }
+
         const firstPaint = style.paints[0];
 
         if (firstPaint.type === 'color') {
+            const value = resolveColorValue(firstPaint.color, firstPaint.opacity);
+
             const existingToken = theme.getToken(style.name, 'color');
 
             if (existingToken) {
-                const value = resolveColorValue(firstPaint.color, firstPaint.opacity);
-
                 existingToken.setValue('web', value);
                 existingToken.setValue('ios', value);
                 existingToken.setValue('android', value);
-
-                continue;
+            } else {
+                const token = createColorToken(style, firstPaint);
+                theme.addToken('color', token);
             }
 
-            const token = createColorToken(style, firstPaint);
-            theme.addToken('color', token);
+            generateStateTokens(style.name, value, theme);
+
+            continue;
         }
 
         if (firstPaint.type === 'gradient') {
