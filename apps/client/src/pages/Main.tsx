@@ -264,7 +264,13 @@ export const Main = () => {
             />
             {/* TODO: Временно спрячем */}
             {/* {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />} */}
-            <Debug designSystem={designSystem} theme={theme} components={components} rerender={rerender} reload={reload} />
+            <Debug
+                designSystem={designSystem}
+                theme={theme}
+                components={components}
+                rerender={rerender}
+                reload={reload}
+            />
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (

@@ -12,7 +12,7 @@ export const createThemeVars = (theme: Theme, themeMode: any) => {
 
             return {
                 ...acc,
-                [tokenName]: getRestoredColorFromPalette(token.getValue('web')),
+                [tokenName]: getRestoredColorFromPalette(token.getValue('web'), -1),
             };
         }, {});
 };
