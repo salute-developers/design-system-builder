@@ -17,16 +17,12 @@ RUN mkdir -p /home/node/app/node_modules /home/node/.npm && \
 
 WORKDIR /home/node/app
 
-# Копируем package files
 COPY package*.json ./
 
-# Переключаемся на node user перед установкой зависимостей
 USER node
 
-# Устанавливаем зависимости
 RUN npm ci
 
-# Копируем исходный код с правильным владельцем
 COPY --chown=node:node . .
 
 # Порт по умолчанию (может быть переопределен через -e PORT=...)
@@ -34,4 +30,4 @@ ENV PORT=3006
 
 EXPOSE 3006
 
-CMD ["node", "dist/main.js"]
+CMD ["npm", "run", "start:dev"]

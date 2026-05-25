@@ -30,4 +30,4 @@ ENV PORT=3006
 
 EXPOSE 3006
 
-CMD ["node", "dist/main.js"]
+CMD ["npm", "run", "start:dev"]
