@@ -3,7 +3,7 @@
  * Загружает переменные окружения и структурирует их для использования в приложении
  */
 export default () => ({
-  port: parseInt(process.env.PORT, 10) || 3000,
+  port: parseInt(process.env.PORT, 10) || 3006,
   nodeEnv: process.env.NODE_ENV || 'development',
 
   aws: {
