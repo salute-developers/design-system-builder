@@ -163,17 +163,26 @@ const Component = (props: ComponentProps) => {
             <StyledRowParams>
                 <SelectButton items={paletteList} selected={palette} onItemSelect={onPaletteSelect} />
                 {palette.value === 'custom' ? (
-                    <SelectButton items={colorFormatList} selected={colorFormatList[0]} onItemSelect={() => {}} />
+                    <>
+                        <SelectButton items={colorFormatList} selected={colorFormatList[0]} onItemSelect={() => {}} />
+                        <TextField value={value.color} onChange={onColorValueChange} />
+                    </>
                 ) : (
-                    <SelectButton items={accentColors} selected={accent} onItemSelect={onAccentSelect} />
-                )}
-                {palette.value === 'custom' ? (
-                    <TextField value={value.color} onChange={onColorValueChange} />
-                ) : (
-                    <SelectButton items={saturationColors} selected={saturation} onItemSelect={onSaturationSelect} />
+                    <>
+                        <SelectButton
+                            items={saturationColors}
+                            selected={saturation}
+                            onItemSelect={onSaturationSelect}
+                        />
+                        <SelectButton items={accentColors} selected={accent} onItemSelect={onAccentSelect} />
+                    </>
                 )}
             </StyledRowParams>
-            <Slider value={Number(((value.opacity ?? 1) * 100).toFixed(0))} onChange={onSliderValueChange} />
+            <Slider
+                solidBackground="#000000"
+                value={Number(((value.opacity ?? 1) * 100).toFixed(0))}
+                onChange={onSliderValueChange}
+            />
         </StyledLayer>
     );
 };

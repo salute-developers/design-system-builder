@@ -37,7 +37,7 @@ export const StyledWrapper = styled.div`
     justify-content: space-between;
 `;
 
-export const StyledItem = styled.div<{ selected?: boolean }>`
+export const StyledItem = styled.div<{ selected?: boolean; disabled?: boolean }>`
     color: ${textPrimary};
 
     background: ${({ selected }) => (selected ? surfaceTransparentSecondary : 'transparent')};
@@ -56,6 +56,16 @@ export const StyledItem = styled.div<{ selected?: boolean }>`
             }
         `}
 
+    ${({ disabled }) =>
+        disabled &&
+        css`
+            cursor: not-allowed;
+            color: ${textTertiary};
+
+            &:hover {
+                color: ${textTertiary};
+            }
+        `}
+
     ${h6 as CSSObject};
 `;
-

@@ -79,7 +79,9 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
 
     const onSearchValueChange = (value: string) => {
         setSearchValue(value);
-        setInnerItems(externalItems.filter((item) => item.label?.toLowerCase().includes(value.toLowerCase())));
+        setInnerItems(
+            externalItems.filter((item) => (item.label as string)?.toLowerCase().includes(value.toLowerCase())),
+        );
     };
 
     useEffect(() => {
@@ -97,7 +99,7 @@ export const SelectButton = forwardRef<HTMLDivElement, SelectButtonProps>((props
                 <StyledTrigger onClick={onTriggerClick} color={contrastColor}>
                     <StyledTigerText>{triggerText}</StyledTigerText>
                     <StyledContentRight>
-                        <StyledIconArrowsMoveVertical color="inherit" />
+                        <StyledIconArrowsMoveVertical size="xs" color="inherit" />
                     </StyledContentRight>
                 </StyledTrigger>
                 {opened && (

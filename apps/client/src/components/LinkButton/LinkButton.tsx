@@ -1,4 +1,4 @@
-import { ChangeEvent, HTMLAttributes, ReactNode, useRef } from 'react';
+import { ChangeEvent, HTMLAttributes, MouseEvent, ReactNode, useRef } from 'react';
 
 import { StyledResetTokeValuesButton } from './LinkButton.styles';
 
@@ -7,7 +7,7 @@ interface LinkButtonProps extends HTMLAttributes<HTMLDivElement> {
     contentLeft?: ReactNode;
     contentRight?: ReactNode;
     accept?: string;
-    onClick?: () => void;
+    onClick?: (event: MouseEvent<HTMLDivElement>) => void;
     onFileChange?: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -16,14 +16,14 @@ export const LinkButton = (props: LinkButtonProps) => {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const handleClick = () => {
+    const handleClick = (event: MouseEvent<HTMLDivElement>) => {
         if (onFileChange) {
             inputRef.current?.click();
             return;
         }
 
         if (onClick) {
-            onClick();
+            onClick(event);
         }
     };
 
@@ -41,7 +41,7 @@ export const LinkButton = (props: LinkButtonProps) => {
             {contentRight}
             {onFileChange && (
                 <input
-                    type="file" 
+                    type="file"
                     ref={inputRef}
                     accept={accept}
                     style={{ display: 'none' }}

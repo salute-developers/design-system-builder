@@ -1,26 +1,23 @@
 import styled from 'styled-components';
-import { backgroundSecondary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 export const Root = styled.div`
     z-index: 999999;
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 
-    transition: background 0.2s ease-in-out;
+    transform: translate(-50%, -50%);
+    top: 50%;
+    left: 50%;
 `;
 
-export const Dialog = styled.div`
-    background: ${backgroundSecondary};
-    border-radius: 0.75rem;
-    padding: 1.5rem;
-    min-width: 24rem;
+export const Wrapper = styled.div`
+    background: var(--surface-general-card);
+    box-shadow: var(--shadow-center-hard-m);
+
+    border-radius: 0.625rem;
+    border: var(--border-radius-xxxs) solid var(--outline-transparent-primary);
+
     display: flex;
     flex-direction: column;
-    gap: 1rem;
 `;
 
 export const DialogTitle = styled.h3`

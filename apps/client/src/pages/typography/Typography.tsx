@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { getMenuItems } from '../../utils';
+import { getOldMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
 import { DesignSystem, Theme, Token } from '../../controllers';
-import { Menu, Workspace } from '../../layouts';
+import { MenuOld, Workspace } from '../../layouts';
 import { typographyTokenActions } from '../../actions';
 
 import { TokenTypographyEditor } from './features/TokenTypographyEditor';
@@ -23,7 +22,7 @@ export const Typography = () => {
     const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu([0, 1, 0]);
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getMenuItems(theme, 'typography'), [theme, updated]);
+    const data = useMemo(() => getOldMenuItems(theme, 'typography'), [theme, updated]);
 
     const onTokenAdd = (groupName: string, tokenName: string, _?: string, tokens?: (Token | unknown)[]) => {
         typographyTokenActions.addToken({ groupName, tokenName, tokens, theme, designSystem });
@@ -54,9 +53,9 @@ export const Typography = () => {
 
     return (
         <Workspace
-            menuBackground={backgroundTertiary}
+            menuBackground={'transparent'}
             menu={
-                <Menu
+                <MenuOld
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
@@ -67,12 +66,7 @@ export const Typography = () => {
                 />
             }
             content={
-                <TokenTypographyEditor
-                    designSystem={designSystem}
-                    theme={theme}
-                    tokens={tokens}
-                    rerender={rerender}
-                />
+                <TokenTypographyEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />
             }
         />
     );

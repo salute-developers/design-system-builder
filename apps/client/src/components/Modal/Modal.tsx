@@ -1,33 +1,55 @@
-import { Fragment } from 'react';
-
-import { Dialog, DialogActions, DialogTitle } from './Modal.styles';
+import { useEffect } from 'react';
+import { Wrapper } from './Modal.styles';
 import { Root } from './Modal.styles';
 
 interface ModalProps {
-    title?: string;
+    opened: boolean;
     children: React.ReactNode;
-    actions: React.ReactNode[];
-    onClickOutside?: () => void;
+    anchor?: HTMLElement;
+    anchorOffsetX?: number;
+    anchorOffsetY?: number;
+    onClose: () => void;
 }
 
 export const Modal = (props: ModalProps) => {
-    const { title, children, actions, onClickOutside, ...rest } = props;
+    const { opened, children, anchor, anchorOffsetX, anchorOffsetY, onClose, ...rest } = props;
 
     const onDialogClick = (e: React.MouseEvent) => {
         e.stopPropagation();
     };
 
+    useEffect(() => {
+        if (!opened) {
+            return;
+        }
+
+        document.addEventListener('click', onClose);
+
+        return () => {
+            document.removeEventListener('click', onClose);
+        };
+    }, [opened, onClose]);
+
+    if (!opened) {
+        return null;
+    }
+
+    const rootStyle = anchor
+        ? {
+              position: 'fixed' as const,
+              top: anchor.getBoundingClientRect().top + (anchorOffsetY ?? 0),
+              left: anchor.getBoundingClientRect().right + (anchorOffsetX ?? 0),
+              transform: 'none',
+          }
+        : undefined;
+
+    console.log('anchorRect', anchor);
+
     return (
-        <Root onClick={onClickOutside} {...rest}>
-            <Dialog onClick={onDialogClick}>
-                <DialogTitle>{title}</DialogTitle>
+        <Root style={rootStyle}>
+            <Wrapper onClick={onDialogClick} {...rest}>
                 {children}
-                <DialogActions>
-                    {actions.map((action, index) => (
-                        <Fragment key={index}>{action}</Fragment>
-                    ))}
-                </DialogActions>
-            </Dialog>
+            </Wrapper>
         </Root>
     );
 };

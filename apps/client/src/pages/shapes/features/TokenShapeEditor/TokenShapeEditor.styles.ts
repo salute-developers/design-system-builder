@@ -1,11 +1,10 @@
 import styled from 'styled-components';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { LinkButton } from '../../../../components';
 
 export const Root = styled.div`
     height: 100%;
-    background: ${backgroundTertiary};
+    background: transparent;
 
     display: flex;
 `;
@@ -28,6 +27,8 @@ export const StyledSetup = styled.div`
     // overflow-y: scroll;
     // overflow-x: hidden;
 
+    border-right: 0.03125rem solid var(--inverse-outline-transparent-primary);
+f
     display: flex;
     flex-direction: column;
     gap: 0.75rem;

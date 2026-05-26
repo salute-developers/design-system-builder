@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-import { getMenuItems } from '../../utils';
+import { getOldMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
 import { DesignSystem, Theme, Token } from '../../controllers';
-import { Menu, Workspace } from '../../layouts';
+import { MenuOld, Workspace } from '../../layouts';
 import { shapeTokenActions } from '../../actions';
 
 import { TokenShapeEditor } from './features/TokenShapeEditor';
@@ -23,7 +23,7 @@ export const Shapes = () => {
     const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
 
     const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getMenuItems(theme, 'shape'), [theme, updated]);
+    const data = useMemo(() => getOldMenuItems(theme, 'shape'), [theme, updated]);
 
     const onTokenAdd = (_: string, tokenName: string, __?: string, tokens?: (Token | unknown)[]) => {
         shapeTokenActions.addToken({ tokenName, tokens, theme, designSystem });
@@ -54,9 +54,9 @@ export const Shapes = () => {
 
     return (
         <Workspace
-            menuBackground={backgroundTertiary}
+            menuBackground={'transparent'}
             menu={
-                <Menu
+                <MenuOld
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}

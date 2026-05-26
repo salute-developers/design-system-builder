@@ -1,13 +1,8 @@
 import styled, { css } from 'styled-components';
-import {
-    inverseTextPrimary,
-    surfaceSolidDefault,
-    textParagraph,
-    textPrimary,
-} from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { textParagraph, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-export const Root = styled.div<{ selected?: boolean; disabled?: boolean }>`
-    border-radius: 50%;
+export const Root = styled.div<{ selected?: boolean; disabled?: boolean; size?: 's' | 'm' }>`
+    border-radius: 0.5rem;
 
     display: flex;
     align-items: center;
@@ -15,8 +10,8 @@ export const Root = styled.div<{ selected?: boolean; disabled?: boolean }>`
     width: 1rem;
     height: 1rem;
 
-    background: ${surfaceSolidDefault};
-    color: ${inverseTextPrimary};
+    background: var(--surface-transparent-secondary);
+    color: var(--text-general-primary);
 
     ${({ selected }) =>
         !selected &&
@@ -41,4 +36,3 @@ export const Root = styled.div<{ selected?: boolean; disabled?: boolean }>`
             }
         `}
 `;
-

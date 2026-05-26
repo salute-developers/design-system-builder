@@ -1,7 +1,9 @@
 import styled, { css, CSSObject } from 'styled-components';
-import { bodyM, bodyXS } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { bodyM } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
-export const Root = styled.div<{ backgroundColor?: string; color?: string; size?: 'l' | 'm' }>`
+import { h6 } from '../../utils';
+
+export const Root = styled.div<{ backgroundColor?: string; textColor?: string; size?: 'l' | 'm' }>`
     position: relative;
     z-index: 999;
 
@@ -21,20 +23,21 @@ export const Root = styled.div<{ backgroundColor?: string; color?: string; size?
             ${bodyM as CSSObject};
 
             padding: 1.125rem 1.5rem 1.125rem 1.75rem;
-            border-radius: 2.5rem;
+            border-radius: 0.375rem;
         `}
 
     ${({ size }) =>
         size === 'm' &&
         css`
-            ${bodyXS as CSSObject};
+            ${h6 as CSSObject};
 
-            padding: 0.5rem 1.125rem;
-            border-radius: 2.625rem;
+            padding: 0.25rem 0.625rem;
+            border-radius: 0.375rem;
         `}
 
-    background: ${({ backgroundColor }) => backgroundColor};
-    color: ${({ color }) => color};
+    background: ${({ backgroundColor }) =>
+        backgroundColor ? backgroundColor : 'var(--surface-transparent-secondary)'};
+    color: ${({ textColor }) => (textColor ? textColor : '#ffffff')};
 
     transition: transform 0.1s ease-in-out;
 

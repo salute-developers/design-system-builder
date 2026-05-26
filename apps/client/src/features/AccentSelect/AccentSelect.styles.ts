@@ -80,4 +80,3 @@ export const StyledItem = styled.div<{ color: string }>`
         }
     }
 `;
-

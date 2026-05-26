@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useState } from 'react';
+import { ChangeEvent, MouseEvent, useCallback, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import {
     IconSave,
@@ -10,7 +10,7 @@ import {
     IconTrashOutline,
 } from '@salutejs/plasma-icons';
 
-import { BasicButton, LinkButton, Modal, Switch, TextField } from '../components';
+import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../components';
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
 import { importTokensToTheme, importDesignSystem, btoaUtf8, clearDraft } from '../utils';
 import { Parameters } from '../types';
@@ -151,7 +151,9 @@ export const Debug = (props: DebugProps) => {
         return await generateAndDeployDocumentation(designSystem);
     };
 
-    const onClearDraftClick = () => {
+    const onClearDraftClick = (event: MouseEvent<HTMLDivElement>) => {
+        event.stopPropagation();
+
         setIsClearDraftDialogOpen(true);
     };
 
@@ -258,6 +260,8 @@ export const Debug = (props: DebugProps) => {
         setImportDialogData(null);
     };
 
+    console.log('isClearDraftDialogOpen', isClearDraftDialogOpen);
+
     return (
         <>
             <Root>
@@ -309,22 +313,22 @@ export const Debug = (props: DebugProps) => {
                     onClick={withLoading(onDesignSystemDownload)}
                 />
             </Root>
-            {isClearDraftDialogOpen && (
-                <Modal
-                    title="Очистить черновик"
-                    onClickOutside={onClearDraftCancel}
-                    actions={[
-                        <BasicButton text="Отмена" backgroundColor="transparent" onClick={onClearDraftCancel} />,
-                        <BasicButton text="Очистить" onClick={onClearDraftConfirm} />,
-                    ]}
-                >
-                    Все несохранённые изменения будут потеряны. Продолжить?
-                </Modal>
-            )}
+            <Dialog
+                opened={isClearDraftDialogOpen}
+                title="Очистить черновик"
+                onClose={onClearDraftCancel}
+                actions={[
+                    <BasicButton text="Отмена" onClick={onClearDraftCancel} />,
+                    <BasicButton text="Очистить" backgroundColor="#D13535" onClick={onClearDraftConfirm} />,
+                ]}
+            >
+                Все несохранённые изменения будут потеряны. Продолжить?
+            </Dialog>
             {importDialogData && (
-                <Modal
+                <Dialog
+                    opened={Boolean(importDialogData)}
                     title="Импортировать дизайн систему"
-                    onClickOutside={onImportCancel}
+                    onClose={onImportCancel}
                     actions={[
                         <BasicButton text="Отмена" backgroundColor="transparent" onClick={onImportCancel} />,
                         <BasicButton text="Импортировать" onClick={onImportConfirm} />,
@@ -348,7 +352,7 @@ export const Debug = (props: DebugProps) => {
                         hasBackground
                         onChange={(value) => setCustomName(value)}
                     />
-                </Modal>
+                </Dialog>
             )}
         </>
     );

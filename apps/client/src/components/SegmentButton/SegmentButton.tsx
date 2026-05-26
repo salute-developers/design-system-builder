@@ -1,16 +1,9 @@
 import { forwardRef, HTMLAttributes } from 'react';
 
 import { Root, StyledLabel, StyledWrapper, StyledItem } from './SegmentButton.styles';
+import { DropdownItem } from '../Dropdown';
 
-export type SegmentButtonItem =
-    | {
-          value: number;
-          label: string;
-      }
-    | {
-          value: string;
-          label: string;
-      };
+export type SegmentButtonItem = DropdownItem;
 
 interface SegmentButtonProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> {
     label?: string;
@@ -23,6 +16,10 @@ export const SegmentButton = forwardRef<HTMLDivElement, SegmentButtonProps>((pro
     const { label, items, selected, onSelect, ...rest } = props;
 
     const onClick = (value: SegmentButtonItem) => {
+        if (value.disabled) {
+            return;
+        }
+
         if (onSelect) {
             onSelect(value);
         }
@@ -36,6 +33,7 @@ export const SegmentButton = forwardRef<HTMLDivElement, SegmentButtonProps>((pro
                     <StyledItem
                         key={item.value}
                         selected={selected?.value === item.value}
+                        disabled={item.disabled}
                         onClick={() => onClick(item)}
                     >
                         {item.label}
@@ -45,4 +43,3 @@ export const SegmentButton = forwardRef<HTMLDivElement, SegmentButtonProps>((pro
         </Root>
     );
 });
-
