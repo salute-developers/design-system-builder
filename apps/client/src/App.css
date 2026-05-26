@@ -6,6 +6,7 @@ body {
 * {
     font-family: 'Inter', Helvetica, Arial, sans-serif !important;
 
+    --border-radius-s: 0.5rem;
     --border-radius-xxxs: 0.03125rem;
 
     --shadow-center-hard-m: 0 3.75rem 7rem -0.5rem rgba(0, 0, 0, 0.4);
