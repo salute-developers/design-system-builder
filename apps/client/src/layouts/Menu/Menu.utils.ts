@@ -1,11 +1,51 @@
-import { Config, Token } from '../../controllers';
-import { GroupData } from '../../types';
+import { Token } from '../../controllers';
+import { GroupNode, TokenNode } from '../../types';
 import { isDraftAddedToken } from '../../utils';
 
-export const getDefaultDisabledGroups = (groupsData: GroupData[]) => {
-    return groupsData.reduce((acc, group) => {
-        if (group.items.every(({ disabled }) => disabled)) {
-            acc.push(group.name);
+export interface MenuItemArgs {
+    groupName: string;
+    itemName: string;
+    groupIndex: number;
+    itemIndex: number;
+    items: Token[];
+    disabled: boolean;
+}
+
+export const tokenFilterList = [
+    { value: 'all', label: 'Все', disabled: false },
+    { value: 'added', label: 'Добавленные', disabled: false },
+    { value: 'changed', label: 'Изменённые', disabled: false },
+    { value: 'hidden', label: 'Скрытые', disabled: false },
+    { value: 'deleted', label: 'Удалённые', disabled: true },
+] as const;
+
+export type TokenFilterValue = (typeof tokenFilterList)[number]['value'];
+
+export const validateFilterList = [
+    { value: 'all', label: 'Все', disabled: false },
+    { value: 'errors', label: 'Ошибки', disabled: true },
+    { value: 'warnings', label: 'Предупреждения', disabled: true },
+] as const;
+
+export type ValidateFilterValue = (typeof validateFilterList)[number]['value'];
+
+export const flattenTokenLeaves = (tokenNode: TokenNode) =>
+    tokenNode.data.flatMap((subgroupNode) => subgroupNode.data.map((modeNode) => modeNode.data));
+
+export const isTokenDisabled = (tokenNode: TokenNode) => flattenTokenLeaves(tokenNode).every((leaf) => !leaf.enabled);
+
+export const getTokenItems = (tokenNode: TokenNode) =>
+    flattenTokenLeaves(tokenNode).map((leaf) => leaf.item) as Token[];
+
+export const getTokenPreviewValues = (tokenNode: TokenNode) =>
+    flattenTokenLeaves(tokenNode)
+        .filter((leaf) => leaf.item.getTags()?.[2] === 'default')
+        .map((leaf) => leaf.value);
+
+export const getDefaultDisabledGroups = (groups: GroupNode[]) => {
+    return groups.reduce((acc, group) => {
+        if (group.data.every((tokenNode) => isTokenDisabled(tokenNode))) {
+            acc.push(group.group);
         }
 
         return acc;
@@ -21,24 +61,23 @@ export const canShowTooltip = (name: string, isDisabled: boolean) => {
     return name.length >= maxChars;
 };
 
-export const isGroupChanged = (items: { data: (Token | Config)[] }[]) => {
-    return items.some(({ data }) => isTokenChanged(data));
+export const isGroupChanged = (tokenNodes: TokenNode[]) => {
+    return tokenNodes.some((tokenNode) => isTokenChanged(getTokenItems(tokenNode)));
 };
 
-export const isTokenChanged = (items: (Token | Config)[]) => {
-    // TODO: Подумать, можно ли сделать по-другому
-    if (!items.length || items[0] === undefined || items[0] instanceof Config) {
+export const isTokenChanged = (items: Token[]) => {
+    if (!items.length || items[0] === undefined) {
         return false;
     }
 
-    if ((items as Token[]).some((item) => isDraftAddedToken(item.getName()))) {
+    if (items.some((item) => isDraftAddedToken(item.getName()))) {
         return true;
     }
 
     const platforms = Object.keys(items[0].getPlatforms());
 
     for (const platform of platforms) {
-        return (items as Token[]).some(
+        return items.some(
             (item) =>
                 JSON.stringify(item.getDefaultValue(platform)) !== JSON.stringify(item.getValue(platform)) ||
                 item.getDefaultDescription() !== item.getDescription(),

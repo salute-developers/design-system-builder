@@ -141,6 +141,36 @@ export const updateDraftToken = (
     }
 };
 
+export const renameDraftToken = (dsName: string, dsVersion: string, oldName: string, token: Token) => {
+    const newName = token.getName();
+    const changes = loadDraftChanges(dsName, dsVersion);
+
+    delete changes[oldName];
+
+    if (draftAddedTokens.has(oldName)) {
+        draftAddedTokens.delete(oldName);
+        draftAddedTokens.add(newName);
+    }
+
+    changes[newName] = {
+        type: token.getType(),
+        values: {
+            web: token.getValue('web'),
+            ios: token.getValue('ios'),
+            android: token.getValue('android'),
+        },
+        description: token.getDescription(),
+        enabled: token.getEnabled(),
+        meta: {
+            name: newName,
+            tags: token.getTags(),
+            displayName: token.getDisplayName(),
+        },
+    };
+
+    saveDraftChanges(dsName, dsVersion, changes);
+};
+
 export const createDraftToken = (dsName: string, dsVersion: string, token: Token) => {
     const tokenName = token.getName();
     const changes = loadDraftChanges(dsName, dsVersion);

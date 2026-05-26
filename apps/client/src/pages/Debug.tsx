@@ -260,8 +260,6 @@ export const Debug = (props: DebugProps) => {
         setImportDialogData(null);
     };
 
-    console.log('isClearDraftDialogOpen', isClearDraftDialogOpen);
-
     return (
         <>
             <Root>
