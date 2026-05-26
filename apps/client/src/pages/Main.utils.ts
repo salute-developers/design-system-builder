@@ -1,7 +1,7 @@
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 
-import { GrayTone } from '../types';
+import { GrayTone, Parameters } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
 import { getNpmMeta } from '../api';
 import { btoaUtf8 } from '../utils/other';
@@ -12,6 +12,17 @@ export const popupContentPages = {
     CREATION_PROGRESS: 'CREATION_PROGRESS',
     PUBLISH_PROGRESS: 'PUBLISH_PROGRESS',
 } as const;
+
+export const defaultParameters: Parameters = {
+    projectName: '',
+    packagesName: '',
+    accentColor: 'blue',
+    grayTone: 'warmGray',
+    darkFillSaturation: 50,
+    darkStrokeSaturation: 50,
+    lightFillSaturation: 50,
+    lightStrokeSaturation: 50,
+};
 
 const VITE_GENERATOR_API = import.meta.env.VITE_GENERATOR_API;
 const VITE_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DOCUMENTATION_GENERATOR_API;

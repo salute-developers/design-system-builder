@@ -1,40 +1,35 @@
-import { useLayoutEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 import {
-    IconHomeAltOutline,
-    IconTree,
     IconArrowLeft,
     IconGroupOutline,
-    IconProfileCrossOutline,
+    IconFolderOutline,
+    IconEducationOutline,
+    IconBookOutline,
+    IconLogout,
 } from '@salutejs/plasma-icons';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { transliterateToSnakeCase, hasDraft } from '../utils';
-import {
-    IconBookOpenOutline,
-    IconColorSwatchOutline,
-    IconPaletteOutline,
-    IconShapeOutline,
-    IconTypography,
-} from '../icons';
+import { transliterateToSnakeCase, convertColor } from '../utils';
+import { IconDesignSystemLogo, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
-import { IconButton } from '../components';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
 import { Debug } from './Debug';
-// import { getNpmMeta } from '../api';
 
-import { popupContentPages } from './Main.utils';
+import { defaultParameters, popupContentPages } from './Main.utils';
 import {
-    BuilderExpandedItems,
     BuilderItems,
+    Logo,
+    LogoGradient,
     MainItems,
     Panel,
     Root,
-    StyledBasicButton,
+    Separator,
+    StyledIconButton,
     StyledPopup,
 } from './Main.styles';
 
@@ -42,28 +37,24 @@ export const Main = () => {
     const navigate = useNavigate();
     const currentPath = useLocation().pathname.split('/').filter(Boolean);
 
-    // TODO: Временное решение для обновления и отображения кнопки "Опубликовать"
+    // TODO: Временное решение для обновления
     const [updated, rerender] = useForceRerender();
 
     const isEditingDesignSystem = !['/', '/drafts'].includes(useLocation().pathname);
-
-    const [showTokensPanelItems, setShowTokensPanelItems] = useState(currentPath.includes('colors') ? true : false);
 
     const [isPopupOpen, setIsPopupOpen] = useState(false);
     const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
         popupContentPages.CREATE_FIRST_NAME,
     );
 
-    const [isOverviewEnabled, setIsOverviewEnabled] = useState(true);
-
     const isHome = !isPopupOpen && currentPath.length === 0;
 
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
 
-    const [parameters, setParameters] = useState<Partial<Parameters>>({});
+    const [parameters, setParameters] = useState<Parameters>(defaultParameters);
 
-    const { accentColor = 'blue', darkFillSaturation = 50 } = parameters;
+    const { accentColor, darkFillSaturation } = parameters;
 
     const { designSystemName, designSystemVersion } = useParams();
     const { designSystem, theme, components, reload } = useDesignSystem(designSystemName, designSystemVersion);
@@ -84,7 +75,7 @@ export const Main = () => {
     };
 
     const onResetParameters = () => {
-        setParameters({});
+        setParameters(defaultParameters);
         setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
     };
 
@@ -131,13 +122,6 @@ export const Main = () => {
         onPopupClose();
         onClickPanelButton('');
         rerender(null);
-        // setIsOverviewEnabled(false);
-    };
-
-    const onPublishButtonClick = async () => {
-        setIsPopupOpen(true);
-        setPopupContentPage(popupContentPages.PUBLISH_PROGRESS);
-        rerender(null);
     };
 
     const onPublishComplete = () => {
@@ -152,104 +136,82 @@ export const Main = () => {
         navigate('/login');
     };
 
-    useLayoutEffect(() => {
-        const showPanelItems = ['colors', 'typography', 'shapes'].some((item) => currentPath.includes(item));
+    const mainColor = useMemo(() => {
+        if (!designSystem) {
+            return '#FFFFFF';
+        }
 
-        setShowTokensPanelItems(showPanelItems);
-    }, [currentPath]);
+        const accentColor = designSystem.getParameters()?.accentColor || parameters.accentColor;
+        const darkFillSaturation = designSystem.getParameters()?.darkFillSaturation || parameters.darkFillSaturation;
+        const hexColor = general[accentColor][darkFillSaturation];
 
-    // // TODO: Временное решение, потом забирать из бд
-    // useLayoutEffect(() => {
-    //     if (!designSystem) {
-    //         return;
-    //     }
+        const rgbColor = convertColor(hexColor).rgb;
 
-    //     const getPackagePublished = async () => {
-    //         const packagesName = designSystem.getParameters()?.packagesName;
-    //         const result = await getNpmMeta(`@salutejs-ds/${packagesName}`);
-
-    //         if ('versions' in result) {
-    //             setIsOverviewEnabled(true);
-    //             return;
-    //         }
-    //     };
-
-    //     getPackagePublished();
-    // }, [designSystem]);
-
-    // TODO: Временное решение для показа/скрытия панели компонентов для определённых пользователей
-    const showComponentPanelItems = !localStorage.getItem('login')?.includes('sdds_finai');
-
-    const showPublishButton =
-        !isHome && designSystemName && designSystemVersion && hasDraft(designSystemName, designSystemVersion);
+        return rgbColor.replace(/rgb\((\d+), (\d+), (\d+)\)/, '$1, $2, $3');
+    }, [designSystem]);
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
+            {isEditingDesignSystem && <LogoGradient color={mainColor} />}
             <Panel>
-                <MainItems>
-                    <IconButton selected={isHome} onClick={onHomeClick}>
-                        {isPopupOpen ? (
-                            <IconArrowLeft size="xs" color="inherit" />
-                        ) : (
-                            <IconHomeAltOutline size="xs" color="inherit" />
-                        )}
-                    </IconButton>
-                    <IconButton disabled>
-                        <IconTree size="xs" color="inherit" />
-                    </IconButton>
-                </MainItems>
                 {isEditingDesignSystem && (
-                    <BuilderItems>
-                        <IconButton
-                            disabled={!isOverviewEnabled}
-                            selected={currentPath.includes('overview')}
-                            onClick={() => onClickPanelButton('overview')}
-                        >
-                            <IconBookOpenOutline size="xs" color="inherit" />
-                        </IconButton>
-
-                        {!showTokensPanelItems && (
-                            <IconButton onClick={() => onClickPanelButton('colors')}>
-                                <IconColorSwatchOutline size="xs" color="inherit" />
-                            </IconButton>
-                        )}
-
-                        {showTokensPanelItems && (
-                            <BuilderExpandedItems>
-                                <IconButton
+                    <Logo color={mainColor}>
+                        <IconDesignSystemLogo color="inherit" />
+                    </Logo>
+                )}
+                <BuilderItems>
+                    <MainItems>
+                        <StyledIconButton selected={isHome} onClick={onHomeClick}>
+                            {isPopupOpen ? (
+                                <IconArrowLeft size="xs" color="inherit" />
+                            ) : (
+                                <IconFolderOutline size="xs" color="inherit" />
+                            )}
+                        </StyledIconButton>
+                        {isEditingDesignSystem && (
+                            <>
+                                <StyledIconButton
                                     selected={currentPath.includes('colors')}
                                     onClick={() => onClickPanelButton('colors')}
                                 >
                                     <IconPaletteOutline size="xs" color="inherit" />
-                                </IconButton>
-                                <IconButton
+                                </StyledIconButton>
+                                <StyledIconButton
                                     selected={currentPath.includes('typography')}
                                     onClick={() => onClickPanelButton('typography')}
                                 >
                                     <IconTypography size="xs" color="inherit" />
-                                </IconButton>
-                                <IconButton
+                                </StyledIconButton>
+                                <StyledIconButton
                                     selected={currentPath.includes('shapes')}
                                     onClick={() => onClickPanelButton('shapes')}
                                 >
                                     <IconShapeOutline size="xs" color="inherit" />
-                                </IconButton>
-                            </BuilderExpandedItems>
+                                </StyledIconButton>
+                                <StyledIconButton
+                                    selected={currentPath.includes('components')}
+                                    onClick={() => onClickPanelButton('components')}
+                                >
+                                    <IconGroupOutline size="xs" color="inherit" />
+                                </StyledIconButton>
+                                <Separator />
+                                <StyledIconButton
+                                    selected={currentPath.includes('overview')}
+                                    onClick={() => onClickPanelButton('overview')}
+                                >
+                                    <IconEducationOutline size="xs" color="inherit" />
+                                </StyledIconButton>
+                                <StyledIconButton disabled>
+                                    <IconBookOutline size="xs" color="inherit" />
+                                </StyledIconButton>
+                            </>
                         )}
+                    </MainItems>
 
-                        {showComponentPanelItems && (
-                            <IconButton
-                                selected={currentPath.includes('components')}
-                                onClick={() => onClickPanelButton('components')}
-                            >
-                                <IconGroupOutline size="xs" color="inherit" />
-                            </IconButton>
-                        )}
-                    </BuilderItems>
-                )}
-                <IconButton style={{ padding: '0.75rem' }} onClick={handleSignOut}>
-                    <IconProfileCrossOutline size="xs" color="inherit" />
-                </IconButton>
+                    <StyledIconButton onClick={handleSignOut}>
+                        <IconLogout size="xs" color="inherit" />
+                    </StyledIconButton>
+                </BuilderItems>
             </Panel>
             <Outlet
                 context={{
@@ -262,8 +224,6 @@ export const Main = () => {
                     onDesignSystemCreate,
                 }}
             />
-            {/* TODO: Временно спрячем */}
-            {/* {showPublishButton && <StyledBasicButton text="Опубликовать" onClick={onPublishButtonClick} />} */}
             <Debug
                 designSystem={designSystem}
                 theme={theme}
