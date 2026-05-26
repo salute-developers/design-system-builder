@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef } from 'react';
 
 import { Root, StyledBeforeList, StyledItem, StyledItemText, StyledContentRight } from './Dropdown.styles';
 
-export interface DropdownItem<T extends string = string, U extends string = string> {
+export interface DropdownItem<T extends string = string, U extends ReactNode = ReactNode> {
     value: T;
     label?: U;
     disabled?: boolean;

@@ -1,8 +1,6 @@
 import styled, { CSSObject } from 'styled-components';
 import { IconArrowsMoveVertical, IconSearch } from '@salutejs/plasma-icons';
 import {
-    onDarkTextPrimary,
-    onLightTextPrimary,
     surfaceTransparentSecondary,
     textPrimary,
     textSecondary,
@@ -85,16 +83,13 @@ export const StyledTigerText = styled.div`
 
 export const StyledContentRight = styled.div`
     color: inherit;
-    width: 0.75rem;
-    height: 0.75rem;
-
     display: flex;
     align-items: center;
-    justify-content: center;
 `;
 
 export const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem;
+    height: 0.75rem;
 `;
 
 export const StyledIconSearch = styled(IconSearch)`
@@ -107,4 +102,3 @@ export const StyledTextField = styled(TextField)`
     // TODO: заменить на токен
     border-bottom: 0.0625rem solid rgba(247, 248, 251, 0.04);
 `;
-

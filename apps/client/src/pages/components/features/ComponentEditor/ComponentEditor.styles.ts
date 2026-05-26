@@ -1,9 +1,8 @@
 import styled from 'styled-components';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 export const Root = styled.div`
     height: 100%;
-    background: ${backgroundTertiary};
+    background: transparent;
 
     display: flex;
 `;
@@ -13,6 +12,8 @@ export const StyledSetup = styled.div`
     padding: 0.75rem 1.25rem;
 
     min-width: 33.75rem;
+
+    border-right: 0.03125rem solid var(--inverse-outline-transparent-primary);
 
     display: flex;
     flex-direction: column;

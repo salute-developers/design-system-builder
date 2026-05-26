@@ -60,4 +60,3 @@ export const EditButton = forwardRef<HTMLDivElement, EditButtonProps>((props, re
         </Root>
     );
 });
-

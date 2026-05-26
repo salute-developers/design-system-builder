@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { useSelectItemInMenu } from '../../hooks';
-import { getMenuItems } from '../../utils';
+import { getOldMenuItems } from '../../utils';
 import { DesignSystem, Theme, Config } from '../../controllers';
-import { Menu, Workspace } from '../../layouts';
+import { MenuOld, Workspace } from '../../layouts';
 
 import { ComponentEditor } from './features/ComponentEditor';
 interface ComponentsOutletContextProps {
@@ -22,7 +21,7 @@ export const Components = () => {
     const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu([0, 1, 3]);
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
-    const data = useMemo(() => getMenuItems(components, 'components'), [theme]);
+    const data = useMemo(() => getOldMenuItems(components, 'components'), [theme]);
 
     useEffect(() => {
         if (!data) {
@@ -41,9 +40,9 @@ export const Components = () => {
 
     return (
         <Workspace
-            menuBackground={backgroundTertiary}
+            menuBackground={'transparent'}
             menu={
-                <Menu
+                <MenuOld
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}

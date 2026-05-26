@@ -15,4 +15,3 @@ export const StyledProgress = styled.div<{ color?: string; value: number }>`
 
     transition: width 0.2s ease-in-out;
 `;
-
