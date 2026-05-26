@@ -1,0 +1,81 @@
+name: Deploy front apps to DEV
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/prepare-environment
+
+      - name: Prepare directory build
+        run: mkdir -p s3_build
+
+      # TODO: https://github.com/salute-developers/plasma/issues/255
+      - name: Npm install
+        run: |
+          npm install --prefix="./apps/client"
+
+      - name: Build client
+        env:
+          VITE_GENERATOR_API: ${{ vars.VITE_GENERATOR_API_DEV }}
+          VITE_DOCUMENTATION_GENERATOR_API: ${{ vars.VITE_DOCUMENTATION_GENERATOR_API_DEV }}
+          VITE_DB_SERVICE_API: ${{ vars.VITE_DB_SERVICE_API_DEV }}
+          VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
+          BASE_URL: '/design-system-builder/'
+        run: |
+          export NODE_OPTIONS=--openssl-legacy-provider
+          npm run build --prefix="./apps/client"
+          cp -R ./apps/client/dist ./s3_build/client
+
+      - name: Npm install admin
+        run: |
+          npm install --prefix="./apps/admin"
+
+      - name: Build admin
+        env:
+          VITE_DB_SERVICE_API: ${{ vars.VITE_DB_SERVICE_API_DEV }}
+        run: |
+          npm run build --prefix="./apps/admin"
+          cp -R ./apps/admin/dist ./s3_build/admin
+
+      - name: Install s3cmd
+        run: |
+          pip3 install s3cmd
+
+      - name: s3 Upload client build
+        run: >
+          s3cmd
+          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
+          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          --host ${{ secrets.AWS_ENDPOINT }}
+          --host-bucket ${{ secrets.AWS_ENDPOINT }}
+          --bucket-location ${{ secrets.AWS_REGION }}
+          --signature-v2
+          --delete-removed
+          --no-mime-magic
+          sync
+          ./s3_build/client/
+          s3://${{ secrets.AWS_S3_BUCKET_2 }}/dev/design-system-builder/client/
+
+      - name: s3 Upload admin build
+        run: >
+          s3cmd
+          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
+          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          --host ${{ secrets.AWS_ENDPOINT }}
+          --host-bucket ${{ secrets.AWS_ENDPOINT }}
+          --bucket-location ${{ secrets.AWS_REGION }}
+          --signature-v2
+          --delete-removed
+          --no-mime-magic
+          sync
+          ./s3_build/admin/
+          s3://${{ secrets.AWS_S3_BUCKET_2 }}/dev/design-system-builder/admin/
