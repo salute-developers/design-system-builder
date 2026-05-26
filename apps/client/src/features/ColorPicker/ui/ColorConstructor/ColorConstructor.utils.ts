@@ -1,5 +1,22 @@
 import { getHEXAColor } from '@salutejs/plasma-tokens-utils';
 
+export const colorTypeList = [
+    {
+        label: 'HEX',
+        value: 'hex',
+    },
+    {
+        label: 'RGB',
+        value: 'rgb',
+        disabled: true,
+    },
+    {
+        label: 'HSL',
+        value: 'hsl',
+        disabled: true,
+    },
+];
+
 export const colorToHsv = (value: string) => {
     const hex = getHEXAColor(value);
     const cleanHex = hex.replace('#', '');

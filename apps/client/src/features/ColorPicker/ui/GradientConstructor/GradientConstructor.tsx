@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 
-import { TextField } from '../../components';
-import { getNormalizedColor } from '../../utils';
+import { TextField } from '../../../../components';
+import { getNormalizedColor } from '../../../../utils';
 
-import { Root, StyledWrapper } from './GradientPicker.styles';
-import { getGradientParts, parseGradientsByLayer } from '../../utils/gradient';
+import { Root, StyledWrapper } from './GradientConstructor.styles';
+import { getGradientParts, parseGradientsByLayer } from '../../../../utils/gradient';
 
-interface GradientPickerProps {
+interface GradientConstructorProps {
     color: string;
     onColorChange?: (color: string[]) => void;
 }
 
-export const GradientPicker = (props: GradientPickerProps) => {
-    const { color, onColorChange } = props;
+export const GradientConstructor = (props: GradientConstructorProps) => {
+    const { color, onColorChange, ...rest } = props;
 
     const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
 
@@ -47,14 +47,15 @@ export const GradientPicker = (props: GradientPickerProps) => {
     }, [color]);
 
     return (
-        <Root>
+        <Root {...rest}>
             <StyledWrapper>
                 <TextField
-                    value={inputValue}
+                    label="Gradient"
                     stretched
+                    value={inputValue}
+                    view={colorValueStatus}
                     onChange={onInputValueChange}
                     onBlur={onInputValueBlur}
-                    view={colorValueStatus}
                 />
             </StyledWrapper>
         </Root>
