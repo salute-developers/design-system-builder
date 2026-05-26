@@ -12,3 +12,4 @@ export { SegmentButton, type SegmentButtonItem } from './SegmentButton';
 export { SelectButton, type SelectButtonItem } from './SelectButton';
 export { Switch } from './Switch';
 export { Modal } from './Modal';
+export { Dialog } from './Dialog';
