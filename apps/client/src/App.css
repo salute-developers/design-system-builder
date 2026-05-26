@@ -1,8 +1,33 @@
 body {
-  margin: 0;
-  overflow: hidden;
+    margin: 0;
+    overflow: hidden;
 }
 
 * {
-  font-family: 'SB Sans Display', Helvetica, Arial, sans-serif !important;
+    font-family: 'Inter', Helvetica, Arial, sans-serif !important;
+
+    --border-radius-xxxs: 0.03125rem;
+
+    --shadow-center-hard-m: 0 3.75rem 7rem -0.5rem rgba(0, 0, 0, 0.4);
+    --shadow-down-hard-m: 0 1rem 2rem -0.5rem rgba(0, 0, 0, 0.24);
+
+    --outline-transparent-primary: rgba(242, 244, 246, 0.2);
+    --outline-transparent-secondary: rgba(242, 244, 246, 0.1);
+    --inverse-outline-solid-general-secondary: rgba(174, 178, 194, 1);
+    --outline-accent-primary: rgba(43, 140, 237, 1);
+
+    --inverse-outline-transparent-primary: rgba(247, 248, 251, 0.12);
+
+    --background-secondary: rgba(30, 34, 40, 1);
+    --text-general-secondary: #d6dae0;
+    --text-general-primary: #e8eaee;
+    --text-general-tertiary: #b8bec6;
+
+    --surface-general-card: #2f353d;
+    --surface-transparent-primary: rgba(242, 244, 246, 0.1);
+    --surface-transparent-secondary: rgba(242, 244, 246, 0.15);
+}
+
+* svg {
+    display: block;
 }
