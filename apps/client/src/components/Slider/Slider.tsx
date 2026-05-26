@@ -1,12 +1,11 @@
-import { ChangeEvent, FocusEvent, useEffect, useRef } from 'react';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { ChangeEvent, useEffect, useRef } from 'react';
+import { CSSProperties, getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { checkIsColorContrast } from '../../utils';
-import { onDarkTextPrimary, onLightTextPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
-import { Root, StyledBackground, StyledBorder, TrackInput, Thumb, TextInput } from './Slider.styles';
+import { Root, StyledBackground, StyledBorder, TrackInput, Thumb } from './Slider.styles';
 
 interface SliderProps {
-    color?: string;
+    gradientBackground?: string;
+    solidBackground?: string;
     min?: number;
     max?: number;
     value: number;
@@ -14,10 +13,10 @@ interface SliderProps {
 }
 
 export const Slider = (props: SliderProps) => {
-    const { value = 0, min = 0, max = 100, color, onChange } = props;
+    const { value = 0, min = 0, max = 100, solidBackground, gradientBackground, onChange } = props;
 
     const thumbRef = useRef<HTMLDivElement>(null);
-    const sliderRef = useRef<HTMLDivElement>(null);
+    const sliderRef = useRef<HTMLInputElement>(null);
     const updateThumbRef = useRef<() => void>();
 
     useEffect(() => {
@@ -25,7 +24,7 @@ export const Slider = (props: SliderProps) => {
             const scaledColorValue = Number(((value - min) / (max - min)).toFixed(3));
 
             if (thumbRef.current && sliderRef.current) {
-                thumbRef.current.style.transform = `translateX(calc(${scaledColorValue} * calc(${sliderRef.current.offsetWidth}px - 1px))`;
+                thumbRef.current.style.transform = `translateX(calc(${scaledColorValue} * calc(${sliderRef.current.offsetWidth}px) + 8px)`;
             }
         };
 
@@ -55,44 +54,17 @@ export const Slider = (props: SliderProps) => {
         onChange(value);
     };
 
-    const onChangeTextValue = (event: ChangeEvent<HTMLInputElement>) => {
-        const value = event.target.value.replace(/\D/g, '');
-        let newValue = parseInt(value, 10);
-
-        if (value === '' || newValue < 0 || isNaN(newValue)) {
-            newValue = 0;
-        }
-
-        if (newValue > 100) {
-            newValue = 100;
-        }
-
-        onChange(newValue);
-    };
-
-    const onFocusTextValue = (event: FocusEvent<HTMLInputElement, Element>) => {
-        event.target.select();
-    };
-
-    const resultColor = getRestoredColorFromPalette(`[${color}]`) ?? color;
-
-    const contrastColor =
-        resultColor && (checkIsColorContrast('#FFFFFF', resultColor, 3) ? onDarkTextPrimary : onLightTextPrimary);
+    const solidColor = getRestoredColorFromPalette(`[${solidBackground}]`) ?? solidBackground;
 
     return (
-        <Root ref={sliderRef} style={{ background: resultColor ?? '#32353e' }}>
-            <StyledBackground />
-            <StyledBorder />
-            <TrackInput
-                type="range"
-                color={contrastColor}
-                min={min}
-                max={max}
-                value={value}
-                onChange={onChangeTrackValue}
+        <Root>
+            <StyledBackground
+                gradientBackground={gradientBackground}
+                style={{ '--background-color': solidColor } as CSSProperties}
             />
+            <StyledBorder />
+            <TrackInput ref={sliderRef} type="range" min={min} max={max} value={value} onChange={onChangeTrackValue} />
             <Thumb ref={thumbRef} />
-            <TextInput type="text" value={`${value}%`} onFocus={onFocusTextValue} onChange={onChangeTextValue} />
         </Root>
     );
 };
