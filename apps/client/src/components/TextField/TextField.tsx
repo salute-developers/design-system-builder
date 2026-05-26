@@ -23,7 +23,6 @@ import {
     StyledInputCoreWrapper,
     StyledTextBefore,
     StyledTextAfter,
-    StyledIconMessageDraftOutline,
     StyledIconArrowBack,
     StyledIconClose,
 } from './TextField.styles';
@@ -44,6 +43,7 @@ interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'on
     tooltipText?: string;
     minWidth?: number;
     maxWidth?: number;
+    compact?: boolean;
     // TODO: возможно лучше отдать ref наружу
     autoFocus?: boolean;
     onCommit?: (value: string) => void;
@@ -67,6 +67,7 @@ export const TextField = (props: TextFieldProps) => {
         autoFocus,
         minWidth = 16,
         maxWidth = 172,
+        compact = false,
         onKeyDown,
         onCommit,
         onFocus,
@@ -222,29 +223,26 @@ export const TextField = (props: TextFieldProps) => {
                         </StyledInputCoreWrapper>
                         {textAfter && <StyledTextAfter>{textAfter}</StyledTextAfter>}
                     </StyledInputGroup>
-                    <StyledContent>
-                        {contentRight ? (
-                            contentRight
-                        ) : (
-                            <>
-                                {!readOnly && !isFocused && !hasBackground && (
-                                    <StyledIconButton onClick={handleFocusOnInput}>
-                                        <StyledIconMessageDraftOutline color="inherit" />
-                                    </StyledIconButton>
-                                )}
-                                {!readOnly && value && isFocused && (
-                                    <StyledIconButton onMouseDown={handleCommitValue}>
-                                        <StyledIconArrowBack color="inherit" />
-                                    </StyledIconButton>
-                                )}
-                                {!readOnly && !value && isFocused && (
-                                    <StyledIconButton onMouseDown={handleResetValue}>
-                                        <StyledIconClose color="inherit" />
-                                    </StyledIconButton>
-                                )}
-                            </>
-                        )}
-                    </StyledContent>
+                    {!compact && (
+                        <StyledContent>
+                            {contentRight ? (
+                                contentRight
+                            ) : (
+                                <>
+                                    {!readOnly && value && isFocused && (
+                                        <StyledIconButton onMouseDown={handleCommitValue}>
+                                            <StyledIconArrowBack color="inherit" />
+                                        </StyledIconButton>
+                                    )}
+                                    {!readOnly && !value && isFocused && (
+                                        <StyledIconButton onMouseDown={handleResetValue}>
+                                            <StyledIconClose color="inherit" />
+                                        </StyledIconButton>
+                                    )}
+                                </>
+                            )}
+                        </StyledContent>
+                    )}
                 </StyledFieldRow>
             </StyledWrapper>
         </Root>

@@ -1,57 +1,82 @@
 import styled, { css, CSSObject } from 'styled-components';
-import { bodyXXS, surfaceSolidCard, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { bodyXS, surfaceSolidCard, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+
 import { PlacementType } from './Tooltip';
 
-export const Root = styled.div<{ offset?: [number, number]; placement?: PlacementType }>`
+export const Root = styled.div<{
+    offset?: [number, number];
+    placement?: PlacementType;
+    multiline?: boolean;
+    maxWidth?: number;
+}>`
     position: absolute;
     z-index: 9999;
 
-    ${({ placement, offset }) =>
-        placement === 'bottom'
-            ? css`
-                  left: ${offset?.[1] ? `${offset[1]}rem` : undefined};
-                  top: calc(50% + ${offset?.[0]}rem);
-                  transform: translateY(50%);
-              `
-            : css`
-                  left: ${offset?.[1] ? `${offset[1]}rem` : undefined};
-                  bottom: calc(50% + ${offset?.[0]}rem);
-                  transform: translateY(-50%);
-              `}
+    ${({ placement, offset, multiline }) =>
+        multiline
+            ? placement === 'bottom'
+                ? css`
+                      left: 0;
+                      top: calc(100% + ${offset?.[0] ?? 0}rem);
+                  `
+                : css`
+                      left: 0;
+                      bottom: calc(100% + ${offset?.[0] ?? 0}rem);
+                  `
+            : placement === 'bottom'
+              ? css`
+                    left: ${offset?.[1] ? `${offset[1]}rem` : undefined};
+                    top: calc(50% + ${offset?.[0]}rem);
+                    transform: translateY(50%);
+                `
+              : css`
+                    left: ${offset?.[1] ? `${offset[1]}rem` : undefined};
+                    bottom: calc(50% + ${offset?.[0]}rem);
+                    transform: translateY(-50%);
+                `}
 
     display: none;
     padding: 0.5rem 0.75rem;
     flex-direction: column;
     align-items: center;
-    white-space: nowrap;
 
-    box-shadow: 0px 4px 12px 0px rgba(0, 0, 0, 0.16), 0px 1px 4px 0px rgba(0, 0, 0, 0.08);
-    border-radius: 0.5rem;
+    ${({ multiline, maxWidth }) =>
+        multiline
+            ? css`
+                  white-space: pre-line;
+                  text-align: left;
+                  align-items: flex-start;
+                  width: max-content;
+                  max-width: ${maxWidth ?? 20}rem;
+              `
+            : css`
+                  white-space: nowrap;
+              `}
+
+    box-shadow: var(--shadow-down-hard-m);
+
+    border-radius: var(--border-radius-s);
     color: ${textPrimary};
     background: ${surfaceSolidCard};
+
+    border: 0.03125rem solid var(--outline-transparent-primary));
 
     &::before {
         content: '';
         position: absolute;
-        left: 50%;
+        left: ${({ multiline }) => (multiline ? '0.75rem' : '50%')};
 
-        ${({ placement }) =>
+        ${({ placement, multiline }) =>
             placement === 'bottom'
                 ? css`
-                      transform: translateX(-50%) rotate(180deg);
+                      transform: ${multiline ? 'rotate(180deg)' : 'translateX(-50%) rotate(180deg)'};
                       top: -0.5rem;
                   `
                 : css`
-                      transform: translateX(-50%) rotate(0);
+                      transform: ${multiline ? 'rotate(0)' : 'translateX(-50%) rotate(0)'};
                       bottom: -0.5rem;
                   `}
-
-        width: 1.25rem;
-        height: 1.25rem;
-        mask-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHBhdGggY2xpcC1ydWxlPSJldmVub2RkIiBkPSJtMC4xNywxMS44M2wyMCwwYy01LjUyLDAgLTEwLDMuNTkgLTEwLDhjMCwtNC40MSAtNC40OCwtOCAtMTAsLTh6IiBmaWxsPSIjMTcxNzE3IiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGlkPSJUYWlsIi8+Cjwvc3ZnPg==');
-        background: ${surfaceSolidCard};
     }
 
-    ${bodyXXS as CSSObject};
+    ${bodyXS as CSSObject};
 `;
-

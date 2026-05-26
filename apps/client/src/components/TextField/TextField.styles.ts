@@ -45,18 +45,19 @@ export const Root = styled.div<{
         css`
             & > div {
                 background: ${surfaceTransparentSecondary};
+                border: 0.0625rem solid var(--outline-transparent-secondary);
             }
         `}
 
     &:not(:focus-within):hover > div {
-        background: ${({ readOnly }) => (readOnly ? 'transparent' : surfaceTransparentSecondary)};
+        background: ${({ readOnly }) => (readOnly ? surfaceTransparentPrimary : surfaceTransparentSecondary)};
         color: var(--text-field-color-hover);
     }
 
     min-width: 0;
 `;
 
-export const StyledLabel = styled.label<{ width?: string }>`
+export const StyledLabel = styled.label`
     color: ${textTertiary};
     white-space: nowrap;
 `;
@@ -67,8 +68,8 @@ export const StyledContent = styled.div`
     cursor: pointer;
 
     color: ${textTertiary};
-    width: 0.75rem;
-    height: 0.75rem;
+    min-width: 0.75rem;
+    min-height: 0.75rem;
 
     display: flex;
     align-items: center;
@@ -90,9 +91,10 @@ export const StyledWrapper = styled.div<{ readOnly?: boolean; stretched?: boolea
     caret-color: var(--text-field-color);
 
     &:focus-within {
-        box-shadow: 0 0 0 0.0625rem var(--text-field-border-color) inset;
-        background: ${surfaceTransparentPrimary};
+        background: ${surfaceTransparentSecondary};
         color: var(--text-field-color-hover);
+
+        border: 0.0625rem solid var(--outline-accent-primary);
     }
 
     &:focus-within > div ~ div {
@@ -104,13 +106,14 @@ export const StyledWrapper = styled.div<{ readOnly?: boolean; stretched?: boolea
     }
 
     border-radius: 0.375rem;
+    border: 0.0625rem solid transparent;
 
     display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
     align-items: center;
     justify-content: space-between;
 
-    padding: 0.25rem 0.375rem;
+    padding: 0.25rem;
 
     ${({ readOnly }) =>
         readOnly &&
@@ -137,7 +140,7 @@ export const StyledInput = styled.input<{ readOnly?: boolean }>`
     border: 0;
 
     ::placeholder {
-        color: ${textTertiary};
+        color: var(--text-general-tertiary);
     }
 `;
 
