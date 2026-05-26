@@ -42,6 +42,7 @@ jobs:
       - name: Build admin
         env:
           VITE_DB_SERVICE_API: ${{ vars.VITE_DB_SERVICE_API_DEV }}
+          BASE_URL: '/design-system-builder/admin/'
         run: |
           npm run build --prefix="./apps/admin"
           cp -R ./apps/admin/dist ./s3_build/admin
