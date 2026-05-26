@@ -11,7 +11,7 @@ import {
     TypographyToken,
 } from '../controllers';
 import { kebabToCamel } from './';
-import { Data, DataItems, MenuType } from '../types';
+import { Data, DataItems, GroupNode, MenuType } from '../types';
 
 // TODO: Перенести в БД?
 const componentList = [
@@ -161,7 +161,7 @@ const generateComponentMap = (componentConfigs: Config[]) => {
 };
 
 const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]) => {
-    const data: DataItems = {};
+    const groups: GroupNode[] = [];
 
     const addToData = (tokens: ColorToken[] | GradientToken[]) => {
         tokens
@@ -173,11 +173,21 @@ const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]
             )
             .forEach((token) => {
                 const [mode, group, subgroup] = token.getTags();
-                const name = token.getDisplayName();
+
                 const tab = subgroup === 'light' ? 'onLight' : subgroup === 'dark' ? 'onDark' : kebabToCamel(subgroup);
+
+                const subgroupPrefix = kebabToCamel(subgroup);
+                const displayName = token.getDisplayName();
+
+                const name =
+                    subgroup === 'default' || !displayName.startsWith(subgroupPrefix)
+                        ? displayName
+                        : displayName.charAt(subgroupPrefix.length).toLowerCase() +
+                          displayName.slice(subgroupPrefix.length + 1);
 
                 const enabled = token.getEnabled();
                 let value = '';
+
                 if (token instanceof ColorToken) {
                     value = getRestoredColorFromPalette(token.getValue('web') as string, -1);
                 }
@@ -185,30 +195,43 @@ const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]
                     value = token.getValue('web').join(' ');
                 }
 
-                if (!data[tab]) {
-                    data[tab] = {};
+                let groupNode = groups.find((node) => node.group === group);
+                if (!groupNode) {
+                    groupNode = { group, data: [] };
+                    groups.push(groupNode);
                 }
 
-                if (!data[tab][group]) {
-                    data[tab][group] = {};
+                let tokenNode = groupNode.data.find((node) => node.name === name);
+                if (!tokenNode) {
+                    tokenNode = { name, data: [] };
+                    groupNode.data.push(tokenNode);
                 }
 
-                if (!data[tab][group][name]) {
-                    data[tab][group][name] = {};
+                let subgroupNode = tokenNode.data.find((node) => node.subgroup === tab);
+                if (!subgroupNode) {
+                    subgroupNode = { subgroup: tab, data: [] };
+                    tokenNode.data.push(subgroupNode);
                 }
 
-                data[tab][group][name][mode] = {
-                    enabled,
-                    value,
-                    item: token,
-                };
+                subgroupNode.data.push({ mode, data: { enabled, value, item: token } });
             });
     };
 
     addToData(colors);
     addToData(gradients);
 
-    return data;
+    groups.sort((a, b) => a.group.localeCompare(b.group));
+    groups.forEach((groupNode) => {
+        groupNode.data.sort((a, b) => a.name.localeCompare(b.name));
+        groupNode.data.forEach((tokenNode) => {
+            tokenNode.data.sort((a, b) => a.subgroup.localeCompare(b.subgroup));
+            tokenNode.data.forEach((subgroupNode) => {
+                subgroupNode.data.sort((a, b) => a.mode.localeCompare(b.mode));
+            });
+        });
+    });
+
+    return groups;
 };
 
 const generateTypographyTokensMap = (typography: TypographyToken[]) => {
@@ -337,7 +360,7 @@ const createDataItems = (dataItems: DataItems, tokenType: MenuType, tabsName?: s
     return data;
 };
 
-export const getMenuItems = (data?: Theme | Config[], type?: MenuType): Data | undefined => {
+export const getMenuItems = (data?: Theme | Config[], type?: MenuType): GroupNode[] | undefined => {
     if (!data) {
         return undefined;
     }
@@ -347,9 +370,11 @@ export const getMenuItems = (data?: Theme | Config[], type?: MenuType): Data | u
         const gradients = data.getTokens('gradient');
         const colorTokens = generateColorTokensMap(colors, gradients);
 
-        return createDataItems(colorTokens, 'color', 'Подтемы');
+        return colorTokens;
     }
+};
 
+export const getOldMenuItems = (data?: Theme | Config[], type?: MenuType): Data | undefined => {
     if (type === 'typography' && data instanceof Theme) {
         const typography = data.getTokens('typography');
         const typographyTokens = generateTypographyTokensMap(typography);

@@ -1,7 +1,7 @@
 import { PlasmaSaturation } from '@salutejs/plasma-colors';
 import { general as generalColors } from '@salutejs/plasma-colors';
 
-import { Token, Config } from '../controllers';
+import { Token, Config, ColorToken, GradientToken } from '../controllers';
 
 export type GrayTone = 'gray' | 'warmGray' | 'coolGray';
 
@@ -78,3 +78,29 @@ export type DataItems = Record<
         >
     >
 >;
+
+export type ColorLeaf = {
+    enabled: boolean;
+    value: string;
+    item: ColorToken | GradientToken;
+};
+
+export type ModeNode = {
+    mode: string;
+    data: ColorLeaf;
+};
+
+export type SubgroupNode = {
+    subgroup: string;
+    data: ModeNode[];
+};
+
+export type TokenNode = {
+    name: string;
+    data: SubgroupNode[];
+};
+
+export type GroupNode = {
+    group: string;
+    data: TokenNode[];
+};

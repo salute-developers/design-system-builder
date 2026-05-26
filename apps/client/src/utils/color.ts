@@ -19,14 +19,30 @@ const checker = new ContrastRatioChecker();
 
 // const excludeColors = [DEFAULT_WHITE_COLOR, DEFAULT_BLACK_COLOR];
 
-export const isValidColorValue = (value: string): boolean => {
+export const isValidColorValue = (value: string, formats: ColorFormat[] = ['hex', 'rgb', 'hsl']): boolean => {
     const trimmed = value.trim().toLowerCase();
 
     const hexPattern = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
     const rgbPattern = /^rgb\(\s*(\d{1,3}%?\s*,\s*){2}\d{1,3}%?\s*\)$/i;
     const hslPattern = /^hsl\(\s*\d{1,3}(\.\d+)?\s*,\s*\d{1,3}(\.\d+)?%\s*,\s*\d{1,3}(\.\d+)?%\s*\)$/i;
 
-    return hexPattern.test(trimmed) || rgbPattern.test(trimmed) || hslPattern.test(trimmed);
+    if (formats.length === 0) {
+        return hexPattern.test(trimmed) || rgbPattern.test(trimmed) || hslPattern.test(trimmed);
+    }
+
+    return formats.some((format) => {
+        if (format === 'hex') {
+            return hexPattern.test(trimmed);
+        }
+        if (format === 'rgb') {
+            return rgbPattern.test(trimmed);
+        }
+        if (format === 'hsl') {
+            return hslPattern.test(trimmed);
+        }
+
+        return false;
+    });
 };
 
 export type ColorFormat = 'hex' | 'rgb' | 'hsl';
@@ -176,7 +192,7 @@ export const shiftAccentColor = (color: ComplexValue, theme: ThemeMode, opacity?
 
     const newValue = `[general.${shade}.${Math.min(max, Math.max(min, newSaturation))}]`;
 
-    return opacity ? `${newValue}[${(opacity).toPrecision(2)}]` : newValue;
+    return opacity ? `${newValue}[${opacity.toPrecision(2)}]` : newValue;
 };
 
 export const checkIsColorContrast = (color?: string, background?: string, threshold = 2) => {
@@ -250,7 +266,7 @@ export const getColorAndOpacity = (value: string | string[]) => {
 
     const hex = value.startsWith('#') ? value : getHEXAColor(value);
     const opacity = extractAlphaFromHex(hex);
-    const color = opacity < 1 ? hex.slice(0, -2) : hex;
+    const color = opacity < 1 || hex.length === 9 ? hex.slice(0, -2) : hex;
 
     return [color, opacity] as const;
 };

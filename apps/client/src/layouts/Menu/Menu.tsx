@@ -1,107 +1,148 @@
-import { Fragment, MouseEvent, useEffect, useMemo, useState } from 'react';
-import { IconEyeClosedOutline, IconEyeOutline, IconPlus, IconSearch } from '@salutejs/plasma-icons';
-import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Data } from '../../types';
-import { Config, Token } from '../../controllers';
-import { IconButton, TextField, Tooltip } from '../../components';
-import { canShowTooltip, getDefaultDisabledGroups, isGroupChanged, isTokenChanged } from './Menu.utils';
+import { Token } from '../../controllers';
+import { GroupNode } from '../../types';
+import { isDraftAddedToken } from '../../utils';
+
 import {
-    Header,
-    HeaderContent,
-    HeaderSubtitle,
-    HeaderTitle,
-    List,
-    ListItem,
-    ListItemChangedIndicator,
-    ListItemColorPreview,
-    ListItemContentRight,
-    ListItemPreviewWrapper,
-    ListItems,
-    ListItemShapePreview,
-    ListItemText,
-    ListItemTypographyPreview,
-    ListItemWrapper,
-    ListSectionGroup,
-    ListSectionGroups,
-    ListSectionGroupToggle,
-    ListSectionTitle,
-    Root,
-    StyledIconChevronDown,
-    StyledIconChevronUp,
-} from './Menu.styles';
+    flattenTokenLeaves,
+    getDefaultDisabledGroups,
+    getTokenItems,
+    isGroupChanged,
+    isTokenChanged,
+    isTokenDisabled,
+    MenuItemArgs,
+    TokenFilterValue,
+} from './Menu.utils';
+import { List, ListSectionGroups, Root } from './Menu.styles';
+import { MenuFilterPopup, MenuGroupItem, MenuHeader } from './ui';
 
 export interface MenuProps {
     header?: string;
     subheader?: string;
-    data: Data;
-    selectedItemIndexes?: [number, number, number];
-    sectionTitle?: string;
+    data: GroupNode[];
+    selectedItemIndexes?: [number, number];
     canDisable?: boolean;
     canAdd?: boolean;
-    onTabSelect?: (index: number) => void;
     onItemSelect?: (groupIndex: number, itemIndex: number) => void;
-    onItemAdd?: (groupName: string, itemName: string, tabName?: string, items?: (Token | Config)[]) => void;
-    onItemDisable?: (items: (Token | Config)[], disabled: boolean) => void;
+    onItemAdd?: (groupName: string, itemName: string, items?: Token[]) => void;
+    onItemDisable?: (items: Token[], disabled: boolean) => void;
 }
 
 export const Menu = (props: MenuProps) => {
     const {
         header,
-        subheader,
         data,
         selectedItemIndexes,
-        sectionTitle = 'Токены',
         canAdd = true,
         canDisable = true,
-        onTabSelect,
         onItemSelect,
         onItemAdd,
         onItemDisable,
     } = props;
 
-    const { groups, tabs } = data;
+    const [groupIndex = 0, itemIndex = 0] = selectedItemIndexes || [];
 
-    const [tabIndex = 0, groupIndex = 0, itemIndex = 0] = selectedItemIndexes || [];
-
-    const [selectedTab, setSelectedTab] = useState<string | undefined>(tabs?.values[tabIndex]);
-    const [groupsData, setGroupsData] = useState(data.groups[tabIndex].data);
-    const [openedGroups, setOpenedGroups] = useState<string[]>([groupsData[groupIndex].name]);
-    const [disabledGroups, setDisabledGroups] = useState<string[]>(getDefaultDisabledGroups(groupsData));
-    const [selectedItem, setSelectedItem] = useState(groupsData[groupIndex].items[itemIndex].name);
+    const [groupsData, setGroupsData] = useState<GroupNode[]>(data);
+    const [openedGroups, setOpenedGroups] = useState<string[]>(() =>
+        data[groupIndex]?.group ? [data[groupIndex].group] : [],
+    );
+    const [disabledGroups, setDisabledGroups] = useState<string[]>(() => getDefaultDisabledGroups(data));
+    const [selectedItem, setSelectedItem] = useState<string | undefined>(() => data[groupIndex]?.data[itemIndex]?.name);
     const [groupNameWithItemCreating, setGroupNameWithItemCreating] = useState<string | undefined>(undefined);
     const [creatingItemName, setCreatingItemName] = useState<string>('NewItem');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const [tokenFilter, setTokenFilter] = useState<TokenFilterValue>('all');
+    const [filterAnchor, setFilterAnchor] = useState<HTMLElement | undefined>(undefined);
+    const filterButtonRef = useRef<HTMLDivElement>(null);
+
+    const isFilterOpen = Boolean(filterAnchor);
 
     const changedGroups = useMemo(
-        () => new Set(groupsData.filter(({ items }) => isGroupChanged(items)).map(({ name }) => name)),
+        () => new Set(groupsData.filter((group) => isGroupChanged(group.data)).map(({ group }) => group)),
         [groupsData],
     );
 
-    const getNewTokenNamePrefix = (groupName: string) => {
-        if (selectedTab === 'Default' || !selectedTab) {
-            return lowerFirstLetter(groupName);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const hasQuery = isSearchOpen && normalizedQuery.length > 0;
+    const hasTokenFilter = tokenFilter !== 'all';
+    const isFiltering = hasQuery || hasTokenFilter;
+
+    const filteredGroups = useMemo(() => {
+        if (!isFiltering) {
+            return groupsData.map((group, originalIndex) => ({ group, originalIndex }));
         }
 
-        // TODO: Убрать, когда сделаем background с OnDark/OnLight
-        if ((selectedTab === 'OnDark' || selectedTab === 'OnLight') && groupName === 'Background') {
-            return `${lowerFirstLetter(selectedTab.replace('On', ''))}${groupName}`;
-        }
+        const matchesTokenFilter = (tokenNode: GroupNode['data'][number]) => {
+            if (tokenFilter === 'all') {
+                return true;
+            }
 
-        return `${lowerFirstLetter(selectedTab)}${groupName}`;
+            if (tokenFilter === 'hidden') {
+                return isTokenDisabled(tokenNode);
+            }
+
+            const items = getTokenItems(tokenNode);
+
+            if (tokenFilter === 'added') {
+                return items.some((item) => isDraftAddedToken(item.getName()));
+            }
+
+            if (tokenFilter === 'changed') {
+                return isTokenChanged(items);
+            }
+
+            return true;
+        };
+
+        return groupsData
+            .map((group, originalIndex) => ({
+                originalIndex,
+                group: {
+                    ...group,
+                    data: group.data.filter(
+                        (tokenNode) =>
+                            matchesTokenFilter(tokenNode) &&
+                            (!hasQuery || tokenNode.name.toLowerCase().includes(normalizedQuery)),
+                    ),
+                },
+            }))
+            .filter(({ group }) => group.data.length > 0);
+    }, [groupsData, isFiltering, hasQuery, normalizedQuery, tokenFilter]);
+
+    const onSearchOpen = () => {
+        setIsSearchOpen(true);
     };
 
-    const onTabValueSelect = (value: string) => {
-        setSelectedTab(value);
+    const onSearchReset = () => {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+    };
 
-        const groupIndex = groups.findIndex((group) => group.value === value);
+    const onSearchChange = (value: string) => {
+        setSearchQuery(value);
+    };
 
-        if (groupIndex === -1) {
+    const onFilterToggle = (event: MouseEvent<HTMLDivElement>) => {
+        event.stopPropagation();
+
+        if (isFilterOpen) {
+            setFilterAnchor(undefined);
             return;
         }
 
-        if (onTabSelect) {
-            onTabSelect(groupIndex);
-        }
+        setFilterAnchor(filterButtonRef.current ?? undefined);
+    };
+
+    const onFilterClose = () => {
+        setFilterAnchor(undefined);
+    };
+
+    const onTokenFilterSelect = (value: TokenFilterValue) => {
+        setTokenFilter(value);
+        setFilterAnchor(undefined);
     };
 
     const onGroupToggle = (name: string) => {
@@ -128,15 +169,15 @@ export const Menu = (props: MenuProps) => {
         setCreatingItemName(newValue);
     };
 
-    const onItemAddCommit = (groupName: string, itemName: string, tabName?: string) => {
+    const onItemAddCommit = (groupName: string, itemName: string) => {
         setGroupNameWithItemCreating(undefined);
         setCreatingItemName('');
 
         if (onItemAdd) {
-            const groupIndex = groupsData.findIndex(({ name }) => name === groupNameWithItemCreating);
-            const items = groupsData[groupIndex].items?.[0].data;
+            const groupNode = groupsData.find(({ group }) => group === groupNameWithItemCreating);
+            const items = groupNode?.data[0] ? getTokenItems(groupNode.data[0]) : undefined;
 
-            onItemAdd(groupName, itemName, tabName, items);
+            onItemAdd(groupName, itemName, items);
         }
     };
 
@@ -148,20 +189,25 @@ export const Menu = (props: MenuProps) => {
     const onItemGroupDisable = (name: string) => (event: MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
 
-        const groupIndex = groupsData.findIndex((group) => group.name === name);
+        const targetGroup = groupsData.find((group) => group.group === name);
+        if (!targetGroup) {
+            return;
+        }
+
         const isDisabled = disabledGroups.includes(name);
 
-        const updatedGroupsData = [...groupsData];
-        updatedGroupsData[groupIndex].items.forEach((item) => {
-            item.disabled = !isDisabled;
+        targetGroup.data.forEach((tokenNode) => {
+            flattenTokenLeaves(tokenNode).forEach((leaf) => {
+                leaf.enabled = isDisabled;
+            });
         });
 
         if (onItemDisable) {
-            const items = updatedGroupsData[groupIndex].items.map(({ data }) => data).flat();
+            const items = targetGroup.data.flatMap((tokenNode) => getTokenItems(tokenNode));
             onItemDisable(items, isDisabled);
         }
 
-        setGroupsData(updatedGroupsData);
+        setGroupsData([...groupsData]);
 
         const newDisabledGroups = isDisabled
             ? disabledGroups.filter((item) => item !== name)
@@ -170,227 +216,128 @@ export const Menu = (props: MenuProps) => {
         setDisabledGroups(newDisabledGroups);
     };
 
-    const onItemClick =
-        (
-            name: string,
-            disabled: boolean,
-            groupIndex: number,
-            itemIndex: number,
-            items: (Token | Config)[],
-            groupName: string,
-            itemName: string,
-        ) =>
-        (event: MouseEvent<HTMLDivElement>) => {
-            if (disabled && !canDisable) {
-                return;
-            }
+    const onItemClick = (args: MenuItemArgs) => (event: MouseEvent<HTMLDivElement>) => {
+        const { itemName, groupIndex, itemIndex, disabled } = args;
 
-            if (disabled) {
-                onItemDisabledButtonClick(groupName, itemName, items, disabled)(event);
-                return;
-            }
+        if (disabled && !canDisable) {
+            return;
+        }
 
-            setSelectedItem(name);
+        if (disabled) {
+            onItemDisabledButtonClick(args)(event);
+            return;
+        }
 
-            if (onItemSelect) {
-                onItemSelect(groupIndex, itemIndex);
-            }
-        };
+        setSelectedItem(itemName);
 
-    const onItemDisabledButtonClick =
-        (groupName: string, itemName: string, items: (Token | Config)[], disabled: boolean) =>
-        (event: MouseEvent<HTMLDivElement>) => {
-            event.stopPropagation();
+        if (onItemSelect) {
+            onItemSelect(groupIndex, itemIndex);
+        }
+    };
 
-            const groupIndex = groupsData.findIndex((group) => group.name === groupName);
-            const itemIndex = groupsData[groupIndex].items.findIndex((item) => item.name === itemName);
+    const onItemDisabledButtonClick = (args: MenuItemArgs) => (event: MouseEvent<HTMLDivElement>) => {
+        const { groupName, itemName, items, disabled } = args;
 
-            const updatedGroupsData = [...groupsData];
-            updatedGroupsData[groupIndex].items[itemIndex].disabled = !disabled;
+        event.stopPropagation();
 
-            if (onItemDisable) {
-                onItemDisable(items, disabled);
-            }
+        const targetGroup = groupsData.find((group) => group.group === groupName);
+        if (!targetGroup) {
+            return;
+        }
 
-            setGroupsData(updatedGroupsData);
+        const tokenNode = targetGroup.data.find((node) => node.name === itemName);
+        if (!tokenNode) {
+            return;
+        }
 
-            if (updatedGroupsData[groupIndex].items.every(({ disabled }) => disabled)) {
-                setDisabledGroups([...disabledGroups, groupName]);
-                return;
-            }
+        flattenTokenLeaves(tokenNode).forEach((leaf) => {
+            leaf.enabled = disabled;
+        });
 
-            if (updatedGroupsData[groupIndex].items.some(({ disabled }) => !disabled)) {
-                setDisabledGroups(disabledGroups.filter((item) => item !== groupName));
-            }
-        };
+        if (onItemDisable) {
+            onItemDisable(items, disabled);
+        }
+
+        setGroupsData([...groupsData]);
+
+        if (targetGroup.data.every((node) => isTokenDisabled(node))) {
+            setDisabledGroups([...disabledGroups, groupName]);
+            return;
+        }
+
+        if (targetGroup.data.some((node) => !isTokenDisabled(node))) {
+            setDisabledGroups(disabledGroups.filter((item) => item !== groupName));
+        }
+    };
+
+    const findOriginalItemIndex = (groupIndex: number, itemName: string) =>
+        groupsData[groupIndex].data.findIndex((node) => node.name === itemName);
 
     useEffect(() => {
-        setGroupsData(data.groups[tabIndex].data);
-    }, [data, tabIndex]);
+        setGroupsData(data);
+    }, [data]);
 
     useEffect(() => {
-        const newGroupsData = data.groups[tabIndex].data;
+        const initialGroup = data[groupIndex]?.group;
+        setOpenedGroups(initialGroup ? [initialGroup] : []);
+        setDisabledGroups(getDefaultDisabledGroups(data));
+        setSelectedItem(data[groupIndex]?.data[itemIndex]?.name);
+    }, []);
 
-        setOpenedGroups([newGroupsData[groupIndex].name]);
-        setDisabledGroups(getDefaultDisabledGroups(newGroupsData));
-        setSelectedItem(newGroupsData[groupIndex].items[itemIndex].name);
-    }, [tabIndex]);
+    useEffect(() => {
+        const nextName = data[groupIndex]?.data[itemIndex]?.name;
+        if (nextName) {
+            setSelectedItem(nextName);
+        }
+    }, [data, groupIndex, itemIndex]);
 
     return (
         <Root>
-            <Header>
-                <HeaderContent>
-                    <HeaderTitle>{header}</HeaderTitle>
-                    <HeaderSubtitle>{subheader}</HeaderSubtitle>
-                </HeaderContent>
-                <IconButton disabled>
-                    <IconSearch size="xs" color="inherit" />
-                </IconButton>
-            </Header>
-            {tabs && (
-                <List>
-                    <ListSectionTitle>{tabs.name}</ListSectionTitle>
-                    {tabs.values.map((value, index) => (
-                        <ListItem
-                            selected={value === selectedTab}
-                            onClick={() => onTabValueSelect(value)}
-                            key={`${value}_${index}`}
-                        >
-                            <ListItemText>{value}</ListItemText>
-                        </ListItem>
-                    ))}
-                </List>
-            )}
-            <List
-                style={{
-                    minHeight: 0,
-                }}
-            >
-                <ListSectionTitle>{sectionTitle}</ListSectionTitle>
+            <MenuHeader
+                header={header}
+                isSearchOpen={isSearchOpen}
+                searchQuery={searchQuery}
+                filterButtonRef={filterButtonRef}
+                onSearchOpen={onSearchOpen}
+                onSearchReset={onSearchReset}
+                onSearchChange={onSearchChange}
+                onFilterToggle={onFilterToggle}
+            />
+            <List>
                 <ListSectionGroups>
-                    {groupsData.map(({ name: groupName, type, items }, groupIndex) => (
-                        <ListSectionGroup key={`${groupName}_${selectedTab}`}>
-                            <ListSectionGroupToggle onClick={() => onGroupToggle(groupName)}>
-                                {openedGroups.includes(groupName) ? (
-                                    <StyledIconChevronUp color="inherit" />
-                                ) : (
-                                    <StyledIconChevronDown color="inherit" />
-                                )}
-                            </ListSectionGroupToggle>
-                            <ListItem
-                                onClick={() => onGroupToggle(groupName)}
-                                disabled={disabledGroups.includes(groupName)}
-                            >
-                                <ListItemWrapper>
-                                    <ListItemText>{groupName}</ListItemText>
-                                    {!openedGroups.includes(groupName) && changedGroups.has(groupName) && (
-                                        <ListItemChangedIndicator />
-                                    )}
-                                </ListItemWrapper>
-                                <ListItemContentRight>
-                                    {canAdd && (
-                                        <IconButton onClick={onItemPlusButtonClick(groupName)}>
-                                            <IconPlus size="xs" color="inherit" />
-                                        </IconButton>
-                                    )}
-                                    {canDisable && (
-                                        <IconButton onClick={onItemGroupDisable(groupName)}>
-                                            {disabledGroups.includes(groupName) ? (
-                                                <IconEyeClosedOutline size="xs" color="inherit" />
-                                            ) : (
-                                                <IconEyeOutline size="xs" color="inherit" />
-                                            )}
-                                        </IconButton>
-                                    )}
-                                </ListItemContentRight>
-                            </ListItem>
-                            {openedGroups.includes(groupName) && (
-                                <ListItems>
-                                    {items.map(
-                                        ({ disabled, name: itemName, previewValues: values, data }, itemIndex) => (
-                                            <ListItem
-                                                key={`${itemName}_${selectedTab}`}
-                                                selected={itemName === selectedItem}
-                                                disabled={disabled}
-                                                lineThrough={canDisable}
-                                                onClick={onItemClick(
-                                                    itemName,
-                                                    disabled,
-                                                    groupIndex,
-                                                    itemIndex,
-                                                    data,
-                                                    groupName,
-                                                    itemName,
-                                                )}
-                                            >
-                                                <ListItemWrapper
-                                                    // TODO: Недорогое и быстрое решение
-                                                    canShowTooltip={canShowTooltip(itemName, disabled)}
-                                                >
-                                                    <ListItemText>{itemName}</ListItemText>
-                                                    <ListItemPreviewWrapper>
-                                                        {values.map((value, index) => (
-                                                            <Fragment
-                                                                key={`${itemName}_${selectedItem}_${value}_${index}`}
-                                                            >
-                                                                {value && type === 'color' && (
-                                                                    <ListItemColorPreview
-                                                                        style={{ background: value }}
-                                                                    />
-                                                                )}
-                                                                {value && type === 'typography' && (
-                                                                    <ListItemTypographyPreview>
-                                                                        {value}
-                                                                    </ListItemTypographyPreview>
-                                                                )}
-                                                                {value && type === 'shape' && (
-                                                                    <ListItemShapePreview>{value}</ListItemShapePreview>
-                                                                )}
-                                                            </Fragment>
-                                                        ))}
-                                                    </ListItemPreviewWrapper>
-                                                    {isTokenChanged(data) && <ListItemChangedIndicator />}
-                                                </ListItemWrapper>
-                                                <ListItemContentRight>
-                                                    {canDisable && (
-                                                        <IconButton
-                                                            onClick={onItemDisabledButtonClick(
-                                                                groupName,
-                                                                itemName,
-                                                                data,
-                                                                disabled,
-                                                            )}
-                                                        >
-                                                            {disabled ? (
-                                                                <IconEyeClosedOutline size="xs" color="inherit" />
-                                                            ) : (
-                                                                <IconEyeOutline size="xs" color="inherit" />
-                                                            )}
-                                                        </IconButton>
-                                                    )}
-                                                </ListItemContentRight>
-                                                <Tooltip offset={[0.5, 0]} placement="top" text={itemName} />
-                                            </ListItem>
-                                        ),
-                                    )}
-                                    {groupNameWithItemCreating === groupName && (
-                                        <TextField
-                                            hasBackground
-                                            stretched
-                                            value={creatingItemName}
-                                            autoFocus
-                                            textBefore={getNewTokenNamePrefix(groupName)}
-                                            onChange={onItemAddChange}
-                                            onCommit={(itemName) => onItemAddCommit(groupName, itemName, selectedTab)}
-                                            onBlur={onItemAddCancel}
-                                        />
-                                    )}
-                                </ListItems>
-                            )}
-                        </ListSectionGroup>
+                    {filteredGroups.map(({ group, originalIndex }) => (
+                        <MenuGroupItem
+                            key={group.group}
+                            group={group}
+                            groupIndex={originalIndex}
+                            isOpened={isFiltering || openedGroups.includes(group.group)}
+                            isDisabled={disabledGroups.includes(group.group)}
+                            isChanged={changedGroups.has(group.group)}
+                            selectedItem={selectedItem}
+                            canAdd={canAdd}
+                            canDisable={canDisable}
+                            isCreatingItem={groupNameWithItemCreating === group.group}
+                            creatingItemName={creatingItemName}
+                            findOriginalItemIndex={findOriginalItemIndex}
+                            onGroupToggle={onGroupToggle}
+                            onItemPlusButtonClick={onItemPlusButtonClick}
+                            onItemGroupDisable={onItemGroupDisable}
+                            onItemAddChange={onItemAddChange}
+                            onItemAddCommit={onItemAddCommit}
+                            onItemAddCancel={onItemAddCancel}
+                            onItemClick={onItemClick}
+                            onItemDisabledButtonClick={onItemDisabledButtonClick}
+                        />
                     ))}
                 </ListSectionGroups>
             </List>
+            <MenuFilterPopup
+                opened={isFilterOpen}
+                anchor={filterAnchor}
+                tokenFilter={tokenFilter}
+                onClose={onFilterClose}
+                onTokenFilterSelect={onTokenFilterSelect}
+            />
         </Root>
     );
 };

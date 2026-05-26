@@ -43,8 +43,6 @@ export const Modal = (props: ModalProps) => {
           }
         : undefined;
 
-    console.log('anchorRect', anchor);
-
     return (
         <Root style={rootStyle}>
             <Wrapper onClick={onDialogClick} {...rest}>

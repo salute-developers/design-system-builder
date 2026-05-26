@@ -181,8 +181,8 @@ export const TextField = (props: TextFieldProps) => {
 
         handleFocusOnInput();
         inputRef.current?.scrollIntoView({
-            block: 'start',
-            inline: 'center',
+            block: 'nearest',
+            inline: 'nearest',
         });
     }, [autoFocus]);
 
