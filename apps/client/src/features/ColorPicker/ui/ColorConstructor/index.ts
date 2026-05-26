@@ -1,0 +1,1 @@
+export { ColorConstructor } from './ColorConstructor';

@@ -1,21 +1,21 @@
 import styled from 'styled-components';
 
-export const Root = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+import { IconButton, Modal } from '../../components';
+
+export const StyledModal = styled(Modal)`
+    min-height: 29.625rem;
+    min-width: 15rem;
+    max-width: 15rem;
 `;
 
-export const StyledWrapper = styled.div`
+export const StyledHeader = styled.div`
     display: flex;
-    flex-direction: row;
-    gap: 0.5rem;
-    width: 100%;
     align-items: center;
+    justify-content: space-between;
+
+    padding: 0.375rem 0;
 `;
 
-export const StyledColorFormats = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+export const StyledIconButton = styled(IconButton)`
+    margin-right: 0.375rem;
 `;

@@ -1,111 +1,66 @@
 import { useEffect, useState } from 'react';
+import { IconClose } from '@salutejs/plasma-icons';
 
-import { SelectButton, SelectButtonItem, Slider, TextField } from '../../components';
-import { getNormalizedColor, isValidColorValue } from '../../utils';
-
-import { Root, StyledColorFormats, StyledWrapper } from './ColorPicker.styles';
-import { paletteList } from './ColorPicker.utils';
-
-import { ColorValueEditButton, CustomColorSelector, PaletteColorSelector } from './ui';
+import { SegmentButton, SegmentButtonItem } from '../../components';
+import { VariationType } from '../../controllers';
+import { StyledHeader, StyledIconButton, StyledModal } from './ColorPicker.styles';
+import { CustomColorSelector, PaletteColorSelector } from './ui';
+import { getTypeList } from './ColorPicker.utils';
 
 interface ColorPickerProps {
     color: string;
     opacity: number;
-    onColorChange?: (color: string) => void;
-    onOpacityChange?: (opacity: number) => void;
+    opened: boolean;
+    anchor?: HTMLElement;
+    tokenType: VariationType;
+    initialType?: 'custom' | 'library';
+    onColorChange: (color: string | string[]) => void;
+    onOpacityChange: (opacity: number) => void;
+    onClose: () => void;
 }
 
 export const ColorPicker = (props: ColorPickerProps) => {
-    const { color, opacity, onColorChange, onOpacityChange } = props;
+    const { tokenType, color, opacity, opened, anchor, initialType, onColorChange, onOpacityChange, onClose } = props;
 
-    const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
-    const [palette, setPalette] = useState({
-        value: 'corp',
-    });
+    const typeList = getTypeList(tokenType);
+    const defaultType = typeList.find((item) => item.value === (initialType ?? 'custom')) ?? typeList[0];
+    const [type, setType] = useState<SegmentButtonItem>(defaultType);
 
-    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true));
-
-    const onPaletteSelect = (item: SelectButtonItem) => {
-        setPalette(item);
-    };
-
-    const onSliderValueChange = (opacity: number) => {
-        if (onOpacityChange) {
-            onOpacityChange(opacity / 100);
-        }
-    };
-
-    const onColorValueChange = (value: string) => {
-        if (onColorChange) {
-            onColorChange(value);
-            setColorValueStatus('default');
-        }
-    };
-
-    const onInputValueChange = (value: string) => {
-        setColorValueStatus('default');
-
-        setInputValue(value);
-    };
-
-    const onInputValueBlur = (event: React.FocusEvent<HTMLInputElement>) => {
-        const value = event.target.value;
-
-        if (!onColorChange) {
-            return;
-        }
-
-        if (isValidColorValue(value)) {
-            onColorChange(value);
-            return;
-        }
-
-        if (value === '') {
-            setInputValue(getNormalizedColor(color, undefined, true));
-            return;
-        }
-
-        setColorValueStatus('negative');
+    const onTypeSelect = (item: SegmentButtonItem) => {
+        setType(item);
     };
 
     useEffect(() => {
-        setInputValue(getNormalizedColor(color, undefined, true));
-    }, [color]);
+        if (!opened) {
+            return;
+        }
 
-    useEffect(() => {
-        const currentPalette = color.startsWith('general.') ? 'corp' : 'custom';
-
-        setPalette({ value: currentPalette });
-    }, [color]);
+        const nextType = typeList.find((item) => item.value === (initialType ?? 'custom')) ?? typeList[0];
+        setType(nextType);
+    }, [opened, initialType]);
 
     return (
-        <Root>
-            <SelectButton label="Палитра" items={paletteList} selected={palette} onItemSelect={onPaletteSelect} />
-            {palette.value === 'corp' && (
-                <PaletteColorSelector color={color} opacity={opacity} onChange={onColorValueChange} />
-            )}
-            {palette.value === 'custom' && <CustomColorSelector color={color} onChange={onColorValueChange} />}
-            <StyledWrapper>
-                {palette.value === 'custom' && (
-                    <TextField
-                        value={inputValue}
-                        stretched
-                        onChange={onInputValueChange}
-                        onBlur={onInputValueBlur}
-                        view={colorValueStatus}
-                    />
-                )}
-                <Slider
+        <StyledModal opened={opened} anchor={anchor} anchorOffsetX={4} anchorOffsetY={-4} onClose={onClose}>
+            <StyledHeader>
+                <SegmentButton items={typeList} selected={type} onSelect={onTypeSelect} />
+                <StyledIconButton onClick={onClose}>
+                    <IconClose size="xs" color="inherit" />
+                </StyledIconButton>
+            </StyledHeader>
+
+            {type.value === 'custom' && (
+                <CustomColorSelector
+                    tokenType={tokenType}
+                    opacity={opacity}
                     color={color}
-                    value={Number(((opacity ?? 1) * 100).toFixed(0))}
-                    onChange={onSliderValueChange}
+                    onColorChange={onColorChange}
+                    onOpacityChange={onOpacityChange}
                 />
-            </StyledWrapper>
-            <StyledColorFormats>
-                <ColorValueEditButton label="Hex" color={color} opacity={opacity} format="hex" />
-                <ColorValueEditButton label="RGB" color={color} opacity={opacity} format="rgb" />
-                <ColorValueEditButton label="HSL" color={color} opacity={opacity} format="hsl" />
-            </StyledColorFormats>
-        </Root>
+            )}
+
+            {type.value === 'library' && (
+                <PaletteColorSelector color={color} opacity={opacity} onChange={onColorChange} onClose={onClose} />
+            )}
+        </StyledModal>
     );
 };
