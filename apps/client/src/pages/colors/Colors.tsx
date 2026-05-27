@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { backgroundTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { getMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
 import { DesignSystem, GradientToken, Theme, Token } from '../../controllers';
+import { GroupNode } from '../../types/other';
 import { Menu, Workspace } from '../../layouts';
 
 import { TokenColorEditor } from './features/TokenColorEditor';
 import { colorTokenActions, gradientTokenActions } from '../../actions';
+import { getAnchor, useTokenNodeSelection } from '../../hooks/useTokenNodeSelection';
 
 interface ColorsOutletContextProps {
     designSystem?: DesignSystem;
@@ -20,20 +21,44 @@ interface ColorsOutletContextProps {
 export const Colors = () => {
     const { designSystem, theme, updated, rerender } = useOutletContext<ColorsOutletContextProps>();
 
-    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
+    const [selectedItemIndexes, onItemSelect] = useSelectItemInMenu();
+    const [, groupIndex, itemIndex] = selectedItemIndexes;
 
-    const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getMenuItems(theme, 'color'), [theme, updated]);
+    const data = useMemo(() => getMenuItems(theme, 'color') as GroupNode[] | undefined, [theme, updated]);
 
-    const onTokenAdd = async (groupName: string, tokenName: string, tabName?: string, tokens?: (Token | unknown)[]) => {
+    const { tokenNode, selectToken } = useTokenNodeSelection({ data, groupIndex, itemIndex, onItemSelect });
+
+    const onMenuItemSelect = (nextGroupIndex: number, nextItemIndex: number) => {
+        onItemSelect(nextGroupIndex, nextItemIndex);
+        const node = data?.[nextGroupIndex]?.data[nextItemIndex];
+        const nextToken = node && getAnchor(node);
+
+        if (nextToken) {
+            selectToken(nextToken);
+        }
+    };
+
+    const onTokenAdd = async (groupName: string, tokenName: string) => {
+        const existingNames = new Set(
+            data?.find((group) => group.group === groupName)?.data.map((node) => node.name) ?? [],
+        );
+
         if (tokenName.toLocaleLowerCase().includes('gradient')) {
-            gradientTokenActions.addToken({ groupName, tokenName, tabName, tokens, theme, designSystem });
-
-            rerender();
-            return;
+            gradientTokenActions.addToken({ groupName, tokenName, theme, designSystem });
+        } else {
+            colorTokenActions.addToken({ groupName, tokenName, theme, designSystem });
         }
 
-        colorTokenActions.addToken({ groupName, tokenName, tabName, tokens, theme, designSystem });
+        const nextData = getMenuItems(theme, 'color') as GroupNode[] | undefined;
+        const addedNode = nextData
+            ?.find((group) => group.group === groupName)
+            ?.data.find((node) => !existingNames.has(node.name));
+
+        const addedToken = addedNode && getAnchor(addedNode);
+        
+        if (addedToken) {
+            selectToken(addedToken);
+        }
 
         rerender();
     };
@@ -51,37 +76,26 @@ export const Colors = () => {
         rerender();
     };
 
-    useEffect(() => {
-        if (!data) {
-            return;
-        }
-
-        const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
-        const selectedTokens = data.groups[tabIndex].data[groupIndex].items[itemIndex].data as Token[];
-
-        setTokens(selectedTokens);
-    }, [theme, data, selectedItemIndexes]);
-
     if (!data || !designSystem || !theme) {
         return null;
     }
 
     return (
         <Workspace
-            menuBackground={backgroundTertiary}
+            menuBackground={'transparent'}
             menu={
                 <Menu
                     header={designSystem.getParameters()?.projectName}
-                    subheader={designSystem.getParameters()?.packagesName}
                     data={data}
-                    selectedItemIndexes={selectedItemIndexes}
-                    onTabSelect={onTabSelect}
-                    onItemSelect={onItemSelect}
+                    selectedItemIndexes={[selectedItemIndexes[1], selectedItemIndexes[2]]}
+                    onItemSelect={onMenuItemSelect}
                     onItemAdd={onTokenAdd}
                     onItemDisable={onTokenDisable}
                 />
             }
-            content={<TokenColorEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />}
+            content={
+                <TokenColorEditor designSystem={designSystem} theme={theme} tokenNode={tokenNode} rerender={rerender} />
+            }
         />
     );
 };

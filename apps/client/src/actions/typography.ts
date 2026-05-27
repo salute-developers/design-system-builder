@@ -65,7 +65,9 @@ export const typographyTokenActions: TypographyTokenActions = {
         const createMeta = (screenSize: string, fontMode: string) => ({
             tags: [screenSize, ...rest, fontMode],
             name: [screenSize, ...rest, fontMode].join('.'),
-            displayName: kebabToCamel(`${groupName}-${camelToKebab(tokenName)} ${upperFirstLetter(fontMode)[0]}`),
+            displayName: kebabToCamel(
+                `${camelToKebab(groupName)}-${camelToKebab(tokenName)} ${upperFirstLetter(fontMode)[0]}`,
+            ),
             description: 'New description',
             enabled: true,
         });

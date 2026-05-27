@@ -30,9 +30,12 @@ const PreviewItem = (props: PreviewItemProps) => {
     const [background, setBackground] = useState<SelectButtonItem>(
         tokenList.find((item) => item.label === defaultBackground) || tokenList[0],
     );
-    const [openExamples, setOpenExamples] = useState<Array<string | undefined>>([]);
+    const [openExamples, setOpenExamples] = useState<Array<string | undefined>>(['large', 'small']);
 
-    const contrastRatio = useMemo(() => isGradient ? 0 : getContrastRatio(color, background.value ?? ''), [color, background]);
+    const contrastRatio = useMemo(
+        () => (isGradient ? 0 : getContrastRatio(color, background.value ?? '')),
+        [color, background],
+    );
 
     const onBackgroundSelect = (item: SelectButtonItem) => {
         setBackground(item);
