@@ -23,7 +23,7 @@ export const TokenTypographyEditor = (props: TokenTypographyEditorProps) => {
 
     const [screenSize, setScreenSize] = useState<SegmentButtonItem>({
         label: 'Большой',
-        value: 0,
+        value: '0',
     });
     const [value, setValue] = useState<TypographyType>({
         fontFamily: 'Font Family',
