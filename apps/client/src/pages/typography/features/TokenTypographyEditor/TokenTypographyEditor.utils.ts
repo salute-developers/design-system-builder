@@ -22,14 +22,14 @@ export const getTokenValue = (token: WebTypographyToken[string], theme: Theme) =
 export const screenSizeList = [
     {
         label: 'Большой',
-        value: 0,
+        value: '0',
     },
     {
         label: 'Средний',
-        value: 1,
+        value: '1',
     },
     {
         label: 'Маленький',
-        value: 2,
+        value: '2',
     },
 ];
