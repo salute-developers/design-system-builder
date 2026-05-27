@@ -1,5 +1,12 @@
 import { AndroidGradient, DesignSystem, GradientToken, Theme, WebGradient, IOSGradient, Token } from '../controllers';
-import { camelToKebab, kebabToCamel, createDraftToken, updateDraftToken } from '../utils';
+import {
+    camelToKebab,
+    kebabToCamel,
+    createDraftToken,
+    updateDraftToken,
+    renameDraftToken,
+    isDraftAddedToken,
+} from '../utils';
 import { parseGradient } from '../utils/gradient';
 
 // const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
@@ -35,8 +42,6 @@ import { parseGradient } from '../utils/gradient';
 interface AddTokenProps {
     groupName: string;
     tokenName: string;
-    tabName?: string;
-    tokens?: (Token | unknown)[];
     theme?: Theme;
     designSystem?: DesignSystem;
 }
@@ -54,8 +59,21 @@ interface UpdateTokenProps {
     designSystem?: DesignSystem;
 }
 
-interface ResetTokenProps {
-    token?: GradientToken;
+interface RenameTokenGroupProps {
+    defaultToken?: GradientToken;
+    newDisplayName: string;
+    theme?: Theme;
+    designSystem?: DesignSystem;
+}
+
+interface DeleteTokenGroupProps {
+    defaultToken?: GradientToken;
+    theme?: Theme;
+    designSystem?: DesignSystem;
+}
+
+interface ResetTokenGroupProps {
+    defaultToken?: GradientToken;
     theme?: Theme;
     designSystem?: DesignSystem;
 }
@@ -64,7 +82,9 @@ interface GradientTokenActions {
     addToken: (props: AddTokenProps) => void;
     disableToken: (props: DisableTokenProps) => void;
     updateToken: (props: UpdateTokenProps) => void;
-    resetToken: (props: ResetTokenProps) => {
+    renameTokenGroup: (props: RenameTokenGroupProps) => void;
+    deleteTokenGroup: (props: DeleteTokenGroupProps) => void;
+    resetTokenGroup: (props: ResetTokenGroupProps) => {
         color: string;
         opacity: number;
         description: string | undefined;
@@ -72,25 +92,29 @@ interface GradientTokenActions {
 }
 
 export const gradientTokenActions: GradientTokenActions = {
-    addToken: ({ groupName, tokenName, tabName, tokens, theme, designSystem }) => {
-        if (!theme || !tabName || !tokens || !designSystem) {
+    addToken: ({ groupName, tokenName, theme, designSystem }) => {
+        if (!theme || !designSystem || !groupName || !tokenName) {
             return;
         }
 
-        // TODO: Убрать, когда сделаем background с OnDark/OnLight
-        const normalizedTabName = groupName === 'Background' ? tabName.replace('On', '') : tabName;
-        const prefix = normalizedTabName === 'Default' ? '' : `${normalizedTabName}-`;
-        const rest = [camelToKebab(groupName), camelToKebab(normalizedTabName), camelToKebab(tokenName)];
+        const groupKebab = camelToKebab(groupName);
+        const tokenKebab = camelToKebab(tokenName);
 
-        const isTokenExist = theme.getToken(['dark', ...rest].join('.'), 'color');
+        const subgroups: Array<{ subgroupKebab: string; displayPrefix: string }> = [
+            { subgroupKebab: 'default', displayPrefix: '' },
+            { subgroupKebab: 'inverse', displayPrefix: 'inverse-' },
+            { subgroupKebab: 'on-dark', displayPrefix: 'on-dark-' },
+            { subgroupKebab: 'on-light', displayPrefix: 'on-light-' },
+        ];
 
+        const isTokenExist = theme.getToken(`dark.${groupKebab}.default.${tokenKebab}`, 'gradient');
         if (isTokenExist) {
             console.warn('Токен уже существует');
             return;
         }
 
-        const createMeta = (mode: string, postfix?: string) => {
-            const parts = [...rest];
+        const createMeta = (mode: string, subgroupKebab: string, displayPrefix: string, postfix?: string) => {
+            const parts = [groupKebab, subgroupKebab, tokenKebab];
 
             if (postfix) {
                 const last = parts.pop();
@@ -100,9 +124,7 @@ export const gradientTokenActions: GradientTokenActions = {
             return {
                 tags: [mode, ...parts],
                 name: [mode, ...parts].join('.'),
-                displayName: kebabToCamel(
-                    `${camelToKebab(prefix)}${camelToKebab(groupName)}-${camelToKebab(tokenName)}`,
-                ),
+                displayName: kebabToCamel(`${displayPrefix}${groupKebab}-${tokenKebab}${postfix ?? ''}`),
                 description: 'New description',
                 enabled: true,
             };
@@ -122,43 +144,23 @@ export const gradientTokenActions: GradientTokenActions = {
         const dsVersion = designSystem.getVersion() || '';
 
         const themeModes = ['dark', 'light'];
+        const postfixes = ['', '-hover', '-active'];
 
         themeModes.forEach((themeMode) => {
-            const newToken = new GradientToken(createMeta(themeMode), {
-                web: new WebGradient(defaultValue),
-                ios: new IOSGradient(defaultNativeValue),
-                android: new AndroidGradient(defaultNativeValue),
+            subgroups.forEach(({ subgroupKebab, displayPrefix }) => {
+                postfixes.forEach((postfix) => {
+                    const token = new GradientToken(
+                        createMeta(themeMode, subgroupKebab, displayPrefix, postfix || undefined),
+                        {
+                            web: new WebGradient(defaultValue),
+                            ios: new IOSGradient(defaultNativeValue),
+                            android: new AndroidGradient(defaultNativeValue),
+                        },
+                    );
+                    theme.addToken('gradient', token);
+                    createDraftToken(dsName, dsVersion, token);
+                });
             });
-
-            theme.addToken('gradient', newToken);
-            createDraftToken(dsName, dsVersion, newToken);
-
-            const additionalValues = [defaultValue, defaultValue];
-            const additionalNativeValues = [defaultNativeValue, defaultNativeValue];
-
-            if (!additionalValues) {
-                return;
-            }
-
-            const [activeValue, hoverValue] = additionalValues;
-            const [activeNativeValue, hoverNativeValue] = additionalNativeValues;
-
-            const activeToken = new GradientToken(createMeta(themeMode, '-active'), {
-                web: new WebGradient(activeValue),
-                ios: new IOSGradient(activeNativeValue),
-                android: new AndroidGradient(activeNativeValue),
-            });
-            const hoverToken = new GradientToken(createMeta(themeMode, '-hover'), {
-                web: new WebGradient(hoverValue),
-                ios: new IOSGradient(hoverNativeValue),
-                android: new AndroidGradient(hoverNativeValue),
-            });
-
-            theme.addToken('gradient', activeToken);
-            theme.addToken('gradient', hoverToken);
-
-            createDraftToken(dsName, dsVersion, activeToken);
-            createDraftToken(dsName, dsVersion, hoverToken);
         });
     },
     disableToken: ({ disabled, tokens, designSystem }: DisableTokenProps) => {
@@ -185,45 +187,211 @@ export const gradientTokenActions: GradientTokenActions = {
 
         updateDraftToken(dsName, dsVersion, token, 'save');
     },
-    resetToken: ({ token, theme, designSystem }: ResetTokenProps) => {
-        if (!token || !designSystem || !theme) {
-            return {
-                color: '#FFFFFF',
-                opacity: 1,
-                description: 'Description',
-            };
+    renameTokenGroup: ({ defaultToken, newDisplayName, theme, designSystem }) => {
+        if (!defaultToken || !theme || !designSystem || !newDisplayName) {
+            return;
         }
 
         const dsName = designSystem.getName() || '';
         const dsVersion = designSystem.getVersion() || '';
 
-        const defaultDescription = token.getDefaultDescription();
-        const platforms = Object.keys(token.getPlatforms());
-        const activeToken = theme.getToken(`${token.getName()}-active`, 'gradient');
-        const hoverToken = theme.getToken(`${token.getName()}-hover`, 'gradient');
+        const defaultTags = defaultToken.getTags();
+        const groupKebab = defaultTags[1];
+        const defaultName = defaultToken.getName();
+        const defaultNameParts = defaultName.split('.');
+        const oldTokenKebab = defaultNameParts[defaultNameParts.length - 1];
 
-        for (const platform of platforms) {
-            token.setValue(platform, token.getDefaultValue(platform));
-            token.setDescription(defaultDescription);
+        const groupCamel = kebabToCamel(groupKebab);
+        const upperFirst = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
 
-            if (!activeToken || !hoverToken) {
-                continue;
+        const stripPrefix = (display: string, prefix: string) =>
+            display.startsWith(prefix) ? display.slice(prefix.length) : display;
+
+        const remainderCamel = (() => {
+            const withoutGroup = stripPrefix(newDisplayName, groupCamel);
+
+            if (withoutGroup === newDisplayName) {
+                return newDisplayName;
             }
 
-            activeToken.setValue(platform, activeToken.getDefaultValue(platform));
-            hoverToken.setValue(platform, hoverToken.getDefaultValue(platform));
+            return withoutGroup.charAt(0).toLowerCase() + withoutGroup.slice(1);
+        })();
+        const newTokenKebab = camelToKebab(remainderCamel);
+
+        if (newTokenKebab === oldTokenKebab) {
+            return;
         }
 
-        const [gradientValue] = token.getDefaultValue('web');
+        const oldTokenCamelUpper = upperFirst(kebabToCamel(oldTokenKebab));
+        const newTokenCamelUpper = upperFirst(remainderCamel);
 
-        updateDraftToken(dsName, dsVersion, token, 'remove');
-        updateDraftToken(dsName, dsVersion, activeToken, 'remove');
-        updateDraftToken(dsName, dsVersion, hoverToken, 'remove');
+        const postfixes = ['-hover', '-active'];
+
+        const replaceTrailing = (value: string, fromCore: string, toCore: string) => {
+            if (value.endsWith(fromCore)) {
+                return value.slice(0, -fromCore.length) + toCore;
+            }
+
+            for (const postfix of postfixes) {
+                const postfixCamel = upperFirst(kebabToCamel(postfix.slice(1)));
+                const fromWithPostfix = fromCore + postfixCamel;
+
+                if (value.endsWith(fromWithPostfix)) {
+                    return value.slice(0, -fromWithPostfix.length) + toCore + postfixCamel;
+                }
+            }
+
+            return value;
+        };
+
+        const replaceNameLastPart = (name: string) => {
+            const parts = name.split('.');
+            const last = parts[parts.length - 1];
+            const newLast = (() => {
+                if (last === oldTokenKebab) {
+                    return newTokenKebab;
+                }
+
+                for (const postfix of postfixes) {
+                    if (last === oldTokenKebab + postfix) {
+                        return newTokenKebab + postfix;
+                    }
+                }
+
+                return last;
+            })();
+
+            if (newLast === last) {
+                return null;
+            }
+
+            parts[parts.length - 1] = newLast;
+
+            return parts.join('.');
+        };
+
+        const allGradientTokens = theme.getTokens('gradient');
+
+        allGradientTokens.forEach((targetToken) => {
+            const tags = targetToken.getTags();
+            if (tags[1] !== groupKebab) {
+                return;
+            }
+
+            const oldName = targetToken.getName();
+            const newName = replaceNameLastPart(oldName);
+            if (!newName) {
+                return;
+            }
+
+            const newTokenDisplayName = replaceTrailing(
+                targetToken.getDisplayName(),
+                oldTokenCamelUpper,
+                newTokenCamelUpper,
+            );
+
+            const newTags = [...tags];
+            const lastTag = newTags[newTags.length - 1];
+
+            if (lastTag === oldTokenKebab) {
+                newTags[newTags.length - 1] = newTokenKebab;
+            } else {
+                for (const postfix of postfixes) {
+                    if (lastTag === oldTokenKebab + postfix) {
+                        newTags[newTags.length - 1] = newTokenKebab + postfix;
+                        break;
+                    }
+                }
+            }
+
+            targetToken.setName(newName);
+            targetToken.setDisplayName(newTokenDisplayName);
+            targetToken.setTags(newTags);
+
+            renameDraftToken(dsName, dsVersion, oldName, targetToken);
+        });
+    },
+    deleteTokenGroup: ({ defaultToken, theme, designSystem }) => {
+        if (!defaultToken || !theme || !designSystem) {
+            return;
+        }
+
+        const dsName = designSystem.getName() || '';
+        const dsVersion = designSystem.getVersion() || '';
+
+        const defaultTags = defaultToken.getTags();
+        const groupKebab = defaultTags[1];
+        const defaultNameParts = defaultToken.getName().split('.');
+        const tokenKebab = defaultNameParts[defaultNameParts.length - 1];
+
+        const postfixes = ['', '-hover', '-active'];
+
+        const matchesToRemove = theme
+            .getTokens('gradient')
+            .filter((t) => {
+                if (t.getTags()[1] !== groupKebab) {
+                    return false;
+                }
+                const last = t.getName().split('.').slice(-1)[0];
+
+                return postfixes.some((p) => last === tokenKebab + p);
+            })
+            .map((t) => ({ name: t.getName(), token: t }));
+
+        matchesToRemove.forEach(({ name, token }) => {
+            updateDraftToken(dsName, dsVersion, token, 'remove');
+            theme.removeToken(name, 'gradient');
+        });
+    },
+    resetTokenGroup: ({ defaultToken, theme, designSystem }) => {
+        const fallback = {
+            color: '#FFFFFF',
+            opacity: 1,
+            description: 'Description' as string | undefined,
+        };
+
+        if (!defaultToken || !theme || !designSystem) {
+            return fallback;
+        }
+
+        const dsName = designSystem.getName() || '';
+        const dsVersion = designSystem.getVersion() || '';
+
+        const defaultTags = defaultToken.getTags();
+        const groupKebab = defaultTags[1];
+        const defaultNameParts = defaultToken.getName().split('.');
+        const tokenKebab = defaultNameParts[defaultNameParts.length - 1];
+
+        const postfixes = ['', '-hover', '-active'];
+
+        const matchesToReset = theme.getTokens('gradient').filter((t) => {
+            if (t.getTags()[1] !== groupKebab) {
+                return false;
+            }
+
+            const last = t.getName().split('.').slice(-1)[0];
+            return postfixes.some((p) => last === tokenKebab + p);
+        });
+
+        matchesToReset.forEach((token) => {
+            const platforms = Object.keys(token.getPlatforms());
+            const defaultDescription = token.getDefaultDescription();
+
+            for (const platform of platforms) {
+                token.setValue(platform, token.getDefaultValue(platform));
+            }
+
+            token.setDescription(defaultDescription);
+
+            updateDraftToken(dsName, dsVersion, token, isDraftAddedToken(token.getName()) ? 'save' : 'remove');
+        });
+
+        const defaultWeb = defaultToken.getDefaultValue('web');
 
         return {
-            color: gradientValue,
+            color: Array.isArray(defaultWeb) ? defaultWeb.join(', ') : String(defaultWeb),
             opacity: 1,
-            description: defaultDescription,
+            description: defaultToken.getDefaultDescription(),
         };
     },
 };

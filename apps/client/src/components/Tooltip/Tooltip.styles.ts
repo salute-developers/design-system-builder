@@ -59,7 +59,7 @@ export const Root = styled.div<{
     color: ${textPrimary};
     background: ${surfaceSolidCard};
 
-    border: 0.03125rem solid var(--outline-transparent-primary));
+    border: 0.03125rem solid var(--outline-transparent-primary);
 
     &::before {
         content: '';
