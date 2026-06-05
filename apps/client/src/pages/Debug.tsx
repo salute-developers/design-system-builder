@@ -12,10 +12,15 @@ import {
 
 import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../components';
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
-import { importTokensToTheme, importDesignSystem, btoaUtf8, clearDraft } from '../utils';
+import { importTokensToTheme, importDesignSystem, clearDraft } from '../utils';
 import { Parameters } from '../types';
-import { DB_SERVICE_URL } from '../api';
-import { designSystemSave, generateAndDeployDocumentation, generatePublish } from './Main.utils';
+import {
+    designSystemSave,
+    downloadThemeData,
+    generateAndDeployDocumentation,
+    generateDownload,
+    generatePublish,
+} from './Main.utils';
 
 const spin = keyframes`
     to { 
@@ -96,43 +101,20 @@ export const Debug = (props: DebugProps) => {
         [],
     );
 
-    // const onDebugDesignSystemDownload = async () => {
-    //     if (!designSystem) {
-    //         return;
-    //     }
-
-    //     return await generateDownload(designSystem, 'tgz');
-    // };
-
-    const onDesignSystemDownload = async () => {
+    const onDebugDesignSystemDownload = async () => {
         if (!designSystem) {
             return;
         }
 
-        const name = designSystem.getName();
-        const token = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+        return await generateDownload(designSystem, 'tgz');
+    };
 
-        const response = await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${name}/download-theme`, {
-            headers: {
-                Authorization: `Basic ${token}`,
-            },
-        });
-
-        if (!response.ok) {
-            console.error('Failed to download theme:', response.statusText);
+    const onThemeDataDownload = async () => {
+        if (!designSystem) {
             return;
         }
 
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-
-        a.href = url;
-        a.download = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] ?? `${name}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        return await downloadThemeData(designSystem);
     };
 
     const onDesignSystemPublish = async () => {
@@ -242,7 +224,12 @@ export const Debug = (props: DebugProps) => {
             await DesignSystem.create({
                 name,
                 version: '0.1.0',
-                parameters: { ...parameters, projectName: name.split('_').join(' ').toUpperCase(), packagesName: name },
+                parameters: {
+                    ...parameters,
+                    projectName: name.split('_').join(' ').toUpperCase(),
+                    packagesName: name,
+                    projectId: designSystem?.getParameters()?.projectId,
+                },
                 themeData,
             });
 
@@ -278,11 +265,16 @@ export const Debug = (props: DebugProps) => {
                     contentRight={<IconTrashOutline size="s" />}
                     onClick={onClearDraftClick}
                 />
-                {/* <LinkButton
-                    text="Скачать дизайн систему"
+                <LinkButton
+                    text="Скачать архив дизайн системы"
                     contentRight={<IconDownload size="s" />}
                     onClick={onDebugDesignSystemDownload}
-                /> */}
+                />
+                <LinkButton
+                    text="Скачать тему"
+                    contentRight={<IconDownload size="s" />}
+                    onClick={withLoading(onThemeDataDownload)}
+                />
                 <LinkButton
                     text="Опубликовать"
                     contentRight={<IconCloudUploadOutline size="s" />}
@@ -304,11 +296,6 @@ export const Debug = (props: DebugProps) => {
                     contentRight={<IconUploadOutline size="s" />}
                     accept=".zip, .json"
                     onFileChange={onImportDesignSystem}
-                />
-                <LinkButton
-                    text="Скачать дизайн систему"
-                    contentRight={<IconDownload size="s" />}
-                    onClick={withLoading(onDesignSystemDownload)}
                 />
             </Root>
             <Dialog

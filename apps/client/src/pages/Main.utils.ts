@@ -3,8 +3,7 @@ import { general } from '@salutejs/plasma-colors';
 
 import { GrayTone, Parameters } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
-import { getNpmMeta } from '../api';
-import { btoaUtf8 } from '../utils/other';
+import { getNpmMeta, http, PROJECTS_URL } from '../api';
 
 export const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
@@ -16,6 +15,7 @@ export const popupContentPages = {
 export const defaultParameters: Parameters = {
     projectName: '',
     packagesName: '',
+    projectId: '',
     accentColor: 'blue',
     grayTone: 'warmGray',
     darkFillSaturation: 50,
@@ -23,9 +23,6 @@ export const defaultParameters: Parameters = {
     lightFillSaturation: 50,
     lightStrokeSaturation: 50,
 };
-
-const VITE_GENERATOR_API = import.meta.env.VITE_GENERATOR_API;
-const VITE_DOCUMENTATION_GENERATOR_API = import.meta.env.VITE_DOCUMENTATION_GENERATOR_API;
 
 // TODO: Добавить оставшиеся переменные из макетов
 export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
@@ -51,61 +48,37 @@ export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
 };
 
 export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
-    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
+    const projectId = designSystem.getParameters()?.projectId;
 
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         exportType,
-        authToken,
     };
 
-    const result = await fetch(`${VITE_GENERATOR_API}/generate-download`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-            'Content-Type': 'application/json',
-        },
+    const result = await http.post<ArrayBuffer>(`${PROJECTS_URL}/${projectId}/generator/generate-download`, data, {
+        responseType: 'arraybuffer',
     });
 
-    const reader = result.body?.getReader();
+    const u8 = new Uint8Array(result.data);
 
-    const chunks = [];
+    // Находим начало архива (на случай мусора/префикса перед бинарником)
+    let start = 0;
+    for (let i = 0; i < u8.length - 3; i++) {
+        // TGZ
+        if (u8[i] === 0x1f && u8[i + 1] === 0x8b) {
+            start = i;
+            break;
+        }
 
-    let archiveDetected = false;
-
-    while (true) {
-        const { value, done } = await reader!.read();
-        if (done) break;
-
-        const u8 = new Uint8Array(value);
-
-        if (!archiveDetected) {
-            for (let i = 0; i < u8.length - 3; i++) {
-                // TGZ
-                if (u8[i] === 0x1f && u8[i + 1] === 0x8b) {
-                    archiveDetected = true;
-                    const sliced = u8.slice(i);
-                    chunks.push(sliced);
-                    break;
-                }
-
-                // ZIP
-                if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x03 && u8[i + 3] === 0x04) {
-                    archiveDetected = true;
-                    const sliced = u8.slice(i);
-                    chunks.push(sliced);
-                    break;
-                }
-            }
-
-            if (!archiveDetected) continue;
-        } else {
-            chunks.push(value);
+        // ZIP
+        if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x03 && u8[i + 3] === 0x04) {
+            start = i;
+            break;
         }
     }
 
-    const blob = new Blob(chunks);
+    const blob = new Blob([u8.slice(start)]);
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -118,59 +91,61 @@ export const generateDownload = async (designSystem: DesignSystem, exportType: '
     return true;
 };
 
+export const downloadThemeData = async (designSystem: DesignSystem) => {
+    const name = designSystem.getName();
+
+    const projectId = designSystem.getParameters()?.projectId;
+
+    const response = await http.get<Blob>(
+        `${PROJECTS_URL}/${projectId}/ds/legacy/design-systems/${name}/download-theme`,
+        { responseType: 'blob' },
+    );
+
+    const blob = response.data;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+
+    const contentDisposition = response.headers['content-disposition'] as string | undefined;
+    a.href = url;
+    a.download = contentDisposition?.match(/filename="(.+)"/)?.[1] ?? `${name}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
 export const generatePublish = async (
     designSystem: DesignSystem,
     exportType: 'tgz' | 'zip',
     tokenValue: string,
 ): Promise<boolean> => {
-    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
-
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         exportType,
         npmToken: tokenValue,
-        authToken,
     };
 
-    const result = await fetch(`${VITE_GENERATOR_API}/generate-publish`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    });
+    const projectId = designSystem.getParameters()?.projectId;
 
-    const resultResponse = await result.json();
+    const result = (await http.post(`${PROJECTS_URL}/${projectId}/generator/generate-publish`, data)).data;
 
-    console.log('Результат публикации :', resultResponse);
-
-    return resultResponse?.message.success || false;
+    return result.message.success || false;
 };
 
 export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
-    const authToken = btoaUtf8(`${localStorage.getItem('login')}:${localStorage.getItem('password')}`);
-
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         projectName: designSystem.getName(),
-        authToken,
     };
 
-    const result = await fetch(`${VITE_DOCUMENTATION_GENERATOR_API}/documentation/generate`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-        headers: {
-            'Content-Type': 'application/json',
-        },
-    });
+    const projectId = designSystem.getParameters()?.projectId;
 
-    const resultResponse = await result.json();
+    // TODO: Очень странный эндпоинт, нужно будет потом его переписать
+    const result = (await http.post(`${PROJECTS_URL}/${projectId}/docs/api/documentation/generate`, data)).data;
 
-    console.log('Документация опубликована: ', resultResponse);
-
-    return resultResponse;
+    return result;
 };
 
 export const designSystemSave = async (designSystem: DesignSystem, theme: Theme, components: Config[]) => {

@@ -3,9 +3,11 @@ import { KeyboardEvent, useState } from 'react';
 
 import { Root } from '../Main.styles.ts';
 import { Wrapper, StyledIconButton } from './Login.styles.ts';
-import { HeroTextField } from '../../features';
 
+import { HeroTextField } from '../../features';
 import { IconButton, TextField } from '../../components';
+import { authService } from '../../api';
+import { fetchOwnerProjectId } from '../../hooks';
 
 type Step = 'login' | 'password';
 
@@ -16,9 +18,9 @@ const StepLogin = ({
     setLogin,
 }: {
     step: Step;
-    setStep: (val: Step) => void;
-    login: any;
-    setLogin: any;
+    login: string;
+    setStep: (value: Step) => void;
+    setLogin: (value: string) => void;
 }) => {
     const handleNext = () => setStep('password');
 
@@ -57,9 +59,9 @@ const StepPassword = ({
     setPassword,
     handleSubmit,
 }: {
-    password: any;
-    setPassword: any;
-    handleSubmit: any;
+    password: string;
+    setPassword: (value: string) => void;
+    handleSubmit: () => void;
 }) => {
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
@@ -91,21 +93,29 @@ const Login = () => {
 
     const navigate = useNavigate();
 
-    const handleSubmit = () => {
-        console.log('Authorized');
-        localStorage.setItem('status', 'authorized');
-        localStorage.setItem('login', login);
-        localStorage.setItem('password', password);
-        navigate('/');
+    const onSubmit = async () => {
+        try {
+            await authService.login(login, password);
+
+            const ownerProjectId = await fetchOwnerProjectId();
+
+            if (!ownerProjectId) {
+                alert('У пользователя нет проектов');
+                return;
+            }
+
+            navigate(`/${ownerProjectId}`);
+        } catch {
+            alert('Ошибка авторизации');
+        }
     };
 
     return (
         <Root grayTone="warmGray" themeMode="dark">
             <Wrapper>
                 <StepLogin step={step} setStep={setStep} login={login} setLogin={setLogin} />
-
                 {step === 'password' && (
-                    <StepPassword password={password} setPassword={setPassword} handleSubmit={handleSubmit} />
+                    <StepPassword password={password} setPassword={setPassword} handleSubmit={onSubmit} />
                 )}
             </Wrapper>
         </Root>

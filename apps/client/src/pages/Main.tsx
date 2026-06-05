@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
@@ -32,6 +32,7 @@ import {
     StyledIconButton,
     StyledPopup,
 } from './Main.styles';
+import { tokenStore } from '../api';
 
 export const Main = () => {
     const navigate = useNavigate();
@@ -40,14 +41,10 @@ export const Main = () => {
     // TODO: Временное решение для обновления
     const [updated, rerender] = useForceRerender();
 
-    const isEditingDesignSystem = !['/', '/drafts'].includes(useLocation().pathname);
-
     const [isPopupOpen, setIsPopupOpen] = useState(false);
     const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
         popupContentPages.CREATE_FIRST_NAME,
     );
-
-    const isHome = !isPopupOpen && currentPath.length === 0;
 
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
@@ -56,8 +53,17 @@ export const Main = () => {
 
     const { accentColor, darkFillSaturation } = parameters;
 
-    const { designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme, components, reload } = useDesignSystem(designSystemName, designSystemVersion);
+    const { designSystemProjectId, designSystemName, designSystemVersion } = useParams();
+    const { designSystem, theme, components, reload } = useDesignSystem(
+        designSystemProjectId,
+        designSystemName,
+        designSystemVersion,
+    );
+
+    // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
+    const isEditingDesignSystem = Boolean(designSystemName && designSystemVersion);
+    // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
+    const isHome = !isPopupOpen && !isEditingDesignSystem;
 
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
@@ -99,9 +105,15 @@ export const Main = () => {
         setPopupContentPage(popupContentPages.CREATION_PROGRESS);
     };
 
-    const onCreateComplete = (designSystemName: string, designSystemVersion = '0.1.0') => {
+    const onCreateComplete = (designSystemName: string, createdProjectId?: string) => {
         onPopupClose();
-        navigate(`/${designSystemName}/${designSystemVersion}/colors`);
+
+        const targetProjectId = createdProjectId ?? designSystemProjectId;
+
+        if (targetProjectId) {
+            navigate(`/${targetProjectId}/${designSystemName}/0.1.0/colors`);
+        }
+
         onResetParameters();
     };
 
@@ -120,7 +132,11 @@ export const Main = () => {
         }
 
         onPopupClose();
-        onClickPanelButton('');
+
+        if (designSystemProjectId) {
+            navigate(`/${designSystemProjectId}`, { replace: true });
+        }
+
         rerender(null);
     };
 
@@ -130,11 +146,17 @@ export const Main = () => {
     };
 
     const handleSignOut = () => {
-        localStorage.removeItem('status');
-        localStorage.removeItem('login');
-        localStorage.removeItem('password');
+        tokenStore.clear();
+
         navigate('/login');
     };
+
+    // TODO: Временное решение для получения projectId после создания дизайн-системы, придумать что-то получше
+    useEffect(() => {
+        if (designSystemProjectId) {
+            setParameters((prev) => ({ ...prev, projectId: designSystemProjectId }));
+        }
+    }, [designSystemProjectId]);
 
     const mainColor = useMemo(() => {
         if (!designSystem) {
@@ -154,11 +176,9 @@ export const Main = () => {
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             {isEditingDesignSystem && <LogoGradient color={mainColor} />}
             <Panel>
-                {isEditingDesignSystem && (
-                    <Logo color={mainColor}>
-                        <IconDesignSystemLogo color="inherit" />
-                    </Logo>
-                )}
+                <Logo color={mainColor}>
+                    <IconDesignSystemLogo color="inherit" />
+                </Logo>
                 <BuilderItems>
                     <MainItems>
                         <StyledIconButton selected={isHome} onClick={onHomeClick}>
@@ -215,7 +235,8 @@ export const Main = () => {
             </Panel>
             <Outlet
                 context={{
-                    projectName: parameters.projectName,
+                    projectName: designSystemName,
+                    projectId: designSystemProjectId,
                     designSystem,
                     theme,
                     components,
@@ -224,13 +245,15 @@ export const Main = () => {
                     onDesignSystemCreate,
                 }}
             />
-            <Debug
-                designSystem={designSystem}
-                theme={theme}
-                components={components}
-                rerender={rerender}
-                reload={reload}
-            />
+            {isEditingDesignSystem && (
+                <Debug
+                    designSystem={designSystem}
+                    theme={theme}
+                    components={components}
+                    rerender={rerender}
+                    reload={reload}
+                />
+            )}
             {isPopupOpen && (
                 <StyledPopup>
                     {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (

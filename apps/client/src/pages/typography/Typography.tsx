@@ -42,7 +42,9 @@ export const Typography = () => {
         }
 
         const [tabIndex, groupIndex, tokenIndex] = selectedItemIndexes;
-        const selectedTokens = data.groups[tabIndex].data[groupIndex].items[tokenIndex].data as Token[];
+        const selectedTokens = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[tokenIndex]?.data as
+            | Token[]
+            | undefined;
 
         setTokens(selectedTokens);
     }, [data, selectedItemIndexes]);

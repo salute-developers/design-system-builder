@@ -8,7 +8,7 @@ interface CreationProgressProps {
     parameters: Partial<Parameters>;
     accentColor: string;
     onPrevPage: () => void;
-    onNextPage: (designSystemName: string) => void;
+    onNextPage: (designSystemName: string, projectId?: string) => void;
 }
 
 export const CreationProgress = (props: CreationProgressProps) => {
@@ -32,8 +32,16 @@ export const CreationProgress = (props: CreationProgressProps) => {
         const createDesignSystem = async () => {
             console.log('Creating design system...', parameters);
 
-            await DesignSystem.create({ name: parameters.packagesName || 'Unnamed Design System', parameters });
-            setDesignSystemCreated(true);
+            try {
+                await DesignSystem.create({
+                    name: parameters.packagesName || 'Unnamed Design System',
+                    parameters,
+                });
+
+                setDesignSystemCreated(true);
+            } catch (error) {
+                console.error('[CreationProgress] Не удалось создать дизайн-систему', error);
+            }
         };
 
         createDesignSystem();
@@ -43,7 +51,7 @@ export const CreationProgress = (props: CreationProgressProps) => {
 
     useEffect(() => {
         if (designSystemCreated && value >= 100 && parameters.packagesName) {
-            onNextPage(parameters.packagesName);
+            onNextPage(parameters.packagesName, parameters.projectId);
         }
     }, [designSystemCreated, value]);
 
