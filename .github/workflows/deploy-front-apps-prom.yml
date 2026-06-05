@@ -25,7 +25,7 @@ jobs:
 
       - name: Build client
         env:
-          VITE_API_GETAWAY_URL: ${{ vars.VITE_API_GETAWAY_URL_PROM }}
+          VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL_PROM }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
           BASE_URL: '/design-system-builder/'
         run: |

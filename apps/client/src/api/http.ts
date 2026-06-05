@@ -1,9 +1,9 @@
 import axios from 'axios';
 
-import { API_GETAWAY_URL } from './constants';
+import { API_GATEWAY_URL } from './constants';
 import { authService } from './authService';
 
-export const http = axios.create({ baseURL: API_GETAWAY_URL });
+export const http = axios.create({ baseURL: API_GATEWAY_URL });
 
 const forceLogout = () => {
     window.location.href = '/login';
