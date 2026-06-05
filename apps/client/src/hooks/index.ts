@@ -6,4 +6,4 @@ export { useDesignSystem } from './useDesignSystem';
 export { useForceRerender } from './useForceRerender';
 export { useSelectItemInMenu } from './useSelectItemInMenu';
 export { useComponentData } from './useComponentData';
-export { useAuth } from './useAuth';
+export { useOwnerProjectId, fetchOwnerProjectId } from './useOwnerProjectId';

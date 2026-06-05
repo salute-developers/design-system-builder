@@ -9,12 +9,19 @@ import {
     type ThemeMeta,
 } from '../themeBuilder';
 import { Config, type Meta } from '../componentBuilder';
-import { kebabToCamel, loadBaseComponentsData, loadDesignSystem, saveDesignSystem, updateDesignSystem } from '../../utils';
+import {
+    kebabToCamel,
+    loadBaseComponentsData,
+    loadDesignSystem,
+    saveDesignSystem,
+    updateDesignSystem,
+} from '../../utils';
 import { Parameters } from '../../types';
 
 interface DesignSystemProps {
     name: string;
     version?: string;
+    projectId?: string;
     parameters?: Partial<Parameters>;
     themeData?: ThemeSource;
 }
@@ -51,7 +58,7 @@ export class DesignSystem {
 
         const [themeData, componentsData] = await Promise.all([
             Promise.resolve(instance.generateThemeData(parameters)),
-            loadBaseComponentsData(),
+            loadBaseComponentsData({ parameters }),
         ]);
 
         instance.themeData = externalThemeData ?? themeData;
@@ -70,10 +77,9 @@ export class DesignSystem {
         return instance;
     }
 
-    public static async get({ name, version = '0.1.0' }: DesignSystemProps): Promise<DesignSystem> {
+    public static async get({ name, version = '0.1.0', projectId = '' }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version });
-
-        const data = await loadDesignSystem(name, version);
+        const data = await loadDesignSystem({ name, version, projectId });
 
         if (!data) {
             throw new Error('Дизайн-система не найдена');
@@ -83,7 +89,7 @@ export class DesignSystem {
 
         instance.themeData = themeData;
         instance.componentsData = componentsData;
-        instance.parameters = parameters;
+        instance.parameters = { ...parameters, projectId }; // TODO: Забирать эти значения из бд
 
         return instance;
     }
