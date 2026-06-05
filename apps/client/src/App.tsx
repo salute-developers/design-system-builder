@@ -4,7 +4,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-
 
 import { Projects, Home, Colors, Shapes, Typography, Components, Main, Overview, Login } from './pages';
 
-import { useAuth } from './hooks';
+import { useOwnerProjectId } from './hooks';
+import { authService } from './api';
 
 const getBaseName = () => {
     const { pathname } = window.location;
@@ -23,13 +24,27 @@ const getBaseName = () => {
 };
 
 const ProtectedRoute = () => {
-    const { isAuthenticated } = useAuth();
+    const isAuthenticated = authService.isAuthenticated();
+
     return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 };
 
 const PublicRoute = ({ children }: { children: ReactNode }) => {
-    const { isAuthenticated } = useAuth();
+    const isAuthenticated = authService.isAuthenticated();
+
     return !isAuthenticated ? children : <Navigate to="/" />;
+};
+
+const RootRedirect = () => {
+    const state = useOwnerProjectId();
+
+    if (state.status === 'loading') {
+        return null;
+    }
+
+    if (state.status === 'ready') {
+        return <Navigate to={`/${state.projectId}`} replace />;
+    }
 };
 
 function App() {
@@ -46,10 +61,11 @@ function App() {
                 />
                 <Route path="/" element={<ProtectedRoute />}>
                     <Route path="/" element={<Main />}>
-                        <Route path="/" element={<Home />}>
+                        <Route index element={<RootRedirect />} />
+                        <Route path=":designSystemProjectId" element={<Home />}>
                             <Route index element={<Projects />} />
                         </Route>
-                        <Route path=":designSystemName/:designSystemVersion">
+                        <Route path=":designSystemProjectId/:designSystemName/:designSystemVersion">
                             <Route path="overview" element={<Overview />} />
                             <Route path="colors" element={<Colors />} />
                             <Route path="shapes" element={<Shapes />} />

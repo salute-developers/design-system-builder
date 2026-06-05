@@ -29,7 +29,9 @@ export const Components = () => {
         }
 
         const [tabIndex, groupIndex, itemIndex] = selectedItemIndexes;
-        const selectedConfigs = data.groups[tabIndex].data[groupIndex].items[itemIndex].data as Config[];
+        const selectedConfigs = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[itemIndex]?.data as
+            | Config[]
+            | undefined;
 
         setConfigs(selectedConfigs);
     }, [theme, data, selectedItemIndexes]);

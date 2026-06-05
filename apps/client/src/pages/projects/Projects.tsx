@@ -26,11 +26,12 @@ import { fakeLastUpdatedList } from './Projects.utils';
 
 interface ProjectsOutletContextProps {
     projectName?: string;
+    projectId?: string;
     onDesignSystemCreate?: () => void;
 }
 
 export const Projects = () => {
-    const { projectName, onDesignSystemCreate } = useOutletContext<ProjectsOutletContextProps>();
+    const { projectName, projectId, onDesignSystemCreate } = useOutletContext<ProjectsOutletContextProps>();
 
     const navigate = useNavigate();
 
@@ -41,24 +42,36 @@ export const Projects = () => {
     // TODO: Перенести в базу данных
     const version = '0.1.0';
 
-    const onLoadDesignSystem = (name: string, version: string) => {
-        navigate(`/${name}/${version}/colors`);
+    const onLoadDesignSystem = (name: string, version: string, projectId?: string) => {
+        navigate(`/${projectId}/${name}/${version}/colors`);
     };
 
-    const onGoTo = (name: string, version: string, path: string) => {
-        navigate(`/${name}/${version}/${path}`);
+    const onGoTo = (name: string, version: string, path: string, projectId?: string) => {
+        if (!projectId) {
+            return;
+        }
+
+        navigate(`/${projectId}/${name}/${version}/${path}`);
     };
 
     useEffect(() => {
+        if (!projectId) {
+            return;
+        }
+
         const loadDesignSystems = async () => {
             // TODO: Сделать обработку состояний лучше
             setLoadedDesignSystems('pending');
 
-            const systems = await loadAllDesignSystems();
-            setLoadedDesignSystems(systems);
+            try {
+                const systems = (await loadAllDesignSystems(projectId))?.filter(({ projectId }) => projectId) ?? [];
+                setLoadedDesignSystems(systems);
+            } catch {
+                setLoadedDesignSystems(undefined);
+            }
         };
         loadDesignSystems();
-    }, []);
+    }, [projectId]);
 
     return (
         <ContentWrapper>
@@ -75,9 +88,9 @@ export const Projects = () => {
             )}
             {loadedDesignSystems && loadedDesignSystems !== 'pending' && (
                 <StyledDesignSystems>
-                    {loadedDesignSystems.map(({ name, projectName, updatedAt }, index) => (
+                    {loadedDesignSystems.map(({ name, projectName, projectId, updatedAt }, index) => (
                         <StyledDesignSystemItem key={`${name}@${version}`}>
-                            <StyledDesignSystemData onClick={() => onLoadDesignSystem(name, version)}>
+                            <StyledDesignSystemData onClick={() => onLoadDesignSystem(name, version, projectId)}>
                                 <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
                                 <StyledDesignSystemInfo>
                                     <StyledDesignSystemVersion>{version}</StyledDesignSystemVersion>
@@ -92,7 +105,7 @@ export const Projects = () => {
                                 <LinkButton
                                     contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
                                     text={fakeLastUpdatedList[index].label}
-                                    onClick={() => onGoTo(name, version, fakeLastUpdatedList[index].value)}
+                                    onClick={() => onGoTo(name, version, fakeLastUpdatedList[index].value, projectId)}
                                 />
                             </StyledDesignSystemLastUpdated>
                         </StyledDesignSystemItem>
