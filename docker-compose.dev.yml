@@ -71,9 +71,8 @@ services:
     container_name: ds-builder-client-dev
     restart: unless-stopped
     environment:
-      VITE_DOCUMENTATION_GENERATOR_API: http://localhost:3006/api
-      VITE_GENERATOR_API: http://localhost:3005
-      VITE_DB_SERVICE_API: http://localhost:3008/api
+      VITE_API_GETAWAY_URL: http://localhost:8080
+      VITE_CLIENT_ID: dsbuilder-api
       VITE_NPM_REGISTRY: ${VITE_NPM_REGISTRY}
     ports:
       - "3002:5173"
