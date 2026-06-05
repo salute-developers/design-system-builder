@@ -26,7 +26,6 @@ export interface GenerateRouteBody {
     // componentsMeta: Meta[];
     // themeSource: ThemeSource;
     npmToken: string;
-    authToken?: string;
 }
 
 export interface BaseFileStructure {

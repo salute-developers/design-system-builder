@@ -89,7 +89,6 @@ export class DocumentationService implements OnModuleInit {
     const designSystemData = await this.fetchDesignSystemData(
       dto.packageName,
       dto.packageVersion,
-      dto.authToken,
     );
 
     this.logger.log(
@@ -217,21 +216,15 @@ export class DocumentationService implements OnModuleInit {
   async fetchDesignSystemData(
     packageName: string,
     packageVersion: string,
-    authToken?: string,
   ): Promise<FetchDesignSystemResponseDto> {
     const baseUrl = this.configService.get<string>("DB_SERVICE_URL") || "http://localhost:3008/api";
 
-    const configsUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
-    const themeUrl = `${baseUrl}/legacy/design-systems/${encodeURIComponent(packageName)}/theme-data`;
+    const configsUrl = `${baseUrl}/ds/legacy/design-systems/${encodeURIComponent(packageName)}/component-configs`;
+    const themeUrl = `${baseUrl}/ds/legacy/design-systems/${encodeURIComponent(packageName)}/theme-data`;
 
     try {
-      const headers: Record<string, string> = {};
-      if (authToken) {
-        headers['Authorization'] = `Basic ${authToken}`;
-      }
-
-      const configResponse = await fetch(configsUrl, { headers });
-      const themeResponse = await fetch(themeUrl, { headers });
+      const configResponse = await fetch(configsUrl);
+      const themeResponse = await fetch(themeUrl);
 
       if (!configResponse.ok || !themeResponse.ok) {
         throw new HttpException(

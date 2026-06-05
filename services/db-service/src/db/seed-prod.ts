@@ -2,9 +2,7 @@ import { db, client } from './index';
 import * as schema from './schema';
 import { eq, and, inArray } from 'drizzle-orm';
 
-import { seedUsers } from './seeds/prod/users';
 import { seedDesignSystems } from './seeds/prod/design_systems';
-import { seedDesignSystemUsers } from './seeds/prod/design_system_users';
 import { seedTenants } from './seeds/prod/tenants';
 import {
     seedIconButtonComponent,
@@ -151,9 +149,7 @@ async function seed() {
 
     // ── 1. Upsert global data ────────────────────────────────────────────────
 
-    const users = await seedUsers(db);
     const designSystems = await seedDesignSystems(db);
-    await seedDesignSystemUsers(db, { users, designSystems });
     const tenants = await seedTenants(db, { designSystems });
     await seedPalette(db);
     const tokenMap = await seedTokens(db, { designSystems });

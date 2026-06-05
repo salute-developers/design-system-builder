@@ -48,38 +48,6 @@
           "error"
         ]
       },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "login": {
-            "type": "string"
-          },
-          "token": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2024-01-01T00:00:00.000Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2024-01-01T00:00:00.000Z"
-          }
-        },
-        "required": [
-          "id",
-          "login",
-          "token",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
       "DesignSystem": {
         "type": "object",
         "properties": {
@@ -92,6 +60,10 @@
           },
           "projectName": {
             "type": "string"
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -112,6 +84,7 @@
           "id",
           "name",
           "projectName",
+          "projectId",
           "description",
           "createdAt",
           "updatedAt"
@@ -126,11 +99,6 @@
           },
           "designSystemId": {
             "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "nullable": true,
             "format": "uuid"
           },
           "version": {
@@ -187,7 +155,6 @@
         "required": [
           "id",
           "designSystemId",
-          "userId",
           "version",
           "snapshot",
           "changelog",
@@ -1197,40 +1164,6 @@
           "updatedAt"
         ]
       },
-      "DesignSystemUser": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "designSystemId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2024-01-01T00:00:00.000Z"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "example": "2024-01-01T00:00:00.000Z"
-          }
-        },
-        "required": [
-          "id",
-          "userId",
-          "designSystemId",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
       "DesignSystemChange": {
         "type": "object",
         "properties": {
@@ -1240,11 +1173,6 @@
           },
           "designSystemId": {
             "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
-            "type": "string",
-            "nullable": true,
             "format": "uuid"
           },
           "entityType": {
@@ -1305,7 +1233,6 @@
         "required": [
           "id",
           "designSystemId",
-          "userId",
           "entityType",
           "entityId",
           "operation",
@@ -1386,38 +1313,6 @@
           "updatedAt"
         ]
       },
-      "CreateUser": {
-        "type": "object",
-        "properties": {
-          "login": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "token": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "login",
-          "token"
-        ]
-      },
-      "UpdateUser": {
-        "type": "object",
-        "properties": {
-          "login": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 255
-          },
-          "token": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      },
       "CreateDesignSystem": {
         "type": "object",
         "properties": {
@@ -1429,6 +1324,10 @@
           "projectName": {
             "type": "string",
             "minLength": 1,
+            "maxLength": 255
+          },
+          "projectId": {
+            "type": "string",
             "maxLength": 255
           },
           "description": {
@@ -1449,6 +1348,10 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "projectId": {
+            "type": "string",
+            "maxLength": 255
+          },
           "description": {
             "type": "string",
             "maxLength": 1000
@@ -1459,10 +1362,6 @@
         "type": "object",
         "properties": {
           "designSystemId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
             "type": "string",
             "format": "uuid"
           },
@@ -2421,31 +2320,10 @@
           "styleId"
         ]
       },
-      "CreateDesignSystemUser": {
-        "type": "object",
-        "properties": {
-          "userId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "designSystemId": {
-            "type": "string",
-            "format": "uuid"
-          }
-        },
-        "required": [
-          "userId",
-          "designSystemId"
-        ]
-      },
       "CreateDesignSystemChange": {
         "type": "object",
         "properties": {
           "designSystemId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "userId": {
             "type": "string",
             "format": "uuid"
           },
@@ -2585,305 +2463,7 @@
         }
       }
     },
-    "/users": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "List all users",
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/User"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Create user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUser"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/users/{id}": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Get user by ID",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Item",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Update user",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateUser"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Delete user",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/users/{id}/design-systems": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Design systems accessible to a user",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DesignSystem"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/design-systems": {
+    "/ds/design-systems": {
       "get": {
         "tags": [
           "Design Systems"
@@ -2964,7 +2544,7 @@
         }
       }
     },
-    "/design-systems/{id}": {
+    "/ds/design-systems/{id}": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3136,7 +2716,7 @@
         }
       }
     },
-    "/design-systems/{id}/components": {
+    "/ds/design-systems/{id}/components": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3181,7 +2761,7 @@
         }
       }
     },
-    "/design-systems/{id}/tokens": {
+    "/ds/design-systems/{id}/tokens": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3226,7 +2806,7 @@
         }
       }
     },
-    "/design-systems/{id}/tenants": {
+    "/ds/design-systems/{id}/tenants": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3271,7 +2851,7 @@
         }
       }
     },
-    "/design-systems/{id}/appearances": {
+    "/ds/design-systems/{id}/appearances": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3316,52 +2896,7 @@
         }
       }
     },
-    "/design-systems/{id}/users": {
-      "get": {
-        "tags": [
-          "Design Systems"
-        ],
-        "summary": "Get users for design system",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/User"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/design-systems/{id}/changes": {
+    "/ds/design-systems/{id}/changes": {
       "get": {
         "tags": [
           "Design Systems"
@@ -3406,7 +2941,7 @@
         }
       }
     },
-    "/legacy/design-systems/{name}/theme-data": {
+    "/ds/legacy/design-systems/{name}/theme-data": {
       "get": {
         "tags": [
           "Legacy"
@@ -3471,7 +3006,7 @@
         }
       }
     },
-    "/legacy/design-systems/{name}/component-configs": {
+    "/ds/legacy/design-systems/{name}/component-configs": {
       "get": {
         "tags": [
           "Legacy"
@@ -3525,7 +3060,7 @@
         }
       }
     },
-    "/legacy/design-systems/create": {
+    "/ds/legacy/design-systems/create": {
       "post": {
         "tags": [
           "Legacy"
@@ -3575,7 +3110,7 @@
         }
       }
     },
-    "/legacy/design-systems/{name}/tenant-params": {
+    "/ds/legacy/design-systems/{name}/tenant-params": {
       "get": {
         "tags": [
           "Legacy"
@@ -3668,7 +3203,7 @@
         }
       }
     },
-    "/legacy/design-systems/{name}/update": {
+    "/ds/legacy/design-systems/{name}/update": {
       "post": {
         "tags": [
           "Legacy"
@@ -3739,7 +3274,7 @@
         }
       }
     },
-    "/legacy/design-systems/{name}/download-theme": {
+    "/ds/legacy/design-systems/{name}/download-theme": {
       "get": {
         "tags": [
           "Legacy"
@@ -3790,7 +3325,7 @@
         }
       }
     },
-    "/design-system-versions": {
+    "/ds/design-system-versions": {
       "get": {
         "tags": [
           "Design System Versions"
@@ -3871,7 +3406,7 @@
         }
       }
     },
-    "/design-system-versions/{id}": {
+    "/ds/design-system-versions/{id}": {
       "get": {
         "tags": [
           "Design System Versions"
@@ -4043,7 +3578,7 @@
         }
       }
     },
-    "/design-system-versions/by-design-system/{designSystemId}": {
+    "/ds/design-system-versions/by-design-system/{designSystemId}": {
       "get": {
         "tags": [
           "Design System Versions"
@@ -4088,7 +3623,7 @@
         }
       }
     },
-    "/components": {
+    "/ds/components": {
       "get": {
         "tags": [
           "Components"
@@ -4169,7 +3704,7 @@
         }
       }
     },
-    "/components/{id}": {
+    "/ds/components/{id}": {
       "get": {
         "tags": [
           "Components"
@@ -4341,7 +3876,7 @@
         }
       }
     },
-    "/components/{id}/variations": {
+    "/ds/components/{id}/variations": {
       "get": {
         "tags": [
           "Components"
@@ -4386,7 +3921,7 @@
         }
       }
     },
-    "/components/{id}/properties": {
+    "/ds/components/{id}/properties": {
       "get": {
         "tags": [
           "Components"
@@ -4431,7 +3966,7 @@
         }
       }
     },
-    "/components/{id}/deps": {
+    "/ds/components/{id}/deps": {
       "get": {
         "tags": [
           "Components"
@@ -4491,7 +4026,7 @@
         }
       }
     },
-    "/design-system-components": {
+    "/ds/design-system-components": {
       "get": {
         "tags": [
           "Design System Components"
@@ -4572,7 +4107,7 @@
         }
       }
     },
-    "/design-system-components/{id}": {
+    "/ds/design-system-components/{id}": {
       "get": {
         "tags": [
           "Design System Components"
@@ -4674,7 +4209,7 @@
         }
       }
     },
-    "/variations": {
+    "/ds/variations": {
       "get": {
         "tags": [
           "Variations"
@@ -4755,7 +4290,7 @@
         }
       }
     },
-    "/variations/{id}": {
+    "/ds/variations/{id}": {
       "get": {
         "tags": [
           "Variations"
@@ -4927,7 +4462,7 @@
         }
       }
     },
-    "/variations/{id}/styles": {
+    "/ds/variations/{id}/styles": {
       "get": {
         "tags": [
           "Variations"
@@ -4972,7 +4507,7 @@
         }
       }
     },
-    "/variations/{id}/properties": {
+    "/ds/variations/{id}/properties": {
       "get": {
         "tags": [
           "Variations"
@@ -5017,7 +4552,7 @@
         }
       }
     },
-    "/properties": {
+    "/ds/properties": {
       "get": {
         "tags": [
           "Properties"
@@ -5098,7 +4633,7 @@
         }
       }
     },
-    "/properties/{id}": {
+    "/ds/properties/{id}": {
       "get": {
         "tags": [
           "Properties"
@@ -5270,7 +4805,7 @@
         }
       }
     },
-    "/property-platform-params": {
+    "/ds/property-platform-params": {
       "get": {
         "tags": [
           "Property Platform Params"
@@ -5351,7 +4886,7 @@
         }
       }
     },
-    "/property-platform-params/{id}": {
+    "/ds/property-platform-params/{id}": {
       "get": {
         "tags": [
           "Property Platform Params"
@@ -5523,7 +5058,7 @@
         }
       }
     },
-    "/variation-platform-param-adjustments": {
+    "/ds/variation-platform-param-adjustments": {
       "get": {
         "tags": [
           "Variation Platform Param Adjustments"
@@ -5604,7 +5139,7 @@
         }
       }
     },
-    "/variation-platform-param-adjustments/{id}": {
+    "/ds/variation-platform-param-adjustments/{id}": {
       "get": {
         "tags": [
           "Variation Platform Param Adjustments"
@@ -5776,7 +5311,7 @@
         }
       }
     },
-    "/invariant-platform-param-adjustments": {
+    "/ds/invariant-platform-param-adjustments": {
       "get": {
         "tags": [
           "Invariant Platform Param Adjustments"
@@ -5857,7 +5392,7 @@
         }
       }
     },
-    "/invariant-platform-param-adjustments/{id}": {
+    "/ds/invariant-platform-param-adjustments/{id}": {
       "get": {
         "tags": [
           "Invariant Platform Param Adjustments"
@@ -6029,7 +5564,7 @@
         }
       }
     },
-    "/property-variations": {
+    "/ds/property-variations": {
       "get": {
         "tags": [
           "Property Variations"
@@ -6110,7 +5645,7 @@
         }
       }
     },
-    "/property-variations/{id}": {
+    "/ds/property-variations/{id}": {
       "get": {
         "tags": [
           "Property Variations"
@@ -6212,7 +5747,7 @@
         }
       }
     },
-    "/appearances": {
+    "/ds/appearances": {
       "get": {
         "tags": [
           "Appearances"
@@ -6293,7 +5828,7 @@
         }
       }
     },
-    "/appearances/{id}": {
+    "/ds/appearances/{id}": {
       "get": {
         "tags": [
           "Appearances"
@@ -6465,7 +6000,7 @@
         }
       }
     },
-    "/styles": {
+    "/ds/styles": {
       "get": {
         "tags": [
           "Styles"
@@ -6546,7 +6081,7 @@
         }
       }
     },
-    "/styles/{id}": {
+    "/ds/styles/{id}": {
       "get": {
         "tags": [
           "Styles"
@@ -6718,7 +6253,7 @@
         }
       }
     },
-    "/styles/by-variation/{variationId}/by-design-system/{designSystemId}": {
+    "/ds/styles/by-variation/{variationId}/by-design-system/{designSystemId}": {
       "get": {
         "tags": [
           "Styles"
@@ -6773,7 +6308,7 @@
         }
       }
     },
-    "/tokens": {
+    "/ds/tokens": {
       "get": {
         "tags": [
           "Tokens"
@@ -6854,7 +6389,7 @@
         }
       }
     },
-    "/tokens/{id}": {
+    "/ds/tokens/{id}": {
       "get": {
         "tags": [
           "Tokens"
@@ -7026,7 +6561,7 @@
         }
       }
     },
-    "/tokens/{id}/values": {
+    "/ds/tokens/{id}/values": {
       "get": {
         "tags": [
           "Tokens"
@@ -7071,7 +6606,7 @@
         }
       }
     },
-    "/tenants": {
+    "/ds/tenants": {
       "get": {
         "tags": [
           "Tenants"
@@ -7152,7 +6687,7 @@
         }
       }
     },
-    "/tenants/{id}": {
+    "/ds/tenants/{id}": {
       "get": {
         "tags": [
           "Tenants"
@@ -7324,7 +6859,7 @@
         }
       }
     },
-    "/tenants/{id}/token-values": {
+    "/ds/tenants/{id}/token-values": {
       "get": {
         "tags": [
           "Tenants"
@@ -7369,7 +6904,7 @@
         }
       }
     },
-    "/token-values": {
+    "/ds/token-values": {
       "get": {
         "tags": [
           "Token Values"
@@ -7450,7 +6985,7 @@
         }
       }
     },
-    "/token-values/{id}": {
+    "/ds/token-values/{id}": {
       "get": {
         "tags": [
           "Token Values"
@@ -7622,7 +7157,7 @@
         }
       }
     },
-    "/variation-property-values": {
+    "/ds/variation-property-values": {
       "get": {
         "tags": [
           "Variation Property Values"
@@ -7703,7 +7238,7 @@
         }
       }
     },
-    "/variation-property-values/{id}": {
+    "/ds/variation-property-values/{id}": {
       "get": {
         "tags": [
           "Variation Property Values"
@@ -7875,7 +7410,7 @@
         }
       }
     },
-    "/variation-property-values/by-style/{styleId}": {
+    "/ds/variation-property-values/by-style/{styleId}": {
       "get": {
         "tags": [
           "Variation Property Values"
@@ -7920,7 +7455,7 @@
         }
       }
     },
-    "/variation-property-values/by-appearance/{appearanceId}": {
+    "/ds/variation-property-values/by-appearance/{appearanceId}": {
       "get": {
         "tags": [
           "Variation Property Values"
@@ -7965,7 +7500,7 @@
         }
       }
     },
-    "/invariant-property-values": {
+    "/ds/invariant-property-values": {
       "get": {
         "tags": [
           "Invariant Property Values"
@@ -8046,7 +7581,7 @@
         }
       }
     },
-    "/invariant-property-values/{id}": {
+    "/ds/invariant-property-values/{id}": {
       "get": {
         "tags": [
           "Invariant Property Values"
@@ -8218,7 +7753,7 @@
         }
       }
     },
-    "/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}": {
+    "/ds/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}": {
       "get": {
         "tags": [
           "Invariant Property Values"
@@ -8273,7 +7808,7 @@
         }
       }
     },
-    "/documentation-pages": {
+    "/ds/documentation-pages": {
       "get": {
         "tags": [
           "Documentation Pages"
@@ -8354,7 +7889,7 @@
         }
       }
     },
-    "/documentation-pages/{id}": {
+    "/ds/documentation-pages/{id}": {
       "get": {
         "tags": [
           "Documentation Pages"
@@ -8526,7 +8061,7 @@
         }
       }
     },
-    "/documentation-pages/by-design-system/{designSystemId}": {
+    "/ds/documentation-pages/by-design-system/{designSystemId}": {
       "get": {
         "tags": [
           "Documentation Pages"
@@ -8578,7 +8113,7 @@
         }
       }
     },
-    "/component-deps": {
+    "/ds/component-deps": {
       "get": {
         "tags": [
           "Component Deps"
@@ -8659,7 +8194,7 @@
         }
       }
     },
-    "/component-deps/{id}": {
+    "/ds/component-deps/{id}": {
       "get": {
         "tags": [
           "Component Deps"
@@ -8831,7 +8366,7 @@
         }
       }
     },
-    "/component-reuse-configs": {
+    "/ds/component-reuse-configs": {
       "get": {
         "tags": [
           "Component Reuse Configs"
@@ -8912,7 +8447,7 @@
         }
       }
     },
-    "/component-reuse-configs/{id}": {
+    "/ds/component-reuse-configs/{id}": {
       "get": {
         "tags": [
           "Component Reuse Configs"
@@ -9084,7 +8619,7 @@
         }
       }
     },
-    "/component-reuse-configs/by-dep/{componentDepId}": {
+    "/ds/component-reuse-configs/by-dep/{componentDepId}": {
       "get": {
         "tags": [
           "Component Reuse Configs"
@@ -9129,7 +8664,7 @@
         }
       }
     },
-    "/style-combinations": {
+    "/ds/style-combinations": {
       "get": {
         "tags": [
           "Style Combinations"
@@ -9210,7 +8745,7 @@
         }
       }
     },
-    "/style-combinations/{id}": {
+    "/ds/style-combinations/{id}": {
       "get": {
         "tags": [
           "Style Combinations"
@@ -9382,7 +8917,7 @@
         }
       }
     },
-    "/style-combinations/{id}/members": {
+    "/ds/style-combinations/{id}/members": {
       "get": {
         "tags": [
           "Style Combinations"
@@ -9487,7 +9022,7 @@
         }
       }
     },
-    "/style-combination-members": {
+    "/ds/style-combination-members": {
       "get": {
         "tags": [
           "Style Combination Members"
@@ -9568,7 +9103,7 @@
         }
       }
     },
-    "/style-combination-members/{id}": {
+    "/ds/style-combination-members/{id}": {
       "get": {
         "tags": [
           "Style Combination Members"
@@ -9670,190 +9205,7 @@
         }
       }
     },
-    "/design-system-users": {
-      "get": {
-        "tags": [
-          "Design System Users"
-        ],
-        "summary": "List all design system users",
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DesignSystemUser"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Design System Users"
-        ],
-        "summary": "Create design system user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDesignSystemUser"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSystemUser"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/design-system-users/{id}": {
-      "get": {
-        "tags": [
-          "Design System Users"
-        ],
-        "summary": "Get design system user by ID",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Item",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesignSystemUser"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Design System Users"
-        ],
-        "summary": "Delete design system user",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/design-system-changes": {
+    "/ds/design-system-changes": {
       "get": {
         "tags": [
           "Design System Changes"
@@ -9934,7 +9286,7 @@
         }
       }
     },
-    "/design-system-changes/{id}": {
+    "/ds/design-system-changes/{id}": {
       "get": {
         "tags": [
           "Design System Changes"
@@ -9986,7 +9338,7 @@
         }
       }
     },
-    "/design-system-changes/by-design-system/{designSystemId}": {
+    "/ds/design-system-changes/by-design-system/{designSystemId}": {
       "get": {
         "tags": [
           "Design System Changes"
@@ -10031,7 +9383,7 @@
         }
       }
     },
-    "/saved-queries": {
+    "/ds/saved-queries": {
       "get": {
         "tags": [
           "Saved Queries"
@@ -10112,7 +9464,7 @@
         }
       }
     },
-    "/saved-queries/{id}": {
+    "/ds/saved-queries/{id}": {
       "get": {
         "tags": [
           "Saved Queries"
@@ -10284,7 +9636,7 @@
         }
       }
     },
-    "/saved-queries/{id}/run": {
+    "/ds/saved-queries/{id}/run": {
       "get": {
         "tags": [
           "Saved Queries"
@@ -10364,7 +9716,7 @@
         }
       }
     },
-    "/palette": {
+    "/ds/palette": {
       "get": {
         "tags": [
           "Palette"
@@ -10445,7 +9797,7 @@
         }
       }
     },
-    "/palette/{id}": {
+    "/ds/palette/{id}": {
       "get": {
         "tags": [
           "Palette"
@@ -10617,7 +9969,7 @@
         }
       }
     },
-    "/palette/by-type/{type}": {
+    "/ds/palette/by-type/{type}": {
       "get": {
         "tags": [
           "Palette"
@@ -10657,6 +10009,427 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/tables": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List all tables with columns and row counts",
+        "responses": {
+          "200": {
+            "description": "Tables",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tables": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "columns": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "count": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "columns",
+                          "count"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "tables"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/tables/{name}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Paginated rows for a single table",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "all",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/queries": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List queries from the catalog",
+        "responses": {
+          "200": {
+            "description": "Queries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "params": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "default": {
+                                  "nullable": true
+                                },
+                                "options": {
+                                  "type": "array",
+                                  "items": {
+                                    "nullable": true
+                                  }
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "type"
+                              ]
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "label",
+                          "type"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "queries"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/queries/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Run a catalog query",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "nullable": true
+                    },
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/nl-query": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Run a natural-language SQL query",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated SQL and result rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sql": {
+                      "type": "string"
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "nullable": true
+                        }
+                      }
+                    },
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "sql",
+                    "columns",
+                    "rows",
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation / generation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/schema": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Drizzle schema as DBML and Mermaid ER",
+        "responses": {
+          "200": {
+            "description": "Schema text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "dbml": {
+                      "type": "string"
+                    },
+                    "mermaid": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "dbml",
+                    "mermaid"
+                  ]
                 }
               }
             }

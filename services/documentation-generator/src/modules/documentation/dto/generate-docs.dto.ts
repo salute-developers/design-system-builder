@@ -1,11 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsBoolean,
-  IsNumber,
-} from "class-validator";
+import { IsString, IsNotEmpty, IsOptional, IsBoolean } from "class-validator";
 
 /**
  * DTO для запроса на генерацию документации
@@ -49,14 +43,4 @@ export class GenerateDocsDto {
   @IsOptional()
   @IsBoolean()
   localOnly?: boolean;
-
-  /** Токен авторизации для запросов к db-service */
-  @ApiProperty({
-    example: "dXNlcjpwYXNz",
-    description: "Auth token for db-service authorization",
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  authToken?: string;
 }

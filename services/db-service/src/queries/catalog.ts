@@ -42,13 +42,6 @@ const componentNameContext = {
     ).map((r) => ({ value: r.name, label: r.name })),
 };
 
-const userLoginContext = {
-  query: async (db: DB) =>
-    (
-      await db.select({ login: schema.users.login }).from(schema.users)
-    ).map((r) => ({ value: r.login, label: r.login })),
-};
-
 const appearanceNameContext = {
   query: async (db: DB) =>
     (
@@ -128,32 +121,6 @@ export const queryCatalog: CatalogQuery[] = [
           updatedAt: schema.designSystems.updatedAt,
         })
         .from(schema.designSystems);
-    },
-  },
-
-  // Список всех пользователей и соответствующие им дизайн-системы
-  {
-    id: "users-with-design-systems",
-    label: "Список всех пользователей и соответствующие им дизайн-системы",
-    type: "get",
-    run: async (db) => {
-      return db
-        .select({
-          userId: schema.users.id,
-          login: schema.users.login,
-          designSystemId: schema.designSystems.id,
-          designSystemName: schema.designSystems.name,
-          projectName: schema.designSystems.projectName,
-        })
-        .from(schema.designSystemUsers)
-        .innerJoin(
-          schema.users,
-          eq(schema.designSystemUsers.userId, schema.users.id),
-        )
-        .innerJoin(
-          schema.designSystems,
-          eq(schema.designSystemUsers.designSystemId, schema.designSystems.id),
-        );
     },
   },
 
@@ -1031,7 +998,6 @@ export const queryCatalog: CatalogQuery[] = [
           publishedAt: schema.designSystemVersions.publishedAt,
           changelog: schema.designSystemVersions.changelog,
           designSystemName: schema.designSystems.name,
-          userName: schema.users.login,
         })
         .from(schema.designSystemVersions)
         .innerJoin(
@@ -1041,56 +1007,9 @@ export const queryCatalog: CatalogQuery[] = [
             schema.designSystems.id,
           ),
         )
-        .leftJoin(
-          schema.users,
-          eq(schema.designSystemVersions.userId, schema.users.id),
-        )
         .where(
           sql`${schema.designSystemVersions.publicationStatus} = ${status}`,
         );
-    },
-  },
-
-  // ═══ 20. Список всех изменений сделанных выбранным пользователем ═══
-
-  {
-    id: "user-entity-changes",
-    label: "Список всех изменений сделанных выбранным пользователем",
-    type: "get",
-    params: [
-      {
-        name: "userLogin",
-        type: "string",
-        default: "neretin",
-        context: userLoginContext,
-      },
-    ],
-    run: async (db, params) => {
-      const userLogin = params?.userLogin as string;
-
-      return db
-        .select({
-          changeId: schema.designSystemChanges.id,
-          entityType: schema.designSystemChanges.entityType,
-          entityId: schema.designSystemChanges.entityId,
-          operation: schema.designSystemChanges.operation,
-          data: schema.designSystemChanges.data,
-          designSystemName: schema.designSystems.name,
-          createdAt: schema.designSystemChanges.createdAt,
-        })
-        .from(schema.designSystemChanges)
-        .innerJoin(
-          schema.users,
-          eq(schema.designSystemChanges.userId, schema.users.id),
-        )
-        .innerJoin(
-          schema.designSystems,
-          eq(
-            schema.designSystemChanges.designSystemId,
-            schema.designSystems.id,
-          ),
-        )
-        .where(eq(schema.users.login, userLogin));
     },
   },
 
@@ -1524,24 +1443,6 @@ export const queryCatalog: CatalogQuery[] = [
             );
           break;
 
-        case "design_system_user":
-          actualRows = await db
-            .select({
-              id: schema.designSystemUsers.id,
-              designSystemId: schema.designSystemUsers.designSystemId,
-              userId: schema.designSystemUsers.userId,
-              userLogin: schema.users.login,
-            })
-            .from(schema.designSystemUsers)
-            .innerJoin(
-              schema.users,
-              eq(schema.designSystemUsers.userId, schema.users.id),
-            )
-            .where(
-              eq(schema.designSystemUsers.designSystemId, ds.id),
-            );
-          break;
-
         case "property_variation":
           actualRows = await db
             .select({
@@ -1876,19 +1777,13 @@ export const queryCatalog: CatalogQuery[] = [
     },
   },
 
-  // ═══ 24. Список неопубликованных изменений по выбранному пользователю ═══
+  // ═══ 24. Список неопубликованных изменений ═══
 
   {
-    id: "unpublished-changes-by-user",
-    label: "Список неопубликованных изменений по выбранному пользователю",
+    id: "unpublished-changes",
+    label: "Список неопубликованных изменений в выбранной ДС",
     type: "get",
     params: [
-      {
-        name: "userLogin",
-        type: "string",
-        default: "neretin",
-        context: userLoginContext,
-      },
       {
         name: "designSystemName",
         type: "string",
@@ -1897,7 +1792,6 @@ export const queryCatalog: CatalogQuery[] = [
       },
     ],
     run: async (db, params) => {
-      const userLogin = params?.userLogin as string;
       const dsName = params?.designSystemName as string;
 
       return db
@@ -1910,10 +1804,6 @@ export const queryCatalog: CatalogQuery[] = [
         })
         .from(schema.designSystemChanges)
         .innerJoin(
-          schema.users,
-          eq(schema.designSystemChanges.userId, schema.users.id),
-        )
-        .innerJoin(
           schema.designSystems,
           eq(
             schema.designSystemChanges.designSystemId,
@@ -1922,7 +1812,6 @@ export const queryCatalog: CatalogQuery[] = [
         )
         .where(
           and(
-            eq(schema.users.login, userLogin),
             eq(schema.designSystems.name, dsName),
             sql`${schema.designSystemChanges.createdAt} > coalesce(
               (SELECT max(published_at) FROM design_system_versions

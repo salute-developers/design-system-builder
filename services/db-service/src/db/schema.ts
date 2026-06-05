@@ -75,24 +75,13 @@ export const paletteTypeEnum = pgEnum("palette_type", [
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
-// Временная таблица
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  login: text("login").notNull(),
-  token: text("token").notNull().unique(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .notNull()
-    .$onUpdateFn(() => new Date()),
-});
-
 export const designSystems = pgTable(
   "design_systems",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
     projectName: text("project_name").notNull(),
+    projectId: text("project_id"),
     description: text("description"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -112,7 +101,7 @@ export const designSystemVersions = pgTable(
     designSystemId: uuid("design_system_id")
       .notNull()
       .references(() => designSystems.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").references(() => users.id),
+    // userId: uuid("user_id").references(() => users.id), // TODO Забирать из контекста аутентификации
     version: text("version").notNull(),
     snapshot: jsonb("snapshot").notNull(),
     changelog: text("changelog"),
@@ -646,7 +635,7 @@ export const designSystemChanges = pgTable(
     designSystemId: uuid("design_system_id")
       .notNull()
       .references(() => designSystems.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").references(() => users.id),
+    // userId: uuid("user_id").references(() => users.id), // TODO Забирать из контекста аутентификации
     entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     operation: operationEnum("operation").notNull(),
@@ -662,28 +651,6 @@ export const designSystemChanges = pgTable(
       t.designSystemId,
       t.createdAt,
     ),
-  ],
-);
-
-// Временная таблица
-export const designSystemUsers = pgTable(
-  "design_system_users",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id),
-    designSystemId: uuid("design_system_id")
-      .notNull()
-      .references(() => designSystems.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .notNull()
-      .$onUpdateFn(() => new Date()),
-  },
-  (t) => [
-    uniqueIndex("dsu_user_id_design_system_id_unique").on(t.userId, t.designSystemId),
   ],
 );
 
@@ -719,12 +686,6 @@ export const palette = pgTable(
 
 // ─── Relations ────────────────────────────────────────────────────────────────
 
-export const usersRelations = relations(users, ({ many }) => ({
-  designSystemUsers: many(designSystemUsers),
-  designSystemVersions: many(designSystemVersions),
-  designSystemChanges: many(designSystemChanges),
-}));
-
 export const designSystemsRelations = relations(designSystems, ({ many }) => ({
   versions: many(designSystemVersions),
   designSystemComponents: many(designSystemComponents),
@@ -734,7 +695,6 @@ export const designSystemsRelations = relations(designSystems, ({ many }) => ({
   appearances: many(appearances),
   invariantPropertyValues: many(invariantPropertyValues),
   documentationPages: many(documentationPages),
-  designSystemUsers: many(designSystemUsers),
   designSystemChanges: many(designSystemChanges),
   componentReuseConfigs: many(componentReuseConfigs),
 }));
@@ -746,10 +706,11 @@ export const designSystemVersionsRelations = relations(
       fields: [designSystemVersions.designSystemId],
       references: [designSystems.id],
     }),
-    user: one(users, {
-      fields: [designSystemVersions.userId],
-      references: [users.id],
-    }),
+    // TODO: Забирать из контекста аутентификации
+    // user: one(users, {
+    //   fields: [designSystemVersions.userId],
+    //   references: [users.id],
+    // }),
   }),
 );
 
@@ -1054,23 +1015,10 @@ export const designSystemChangesRelations = relations(
       fields: [designSystemChanges.designSystemId],
       references: [designSystems.id],
     }),
-    user: one(users, {
-      fields: [designSystemChanges.userId],
-      references: [users.id],
-    }),
-  }),
-);
-
-export const designSystemUsersRelations = relations(
-  designSystemUsers,
-  ({ one }) => ({
-    user: one(users, {
-      fields: [designSystemUsers.userId],
-      references: [users.id],
-    }),
-    designSystem: one(designSystems, {
-      fields: [designSystemUsers.designSystemId],
-      references: [designSystems.id],
-    }),
+    // TODO: Забирать из контекста аутентификации
+    // user: one(users, {
+    //   fields: [designSystemChanges.userId],
+    //   references: [users.id],
+    // }),
   }),
 );

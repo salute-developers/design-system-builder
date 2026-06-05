@@ -15,22 +15,14 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion = '0.1.0', exportType, authToken } = request.body;
+            const { packageName, packageVersion = '0.1.0', exportType } = request.body;
 
-            const headers: Record<string, string> = {};
-            if (authToken) {
-                headers['Authorization'] = `Basic ${authToken}`;
-            }
-
-            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
-                headers,
-            }).then((response) => response.json())) as unknown as ThemeSource;
+            const themeData = (await fetch(
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`,
+            ).then((response) => response.json())) as unknown as ThemeSource;
 
             const componentsData = (await fetch(
                 `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
-                {
-                    headers,
-                },
             ).then((response) => response.json())) as unknown as Meta[];
 
             const buffer = await generateDesignSystem(
@@ -76,7 +68,7 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
         const pathToDir = GENERATE_ROOT_DIR;
 
         try {
-            const { packageName, packageVersion = '0.1.0', exportType, npmToken, authToken } = request.body;
+            const { packageName, packageVersion = '0.1.0', exportType, npmToken } = request.body;
 
             const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
             const packageMeta = (await npmPackage.json()) as any;
@@ -87,19 +79,11 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
                 throw new Error('Отсутствует npm-токен');
             }
 
-            const headers: Record<string, string> = {};
-            if (authToken) {
-                headers['Authorization'] = `Basic ${authToken}`;
-            }
-
-            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
-                headers,
-            }).then((response) => response.json())) as unknown as ThemeSource;
+            const themeData = (await fetch(
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`,
+            ).then((response) => response.json())) as unknown as ThemeSource;
             const componentsData = (await fetch(
                 `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
-                {
-                    headers,
-                },
             ).then((response) => response.json())) as unknown as Meta[];
 
             const buffer = await generateDesignSystem(

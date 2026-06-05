@@ -80,6 +80,7 @@ Table design_systems {
   id uuid [pk]
   name text [not null]
   project_name text [not null]
+  project_id text
   description text
 
   created_at timestamp [not null, default: `now()`]
@@ -425,7 +426,6 @@ Table style_combination_members {
 Table design_system_versions {
   id               uuid [pk]
   design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
-  user_id          uuid [ref: > users.id]
   version          text [not null, note: 'semver, например 0.1.0 | 0.2.0']
   snapshot         jsonb [not null, note: 'полное состояние на момент публикации']
   changelog        text [note: 'описание изменений, можно markdown']
@@ -442,7 +442,6 @@ Table design_system_versions {
 Table design_system_changes {
   id               uuid [pk]
   design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
-  user_id          uuid [ref: > users.id]
   entity_type      text [not null]
   entity_id        uuid [not null]
   operation        operation [not null]
@@ -454,16 +453,6 @@ Table design_system_changes {
   indexes {
     (design_system_id, created_at)
   }
-}
-
-// Временная таблица пользователей
-Table users {
-  id uuid [pk]
-  login text [not null]
-  token text [not null, unique]
-
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
 }
 
 // Цветовая палитра (general / additional)
@@ -479,19 +468,5 @@ Table palette {
 
   indexes {
     (type, shade, saturation) [unique]
-  }
-}
-
-// Временная таблица связи пользователь <-> дизайн-система
-Table design_system_users {
-  id uuid [pk]
-  user_id uuid [not null, ref: > users.id]
-  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
-
-  created_at timestamp [not null, default: `now()`]
-  updated_at timestamp [not null, default: `now()`]
-
-  indexes {
-    (user_id, design_system_id) [unique]
   }
 }

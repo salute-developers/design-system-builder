@@ -28,11 +28,6 @@ const ErrorResponseSchema = registry.register(
 
 const ts = { createdAt: DateTimeSchema, updatedAt: DateTimeSchema };
 
-const UserSchema = registry.register(
-  "User",
-  createSelectSchema(tables.users, ts).openapi("User"),
-);
-
 const DesignSystemSchema = registry.register(
   "DesignSystem",
   createSelectSchema(tables.designSystems, ts).openapi("DesignSystem"),
@@ -145,11 +140,6 @@ const StyleCombinationMemberSchema = registry.register(
   createSelectSchema(tables.styleCombinationMembers, ts).openapi("StyleCombinationMember"),
 );
 
-const DesignSystemUserSchema = registry.register(
-  "DesignSystemUser",
-  createSelectSchema(tables.designSystemUsers, ts).openapi("DesignSystemUser"),
-);
-
 const DesignSystemChangeSchema = registry.register(
   "DesignSystemChange",
   createSelectSchema(tables.designSystemChanges, ts).openapi("DesignSystemChange"),
@@ -168,8 +158,6 @@ const PaletteSchema = registry.register(
 // ─── Request schemas (register with .openapi() names) ─────────────────────────
 
 const schemas = {
-  CreateUser: registry.register("CreateUser", s.CreateUserSchema.openapi("CreateUser")),
-  UpdateUser: registry.register("UpdateUser", s.UpdateUserSchema.openapi("UpdateUser")),
   CreateDesignSystem: registry.register("CreateDesignSystem", s.CreateDesignSystemSchema.openapi("CreateDesignSystem")),
   UpdateDesignSystem: registry.register("UpdateDesignSystem", s.UpdateDesignSystemSchema.openapi("UpdateDesignSystem")),
   CreateDesignSystemVersion: registry.register("CreateDesignSystemVersion", s.CreateDesignSystemVersionSchema.openapi("CreateDesignSystemVersion")),
@@ -211,7 +199,6 @@ const schemas = {
   CreateStyleCombination: registry.register("CreateStyleCombination", s.CreateStyleCombinationSchema.openapi("CreateStyleCombination")),
   UpdateStyleCombination: registry.register("UpdateStyleCombination", s.UpdateStyleCombinationSchema.openapi("UpdateStyleCombination")),
   CreateStyleCombinationMember: registry.register("CreateStyleCombinationMember", s.CreateStyleCombinationMemberSchema.openapi("CreateStyleCombinationMember")),
-  CreateDesignSystemUser: registry.register("CreateDesignSystemUser", s.CreateDesignSystemUserSchema.openapi("CreateDesignSystemUser")),
   CreateDesignSystemChange: registry.register("CreateDesignSystemChange", s.CreateDesignSystemChangeSchema.openapi("CreateDesignSystemChange")),
   CreateSavedQuery: registry.register("CreateSavedQuery", s.CreateSavedQuerySchema.openapi("CreateSavedQuery")),
   UpdateSavedQuery: registry.register("UpdateSavedQuery", s.UpdateSavedQuerySchema.openapi("UpdateSavedQuery")),
@@ -314,6 +301,9 @@ const registerCrud = (
 
 // ─── Register all CRUD routes ─────────────────────────────────────────────────
 
+const DS_PREFIX = "/ds";
+const ADMIN_PREFIX = "/admin";
+
 // Health
 registry.registerPath({
   method: "get",
@@ -323,28 +313,17 @@ registry.registerPath({
   responses: { 200: { description: "OK", ...json(z.object({ status: z.literal("ok") })) } },
 });
 
-registerCrud("/users", "Users", UserSchema, schemas.CreateUser, schemas.UpdateUser);
-registry.registerPath({
-  method: "get",
-  path: "/users/{id}/design-systems",
-  tags: ["Users"],
-  summary: "Design systems accessible to a user",
-  request: { params: z.object({ id: UuidSchema }) },
-  responses: list(DesignSystemSchema),
-});
-
-registerCrud("/design-systems", "Design Systems", DesignSystemSchema, schemas.CreateDesignSystem, schemas.UpdateDesignSystem);
+registerCrud(`${DS_PREFIX}/design-systems`, "Design Systems", DesignSystemSchema, schemas.CreateDesignSystem, schemas.UpdateDesignSystem);
 for (const [sub, schema, tag] of [
   ["components", ComponentSchema, "Design Systems"],
   ["tokens", TokenSchema, "Design Systems"],
   ["tenants", TenantSchema, "Design Systems"],
   ["appearances", AppearanceSchema, "Design Systems"],
-  ["users", UserSchema, "Design Systems"],
   ["changes", DesignSystemChangeSchema, "Design Systems"],
 ] as const) {
   registry.registerPath({
     method: "get",
-    path: `/design-systems/{id}/${sub}`,
+    path: `${DS_PREFIX}/design-systems/{id}/${sub}`,
     tags: [tag as string],
     summary: `Get ${sub} for design system`,
     request: { params: z.object({ id: UuidSchema }) },
@@ -354,7 +333,7 @@ for (const [sub, schema, tag] of [
 
 registry.registerPath({
   method: "get",
-  path: "/legacy/design-systems/{name}/theme-data",
+  path: `${DS_PREFIX}/legacy/design-systems/{name}/theme-data`,
   tags: ["Legacy"],
   summary: "Get theme data for a design system (legacy)",
   request: { params: z.object({ name: z.string().openapi({ example: "plasma_test" }) }) },
@@ -370,7 +349,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/legacy/design-systems/{name}/component-configs",
+  path: `${DS_PREFIX}/legacy/design-systems/{name}/component-configs`,
   tags: ["Legacy"],
   summary: "Get components with full sources (api, variations, configs) for a design system (legacy)",
   request: { params: z.object({ name: z.string().openapi({ example: "plasma_test" }) }) },
@@ -386,7 +365,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/legacy/design-systems/create",
+  path: `${DS_PREFIX}/legacy/design-systems/create`,
   tags: ["Legacy"],
   summary: "Create a design system from legacy JSON structure",
   request: { body: { required: true, ...json(z.any()) } },
@@ -398,7 +377,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/legacy/design-systems/{name}/tenant-params",
+  path: `${DS_PREFIX}/legacy/design-systems/{name}/tenant-params`,
   tags: ["Legacy"],
   summary: "Get tenant parameters for a design system (legacy)",
   request: { params: z.object({ name: z.string().openapi({ example: "plasma_test" }) }) },
@@ -423,7 +402,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "post",
-  path: "/legacy/design-systems/{name}/update",
+  path: `${DS_PREFIX}/legacy/design-systems/{name}/update`,
   tags: ["Legacy"],
   summary: "Update an existing design system from legacy JSON structure",
   request: {
@@ -439,7 +418,7 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: "/legacy/design-systems/{name}/download-theme",
+  path: `${DS_PREFIX}/legacy/design-systems/{name}/download-theme`,
   tags: ["Legacy"],
   summary: "Download theme as ZIP archive (legacy)",
   request: { params: z.object({ name: z.string().openapi({ example: "plasma_test" }) }) },
@@ -453,24 +432,24 @@ registry.registerPath({
   },
 });
 
-registerCrud("/design-system-versions", "Design System Versions", DesignSystemVersionSchema, schemas.CreateDesignSystemVersion, schemas.UpdateDesignSystemVersion);
+registerCrud(`${DS_PREFIX}/design-system-versions`, "Design System Versions", DesignSystemVersionSchema, schemas.CreateDesignSystemVersion, schemas.UpdateDesignSystemVersion);
 registry.registerPath({
   method: "get",
-  path: "/design-system-versions/by-design-system/{designSystemId}",
+  path: `${DS_PREFIX}/design-system-versions/by-design-system/{designSystemId}`,
   tags: ["Design System Versions"],
   summary: "All versions for a design system",
   request: { params: z.object({ designSystemId: UuidSchema }) },
   responses: list(DesignSystemVersionSchema),
 });
 
-registerCrud("/components", "Components", ComponentSchema, schemas.CreateComponent, schemas.UpdateComponent);
+registerCrud(`${DS_PREFIX}/components`, "Components", ComponentSchema, schemas.CreateComponent, schemas.UpdateComponent);
 for (const [sub, schema] of [
   ["variations", VariationSchema],
   ["properties", PropertySchema],
 ] as [string, z.ZodTypeAny][]) {
   registry.registerPath({
     method: "get",
-    path: `/components/{id}/${sub}`,
+    path: `${DS_PREFIX}/components/{id}/${sub}`,
     tags: ["Components"],
     summary: `Get ${sub} of a component`,
     request: { params: z.object({ id: UuidSchema }) },
@@ -479,7 +458,7 @@ for (const [sub, schema] of [
 }
 registry.registerPath({
   method: "get",
-  path: "/components/{id}/deps",
+  path: `${DS_PREFIX}/components/{id}/deps`,
   tags: ["Components"],
   summary: "Parent and child deps of a component",
   request: { params: z.object({ id: UuidSchema }) },
@@ -492,12 +471,12 @@ registry.registerPath({
   },
 });
 
-registerCrud("/design-system-components", "Design System Components", DesignSystemComponentSchema, schemas.CreateDesignSystemComponent);
+registerCrud(`${DS_PREFIX}/design-system-components`, "Design System Components", DesignSystemComponentSchema, schemas.CreateDesignSystemComponent);
 
-registerCrud("/variations", "Variations", VariationSchema, schemas.CreateVariation, schemas.UpdateVariation);
+registerCrud(`${DS_PREFIX}/variations`, "Variations", VariationSchema, schemas.CreateVariation, schemas.UpdateVariation);
 registry.registerPath({
   method: "get",
-  path: "/variations/{id}/styles",
+  path: `${DS_PREFIX}/variations/{id}/styles`,
   tags: ["Variations"],
   summary: "Styles for a variation",
   request: { params: z.object({ id: UuidSchema }) },
@@ -505,56 +484,56 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get",
-  path: "/variations/{id}/properties",
+  path: `${DS_PREFIX}/variations/{id}/properties`,
   tags: ["Variations"],
   summary: "Properties linked to a variation",
   request: { params: z.object({ id: UuidSchema }) },
   responses: list(PropertySchema),
 });
 
-registerCrud("/properties", "Properties", PropertySchema, schemas.CreateProperty, schemas.UpdateProperty);
-registerCrud("/property-platform-params", "Property Platform Params", PropertyPlatformParamSchema, schemas.CreatePropertyPlatformParam, schemas.UpdatePropertyPlatformParam);
-registerCrud("/variation-platform-param-adjustments", "Variation Platform Param Adjustments", VariationPlatformParamAdjustmentSchema, schemas.CreateVariationPlatformParamAdjustment, schemas.UpdateVariationPlatformParamAdjustment);
-registerCrud("/invariant-platform-param-adjustments", "Invariant Platform Param Adjustments", InvariantPlatformParamAdjustmentSchema, schemas.CreateInvariantPlatformParamAdjustment, schemas.UpdateInvariantPlatformParamAdjustment);
-registerCrud("/property-variations", "Property Variations", PropertyVariationSchema, schemas.CreatePropertyVariation);
-registerCrud("/appearances", "Appearances", AppearanceSchema, schemas.CreateAppearance, schemas.UpdateAppearance);
+registerCrud(`${DS_PREFIX}/properties`, "Properties", PropertySchema, schemas.CreateProperty, schemas.UpdateProperty);
+registerCrud(`${DS_PREFIX}/property-platform-params`, "Property Platform Params", PropertyPlatformParamSchema, schemas.CreatePropertyPlatformParam, schemas.UpdatePropertyPlatformParam);
+registerCrud(`${DS_PREFIX}/variation-platform-param-adjustments`, "Variation Platform Param Adjustments", VariationPlatformParamAdjustmentSchema, schemas.CreateVariationPlatformParamAdjustment, schemas.UpdateVariationPlatformParamAdjustment);
+registerCrud(`${DS_PREFIX}/invariant-platform-param-adjustments`, "Invariant Platform Param Adjustments", InvariantPlatformParamAdjustmentSchema, schemas.CreateInvariantPlatformParamAdjustment, schemas.UpdateInvariantPlatformParamAdjustment);
+registerCrud(`${DS_PREFIX}/property-variations`, "Property Variations", PropertyVariationSchema, schemas.CreatePropertyVariation);
+registerCrud(`${DS_PREFIX}/appearances`, "Appearances", AppearanceSchema, schemas.CreateAppearance, schemas.UpdateAppearance);
 
-registerCrud("/styles", "Styles", StyleSchema, schemas.CreateStyle, schemas.UpdateStyle);
+registerCrud(`${DS_PREFIX}/styles`, "Styles", StyleSchema, schemas.CreateStyle, schemas.UpdateStyle);
 registry.registerPath({
   method: "get",
-  path: "/styles/by-variation/{variationId}/by-design-system/{designSystemId}",
+  path: `${DS_PREFIX}/styles/by-variation/{variationId}/by-design-system/{designSystemId}`,
   tags: ["Styles"],
   summary: "Styles for variation x design system",
   request: { params: z.object({ variationId: UuidSchema, designSystemId: UuidSchema }) },
   responses: list(StyleSchema),
 });
 
-registerCrud("/tokens", "Tokens", TokenSchema, schemas.CreateToken, schemas.UpdateToken);
+registerCrud(`${DS_PREFIX}/tokens`, "Tokens", TokenSchema, schemas.CreateToken, schemas.UpdateToken);
 registry.registerPath({
   method: "get",
-  path: "/tokens/{id}/values",
+  path: `${DS_PREFIX}/tokens/{id}/values`,
   tags: ["Tokens"],
   summary: "All token values for a token",
   request: { params: z.object({ id: UuidSchema }) },
   responses: list(TokenValueSchema),
 });
 
-registerCrud("/tenants", "Tenants", TenantSchema, schemas.CreateTenant, schemas.UpdateTenant);
+registerCrud(`${DS_PREFIX}/tenants`, "Tenants", TenantSchema, schemas.CreateTenant, schemas.UpdateTenant);
 registry.registerPath({
   method: "get",
-  path: "/tenants/{id}/token-values",
+  path: `${DS_PREFIX}/tenants/{id}/token-values`,
   tags: ["Tenants"],
   summary: "All token values for a tenant",
   request: { params: z.object({ id: UuidSchema }) },
   responses: list(TokenValueSchema),
 });
 
-registerCrud("/token-values", "Token Values", TokenValueSchema, schemas.CreateTokenValue, schemas.UpdateTokenValue);
+registerCrud(`${DS_PREFIX}/token-values`, "Token Values", TokenValueSchema, schemas.CreateTokenValue, schemas.UpdateTokenValue);
 
-registerCrud("/variation-property-values", "Variation Property Values", VariationPropertyValueSchema, schemas.CreateVariationPropertyValue, schemas.UpdateVariationPropertyValue);
+registerCrud(`${DS_PREFIX}/variation-property-values`, "Variation Property Values", VariationPropertyValueSchema, schemas.CreateVariationPropertyValue, schemas.UpdateVariationPropertyValue);
 registry.registerPath({
   method: "get",
-  path: "/variation-property-values/by-style/{styleId}",
+  path: `${DS_PREFIX}/variation-property-values/by-style/{styleId}`,
   tags: ["Variation Property Values"],
   summary: "Values for a style",
   request: { params: z.object({ styleId: UuidSchema }) },
@@ -562,48 +541,48 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get",
-  path: "/variation-property-values/by-appearance/{appearanceId}",
+  path: `${DS_PREFIX}/variation-property-values/by-appearance/{appearanceId}`,
   tags: ["Variation Property Values"],
   summary: "Values for an appearance",
   request: { params: z.object({ appearanceId: UuidSchema }) },
   responses: list(VariationPropertyValueSchema),
 });
 
-registerCrud("/invariant-property-values", "Invariant Property Values", InvariantPropertyValueSchema, schemas.CreateInvariantPropertyValue, schemas.UpdateInvariantPropertyValue);
+registerCrud(`${DS_PREFIX}/invariant-property-values`, "Invariant Property Values", InvariantPropertyValueSchema, schemas.CreateInvariantPropertyValue, schemas.UpdateInvariantPropertyValue);
 registry.registerPath({
   method: "get",
-  path: "/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}",
+  path: `${DS_PREFIX}/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}`,
   tags: ["Invariant Property Values"],
   summary: "Values for component x design system",
   request: { params: z.object({ componentId: UuidSchema, designSystemId: UuidSchema }) },
   responses: list(InvariantPropertyValueSchema),
 });
 
-registerCrud("/documentation-pages", "Documentation Pages", DocumentationPageSchema, schemas.CreateDocumentationPage, schemas.UpdateDocumentationPage);
+registerCrud(`${DS_PREFIX}/documentation-pages`, "Documentation Pages", DocumentationPageSchema, schemas.CreateDocumentationPage, schemas.UpdateDocumentationPage);
 registry.registerPath({
   method: "get",
-  path: "/documentation-pages/by-design-system/{designSystemId}",
+  path: `${DS_PREFIX}/documentation-pages/by-design-system/{designSystemId}`,
   tags: ["Documentation Pages"],
   summary: "Documentation page for a design system",
   request: { params: z.object({ designSystemId: UuidSchema }) },
   responses: one(DocumentationPageSchema),
 });
 
-registerCrud("/component-deps", "Component Deps", ComponentDepSchema, schemas.CreateComponentDep, schemas.UpdateComponentDep);
-registerCrud("/component-reuse-configs", "Component Reuse Configs", ComponentReuseConfigSchema, schemas.CreateComponentReuseConfig, schemas.UpdateComponentReuseConfig);
+registerCrud(`${DS_PREFIX}/component-deps`, "Component Deps", ComponentDepSchema, schemas.CreateComponentDep, schemas.UpdateComponentDep);
+registerCrud(`${DS_PREFIX}/component-reuse-configs`, "Component Reuse Configs", ComponentReuseConfigSchema, schemas.CreateComponentReuseConfig, schemas.UpdateComponentReuseConfig);
 registry.registerPath({
   method: "get",
-  path: "/component-reuse-configs/by-dep/{componentDepId}",
+  path: `${DS_PREFIX}/component-reuse-configs/by-dep/{componentDepId}`,
   tags: ["Component Reuse Configs"],
   summary: "Configs for a component dep",
   request: { params: z.object({ componentDepId: UuidSchema }) },
   responses: list(ComponentReuseConfigSchema),
 });
 
-registerCrud("/style-combinations", "Style Combinations", StyleCombinationSchema, schemas.CreateStyleCombination, schemas.UpdateStyleCombination);
+registerCrud(`${DS_PREFIX}/style-combinations`, "Style Combinations", StyleCombinationSchema, schemas.CreateStyleCombination, schemas.UpdateStyleCombination);
 registry.registerPath({
   method: "get",
-  path: "/style-combinations/{id}/members",
+  path: `${DS_PREFIX}/style-combinations/{id}/members`,
   tags: ["Style Combinations"],
   summary: "Members of a style combination",
   request: { params: z.object({ id: UuidSchema }) },
@@ -611,7 +590,7 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "post",
-  path: "/style-combinations/{id}/members",
+  path: `${DS_PREFIX}/style-combinations/{id}/members`,
   tags: ["Style Combinations"],
   summary: "Add style to combination",
   request: {
@@ -621,20 +600,19 @@ registry.registerPath({
   responses: created(StyleCombinationMemberSchema),
 });
 
-registerCrud("/style-combination-members", "Style Combination Members", StyleCombinationMemberSchema, schemas.CreateStyleCombinationMember);
-registerCrud("/design-system-users", "Design System Users", DesignSystemUserSchema, schemas.CreateDesignSystemUser);
+registerCrud(`${DS_PREFIX}/style-combination-members`, "Style Combination Members", StyleCombinationMemberSchema, schemas.CreateStyleCombinationMember);
 
 // Design System Changes (audit log -- no update/delete)
 registry.registerPath({
   method: "get",
-  path: "/design-system-changes",
+  path: `${DS_PREFIX}/design-system-changes`,
   tags: ["Design System Changes"],
   summary: "List all changes",
   responses: list(DesignSystemChangeSchema),
 });
 registry.registerPath({
   method: "post",
-  path: "/design-system-changes",
+  path: `${DS_PREFIX}/design-system-changes`,
   tags: ["Design System Changes"],
   summary: "Record a change",
   request: { body: { required: true, ...json(schemas.CreateDesignSystemChange) } },
@@ -642,7 +620,7 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get",
-  path: "/design-system-changes/{id}",
+  path: `${DS_PREFIX}/design-system-changes/{id}`,
   tags: ["Design System Changes"],
   summary: "Get change by ID",
   request: { params: z.object({ id: UuidSchema }) },
@@ -650,17 +628,17 @@ registry.registerPath({
 });
 registry.registerPath({
   method: "get",
-  path: "/design-system-changes/by-design-system/{designSystemId}",
+  path: `${DS_PREFIX}/design-system-changes/by-design-system/{designSystemId}`,
   tags: ["Design System Changes"],
   summary: "Audit log for a design system",
   request: { params: z.object({ designSystemId: UuidSchema }) },
   responses: list(DesignSystemChangeSchema),
 });
 
-registerCrud("/saved-queries", "Saved Queries", SavedQuerySchema, schemas.CreateSavedQuery, schemas.UpdateSavedQuery);
+registerCrud(`${DS_PREFIX}/saved-queries`, "Saved Queries", SavedQuerySchema, schemas.CreateSavedQuery, schemas.UpdateSavedQuery);
 registry.registerPath({
   method: "get",
-  path: "/saved-queries/{id}/run",
+  path: `${DS_PREFIX}/saved-queries/{id}/run`,
   tags: ["Saved Queries"],
   summary: "Execute a saved query",
   request: { params: z.object({ id: UuidSchema }) },
@@ -674,14 +652,136 @@ registry.registerPath({
   },
 });
 
-registerCrud("/palette", "Palette", PaletteSchema, schemas.CreatePalette, schemas.UpdatePalette);
+registerCrud(`${DS_PREFIX}/palette`, "Palette", PaletteSchema, schemas.CreatePalette, schemas.UpdatePalette);
 registry.registerPath({
   method: "get",
-  path: "/palette/by-type/{type}",
+  path: `${DS_PREFIX}/palette/by-type/{type}`,
   tags: ["Palette"],
   summary: "Filter palette by type",
   request: { params: z.object({ type: s.PaletteTypeSchema }) },
   responses: list(PaletteSchema),
+});
+
+// ─── Admin (introspection / catalog / NL query) ──────────────────────────────
+
+const TableSummarySchema = z.object({
+  name: z.string(),
+  columns: z.array(z.string()),
+  count: z.number(),
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${ADMIN_PREFIX}/tables`,
+  tags: ["Admin"],
+  summary: "List all tables with columns and row counts",
+  responses: {
+    200: { description: "Tables", ...json(z.object({ tables: z.array(TableSummarySchema) })) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+registry.registerPath({
+  method: "get",
+  path: `${ADMIN_PREFIX}/tables/{name}`,
+  tags: ["Admin"],
+  summary: "Paginated rows for a single table",
+  request: {
+    params: z.object({ name: z.string() }),
+    query: z.object({
+      limit: z.string().optional(),
+      offset: z.string().optional(),
+      all: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Rows", ...json(z.object({ rows: z.array(z.record(z.string(), z.any())) })) },
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+const CatalogQueryParamSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  default: z.any().optional(),
+  options: z.array(z.any()).optional(),
+});
+
+const CatalogQuerySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.string(),
+  params: z.array(CatalogQueryParamSchema).optional(),
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${ADMIN_PREFIX}/queries`,
+  tags: ["Admin"],
+  summary: "List queries from the catalog",
+  responses: {
+    200: { description: "Queries", ...json(z.object({ queries: z.array(CatalogQuerySchema) })) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+registry.registerPath({
+  method: "get",
+  path: `${ADMIN_PREFIX}/queries/{id}`,
+  tags: ["Admin"],
+  summary: "Run a catalog query",
+  request: { params: z.object({ id: z.string() }) },
+  responses: {
+    200: {
+      description: "Result",
+      ...json(z.object({
+        id: z.string(),
+        label: z.string(),
+        result: z.any(),
+        count: z.number(),
+      })),
+    },
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: `${ADMIN_PREFIX}/nl-query`,
+  tags: ["Admin"],
+  summary: "Run a natural-language SQL query",
+  request: {
+    body: {
+      required: true,
+      ...json(z.object({ query: z.string().min(1) })),
+    },
+  },
+  responses: {
+    200: {
+      description: "Generated SQL and result rows",
+      ...json(z.object({
+        sql: z.string(),
+        columns: z.array(z.string()),
+        rows: z.array(z.record(z.string(), z.any())),
+        count: z.number(),
+      })),
+    },
+    400: { description: "Validation / generation error", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${ADMIN_PREFIX}/schema`,
+  tags: ["Admin"],
+  summary: "Drizzle schema as DBML and Mermaid ER",
+  responses: {
+    200: {
+      description: "Schema text",
+      ...json(z.object({ dbml: z.string(), mermaid: z.string() })),
+    },
+  },
 });
 
 // ─── Generate and export spec ─────────────────────────────────────────────────
