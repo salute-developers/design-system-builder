@@ -7,7 +7,7 @@
 # development environment including:
 # - Building and starting all services (postgres-registry, db-service, admin, client, generator, docs-generator)
 # - Running database migrations
-# - Seeding initial data (seed-dev.ts)
+# - Seeding initial data (seed-prod.ts)
 # - Comprehensive health checks for all services
 #
 # Usage: ./setup-docker.sh
@@ -78,7 +78,7 @@ echo_success "docker-compose is available"
 echo ""
 echo_header "🚀 Setting up development environment..."
 echo "   📦 Services: postgres-registry, db-service, admin, client, generator, publisher, docs-generator"
-echo "   🗄️ Database: migrations + seeding (dev seeds)"
+echo "   🗄️ Database: migrations + seeding (prod seeds)"
 echo "   🔍 Health checks: all services"
 
 # Stop any existing containers
@@ -138,11 +138,11 @@ else
 fi
 
 # --- Seeding ---
-echo_step "Seeding db-service database (dev)..."
-if docker-compose -f $COMPOSE_FILE exec -T db-service npx tsx src/db/seed-dev.ts; then
-    echo_success "db-service database seeding (dev) completed"
+echo_step "Seeding db-service database (prod)..."
+if docker-compose -f $COMPOSE_FILE exec -T db-service npx tsx src/db/seed-prod.ts; then
+    echo_success "db-service database seeding (prod) completed"
 else
-    echo_error "db-service database seeding (dev) failed"
+    echo_error "db-service database seeding (prod) failed"
     exit 1
 fi
 
@@ -182,7 +182,7 @@ fi
 # Check DB Service
 current_service=$((current_service + 1))
 show_progress $current_service $total_services "Checking DB Service..."
-if curl -sf http://localhost:3008/api/tables > /dev/null 2>&1; then
+if curl -sf http://localhost:3008/api/health > /dev/null 2>&1; then
     echo_success "DB Service is healthy"
 else
     echo_error "DB Service is not healthy"
