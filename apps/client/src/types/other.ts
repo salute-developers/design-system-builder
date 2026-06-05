@@ -22,6 +22,7 @@ export type ColorFormats = {
 export interface Parameters {
     projectName: string;
     packagesName: string;
+    projectId: string;
     grayTone: GrayTone;
     accentColor: GeneralColor;
     lightStrokeSaturation: PlasmaSaturation;
