@@ -54,31 +54,22 @@ export const PaginationQuerySchema = z
   })
   .optional();
 
-// Users
-export const CreateUserSchema = z.object({
-  login: z.string().trim().min(1).max(255),
-  token: z.string().trim().min(1),
-});
-export const UpdateUserSchema = z.object({
-  login: z.string().trim().min(1).max(255).optional(),
-  token: z.string().trim().min(1).optional(),
-});
-
 // Design Systems
 export const CreateDesignSystemSchema = z.object({
   name: z.string().trim().min(1).max(255),
   projectName: z.string().trim().min(1).max(255),
+  projectId: z.string().trim().max(255).optional(),
   description: z.string().trim().max(1000).optional(),
 });
 export const UpdateDesignSystemSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
+  projectId: z.string().trim().max(255).optional(),
   description: z.string().trim().max(1000).optional(),
 });
 
 // Design System Versions
 export const CreateDesignSystemVersionSchema = z.object({
   designSystemId: uuidSchema,
-  userId: uuidSchema.optional(),
   version: z.string().trim().min(1).max(50),
   snapshot: z.any(),
   changelog: z.string().trim().optional(),
@@ -340,16 +331,9 @@ export const CreateStyleCombinationMemberSchema = z.object({
   styleId: uuidSchema,
 });
 
-// Design System Users
-export const CreateDesignSystemUserSchema = z.object({
-  userId: uuidSchema,
-  designSystemId: uuidSchema,
-});
-
 // Design System Changes (audit log - create only, typically internal)
 export const CreateDesignSystemChangeSchema = z.object({
   designSystemId: uuidSchema,
-  userId: uuidSchema.optional(),
   entityType: z.string().trim().min(1),
   entityId: uuidSchema,
   operation: OperationSchema,
@@ -380,8 +364,6 @@ export const UpdatePaletteSchema = z.object({
 // Exported types
 export type UuidParam = z.infer<typeof UuidParamSchema>;
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
-export type CreateUserRequest = z.infer<typeof CreateUserSchema>;
-export type UpdateUserRequest = z.infer<typeof UpdateUserSchema>;
 export type CreateDesignSystemRequest = z.infer<
   typeof CreateDesignSystemSchema
 >;
@@ -472,9 +454,6 @@ export type UpdateStyleCombinationRequest = z.infer<
 >;
 export type CreateStyleCombinationMemberRequest = z.infer<
   typeof CreateStyleCombinationMemberSchema
->;
-export type CreateDesignSystemUserRequest = z.infer<
-  typeof CreateDesignSystemUserSchema
 >;
 export type CreateDesignSystemChangeRequest = z.infer<
   typeof CreateDesignSystemChangeSchema

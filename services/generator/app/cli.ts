@@ -14,7 +14,6 @@ program
     .option('--ds-version <string>', 'Design system version')
     .option('--export-type <string>', 'Export type (tgz, zip, source)', 'source')
     .option('--output <dir>', 'Output directory', './output')
-    .option('--auth-token <string>', 'Auth token for db-service')
     .action(async (options) => {
         try {
             const {
@@ -22,7 +21,6 @@ program
                 dsVersion: packageVersion,
                 exportType,
                 output: pathToDir,
-                authToken,
             } = options;
 
             console.log('Design system generation params');
@@ -31,20 +29,12 @@ program
             console.log(`Export type: ${exportType}`);
             console.log(`Output path: ${pathToDir}`);
 
-            const headers: Record<string, string> = {};
-            if (authToken) {
-                headers['Authorization'] = `Basic ${authToken}`;
-            }
-
-            const themeData = (await fetch(`${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`, {
-                headers,
-            }).then((response) => response.json())) as unknown as ThemeSource;
+            const themeData = (await fetch(
+                `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`,
+            ).then((response) => response.json())) as unknown as ThemeSource;
 
             const componentsData = (await fetch(
                 `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/component-configs`,
-                {
-                    headers,
-                },
             ).then((response) => response.json())) as unknown as Meta[];
 
             console.log(`Generating ${exportType}...`);

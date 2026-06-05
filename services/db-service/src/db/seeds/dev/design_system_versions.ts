@@ -71,11 +71,9 @@ function buildSnapshot(
 export async function seedDesignSystemVersions(
   db: any,
   ctx: {
-    users: { neretin: any; client: any };
     designSystems: { sdds: any; plasma: any };
   },
 ) {
-  const { neretin, client } = ctx.users;
   const { sdds, plasma } = ctx.designSystems;
 
   const rows = await db
@@ -83,7 +81,6 @@ export async function seedDesignSystemVersions(
     .values([
       {
         designSystemId: sdds.id,
-        userId: neretin.id,
         version: '0.1.0',
         snapshot: {},
         changelog: 'Первая дизайн система',
@@ -91,7 +88,6 @@ export async function seedDesignSystemVersions(
       },
       {
         designSystemId: sdds.id,
-        userId: client.id,
         version: '0.2.0',
         snapshot: {},
         changelog: 'Доработки по дизайн системе',
@@ -99,7 +95,6 @@ export async function seedDesignSystemVersions(
       },
       {
         designSystemId: plasma.id,
-        userId: neretin.id,
         version: '0.1.0',
         snapshot: {},
         changelog: 'Первая дизайн система',

@@ -1,9 +1,7 @@
 import { db, client } from './index';
 import * as schema from './schema';
 
-import { seedUsers } from './seeds/dev/users';
 import { seedDesignSystems } from './seeds/dev/design_systems';
-import { seedDesignSystemUsers } from './seeds/dev/design_system_users';
 import { seedComponents } from './seeds/dev/components';
 import { seedComponentDeps } from './seeds/dev/component_deps';
 import { seedDesignSystemComponents } from './seeds/dev/design_system_components';
@@ -54,9 +52,7 @@ async function clearAll() {
   await db.delete(schema.componentDeps);
   await db.delete(schema.components);
   await db.delete(schema.designSystemVersions);
-  await db.delete(schema.designSystemUsers);
   await db.delete(schema.designSystems);
-  await db.delete(schema.users);
   console.log('All tables cleared.\n');
 }
 
@@ -68,12 +64,10 @@ async function seed() {
 
   console.log('Inserting data...');
 
-  const users = await seedUsers(db);
   const designSystems = await seedDesignSystems(db);
-  await seedDesignSystemUsers(db, { users, designSystems });
 
   // Create stub versions first so other seeds can reference them via designSystemVersionId
-  const versions = await seedDesignSystemVersions(db, { users, designSystems });
+  const versions = await seedDesignSystemVersions(db, { designSystems });
 
   // Token-related seeds (grouped together, matching prod order)
   const tenants = await seedTenants(db, { designSystems });
@@ -104,7 +98,7 @@ async function seed() {
   await seedStyleCombinationMembers(db, { styleCombinations, styles });
   await seedComponentReuseConfigs(db, { designSystems, componentDeps, appearances, variations, styles });
   await seedDocumentationPages(db, { designSystems });
-  await seedDesignSystemChanges(db, { users, designSystems, tokens, styles, variations, tenants, appearances, properties });
+  await seedDesignSystemChanges(db, { designSystems, tokens, styles, variations, tenants, appearances, properties });
 
   // Update version snapshots with real data now that everything is seeded
   await updateDesignSystemVersionSnapshots(db, {

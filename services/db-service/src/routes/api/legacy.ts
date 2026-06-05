@@ -21,15 +21,13 @@ import {
   components,
   variationPlatformParamAdjustments,
   invariantPlatformParamAdjustments,
-  designSystemUsers,
 } from "../../db/schema";
-import { optionalAuthenticate } from "../../validation/middleware";
-import { assertDsAccess, assertFound, tryCatch } from "./utils";
+import { assertFound, designSystemBelongsToScope, getProjectId, tryCatch } from "./utils";
 
 const router = Router();
 
 // GET /legacy/design-systems/:name/component-configs
-router.get("/:name/component-configs", optionalAuthenticate, (req, res) =>
+router.get("/:name/component-configs", (req, res) =>
   tryCatch(res, async () => {
     const [ds] = await db
       .select()
@@ -37,7 +35,7 @@ router.get("/:name/component-configs", optionalAuthenticate, (req, res) =>
       .where(eq(designSystems.name, req.params.name));
 
     if (!assertFound(ds, res)) return;
-    if (!(await assertDsAccess(req, res, ds.id))) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
     const dsId = ds.id;
 
@@ -347,7 +345,7 @@ router.get("/:name/component-configs", optionalAuthenticate, (req, res) =>
 );
 
 // GET /legacy/design-systems/:name/theme-data
-router.get("/:name/theme-data", optionalAuthenticate, (req, res) =>
+router.get("/:name/theme-data", (req, res) =>
   tryCatch(res, async () => {
     const [ds] = await db
       .select()
@@ -355,7 +353,7 @@ router.get("/:name/theme-data", optionalAuthenticate, (req, res) =>
       .where(eq(designSystems.name, req.params.name));
 
     if (!assertFound(ds, res)) return;
-    if (!(await assertDsAccess(req, res, ds.id))) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
     const [latestVersion] = await db
       .select({ version: designSystemVersions.version })
@@ -513,7 +511,7 @@ router.get("/:name/theme-data", optionalAuthenticate, (req, res) =>
 );
 
 // GET /legacy/design-systems/:name/tenant-params
-router.get("/:name/tenant-params", optionalAuthenticate, (req, res) =>
+router.get("/:name/tenant-params", (req, res) =>
   tryCatch(res, async () => {
     const [ds] = await db
       .select()
@@ -521,7 +519,7 @@ router.get("/:name/tenant-params", optionalAuthenticate, (req, res) =>
       .where(eq(designSystems.name, req.params.name));
 
     if (!assertFound(ds, res)) return;
-    if (!(await assertDsAccess(req, res, ds.id))) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
     const [tenant] = await db
       .select()
@@ -548,9 +546,12 @@ router.get("/:name/tenant-params", optionalAuthenticate, (req, res) =>
 
 // POST /legacy/design-systems/create
 // Создаёт дизайн-систему на основе legacy JSON-структуры
-router.post("/create", optionalAuthenticate, (req, res) =>
+router.post("/create", (req, res) =>
   tryCatch(res, async () => {
     const body = req.body as LegacyImportBody;
+
+    const projectId = getProjectId(req);
+
     const { name, version, parameters, themeData, componentsData } = body;
 
     const projectName = parameters.projectName ?? name;
@@ -559,16 +560,8 @@ router.post("/create", optionalAuthenticate, (req, res) =>
     // ── 1. Design system ────────────────────────────────────────────────────
     const [ds] = await db
       .insert(designSystems)
-      .values({ name: packagesName, projectName })
+      .values({ name: packagesName, projectName, projectId })
       .returning();
-
-    // ── 1a. Owner ───────────────────────────────────────────────────────────
-    if (req.user) {
-      await db.insert(designSystemUsers).values({
-        userId: req.user.id,
-        designSystemId: ds.id,
-      });
-    }
 
     // ── 2. Tenant ────────────────────────────────────────────────────────────
     const tenantName = `${name}_default`;
@@ -933,7 +926,7 @@ router.post("/create", optionalAuthenticate, (req, res) =>
 
 // POST /legacy/design-systems/:name/update
 // Обновляет существующую дизайн-систему на основе legacy JSON-структуры
-router.post("/:name/update", optionalAuthenticate, (req, res) =>
+router.post("/:name/update", (req, res) =>
   tryCatch(res, async () => {
     const body = req.body as LegacyImportBody;
     const { themeData, componentsData } = body;
@@ -945,7 +938,7 @@ router.post("/:name/update", optionalAuthenticate, (req, res) =>
       .where(eq(designSystems.name, req.params.name));
 
     if (!assertFound(ds, res)) return;
-    if (!(await assertDsAccess(req, res, ds.id))) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
     // ── 2. Tenant (find existing, no colorConfig update) ─────────────────────
     const tenantName = `${req.params.name}_default`;
@@ -1543,7 +1536,7 @@ interface LegacyConfig {
 
 // GET /legacy/design-systems/:name/download-theme
 // Возвращает zip-архив с токенами дизайн-системы для дефолтного тенанта
-router.get("/:name/download-theme", optionalAuthenticate, (req, res) =>
+router.get("/:name/download-theme", (req, res) =>
   tryCatch(res, async () => {
     const [ds] = await db
       .select()
@@ -1551,7 +1544,7 @@ router.get("/:name/download-theme", optionalAuthenticate, (req, res) =>
       .where(eq(designSystems.name, req.params.name));
 
     if (!assertFound(ds, res)) return;
-    if (!(await assertDsAccess(req, res, ds.id))) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
     // Берём первый (дефолтный) тенант
     const [tenant] = await db

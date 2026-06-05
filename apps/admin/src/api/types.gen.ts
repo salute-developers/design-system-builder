@@ -43,290 +43,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all users */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["User"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** Create user */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CreateUser"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["User"];
-                    };
-                };
-                /** @description Validation error */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get user by ID */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Item */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["User"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /** Delete user */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Deleted */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OkResponse"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        /** Update user */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["UpdateUser"];
-                };
-            };
-            responses: {
-                /** @description Updated */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["User"];
-                    };
-                };
-                /** @description Validation error */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/users/{id}/design-systems": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Design systems accessible to a user */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DesignSystem"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/design-systems": {
+    "/ds/design-systems": {
         parameters: {
             query?: never;
             header?: never;
@@ -413,7 +130,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-systems/{id}": {
+    "/ds/design-systems/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -562,7 +279,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/design-systems/{id}/components": {
+    "/ds/design-systems/{id}/components": {
         parameters: {
             query?: never;
             header?: never;
@@ -609,7 +326,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-systems/{id}/tokens": {
+    "/ds/design-systems/{id}/tokens": {
         parameters: {
             query?: never;
             header?: never;
@@ -656,7 +373,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-systems/{id}/tenants": {
+    "/ds/design-systems/{id}/tenants": {
         parameters: {
             query?: never;
             header?: never;
@@ -703,7 +420,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-systems/{id}/appearances": {
+    "/ds/design-systems/{id}/appearances": {
         parameters: {
             query?: never;
             header?: never;
@@ -750,54 +467,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-systems/{id}/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get users for design system */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["User"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/design-systems/{id}/changes": {
+    "/ds/design-systems/{id}/changes": {
         parameters: {
             query?: never;
             header?: never;
@@ -844,7 +514,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/{name}/theme-data": {
+    "/ds/legacy/design-systems/{name}/theme-data": {
         parameters: {
             query?: never;
             header?: never;
@@ -905,7 +575,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/{name}/component-configs": {
+    "/ds/legacy/design-systems/{name}/component-configs": {
         parameters: {
             query?: never;
             header?: never;
@@ -961,7 +631,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/create": {
+    "/ds/legacy/design-systems/create": {
         parameters: {
             query?: never;
             header?: never;
@@ -1016,7 +686,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/{name}/tenant-params": {
+    "/ds/legacy/design-systems/{name}/tenant-params": {
         parameters: {
             query?: never;
             header?: never;
@@ -1081,7 +751,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/{name}/update": {
+    "/ds/legacy/design-systems/{name}/update": {
         parameters: {
             query?: never;
             header?: never;
@@ -1147,7 +817,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy/design-systems/{name}/download-theme": {
+    "/ds/legacy/design-systems/{name}/download-theme": {
         parameters: {
             query?: never;
             header?: never;
@@ -1203,7 +873,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-versions": {
+    "/ds/design-system-versions": {
         parameters: {
             query?: never;
             header?: never;
@@ -1290,7 +960,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-versions/{id}": {
+    "/ds/design-system-versions/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1439,7 +1109,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/design-system-versions/by-design-system/{designSystemId}": {
+    "/ds/design-system-versions/by-design-system/{designSystemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1486,7 +1156,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/components": {
+    "/ds/components": {
         parameters: {
             query?: never;
             header?: never;
@@ -1573,7 +1243,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/components/{id}": {
+    "/ds/components/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1722,7 +1392,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/components/{id}/variations": {
+    "/ds/components/{id}/variations": {
         parameters: {
             query?: never;
             header?: never;
@@ -1769,7 +1439,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/components/{id}/properties": {
+    "/ds/components/{id}/properties": {
         parameters: {
             query?: never;
             header?: never;
@@ -1816,7 +1486,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/components/{id}/deps": {
+    "/ds/components/{id}/deps": {
         parameters: {
             query?: never;
             header?: never;
@@ -1866,7 +1536,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-components": {
+    "/ds/design-system-components": {
         parameters: {
             query?: never;
             header?: never;
@@ -1953,7 +1623,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-components/{id}": {
+    "/ds/design-system-components/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2049,7 +1719,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variations": {
+    "/ds/variations": {
         parameters: {
             query?: never;
             header?: never;
@@ -2136,7 +1806,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variations/{id}": {
+    "/ds/variations/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2285,7 +1955,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/variations/{id}/styles": {
+    "/ds/variations/{id}/styles": {
         parameters: {
             query?: never;
             header?: never;
@@ -2332,7 +2002,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variations/{id}/properties": {
+    "/ds/variations/{id}/properties": {
         parameters: {
             query?: never;
             header?: never;
@@ -2379,7 +2049,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/properties": {
+    "/ds/properties": {
         parameters: {
             query?: never;
             header?: never;
@@ -2466,7 +2136,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/properties/{id}": {
+    "/ds/properties/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2615,7 +2285,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/property-platform-params": {
+    "/ds/property-platform-params": {
         parameters: {
             query?: never;
             header?: never;
@@ -2702,7 +2372,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/property-platform-params/{id}": {
+    "/ds/property-platform-params/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2851,7 +2521,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/variation-platform-param-adjustments": {
+    "/ds/variation-platform-param-adjustments": {
         parameters: {
             query?: never;
             header?: never;
@@ -2938,7 +2608,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variation-platform-param-adjustments/{id}": {
+    "/ds/variation-platform-param-adjustments/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3087,7 +2757,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/invariant-platform-param-adjustments": {
+    "/ds/invariant-platform-param-adjustments": {
         parameters: {
             query?: never;
             header?: never;
@@ -3174,7 +2844,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/invariant-platform-param-adjustments/{id}": {
+    "/ds/invariant-platform-param-adjustments/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3323,7 +2993,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/property-variations": {
+    "/ds/property-variations": {
         parameters: {
             query?: never;
             header?: never;
@@ -3410,7 +3080,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/property-variations/{id}": {
+    "/ds/property-variations/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3506,7 +3176,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/appearances": {
+    "/ds/appearances": {
         parameters: {
             query?: never;
             header?: never;
@@ -3593,7 +3263,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/appearances/{id}": {
+    "/ds/appearances/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3742,7 +3412,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/styles": {
+    "/ds/styles": {
         parameters: {
             query?: never;
             header?: never;
@@ -3829,7 +3499,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/styles/{id}": {
+    "/ds/styles/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3978,7 +3648,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/styles/by-variation/{variationId}/by-design-system/{designSystemId}": {
+    "/ds/styles/by-variation/{variationId}/by-design-system/{designSystemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4026,7 +3696,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/tokens": {
+    "/ds/tokens": {
         parameters: {
             query?: never;
             header?: never;
@@ -4113,7 +3783,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/tokens/{id}": {
+    "/ds/tokens/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4262,7 +3932,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/tokens/{id}/values": {
+    "/ds/tokens/{id}/values": {
         parameters: {
             query?: never;
             header?: never;
@@ -4309,7 +3979,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/tenants": {
+    "/ds/tenants": {
         parameters: {
             query?: never;
             header?: never;
@@ -4396,7 +4066,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/tenants/{id}": {
+    "/ds/tenants/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4545,7 +4215,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/tenants/{id}/token-values": {
+    "/ds/tenants/{id}/token-values": {
         parameters: {
             query?: never;
             header?: never;
@@ -4592,7 +4262,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/token-values": {
+    "/ds/token-values": {
         parameters: {
             query?: never;
             header?: never;
@@ -4679,7 +4349,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/token-values/{id}": {
+    "/ds/token-values/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -4828,7 +4498,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/variation-property-values": {
+    "/ds/variation-property-values": {
         parameters: {
             query?: never;
             header?: never;
@@ -4915,7 +4585,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variation-property-values/{id}": {
+    "/ds/variation-property-values/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5064,7 +4734,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/variation-property-values/by-style/{styleId}": {
+    "/ds/variation-property-values/by-style/{styleId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5111,7 +4781,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/variation-property-values/by-appearance/{appearanceId}": {
+    "/ds/variation-property-values/by-appearance/{appearanceId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5158,7 +4828,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/invariant-property-values": {
+    "/ds/invariant-property-values": {
         parameters: {
             query?: never;
             header?: never;
@@ -5245,7 +4915,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/invariant-property-values/{id}": {
+    "/ds/invariant-property-values/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5394,7 +5064,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}": {
+    "/ds/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5442,7 +5112,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/documentation-pages": {
+    "/ds/documentation-pages": {
         parameters: {
             query?: never;
             header?: never;
@@ -5529,7 +5199,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/documentation-pages/{id}": {
+    "/ds/documentation-pages/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5678,7 +5348,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/documentation-pages/by-design-system/{designSystemId}": {
+    "/ds/documentation-pages/by-design-system/{designSystemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5734,7 +5404,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/component-deps": {
+    "/ds/component-deps": {
         parameters: {
             query?: never;
             header?: never;
@@ -5821,7 +5491,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/component-deps/{id}": {
+    "/ds/component-deps/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -5970,7 +5640,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/component-reuse-configs": {
+    "/ds/component-reuse-configs": {
         parameters: {
             query?: never;
             header?: never;
@@ -6057,7 +5727,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/component-reuse-configs/{id}": {
+    "/ds/component-reuse-configs/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -6206,7 +5876,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/component-reuse-configs/by-dep/{componentDepId}": {
+    "/ds/component-reuse-configs/by-dep/{componentDepId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -6253,7 +5923,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/style-combinations": {
+    "/ds/style-combinations": {
         parameters: {
             query?: never;
             header?: never;
@@ -6340,7 +6010,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/style-combinations/{id}": {
+    "/ds/style-combinations/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -6489,7 +6159,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/style-combinations/{id}/members": {
+    "/ds/style-combinations/{id}/members": {
         parameters: {
             query?: never;
             header?: never;
@@ -6580,7 +6250,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/style-combination-members": {
+    "/ds/style-combination-members": {
         parameters: {
             query?: never;
             header?: never;
@@ -6667,7 +6337,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/style-combination-members/{id}": {
+    "/ds/style-combination-members/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -6763,190 +6433,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all design system users */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DesignSystemUser"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        /** Create design system user */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["CreateDesignSystemUser"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DesignSystemUser"];
-                    };
-                };
-                /** @description Validation error */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/design-system-users/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get design system user by ID */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Item */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DesignSystemUser"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /** Delete design system user */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Deleted */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OkResponse"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/design-system-changes": {
+    "/ds/design-system-changes": {
         parameters: {
             query?: never;
             header?: never;
@@ -7033,7 +6520,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-changes/{id}": {
+    "/ds/design-system-changes/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -7089,7 +6576,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/design-system-changes/by-design-system/{designSystemId}": {
+    "/ds/design-system-changes/by-design-system/{designSystemId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -7136,7 +6623,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/saved-queries": {
+    "/ds/saved-queries": {
         parameters: {
             query?: never;
             header?: never;
@@ -7223,7 +6710,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/saved-queries/{id}": {
+    "/ds/saved-queries/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -7372,7 +6859,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/saved-queries/{id}/run": {
+    "/ds/saved-queries/{id}/run": {
         parameters: {
             query?: never;
             header?: never;
@@ -7439,7 +6926,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/palette": {
+    "/ds/palette": {
         parameters: {
             query?: never;
             header?: never;
@@ -7526,7 +7013,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/palette/{id}": {
+    "/ds/palette/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -7675,7 +7162,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/palette/by-type/{type}": {
+    "/ds/palette/by-type/{type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -7722,6 +7209,345 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all tables with columns and row counts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tables */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            tables: {
+                                name: string;
+                                columns: string[];
+                                count: number;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tables/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paginated rows for a single table */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: string;
+                    offset?: string;
+                    all?: string;
+                };
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rows */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            rows: {
+                                [key: string]: unknown;
+                            }[];
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/queries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List queries from the catalog */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Queries */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            queries: {
+                                id: string;
+                                label: string;
+                                type: string;
+                                params?: {
+                                    name: string;
+                                    type: string;
+                                    default?: unknown;
+                                    options?: unknown[];
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/queries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Run a catalog query */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            label: string;
+                            result?: unknown;
+                            count: number;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/nl-query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a natural-language SQL query */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        query: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Generated SQL and result rows */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            sql: string;
+                            columns: string[];
+                            rows: {
+                                [key: string]: unknown;
+                            }[];
+                            count: number;
+                        };
+                    };
+                };
+                /** @description Validation / generation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/schema": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Drizzle schema as DBML and Mermaid ER */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Schema text */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            dbml: string;
+                            mermaid: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7735,27 +7561,12 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        User: {
-            /** Format: uuid */
-            id: string;
-            login: string;
-            token: string;
-            /**
-             * Format: date-time
-             * @example 2024-01-01T00:00:00.000Z
-             */
-            createdAt: string;
-            /**
-             * Format: date-time
-             * @example 2024-01-01T00:00:00.000Z
-             */
-            updatedAt: string;
-        };
         DesignSystem: {
             /** Format: uuid */
             id: string;
             name: string;
             projectName: string;
+            projectId: string | null;
             description: string | null;
             /**
              * Format: date-time
@@ -7773,8 +7584,6 @@ export interface components {
             id: string;
             /** Format: uuid */
             designSystemId: string;
-            /** Format: uuid */
-            userId: string | null;
             version: string;
             snapshot: string | number | boolean | unknown | {
                 [key: string]: unknown;
@@ -8202,31 +8011,11 @@ export interface components {
              */
             updatedAt: string;
         };
-        DesignSystemUser: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            userId: string;
-            /** Format: uuid */
-            designSystemId: string;
-            /**
-             * Format: date-time
-             * @example 2024-01-01T00:00:00.000Z
-             */
-            createdAt: string;
-            /**
-             * Format: date-time
-             * @example 2024-01-01T00:00:00.000Z
-             */
-            updatedAt: string;
-        };
         DesignSystemChange: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
             designSystemId: string;
-            /** Format: uuid */
-            userId: string | null;
             entityType: string;
             /** Format: uuid */
             entityId: string;
@@ -8276,28 +8065,20 @@ export interface components {
              */
             updatedAt: string;
         };
-        CreateUser: {
-            login: string;
-            token: string;
-        };
-        UpdateUser: {
-            login?: string;
-            token?: string;
-        };
         CreateDesignSystem: {
             name: string;
             projectName: string;
+            projectId?: string;
             description?: string;
         };
         UpdateDesignSystem: {
             name?: string;
+            projectId?: string;
             description?: string;
         };
         CreateDesignSystemVersion: {
             /** Format: uuid */
             designSystemId: string;
-            /** Format: uuid */
-            userId?: string;
             version: string;
             snapshot?: unknown;
             changelog?: string;
@@ -8594,17 +8375,9 @@ export interface components {
             /** Format: uuid */
             styleId: string;
         };
-        CreateDesignSystemUser: {
-            /** Format: uuid */
-            userId: string;
-            /** Format: uuid */
-            designSystemId: string;
-        };
         CreateDesignSystemChange: {
             /** Format: uuid */
             designSystemId: string;
-            /** Format: uuid */
-            userId?: string;
             entityType: string;
             /** Format: uuid */
             entityId: string;

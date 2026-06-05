@@ -36,7 +36,7 @@ function SchemaPage() {
   }, [applyTransform]);
 
   useEffect(() => {
-    fetch(`${VITE_DB_SERVICE_API}/schema`)
+    fetch(`${VITE_DB_SERVICE_API}/admin/schema`)
       .then((r) => r.json())
       .then((data) => {
         setDbml(data.dbml);

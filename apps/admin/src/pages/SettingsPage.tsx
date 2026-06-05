@@ -4,18 +4,16 @@ import type { components } from '../api/types.gen';
 import './Page.css';
 import './SettingsPage.css';
 
-type User = components['schemas']['User'];
 type DesignSystem = components['schemas']['DesignSystem'];
 type Comp = components['schemas']['Component'];
 type Variation = components['schemas']['Variation'];
 type Property = components['schemas']['Property'];
 type ComponentDep = components['schemas']['ComponentDep'];
 type PropertyVariation = components['schemas']['PropertyVariation'];
-type DesignSystemUser = components['schemas']['DesignSystemUser'];
 
 type DesignSystemComponent = components['schemas']['DesignSystemComponent'];
 
-type Section = 'users' | 'design-systems' | 'components';
+type Section = 'design-systems' | 'components';
 type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations' | 'design-systems';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -25,161 +23,10 @@ function ErrMsg({ msg }: { msg: string | null }) {
   return <p className="adm-error">{msg}</p>;
 }
 
-// ─── Users Section ───────────────────────────────────────────────────────────
-
-function UsersSection({ designSystems }: { designSystems: DesignSystem[] }) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [dsUsers, setDsUsers] = useState<DesignSystemUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Add form
-  const [login, setLogin] = useState('');
-  const [token, setToken] = useState('');
-  const [addErr, setAddErr] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-
-  // Assign DS form
-  const [assignUserId, setAssignUserId] = useState('');
-  const [assignDsId, setAssignDsId] = useState('');
-  const [assignErr, setAssignErr] = useState<string | null>(null);
-  const [assigning, setAssigning] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [ur, dsu] = await Promise.all([
-      api.GET('/users'),
-      api.GET('/design-system-users'),
-    ]);
-    if (ur.data) setUsers(ur.data);
-    if (dsu.data) setDsUsers(dsu.data);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  async function addUser(e: React.FormEvent) {
-    e.preventDefault();
-    setAddErr(null);
-    setAdding(true);
-    const { error } = await api.POST('/users', { body: { login, token } });
-    setAdding(false);
-    if (error) { setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
-    setLogin(''); setToken('');
-    load();
-  }
-
-  async function deleteUser(id: string) {
-    await api.DELETE('/users/{id}', { params: { path: { id } } });
-    load();
-  }
-
-  async function assignDs(e: React.FormEvent) {
-    e.preventDefault();
-    setAssignErr(null);
-    setAssigning(true);
-    const { error } = await api.POST('/design-system-users', {
-      body: { userId: assignUserId, designSystemId: assignDsId },
-    });
-    setAssigning(false);
-    if (error) { setAssignErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
-    setAssignUserId(''); setAssignDsId('');
-    load();
-  }
-
-  async function removeAssignment(id: string) {
-    await api.DELETE('/design-system-users/{id}', { params: { path: { id } } });
-    load();
-  }
-
-  if (loading) return <p className="page-hint">Loading...</p>;
-
-  const dsMap = Object.fromEntries(designSystems.map((d) => [d.id, d.name]));
-  const userMap = Object.fromEntries(users.map((u) => [u.id, u.login]));
-
-  return (
-    <div className="adm-section">
-      <h2 className="adm-section-title">Users</h2>
-
-      {/* Add user */}
-      <div className="adm-card">
-        <h3 className="adm-card-title">Add user</h3>
-        <form className="adm-form" onSubmit={addUser}>
-          <div className="adm-form-row">
-            <input className="adm-input" placeholder="Login" value={login} onChange={(e) => setLogin(e.target.value)} required />
-            <input className="adm-input" placeholder="Token" value={token} onChange={(e) => setToken(e.target.value)} required />
-            <button className="adm-btn adm-btn--primary" disabled={adding}>{adding ? 'Adding…' : 'Add'}</button>
-          </div>
-          <ErrMsg msg={addErr} />
-        </form>
-      </div>
-
-      {/* User list */}
-      <div className="adm-card">
-        <h3 className="adm-card-title">All users ({users.length})</h3>
-        {err && <ErrMsg msg={err} />}
-        {users.length === 0 ? (
-          <p className="page-hint">No users</p>
-        ) : (
-          <table className="adm-table">
-            <thead><tr><th>Login</th><th>Token</th><th>Design Systems</th><th></th></tr></thead>
-            <tbody>
-              {users.map((u) => {
-                const userDsLinks = dsUsers.filter((d) => d.userId === u.id);
-                return (
-                  <tr key={u.id}>
-                    <td className="adm-mono">{u.login}</td>
-                    <td className="adm-mono adm-muted">{u.token}</td>
-                    <td>
-                      <div className="adm-tags">
-                        {userDsLinks.map((link) => (
-                          <span key={link.id} className="adm-tag">
-                            {dsMap[link.designSystemId] ?? link.designSystemId}
-                            <button className="adm-tag-remove" onClick={() => removeAssignment(link.id)} title="Remove">×</button>
-                          </span>
-                        ))}
-                        {userDsLinks.length === 0 && <span className="adm-muted">—</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => deleteUser(u.id)}>Delete</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Assign DS */}
-      <div className="adm-card">
-        <h3 className="adm-card-title">Assign user to design system</h3>
-        <form className="adm-form" onSubmit={assignDs}>
-          <div className="adm-form-row">
-            <select className="adm-select" value={assignUserId} onChange={(e) => setAssignUserId(e.target.value)} required>
-              <option value="">Select user…</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.login}</option>)}
-            </select>
-            <select className="adm-select" value={assignDsId} onChange={(e) => setAssignDsId(e.target.value)} required>
-              <option value="">Select design system…</option>
-              {designSystems.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-            <button className="adm-btn adm-btn--primary" disabled={assigning}>{assigning ? 'Assigning…' : 'Assign'}</button>
-          </div>
-          <ErrMsg msg={assignErr} />
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ─── Design Systems Section ───────────────────────────────────────────────────
 
 function DesignSystemsSection({ designSystems, reload }: { designSystems: DesignSystem[]; reload: () => void }) {
   const [err, setErr] = useState<string | null>(null);
-  const [dsUsers, setDsUsers] = useState<DesignSystemUser[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
 
   // Add form
   const [name, setName] = useState('');
@@ -192,22 +39,11 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
   const [renaming, setRenaming] = useState<Record<string, string>>({});
   const [renameErr, setRenameErr] = useState<string | null>(null);
 
-  const loadUsers = useCallback(async () => {
-    const [ur, dsu] = await Promise.all([
-      api.GET('/users'),
-      api.GET('/design-system-users'),
-    ]);
-    if (ur.data) setUsers(ur.data);
-    if (dsu.data) setDsUsers(dsu.data);
-  }, []);
-
-  useEffect(() => { loadUsers(); }, [loadUsers]);
-
   async function addDs(e: React.FormEvent) {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { error } = await api.POST('/design-systems', {
+    const { error } = await api.POST('/ds/design-systems', {
       body: { name, projectName, description: desc || undefined },
     });
     setAdding(false);
@@ -217,7 +53,7 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
   }
 
   async function deleteDs(id: string) {
-    await api.DELETE('/design-systems/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/design-systems/{id}', { params: { path: { id } } });
     reload();
   }
 
@@ -225,7 +61,7 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
     const newName = renaming[id];
     if (!newName?.trim()) return;
     setRenameErr(null);
-    const { error } = await api.PATCH('/design-systems/{id}', {
+    const { error } = await api.PATCH('/ds/design-systems/{id}', {
       params: { path: { id } },
       body: { name: newName.trim() },
     });
@@ -261,13 +97,9 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
           <p className="page-hint">No design systems</p>
         ) : (
           <table className="adm-table">
-            <thead><tr><th>Name</th><th>Project name</th><th>Description</th><th>Users</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Project name</th><th>Description</th><th></th></tr></thead>
             <tbody>
-              {designSystems.map((d) => {
-                const assignedUsers = dsUsers
-                  .filter((du) => du.designSystemId === d.id)
-                  .map((du) => users.find((u) => u.id === du.userId)?.login ?? du.userId);
-                return (
+              {designSystems.map((d) => (
                 <tr key={d.id}>
                   <td>
                     {renaming[d.id] !== undefined ? (
@@ -296,18 +128,10 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
                   <td className="adm-mono">{d.projectName}</td>
                   <td className="adm-muted">{d.description ?? '—'}</td>
                   <td>
-                    <div className="adm-tags">
-                      {assignedUsers.length > 0
-                        ? assignedUsers.map((login, i) => <span key={i} className="adm-tag">{login}</span>)
-                        : <span className="adm-muted">—</span>}
-                    </div>
-                  </td>
-                  <td>
                     <button className="adm-btn adm-btn--danger adm-btn--sm" onClick={() => deleteDs(d.id)}>Delete</button>
                   </td>
                 </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         )}
@@ -367,14 +191,14 @@ async function syncPlatformParams(
 
   // Delete all existing params for this property
   await Promise.all(existing.map((r) =>
-    api.DELETE('/property-platform-params/{id}', { params: { path: { id: r.id } } }),
+    api.DELETE('/ds/property-platform-params/{id}', { params: { path: { id: r.id } } }),
   ));
 
   // Create new params
   for (const platform of PLATFORMS) {
     const names = parsePlatformAliases(platforms[platform]);
     for (const name of names) {
-      await api.POST('/property-platform-params', {
+      await api.POST('/ds/property-platform-params', {
         body: { propertyId, platform, name },
       });
     }
@@ -399,8 +223,8 @@ function PropertiesTab({ componentId }: { componentId: string }) {
 
   const load = useCallback(async () => {
     const [propsRes, pppRes] = await Promise.all([
-      api.GET('/components/{id}/properties', { params: { path: { id: componentId } } }),
-      api.GET('/property-platform-params', {}),
+      api.GET('/ds/components/{id}/properties', { params: { path: { id: componentId } } }),
+      api.GET('/ds/property-platform-params', {}),
     ]);
     if (propsRes.data) setProps(propsRes.data);
     if (pppRes.data) setPppRows(pppRes.data as PlatformParamRow[]);
@@ -413,7 +237,7 @@ function PropertiesTab({ componentId }: { componentId: string }) {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { data, error } = await api.POST('/properties', {
+    const { data, error } = await api.POST('/ds/properties', {
       body: {
         componentId,
         name: pName,
@@ -459,7 +283,7 @@ function PropertiesTab({ componentId }: { componentId: string }) {
     if (!s) return;
     setEditErr((prev) => { const c = { ...prev }; delete c[id]; return c; });
     setSaving((prev) => ({ ...prev, [id]: true }));
-    const { error } = await api.PATCH('/properties/{id}', {
+    const { error } = await api.PATCH('/ds/properties/{id}', {
       params: { path: { id } },
       body: {
         name: s.name,
@@ -482,9 +306,9 @@ function PropertiesTab({ componentId }: { componentId: string }) {
     // Delete platform params first (FK constraint)
     const toDelete = pppRows.filter((r) => r.propertyId === id);
     await Promise.all(toDelete.map((r) =>
-      api.DELETE('/property-platform-params/{id}', { params: { path: { id: r.id } } }),
+      api.DELETE('/ds/property-platform-params/{id}', { params: { path: { id: r.id } } }),
     ));
-    await api.DELETE('/properties/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/properties/{id}', { params: { path: { id } } });
     cancelEdit(id);
     load();
   }
@@ -640,7 +464,7 @@ function DepsTab({ componentId, allComponents }: { componentId: string; allCompo
   const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await api.GET('/components/{id}/deps', { params: { path: { id: componentId } } });
+    const { data } = await api.GET('/ds/components/{id}/deps', { params: { path: { id: componentId } } });
     if (data) { setAsParent(data.asParent); setAsChild(data.asChild); }
     setLoading(false);
   }, [componentId]);
@@ -651,7 +475,7 @@ function DepsTab({ componentId, allComponents }: { componentId: string; allCompo
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { error } = await api.POST('/component-deps', {
+    const { error } = await api.POST('/ds/component-deps', {
       body: { parentId: componentId, childId, type: depType },
     });
     setAdding(false);
@@ -661,7 +485,7 @@ function DepsTab({ componentId, allComponents }: { componentId: string; allCompo
   }
 
   async function deleteDep(id: string) {
-    await api.DELETE('/component-deps/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/component-deps/{id}', { params: { path: { id } } });
     load();
   }
 
@@ -744,7 +568,7 @@ function VariationsTab({ componentId }: { componentId: string }) {
   const [editErr, setEditErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data } = await api.GET('/components/{id}/variations', { params: { path: { id: componentId } } });
+    const { data } = await api.GET('/ds/components/{id}/variations', { params: { path: { id: componentId } } });
     if (data) setVariations(data);
     setLoading(false);
   }, [componentId]);
@@ -755,7 +579,7 @@ function VariationsTab({ componentId }: { componentId: string }) {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { error } = await api.POST('/variations', {
+    const { error } = await api.POST('/ds/variations', {
       body: { componentId, name: vName, description: vDesc || undefined },
     });
     setAdding(false);
@@ -765,7 +589,7 @@ function VariationsTab({ componentId }: { componentId: string }) {
   }
 
   async function deleteVar(id: string) {
-    await api.DELETE('/variations/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/variations/{id}', { params: { path: { id } } });
     load();
   }
 
@@ -781,7 +605,7 @@ function VariationsTab({ componentId }: { componentId: string }) {
     const edit = editing[id];
     if (!edit?.name?.trim()) return;
     setEditErr(null);
-    const { error } = await api.PATCH('/variations/{id}', {
+    const { error } = await api.PATCH('/ds/variations/{id}', {
       params: { path: { id } },
       body: { name: edit.name.trim(), description: edit.description.trim() || undefined },
     });
@@ -887,9 +711,9 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
 
   const load = useCallback(async () => {
     const [pvRes, prRes, varRes] = await Promise.all([
-      api.GET('/property-variations'),
-      api.GET('/components/{id}/properties', { params: { path: { id: componentId } } }),
-      api.GET('/components/{id}/variations', { params: { path: { id: componentId } } }),
+      api.GET('/ds/property-variations'),
+      api.GET('/ds/components/{id}/properties', { params: { path: { id: componentId } } }),
+      api.GET('/ds/components/{id}/variations', { params: { path: { id: componentId } } }),
     ]);
     if (pvRes.data) setPvList(pvRes.data);
     if (prRes.data) setProps(prRes.data);
@@ -903,7 +727,7 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { error } = await api.POST('/property-variations', {
+    const { error } = await api.POST('/ds/property-variations', {
       body: { propertyId: pvPropId, variationId: pvVarId },
     });
     setAdding(false);
@@ -913,7 +737,7 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
   }
 
   async function deletePv(id: string) {
-    await api.DELETE('/property-variations/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/property-variations/{id}', { params: { path: { id } } });
     load();
   }
 
@@ -1023,24 +847,24 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
  */
 async function copyBaseValues(targetDsId: string, componentId: string) {
   // 1. Find the base design system
-  const dsRes = await api.GET('/design-systems');
+  const dsRes = await api.GET('/ds/design-systems');
   const baseDs = dsRes.data?.find((ds) => ds.name === 'base');
   if (!baseDs || baseDs.id === targetDsId) return;
 
   // 2. Get component variations
-  const varRes = await api.GET('/components/{id}/variations', { params: { path: { id: componentId } } });
+  const varRes = await api.GET('/ds/components/{id}/variations', { params: { path: { id: componentId } } });
   const componentVariations = varRes.data ?? [];
   if (componentVariations.length === 0) return;
 
   // 3. Load base appearances for this component
-  const baseAppRes = await api.GET('/design-systems/{id}/appearances', { params: { path: { id: baseDs.id } } });
+  const baseAppRes = await api.GET('/ds/design-systems/{id}/appearances', { params: { path: { id: baseDs.id } } });
   const baseAppearances = (baseAppRes.data ?? []).filter((a) => a.componentId === componentId);
   if (baseAppearances.length === 0) return;
 
   // 4. Create appearances in the target DS
   const createdAppearances = await Promise.all(
     baseAppearances.map((a) =>
-      api.POST('/appearances', {
+      api.POST('/ds/appearances', {
         body: { designSystemId: targetDsId, componentId, name: a.name ?? 'default' },
       }),
     ),
@@ -1058,14 +882,14 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
 
   for (const variation of componentVariations) {
     const baseStylesRes = await api.GET(
-      '/styles/by-variation/{variationId}/by-design-system/{designSystemId}',
+      '/ds/styles/by-variation/{variationId}/by-design-system/{designSystemId}',
       { params: { path: { variationId: variation.id, designSystemId: baseDs.id } } },
     );
     const baseStyles = baseStylesRes.data ?? [];
 
     const createdStyles = await Promise.all(
       baseStyles.map((s) =>
-        api.POST('/styles', {
+        api.POST('/ds/styles', {
           body: {
             designSystemId: targetDsId,
             variationId: variation.id,
@@ -1085,8 +909,8 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
 
   // 6. Build token name map: base DS token name → target DS token ID
   const [baseTokensRes, targetTokensRes] = await Promise.all([
-    api.GET('/design-systems/{id}/tokens', { params: { path: { id: baseDs.id } } }),
-    api.GET('/design-systems/{id}/tokens', { params: { path: { id: targetDsId } } }),
+    api.GET('/ds/design-systems/{id}/tokens', { params: { path: { id: baseDs.id } } }),
+    api.GET('/ds/design-systems/{id}/tokens', { params: { path: { id: targetDsId } } }),
   ]);
   const baseTokens = baseTokensRes.data ?? [];
   const targetTokens = targetTokensRes.data ?? [];
@@ -1104,7 +928,7 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
 
   // 7. Copy invariant property values
   const baseIpvRes = await api.GET(
-    '/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}',
+    '/ds/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}',
     { params: { path: { componentId, designSystemId: baseDs.id } } },
   );
   const baseIpvs = baseIpvRes.data ?? [];
@@ -1114,7 +938,7 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
       baseIpvs
         .filter((ipv) => appIdMap.has(ipv.appearanceId))
         .map((ipv) =>
-          api.POST('/invariant-property-values', {
+          api.POST('/ds/invariant-property-values', {
             body: {
               propertyId: ipv.propertyId,
               designSystemId: targetDsId,
@@ -1134,7 +958,7 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
   if (baseStyleIds.length > 0) {
     const vpvArrays = await Promise.all(
       baseStyleIds.map((styleId) =>
-        api.GET('/variation-property-values/by-style/{styleId}', {
+        api.GET('/ds/variation-property-values/by-style/{styleId}', {
           params: { path: { styleId } },
         }),
       ),
@@ -1146,7 +970,7 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
         allBaseVpvs
           .filter((vpv) => styleIdMap.has(vpv.styleId) && appIdMap.has(vpv.appearanceId))
           .map((vpv) =>
-            api.POST('/variation-property-values', {
+            api.POST('/ds/variation-property-values', {
               body: {
                 propertyId: vpv.propertyId,
                 styleId: styleIdMap.get(vpv.styleId)!,
@@ -1174,8 +998,8 @@ function DesignSystemsTab({ componentId }: { componentId: string }) {
 
   const load = useCallback(async () => {
     const [dsRes, dscRes] = await Promise.all([
-      api.GET('/design-systems'),
-      api.GET('/design-system-components'),
+      api.GET('/ds/design-systems'),
+      api.GET('/ds/design-system-components'),
     ]);
     if (dsRes.data) setAllDs(dsRes.data);
     if (dscRes.data) setDsComponents(dscRes.data.filter((dsc: DesignSystemComponent) => dsc.componentId === componentId));
@@ -1189,7 +1013,7 @@ function DesignSystemsTab({ componentId }: { componentId: string }) {
     setAddErr(null);
     setAdding(true);
 
-    const { error } = await api.POST('/design-system-components', {
+    const { error } = await api.POST('/ds/design-system-components', {
       body: { designSystemId: addDsId, componentId },
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
@@ -1203,7 +1027,7 @@ function DesignSystemsTab({ componentId }: { componentId: string }) {
   }
 
   async function removeFromDs(dscId: string) {
-    await api.DELETE('/design-system-components/{id}', { params: { path: { id: dscId } } });
+    await api.DELETE('/ds/design-system-components/{id}', { params: { path: { id: dscId } } });
     load();
   }
 
@@ -1328,7 +1152,7 @@ function ComponentsSection() {
   const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await api.GET('/components');
+    const { data } = await api.GET('/ds/components');
     if (data) setComponents(data);
     setLoading(false);
   }, []);
@@ -1339,18 +1163,18 @@ function ComponentsSection() {
     e.preventDefault();
     setAddErr(null);
     setAdding(true);
-    const { data, error } = await api.POST('/components', {
+    const { data, error } = await api.POST('/ds/components', {
       body: { name: cName, description: cDesc || undefined },
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
 
     // Auto-add to all design systems and copy base values
     if (data) {
-      const dsRes = await api.GET('/design-systems');
+      const dsRes = await api.GET('/ds/design-systems');
       if (dsRes.data) {
         await Promise.all(
           dsRes.data.map((ds) =>
-            api.POST('/design-system-components', {
+            api.POST('/ds/design-system-components', {
               body: { designSystemId: ds.id, componentId: data.id },
             }),
           ),
@@ -1370,7 +1194,7 @@ function ComponentsSection() {
   }
 
   async function deleteComp(id: string) {
-    await api.DELETE('/components/{id}', { params: { path: { id } } });
+    await api.DELETE('/ds/components/{id}', { params: { path: { id } } });
     if (selected === id) setSelected(null);
     load();
   }
@@ -1443,7 +1267,7 @@ function SettingsPage() {
   const [designSystems, setDesignSystems] = useState<DesignSystem[]>([]);
 
   const loadDesignSystems = useCallback(async () => {
-    const { data } = await api.GET('/design-systems');
+    const { data } = await api.GET('/ds/design-systems');
     if (data) setDesignSystems(data);
   }, []);
 
@@ -1451,7 +1275,6 @@ function SettingsPage() {
 
   const navItems: { id: Section; label: string }[] = [
     { id: 'design-systems', label: 'Design Systems' },
-    { id: 'users', label: 'Users' },
     { id: 'components', label: 'Components' },
   ];
 
@@ -1470,7 +1293,6 @@ function SettingsPage() {
           ))}
         </aside>
         <main className="adm-main">
-          {section === 'users' && <UsersSection designSystems={designSystems} />}
           {section === 'design-systems' && (
             <DesignSystemsSection designSystems={designSystems} reload={loadDesignSystems} />
           )}

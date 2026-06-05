@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
-import { eq } from "drizzle-orm";
-import { db } from "../../db/index";
-import { designSystemUsers } from "../../db/schema";
+import { SQL, and, eq, isNull, or } from "drizzle-orm";
+import { designSystems } from "../../db/schema";
 
 export const assertFound = <T>(
   row: T | undefined,
@@ -15,6 +14,57 @@ export const assertFound = <T>(
   return true;
 };
 
+const headerValue = (req: Request, name: string): string | undefined => {
+  const raw = req.headers[name];
+  return Array.isArray(raw) ? raw[0] : raw;
+};
+
+export const isSystemAdmin = (req: Request): boolean =>
+  headerValue(req, "x-system-admin") === "true";
+
+export const getProjectId = (req: Request): string | undefined =>
+  headerValue(req, "x-project-id");
+
+export const designSystemScopeFilter = (req: Request): SQL | undefined => {
+  if (isSystemAdmin(req)) {
+    return undefined;
+  }
+
+  const projectId = getProjectId(req);
+  if (!projectId) {
+    return undefined;
+  }
+
+  return or(eq(designSystems.projectId, projectId), isNull(designSystems.projectId));
+};
+
+export const designSystemBelongsToScope = (
+  row: { projectId: string | null },
+  req: Request,
+): boolean => {
+  if (isSystemAdmin(req)) {
+    return true;
+  }
+
+  const projectId = getProjectId(req);
+  if (!projectId) {
+    return true;
+  }
+
+  if (row.projectId == null) {
+    return true;
+  }
+
+  return row.projectId === projectId;
+};
+
+export const andOptional = (...parts: Array<SQL | undefined>): SQL | undefined => {
+  const filtered = parts.filter((p): p is SQL => p !== undefined);
+  if (filtered.length === 0) return undefined;
+  if (filtered.length === 1) return filtered[0];
+  return and(...filtered);
+};
+
 export const tryCatch = async (
   res: Response,
   fn: () => Promise<void>,
@@ -25,39 +75,3 @@ export const tryCatch = async (
     res.status(500).json({ error: String(err) });
   }
 };
-
-/**
- * Checks whether the current user is allowed to access the given design system.
- * - No Authorization header → admin mode, always allowed.
- * - Invalid token (req.user is undefined) → allowed only if the DS has no assigned users.
- * - Valid user → allowed only if the DS has no assigned users OR the user is assigned to it.
- * Returns true if access is granted, false (and sends 401) otherwise.
- */
-export async function assertDsAccess(
-  req: Request,
-  res: Response,
-  dsId: string,
-): Promise<boolean> {
-  const hasAuthHeader = req.headers.authorization?.startsWith("Basic ");
-  if (!hasAuthHeader) return true; // admin mode
-
-  const assignedUserRows = await db
-    .select({ userId: designSystemUsers.userId })
-    .from(designSystemUsers)
-    .where(eq(designSystemUsers.designSystemId, dsId));
-
-  const isUnassigned = assignedUserRows.length === 0;
-
-  if (!req.user) {
-    if (isUnassigned) return true;
-    res.status(401).json({ error: "Invalid token" });
-    return false;
-  }
-
-  if (isUnassigned || assignedUserRows.some((r) => r.userId === req.user!.id)) {
-    return true;
-  }
-
-  res.status(401).json({ error: "Access denied" });
-  return false;
-}
