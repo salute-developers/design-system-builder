@@ -12,6 +12,7 @@ import {
     seedRadioboxComponent,
     seedCounterComponent,
     seedIndicatorComponent,
+    seedBadgeComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -168,6 +169,7 @@ async function seed() {
         radiobox: await seedRadioboxComponent(db),
         counter: await seedCounterComponent(db),
         indicator: await seedIndicatorComponent(db),
+        badge: await seedBadgeComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -180,6 +182,7 @@ async function seed() {
         Radiobox: 'radiobox',
         Counter: 'counter',
         Indicator: 'indicator',
+        Badge: 'badge',
     };
 
     let componentIdsToReseed: string[];

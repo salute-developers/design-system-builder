@@ -12,11 +12,12 @@ export async function seedDesignSystemComponents(
             radiobox: any;
             counter: any;
             indicator: any;
+            badge: any;
         };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
 
     const rows = await db
         .insert(schema.designSystemComponents)
@@ -28,6 +29,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: radiobox.id },
             { designSystemId: base.id, componentId: counter.id },
             { designSystemId: base.id, componentId: indicator.id },
+            { designSystemId: base.id, componentId: badge.id },
         ])
         .onConflictDoNothing()
         .returning();

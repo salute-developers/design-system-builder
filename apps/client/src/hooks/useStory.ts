@@ -8,6 +8,7 @@ import {
     RadioboxStories,
     CounterStories,
     IndicatorStories,
+    BadgeStories,
 } from '../stories';
 
 interface Story {
@@ -25,6 +26,7 @@ const componentMapper: Record<string, Story[]> = {
     Radiobox: RadioboxStories,
     Counter: CounterStories,
     Indicator: IndicatorStories,
+    Badge: BadgeStories,
 };
 
 export const useStory = (componentName?: string) => {

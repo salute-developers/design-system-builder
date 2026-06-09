@@ -28,7 +28,7 @@ const componentList = [
             { name: 'Accordion', disabled: true },
             { name: 'Avatar', disabled: true },
             { name: 'AvatarGroup', disabled: true },
-            { name: 'Badge', disabled: true },
+            { name: 'Badge', disabled: false },
             { name: 'Card', disabled: true },
             { name: 'Cell', disabled: true },
             { name: 'Chip', disabled: true },

@@ -362,6 +362,49 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── Badge ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.badgeView.id, name: 'Accent', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.badgeView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.badgeSize.id, name: 'L', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.badgeShape.id,
+                name: 'Pilled',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.badgeView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.badgeSize.id, name: 'XS', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.badgeSize.id, name: 'S', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.badgeView.id, name: 'Default', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.badgeView.id,
+                name: 'warning',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.badgeSize.id, name: 'M', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.badgeShape.id,
+                name: 'Rounded',
+                description: '',
+                isDefault: true,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -435,6 +478,18 @@ export async function seedStyles(
         base_ind_view_positive: find(v.indicatorView.id, 'positive'),
         base_ind_view_warning: find(v.indicatorView.id, 'warning'),
         base_ind_view_negative: find(v.indicatorView.id, 'negative'),
+        // Badge
+        base_bad_view_Accent: find(v.badgeView.id, 'Accent'),
+        base_bad_view_negative: find(v.badgeView.id, 'negative'),
+        base_bad_size_L: find(v.badgeSize.id, 'L'),
+        base_bad_shape_Pilled: find(v.badgeShape.id, 'Pilled'),
+        base_bad_view_positive: find(v.badgeView.id, 'positive'),
+        base_bad_size_XS: find(v.badgeSize.id, 'XS'),
+        base_bad_size_S: find(v.badgeSize.id, 'S'),
+        base_bad_view_Default: find(v.badgeView.id, 'Default'),
+        base_bad_view_warning: find(v.badgeView.id, 'warning'),
+        base_bad_size_M: find(v.badgeSize.id, 'M'),
+        base_bad_shape_Rounded: find(v.badgeShape.id, 'Rounded'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

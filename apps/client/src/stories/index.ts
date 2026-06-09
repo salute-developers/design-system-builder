@@ -5,3 +5,4 @@ export { CheckboxStories } from './Checkbox.story';
 export { RadioboxStories } from './Radiobox.story';
 export { CounterStories } from './Counter.story';
 export { IndicatorStories } from './Indicator.story';
+export { BadgeStories } from './Badge.story';
