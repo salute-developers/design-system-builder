@@ -1,7 +1,14 @@
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { IconButtonStories, LinkStories, ButtonStories, CheckboxStories, RadioboxStories, CounterStories } from '../stories';
-import { Config } from '../controllers';
+import {
+    IconButtonStories,
+    LinkStories,
+    ButtonStories,
+    CheckboxStories,
+    RadioboxStories,
+    CounterStories,
+    IndicatorStories,
+} from '../stories';
 
 interface Story {
     name: string;
@@ -17,29 +24,25 @@ const componentMapper: Record<string, Story[]> = {
     Checkbox: CheckboxStories,
     Radiobox: RadioboxStories,
     Counter: CounterStories,
+    Indicator: IndicatorStories,
 };
 
-export const useStory = (
-    componentName: string,
-    config: Config,
-    onUpdateComponentProps: (values: Record<string, any>) => void,
-) => {
+export const useStory = (componentName?: string) => {
     const [selectedStory, setSelectedStory] = useState({ value: 'Default', label: 'Default' });
 
-    const items = componentMapper[componentName].map(({ name }) => ({ value: name, label: name }));
+    const stories = (componentName && componentMapper[componentName]) || [];
+    const items = stories.map(({ name }) => ({ value: name, label: name }));
 
     const story = useMemo(
-        () => componentMapper[componentName].find(({ name }) => name === selectedStory.value)!,
+        () => stories.find(({ name }) => name === selectedStory.value),
         [componentName, selectedStory],
     );
 
-    useLayoutEffect(() => {
-        const values = story.args.reduce((acc, { name, value }) => ({ ...acc, [name]: value }), {});
-
-        if (values) {
-            onUpdateComponentProps(values);
-        }
-    }, [selectedStory, config]);
-
-    return { selectedStory, setSelectedStory, storyArgs: story.args, items, Story: story.render } as const;
+    return {
+        storyArgs: story?.args ?? [],
+        items,
+        selectedStory,
+        setSelectedStory,
+        Story: story?.render,
+    } as const;
 };
