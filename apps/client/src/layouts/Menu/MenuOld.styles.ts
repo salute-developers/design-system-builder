@@ -249,9 +249,11 @@ export const ListItemChangedIndicator = styled.div<{ canShowTooltip?: boolean }>
 `;
 
 export const StyledIconChevronDown = styled(IconChevronDown)`
-    --icon-size: 0.5rem !important;
+    width: 0.5rem !important;
+    height: 0.5rem !important;
 `;
 
 export const StyledIconChevronUp = styled(IconChevronUp)`
-    --icon-size: 0.5rem !important;
+    width: 0.5rem !important;
+    height: 0.5rem !important;
 `;

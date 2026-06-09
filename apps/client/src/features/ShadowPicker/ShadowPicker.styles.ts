@@ -53,28 +53,32 @@ export const StyledRowParams = styled.div`
 `;
 
 export const StyledIconCharX = styled(IconCharX)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
     flex: 0 0 0.75rem;
     width: 0.75rem;
     height: 0.75rem;
 `;
 
 export const StyledIconCharY = styled(IconCharY)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
     flex: 0 0 0.75rem;
     width: 0.75rem;
     height: 0.75rem;
 `;
 
 export const StyledIconCardsGridFill = styled(IconCardsGridFill)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
     flex: 0 0 0.75rem;
     width: 0.75rem;
     height: 0.75rem;
 `;
 
 export const StyledIconBrightness1Outline = styled(IconBrightness1Outline)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
     flex: 0 0 0.75rem;
     width: 0.75rem;
     height: 0.75rem;

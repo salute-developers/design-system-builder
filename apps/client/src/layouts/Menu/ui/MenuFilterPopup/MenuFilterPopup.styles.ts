@@ -54,7 +54,8 @@ export const FilterPopupItemCheck = styled.div`
 `;
 
 export const StyledIconDone = styled(IconDone)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;
 
 export const FilterPopupItemText = styled.span`

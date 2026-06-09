@@ -200,13 +200,16 @@ export const StyledTextAfter = styled.div`
 `;
 
 export const StyledIconMessageDraftOutline = styled(IconMessageDraftOutline)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
 export const StyledIconArrowBack = styled(IconArrowBack)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
 export const StyledIconClose = styled(IconClose)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
