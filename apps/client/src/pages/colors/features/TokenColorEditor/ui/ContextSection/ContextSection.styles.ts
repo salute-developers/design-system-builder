@@ -20,13 +20,16 @@ export const StyledSubgroupInfo = styled.div`
 `;
 
 export const StyledIconChevronRight = styled(IconChevronRight)`
-    --icon-size: 0.5rem !important;
+    width: 0.5rem !important;
+    height: 0.5rem !important;
 `;
 
 export const StyledIconChevronDown = styled(IconChevronDown)`
-    --icon-size: 0.5rem !important;
+    width: 0.5rem !important;
+    height: 0.5rem !important;
 `;
 
 export const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;

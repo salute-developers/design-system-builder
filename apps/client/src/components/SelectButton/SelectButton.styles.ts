@@ -93,7 +93,8 @@ export const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
 `;
 
 export const StyledIconSearch = styled(IconSearch)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
 export const StyledTextField = styled(TextField)`
