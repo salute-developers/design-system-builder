@@ -22,7 +22,8 @@
   "overrides": {
     "@salutejs/plasma-tokens-utils": {
       "@salutejs/plasma-colors": "^0.16.0"
-    }
+    },
+    "marked": "^12.0.2"
   },
   "devDependencies": {
     "@babel/cli": "^7.24.1",
@@ -39,8 +40,8 @@
     "@rollup/pluginutils": "^5.1.2",
     "@salutejs/eslint-config": "^3.2.1",
     "@salutejs/plasma-colors": "^0.16.0",
-    "@salutejs/plasma-new-hope": "0.341.0-canary.1983.19295272379.0",
-    "@salutejs/plasma-tokens-utils": "0.48.0-canary.1983.15486466373.0",
+    "@salutejs/plasma-new-hope": "0.364.0-canary.1983.27203307870.0",
+    "@salutejs/plasma-tokens-utils": "0.52.0-canary.1983.27203307870.0",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^18.16.1",
     "@types/pacote": "^11.1.8",
