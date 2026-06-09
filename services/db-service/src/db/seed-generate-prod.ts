@@ -60,6 +60,34 @@ function insertBeforeRegex(content: string, regex: RegExp, addition: string, lab
     return content.slice(0, match.index) + addition + content.slice(match.index);
 }
 
+/**
+ * Add a member to the `components: { ... }` type literal of a seed function.
+ *
+ * Prettier may keep the type on one line (`{ a: any; b: any }`) or, once it
+ * grows, break it across many lines (`{\n  a: any;\n  b: any;\n}`). The naive
+ * `[^}]*` + `; name: any` insertion produces a double separator (`any;\n; name`)
+ * on the multi-line form, so we detect the existing trailing separator and emit
+ * a matching one instead of always prefixing `;`.
+ */
+function addComponentType(content: string, varName: string): string {
+    return content.replace(/(components: \{)([^}]*?)(\s*})/, (_m, open, body, close) => {
+        const trimmed = body.replace(/\s+$/, '');
+        const sep = trimmed.endsWith(';') || trimmed.endsWith(',') ? '' : ';';
+        return `${open}${trimmed}${sep} ${varName}: any${close}`;
+    });
+}
+
+/**
+ * Add a destructured member to `const { ... } = ctx.components`.
+ */
+function addComponentDestructure(content: string, varName: string): string {
+    return content.replace(/(const \{)([^}]*?)(\s*} = ctx\.components)/, (_m, open, body, close) => {
+        const trimmed = body.replace(/\s+$/, '');
+        const sep = trimmed.endsWith(',') ? '' : ',';
+        return `${open}${trimmed}${sep} ${varName}${close}`;
+    });
+}
+
 const changedFiles: string[] = [];
 
 function patchFile(filePath: string, patcher: (content: string) => string) {
@@ -285,8 +313,8 @@ export async function seed${componentName}Component(db: any) {
     patchFile(path.join(seedsDir, 'design_system_components.ts'), (c) => {
         if (c.includes(`${varName}.id`)) return c;
 
-        c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);
-        c = c.replace(/(const \{[^}]*)(} = ctx\.components)/, `$1, ${varName} $2`);
+        c = addComponentType(c, varName);
+        c = addComponentDestructure(c, varName);
 
         // Add before ]).onConflictDoNothing (indent-agnostic)
         c = insertBeforeRegex(
@@ -304,8 +332,8 @@ export async function seed${componentName}Component(db: any) {
     patchFile(path.join(seedsDir, 'appearances.ts'), (c) => {
         if (c.includes(`${varName}.id`)) return c;
 
-        c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);
-        c = c.replace(/(const \{[^}]*)(} = ctx\.components)/, `$1, ${varName} $2`);
+        c = addComponentType(c, varName);
+        c = addComponentDestructure(c, varName);
 
         // Add to values array (before closing ];)
         const appValues = appearances
@@ -343,8 +371,8 @@ export async function seed${componentName}Component(db: any) {
     patchFile(path.join(seedsDir, 'variations.ts'), (c) => {
         if (c.includes(`${varName}.id`)) return c;
 
-        c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);
-        c = c.replace(/(const \{[^}]*)(} = ctx\.components)/, `$1, ${varName} $2`);
+        c = addComponentType(c, varName);
+        c = addComponentDestructure(c, varName);
 
         // Add to values array (before ]).onConflictDoUpdate)
         const varLines = variations
@@ -379,8 +407,8 @@ export async function seed${componentName}Component(db: any) {
     patchFile(path.join(seedsDir, 'properties.ts'), (c) => {
         if (c.includes(`find${componentName}`)) return c;
 
-        c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);
-        c = c.replace(/(const \{[^}]*)(} = ctx\.components)/, `$1, ${varName} $2`);
+        c = addComponentType(c, varName);
+        c = addComponentDestructure(c, varName);
 
         // Add properties to values array (before ]).onConflictDoUpdate)
         const propLines = properties
@@ -562,8 +590,8 @@ export async function seed${componentName}Component(db: any) {
             if (c.includes(`// ${componentName}`) && c.includes(`${prefix}_`)) return c;
 
             if (!c.includes(`${varName}: any`)) {
-                c = c.replace(/(components: \{[^}]*)(})/, `$1; ${varName}: any $2`);
-                c = c.replace(/(const \{[^}]*)(} = ctx\.components)/, `$1, ${varName} $2`);
+                c = addComponentType(c, varName);
+                c = addComponentDestructure(c, varName);
             }
 
             const ipvLines = ipvRows

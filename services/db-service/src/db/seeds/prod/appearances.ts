@@ -13,11 +13,12 @@ export async function seedAppearances(
             radiobox: any;
             counter: any;
             indicator: any;
+            badge: any;
         };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
 
     const values = [
         { designSystemId: base.id, componentId: iconButton.id, name: 'default' },
@@ -27,12 +28,22 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: radiobox.id, name: 'default' },
         { designSystemId: base.id, componentId: counter.id, name: 'default' },
         { designSystemId: base.id, componentId: indicator.id, name: 'default' },
+        { designSystemId: base.id, componentId: badge.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
 
     // Load all appearances for this DS (includes both newly inserted and pre-existing)
-    const componentIds = [iconButton.id, button.id, link.id, checkbox.id, radiobox.id, counter.id, indicator.id];
+    const componentIds = [
+        iconButton.id,
+        button.id,
+        link.id,
+        checkbox.id,
+        radiobox.id,
+        counter.id,
+        indicator.id,
+        badge.id,
+    ];
     const rows = await db
         .select()
         .from(schema.appearances)
@@ -50,6 +61,7 @@ export async function seedAppearances(
         base_rb_default: findByComp(radiobox.id),
         base_cou_default: findByComp(counter.id),
         base_ind_default: findByComp(indicator.id),
+        base_bad_default: findByComp(badge.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);

@@ -12,10 +12,11 @@ export async function seedProperties(
             radiobox: any;
             counter: any;
             indicator: any;
+            badge: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -698,6 +699,77 @@ export async function seedProperties(
             // ── Indicator ──────────────────────────────────────────────────────────
             { componentId: indicator.id, name: 'size', type: 'dimension' as const, defaultValue: '', description: '' },
             { componentId: indicator.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
+
+            // ── Badge ──────────────────────────────────────────────────────────
+            {
+                componentId: badge.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: badge.id,
+                name: 'leftContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: badge.id,
+                name: 'rightContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: badge.id, name: 'background', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: badge.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: badge.id,
+                name: 'paddingIconOnly',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: badge.id,
+                name: 'colorTransparent',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: badge.id, name: 'colorClear', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: badge.id,
+                name: 'backgroundTransparent',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: badge.id, name: 'padding', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: badge.id, name: 'height', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: badge.id, name: 'shape', type: 'shape' as const, defaultValue: '', description: '' },
+            {
+                componentId: badge.id,
+                name: 'backgroundClear',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: badge.id,
+                name: 'leftContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: badge.id,
+                name: 'rightContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1172,6 +1244,25 @@ export async function seedProperties(
     const findIndicator = (name: string) => rows.find((r: any) => r.componentId === indicator.id && r.name === name)!;
     addPlatformParams(findIndicator('size').id, { web: ['size'] });
     addPlatformParams(findIndicator('color').id, { web: ['color'] });
+    // Badge
+    const findBadge = (name: string) => rows.find((r: any) => r.componentId === badge.id && r.name === name)!;
+    addPlatformParams(findBadge('textStyle').id, {
+        web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'],
+    });
+    addPlatformParams(findBadge('leftContentMarginLeft').id, { web: ['leftContentMarginLeft'] });
+    addPlatformParams(findBadge('rightContentMarginRight').id, { web: ['rightContentMarginRight'] });
+    addPlatformParams(findBadge('background').id, { web: ['background'] });
+    addPlatformParams(findBadge('color').id, { web: ['color'] });
+    addPlatformParams(findBadge('paddingIconOnly').id, { web: ['paddingIconOnly'] });
+    addPlatformParams(findBadge('colorTransparent').id, { web: ['colorTransparent'] });
+    addPlatformParams(findBadge('colorClear').id, { web: ['colorClear'] });
+    addPlatformParams(findBadge('backgroundTransparent').id, { web: ['backgroundTransparent'] });
+    addPlatformParams(findBadge('padding').id, { web: ['padding'] });
+    addPlatformParams(findBadge('height').id, { web: ['height'] });
+    addPlatformParams(findBadge('shape').id, { web: ['borderRadius'] });
+    addPlatformParams(findBadge('backgroundClear').id, { web: ['backgroundClear'] });
+    addPlatformParams(findBadge('leftContentMarginRight').id, { web: ['leftContentMarginRight'] });
+    addPlatformParams(findBadge('rightContentMarginLeft').id, { web: ['rightContentMarginLeft'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1299,6 +1390,22 @@ export async function seedProperties(
         // Indicator
         ind_size: findIndicator('size'),
         ind_color: findIndicator('color'),
+        // Badge
+        bad_textStyle: findBadge('textStyle'),
+        bad_leftContentMarginLeft: findBadge('leftContentMarginLeft'),
+        bad_rightContentMarginRight: findBadge('rightContentMarginRight'),
+        bad_background: findBadge('background'),
+        bad_color: findBadge('color'),
+        bad_paddingIconOnly: findBadge('paddingIconOnly'),
+        bad_colorTransparent: findBadge('colorTransparent'),
+        bad_colorClear: findBadge('colorClear'),
+        bad_backgroundTransparent: findBadge('backgroundTransparent'),
+        bad_padding: findBadge('padding'),
+        bad_height: findBadge('height'),
+        bad_shape: findBadge('shape'),
+        bad_backgroundClear: findBadge('backgroundClear'),
+        bad_leftContentMarginRight: findBadge('leftContentMarginRight'),
+        bad_rightContentMarginLeft: findBadge('rightContentMarginLeft'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

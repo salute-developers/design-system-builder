@@ -12,10 +12,11 @@ export async function seedVariations(
             radiobox: any;
             counter: any;
             indicator: any;
+            badge: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
 
     const rows = await db
         .insert(schema.variations)
@@ -43,6 +44,10 @@ export async function seedVariations(
             // Indicator
             { componentId: indicator.id, name: 'size', description: 'Размер.' },
             { componentId: indicator.id, name: 'view', description: 'Вид.' },
+            // Badge
+            { componentId: badge.id, name: 'view', description: 'Вид.' },
+            { componentId: badge.id, name: 'size', description: 'Размер.' },
+            { componentId: badge.id, name: 'shape', description: 'Форма.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -71,6 +76,10 @@ export async function seedVariations(
         // Indicator
         indicatorSize: find(indicator.id, 'size'),
         indicatorView: find(indicator.id, 'view'),
+        // Badge
+        badgeView: find(badge.id, 'view'),
+        badgeSize: find(badge.id, 'size'),
+        badgeShape: find(badge.id, 'shape'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
