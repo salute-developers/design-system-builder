@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 
 import { StyledActions, StyledModal, StyledHeader, StyledIconButton, StyledContent } from './Dialog.styles';
-import { IconClose } from '@salutejs/plasma-icons/scalable/Icons/IconClose';
+import { IconClose } from '@salutejs/plasma-icons';
 
 interface DialogProps {
     title?: string;

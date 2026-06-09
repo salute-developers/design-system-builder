@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 
-import { IconChevronDown } from '@salutejs/plasma-icons/scalable/Icons/IconChevronDown';
+import { IconChevronDown } from '@salutejs/plasma-icons';
 import { IconChevronRight, IconInfoCircleOutline } from '@salutejs/plasma-icons';
 
 import { IconButton } from '../../../../../../components';

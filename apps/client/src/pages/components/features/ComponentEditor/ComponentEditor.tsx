@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { useComponentData } from '../../../../hooks';
+import { useComponentData, useStory } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
 import { SegmentButtonItem, TextField } from '../../../../components';
 import { ComponentEditorPreview } from '../ComponentEditorPreview';
@@ -22,6 +22,9 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     const { designSystem, theme, configs, updated, onConfigUpdate } = props;
 
     const config = configs?.[0];
+
+    const { storyArgs, Story } = useStory(config?.getName());
+
     const [
         selectedVariation,
         setSelectedVariation,
@@ -29,7 +32,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setSelectedStyle,
         componentProps,
         setComponentProps,
-    ] = useComponentData(config);
+    ] = useComponentData(config, storyArgs);
 
     const [themeMode, setThemeMode] = useState<SegmentButtonItem>(modeList[0]);
 
@@ -75,10 +78,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setComponentProps({ ...componentProps, [name]: value as string });
     };
 
-    const onUpdateComponentProps = (values: Record<string, any>) => {
-        setComponentProps((prev) => ({ ...prev, ...values }));
-    };
-
     const themeVars = useMemo(() => createThemeVars(theme, themeMode.value), [theme, themeMode]);
 
     if (!config) {
@@ -119,13 +118,14 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 theme={theme}
                 config={config}
                 args={componentProps}
+                storyArgs={storyArgs}
+                Story={Story}
                 componentVars={componentVars}
                 themeVars={themeVars}
                 themeModeList={modeList}
                 themeMode={themeMode}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
-                onUpdateComponentProps={onUpdateComponentProps}
             />
         </Root>
     );
