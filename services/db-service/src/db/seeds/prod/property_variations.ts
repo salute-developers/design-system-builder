@@ -129,6 +129,23 @@ export async function seedPropertyVariations(
             // ── Indicator ──────────────────────────────────────────────────────────
             { propertyId: p.ind_size.id, variationId: v.indicatorSize.id },
             { propertyId: p.ind_color.id, variationId: v.indicatorView.id },
+
+            // ── Badge ──────────────────────────────────────────────────────────
+            { propertyId: p.bad_background.id, variationId: v.badgeView.id },
+            { propertyId: p.bad_color.id, variationId: v.badgeView.id },
+            { propertyId: p.bad_colorTransparent.id, variationId: v.badgeView.id },
+            { propertyId: p.bad_backgroundTransparent.id, variationId: v.badgeView.id },
+            { propertyId: p.bad_colorClear.id, variationId: v.badgeView.id },
+            { propertyId: p.bad_shape.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_height.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_padding.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_paddingIconOnly.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_textStyle.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_leftContentMarginLeft.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_leftContentMarginRight.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_rightContentMarginLeft.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_rightContentMarginRight.id, variationId: v.badgeSize.id },
+            { propertyId: p.bad_shape.id, variationId: v.badgeShape.id },
         ])
         .onConflictDoNothing()
         .returning();
