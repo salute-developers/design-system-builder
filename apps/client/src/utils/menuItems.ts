@@ -36,7 +36,7 @@ const componentList = [
             { name: 'Counter', disabled: false },
             { name: 'Divider', disabled: true },
             { name: 'Image', disabled: true },
-            { name: 'Indicator', disabled: true },
+            { name: 'Indicator', disabled: false },
             { name: 'InformationWrapper', disabled: true },
             { name: 'List', disabled: true },
             { name: 'Mask', disabled: true },

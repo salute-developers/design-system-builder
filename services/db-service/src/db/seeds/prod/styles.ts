@@ -315,6 +315,53 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── Indicator ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.indicatorSize.id, name: 's', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.indicatorSize.id, name: 'm', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.indicatorSize.id, name: 'L', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'Default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'accent',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'inactive',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'warning',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.indicatorView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -378,6 +425,16 @@ export async function seedStyles(
         base_cou_view_default: find(v.counterView.id, 'default'),
         base_cou_view_warning: find(v.counterView.id, 'warning'),
         base_cou_view_Negative: find(v.counterView.id, 'Negative'),
+        // Indicator
+        base_ind_size_s: find(v.indicatorSize.id, 's'),
+        base_ind_size_m: find(v.indicatorSize.id, 'm'),
+        base_ind_size_L: find(v.indicatorSize.id, 'L'),
+        base_ind_view_Default: find(v.indicatorView.id, 'Default'),
+        base_ind_view_accent: find(v.indicatorView.id, 'accent'),
+        base_ind_view_inactive: find(v.indicatorView.id, 'inactive'),
+        base_ind_view_positive: find(v.indicatorView.id, 'positive'),
+        base_ind_view_warning: find(v.indicatorView.id, 'warning'),
+        base_ind_view_negative: find(v.indicatorView.id, 'negative'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

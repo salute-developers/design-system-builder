@@ -3,9 +3,19 @@ import * as schema from '../../schema';
 
 export async function seedVariations(
     db: any,
-    ctx: { components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any; counter: any } },
+    ctx: {
+        components: {
+            iconButton: any;
+            button: any;
+            link: any;
+            checkbox: any;
+            radiobox: any;
+            counter: any;
+            indicator: any;
+        };
+    },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
 
     const rows = await db
         .insert(schema.variations)
@@ -30,6 +40,9 @@ export async function seedVariations(
             // Counter
             { componentId: counter.id, name: 'size', description: 'Размер.' },
             { componentId: counter.id, name: 'view', description: 'Вид.' },
+            // Indicator
+            { componentId: indicator.id, name: 'size', description: 'Размер.' },
+            { componentId: indicator.id, name: 'view', description: 'Вид.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -55,6 +68,9 @@ export async function seedVariations(
         // Counter
         counterSize: find(counter.id, 'size'),
         counterView: find(counter.id, 'view'),
+        // Indicator
+        indicatorSize: find(indicator.id, 'size'),
+        indicatorView: find(indicator.id, 'view'),
     };
 
     console.log(`  variations: ${rows.length} rows`);

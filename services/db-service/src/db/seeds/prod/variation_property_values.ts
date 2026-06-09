@@ -33,6 +33,8 @@ export async function seedVariationPropertyValues(
 
     const couApp = a.base_cou_default.id;
 
+    const indApp = a.base_ind_default.id;
+
     const rows: VpvRow[] = [
         // ══════════════════════════════════════════════════════════════════════════
         // IconButton
@@ -2059,6 +2061,83 @@ export async function seedVariationPropertyValues(
             appearanceId: couApp,
             tokenId: null,
             value: 'text.on-dark.primary',
+            state: null,
+        },
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // Indicator
+        // ══════════════════════════════════════════════════════════════════════════
+
+        {
+            propertyId: p.ind_size.id,
+            styleId: s.base_ind_size_s.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: '6',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_Default.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.solid-default',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_positive.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.positive',
+            state: null,
+        },
+        {
+            propertyId: p.ind_size.id,
+            styleId: s.base_ind_size_L.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: '12',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_inactive.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.solid-tertiary',
+            state: null,
+        },
+        {
+            propertyId: p.ind_size.id,
+            styleId: s.base_ind_size_m.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: '8',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_accent.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.accent',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_warning.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.warning',
+            state: null,
+        },
+        {
+            propertyId: p.ind_color.id,
+            styleId: s.base_ind_view_negative.id,
+            appearanceId: indApp,
+            tokenId: null,
+            value: 'surface.default.negative',
             state: null,
         },
     ];
