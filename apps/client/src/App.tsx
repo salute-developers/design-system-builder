@@ -6,22 +6,7 @@ import { Projects, Home, Colors, Shapes, Typography, Components, Main, Overview,
 
 import { useOwnerProjectId } from './hooks';
 import { authService } from './api';
-
-const getBaseName = () => {
-    const { pathname } = window.location;
-
-    const prMatch = pathname.match(/^\/pr\/design-system-builder-pr-\d+/);
-
-    if (prMatch) {
-        return prMatch[0];
-    }
-
-    if (pathname.startsWith('/design-system-builder/')) {
-        return '/design-system-builder/';
-    }
-
-    return '/';
-};
+import { getBaseName } from './utils/baseName';
 
 const ProtectedRoute = () => {
     const isAuthenticated = authService.isAuthenticated();

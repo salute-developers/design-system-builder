@@ -49,7 +49,10 @@ const getDefaults = (config?: Config, args?: Record<string, string | boolean>) =
     return { variationID, styleID: value };
 };
 
-export const useComponentData = (config?: Config) => {
+const getStoryDefaults = (storyArgs: Record<string, any>[]) =>
+    storyArgs.reduce<Record<string, any>>((acc, { name, value }) => ({ ...acc, [name]: value }), {});
+
+export const useComponentData = (config?: Config, storyArgs: Record<string, any>[] = []) => {
     const [componentProps, setComponentProps] = useState<Record<string, string | boolean>>({});
     const { variationID, styleID } = getDefaults(config, componentProps);
 
@@ -62,12 +65,12 @@ export const useComponentData = (config?: Config) => {
         }
 
         const defaults = getDefaultProps(config);
-        setComponentProps((prev) => ({ ...prev, ...defaults }));
+        setComponentProps({ ...defaults, ...getStoryDefaults(storyArgs) });
 
         const newDefaults = getDefaults(config, defaults);
         setSelectedVariation(newDefaults.variationID);
         setSelectedStyle(newDefaults.styleID);
-    }, [config]);
+    }, [config, storyArgs]);
 
     return [
         selectedVariation,

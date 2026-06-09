@@ -7,3 +7,4 @@ export * from './menuItems';
 export * from './designSystemDraft';
 export * from './importTokens';
 export * from './importDesignSystem';
+export * from './baseName';

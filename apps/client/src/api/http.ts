@@ -2,11 +2,14 @@ import axios from 'axios';
 
 import { API_GATEWAY_URL } from './constants';
 import { authService } from './authService';
+import { getBaseName } from '../utils/baseName';
 
 export const http = axios.create({ baseURL: API_GATEWAY_URL });
 
 const forceLogout = () => {
-    window.location.href = '/login';
+    const base = getBaseName().replace(/\/$/, '');
+
+    window.location.href = `${base}/login`;
 };
 
 http.interceptors.request.use(async (config) => {

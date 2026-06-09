@@ -10,7 +10,6 @@ import {
     Switch,
     TextField,
 } from '../../../../components';
-import { useStory } from '../../../../hooks';
 
 import {
     Root,
@@ -26,12 +25,13 @@ interface ComponentEditorPreviewProps {
     config: Config;
     theme: Theme;
     args: Record<string, string | boolean>;
+    storyArgs: Record<string, any>[];
+    Story?: (props: any) => JSX.Element;
     componentVars: Record<string, string>;
     themeVars: Record<string, string>;
     themeModeList: SegmentButtonItem[];
     themeMode: SegmentButtonItem;
     onUpdateThemeMode: (value: SegmentButtonItem) => void;
-    onUpdateComponentProps: (values: Record<string, any>) => void;
     onChange: (name: string, value: unknown) => void;
 }
 
@@ -40,16 +40,16 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         config,
         theme,
         args,
+        storyArgs,
+        Story,
         componentVars,
         themeVars,
         themeMode,
         themeModeList,
         onUpdateThemeMode,
-        onUpdateComponentProps,
         onChange,
     } = props;
 
-    const componentName = config.getName();
     const variations = config.getVariations();
 
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
@@ -60,8 +60,6 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             ),
         [theme, themeMode],
     );
-
-    const { storyArgs, Story } = useStory(componentName, config, onUpdateComponentProps);
 
     const onBackgroundSelect = (item: SelectButtonItem) => {
         setBackground(item);
@@ -149,7 +147,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
-                    <Story {...args} />
+                    {Story && <Story {...args} />}
                 </StyledComponentWrapper>
                 <StyledComponentControls>
                     {variations.map(renderDynamicProps)}

@@ -114,8 +114,6 @@ export const loadDesignSystem = async (data: {
 
 export const loadBaseComponentsData = async (data: { parameters?: Partial<Parameters> }): Promise<Meta[]> => {
     try {
-        console.log('data.parameters?.projectId', data.parameters?.projectId);
-
         const componentsData = (
             await http.get(
                 `${PROJECTS_URL}/${data.parameters?.projectId}/ds/legacy/design-systems/base/component-configs`,
