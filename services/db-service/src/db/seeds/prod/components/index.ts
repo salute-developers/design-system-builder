@@ -4,3 +4,4 @@ export { seedLinkComponent } from './link';
 export { seedCheckboxComponent } from './checkbox';
 export { seedRadioboxComponent } from './radiobox';
 export { seedCounterComponent } from './counter';
+export { seedIndicatorComponent } from './indicator';
