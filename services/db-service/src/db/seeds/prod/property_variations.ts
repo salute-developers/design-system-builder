@@ -125,6 +125,10 @@ export async function seedPropertyVariations(
             { propertyId: p.cou_height.id, variationId: v.counterSize.id },
             { propertyId: p.cou_padding.id, variationId: v.counterSize.id },
             { propertyId: p.cou_labelStyle.id, variationId: v.counterSize.id },
+
+            // ── Indicator ──────────────────────────────────────────────────────────
+            { propertyId: p.ind_size.id, variationId: v.indicatorSize.id },
+            { propertyId: p.ind_color.id, variationId: v.indicatorView.id },
         ])
         .onConflictDoNothing()
         .returning();

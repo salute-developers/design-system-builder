@@ -11,6 +11,7 @@ import {
     seedCheckboxComponent,
     seedRadioboxComponent,
     seedCounterComponent,
+    seedIndicatorComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -166,6 +167,7 @@ async function seed() {
         checkbox: await seedCheckboxComponent(db),
         radiobox: await seedRadioboxComponent(db),
         counter: await seedCounterComponent(db),
+        indicator: await seedIndicatorComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -177,6 +179,7 @@ async function seed() {
         Checkbox: 'checkbox',
         Radiobox: 'radiobox',
         Counter: 'counter',
+        Indicator: 'indicator',
     };
 
     let componentIdsToReseed: string[];

@@ -3,9 +3,19 @@ import * as schema from '../../schema';
 
 export async function seedProperties(
     db: any,
-    ctx: { components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any; counter: any } },
+    ctx: {
+        components: {
+            iconButton: any;
+            button: any;
+            link: any;
+            checkbox: any;
+            radiobox: any;
+            counter: any;
+            indicator: any;
+        };
+    },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator } = ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -684,6 +694,10 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Indicator ──────────────────────────────────────────────────────────
+            { componentId: indicator.id, name: 'size', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: indicator.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1154,6 +1168,10 @@ export async function seedProperties(
     addPlatformParams(findCounter('labelStyle').id, {
         web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'],
     });
+    // Indicator
+    const findIndicator = (name: string) => rows.find((r: any) => r.componentId === indicator.id && r.name === name)!;
+    addPlatformParams(findIndicator('size').id, { web: ['size'] });
+    addPlatformParams(findIndicator('color').id, { web: ['color'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1278,6 +1296,9 @@ export async function seedProperties(
         cou_height: findCounter('height'),
         cou_padding: findCounter('padding'),
         cou_labelStyle: findCounter('labelStyle'),
+        // Indicator
+        ind_size: findIndicator('size'),
+        ind_color: findIndicator('color'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

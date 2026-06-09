@@ -4,3 +4,4 @@ export { LinkStories } from './Link.story';
 export { CheckboxStories } from './Checkbox.story';
 export { RadioboxStories } from './Radiobox.story';
 export { CounterStories } from './Counter.story';
+export { IndicatorStories } from './Indicator.story';

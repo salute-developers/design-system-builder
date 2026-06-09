@@ -103,6 +103,20 @@ async function main() {
     }
     console.log(`  Component: ${component.name} (${component.id})`);
 
+    // The base design system is the single source for prod seeds. Everything
+    // scoped to a design system (appearances, styles, invariant values, and —
+    // transitively — variation property values) must be filtered by its exact
+    // id, otherwise data belonging to other design systems leaks into the seeds.
+    const [baseDs] = await db
+        .select()
+        .from(schema.designSystems)
+        .where(eq(schema.designSystems.name, 'base'));
+    if (!baseDs) {
+        console.error(`Base design system (name = 'base') not found.`);
+        process.exit(1);
+    }
+    console.log(`  Base design system: ${baseDs.name} (${baseDs.id})`);
+
     const variations = await db.select().from(schema.variations).where(eq(schema.variations.componentId, component.id));
     console.log(`  Variations: ${variations.length}`);
 
@@ -131,20 +145,41 @@ async function main() {
     const appearances = await db
         .select()
         .from(schema.appearances)
-        .where(eq(schema.appearances.componentId, component.id));
+        .where(
+            and(
+                eq(schema.appearances.componentId, component.id),
+                eq(schema.appearances.designSystemId, baseDs.id),
+            ),
+        );
 
     let styles: any[] = [];
     if (variationIds.length > 0) {
-        styles = await db.select().from(schema.styles).where(inArray(schema.styles.variationId, variationIds));
+        styles = await db
+            .select()
+            .from(schema.styles)
+            .where(
+                and(
+                    inArray(schema.styles.variationId, variationIds),
+                    eq(schema.styles.designSystemId, baseDs.id),
+                ),
+            );
     }
 
     const styleIds = styles.map((s) => s.id);
+    const appearanceIds = appearances.map((a) => a.id);
     let vpvRows: any[] = [];
-    if (styleIds.length > 0) {
+    if (styleIds.length > 0 && appearanceIds.length > 0) {
+        // styleId is already base-only (styles are filtered above); also pin the
+        // appearance to base so rows can't reference another DS's appearance.
         vpvRows = await db
             .select()
             .from(schema.variationPropertyValues)
-            .where(inArray(schema.variationPropertyValues.styleId, styleIds));
+            .where(
+                and(
+                    inArray(schema.variationPropertyValues.styleId, styleIds),
+                    inArray(schema.variationPropertyValues.appearanceId, appearanceIds),
+                ),
+            );
     }
 
     let ipvRows: any[] = [];
@@ -155,6 +190,7 @@ async function main() {
             .where(
                 and(
                     eq(schema.invariantPropertyValues.componentId, component.id),
+                    eq(schema.invariantPropertyValues.designSystemId, baseDs.id),
                     inArray(schema.invariantPropertyValues.propertyId, propertyIds),
                 ),
             );
