@@ -37,9 +37,11 @@ export const HeaderTitle = styled.div`
 `;
 
 export const StyledIconSearch = styled(IconSearch)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;
 
 export const StyledIconSettingsFilter = styled(IconSettingsFilter)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;

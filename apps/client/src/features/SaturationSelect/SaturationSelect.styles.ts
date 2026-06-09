@@ -119,6 +119,7 @@ export const StyledDescriptionWarningWCAG = styled.div`
 `;
 
 export const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 

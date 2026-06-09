@@ -15,14 +15,17 @@ export const StyledTypographyParams = styled.div`
 `;
 
 export const StyledIconSizeMaximize = styled(IconSizeMaximize)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
 export const StyledIconLineHeight = styled(IconLineHeight)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
 export const StyledIconLetterSpacing = styled(IconLetterSpacing)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 

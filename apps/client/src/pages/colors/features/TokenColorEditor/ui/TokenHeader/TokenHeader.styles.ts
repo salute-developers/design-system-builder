@@ -36,11 +36,13 @@ export const StyledDisplayNamePrefix = styled.span`
 `;
 
 export const StyledIconRotateCcw = styled(IconRotateCcw)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;
 
 export const StyledIconTrashOutline = styled(IconTrashOutline)`
-    --icon-size: 0.875rem !important;
+    width: 0.875rem !important;
+    height: 0.875rem !important;
 `;
 
 export const StyledDeleteTooltipAnchor = styled.div`

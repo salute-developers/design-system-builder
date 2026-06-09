@@ -106,6 +106,7 @@ export const StyledIconInfoCircleOutline = styled(IconInfoCircleOutline)`
     margin-right: 0.25rem;
     margin-left: 0.375rem;
     margin-top: 0.0625rem; // TODO: Переделать
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 

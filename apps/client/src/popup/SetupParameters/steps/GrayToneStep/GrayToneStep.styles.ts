@@ -13,6 +13,7 @@ export const StyledEditButton = styled(EditButton)`
 `;
 
 export const StyledIconArrowsMoveVertical = styled(IconArrowsMoveVertical)`
-    --icon-size: 0.75rem !important;
+    width: 0.75rem !important;
+    height: 0.75rem !important;
 `;
 
