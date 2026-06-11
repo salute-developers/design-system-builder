@@ -30,8 +30,11 @@ export interface ParsedConfig {
 
 const RAW_GITHUB_BASE = 'https://raw.githubusercontent.com/salute-developers/plasma/dev/packages';
 
-export const getConfigUrl = (componentName: string) =>
-    `${RAW_GITHUB_BASE}/sdds-serv/src/components/${componentName}/${componentName}.config.ts`;
+/** Конфиг может иметь как `.ts`, так и `.tsx` расширение. */
+export const getConfigUrls = (componentName: string) =>
+    ['ts', 'tsx'].map(
+        (ext) => `${RAW_GITHUB_BASE}/sdds-serv/src/components/${componentName}/${componentName}.config.${ext}`,
+    );
 
 /**
  * Парсит `<Component>.config.ts` в структуру вариаций.
@@ -254,7 +257,14 @@ const buildShapeValueMap = (theme: Theme): Map<string, string> => {
     return map;
 };
 
-/** Обратное преобразование типографики: `var(--plasma-typo-body-s-font-size)` -> `body.s`. */
+// Известные начертания, которые могут присутствовать сегментом в CSS-переменной.
+const TYPOGRAPHY_WEIGHTS = ['bold', 'medium', 'normal'];
+
+/**
+ * Обратное преобразование типографики из CSS-переменной в имя нашего токена
+ * (`body.s.normal`). Начертание берётся из переменной, если оно там есть
+ * (`--plasma-typo-body-l-bold-font-weight` -> `body.l.bold`), иначе `normal`.
+ */
 const parseTypographyValue = (raw: string, typographyNames: Set<string>): string | undefined => {
     const cssVar = extractCssVar(raw);
 
@@ -262,7 +272,7 @@ const parseTypographyValue = (raw: string, typographyNames: Set<string>): string
         return undefined;
     }
 
-    // --plasma-typo-body-s-font-size -> body-s (без начертания)
+    // --plasma-typo-body-l-bold-font-weight -> body-l-bold
     const match = cssVar.match(/--plasma-typo-(.+?)-(?:font|letter|line)/);
 
     if (!match) {
@@ -278,15 +288,20 @@ const parseTypographyValue = (raw: string, typographyNames: Set<string>): string
     const parts = match[1].split('-');
     parts[0] = nameMapReverse[parts[0]] || parts[0];
 
-    const base = parts.join('.');
+    // Если последний сегмент — известное начертание, выделяем его; иначе normal.
+    const last = parts[parts.length - 1];
+    const weight = TYPOGRAPHY_WEIGHTS.includes(last) ? parts.pop()! : 'normal';
 
-    // Имя нашего типографического токена включает начертание (`body.s.normal`),
-    // а CSS-переменная plasma его не содержит. Достраиваем: по умолчанию `normal`,
-    // иначе берём любое доступное начертание для этого размера.
-    const preferred = `${base}.normal`;
+    const base = parts.join('.');
+    const preferred = `${base}.${weight}`;
 
     if (typographyNames.has(preferred)) {
         return preferred;
+    }
+
+    // Фолбэк: запрошенное начертание недоступно — берём normal или любое для размера.
+    if (typographyNames.has(`${base}.normal`)) {
+        return `${base}.normal`;
     }
 
     return [...typographyNames].find((name) => name.startsWith(`${base}.`));
@@ -337,20 +352,23 @@ export const importComponentConfigFromPlasma = async (
 ): Promise<ApplyConfigResult> => {
     const componentName = upperFirst(config.getName());
 
-    const configSource = await fetchText(getConfigUrl(componentName));
+    const configSource = await fetchConfigSource(getConfigUrls(componentName));
     const parsed = parseConfigFile(configSource);
 
     return applyConfigToComponent(config, api, variations, theme, parsed);
 };
 
-const fetchText = async (url: string): Promise<string> => {
-    const response = await fetch(url);
+/** Пробует загрузить конфиг по списку URL (.ts, затем .tsx), возвращает первый успешный. */
+const fetchConfigSource = async (urls: string[]): Promise<string> => {
+    for (const url of urls) {
+        const response = await fetch(url);
 
-    if (!response.ok) {
-        throw new Error(`Не удалось загрузить ${url}: ${response.status}`);
+        if (response.ok) {
+            return response.text();
+        }
     }
 
-    return response.text();
+    throw new Error(`Не удалось загрузить конфиг: ${urls.join(', ')}`);
 };
 
 const upperFirst = (value: string) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : value);
@@ -470,13 +488,23 @@ const getApiPropsForVariation = (
 
 /**
  * Находит plasma-значение для пропа: имя web-токена пропа равно ключу токена в
- * config.ts. У типографики несколько web-токенов — берём первое совпадение.
+ * config.ts. У типографики несколько web-токенов — предпочитаем `fontWeight`,
+ * так как только в его CSS-переменной закодировано начертание
+ * (`--plasma-typo-body-l-bold-font-weight`).
  */
 const findRawValueForProp = (apiProp: ComponentAPI, tokenValues: Record<string, string>): string | undefined => {
     const webTokens = apiProp.platformMappings?.web;
 
     if (!webTokens?.length) {
         return undefined;
+    }
+
+    if (apiProp.type === 'typography') {
+        const weightToken = webTokens.find(({ name }) => name.toLowerCase().includes('weight'));
+
+        if (weightToken && tokenValues[weightToken.name] !== undefined) {
+            return tokenValues[weightToken.name];
+        }
     }
 
     for (const { name } of webTokens) {

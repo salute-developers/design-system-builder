@@ -146,6 +146,10 @@ export async function seedPropertyVariations(
             { propertyId: p.bad_rightContentMarginLeft.id, variationId: v.badgeSize.id },
             { propertyId: p.bad_rightContentMarginRight.id, variationId: v.badgeSize.id },
             { propertyId: p.bad_shape.id, variationId: v.badgeShape.id },
+
+            // ── Spinner ──────────────────────────────────────────────────────────
+            { propertyId: p.spi_size.id, variationId: v.spinnerSize.id },
+            { propertyId: p.spi_color.id, variationId: v.spinnerView.id },
         ])
         .onConflictDoNothing()
         .returning();

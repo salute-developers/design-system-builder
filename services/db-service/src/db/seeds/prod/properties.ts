@@ -13,10 +13,11 @@ export async function seedProperties(
             counter: any;
             indicator: any;
             badge: any;
+            spinner: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner } = ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -770,6 +771,10 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Spinner ──────────────────────────────────────────────────────────
+            { componentId: spinner.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: spinner.id, name: 'size', type: 'dimension' as const, defaultValue: '', description: '' },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1263,6 +1268,10 @@ export async function seedProperties(
     addPlatformParams(findBadge('backgroundClear').id, { web: ['backgroundClear'] });
     addPlatformParams(findBadge('leftContentMarginRight').id, { web: ['leftContentMarginRight'] });
     addPlatformParams(findBadge('rightContentMarginLeft').id, { web: ['rightContentMarginLeft'] });
+    // Spinner
+    const findSpinner = (name: string) => rows.find((r: any) => r.componentId === spinner.id && r.name === name)!;
+    addPlatformParams(findSpinner('color').id, { web: ['color'] });
+    addPlatformParams(findSpinner('size').id, { web: ['size'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1406,6 +1415,9 @@ export async function seedProperties(
         bad_backgroundClear: findBadge('backgroundClear'),
         bad_leftContentMarginRight: findBadge('leftContentMarginRight'),
         bad_rightContentMarginLeft: findBadge('rightContentMarginLeft'),
+        // Spinner
+        spi_color: findSpinner('color'),
+        spi_size: findSpinner('size'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

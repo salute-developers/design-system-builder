@@ -13,10 +13,11 @@ export async function seedVariations(
             counter: any;
             indicator: any;
             badge: any;
+            spinner: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner } = ctx.components;
 
     const rows = await db
         .insert(schema.variations)
@@ -48,6 +49,9 @@ export async function seedVariations(
             { componentId: badge.id, name: 'view', description: 'Вид.' },
             { componentId: badge.id, name: 'size', description: 'Размер.' },
             { componentId: badge.id, name: 'shape', description: 'Форма.' },
+            // Spinner
+            { componentId: spinner.id, name: 'size', description: 'Размер.' },
+            { componentId: spinner.id, name: 'view', description: 'Вид.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -80,6 +84,9 @@ export async function seedVariations(
         badgeView: find(badge.id, 'view'),
         badgeSize: find(badge.id, 'size'),
         badgeShape: find(badge.id, 'shape'),
+        // Spinner
+        spinnerSize: find(spinner.id, 'size'),
+        spinnerView: find(spinner.id, 'view'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
