@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 
 import { useComponentData, useStory } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
-import { SegmentButtonItem, TextField } from '../../../../components';
+import { SegmentButtonItem, TextField, BasicButton } from '../../../../components';
+import { importComponentConfigFromPlasma } from '../../../../utils';
 import { ComponentEditorPreview } from '../ComponentEditorPreview';
 import { ComponentEditorProperties } from '../ComponentEditorProperties';
 import { ComponentEditorSetup } from '../ComponentEditorSetup';
@@ -35,6 +36,29 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     ] = useComponentData(config, storyArgs);
 
     const [themeMode, setThemeMode] = useState<SegmentButtonItem>(modeList[0]);
+    const [isImporting, setIsImporting] = useState(false);
+
+    const onImportFromPlasma = async () => {
+        if (!config || isImporting) {
+            return;
+        }
+
+        setIsImporting(true);
+
+        try {
+            const { api, variations } = designSystem.getComponentDataByName(config.getName()).sources;
+
+            const result = await importComponentConfigFromPlasma(config, api, variations, theme);
+            console.log('[import plasma] applied:', result.applied, result);
+            console.table(result.debug.hits);
+            console.table(result.debug.misses);
+            onConfigUpdate();
+        } catch (error) {
+            console.error('Не удалось импортировать конфиг из plasma', error);
+        } finally {
+            setIsImporting(false);
+        }
+    };
 
     const onVariationChange = (value: string) => {
         if (!config) {
@@ -92,6 +116,10 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 <StyledHeader>
                     <TextField readOnly value={config?.getName()} />
                     <TextField readOnly stretched value={config?.getDescription()} />
+                    <BasicButton
+                        text={isImporting ? 'Импорт…' : 'Импорт из plasma'}
+                        onClick={onImportFromPlasma}
+                    />
                 </StyledHeader>
                 <StyledWrapper>
                     <ComponentEditorSetup

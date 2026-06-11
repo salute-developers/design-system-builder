@@ -28,16 +28,18 @@ export const getAllowedProps = (
 
     const props = getPropsByVariation(api, variations, variationID);
 
-    return props.filter((item) => {
-        const isVariationToken = variationID && styleID;
+    return props
+        .filter((item) => {
+            const isVariationToken = variationID && styleID;
 
-        const props = isVariationToken
-            ? config.getStyleByVariation(variationID, styleID)?.getProps()
-            : config.getInvariants();
-        const prop = props?.getProp(item.id);
+            const props = isVariationToken
+                ? config.getStyleByVariation(variationID, styleID)?.getProps()
+                : config.getInvariants();
+            const prop = props?.getProp(item.id);
 
-        return !prop;
-    });
+            return !prop;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
 };
 
 // TODO: хранить это в бд?
