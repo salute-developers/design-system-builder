@@ -1,0 +1,57 @@
+ktor:
+  application:
+    modules:
+      - com.dsbuilder.projects.app.ApplicationKt.module
+  deployment:
+    port: "$PROJECTS_SERVICE_PORT:8082"
+
+database:
+  url: "$PROJECTS_DATABASE_URL:jdbc:postgresql://localhost:5434/projects_service"
+  username: "$PROJECTS_POSTGRES_USER:projects"
+  password: "$PROJECTS_POSTGRES_PASSWORD:projects"
+
+projects:
+  internal:
+    apiKey: "$PROJECTS_INTERNAL_API_KEY:local-projects-internal-key"
+  accessKeys:
+    keyPrefix: "$PROJECTS_ACCESS_KEYS_PREFIX:dsb_pk"
+    defaultTtlMs: "$PROJECTS_ACCESS_KEYS_DEFAULT_TTL_MS:2592000000"
+    secretByteLength: "$PROJECTS_ACCESS_KEYS_SECRET_BYTE_LENGTH:32"
+    availableScopes:
+      - projects:read
+      - members:read
+      - design-systems:read
+      - design-systems:write
+      - design-systems:delete
+      - tenants:read
+      - tenants:write
+      - tenants:delete
+      - tenants:subthemes:read
+      - tenants:subthemes:write
+      - tenants:subthemes:delete
+      - tokens:read
+      - tokens:write
+      - tokens:delete
+      - tokens:group:read
+      - tokens:group:write
+      - tokens:group:delete
+      - tokens:subgroup:read
+      - tokens:subgroup:write
+      - tokens:subgroup:delete
+      - components:read
+      - components:write
+      - components:delete
+      - components:variations:read
+      - components:variations:write
+      - components:variations:delete
+    hashing:
+      iterations: "$PROJECTS_ACCESS_KEYS_HASH_ITERATIONS:120000"
+      keyLengthBits: "$PROJECTS_ACCESS_KEYS_HASH_KEY_LENGTH_BITS:256"
+      saltByteLength: "$PROJECTS_ACCESS_KEYS_HASH_SALT_BYTE_LENGTH:16"
+  identity:
+    keycloak:
+      baseUrl: "$PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:http://localhost:8090"
+      realm: "$PROJECTS_IDENTITY_KEYCLOAK_REALM:dsbuilder"
+      clientId: "$PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:projects-service"
+      clientSecret: "$PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:projects-service-secret"
+      timeoutMs: "$PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS:1500"

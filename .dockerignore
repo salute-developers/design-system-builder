@@ -1,0 +1,10 @@
+.git
+.idea
+.gradle
+.kotlin
+**/.gradle
+**/.kotlin
+**/build
+**/.env
+**/.env.*
+!**/.env*.example

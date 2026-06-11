@@ -1,0 +1,110 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    command:
+      - start-dev
+      - --import-realm
+      - --http-port=8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./identity-gateway/keycloak/dsbuilder-realm.json:/opt/keycloak/data/import/dsbuilder-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+
+  auth-helper:
+    image: ${AUTH_HELPER_IMAGE:-auth-helper:dev}
+    build:
+      context: ./identity-gateway/app
+      dockerfile: Dockerfile.local
+    environment:
+      AUTH_HELPER_PORT: 8091
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/dsbuilder
+      KEYCLOAK_AUDIENCE: dsbuilder-api
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/dsbuilder/protocol/openid-connect/certs
+      PROJECT_ACCESS_MODE: ${PROJECT_ACCESS_MODE:-http}
+      PROJECT_ACCESS_DEFAULT_ROLE: ${PROJECT_ACCESS_DEFAULT_ROLE:-viewer}
+      PROJECTS_SERVICE_URL: ${PROJECTS_SERVICE_URL:-http://projects-service:8082}
+      PROJECT_ACCESS_TIMEOUT_MS: 1500
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:-local-projects-internal-key}
+    ports:
+      - "8091:8091"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      projects-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./identity-gateway/gateway/nginx.local.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      auth-helper:
+        condition: service_healthy
+      projects-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  projects-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: projects_service
+      POSTGRES_USER: projects
+      POSTGRES_PASSWORD: projects
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U projects -d projects_service"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  projects-service:
+    image: ${PROJECTS_SERVICE_IMAGE:-projects-service:dev}
+    build:
+      context: ./projects-service/app
+      dockerfile: Dockerfile.local
+    environment:
+      PROJECTS_SERVICE_PORT: 8082
+      PROJECTS_DATABASE_URL: jdbc:postgresql://projects-db:5432/projects_service
+      PROJECTS_POSTGRES_USER: projects
+      PROJECTS_POSTGRES_PASSWORD: projects
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:-local-projects-internal-key}
+      PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: ${PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:-http://keycloak:8080}
+      PROJECTS_IDENTITY_KEYCLOAK_REALM: ${PROJECTS_IDENTITY_KEYCLOAK_REALM:-dsbuilder}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}
+    expose:
+      - "8082"
+    depends_on:
+      projects-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5

@@ -1,0 +1,3 @@
+FROM quay.io/keycloak/keycloak:26.6.1
+
+COPY --chmod=755 ./identity-gateway/keycloak/bootstrap-production-keycloak.sh /opt/keycloak/bootstrap/bootstrap-production-keycloak.sh
