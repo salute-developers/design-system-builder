@@ -13,6 +13,7 @@ import {
     seedCounterComponent,
     seedIndicatorComponent,
     seedBadgeComponent,
+    seedSpinnerComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -170,6 +171,7 @@ async function seed() {
         counter: await seedCounterComponent(db),
         indicator: await seedIndicatorComponent(db),
         badge: await seedBadgeComponent(db),
+        spinner: await seedSpinnerComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -183,6 +185,7 @@ async function seed() {
         Counter: 'counter',
         Indicator: 'indicator',
         Badge: 'badge',
+        Spinner: 'spinner',
     };
 
     let componentIdsToReseed: string[];
