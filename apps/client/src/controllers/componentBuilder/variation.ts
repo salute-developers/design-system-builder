@@ -43,7 +43,14 @@ export class Variation {
 
         const style = new Style(styleValues, api);
 
+        const props = style.getProps();
+        api.filter((item) => item.variations?.includes(this.id)).forEach((item) => {
+            props.addProp(item.id, undefined as never, api);
+        });
+
         this.styles?.push(style);
+
+        return style;
     }
 
     public removeStyle(id: string) {

@@ -38,7 +38,7 @@ export class Props {
     }
 
     public getList() {
-        return this.list;
+        return [...this.list].sort((a, b) => a.getName().localeCompare(b.getName()));
     }
 
     public getProp(id: string) {
