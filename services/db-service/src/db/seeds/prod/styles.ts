@@ -405,6 +405,67 @@ export async function seedStyles(
                 description: '',
                 isDefault: true,
             },
+
+            // ── Spinner ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.spinnerSize.id, name: 'M', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'paragraph',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'accent',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.spinnerSize.id, name: 'S', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'warning',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.spinnerSize.id, name: 'l', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'default',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'secondary',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.spinnerView.id,
+                name: 'tertiary',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -490,6 +551,18 @@ export async function seedStyles(
         base_bad_view_warning: find(v.badgeView.id, 'warning'),
         base_bad_size_M: find(v.badgeSize.id, 'M'),
         base_bad_shape_Rounded: find(v.badgeShape.id, 'Rounded'),
+        // Spinner
+        base_spi_size_M: find(v.spinnerSize.id, 'M'),
+        base_spi_view_paragraph: find(v.spinnerView.id, 'paragraph'),
+        base_spi_view_accent: find(v.spinnerView.id, 'accent'),
+        base_spi_view_positive: find(v.spinnerView.id, 'positive'),
+        base_spi_size_S: find(v.spinnerSize.id, 'S'),
+        base_spi_view_warning: find(v.spinnerView.id, 'warning'),
+        base_spi_view_negative: find(v.spinnerView.id, 'negative'),
+        base_spi_size_l: find(v.spinnerSize.id, 'l'),
+        base_spi_view_default: find(v.spinnerView.id, 'default'),
+        base_spi_view_secondary: find(v.spinnerView.id, 'secondary'),
+        base_spi_view_tertiary: find(v.spinnerView.id, 'tertiary'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

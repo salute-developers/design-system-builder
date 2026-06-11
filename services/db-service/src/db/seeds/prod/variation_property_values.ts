@@ -37,6 +37,8 @@ export async function seedVariationPropertyValues(
 
     const badApp = a.base_bad_default.id;
 
+    const spiApp = a.base_spi_default.id;
+
     const rows: VpvRow[] = [
         // ══════════════════════════════════════════════════════════════════════════
         // IconButton
@@ -2641,6 +2643,99 @@ export async function seedVariationPropertyValues(
             appearanceId: badApp,
             tokenId: null,
             value: '-1',
+            state: null,
+        },
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // Spinner
+        // ══════════════════════════════════════════════════════════════════════════
+
+        {
+            propertyId: p.spi_size.id,
+            styleId: s.base_spi_size_M.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: '24',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_paragraph.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.paragraph',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_accent.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.accent',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_positive.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.positive',
+            state: null,
+        },
+        {
+            propertyId: p.spi_size.id,
+            styleId: s.base_spi_size_l.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: '36',
+            state: null,
+        },
+        {
+            propertyId: p.spi_size.id,
+            styleId: s.base_spi_size_S.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: '16',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_default.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.primary',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_secondary.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.secondary',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_tertiary.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.tertiary',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_warning.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.warning',
+            state: null,
+        },
+        {
+            propertyId: p.spi_color.id,
+            styleId: s.base_spi_view_negative.id,
+            appearanceId: spiApp,
+            tokenId: null,
+            value: 'text.default.negative',
             state: null,
         },
     ];

@@ -9,6 +9,7 @@ import {
     CounterStories,
     IndicatorStories,
     BadgeStories,
+    SpinnerStories,
 } from '../stories';
 
 interface Story {
@@ -27,6 +28,7 @@ const componentMapper: Record<string, Story[]> = {
     Counter: CounterStories,
     Indicator: IndicatorStories,
     Badge: BadgeStories,
+    Spinner: SpinnerStories,
 };
 
 export const useStory = (componentName?: string) => {
