@@ -150,6 +150,28 @@ export async function seedPropertyVariations(
             // ── Spinner ──────────────────────────────────────────────────────────
             { propertyId: p.spi_size.id, variationId: v.spinnerSize.id },
             { propertyId: p.spi_color.id, variationId: v.spinnerView.id },
+
+            // ── Chip ──────────────────────────────────────────────────────────
+            { propertyId: p.chi_color.id, variationId: v.chipView.id },
+            { propertyId: p.chi_background.id, variationId: v.chipView.id },
+            { propertyId: p.chi_backgroundReadOnly.id, variationId: v.chipView.id },
+            { propertyId: p.chi_colorReadOnly.id, variationId: v.chipView.id },
+            { propertyId: p.chi_closeIconColor.id, variationId: v.chipView.id },
+            { propertyId: p.chi_leftContentColor.id, variationId: v.chipView.id },
+            { propertyId: p.chi_width.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_height.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_padding.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_textStyle.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_closeIconSize.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_clearContentMarginLeft.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_clearContentMarginRight.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_leftContentMarginRight.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_rightContentMarginRight.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_leftContentMarginLeft.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_rightContentMarginLeft.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_shape.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_outlineSize.id, variationId: v.chipSize.id },
+            { propertyId: p.chi_shape.id, variationId: v.chipShape.id },
         ])
         .onConflictDoNothing()
         .returning();

@@ -14,10 +14,11 @@ export async function seedProperties(
             indicator: any;
             badge: any;
             spinner: any;
+            chip: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip } = ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -775,6 +776,96 @@ export async function seedProperties(
             // ── Spinner ──────────────────────────────────────────────────────────
             { componentId: spinner.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
             { componentId: spinner.id, name: 'size', type: 'dimension' as const, defaultValue: '', description: '' },
+
+            // ── Chip ──────────────────────────────────────────────────────────
+            { componentId: chip.id, name: 'background', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: chip.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: chip.id, name: 'colorReadOnly', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: chip.id,
+                name: 'outlineSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'closeIconColorReadonly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: chip.id, name: 'width', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: chip.id, name: 'padding', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: chip.id,
+                name: 'leftContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'rightContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'clearContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: chip.id, name: 'disableAlpha', type: 'float' as const, defaultValue: '', description: '' },
+            { componentId: chip.id, name: 'shape', type: 'shape' as const, defaultValue: '', description: '' },
+            {
+                componentId: chip.id,
+                name: 'backgroundReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: chip.id, name: 'focusColor', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: chip.id, name: 'closeIconColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: chip.id,
+                name: 'leftContentColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: chip.id, name: 'height', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: chip.id,
+                name: 'closeIconSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'leftContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'rightContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: chip.id,
+                name: 'clearContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: chip.id, name: 'textStyle', type: 'typography' as const, defaultValue: '', description: '' },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1272,6 +1363,32 @@ export async function seedProperties(
     const findSpinner = (name: string) => rows.find((r: any) => r.componentId === spinner.id && r.name === name)!;
     addPlatformParams(findSpinner('color').id, { web: ['color'] });
     addPlatformParams(findSpinner('size').id, { web: ['size'] });
+    // Chip
+    const findChip = (name: string) => rows.find((r: any) => r.componentId === chip.id && r.name === name)!;
+    addPlatformParams(findChip('background').id, { web: ['background'] });
+    addPlatformParams(findChip('color').id, { web: ['color'] });
+    addPlatformParams(findChip('colorReadOnly').id, { web: ['colorReadOnly'] });
+    addPlatformParams(findChip('outlineSize').id, { web: ['outlineSize'] });
+    addPlatformParams(findChip('closeIconColorReadonly').id, { web: ['closeIconColorReadonly'] });
+    addPlatformParams(findChip('width').id, { web: ['width'] });
+    addPlatformParams(findChip('padding').id, { web: ['padding'] });
+    addPlatformParams(findChip('leftContentMarginRight').id, { web: ['leftContentMarginRight'] });
+    addPlatformParams(findChip('rightContentMarginRight').id, { web: ['rightContentMarginRight'] });
+    addPlatformParams(findChip('clearContentMarginRight').id, { web: ['clearContentMarginRight'] });
+    addPlatformParams(findChip('disableAlpha').id, { web: ['disabledOpacity'] });
+    addPlatformParams(findChip('shape').id, { web: ['borderRadius'] });
+    addPlatformParams(findChip('backgroundReadOnly').id, { web: ['backgroundReadOnly'] });
+    addPlatformParams(findChip('focusColor').id, { web: ['focusColor'] });
+    addPlatformParams(findChip('closeIconColor').id, { web: ['closeIconColor'] });
+    addPlatformParams(findChip('leftContentColor').id, { web: ['leftContentColor'] });
+    addPlatformParams(findChip('height').id, { web: ['height'] });
+    addPlatformParams(findChip('closeIconSize').id, { web: ['closeIconSize'] });
+    addPlatformParams(findChip('leftContentMarginLeft').id, { web: ['leftContentMarginLeft'] });
+    addPlatformParams(findChip('rightContentMarginLeft').id, { web: ['rightContentMarginLeft'] });
+    addPlatformParams(findChip('clearContentMarginLeft').id, { web: ['clearContentMarginLeft'] });
+    addPlatformParams(findChip('textStyle').id, {
+        web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1418,6 +1535,29 @@ export async function seedProperties(
         // Spinner
         spi_color: findSpinner('color'),
         spi_size: findSpinner('size'),
+        // Chip
+        chi_background: findChip('background'),
+        chi_color: findChip('color'),
+        chi_colorReadOnly: findChip('colorReadOnly'),
+        chi_outlineSize: findChip('outlineSize'),
+        chi_closeIconColorReadonly: findChip('closeIconColorReadonly'),
+        chi_width: findChip('width'),
+        chi_padding: findChip('padding'),
+        chi_leftContentMarginRight: findChip('leftContentMarginRight'),
+        chi_rightContentMarginRight: findChip('rightContentMarginRight'),
+        chi_clearContentMarginRight: findChip('clearContentMarginRight'),
+        chi_disableAlpha: findChip('disableAlpha'),
+        chi_shape: findChip('shape'),
+        chi_backgroundReadOnly: findChip('backgroundReadOnly'),
+        chi_focusColor: findChip('focusColor'),
+        chi_closeIconColor: findChip('closeIconColor'),
+        chi_leftContentColor: findChip('leftContentColor'),
+        chi_height: findChip('height'),
+        chi_closeIconSize: findChip('closeIconSize'),
+        chi_leftContentMarginLeft: findChip('leftContentMarginLeft'),
+        chi_rightContentMarginLeft: findChip('rightContentMarginLeft'),
+        chi_clearContentMarginLeft: findChip('clearContentMarginLeft'),
+        chi_textStyle: findChip('textStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

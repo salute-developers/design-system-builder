@@ -346,11 +346,9 @@ export async function seed${componentName}Component(db: any) {
             'appearances values',
         );
 
-        // Add componentId to the componentIds array
-        c = c.replace(
-            /(const componentIds = \[[^\]]*)(])/,
-            `$1, ${varName}.id$2`,
-        );
+        // Add componentId before the closing bracket of the componentIds array,
+        // reusing the trailing comma prettier left on the last element.
+        c = c.replace(/(const componentIds = \[[\s\S]*?\.id),?(\s*\];)/, `$1, ${varName}.id$2`);
 
         // Add to return object (before closing }; + console.log appearances)
         const appEntries = appearances
