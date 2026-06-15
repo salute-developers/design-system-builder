@@ -1,5 +1,5 @@
 import type { Config, Theme } from '../controllers';
-import type { ComponentAPI, ComponentVariation, PropType } from '../controllers/componentBuilder/type';
+import type { ComponentAPI, ComponentVariation, PropState, PropType } from '../controllers/componentBuilder/type';
 
 /**
  * Импорт значений токенов из plasma-конфигов компонентов.
@@ -457,6 +457,13 @@ export const applyConfigToComponent = (
                     config.addToken(apiProp.id, value, api, variation.getID(), style.getID());
                 }
 
+                // Для цветовых пропсов заполняем состояния hover/active значениями из
+                // отдельных токенов config.ts (`backgroundHover`/`backgroundActive`).
+                if (apiProp.type === 'color') {
+                    applyColorState(config, apiProp, tokenValues, colorVarMap, variation.getID(), style.getID(), 'hovered', 'Hover');
+                    applyColorState(config, apiProp, tokenValues, colorVarMap, variation.getID(), style.getID(), 'pressed', 'Active');
+                }
+
                 debug.hits.push({
                     variation: variation.getName(),
                     style: style.getName(),
@@ -473,6 +480,58 @@ export const applyConfigToComponent = (
     const unmatchedVariations = Object.keys(parsed.variations).filter((name) => !matchedVariationNames.has(name));
 
     return { applied, unmatchedVariations, debug };
+};
+
+/**
+ * Заполняет значение состояния (hover/active) цветового пропа из отдельного
+ * токена config.ts. Имя токена состояния = имя базового web-токена + суффикс
+ * (`background` -> `backgroundHover`/`backgroundActive`).
+ *
+ * Состояние может уже существовать (его заводит Variation.addStyle для новых
+ * стилей) или отсутствовать (импорт в уже существующий стиль) — поэтому делаем
+ * add-or-update.
+ */
+const applyColorState = (
+    config: Config,
+    apiProp: ComponentAPI,
+    tokenValues: Record<string, string>,
+    colorVarMap: Map<string, string>,
+    variationID: string,
+    styleID: string,
+    stateName: PropState,
+    tokenSuffix: 'Hover' | 'Active',
+) => {
+    const webTokens = apiProp.platformMappings?.web;
+
+    if (!webTokens?.length) {
+        return;
+    }
+
+    for (const { name } of webTokens) {
+        const raw = tokenValues[`${name}${tokenSuffix}`];
+
+        if (raw === undefined) {
+            continue;
+        }
+
+        const value = convertValue('color', raw, colorVarMap, new Map(), new Set());
+
+        if (value === undefined) {
+            continue;
+        }
+
+        const state = { state: [stateName], value: String(value) };
+        const prop = config.getStyleByVariation(variationID, styleID)?.getProps().getProp(apiProp.id);
+        const hasState = prop?.getStates()?.some((item) => item.state[0] === stateName);
+
+        if (hasState) {
+            config.updateTokenState(apiProp.id, stateName, state, variationID, styleID);
+        } else {
+            config.addTokenState(apiProp.id, state, variationID, styleID);
+        }
+
+        return;
+    }
 };
 
 /** Пропы (токены API), доступные для вариации (см. getPropsByVariation). */

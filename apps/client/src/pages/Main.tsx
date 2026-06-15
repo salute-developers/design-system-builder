@@ -118,10 +118,15 @@ export const Main = () => {
     };
 
     const onClickPanelButton = (path: string) => {
-        const parts = [...currentPath];
-        parts[parts.length - 1] = path;
+        if (path === '') {
+            navigate('/', { replace: true });
+            return;
+        }
 
-        const newPath = path === '' ? '/' : parts.join('/');
+        // Раздел идёт сразу после версии, а у разделов могут быть вложенные сегменты
+        // (например выбранный компонент в /components/:componentName) — строим путь от версии,
+        // чтобы при переключении раздела они сбрасывались.
+        const newPath = `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`;
 
         navigate(newPath, { replace: true });
     };

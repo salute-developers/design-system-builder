@@ -55,7 +55,7 @@ function App() {
                             <Route path="colors" element={<Colors />} />
                             <Route path="shapes" element={<Shapes />} />
                             <Route path="typography" element={<Typography />} />
-                            <Route path="components" element={<Components />} />
+                            <Route path="components/:componentName?" element={<Components />} />
                         </Route>
                     </Route>
                 </Route>
