@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
 import type { components } from '../api/types.gen';
+import { fetchTokenNames, toImportedProperties } from '../utils/importTokens';
 import './Page.css';
 import './SettingsPage.css';
 
@@ -205,7 +206,7 @@ async function syncPlatformParams(
   }
 }
 
-function PropertiesTab({ componentId }: { componentId: string }) {
+function PropertiesTab({ componentId, componentName }: { componentId: string; componentName: string }) {
   const [props, setProps] = useState<Property[]>([]);
   const [pppRows, setPppRows] = useState<PlatformParamRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -220,6 +221,11 @@ function PropertiesTab({ componentId }: { componentId: string }) {
   const [pPlatforms, setPPlatforms] = useState<Record<PlatformKey, string>>({ xml: '', compose: '', ios: '', web: '' });
   const [addErr, setAddErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+
+  // import from plasma tokens.ts
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [importErr, setImportErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [propsRes, pppRes] = await Promise.all([
@@ -253,6 +259,51 @@ function PropertiesTab({ componentId }: { componentId: string }) {
     setPName(''); setPDefault('');
     setPPlatforms({ xml: '', compose: '', ios: '', web: '' });
     load();
+  }
+
+  async function importFromTokens() {
+    setImportErr(null);
+    setImportMsg(null);
+    setImporting(true);
+
+    try {
+      const tokenNames = await fetchTokenNames(componentName);
+      const imported = toImportedProperties(tokenNames);
+
+      const existingNames = new Set(props.map((p) => p.name));
+      const toCreate = imported.filter((p) => !existingNames.has(p.name));
+
+      let created = 0;
+
+      for (const prop of toCreate) {
+        const { data, error } = await api.POST('/ds/properties', {
+          body: { componentId, name: prop.name, type: prop.type },
+        });
+
+        if (error || !data) {
+          continue;
+        }
+
+        // web-параметры: имена токенов «как есть»
+        for (const tokenName of prop.webTokens) {
+          await api.POST('/ds/property-platform-params', {
+            body: { propertyId: data.id, platform: 'web', name: tokenName },
+          });
+        }
+
+        created++;
+      }
+
+      const skipped = imported.length - toCreate.length;
+      setImportMsg(
+        `Импортировано: ${created}${skipped ? `, пропущено (уже есть): ${skipped}` : ''}`,
+      );
+      load();
+    } catch (e) {
+      setImportErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImporting(false);
+    }
   }
 
   function startEdit(p: Property) {
@@ -329,7 +380,20 @@ function PropertiesTab({ componentId }: { componentId: string }) {
   return (
     <div>
       <div className="adm-card">
-        <h3 className="adm-card-title">Add property</h3>
+        <div className="adm-card-title-row">
+          <h3 className="adm-card-title">Add property</h3>
+          <button
+            type="button"
+            className="adm-btn adm-btn--sm"
+            onClick={importFromTokens}
+            disabled={importing}
+            title={`Импорт web-токенов из plasma (${componentName}.tokens.ts)`}
+          >
+            {importing ? 'Импорт…' : 'Импорт из plasma'}
+          </button>
+        </div>
+        {importMsg && <p className="adm-muted" style={{ marginTop: 0 }}>{importMsg}</p>}
+        <ErrMsg msg={importErr} />
         <form className="adm-form" onSubmit={addProp}>
           <div className="adm-form-row adm-form-row--wrap">
             <input className="adm-input" placeholder="Name" value={pName} onChange={(e) => setPName(e.target.value)} required />
@@ -732,7 +796,8 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
     });
     setAdding(false);
     if (error) { setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
-    setPvPropId(''); setPvVarId('');
+    // Сбрасываем только проперти, вариацию запоминаем — удобно линковать несколько пропсов подряд.
+    setPvPropId('');
     load();
   }
 
@@ -1129,7 +1194,7 @@ function ComponentDetail({ component, allComponents }: { component: Comp; allCom
         ))}
       </div>
       <div className="adm-tab-content">
-        {tab === 'properties' && <PropertiesTab key={component.id} componentId={component.id} />}
+        {tab === 'properties' && <PropertiesTab key={component.id} componentId={component.id} componentName={component.name} />}
         {tab === 'deps' && <DepsTab key={component.id} componentId={component.id} allComponents={allComponents} />}
         {tab === 'variations' && <VariationsTab key={component.id} componentId={component.id} />}
         {tab === 'prop-variations' && <PropVariationsTab key={component.id} componentId={component.id} />}

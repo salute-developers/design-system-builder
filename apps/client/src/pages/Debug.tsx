@@ -268,7 +268,7 @@ export const Debug = (props: DebugProps) => {
                 <LinkButton
                     text="Скачать архив дизайн системы"
                     contentRight={<IconDownload size="s" />}
-                    onClick={onDebugDesignSystemDownload}
+                    onClick={withLoading(onDebugDesignSystemDownload)}
                 />
                 <LinkButton
                     text="Скачать тему"

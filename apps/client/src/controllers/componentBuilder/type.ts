@@ -22,7 +22,7 @@ export const DEFAULT_FONT_SIZE = 16;
 
 export type PropType = 'color' | 'dimension' | 'float' | 'shape' | 'typography';
 
-export type PropState = 'hover' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
+export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
 
 export type Intersections = Record<string, string[]>;
 
