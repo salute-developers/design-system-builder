@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api/client';
 import type { components } from '../api/types.gen';
-import { fetchTokenNames, toImportedProperties } from '../utils/importTokens';
+import { fetchTokenNames, toImportedProperties } from '../utils/importProps';
 import './Page.css';
 import './SettingsPage.css';
 

@@ -7,3 +7,4 @@ export { CounterStories } from './Counter.story';
 export { IndicatorStories } from './Indicator.story';
 export { BadgeStories } from './Badge.story';
 export { SpinnerStories } from './Spinner.story';
+export { ChipStories } from './Chip.story';

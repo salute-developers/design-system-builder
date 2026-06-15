@@ -31,7 +31,7 @@ const componentList = [
             { name: 'Badge', disabled: false },
             { name: 'Card', disabled: true },
             { name: 'Cell', disabled: true },
-            { name: 'Chip', disabled: true },
+            { name: 'Chip', disabled: false },
             { name: 'ChipGroup', disabled: true },
             { name: 'Counter', disabled: false },
             { name: 'Divider', disabled: true },
