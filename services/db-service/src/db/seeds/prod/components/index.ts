@@ -7,3 +7,4 @@ export { seedCounterComponent } from './counter';
 export { seedIndicatorComponent } from './indicator';
 export { seedBadgeComponent } from './badge';
 export { seedSpinnerComponent } from './spinner';
+export { seedChipComponent } from './chip';

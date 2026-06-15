@@ -466,6 +466,39 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── Chip ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.chipSize.id, name: 'l', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.chipSize.id, name: 's', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.chipView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.chipView.id, name: 'accent', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.chipSize.id, name: 'xxs', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.chipView.id, name: 'default', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.chipView.id, name: 'warning', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.chipShape.id, name: 'Pilled', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.chipSize.id, name: 'm', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.chipSize.id, name: 'xs', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.chipView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.chipView.id,
+                name: 'secondary',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.chipShape.id, name: 'Rounded', description: '', isDefault: true },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -563,6 +596,20 @@ export async function seedStyles(
         base_spi_view_default: find(v.spinnerView.id, 'default'),
         base_spi_view_secondary: find(v.spinnerView.id, 'secondary'),
         base_spi_view_tertiary: find(v.spinnerView.id, 'tertiary'),
+        // Chip
+        base_chi_size_l: find(v.chipSize.id, 'l'),
+        base_chi_size_s: find(v.chipSize.id, 's'),
+        base_chi_view_positive: find(v.chipView.id, 'positive'),
+        base_chi_view_accent: find(v.chipView.id, 'accent'),
+        base_chi_size_xxs: find(v.chipSize.id, 'xxs'),
+        base_chi_view_default: find(v.chipView.id, 'default'),
+        base_chi_view_warning: find(v.chipView.id, 'warning'),
+        base_chi_shape_Pilled: find(v.chipShape.id, 'Pilled'),
+        base_chi_size_m: find(v.chipSize.id, 'm'),
+        base_chi_size_xs: find(v.chipSize.id, 'xs'),
+        base_chi_view_negative: find(v.chipView.id, 'negative'),
+        base_chi_view_secondary: find(v.chipView.id, 'secondary'),
+        base_chi_shape_Rounded: find(v.chipShape.id, 'Rounded'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
