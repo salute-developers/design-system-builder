@@ -46,6 +46,15 @@ export class Variation {
         const props = style.getProps();
         api.filter((item) => item.variations?.includes(this.id)).forEach((item) => {
             props.addProp(item.id, undefined as never, api);
+
+            // Для цветовых пропсов сразу заводим состояния hover/active (как у Button),
+            // чтобы они применялись в компоненте без ручного добавления.
+            if (item.type === 'color') {
+                const prop = props.getProp(item.id);
+
+                prop?.addState({ state: ['hovered'], value: undefined });
+                prop?.addState({ state: ['pressed'], value: undefined });
+            }
         });
 
         this.styles?.push(style);
