@@ -33,12 +33,57 @@ function getComponentName(): string {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Зарезервированные слова JS, которые нельзя использовать как имя переменной
+// (а varName используется и как идентификатор в деструктуризации). Имена-кейворды
+// получают суффикс `Component`, чтобы код оставался валидным.
+const JS_RESERVED = new Set([
+    'switch',
+    'default',
+    'case',
+    'const',
+    'let',
+    'var',
+    'function',
+    'class',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'do',
+    'new',
+    'delete',
+    'typeof',
+    'void',
+    'in',
+    'of',
+    'this',
+    'super',
+    'export',
+    'import',
+    'enum',
+    'extends',
+    'yield',
+    'await',
+    'try',
+    'catch',
+    'finally',
+    'throw',
+    'break',
+    'continue',
+    'with',
+    'instanceof',
+]);
+
 function toVarName(name: string): string {
-    return name.charAt(0).toLowerCase() + name.slice(1);
+    const camel = name.charAt(0).toLowerCase() + name.slice(1);
+    return JS_RESERVED.has(camel) ? `${camel}Component` : camel;
 }
 
 function toPropPrefix(name: string): string {
-    return toVarName(name).slice(0, 3);
+    // Префикс берём от чистого имени, а не от экранированного varName, чтобы
+    // суффикс `Component` не влиял на ключи (swi_*, а не swiC_*).
+    return (name.charAt(0).toLowerCase() + name.slice(1)).slice(0, 3);
 }
 
 function toVarKey(compVar: string, variationName: string): string {

@@ -499,6 +499,50 @@ export async function seedStyles(
                 isDefault: false,
             },
             { designSystemId: base.id, variationId: v.chipShape.id, name: 'Rounded', description: '', isDefault: true },
+
+            // ── Switch ──────────────────────────────────────────────────────────
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentSize.id,
+                name: 's',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentToggleSize.id,
+                name: 'l',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentSize.id,
+                name: 'l',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentSize.id,
+                name: 'm',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.switchComponentToggleSize.id,
+                name: 's',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -610,6 +654,13 @@ export async function seedStyles(
         base_chi_view_negative: find(v.chipView.id, 'negative'),
         base_chi_view_secondary: find(v.chipView.id, 'secondary'),
         base_chi_shape_Rounded: find(v.chipShape.id, 'Rounded'),
+        // Switch
+        base_swi_size_s: find(v.switchComponentSize.id, 's'),
+        base_swi_toggleSize_l: find(v.switchComponentToggleSize.id, 'l'),
+        base_swi_size_l: find(v.switchComponentSize.id, 'l'),
+        base_swi_view_default: find(v.switchComponentView.id, 'default'),
+        base_swi_size_m: find(v.switchComponentSize.id, 'm'),
+        base_swi_toggleSize_s: find(v.switchComponentToggleSize.id, 's'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

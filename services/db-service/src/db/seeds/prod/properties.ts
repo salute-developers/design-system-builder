@@ -15,10 +15,12 @@ export async function seedProperties(
             badge: any;
             spinner: any;
             chip: any;
+            switchComponent: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
+        ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -866,6 +868,204 @@ export async function seedProperties(
                 description: '',
             },
             { componentId: chip.id, name: 'textStyle', type: 'typography' as const, defaultValue: '', description: '' },
+
+            // ── Switch ──────────────────────────────────────────────────────────
+            {
+                componentId: switchComponent.id,
+                name: 'labelColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'labelOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'descriptionColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'verticalGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBorderWidthOn',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBorderWidthOff',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBackgroundColorOn',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBackgroundColorOff',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackFocusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbOffsetOn',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbOffsetOff',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBorderColorOff',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBorderColorOn',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBorderWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBackgroundColorOn',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBackgroundColorOff',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBorderColorOn',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'disableAlpha',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'trackBorderColorOff',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'descriptionStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'descriptionMaxLines',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbPressScale',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1389,6 +1589,48 @@ export async function seedProperties(
     addPlatformParams(findChip('textStyle').id, {
         web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'],
     });
+    // Switch
+    const findSwitch = (name: string) =>
+        rows.find((r: any) => r.componentId === switchComponent.id && r.name === name)!;
+    addPlatformParams(findSwitch('labelColor').id, { web: ['labelColor'] });
+    addPlatformParams(findSwitch('labelOffset').id, { web: ['labelOffset'] });
+    addPlatformParams(findSwitch('descriptionColor').id, { web: ['descriptionColor'] });
+    addPlatformParams(findSwitch('verticalGap').id, { web: ['verticalGap'] });
+    addPlatformParams(findSwitch('trackWidth').id, { web: ['trackWidth'] });
+    addPlatformParams(findSwitch('trackHeight').id, { web: ['trackHeight'] });
+    addPlatformParams(findSwitch('trackBorderWidthOn').id, { web: ['trackBorderWidthOn'] });
+    addPlatformParams(findSwitch('trackBorderWidthOff').id, { web: ['trackBorderWidthOff'] });
+    addPlatformParams(findSwitch('trackBorderRadius').id, { web: ['trackBorderRadius'] });
+    addPlatformParams(findSwitch('trackBackgroundColorOn').id, { web: ['trackBackgroundColorOn'] });
+    addPlatformParams(findSwitch('trackBackgroundColorOff').id, { web: ['trackBackgroundColorOff'] });
+    addPlatformParams(findSwitch('trackFocusColor').id, { web: ['trackFocusColor'] });
+    addPlatformParams(findSwitch('thumbSize').id, { web: ['thumbSize'] });
+    addPlatformParams(findSwitch('thumbOffsetOn').id, { web: ['thumbOffsetOn'] });
+    addPlatformParams(findSwitch('thumbOffsetOff').id, { web: ['thumbOffsetOff'] });
+    addPlatformParams(findSwitch('thumbBorderRadius').id, { web: ['thumbBorderRadius'] });
+    addPlatformParams(findSwitch('thumbBorderColorOff').id, { web: ['thumbBorderColorOff'] });
+    addPlatformParams(findSwitch('thumbBorderColorOn').id, { web: ['thumbBorderColorOn'] });
+    addPlatformParams(findSwitch('thumbBorderWidth').id, { web: ['thumbBorderWidth'] });
+    addPlatformParams(findSwitch('thumbBackgroundColorOn').id, { web: ['thumbBackgroundColorOn'] });
+    addPlatformParams(findSwitch('thumbBackgroundColorOff').id, { web: ['thumbBackgroundColorOff'] });
+    addPlatformParams(findSwitch('textStyle').id, {
+        web: ['fontFamily', 'fontStyle', 'fontSize', 'fontWeight', 'letterSpacing', 'lineHeight'],
+    });
+    addPlatformParams(findSwitch('trackBorderColorOn').id, { web: ['trackBorderColorOn'] });
+    addPlatformParams(findSwitch('disableAlpha').id, { web: ['disabledOpacity'] });
+    addPlatformParams(findSwitch('trackBorderColorOff').id, { web: ['trackBorderColorOff'] });
+    addPlatformParams(findSwitch('descriptionStyle').id, {
+        web: [
+            'descriptionFontFamily',
+            'descriptionFontStyle',
+            'descriptionFontSize',
+            'descriptionFontWeight',
+            'descriptionLetterSpacing',
+            'descriptionLineHeight',
+        ],
+    });
+    addPlatformParams(findSwitch('descriptionMaxLines').id, { web: ['descriptionMaxLines'] });
+    addPlatformParams(findSwitch('thumbPressScale').id, { web: ['thumbScale'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1558,6 +1800,35 @@ export async function seedProperties(
         chi_rightContentMarginLeft: findChip('rightContentMarginLeft'),
         chi_clearContentMarginLeft: findChip('clearContentMarginLeft'),
         chi_textStyle: findChip('textStyle'),
+        // Switch
+        swi_labelColor: findSwitch('labelColor'),
+        swi_labelOffset: findSwitch('labelOffset'),
+        swi_descriptionColor: findSwitch('descriptionColor'),
+        swi_verticalGap: findSwitch('verticalGap'),
+        swi_trackWidth: findSwitch('trackWidth'),
+        swi_trackHeight: findSwitch('trackHeight'),
+        swi_trackBorderWidthOn: findSwitch('trackBorderWidthOn'),
+        swi_trackBorderWidthOff: findSwitch('trackBorderWidthOff'),
+        swi_trackBorderRadius: findSwitch('trackBorderRadius'),
+        swi_trackBackgroundColorOn: findSwitch('trackBackgroundColorOn'),
+        swi_trackBackgroundColorOff: findSwitch('trackBackgroundColorOff'),
+        swi_trackFocusColor: findSwitch('trackFocusColor'),
+        swi_thumbSize: findSwitch('thumbSize'),
+        swi_thumbOffsetOn: findSwitch('thumbOffsetOn'),
+        swi_thumbOffsetOff: findSwitch('thumbOffsetOff'),
+        swi_thumbBorderRadius: findSwitch('thumbBorderRadius'),
+        swi_thumbBorderColorOff: findSwitch('thumbBorderColorOff'),
+        swi_thumbBorderColorOn: findSwitch('thumbBorderColorOn'),
+        swi_thumbBorderWidth: findSwitch('thumbBorderWidth'),
+        swi_thumbBackgroundColorOn: findSwitch('thumbBackgroundColorOn'),
+        swi_thumbBackgroundColorOff: findSwitch('thumbBackgroundColorOff'),
+        swi_textStyle: findSwitch('textStyle'),
+        swi_trackBorderColorOn: findSwitch('trackBorderColorOn'),
+        swi_disableAlpha: findSwitch('disableAlpha'),
+        swi_trackBorderColorOff: findSwitch('trackBorderColorOff'),
+        swi_descriptionStyle: findSwitch('descriptionStyle'),
+        swi_descriptionMaxLines: findSwitch('descriptionMaxLines'),
+        swi_thumbPressScale: findSwitch('thumbPressScale'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

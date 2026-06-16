@@ -4,14 +4,22 @@ export async function seedInvariantPropertyValues(
     db: any,
     ctx: {
         designSystems: { base: any };
-        components: { iconButton: any; button: any; link: any; checkbox: any; radiobox: any; chip: any };
+        components: {
+            iconButton: any;
+            button: any;
+            link: any;
+            checkbox: any;
+            radiobox: any;
+            chip: any;
+            switchComponent: any;
+        };
         appearances: Record<string, any>;
         properties: Record<string, any>;
         tokenMap: Record<string, any>;
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, chip } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent } = ctx.components;
     const a = ctx.appearances;
     const p = ctx.properties;
     const t = ctx.tokenMap;
@@ -135,6 +143,23 @@ export async function seedInvariantPropertyValues(
                 componentId: chip.id,
                 appearanceId: a.base_chi_default.id,
                 value: 'text.default.accent',
+                state: null,
+            },
+            // Switch
+            {
+                propertyId: p.swi_disableAlpha.id,
+                designSystemId: base.id,
+                componentId: switchComponent.id,
+                appearanceId: a.base_swi_default.id,
+                value: '1',
+                state: null,
+            },
+            {
+                propertyId: p.swi_trackFocusColor.id,
+                designSystemId: base.id,
+                componentId: switchComponent.id,
+                appearanceId: a.base_swi_default.id,
+                value: 'surface.default.accent',
                 state: null,
             },
         ])

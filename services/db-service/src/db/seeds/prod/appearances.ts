@@ -16,11 +16,13 @@ export async function seedAppearances(
             badge: any;
             spinner: any;
             chip: any;
+            switchComponent: any;
         };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
+        ctx.components;
 
     const values = [
         { designSystemId: base.id, componentId: iconButton.id, name: 'default' },
@@ -33,6 +35,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: badge.id, name: 'default' },
         { designSystemId: base.id, componentId: spinner.id, name: 'default' },
         { designSystemId: base.id, componentId: chip.id, name: 'default' },
+        { designSystemId: base.id, componentId: switchComponent.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -49,6 +52,7 @@ export async function seedAppearances(
         badge.id,
         spinner.id,
         chip.id,
+        switchComponent.id,
     ];
     const rows = await db
         .select()
@@ -70,6 +74,7 @@ export async function seedAppearances(
         base_bad_default: findByComp(badge.id),
         base_spi_default: findByComp(spinner.id),
         base_chi_default: findByComp(chip.id),
+        base_swi_default: findByComp(switchComponent.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);
