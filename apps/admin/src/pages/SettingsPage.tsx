@@ -339,7 +339,8 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
       body: {
         name: s.name,
         type: s.type,
-        defaultValue: s.defaultValue || undefined,
+        // Пустую строку отправляем явно, чтобы значение очистилось (undefined Drizzle проигнорирует).
+        defaultValue: s.defaultValue.trim(),
       },
     });
     if (error) {
@@ -497,7 +498,7 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
                     <td className="adm-mono">{p.name}</td>
                     <td><span className="adm-badge">{p.type}</span></td>
                     <td><PlatformParamsDisplay pppRows={pppRows} propertyId={p.id} /></td>
-                    <td className="adm-muted">{p.defaultValue ?? '—'}</td>
+                    <td className="adm-muted">{p.defaultValue || '—'}</td>
                     <td>
                       <div className="adm-row-actions">
                         <button className="adm-btn adm-btn--sm" onClick={() => startEdit(p)}>Edit</button>

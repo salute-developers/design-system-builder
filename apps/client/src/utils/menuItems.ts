@@ -79,7 +79,7 @@ const componentList = [
             { name: 'Segment', disabled: true },
             { name: 'Select', disabled: true },
             { name: 'Slider', disabled: true },
-            { name: 'Switch', disabled: true },
+            { name: 'Switch', disabled: false },
             { name: 'TextArea', disabled: true },
             { name: 'TextField', disabled: true },
             { name: 'TextFieldGroup', disabled: true },

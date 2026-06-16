@@ -8,3 +8,4 @@ export { IndicatorStories } from './Indicator.story';
 export { BadgeStories } from './Badge.story';
 export { SpinnerStories } from './Spinner.story';
 export { ChipStories } from './Chip.story';
+export { SwitchStories } from './Switch.story';

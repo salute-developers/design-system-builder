@@ -15,11 +15,13 @@ export async function seedDesignSystemComponents(
             badge: any;
             spinner: any;
             chip: any;
+            switchComponent: any;
         };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
+        ctx.components;
 
     const rows = await db
         .insert(schema.designSystemComponents)
@@ -34,6 +36,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: badge.id },
             { designSystemId: base.id, componentId: spinner.id },
             { designSystemId: base.id, componentId: chip.id },
+            { designSystemId: base.id, componentId: switchComponent.id },
         ])
         .onConflictDoNothing()
         .returning();
