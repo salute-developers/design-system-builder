@@ -99,6 +99,14 @@ export const ListItemShapePreview = styled.div`
     text-overflow: ellipsis;
 `;
 
+export const ListItemShadowPreview = styled.div<{ shadow: string }>`
+    box-shadow: ${({ shadow }) => shadow};
+
+    min-height: 0.75rem;
+    min-width: 0.75rem;
+    border-radius: 0.1875rem;
+`;
+
 export const StyledSelectButton = styled(SelectButton)`
     top: 0;
     // TODO: Убрать, когда будут нормальные отступы

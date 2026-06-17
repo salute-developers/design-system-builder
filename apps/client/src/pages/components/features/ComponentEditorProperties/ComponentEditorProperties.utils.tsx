@@ -2,7 +2,7 @@ import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, ComponentAPI, ComponentVariation, PropType, PropUnion } from '../../../../controllers';
 
-import { ListItemPreviewWrapper, ListItemColorPreview, ListItemTypographyPreview, ListItemShapePreview } from './ComponentEditorProperties.styles';
+import { ListItemPreviewWrapper, ListItemColorPreview, ListItemTypographyPreview, ListItemShapePreview, ListItemShadowPreview } from './ComponentEditorProperties.styles';
 
 export const getPropsByVariation = (api: ComponentAPI[], variations: ComponentVariation[], variationID?: string) => {
     if (!variationID) {
@@ -47,6 +47,7 @@ export const propTypeMap: Record<string, string> = {
     typography: 'Типографика',
     color: 'Цвет',
     shape: 'Форма',
+    shadow: 'Тень',
     float: 'Число',
     dimension: 'Размер',
 };
@@ -158,6 +159,34 @@ export const getShapesTokens = (theme?: Theme) => {
                 </ListItemPreviewWrapper>
             ),
         }));
+
+    return items;
+};
+
+export const getShadowsTokens = (theme?: Theme) => {
+    if (!theme) {
+        return [];
+    }
+
+    const shadows = theme.getTokens('shadow') || [];
+
+    const items = shadows
+        .filter((item) => item.getEnabled())
+        .map((item) => {
+            const name = item.getName();
+            const value = item.getValue('web');
+            const boxShadow = Array.isArray(value) ? value.join(', ') : value;
+
+            return {
+                label: name,
+                value: name,
+                contentRight: (
+                    <ListItemPreviewWrapper>
+                        <ListItemShadowPreview shadow={boxShadow} />
+                    </ListItemPreviewWrapper>
+                ),
+            };
+        });
 
     return items;
 };

@@ -21,6 +21,7 @@ import {
     propTypeMap,
     getColorsTokens,
     getShapesTokens,
+    getShadowsTokens,
     getTypographyTokens,
     propMenuList,
     PropMenuItem,
@@ -44,10 +45,14 @@ const renderComponentProp = (prop: PropUnion, onChange: (param: SelectButtonItem
             return getTypographyTokens(theme);
         }
 
+        if (propType === 'shadow') {
+            return getShadowsTokens(theme);
+        }
+
         return [];
     };
 
-    if (propType === 'shape' || propType === 'color' || propType === 'typography') {
+    if (propType === 'shape' || propType === 'color' || propType === 'typography' || propType === 'shadow') {
         const items = getItems(propType);
         const selectedItem = items.find((item) => item.value === propValue);
 
