@@ -1186,7 +1186,7 @@ export async function seedVariationPropertyValues(
             propertyId: p.cb_toggleCheckedBorderColor.id,
             styleId: s.base_cb_view_accent.id,
             appearanceId: cbApp,
-            value: 'transparent',
+            value: 'text.default.accent',
             state: null,
         },
 
@@ -1237,7 +1237,7 @@ export async function seedVariationPropertyValues(
             propertyId: p.cb_toggleCheckedBorderColor.id,
             styleId: s.base_cb_view_negative.id,
             appearanceId: cbApp,
-            value: 'transparent',
+            value: 'text.default.negative',
             state: null,
         },
 
@@ -1504,7 +1504,7 @@ export async function seedVariationPropertyValues(
             propertyId: p.rb_toggleCheckedBorderColor.id,
             styleId: s.base_rb_view_accent.id,
             appearanceId: rbApp,
-            value: 'transparent',
+            value: 'text.default.accent',
             state: null,
         },
         {
@@ -1555,7 +1555,7 @@ export async function seedVariationPropertyValues(
             propertyId: p.rb_toggleCheckedBorderColor.id,
             styleId: s.base_rb_view_negative.id,
             appearanceId: rbApp,
-            value: 'transparent',
+            value: 'text.default.negative',
             state: null,
         },
         {
@@ -4254,6 +4254,14 @@ export async function seedVariationPropertyValues(
             appearanceId: swiApp,
             tokenId: null,
             value: 'round.l',
+            state: null,
+        },
+        {
+            propertyId: p.swi_thumbBoxShadow.id,
+            styleId: s.base_swi_view_default.id,
+            appearanceId: swiApp,
+            tokenId: null,
+            value: 'down.soft.s',
             state: null,
         },
     ];
