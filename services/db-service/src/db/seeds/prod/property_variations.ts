@@ -199,6 +199,7 @@ export async function seedPropertyVariations(
             { propertyId: p.swi_trackBorderColorOff.id, variationId: v.switchComponentView.id },
             { propertyId: p.swi_thumbBorderColorOff.id, variationId: v.switchComponentView.id },
             { propertyId: p.swi_thumbBorderColorOn.id, variationId: v.switchComponentView.id },
+            { propertyId: p.swi_thumbBoxShadow.id, variationId: v.switchComponentView.id },
             { propertyId: p.swi_thumbBorderWidth.id, variationId: v.switchComponentToggleSize.id },
         ])
         .onConflictDoNothing()

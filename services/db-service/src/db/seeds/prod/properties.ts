@@ -1066,6 +1066,13 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+            {
+                componentId: switchComponent.id,
+                name: 'thumbBoxShadow',
+                type: 'shadow' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1631,6 +1638,7 @@ export async function seedProperties(
     });
     addPlatformParams(findSwitch('descriptionMaxLines').id, { web: ['descriptionMaxLines'] });
     addPlatformParams(findSwitch('thumbPressScale').id, { web: ['thumbScale'] });
+    addPlatformParams(findSwitch('thumbBoxShadow').id, { web: ['thumbBoxShadow'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1829,6 +1837,7 @@ export async function seedProperties(
         swi_descriptionStyle: findSwitch('descriptionStyle'),
         swi_descriptionMaxLines: findSwitch('descriptionMaxLines'),
         swi_thumbPressScale: findSwitch('thumbPressScale'),
+        swi_thumbBoxShadow: findSwitch('thumbBoxShadow'),
     };
 
     console.log(`  properties: ${rows.length} rows`);
