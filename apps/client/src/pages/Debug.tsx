@@ -106,7 +106,7 @@ export const Debug = (props: DebugProps) => {
             return;
         }
 
-        return await generateDownload(designSystem, 'tgz');
+        return await generateDownload(designSystem, 'zip');
     };
 
     const onThemeDataDownload = async () => {
