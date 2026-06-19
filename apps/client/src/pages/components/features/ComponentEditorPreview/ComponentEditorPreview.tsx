@@ -18,6 +18,7 @@ import {
     StyledComponentWrapper,
     StyledComponentControls,
     StyledDivider,
+    StyledStorySelector,
 } from './ComponentEditorPreview.styles';
 import { backgroundList } from './ComponentEditorPreview.utils';
 
@@ -26,11 +27,14 @@ interface ComponentEditorPreviewProps {
     theme: Theme;
     args: Record<string, string | boolean>;
     storyArgs: Record<string, any>[];
+    storyItems: SelectButtonItem[];
+    selectedStory: SelectButtonItem;
     Story?: (props: any) => JSX.Element;
     componentVars: Record<string, string>;
     themeVars: Record<string, string>;
     themeModeList: SegmentButtonItem[];
     themeMode: SegmentButtonItem;
+    onStorySelect: (value: SelectButtonItem) => void;
     onUpdateThemeMode: (value: SegmentButtonItem) => void;
     onChange: (name: string, value: unknown) => void;
 }
@@ -41,6 +45,9 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         theme,
         args,
         storyArgs,
+        storyItems,
+        selectedStory,
+        onStorySelect,
         Story,
         componentVars,
         themeVars,
@@ -67,10 +74,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const renderDynamicProps = (item: Variation) => {
         const name = item.getName();
-        const list = item.getStyles()?.map((style) => ({
-            label: style.getName(),
-            value: style.getID(),
-        }));
+        const list = item
+            .getStyles()
+            ?.map((style) => ({
+                label: style.getName(),
+                value: style.getID(),
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label));
 
         const value = args[name];
         const label = item
@@ -148,6 +158,16 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
                     {Story && <Story {...args} />}
+                    {storyItems.length > 1 && (
+                        <StyledStorySelector>
+                            <SegmentButton
+                                label="История"
+                                items={storyItems}
+                                selected={selectedStory}
+                                onSelect={onStorySelect}
+                            />
+                        </StyledStorySelector>
+                    )}
                 </StyledComponentWrapper>
                 <StyledComponentControls>
                     {variations.map(renderDynamicProps)}

@@ -24,7 +24,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const config = configs?.[0];
 
-    const { storyArgs, Story } = useStory(config?.getName());
+    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getName());
 
     const [
         selectedVariation,
@@ -147,11 +147,14 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 config={config}
                 args={componentProps}
                 storyArgs={storyArgs}
+                storyItems={storyItems}
+                selectedStory={selectedStory}
                 Story={Story}
                 componentVars={componentVars}
                 themeVars={themeVars}
                 themeModeList={modeList}
                 themeMode={themeMode}
+                onStorySelect={setSelectedStory}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
             />
