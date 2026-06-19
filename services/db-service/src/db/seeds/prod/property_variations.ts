@@ -201,6 +201,12 @@ export async function seedPropertyVariations(
             { propertyId: p.swi_thumbBorderColorOn.id, variationId: v.switchComponentView.id },
             { propertyId: p.swi_thumbBoxShadow.id, variationId: v.switchComponentView.id },
             { propertyId: p.swi_thumbBorderWidth.id, variationId: v.switchComponentToggleSize.id },
+
+            // ── Skeleton ──────────────────────────────────────────────────────────
+            { propertyId: p.ske_fadeOutColor.id, variationId: v.skeletonView.id },
+            { propertyId: p.ske_fadeInColor.id, variationId: v.skeletonView.id },
+            { propertyId: p.ske_lineHeight.id, variationId: v.skeletonSize.id },
+            { propertyId: p.ske_visibleLineHeight.id, variationId: v.skeletonSize.id },
         ])
         .onConflictDoNothing()
         .returning();

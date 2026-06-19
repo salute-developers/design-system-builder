@@ -17,12 +17,25 @@ export async function seedAppearances(
             spinner: any;
             chip: any;
             switchComponent: any;
+            skeleton: any;
         };
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
-        ctx.components;
+    const {
+        iconButton,
+        button,
+        link,
+        checkbox,
+        radiobox,
+        counter,
+        indicator,
+        badge,
+        spinner,
+        chip,
+        switchComponent,
+        skeleton,
+    } = ctx.components;
 
     const values = [
         { designSystemId: base.id, componentId: iconButton.id, name: 'default' },
@@ -36,6 +49,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: spinner.id, name: 'default' },
         { designSystemId: base.id, componentId: chip.id, name: 'default' },
         { designSystemId: base.id, componentId: switchComponent.id, name: 'default' },
+        { designSystemId: base.id, componentId: skeleton.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -53,6 +67,7 @@ export async function seedAppearances(
         spinner.id,
         chip.id,
         switchComponent.id,
+        skeleton.id,
     ];
     const rows = await db
         .select()
@@ -75,6 +90,7 @@ export async function seedAppearances(
         base_spi_default: findByComp(spinner.id),
         base_chi_default: findByComp(chip.id),
         base_swi_default: findByComp(switchComponent.id),
+        base_ske_default: findByComp(skeleton.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);
