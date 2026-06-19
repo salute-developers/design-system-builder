@@ -126,7 +126,7 @@ function addComponentType(content: string, varName: string): string {
  * Add a destructured member to `const { ... } = ctx.components`.
  */
 function addComponentDestructure(content: string, varName: string): string {
-    return content.replace(/(const \{)([^}]*?)(\s*} = ctx\.components)/, (_m, open, body, close) => {
+    return content.replace(/(const \{)([^}]*?)(\s*}\s*=\s*ctx\.components)/, (_m, open, body, close) => {
         const trimmed = body.replace(/\s+$/, '');
         const sep = trimmed.endsWith(',') ? '' : ',';
         return `${open}${trimmed}${sep} ${varName}${close}`;
