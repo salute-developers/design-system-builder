@@ -2,7 +2,7 @@ import { Fragment, MouseEvent, useMemo, useState } from 'react';
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 import { IconDotsHorizontalOutline, IconPlus } from '@salutejs/plasma-icons';
 
-import { DesignSystem, Theme, Config, PropType, PropUnion } from '../../../../controllers';
+import { DesignSystem, Theme, Config, PropType, PropState, PropUnion, State } from '../../../../controllers';
 import { SelectButtonItem, TextField, IconButton } from '../../../../components';
 
 import {
@@ -10,24 +10,37 @@ import {
     StyledPropsGroupName,
     StyledPropList,
     StyledProp,
+    StyledPropFields,
     StyledPropContentRight,
     StyledSelectButton,
     StyledDropdown,
     StyledPropLabel,
+    StyledStatePropLabel,
 } from './ComponentEditorProperties.styles';
 import {
     getPropList,
     getAllowedProps,
     propTypeMap,
     getColorsTokens,
+    getColorStateTokens,
+    colorStates,
     getShapesTokens,
     getShadowsTokens,
     getTypographyTokens,
-    propMenuList,
+    getPropMenuList,
+    ADD_STATE_ACTION,
+    REMOVE_STATE_ACTION,
     PropMenuItem,
 } from './ComponentEditorProperties.utils';
 
-const renderComponentProp = (prop: PropUnion, onChange: (param: SelectButtonItem | string) => void, theme: Theme) => {
+interface RenderComponentPropParams {
+    prop: PropUnion;
+    theme: Theme;
+    onChange: (param: SelectButtonItem | string) => void;
+    onStateChange: (state: PropState) => (param: SelectButtonItem | string) => void;
+}
+
+const renderComponentProp = ({ prop, theme, onChange, onStateChange }: RenderComponentPropParams) => {
     const propType = prop.getType();
     const propValue = prop.getValue();
     const propName = upperFirstLetter(prop.getName());
@@ -52,7 +65,45 @@ const renderComponentProp = (prop: PropUnion, onChange: (param: SelectButtonItem
         return [];
     };
 
-    if (propType === 'shape' || propType === 'color' || propType === 'typography' || propType === 'shadow') {
+    if (propType === 'color') {
+        const items = getItems(propType);
+        const selectedItem = items.find((item) => item.value === propValue);
+        const states = prop.getStates() ?? [];
+
+        return (
+            <StyledPropFields>
+                <StyledSelectButton
+                    hasSearch
+                    autoAlign={false}
+                    label={<StyledPropLabel>{propName}</StyledPropLabel>}
+                    items={items}
+                    selected={selectedItem}
+                    onItemSelect={onChange}
+                />
+                {colorStates
+                    .filter(({ state }) => states.some((item) => item.state[0] === state))
+                    .map(({ state, label, suffix }) => {
+                        const stateItems = getColorStateTokens(suffix, theme);
+                        const stateValue = states.find((item) => item.state[0] === state)?.value;
+                        const selectedStateItem = stateItems.find((item) => item.value === stateValue);
+
+                        return (
+                            <StyledSelectButton
+                                key={`state_${state}`}
+                                hasSearch
+                                autoAlign={false}
+                                label={<StyledStatePropLabel>{label}</StyledStatePropLabel>}
+                                items={stateItems}
+                                selected={selectedStateItem}
+                                onItemSelect={onStateChange(state)}
+                            />
+                        );
+                    })}
+            </StyledPropFields>
+        );
+    }
+
+    if (propType === 'shape' || propType === 'typography' || propType === 'shadow') {
         const items = getItems(propType);
         const selectedItem = items.find((item) => item.value === propValue);
 
@@ -130,6 +181,22 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
         onConfigUpdate();
     };
 
+    const onPropStateChange = (prop: PropUnion) => (state: PropState) => (param: SelectButtonItem | string) => {
+        const propID = prop.getID();
+        const value = typeof param === 'string' ? param : param.value;
+
+        const hasState = prop.getStates()?.some((item) => item.state[0] === state);
+        const newState: State = { state: [state], value };
+
+        if (hasState) {
+            config.updateTokenState(propID, state, newState, variationID, styleID);
+        } else {
+            config.addTokenState(propID, newState, variationID, styleID);
+        }
+
+        onConfigUpdate();
+    };
+
     const onPropTypeMenuSelect = (item: (typeof allowedProps)[number]) => {
         config.addToken(item.value, undefined as any, api, variationID, styleID);
 
@@ -156,6 +223,23 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
 
         if (item.value === 'delete_prop') {
             config.removeToken(propID, variationID, styleID);
+        }
+
+        if (item.value.startsWith(`${ADD_STATE_ACTION}:`)) {
+            const [, state] = item.value.split(':');
+            const suffix = colorStates.find((s) => s.state === state)?.suffix;
+            const propValue = prop.getValue();
+
+            const value =
+                suffix && typeof propValue === 'string' ? `${propValue}${suffix}` : undefined;
+
+            config.addTokenState(propID, { state: [state as PropState], value }, variationID, styleID);
+        }
+
+        if (item.value.startsWith(`${REMOVE_STATE_ACTION}:`)) {
+            const [, state] = item.value.split(':');
+
+            config.removeTokenState(propID, state, variationID, styleID);
         }
 
         onConfigUpdate();
@@ -194,7 +278,12 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
                     <StyledPropList>
                         {item.props.map((prop) => (
                             <StyledProp key={`prop_${prop.getName()}`}>
-                                {renderComponentProp(prop, onPropValueChange(prop), theme)}
+                                {renderComponentProp({
+                                    prop,
+                                    theme,
+                                    onChange: onPropValueChange(prop),
+                                    onStateChange: onPropStateChange(prop),
+                                })}
                                 <StyledPropContentRight canShow={propNameWithDropdown === prop.getName()}>
                                     <IconButton onClick={onPropMenuOpen(prop.getName())}>
                                         <IconDotsHorizontalOutline size="xs" color="inherit" />
@@ -202,7 +291,7 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
                                     {propNameWithDropdown === prop.getName() && (
                                         <StyledDropdown
                                             autoAlign={false}
-                                            items={propMenuList}
+                                            items={getPropMenuList(prop)}
                                             onItemSelect={(value) => onPropMenuSelect(value as PropMenuItem, prop)}
                                             onClose={onPropMenuClose}
                                         />

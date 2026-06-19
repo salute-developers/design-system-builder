@@ -44,10 +44,15 @@ export const StyledProp = styled.div`
 
     display: flex;
     flex-direction: row;
+    align-items: flex-start;
     gap: 0.25rem;
 
     color: ${textTertiary};
     ${h6 as CSSObject};
+
+    > div:nth-child(2) {
+        align-self: flex-start;
+    }
 
     &:hover > div:nth-child(2) {
         display: flex;
@@ -111,6 +116,23 @@ export const StyledSelectButton = styled(SelectButton)`
     top: 0;
     // TODO: Убрать, когда будут нормальные отступы
     margin-right: -0.25rem;
+`;
+
+export const StyledPropFields = styled.div`
+    min-width: 0;
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+`;
+
+export const StyledStatePropLabel = styled.div`
+    width: 8.75rem;
+    padding-left: 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    whitespace: nowrap;
 `;
 
 export const StyledDropdown = styled(Dropdown)`

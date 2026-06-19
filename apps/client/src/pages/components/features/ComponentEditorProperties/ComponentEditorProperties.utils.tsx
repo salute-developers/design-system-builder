@@ -1,6 +1,6 @@
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
-import { Config, Theme, ComponentAPI, ComponentVariation, PropType, PropUnion } from '../../../../controllers';
+import { Config, Theme, ComponentAPI, ComponentVariation, PropType, PropState, PropUnion } from '../../../../controllers';
 
 import { ListItemPreviewWrapper, ListItemColorPreview, ListItemTypographyPreview, ListItemShapePreview, ListItemShadowPreview } from './ComponentEditorProperties.styles';
 
@@ -141,6 +141,49 @@ export const getColorsTokens = (theme?: Theme) => {
     return items;
 };
 
+// Состояния, которые можно настроить у color-пропса, и суффикс производного токена темы.
+export const colorStates: { state: PropState; label: string; suffix: string }[] = [
+    { state: 'hovered', label: 'Hover', suffix: '-hover' },
+    { state: 'pressed', label: 'Active', suffix: '-active' },
+];
+
+export const getColorStateTokens = (suffix: string, theme?: Theme) => {
+    if (!theme) {
+        return [];
+    }
+
+    const colors = theme.getTokens('color');
+
+    return colors
+        .filter(
+            (item) =>
+                item.getEnabled() &&
+                item.getTags()[0] === 'dark' &&
+                !item.getName().includes('hover') &&
+                !item.getName().includes('active') &&
+                !item.getName().includes('brightness'),
+        )
+        .map((item) => {
+            const [, ...name] = item.getName().split('.');
+            const baseName = name.join('.');
+            const stateName = `${baseName}${suffix}`;
+
+            const darkValue = theme.getTokenValue(['dark', stateName].join('.'), 'color', 'web') || item.getValue('web');
+            const lightValue = theme.getTokenValue(['light', stateName].join('.'), 'color', 'web') || darkValue;
+
+            return {
+                label: baseName,
+                value: stateName,
+                contentRight: (
+                    <ListItemPreviewWrapper>
+                        <ListItemColorPreview color={getRestoredColorFromPalette(darkValue)} />
+                        <ListItemColorPreview color={getRestoredColorFromPalette(lightValue)} />
+                    </ListItemPreviewWrapper>
+                ),
+            };
+        });
+};
+
 export const getShapesTokens = (theme?: Theme) => {
     if (!theme) {
         return [];
@@ -223,7 +266,13 @@ export const getTypographyTokens = (theme?: Theme) => {
     return items;
 };
 
-export const propMenuList = [
+export interface PropMenuItem {
+    label: string;
+    value: string;
+    disabled: boolean;
+}
+
+export const propMenuList: PropMenuItem[] = [
     {
         label: 'Корректировка',
         value: 'set_adjustment',
@@ -239,6 +288,27 @@ export const propMenuList = [
         value: 'delete_prop',
         disabled: false,
     },
-] as const;
+];
 
-export type PropMenuItem = (typeof propMenuList)[number];
+// Префиксы пунктов меню для работы с состояниями; полное значение — `<action>:<PropState>`.
+export const ADD_STATE_ACTION = 'add_state';
+export const REMOVE_STATE_ACTION = 'remove_state';
+
+export const getPropMenuList = (prop: PropUnion): PropMenuItem[] => {
+    if (prop.getType() !== 'color') {
+        return propMenuList;
+    }
+
+    const states = prop.getStates() ?? [];
+    const hasBaseValue = typeof prop.getValue() === 'string' && prop.getValue() !== '';
+
+    const stateItems = colorStates.map(({ state, label }) => {
+        const hasState = states.some((item) => item.state[0] === state);
+
+        return hasState
+            ? { label: `Удалить ${label}`, value: `${REMOVE_STATE_ACTION}:${state}`, disabled: false }
+            : { label: `Добавить ${label}`, value: `${ADD_STATE_ACTION}:${state}`, disabled: !hasBaseValue };
+    });
+
+    return [...propMenuList, ...stateItems];
+};
