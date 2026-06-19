@@ -17,6 +17,7 @@ export async function seedProperties(
             chip: any;
             switchComponent: any;
             skeleton: any;
+            list: any;
         };
     },
 ) {
@@ -33,6 +34,7 @@ export async function seedProperties(
         chip,
         switchComponent,
         skeleton,
+        list,
     } = ctx.components;
 
     const rows = await db
@@ -1137,6 +1139,137 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── List ──────────────────────────────────────────────────────────
+            { componentId: list.id, name: 'listGap', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: list.id, name: 'listBackground', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: list.id,
+                name: 'listPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemPaddingRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemPaddingBottom',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemBorderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: list.id, name: 'listItemColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: list.id,
+                name: 'listItemDividerColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listDisabledOpacity',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemBackground',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemPaddingLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemPaddingTop',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemContentPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemBorderWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemFocusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemDividerWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'listItemTightDifference',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: list.id,
+                name: 'litItemStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1712,6 +1845,38 @@ export async function seedProperties(
     addPlatformParams(findSkeleton('gradientColor').id, { web: ['gradientColor'] });
     addPlatformParams(findSkeleton('fadeInColor').id, { web: ['fadeInColor'] });
     addPlatformParams(findSkeleton('lineHeight').id, { web: ['lineHeight'] });
+    // List
+    const findList = (name: string) => rows.find((r: any) => r.componentId === list.id && r.name === name)!;
+    addPlatformParams(findList('listGap').id, { web: ['listGap'] });
+    addPlatformParams(findList('listBackground').id, { web: ['listBackground'] });
+    addPlatformParams(findList('listPadding').id, { web: ['listPadding'] });
+    addPlatformParams(findList('listItemBorderRadius').id, { web: ['listItemBorderRadius'] });
+    addPlatformParams(findList('listItemPaddingRight').id, { web: ['listItemPaddingRight'] });
+    addPlatformParams(findList('listItemPaddingBottom').id, { web: ['listItemPaddingBottom'] });
+    addPlatformParams(findList('listItemBorderColor').id, { web: ['listItemBorderColor'] });
+    addPlatformParams(findList('listItemGap').id, { web: ['listItemGap'] });
+    addPlatformParams(findList('listItemColor').id, { web: ['listItemColor'] });
+    addPlatformParams(findList('listItemDividerColor').id, { web: ['listItemDividerColor'] });
+    addPlatformParams(findList('listDisabledOpacity').id, { web: ['listDisabledOpacity'] });
+    addPlatformParams(findList('listBorderRadius').id, { web: ['listBorderRadius'] });
+    addPlatformParams(findList('listItemBackground').id, { web: ['listItemBackground'] });
+    addPlatformParams(findList('listItemPaddingLeft').id, { web: ['listItemPaddingLeft'] });
+    addPlatformParams(findList('listItemPaddingTop').id, { web: ['listItemPaddingTop'] });
+    addPlatformParams(findList('listItemContentPadding').id, { web: ['listItemContentPadding'] });
+    addPlatformParams(findList('listItemBorderWidth').id, { web: ['listItemBorderWidth'] });
+    addPlatformParams(findList('listItemFocusColor').id, { web: ['listItemFocusColor'] });
+    addPlatformParams(findList('listItemDividerWidth').id, { web: ['listItemDividerWidth'] });
+    addPlatformParams(findList('listItemTightDifference').id, { web: ['listItemTightDifference'] });
+    addPlatformParams(findList('litItemStyle').id, {
+        web: [
+            'listItemFontFamily',
+            'listItemFontSize',
+            'listItemFontStyle',
+            'listItemFontWeight',
+            'listItemLetterSpacing',
+            'listItemLineHeight',
+        ],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1919,6 +2084,28 @@ export async function seedProperties(
         ske_gradientColor: findSkeleton('gradientColor'),
         ske_fadeInColor: findSkeleton('fadeInColor'),
         ske_lineHeight: findSkeleton('lineHeight'),
+        // List
+        lis_listGap: findList('listGap'),
+        lis_listBackground: findList('listBackground'),
+        lis_listPadding: findList('listPadding'),
+        lis_listItemBorderRadius: findList('listItemBorderRadius'),
+        lis_listItemPaddingRight: findList('listItemPaddingRight'),
+        lis_listItemPaddingBottom: findList('listItemPaddingBottom'),
+        lis_listItemBorderColor: findList('listItemBorderColor'),
+        lis_listItemGap: findList('listItemGap'),
+        lis_listItemColor: findList('listItemColor'),
+        lis_listItemDividerColor: findList('listItemDividerColor'),
+        lis_listDisabledOpacity: findList('listDisabledOpacity'),
+        lis_listBorderRadius: findList('listBorderRadius'),
+        lis_listItemBackground: findList('listItemBackground'),
+        lis_listItemPaddingLeft: findList('listItemPaddingLeft'),
+        lis_listItemPaddingTop: findList('listItemPaddingTop'),
+        lis_listItemContentPadding: findList('listItemContentPadding'),
+        lis_listItemBorderWidth: findList('listItemBorderWidth'),
+        lis_listItemFocusColor: findList('listItemFocusColor'),
+        lis_listItemDividerWidth: findList('listItemDividerWidth'),
+        lis_listItemTightDifference: findList('listItemTightDifference'),
+        lis_litItemStyle: findList('litItemStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

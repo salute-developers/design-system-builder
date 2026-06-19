@@ -38,7 +38,7 @@ const componentList = [
             { name: 'Image', disabled: true },
             { name: 'Indicator', disabled: false },
             { name: 'InformationWrapper', disabled: true },
-            { name: 'List', disabled: true },
+            { name: 'List', disabled: false },
             { name: 'Mask', disabled: true },
             { name: 'Note', disabled: true },
             { name: 'Price', disabled: true },

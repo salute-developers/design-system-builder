@@ -12,6 +12,7 @@ export async function seedInvariantPropertyValues(
             radiobox: any;
             chip: any;
             switchComponent: any;
+            list: any;
         };
         appearances: Record<string, any>;
         properties: Record<string, any>;
@@ -19,7 +20,7 @@ export async function seedInvariantPropertyValues(
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent, list } = ctx.components;
     const a = ctx.appearances;
     const p = ctx.properties;
     const t = ctx.tokenMap;
@@ -159,6 +160,23 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: switchComponent.id,
                 appearanceId: a.base_swi_default.id,
+                value: 'surface.default.accent',
+                state: null,
+            },
+            // List
+            {
+                propertyId: p.lis_listDisabledOpacity.id,
+                designSystemId: base.id,
+                componentId: list.id,
+                appearanceId: a.base_lis_default.id,
+                value: '0.4',
+                state: null,
+            },
+            {
+                propertyId: p.lis_listItemFocusColor.id,
+                designSystemId: base.id,
+                componentId: list.id,
+                appearanceId: a.base_lis_default.id,
                 value: 'surface.default.accent',
                 state: null,
             },

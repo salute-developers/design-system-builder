@@ -642,6 +642,14 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── List ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.listSize.id, name: 'xs', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.listSize.id, name: 'xl', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.listSize.id, name: 'm', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.listSize.id, name: 'l', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.listView.id, name: 'default', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.listSize.id, name: 's', description: '', isDefault: true },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -780,6 +788,13 @@ export async function seedStyles(
         base_ske_size_bodyL: find(v.skeletonSize.id, 'bodyL'),
         base_ske_size_h6: find(v.skeletonSize.id, 'h6'),
         base_ske_size_bodyXS: find(v.skeletonSize.id, 'bodyXS'),
+        // List
+        base_lis_size_xs: find(v.listSize.id, 'xs'),
+        base_lis_size_xl: find(v.listSize.id, 'xl'),
+        base_lis_size_m: find(v.listSize.id, 'm'),
+        base_lis_size_l: find(v.listSize.id, 'l'),
+        base_lis_view_default: find(v.listView.id, 'default'),
+        base_lis_size_s: find(v.listSize.id, 's'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

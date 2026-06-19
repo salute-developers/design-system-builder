@@ -10,3 +10,4 @@ export { seedSpinnerComponent } from './spinner';
 export { seedChipComponent } from './chip';
 export { seedSwitchComponent } from './switchComponent';
 export { seedSkeletonComponent } from './skeleton';
+export { seedListComponent } from './list';
