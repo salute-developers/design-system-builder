@@ -16,11 +16,24 @@ export async function seedProperties(
             spinner: any;
             chip: any;
             switchComponent: any;
+            skeleton: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
-        ctx.components;
+    const {
+        iconButton,
+        button,
+        link,
+        checkbox,
+        radiobox,
+        counter,
+        indicator,
+        badge,
+        spinner,
+        chip,
+        switchComponent,
+        skeleton,
+    } = ctx.components;
 
     const rows = await db
         .insert(schema.properties)
@@ -1073,6 +1086,57 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Skeleton ──────────────────────────────────────────────────────────
+            {
+                componentId: skeleton.id,
+                name: 'visibleLineHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'pulseDuration',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'fadeOutColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'shimmerDuration',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'gradientColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'fadeInColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: skeleton.id,
+                name: 'lineHeight',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1639,6 +1703,15 @@ export async function seedProperties(
     addPlatformParams(findSwitch('descriptionMaxLines').id, { web: ['descriptionMaxLines'] });
     addPlatformParams(findSwitch('thumbPressScale').id, { web: ['thumbScale'] });
     addPlatformParams(findSwitch('thumbBoxShadow').id, { web: ['thumbBoxShadow'] });
+    // Skeleton
+    const findSkeleton = (name: string) => rows.find((r: any) => r.componentId === skeleton.id && r.name === name)!;
+    addPlatformParams(findSkeleton('visibleLineHeight').id, { web: ['visibleLineHeight'] });
+    addPlatformParams(findSkeleton('pulseDuration').id, { web: ['pulseDuration'] });
+    addPlatformParams(findSkeleton('fadeOutColor').id, { web: ['fadeOutColor'] });
+    addPlatformParams(findSkeleton('shimmerDuration').id, { web: ['shimmerDuration'] });
+    addPlatformParams(findSkeleton('gradientColor').id, { web: ['gradientColor'] });
+    addPlatformParams(findSkeleton('fadeInColor').id, { web: ['fadeInColor'] });
+    addPlatformParams(findSkeleton('lineHeight').id, { web: ['lineHeight'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -1838,6 +1911,14 @@ export async function seedProperties(
         swi_descriptionMaxLines: findSwitch('descriptionMaxLines'),
         swi_thumbPressScale: findSwitch('thumbPressScale'),
         swi_thumbBoxShadow: findSwitch('thumbBoxShadow'),
+        // Skeleton
+        ske_visibleLineHeight: findSkeleton('visibleLineHeight'),
+        ske_pulseDuration: findSkeleton('pulseDuration'),
+        ske_fadeOutColor: findSkeleton('fadeOutColor'),
+        ske_shimmerDuration: findSkeleton('shimmerDuration'),
+        ske_gradientColor: findSkeleton('gradientColor'),
+        ske_fadeInColor: findSkeleton('fadeInColor'),
+        ske_lineHeight: findSkeleton('lineHeight'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

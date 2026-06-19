@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { SelectButtonItem } from '../components';
 import {
     IconButtonStories,
     LinkStories,
@@ -12,6 +13,7 @@ import {
     SpinnerStories,
     ChipStories,
     SwitchStories,
+    SkeletonStories,
 } from '../stories';
 
 interface Story {
@@ -33,13 +35,18 @@ const componentMapper: Record<string, Story[]> = {
     Spinner: SpinnerStories,
     Chip: ChipStories,
     Switch: SwitchStories,
+    Skeleton: SkeletonStories,
 };
 
 export const useStory = (componentName?: string) => {
-    const [selectedStory, setSelectedStory] = useState({ value: 'Default', label: 'Default' });
+    const [selectedStory, setSelectedStory] = useState<SelectButtonItem>({ value: 'Default', label: 'Default' });
 
     const stories = (componentName && componentMapper[componentName]) || [];
-    const items = stories.map(({ name }) => ({ value: name, label: name }));
+    const items: SelectButtonItem[] = stories.map(({ name }) => ({ value: name, label: name }));
+
+    useEffect(() => {
+        setSelectedStory({ value: 'Default', label: 'Default' });
+    }, [componentName]);
 
     const story = useMemo(
         () => stories.find(({ name }) => name === selectedStory.value),

@@ -16,11 +16,24 @@ export async function seedVariations(
             spinner: any;
             chip: any;
             switchComponent: any;
+            skeleton: any;
         };
     },
 ) {
-    const { iconButton, button, link, checkbox, radiobox, counter, indicator, badge, spinner, chip, switchComponent } =
-        ctx.components;
+    const {
+        iconButton,
+        button,
+        link,
+        checkbox,
+        radiobox,
+        counter,
+        indicator,
+        badge,
+        spinner,
+        chip,
+        switchComponent,
+        skeleton,
+    } = ctx.components;
 
     const rows = await db
         .insert(schema.variations)
@@ -63,6 +76,9 @@ export async function seedVariations(
             { componentId: switchComponent.id, name: 'size', description: 'Размер.' },
             { componentId: switchComponent.id, name: 'view', description: 'Вид.' },
             { componentId: switchComponent.id, name: 'toggleSize', description: 'Размер переключателя.' },
+            // Skeleton
+            { componentId: skeleton.id, name: 'view', description: 'Вид.' },
+            { componentId: skeleton.id, name: 'size', description: 'Размер.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -106,6 +122,9 @@ export async function seedVariations(
         switchComponentSize: find(switchComponent.id, 'size'),
         switchComponentView: find(switchComponent.id, 'view'),
         switchComponentToggleSize: find(switchComponent.id, 'toggleSize'),
+        // Skeleton
+        skeletonView: find(skeleton.id, 'view'),
+        skeletonSize: find(skeleton.id, 'size'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
