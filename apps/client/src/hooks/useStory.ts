@@ -14,6 +14,7 @@ import {
     ChipStories,
     SwitchStories,
     SkeletonStories,
+    ListStories,
 } from '../stories';
 
 interface Story {
@@ -36,6 +37,7 @@ const componentMapper: Record<string, Story[]> = {
     Chip: ChipStories,
     Switch: SwitchStories,
     Skeleton: SkeletonStories,
+    List: ListStories,
 };
 
 export const useStory = (componentName?: string) => {

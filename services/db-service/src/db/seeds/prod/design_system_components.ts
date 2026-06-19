@@ -17,6 +17,7 @@ export async function seedDesignSystemComponents(
             chip: any;
             switchComponent: any;
             skeleton: any;
+            list: any;
         };
     },
 ) {
@@ -34,6 +35,7 @@ export async function seedDesignSystemComponents(
         chip,
         switchComponent,
         skeleton,
+        list,
     } = ctx.components;
 
     const rows = await db
@@ -51,6 +53,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: chip.id },
             { designSystemId: base.id, componentId: switchComponent.id },
             { designSystemId: base.id, componentId: skeleton.id },
+            { designSystemId: base.id, componentId: list.id },
         ])
         .onConflictDoNothing()
         .returning();

@@ -17,6 +17,7 @@ import {
     seedChipComponent,
     seedSwitchComponent,
     seedSkeletonComponent,
+    seedListComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -178,6 +179,7 @@ async function seed() {
         chip: await seedChipComponent(db),
         switchComponent: await seedSwitchComponent(db),
         skeleton: await seedSkeletonComponent(db),
+        list: await seedListComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -195,6 +197,7 @@ async function seed() {
         Chip: 'chip',
         Switch: 'switchComponent',
         Skeleton: 'skeleton',
+        List: 'list',
     };
 
     let componentIdsToReseed: string[];
