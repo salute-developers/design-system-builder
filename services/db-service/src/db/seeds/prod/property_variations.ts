@@ -207,6 +207,27 @@ export async function seedPropertyVariations(
             { propertyId: p.ske_fadeInColor.id, variationId: v.skeletonView.id },
             { propertyId: p.ske_lineHeight.id, variationId: v.skeletonSize.id },
             { propertyId: p.ske_visibleLineHeight.id, variationId: v.skeletonSize.id },
+
+            // ── List ──────────────────────────────────────────────────────────
+            { propertyId: p.lis_listItemColor.id, variationId: v.listView.id },
+            { propertyId: p.lis_listItemBackground.id, variationId: v.listView.id },
+            { propertyId: p.lis_listItemBorderColor.id, variationId: v.listView.id },
+            { propertyId: p.lis_listGap.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemPaddingRight.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemPaddingBottom.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemPaddingLeft.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemPaddingTop.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemBorderRadius.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemBorderWidth.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemGap.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemTightDifference.id, variationId: v.listSize.id },
+            { propertyId: p.lis_litItemStyle.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemDividerWidth.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listBackground.id, variationId: v.listView.id },
+            { propertyId: p.lis_listPadding.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemDividerColor.id, variationId: v.listView.id },
+            { propertyId: p.lis_listBorderRadius.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemContentPadding.id, variationId: v.listSize.id },
         ])
         .onConflictDoNothing()
         .returning();
