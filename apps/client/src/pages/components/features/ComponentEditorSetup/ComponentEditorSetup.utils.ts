@@ -7,11 +7,13 @@ export const isDefaultStyle = (config: Config, variationID: string, styleID: str
 
 export const getVariations = (config: Config) => {
     const variations = config.getVariations().map((variation) => {
-        const propValues = (variation.getStyles() || []).map((style) => ({
-            label: style.getName(),
-            value: style.getID(),
-            isDefault: isDefaultStyle(config, variation.getID(), style.getID()),
-        }));
+        const propValues = (variation.getStyles() || [])
+            .map((style) => ({
+                label: style.getName(),
+                value: style.getID(),
+                isDefault: isDefaultStyle(config, variation.getID(), style.getID()),
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label));
 
         return {
             label: variation.getName(),
