@@ -20,6 +20,7 @@ export async function seedAppearances(
             skeleton: any;
             list: any;
             linkButton: any;
+            embedIconButton: any;
         };
     },
 ) {
@@ -39,6 +40,7 @@ export async function seedAppearances(
         skeleton,
         list,
         linkButton,
+        embedIconButton,
     } = ctx.components;
 
     const values = [
@@ -56,6 +58,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: skeleton.id, name: 'default' },
         { designSystemId: base.id, componentId: list.id, name: 'default' },
         { designSystemId: base.id, componentId: linkButton.id, name: 'default' },
+        { designSystemId: base.id, componentId: embedIconButton.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -76,6 +79,7 @@ export async function seedAppearances(
         skeleton.id,
         list.id,
         linkButton.id,
+        embedIconButton.id,
     ];
     const rows = await db
         .select()
@@ -101,6 +105,7 @@ export async function seedAppearances(
         base_ske_default: findByComp(skeleton.id),
         base_lis_default: findByComp(list.id),
         base_lin_default: findByComp(linkButton.id),
+        base_emb_default: findByComp(embedIconButton.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);

@@ -59,6 +59,19 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const variations = config.getVariations();
 
+    const storyArgsValue = useMemo(() => {
+        const styleNameByID = new Map(
+            variations.flatMap((variation) => variation.getStyles()?.map((style) => [style.getID(), style.getName()]) ?? []),
+        );
+
+        return Object.fromEntries(
+            Object.entries(args).map(([name, value]) => [
+                name,
+                typeof value === 'string' && styleNameByID.has(value) ? styleNameByID.get(value)! : value,
+            ]),
+        );
+    }, [args, variations]);
+
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
     const switchBackground = useMemo(
         () =>
@@ -157,7 +170,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
-                    {Story && <Story {...args} />}
+                    {Story && <Story {...storyArgsValue} />}
                     {storyItems.length > 1 && (
                         <StyledStorySelector>
                             <SegmentButton

@@ -725,6 +725,78 @@ export async function seedStyles(
                 isDefault: false,
             },
             { designSystemId: base.id, variationId: v.linkButtonSize.id, name: 's', description: '', isDefault: false },
+
+            // ── EmbedIconButton ──────────────────────────────────────────────────────────
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'secondary',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'warning',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonSize.id,
+                name: 'l',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'info',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonSize.id,
+                name: 'm',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonView.id,
+                name: 'accent',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.embedIconButtonSize.id,
+                name: 's',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -884,6 +956,17 @@ export async function seedStyles(
         base_lin_view_default: find(v.linkButtonView.id, 'default'),
         base_lin_size_xs: find(v.linkButtonSize.id, 'xs'),
         base_lin_size_s: find(v.linkButtonSize.id, 's'),
+        // EmbedIconButton
+        base_emb_view_secondary: find(v.embedIconButtonView.id, 'secondary'),
+        base_emb_view_positive: find(v.embedIconButtonView.id, 'positive'),
+        base_emb_view_warning: find(v.embedIconButtonView.id, 'warning'),
+        base_emb_size_l: find(v.embedIconButtonSize.id, 'l'),
+        base_emb_view_negative: find(v.embedIconButtonView.id, 'negative'),
+        base_emb_view_info: find(v.embedIconButtonView.id, 'info'),
+        base_emb_size_m: find(v.embedIconButtonSize.id, 'm'),
+        base_emb_view_default: find(v.embedIconButtonView.id, 'default'),
+        base_emb_view_accent: find(v.embedIconButtonView.id, 'accent'),
+        base_emb_size_s: find(v.embedIconButtonSize.id, 's'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
