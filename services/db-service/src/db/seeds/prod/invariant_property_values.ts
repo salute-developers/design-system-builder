@@ -14,6 +14,7 @@ export async function seedInvariantPropertyValues(
             switchComponent: any;
             list: any;
             linkButton: any;
+            embedIconButton: any;
         };
         appearances: Record<string, any>;
         properties: Record<string, any>;
@@ -21,7 +22,8 @@ export async function seedInvariantPropertyValues(
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent, list, linkButton } = ctx.components;
+    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent, list, linkButton, embedIconButton } =
+        ctx.components;
     const a = ctx.appearances;
     const p = ctx.properties;
     const t = ctx.tokenMap;
@@ -196,6 +198,23 @@ export async function seedInvariantPropertyValues(
                 componentId: linkButton.id,
                 appearanceId: a.base_lin_default.id,
                 value: 'text.default.accent',
+                state: null,
+            },
+            // EmbedIconButton
+            {
+                propertyId: p.emb_embedIconButtonFocusColor.id,
+                designSystemId: base.id,
+                componentId: embedIconButton.id,
+                appearanceId: a.base_emb_default.id,
+                value: 'surface.default.accent',
+                state: null,
+            },
+            {
+                propertyId: p.emb_embedIconButtonDisabledAlpha.id,
+                designSystemId: base.id,
+                componentId: embedIconButton.id,
+                appearanceId: a.base_emb_default.id,
+                value: '0.4',
                 state: null,
             },
         ])

@@ -12,8 +12,6 @@ export interface DropdownItem<T extends string = string, U extends ReactNode = R
 interface DropdownProps<T extends DropdownItem> {
     selected?: T;
     items: ReadonlyArray<T> | T[];
-    maxHeight?: number;
-    visibleItems?: number;
     autoAlign?: boolean;
     beforeList?: ReactNode;
     onItemSelect?: (value: T) => void;
@@ -27,8 +25,6 @@ export const Dropdown = <T extends DropdownItem>(props: DropdownProps<T>) => {
         items,
         selected,
         autoAlign = true,
-        maxHeight = 252,
-        visibleItems = 4,
         beforeList,
         onItemSelect,
         onClose,
@@ -72,16 +68,13 @@ export const Dropdown = <T extends DropdownItem>(props: DropdownProps<T>) => {
         const container = itemsRef.current;
         const target = itemRefs.current[`${selected.label}_${selected.value}`];
 
-        if (!autoAlign && target) {
-            target.scrollIntoView({
-                block: 'center',
-                inline: 'center',
-            });
-
+        if (!container) {
             return;
         }
 
-        if (!container) {
+        if (!autoAlign) {
+            container.style.top = '100%';
+
             return;
         }
 
@@ -91,21 +84,17 @@ export const Dropdown = <T extends DropdownItem>(props: DropdownProps<T>) => {
             return;
         }
 
-        const itemHeight = target.offsetHeight;
         const itemTop = target.offsetTop;
 
-        const maxDropdownHeight = maxHeight - visibleItems * itemHeight;
-        const remainingSpace = container.scrollHeight - itemTop;
+        // Накладываем дропдаун на триггер так, чтобы выбранный элемент оказался напротив него.
+        // Если контент длиннее видимой области — скроллим к выбранному и не уводим контейнер
+        // выше его начала (иначе сверху появится пустота).
+        const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const scrollTop = Math.min(itemTop, maxScrollTop);
 
-        const extraHeight =
-            remainingSpace <= (visibleItems - 1) * itemHeight
-                ? (visibleItems - Math.floor(remainingSpace / itemHeight)) * itemHeight
-                : 0;
-        const height = maxDropdownHeight + extraHeight;
-
-        container.style.top = `-${Math.min(itemTop, height)}px`;
-        container.scrollTop = Math.max(0, itemTop - height);
-    }, [autoAlign, selected, maxHeight, visibleItems]);
+        container.style.top = `-${itemTop - scrollTop}px`;
+        container.scrollTop = scrollTop;
+    }, [autoAlign, selected]);
 
     useEffect(() => {
         const onDocumentClick = (event: MouseEvent) => {

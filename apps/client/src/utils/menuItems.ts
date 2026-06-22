@@ -66,7 +66,7 @@ const componentList = [
             { name: 'Dropdown', disabled: true },
             { name: 'Dropzone', disabled: true },
             { name: 'Editable', disabled: true },
-            { name: 'EmbedIconButton', disabled: true },
+            { name: 'EmbedIconButton', disabled: false },
             { name: 'EmptyState', disabled: true },
             { name: 'IconButton', disabled: false },
             { name: 'LinkButton', disabled: false },
