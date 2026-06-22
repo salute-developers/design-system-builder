@@ -18,6 +18,7 @@ export async function seedProperties(
             switchComponent: any;
             skeleton: any;
             list: any;
+            linkButton: any;
         };
     },
 ) {
@@ -35,6 +36,7 @@ export async function seedProperties(
         switchComponent,
         skeleton,
         list,
+        linkButton,
     } = ctx.components;
 
     const rows = await db
@@ -1270,6 +1272,120 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── LinkButton ──────────────────────────────────────────────────────────
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonTextColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonRightContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonFocusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonIconColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonTextPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonAdditionalContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonSpinnerColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonLeftContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonSpinnerSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonDisabledAlpha',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: linkButton.id,
+                name: 'linkButtonBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -1877,6 +1993,35 @@ export async function seedProperties(
             'listItemLineHeight',
         ],
     });
+    // LinkButton
+    const findLinkButton = (name: string) => rows.find((r: any) => r.componentId === linkButton.id && r.name === name)!;
+    addPlatformParams(findLinkButton('linkButtonTextColor').id, { web: ['linkButtonTextColor'] });
+    addPlatformParams(findLinkButton('linkButtonPadding').id, { web: ['linkButtonPadding'] });
+    addPlatformParams(findLinkButton('linkButtonRadius').id, { web: ['linkButtonRadius'] });
+    addPlatformParams(findLinkButton('linkButtonRightContentMargin').id, { web: ['linkButtonRightContentMargin'] });
+    addPlatformParams(findLinkButton('linkButtonFocusColor').id, { web: ['linkButtonFocusColor'] });
+    addPlatformParams(findLinkButton('textStyle').id, {
+        web: [
+            'linkButtonFontSize',
+            'linkButtonLetterSpacing',
+            'linkButtonFontStyle',
+            'linkButtonFontFamily',
+            'linkButtonFontWeight',
+            'linkButtonLineHeight',
+        ],
+    });
+    addPlatformParams(findLinkButton('linkButtonIconColor').id, { web: ['linkButtonIconColor'] });
+    addPlatformParams(findLinkButton('linkButtonHeight').id, { web: ['linkButtonHeight'] });
+    addPlatformParams(findLinkButton('linkButtonTextPadding').id, { web: ['linkButtonTextPadding'] });
+    addPlatformParams(findLinkButton('linkButtonAdditionalContentMargin').id, {
+        web: ['linkButtonAdditionalContentMargin'],
+    });
+    addPlatformParams(findLinkButton('linkButtonSpinnerColor').id, { web: ['linkButtonSpinnerColor'] });
+    addPlatformParams(findLinkButton('linkButtonLeftContentMargin').id, { web: ['linkButtonLeftContentMargin'] });
+    addPlatformParams(findLinkButton('linkButtonSpinnerSize').id, { web: ['linkButtonSpinnerSize'] });
+    addPlatformParams(findLinkButton('linkButtonDisabledAlpha').id, { web: ['linkButtonDisabledOpacity'] });
+    addPlatformParams(findLinkButton('linkButtonColor').id, { web: ['linkButtonColor'] });
+    addPlatformParams(findLinkButton('linkButtonBackgroundColor').id, { web: ['linkButtonBackgroundColor'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2106,6 +2251,23 @@ export async function seedProperties(
         lis_listItemDividerWidth: findList('listItemDividerWidth'),
         lis_listItemTightDifference: findList('listItemTightDifference'),
         lis_litItemStyle: findList('litItemStyle'),
+        // LinkButton
+        lin_linkButtonTextColor: findLinkButton('linkButtonTextColor'),
+        lin_linkButtonPadding: findLinkButton('linkButtonPadding'),
+        lin_linkButtonRadius: findLinkButton('linkButtonRadius'),
+        lin_linkButtonRightContentMargin: findLinkButton('linkButtonRightContentMargin'),
+        lin_linkButtonFocusColor: findLinkButton('linkButtonFocusColor'),
+        lin_textStyle: findLinkButton('textStyle'),
+        lin_linkButtonIconColor: findLinkButton('linkButtonIconColor'),
+        lin_linkButtonHeight: findLinkButton('linkButtonHeight'),
+        lin_linkButtonTextPadding: findLinkButton('linkButtonTextPadding'),
+        lin_linkButtonAdditionalContentMargin: findLinkButton('linkButtonAdditionalContentMargin'),
+        lin_linkButtonSpinnerColor: findLinkButton('linkButtonSpinnerColor'),
+        lin_linkButtonLeftContentMargin: findLinkButton('linkButtonLeftContentMargin'),
+        lin_linkButtonSpinnerSize: findLinkButton('linkButtonSpinnerSize'),
+        lin_linkButtonDisabledAlpha: findLinkButton('linkButtonDisabledAlpha'),
+        lin_linkButtonColor: findLinkButton('linkButtonColor'),
+        lin_linkButtonBackgroundColor: findLinkButton('linkButtonBackgroundColor'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

@@ -69,7 +69,7 @@ const componentList = [
             { name: 'EmbedIconButton', disabled: true },
             { name: 'EmptyState', disabled: true },
             { name: 'IconButton', disabled: false },
-            { name: 'LinkButton', disabled: true },
+            { name: 'LinkButton', disabled: false },
             { name: 'NumberFormat', disabled: true },
             { name: 'NumberInput', disabled: true },
             { name: 'Portal', disabled: true },

@@ -228,6 +228,22 @@ export async function seedPropertyVariations(
             { propertyId: p.lis_listItemDividerColor.id, variationId: v.listView.id },
             { propertyId: p.lis_listBorderRadius.id, variationId: v.listSize.id },
             { propertyId: p.lis_listItemContentPadding.id, variationId: v.listSize.id },
+
+            // ── LinkButton ──────────────────────────────────────────────────────────
+            { propertyId: p.lin_linkButtonColor.id, variationId: v.linkButtonView.id },
+            { propertyId: p.lin_linkButtonTextColor.id, variationId: v.linkButtonView.id },
+            { propertyId: p.lin_linkButtonIconColor.id, variationId: v.linkButtonView.id },
+            { propertyId: p.lin_linkButtonBackgroundColor.id, variationId: v.linkButtonView.id },
+            { propertyId: p.lin_linkButtonHeight.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonPadding.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonRadius.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_textStyle.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonSpinnerSize.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonTextPadding.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonLeftContentMargin.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonRightContentMargin.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonAdditionalContentMargin.id, variationId: v.linkButtonSize.id },
+            { propertyId: p.lin_linkButtonSpinnerColor.id, variationId: v.linkButtonView.id },
         ])
         .onConflictDoNothing()
         .returning();

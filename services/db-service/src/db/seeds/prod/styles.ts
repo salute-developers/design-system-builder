@@ -650,6 +650,81 @@ export async function seedStyles(
             { designSystemId: base.id, variationId: v.listSize.id, name: 'l', description: '', isDefault: false },
             { designSystemId: base.id, variationId: v.listView.id, name: 'default', description: '', isDefault: true },
             { designSystemId: base.id, variationId: v.listSize.id, name: 's', description: '', isDefault: true },
+
+            // ── LinkButton ──────────────────────────────────────────────────────────
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'accent',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.linkButtonSize.id, name: 'm', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonSize.id,
+                name: 'xxs',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'secondary',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'warning',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'info',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonSize.id,
+                name: 'xl',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.linkButtonSize.id, name: 'l', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.linkButtonSize.id,
+                name: 'xs',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.linkButtonSize.id, name: 's', description: '', isDefault: false },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -795,6 +870,20 @@ export async function seedStyles(
         base_lis_size_l: find(v.listSize.id, 'l'),
         base_lis_view_default: find(v.listView.id, 'default'),
         base_lis_size_s: find(v.listSize.id, 's'),
+        // LinkButton
+        base_lin_view_accent: find(v.linkButtonView.id, 'accent'),
+        base_lin_view_positive: find(v.linkButtonView.id, 'positive'),
+        base_lin_view_negative: find(v.linkButtonView.id, 'negative'),
+        base_lin_size_m: find(v.linkButtonSize.id, 'm'),
+        base_lin_size_xxs: find(v.linkButtonSize.id, 'xxs'),
+        base_lin_view_secondary: find(v.linkButtonView.id, 'secondary'),
+        base_lin_view_warning: find(v.linkButtonView.id, 'warning'),
+        base_lin_view_info: find(v.linkButtonView.id, 'info'),
+        base_lin_size_xl: find(v.linkButtonSize.id, 'xl'),
+        base_lin_size_l: find(v.linkButtonSize.id, 'l'),
+        base_lin_view_default: find(v.linkButtonView.id, 'default'),
+        base_lin_size_xs: find(v.linkButtonSize.id, 'xs'),
+        base_lin_size_s: find(v.linkButtonSize.id, 's'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
