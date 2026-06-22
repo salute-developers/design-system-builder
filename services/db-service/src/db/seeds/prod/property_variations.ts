@@ -244,6 +244,18 @@ export async function seedPropertyVariations(
             { propertyId: p.lin_linkButtonRightContentMargin.id, variationId: v.linkButtonSize.id },
             { propertyId: p.lin_linkButtonAdditionalContentMargin.id, variationId: v.linkButtonSize.id },
             { propertyId: p.lin_linkButtonSpinnerColor.id, variationId: v.linkButtonView.id },
+
+            // ── EmbedIconButton ──────────────────────────────────────────────────────────
+            { propertyId: p.emb_embedIconButtonColor.id, variationId: v.embedIconButtonView.id },
+            { propertyId: p.emb_embedIconButtonBackgroundColor.id, variationId: v.embedIconButtonView.id },
+            { propertyId: p.emb_embedIconButtonLoadingBackgroundColor.id, variationId: v.embedIconButtonView.id },
+            { propertyId: p.emb_textStyle.id, variationId: v.embedIconButtonSize.id },
+            { propertyId: p.emb_embedIconButtonHeight.id, variationId: v.embedIconButtonSize.id },
+            { propertyId: p.emb_embedIconButtonPadding.id, variationId: v.embedIconButtonSize.id },
+            { propertyId: p.emb_embedIconButtonRadius.id, variationId: v.embedIconButtonSize.id },
+            { propertyId: p.emb_embedIconButtonSpinnerSize.id, variationId: v.embedIconButtonSize.id },
+            { propertyId: p.emb_embedIconButtonSpinnerColor.id, variationId: v.embedIconButtonView.id },
+            { propertyId: p.emb_embedIconButtonWidth.id, variationId: v.embedIconButtonSize.id },
         ])
         .onConflictDoNothing()
         .returning();

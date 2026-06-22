@@ -12,3 +12,4 @@ export { SwitchStories } from './Switch.story';
 export { SkeletonStories } from './Skeleton.story';
 export { ListStories } from './List.story';
 export { LinkButtonStories } from './LinkButton.story';
+export { EmbedIconButtonDefaultStories } from './EmbedIconButton.story';

@@ -19,6 +19,7 @@ export async function seedProperties(
             skeleton: any;
             list: any;
             linkButton: any;
+            embedIconButton: any;
         };
     },
 ) {
@@ -37,6 +38,7 @@ export async function seedProperties(
         skeleton,
         list,
         linkButton,
+        embedIconButton,
     } = ctx.components;
 
     const rows = await db
@@ -1386,6 +1388,92 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── EmbedIconButton ──────────────────────────────────────────────────────────
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonDisabledAlpha',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonFocusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonLoadingBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonSpinnerColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonSpinnerSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'embedIconButtonWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: embedIconButton.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2022,6 +2110,36 @@ export async function seedProperties(
     addPlatformParams(findLinkButton('linkButtonDisabledAlpha').id, { web: ['linkButtonDisabledOpacity'] });
     addPlatformParams(findLinkButton('linkButtonColor').id, { web: ['linkButtonColor'] });
     addPlatformParams(findLinkButton('linkButtonBackgroundColor').id, { web: ['linkButtonBackgroundColor'] });
+    // EmbedIconButton
+    const findEmbedIconButton = (name: string) =>
+        rows.find((r: any) => r.componentId === embedIconButton.id && r.name === name)!;
+    addPlatformParams(findEmbedIconButton('embedIconButtonBackgroundColor').id, {
+        web: ['embedIconButtonBackgroundColor'],
+    });
+    addPlatformParams(findEmbedIconButton('embedIconButtonColor').id, { web: ['embedIconButtonColor'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonDisabledAlpha').id, {
+        web: ['embedIconButtonDisabledOpacity'],
+    });
+    addPlatformParams(findEmbedIconButton('embedIconButtonFocusColor').id, { web: ['embedIconButtonFocusColor'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonHeight').id, { web: ['embedIconButtonHeight'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonLoadingBackgroundColor').id, {
+        web: ['embedIconButtonLoadingBackgroundColor'],
+    });
+    addPlatformParams(findEmbedIconButton('embedIconButtonPadding').id, { web: ['embedIconButtonPadding'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonRadius').id, { web: ['embedIconButtonRadius'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonSpinnerColor').id, { web: ['embedIconButtonSpinnerColor'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonSpinnerSize').id, { web: ['embedIconButtonSpinnerSize'] });
+    addPlatformParams(findEmbedIconButton('embedIconButtonWidth').id, { web: ['embedIconButtonWidth'] });
+    addPlatformParams(findEmbedIconButton('textStyle').id, {
+        web: [
+            'embedIconButtonFontFamily',
+            'embedIconButtonFontSize',
+            'embedIconButtonLineHeight',
+            'embedIconButtonLetterSpacing',
+            'embedIconButtonFontStyle',
+            'embedIconButtonFontWeight',
+        ],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2268,6 +2386,19 @@ export async function seedProperties(
         lin_linkButtonDisabledAlpha: findLinkButton('linkButtonDisabledAlpha'),
         lin_linkButtonColor: findLinkButton('linkButtonColor'),
         lin_linkButtonBackgroundColor: findLinkButton('linkButtonBackgroundColor'),
+        // EmbedIconButton
+        emb_embedIconButtonBackgroundColor: findEmbedIconButton('embedIconButtonBackgroundColor'),
+        emb_embedIconButtonColor: findEmbedIconButton('embedIconButtonColor'),
+        emb_embedIconButtonDisabledAlpha: findEmbedIconButton('embedIconButtonDisabledAlpha'),
+        emb_embedIconButtonFocusColor: findEmbedIconButton('embedIconButtonFocusColor'),
+        emb_embedIconButtonHeight: findEmbedIconButton('embedIconButtonHeight'),
+        emb_embedIconButtonLoadingBackgroundColor: findEmbedIconButton('embedIconButtonLoadingBackgroundColor'),
+        emb_embedIconButtonPadding: findEmbedIconButton('embedIconButtonPadding'),
+        emb_embedIconButtonRadius: findEmbedIconButton('embedIconButtonRadius'),
+        emb_embedIconButtonSpinnerColor: findEmbedIconButton('embedIconButtonSpinnerColor'),
+        emb_embedIconButtonSpinnerSize: findEmbedIconButton('embedIconButtonSpinnerSize'),
+        emb_embedIconButtonWidth: findEmbedIconButton('embedIconButtonWidth'),
+        emb_textStyle: findEmbedIconButton('textStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);
