@@ -18,6 +18,7 @@ export async function seedDesignSystemComponents(
             switchComponent: any;
             skeleton: any;
             list: any;
+            linkButton: any;
         };
     },
 ) {
@@ -36,6 +37,7 @@ export async function seedDesignSystemComponents(
         switchComponent,
         skeleton,
         list,
+        linkButton,
     } = ctx.components;
 
     const rows = await db
@@ -54,6 +56,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: switchComponent.id },
             { designSystemId: base.id, componentId: skeleton.id },
             { designSystemId: base.id, componentId: list.id },
+            { designSystemId: base.id, componentId: linkButton.id },
         ])
         .onConflictDoNothing()
         .returning();

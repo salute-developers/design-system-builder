@@ -19,6 +19,7 @@ export async function seedAppearances(
             switchComponent: any;
             skeleton: any;
             list: any;
+            linkButton: any;
         };
     },
 ) {
@@ -37,6 +38,7 @@ export async function seedAppearances(
         switchComponent,
         skeleton,
         list,
+        linkButton,
     } = ctx.components;
 
     const values = [
@@ -53,6 +55,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: switchComponent.id, name: 'default' },
         { designSystemId: base.id, componentId: skeleton.id, name: 'default' },
         { designSystemId: base.id, componentId: list.id, name: 'default' },
+        { designSystemId: base.id, componentId: linkButton.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -72,6 +75,7 @@ export async function seedAppearances(
         switchComponent.id,
         skeleton.id,
         list.id,
+        linkButton.id,
     ];
     const rows = await db
         .select()
@@ -96,6 +100,7 @@ export async function seedAppearances(
         base_swi_default: findByComp(switchComponent.id),
         base_ske_default: findByComp(skeleton.id),
         base_lis_default: findByComp(list.id),
+        base_lin_default: findByComp(linkButton.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);
