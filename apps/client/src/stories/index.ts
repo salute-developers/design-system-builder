@@ -11,3 +11,4 @@ export { ChipStories } from './Chip.story';
 export { SwitchStories } from './Switch.story';
 export { SkeletonStories } from './Skeleton.story';
 export { ListStories } from './List.story';
+export { LinkButtonStories } from './LinkButton.story';
