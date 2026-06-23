@@ -17,6 +17,7 @@ import {
     ListStories,
     LinkButtonStories,
     EmbedIconButtonDefaultStories,
+    CellStories,
 } from '../stories';
 
 interface Story {
@@ -41,7 +42,8 @@ const componentMapper: Record<string, Story[]> = {
     Skeleton: SkeletonStories,
     List: ListStories,
     LinkButton: LinkButtonStories,
-    EmbedIconButton: EmbedIconButtonDefaultStories
+    EmbedIconButton: EmbedIconButtonDefaultStories,
+    Cell: CellStories
 };
 
 export const useStory = (componentName?: string) => {

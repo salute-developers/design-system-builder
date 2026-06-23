@@ -30,7 +30,7 @@ const componentList = [
             { name: 'AvatarGroup', disabled: true },
             { name: 'Badge', disabled: false },
             { name: 'Card', disabled: true },
-            { name: 'Cell', disabled: true },
+            { name: 'Cell', disabled: false },
             { name: 'Chip', disabled: false },
             { name: 'ChipGroup', disabled: true },
             { name: 'Counter', disabled: false },

@@ -20,6 +20,7 @@ import {
     seedListComponent,
     seedLinkButtonComponent,
     seedEmbedIconButtonComponent,
+    seedCellComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -184,6 +185,7 @@ async function seed() {
         list: await seedListComponent(db),
         linkButton: await seedLinkButtonComponent(db),
         embedIconButton: await seedEmbedIconButtonComponent(db),
+        cell: await seedCellComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -204,6 +206,7 @@ async function seed() {
         List: 'list',
         LinkButton: 'linkButton',
         EmbedIconButton: 'embedIconButton',
+        Cell: 'cell',
     };
 
     let componentIdsToReseed: string[];

@@ -797,6 +797,13 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── Cell ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.cellSize.id, name: 'l', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.cellSize.id, name: 'xs', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.cellSize.id, name: 'm', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.cellView.id, name: 'default', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.cellSize.id, name: 's', description: '', isDefault: false },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -967,6 +974,12 @@ export async function seedStyles(
         base_emb_view_default: find(v.embedIconButtonView.id, 'default'),
         base_emb_view_accent: find(v.embedIconButtonView.id, 'accent'),
         base_emb_size_s: find(v.embedIconButtonSize.id, 's'),
+        // Cell
+        base_cel_size_l: find(v.cellSize.id, 'l'),
+        base_cel_size_xs: find(v.cellSize.id, 'xs'),
+        base_cel_size_m: find(v.cellSize.id, 'm'),
+        base_cel_view_default: find(v.cellView.id, 'default'),
+        base_cel_size_s: find(v.cellSize.id, 's'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
