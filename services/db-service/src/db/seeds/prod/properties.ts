@@ -20,6 +20,7 @@ export async function seedProperties(
             list: any;
             linkButton: any;
             embedIconButton: any;
+            cell: any;
         };
     },
 ) {
@@ -39,6 +40,7 @@ export async function seedProperties(
         list,
         linkButton,
         embedIconButton,
+        cell,
     } = ctx.components;
 
     const rows = await db
@@ -1474,6 +1476,83 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Cell ──────────────────────────────────────────────────────────
+            { componentId: cell.id, name: 'cellColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: cell.id,
+                name: 'cellPaddingLeftContent',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellTextboxGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: cell.id, name: 'cellLabelColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: cell.id,
+                name: 'cellSubtitleStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellPaddingContent',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: cell.id, name: 'cellGap', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: cell.id, name: 'cellTitleColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: cell.id,
+                name: 'cellLabelStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellTitleStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: cell.id,
+                name: 'cellPaddingRightContent',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: cell.id, name: 'cellWidth', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: cell.id,
+                name: 'cellSubtitleColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2140,6 +2219,50 @@ export async function seedProperties(
             'embedIconButtonFontWeight',
         ],
     });
+    // Cell
+    const findCell = (name: string) => rows.find((r: any) => r.componentId === cell.id && r.name === name)!;
+    addPlatformParams(findCell('cellColor').id, { web: ['cellColor'] });
+    addPlatformParams(findCell('cellPaddingLeftContent').id, { web: ['cellPaddingLeftContent'] });
+    addPlatformParams(findCell('cellTextboxGap').id, { web: ['cellTextboxGap'] });
+    addPlatformParams(findCell('cellLabelColor').id, { web: ['cellLabelColor'] });
+    addPlatformParams(findCell('cellSubtitleStyle').id, {
+        web: [
+            'cellSubtitleFontSize',
+            'cellSubtitleLetterSpacing',
+            'cellSubtitleFontFamily',
+            'cellSubtitleFontStyle',
+            'cellSubtitleFontWeight',
+            'cellSubtitleLineHeight',
+        ],
+    });
+    addPlatformParams(findCell('cellBackgroundColor').id, { web: ['cellBackgroundColor'] });
+    addPlatformParams(findCell('cellPaddingContent').id, { web: ['cellPaddingContent'] });
+    addPlatformParams(findCell('cellGap').id, { web: ['cellGap'] });
+    addPlatformParams(findCell('cellTitleColor').id, { web: ['cellTitleColor'] });
+    addPlatformParams(findCell('cellLabelStyle').id, {
+        web: [
+            'cellLabelFontFamily',
+            'cellLabelFontWeight',
+            'cellLabelFontSize',
+            'cellLabelFontStyle',
+            'cellLabelLetterSpacing',
+            'cellLabelLineHeight',
+        ],
+    });
+    addPlatformParams(findCell('cellTitleStyle').id, {
+        web: [
+            'cellTitleFontStyle',
+            'cellTitleLineHeight',
+            'cellTitleFontFamily',
+            'cellTitleFontSize',
+            'cellTitleFontWeight',
+            'cellTitleLetterSpacing',
+        ],
+    });
+    addPlatformParams(findCell('cellPadding').id, { web: ['cellPadding'] });
+    addPlatformParams(findCell('cellPaddingRightContent').id, { web: ['cellPaddingRightContent'] });
+    addPlatformParams(findCell('cellWidth').id, { web: ['cellWidth'] });
+    addPlatformParams(findCell('cellSubtitleColor').id, { web: ['cellSubtitleColor'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2399,6 +2522,22 @@ export async function seedProperties(
         emb_embedIconButtonSpinnerSize: findEmbedIconButton('embedIconButtonSpinnerSize'),
         emb_embedIconButtonWidth: findEmbedIconButton('embedIconButtonWidth'),
         emb_textStyle: findEmbedIconButton('textStyle'),
+        // Cell
+        cel_cellColor: findCell('cellColor'),
+        cel_cellPaddingLeftContent: findCell('cellPaddingLeftContent'),
+        cel_cellTextboxGap: findCell('cellTextboxGap'),
+        cel_cellLabelColor: findCell('cellLabelColor'),
+        cel_cellSubtitleStyle: findCell('cellSubtitleStyle'),
+        cel_cellBackgroundColor: findCell('cellBackgroundColor'),
+        cel_cellPaddingContent: findCell('cellPaddingContent'),
+        cel_cellGap: findCell('cellGap'),
+        cel_cellTitleColor: findCell('cellTitleColor'),
+        cel_cellLabelStyle: findCell('cellLabelStyle'),
+        cel_cellTitleStyle: findCell('cellTitleStyle'),
+        cel_cellPadding: findCell('cellPadding'),
+        cel_cellPaddingRightContent: findCell('cellPaddingRightContent'),
+        cel_cellWidth: findCell('cellWidth'),
+        cel_cellSubtitleColor: findCell('cellSubtitleColor'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

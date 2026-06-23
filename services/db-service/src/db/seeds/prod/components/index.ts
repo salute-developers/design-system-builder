@@ -13,3 +13,4 @@ export { seedSkeletonComponent } from './skeleton';
 export { seedListComponent } from './list';
 export { seedLinkButtonComponent } from './linkButton';
 export { seedEmbedIconButtonComponent } from './embedIconButton';
+export { seedCellComponent } from './cell';
