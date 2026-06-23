@@ -256,6 +256,23 @@ export async function seedPropertyVariations(
             { propertyId: p.emb_embedIconButtonSpinnerSize.id, variationId: v.embedIconButtonSize.id },
             { propertyId: p.emb_embedIconButtonSpinnerColor.id, variationId: v.embedIconButtonView.id },
             { propertyId: p.emb_embedIconButtonWidth.id, variationId: v.embedIconButtonSize.id },
+
+            // ── Cell ──────────────────────────────────────────────────────────
+            { propertyId: p.cel_cellColor.id, variationId: v.cellView.id },
+            { propertyId: p.cel_cellLabelColor.id, variationId: v.cellView.id },
+            { propertyId: p.cel_cellTitleColor.id, variationId: v.cellView.id },
+            { propertyId: p.cel_cellBackgroundColor.id, variationId: v.cellView.id },
+            { propertyId: p.cel_cellSubtitleColor.id, variationId: v.cellView.id },
+            { propertyId: p.cel_cellPaddingLeftContent.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellPadding.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellWidth.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellPaddingContent.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellPaddingRightContent.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellTextboxGap.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellGap.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellLabelStyle.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellTitleStyle.id, variationId: v.cellSize.id },
+            { propertyId: p.cel_cellSubtitleStyle.id, variationId: v.cellSize.id },
         ])
         .onConflictDoNothing()
         .returning();

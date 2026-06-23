@@ -20,6 +20,7 @@ export async function seedVariations(
             list: any;
             linkButton: any;
             embedIconButton: any;
+            cell: any;
         };
     },
 ) {
@@ -39,6 +40,7 @@ export async function seedVariations(
         list,
         linkButton,
         embedIconButton,
+        cell,
     } = ctx.components;
 
     const rows = await db
@@ -94,6 +96,9 @@ export async function seedVariations(
             // EmbedIconButton
             { componentId: embedIconButton.id, name: 'view', description: 'Вид.' },
             { componentId: embedIconButton.id, name: 'size', description: 'Размер.' },
+            // Cell
+            { componentId: cell.id, name: 'view', description: 'Вид.' },
+            { componentId: cell.id, name: 'size', description: 'Размер.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -149,6 +154,9 @@ export async function seedVariations(
         // EmbedIconButton
         embedIconButtonView: find(embedIconButton.id, 'view'),
         embedIconButtonSize: find(embedIconButton.id, 'size'),
+        // Cell
+        cellView: find(cell.id, 'view'),
+        cellSize: find(cell.id, 'size'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
