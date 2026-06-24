@@ -22,6 +22,7 @@ import {
     seedEmbedIconButtonComponent,
     seedCellComponent,
     seedDividerComponent,
+    seedEmptyStateComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -188,6 +189,7 @@ async function seed() {
         embedIconButton: await seedEmbedIconButtonComponent(db),
         cell: await seedCellComponent(db),
         divider: await seedDividerComponent(db),
+        emptyState: await seedEmptyStateComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -210,6 +212,7 @@ async function seed() {
         EmbedIconButton: 'embedIconButton',
         Cell: 'cell',
         Divider: 'divider',
+        EmptyState: 'emptyState',
     };
 
     let componentIdsToReseed: string[];
