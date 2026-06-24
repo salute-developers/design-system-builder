@@ -3325,6 +3325,131 @@
         }
       }
     },
+    "/ds/component-config": {
+      "get": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Get a single component config (invariants, defaults, variations) for a design system / appearance",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "plasma_test"
+            },
+            "required": true,
+            "name": "ds",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "0.1.0"
+            },
+            "required": true,
+            "name": "version",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "default"
+            },
+            "required": true,
+            "name": "appearance",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "Button"
+            },
+            "required": true,
+            "name": "component",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Component config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rootVariationId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "colorSchemeVariationId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "invariants": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "defaults": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "value"
+                        ]
+                      }
+                    },
+                    "variations": {
+                      "type": "array",
+                      "items": {
+                        "nullable": true
+                      }
+                    }
+                  },
+                  "required": [
+                    "rootVariationId",
+                    "colorSchemeVariationId",
+                    "invariants",
+                    "defaults",
+                    "variations"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/design-system-versions": {
       "get": {
         "tags": [

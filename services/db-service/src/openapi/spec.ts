@@ -432,6 +432,35 @@ registry.registerPath({
   },
 });
 
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/component-config`,
+  tags: ["Component Config"],
+  summary: "Get a single component config (invariants, defaults, variations) for a design system / appearance",
+  request: {
+    query: z.object({
+      ds: z.string().openapi({ example: "plasma_test" }),
+      version: z.string().openapi({ example: "0.1.0" }),
+      appearance: z.string().openapi({ example: "default" }),
+      component: z.string().openapi({ example: "Button" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Component config",
+      ...json(z.object({
+        rootVariationId: z.string().nullable(),
+        colorSchemeVariationId: z.string().nullable(),
+        invariants: z.record(z.string(), z.any()),
+        defaults: z.array(z.object({ id: z.string(), value: z.string() })),
+        variations: z.array(z.any()),
+      })),
+    },
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
 registerCrud(`${DS_PREFIX}/design-system-versions`, "Design System Versions", DesignSystemVersionSchema, schemas.CreateDesignSystemVersion, schemas.UpdateDesignSystemVersion);
 registry.registerPath({
   method: "get",

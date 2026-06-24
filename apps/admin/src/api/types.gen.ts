@@ -873,6 +873,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ds/component-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single component config (invariants, defaults, variations) for a design system / appearance */
+        get: {
+            parameters: {
+                query: {
+                    ds: string;
+                    version: string;
+                    appearance: string;
+                    component: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Component config */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            rootVariationId: string | null;
+                            colorSchemeVariationId: string | null;
+                            invariants: {
+                                [key: string]: unknown;
+                            };
+                            defaults: {
+                                id: string;
+                                value: string;
+                            }[];
+                            variations: unknown[];
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ds/design-system-versions": {
         parameters: {
             query?: never;
