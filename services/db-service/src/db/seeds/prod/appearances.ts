@@ -23,6 +23,7 @@ export async function seedAppearances(
             embedIconButton: any;
             cell: any;
             divider: any;
+            emptyState: any;
         };
     },
 ) {
@@ -45,6 +46,7 @@ export async function seedAppearances(
         embedIconButton,
         cell,
         divider,
+        emptyState,
     } = ctx.components;
 
     const values = [
@@ -65,6 +67,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: embedIconButton.id, name: 'default' },
         { designSystemId: base.id, componentId: cell.id, name: 'default' },
         { designSystemId: base.id, componentId: divider.id, name: 'default' },
+        { designSystemId: base.id, componentId: emptyState.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -88,6 +91,7 @@ export async function seedAppearances(
         embedIconButton.id,
         cell.id,
         divider.id,
+        emptyState.id,
     ];
     const rows = await db
         .select()
@@ -116,6 +120,7 @@ export async function seedAppearances(
         base_emb_default: findByComp(embedIconButton.id),
         base_cel_default: findByComp(cell.id),
         base_div_default: findByComp(divider.id),
+        base_emp_default: findByComp(emptyState.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);

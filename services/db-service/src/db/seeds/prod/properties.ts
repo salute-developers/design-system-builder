@@ -22,6 +22,7 @@ export async function seedProperties(
             embedIconButton: any;
             cell: any;
             divider: any;
+            emptyState: any;
         };
     },
 ) {
@@ -43,6 +44,7 @@ export async function seedProperties(
         embedIconButton,
         cell,
         divider,
+        emptyState,
     } = ctx.components;
 
     const rows = await db
@@ -1572,6 +1574,57 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── EmptyState ──────────────────────────────────────────────────────────
+            {
+                componentId: emptyState.id,
+                name: 'borderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'buttonHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'buttonMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'descriptionMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'iconMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'padding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: emptyState.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2287,6 +2340,17 @@ export async function seedProperties(
     addPlatformParams(findDivider('background').id, { web: ['background'] });
     addPlatformParams(findDivider('baseSideSize').id, { web: ['baseSideSize'] });
     addPlatformParams(findDivider('borderRadius').id, { web: ['borderRadius'] });
+    // EmptyState
+    const findEmptyState = (name: string) => rows.find((r: any) => r.componentId === emptyState.id && r.name === name)!;
+    addPlatformParams(findEmptyState('borderRadius').id, { web: ['borderRadius'] });
+    addPlatformParams(findEmptyState('buttonHeight').id, { web: ['buttonHeight'] });
+    addPlatformParams(findEmptyState('buttonMargin').id, { web: ['buttonMargin'] });
+    addPlatformParams(findEmptyState('descriptionMargin').id, { web: ['descriptionMargin'] });
+    addPlatformParams(findEmptyState('iconMargin').id, { web: ['iconMargin'] });
+    addPlatformParams(findEmptyState('padding').id, { web: ['padding'] });
+    addPlatformParams(findEmptyState('textStyle').id, {
+        web: ['fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'fontLetterSpacing', 'fontLineHeight'],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2566,6 +2630,14 @@ export async function seedProperties(
         div_background: findDivider('background'),
         div_baseSideSize: findDivider('baseSideSize'),
         div_borderRadius: findDivider('borderRadius'),
+        // EmptyState
+        emp_borderRadius: findEmptyState('borderRadius'),
+        emp_buttonHeight: findEmptyState('buttonHeight'),
+        emp_buttonMargin: findEmptyState('buttonMargin'),
+        emp_descriptionMargin: findEmptyState('descriptionMargin'),
+        emp_iconMargin: findEmptyState('iconMargin'),
+        emp_padding: findEmptyState('padding'),
+        emp_textStyle: findEmptyState('textStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

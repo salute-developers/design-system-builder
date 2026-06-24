@@ -843,6 +843,18 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── EmptyState ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.emptyStateSize.id, name: 'm', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.emptyStateSize.id, name: 's', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.emptyStateSize.id, name: 'l', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.emptyStateSize.id,
+                name: 'xs',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -1027,6 +1039,11 @@ export async function seedStyles(
         base_div_size_m: find(v.dividerSize.id, 'm'),
         base_div_orientation_vertical: find(v.dividerOrientation.id, 'vertical'),
         base_div_view_light: find(v.dividerView.id, 'light'),
+        // EmptyState
+        base_emp_size_m: find(v.emptyStateSize.id, 'm'),
+        base_emp_size_s: find(v.emptyStateSize.id, 's'),
+        base_emp_size_l: find(v.emptyStateSize.id, 'l'),
+        base_emp_size_xs: find(v.emptyStateSize.id, 'xs'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

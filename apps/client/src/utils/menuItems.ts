@@ -67,7 +67,7 @@ const componentList = [
             { name: 'Dropzone', disabled: true },
             { name: 'Editable', disabled: true },
             { name: 'EmbedIconButton', disabled: false },
-            { name: 'EmptyState', disabled: true },
+            { name: 'EmptyState', disabled: false },
             { name: 'IconButton', disabled: false },
             { name: 'LinkButton', disabled: false },
             { name: 'NumberFormat', disabled: true },
