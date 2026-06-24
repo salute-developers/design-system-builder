@@ -14,3 +14,4 @@ export { ListStories } from './List.story';
 export { LinkButtonStories } from './LinkButton.story';
 export { EmbedIconButtonDefaultStories } from './EmbedIconButton.story';
 export { CellStories } from './Cell.story';
+export { DividerStories } from './Divider.story';

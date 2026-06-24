@@ -34,7 +34,7 @@ const componentList = [
             { name: 'Chip', disabled: false },
             { name: 'ChipGroup', disabled: true },
             { name: 'Counter', disabled: false },
-            { name: 'Divider', disabled: true },
+            { name: 'Divider', disabled: false},
             { name: 'Image', disabled: true },
             { name: 'Indicator', disabled: false },
             { name: 'InformationWrapper', disabled: true },
