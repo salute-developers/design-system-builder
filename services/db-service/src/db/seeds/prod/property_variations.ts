@@ -278,6 +278,15 @@ export async function seedPropertyVariations(
             { propertyId: p.div_background.id, variationId: v.dividerView.id },
             { propertyId: p.div_baseSideSize.id, variationId: v.dividerOrientation.id },
             { propertyId: p.div_borderRadius.id, variationId: v.dividerSize.id },
+
+            // ── EmptyState ──────────────────────────────────────────────────────────
+            { propertyId: p.emp_borderRadius.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_buttonHeight.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_buttonMargin.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_descriptionMargin.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_iconMargin.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_padding.id, variationId: v.emptyStateSize.id },
+            { propertyId: p.emp_textStyle.id, variationId: v.emptyStateSize.id },
         ])
         .onConflictDoNothing()
         .returning();

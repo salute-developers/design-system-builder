@@ -19,6 +19,7 @@ import {
     EmbedIconButtonDefaultStories,
     CellStories,
     DividerStories,
+    EmptyStateStories,
 } from '../stories';
 
 interface Story {
@@ -46,6 +47,7 @@ const componentMapper: Record<string, Story[]> = {
     EmbedIconButton: EmbedIconButtonDefaultStories,
     Cell: CellStories,
     Divider: DividerStories,
+    EmptyState: EmptyStateStories,
 };
 
 export const useStory = (componentName?: string) => {
