@@ -21,6 +21,7 @@ export async function seedProperties(
             linkButton: any;
             embedIconButton: any;
             cell: any;
+            divider: any;
         };
     },
 ) {
@@ -41,6 +42,7 @@ export async function seedProperties(
         linkButton,
         embedIconButton,
         cell,
+        divider,
     } = ctx.components;
 
     const rows = await db
@@ -1553,6 +1555,23 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Divider ──────────────────────────────────────────────────────────
+            { componentId: divider.id, name: 'background', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: divider.id,
+                name: 'baseSideSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: divider.id,
+                name: 'borderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2263,6 +2282,11 @@ export async function seedProperties(
     addPlatformParams(findCell('cellPaddingRightContent').id, { web: ['cellPaddingRightContent'] });
     addPlatformParams(findCell('cellWidth').id, { web: ['cellWidth'] });
     addPlatformParams(findCell('cellSubtitleColor').id, { web: ['cellSubtitleColor'] });
+    // Divider
+    const findDivider = (name: string) => rows.find((r: any) => r.componentId === divider.id && r.name === name)!;
+    addPlatformParams(findDivider('background').id, { web: ['background'] });
+    addPlatformParams(findDivider('baseSideSize').id, { web: ['baseSideSize'] });
+    addPlatformParams(findDivider('borderRadius').id, { web: ['borderRadius'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2538,6 +2562,10 @@ export async function seedProperties(
         cel_cellPaddingRightContent: findCell('cellPaddingRightContent'),
         cel_cellWidth: findCell('cellWidth'),
         cel_cellSubtitleColor: findCell('cellSubtitleColor'),
+        // Divider
+        div_background: findDivider('background'),
+        div_baseSideSize: findDivider('baseSideSize'),
+        div_borderRadius: findDivider('borderRadius'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

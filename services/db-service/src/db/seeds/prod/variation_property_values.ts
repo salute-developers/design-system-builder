@@ -53,6 +53,8 @@ export async function seedVariationPropertyValues(
 
     const celApp = a.base_cel_default.id;
 
+    const divApp = a.base_div_default.id;
+
     const rows: VpvRow[] = [
         // ══════════════════════════════════════════════════════════════════════════
         // IconButton
@@ -6673,6 +6675,67 @@ export async function seedVariationPropertyValues(
             appearanceId: celApp,
             tokenId: null,
             value: 'body.xs.normal',
+            state: null,
+        },
+
+        // ══════════════════════════════════════════════════════════════════════════
+        // Divider
+        // ══════════════════════════════════════════════════════════════════════════
+
+        {
+            propertyId: p.div_baseSideSize.id,
+            styleId: s.base_div_orientation_vertical.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: '1',
+            state: null,
+        },
+        {
+            propertyId: p.div_background.id,
+            styleId: s.base_div_view_light.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: 'surface.on-light.transparent-tertiary',
+            state: null,
+        },
+        {
+            propertyId: p.div_baseSideSize.id,
+            styleId: s.base_div_orientation_horizontal.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: '1',
+            state: null,
+        },
+        {
+            propertyId: p.div_background.id,
+            styleId: s.base_div_view_dark.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: 'surface.on-dark.transparent-tertiary',
+            state: null,
+        },
+        {
+            propertyId: p.div_borderRadius.id,
+            styleId: s.base_div_size_m.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: 'round.xxs',
+            state: null,
+        },
+        {
+            propertyId: p.div_background.id,
+            styleId: s.base_div_view_default.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: 'surface.default.transparent-tertiary',
+            state: null,
+        },
+        {
+            propertyId: p.div_background.id,
+            styleId: s.base_div_view_inverse.id,
+            appearanceId: divApp,
+            tokenId: null,
+            value: 'text.inverse.tertiary',
             state: null,
         },
     ];
