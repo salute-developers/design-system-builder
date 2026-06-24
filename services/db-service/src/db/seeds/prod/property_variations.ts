@@ -273,6 +273,11 @@ export async function seedPropertyVariations(
             { propertyId: p.cel_cellLabelStyle.id, variationId: v.cellSize.id },
             { propertyId: p.cel_cellTitleStyle.id, variationId: v.cellSize.id },
             { propertyId: p.cel_cellSubtitleStyle.id, variationId: v.cellSize.id },
+
+            // ── Divider ──────────────────────────────────────────────────────────
+            { propertyId: p.div_background.id, variationId: v.dividerView.id },
+            { propertyId: p.div_baseSideSize.id, variationId: v.dividerOrientation.id },
+            { propertyId: p.div_borderRadius.id, variationId: v.dividerSize.id },
         ])
         .onConflictDoNothing()
         .returning();

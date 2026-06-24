@@ -804,6 +804,45 @@ export async function seedStyles(
             { designSystemId: base.id, variationId: v.cellSize.id, name: 'm', description: '', isDefault: true },
             { designSystemId: base.id, variationId: v.cellView.id, name: 'default', description: '', isDefault: true },
             { designSystemId: base.id, variationId: v.cellSize.id, name: 's', description: '', isDefault: false },
+
+            // ── Divider ──────────────────────────────────────────────────────────
+            {
+                designSystemId: base.id,
+                variationId: v.dividerView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.dividerView.id,
+                name: 'inverse',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.dividerOrientation.id,
+                name: 'horizontal',
+                description: '',
+                isDefault: true,
+            },
+            { designSystemId: base.id, variationId: v.dividerView.id, name: 'dark', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.dividerSize.id, name: 'm', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.dividerOrientation.id,
+                name: 'vertical',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.dividerView.id,
+                name: 'light',
+                description: '',
+                isDefault: false,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -980,6 +1019,14 @@ export async function seedStyles(
         base_cel_size_m: find(v.cellSize.id, 'm'),
         base_cel_view_default: find(v.cellView.id, 'default'),
         base_cel_size_s: find(v.cellSize.id, 's'),
+        // Divider
+        base_div_view_default: find(v.dividerView.id, 'default'),
+        base_div_view_inverse: find(v.dividerView.id, 'inverse'),
+        base_div_orientation_horizontal: find(v.dividerOrientation.id, 'horizontal'),
+        base_div_view_dark: find(v.dividerView.id, 'dark'),
+        base_div_size_m: find(v.dividerSize.id, 'm'),
+        base_div_orientation_vertical: find(v.dividerOrientation.id, 'vertical'),
+        base_div_view_light: find(v.dividerView.id, 'light'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
