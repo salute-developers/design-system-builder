@@ -16,3 +16,4 @@ export { seedEmbedIconButtonComponent } from './embedIconButton';
 export { seedCellComponent } from './cell';
 export { seedDividerComponent } from './divider';
 export { seedEmptyStateComponent } from './emptyState';
+export { seedAccordionComponent } from './accordion';

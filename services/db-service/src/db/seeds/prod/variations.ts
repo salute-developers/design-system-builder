@@ -23,6 +23,7 @@ export async function seedVariations(
             cell: any;
             divider: any;
             emptyState: any;
+            accordion: any;
         };
     },
 ) {
@@ -45,6 +46,7 @@ export async function seedVariations(
         cell,
         divider,
         emptyState,
+        accordion,
     } = ctx.components;
 
     const rows = await db
@@ -109,6 +111,9 @@ export async function seedVariations(
             { componentId: divider.id, name: 'size', description: 'Размер.' },
             // EmptyState
             { componentId: emptyState.id, name: 'size', description: 'Размер.' },
+            // Accordion
+            { componentId: accordion.id, name: 'view', description: 'Вид.' },
+            { componentId: accordion.id, name: 'size', description: 'Размер.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -173,6 +178,9 @@ export async function seedVariations(
         dividerSize: find(divider.id, 'size'),
         // EmptyState
         emptyStateSize: find(emptyState.id, 'size'),
+        // Accordion
+        accordionView: find(accordion.id, 'view'),
+        accordionSize: find(accordion.id, 'size'),
     };
 
     console.log(`  variations: ${rows.length} rows`);
