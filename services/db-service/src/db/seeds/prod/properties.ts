@@ -23,6 +23,7 @@ export async function seedProperties(
             cell: any;
             divider: any;
             emptyState: any;
+            accordion: any;
         };
     },
 ) {
@@ -45,6 +46,7 @@ export async function seedProperties(
         cell,
         divider,
         emptyState,
+        accordion,
     } = ctx.components;
 
     const rows = await db
@@ -1625,6 +1627,190 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Accordion ──────────────────────────────────────────────────────────
+            {
+                componentId: accordion.id,
+                name: 'accordionWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemViewBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemPaddingHorizontal',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemHeaderLeftGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemTitleColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemTextStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemBorderBottom',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionBackground',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemShadow',
+                type: 'shadow' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemPaddingHorizontalLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemIconColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemHeaderLeftGapDefault',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemOpenedTitleColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemBackground',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemPaddingVertical',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemBodyPaddingBottom',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemBorder',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemIconSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemHeaderLeftGapClear',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemTextColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: accordion.id,
+                name: 'accordionItemTitleStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2351,6 +2537,57 @@ export async function seedProperties(
     addPlatformParams(findEmptyState('textStyle').id, {
         web: ['fontSize', 'fontWeight', 'fontFamily', 'fontStyle', 'fontLetterSpacing', 'fontLineHeight'],
     });
+    // Accordion
+    const findAccordion = (name: string) => rows.find((r: any) => r.componentId === accordion.id && r.name === name)!;
+    addPlatformParams(findAccordion('accordionWidth').id, { web: ['accordionWidth'] });
+    addPlatformParams(findAccordion('accordionItemViewBorderRadius').id, { web: ['accordionItemViewBorderRadius'] });
+    addPlatformParams(findAccordion('accordionItemPaddingHorizontal').id, { web: ['accordionItemPaddingHorizontal'] });
+    addPlatformParams(findAccordion('accordionItemGap').id, { web: ['accordionItemGap'] });
+    addPlatformParams(findAccordion('accordionItemHeaderLeftGap').id, { web: ['accordionItemHeaderLeftGap'] });
+    addPlatformParams(findAccordion('accordionItemTitleColor').id, { web: ['accordionItemTitleColor'] });
+    addPlatformParams(findAccordion('accordionItemTextStyle').id, {
+        web: [
+            'accordionItemTextFontFamily',
+            'accordionItemTextFontStyle',
+            'accordionItemTextFontSize',
+            'accordionItemTextFontWeight',
+            'accordionItemTextLetterSpacing',
+            'accordionItemTextLineHeight',
+        ],
+    });
+    addPlatformParams(findAccordion('accordionItemBorderBottom').id, { web: ['accordionItemBorderBottom'] });
+    addPlatformParams(findAccordion('accordionBackground').id, { web: ['accordionBackground'] });
+    addPlatformParams(findAccordion('accordionItemShadow').id, { web: ['accordionItemShadow'] });
+    addPlatformParams(findAccordion('accordionItemPadding').id, { web: ['accordionItemPadding'] });
+    addPlatformParams(findAccordion('accordionItemPaddingHorizontalLeft').id, {
+        web: ['accordionItemPaddingHorizontalLeft'],
+    });
+    addPlatformParams(findAccordion('accordionItemFocus').id, { web: ['accordionItemFocus'] });
+    addPlatformParams(findAccordion('accordionItemIconColor').id, { web: ['accordionItemIconColor'] });
+    addPlatformParams(findAccordion('accordionItemHeaderLeftGapDefault').id, {
+        web: ['accordionItemHeaderLeftGapDefault'],
+    });
+    addPlatformParams(findAccordion('accordionItemOpenedTitleColor').id, { web: ['accordionItemOpenedTitleColor'] });
+    addPlatformParams(findAccordion('accordionGap').id, { web: ['accordionGap'] });
+    addPlatformParams(findAccordion('accordionItemBackground').id, { web: ['accordionItemBackground'] });
+    addPlatformParams(findAccordion('accordionItemBorderRadius').id, { web: ['accordionItemBorderRadius'] });
+    addPlatformParams(findAccordion('accordionItemPaddingVertical').id, { web: ['accordionItemPaddingVertical'] });
+    addPlatformParams(findAccordion('accordionItemBodyPaddingBottom').id, { web: ['accordionItemBodyPaddingBottom'] });
+    addPlatformParams(findAccordion('accordionItemBorder').id, { web: ['accordionItemBorder'] });
+    addPlatformParams(findAccordion('accordionItemIconSize').id, { web: ['accordionItemIconSize'] });
+    addPlatformParams(findAccordion('accordionItemHeaderLeftGapClear').id, {
+        web: ['accordionItemHeaderLeftGapClear'],
+    });
+    addPlatformParams(findAccordion('accordionItemTextColor').id, { web: ['accordionItemTextColor'] });
+    addPlatformParams(findAccordion('accordionItemTitleStyle').id, {
+        web: [
+            'accordionItemTitleFontFamily',
+            'accordionItemTitleFontSize',
+            'accordionItemTitleFontWeight',
+            'accordionItemTitleLetterSpacing',
+            'accordionItemTitleLineHeight',
+        ],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2638,6 +2875,33 @@ export async function seedProperties(
         emp_iconMargin: findEmptyState('iconMargin'),
         emp_padding: findEmptyState('padding'),
         emp_textStyle: findEmptyState('textStyle'),
+        // Accordion
+        acc_accordionWidth: findAccordion('accordionWidth'),
+        acc_accordionItemViewBorderRadius: findAccordion('accordionItemViewBorderRadius'),
+        acc_accordionItemPaddingHorizontal: findAccordion('accordionItemPaddingHorizontal'),
+        acc_accordionItemGap: findAccordion('accordionItemGap'),
+        acc_accordionItemHeaderLeftGap: findAccordion('accordionItemHeaderLeftGap'),
+        acc_accordionItemTitleColor: findAccordion('accordionItemTitleColor'),
+        acc_accordionItemTextStyle: findAccordion('accordionItemTextStyle'),
+        acc_accordionItemBorderBottom: findAccordion('accordionItemBorderBottom'),
+        acc_accordionBackground: findAccordion('accordionBackground'),
+        acc_accordionItemShadow: findAccordion('accordionItemShadow'),
+        acc_accordionItemPadding: findAccordion('accordionItemPadding'),
+        acc_accordionItemPaddingHorizontalLeft: findAccordion('accordionItemPaddingHorizontalLeft'),
+        acc_accordionItemFocus: findAccordion('accordionItemFocus'),
+        acc_accordionItemIconColor: findAccordion('accordionItemIconColor'),
+        acc_accordionItemHeaderLeftGapDefault: findAccordion('accordionItemHeaderLeftGapDefault'),
+        acc_accordionItemOpenedTitleColor: findAccordion('accordionItemOpenedTitleColor'),
+        acc_accordionGap: findAccordion('accordionGap'),
+        acc_accordionItemBackground: findAccordion('accordionItemBackground'),
+        acc_accordionItemBorderRadius: findAccordion('accordionItemBorderRadius'),
+        acc_accordionItemPaddingVertical: findAccordion('accordionItemPaddingVertical'),
+        acc_accordionItemBodyPaddingBottom: findAccordion('accordionItemBodyPaddingBottom'),
+        acc_accordionItemBorder: findAccordion('accordionItemBorder'),
+        acc_accordionItemIconSize: findAccordion('accordionItemIconSize'),
+        acc_accordionItemHeaderLeftGapClear: findAccordion('accordionItemHeaderLeftGapClear'),
+        acc_accordionItemTextColor: findAccordion('accordionItemTextColor'),
+        acc_accordionItemTitleStyle: findAccordion('accordionItemTitleStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

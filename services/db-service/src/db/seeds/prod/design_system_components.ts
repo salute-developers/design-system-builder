@@ -23,6 +23,7 @@ export async function seedDesignSystemComponents(
             cell: any;
             divider: any;
             emptyState: any;
+            accordion: any;
         };
     },
 ) {
@@ -46,6 +47,7 @@ export async function seedDesignSystemComponents(
         cell,
         divider,
         emptyState,
+        accordion,
     } = ctx.components;
 
     const rows = await db
@@ -69,6 +71,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: cell.id },
             { designSystemId: base.id, componentId: divider.id },
             { designSystemId: base.id, componentId: emptyState.id },
+            { designSystemId: base.id, componentId: accordion.id },
         ])
         .onConflictDoNothing()
         .returning();

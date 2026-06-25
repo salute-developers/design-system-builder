@@ -855,6 +855,31 @@ export async function seedStyles(
                 description: '',
                 isDefault: false,
             },
+
+            // ── Accordion ──────────────────────────────────────────────────────────
+            {
+                designSystemId: base.id,
+                variationId: v.accordionView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.accordionView.id,
+                name: 'clear',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'xs', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h6', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'l', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h3', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h4', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 's', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h2', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'm', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h5', description: '', isDefault: false },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -1044,6 +1069,18 @@ export async function seedStyles(
         base_emp_size_s: find(v.emptyStateSize.id, 's'),
         base_emp_size_l: find(v.emptyStateSize.id, 'l'),
         base_emp_size_xs: find(v.emptyStateSize.id, 'xs'),
+        // Accordion
+        base_acc_view_default: find(v.accordionView.id, 'default'),
+        base_acc_view_clear: find(v.accordionView.id, 'clear'),
+        base_acc_size_xs: find(v.accordionSize.id, 'xs'),
+        base_acc_size_h6: find(v.accordionSize.id, 'h6'),
+        base_acc_size_l: find(v.accordionSize.id, 'l'),
+        base_acc_size_h3: find(v.accordionSize.id, 'h3'),
+        base_acc_size_h4: find(v.accordionSize.id, 'h4'),
+        base_acc_size_s: find(v.accordionSize.id, 's'),
+        base_acc_size_h2: find(v.accordionSize.id, 'h2'),
+        base_acc_size_m: find(v.accordionSize.id, 'm'),
+        base_acc_size_h5: find(v.accordionSize.id, 'h5'),
     };
 
     console.log(`  styles: ${rows.length} rows`);

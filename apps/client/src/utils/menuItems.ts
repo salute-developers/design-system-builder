@@ -54,7 +54,7 @@ const componentList = [
         groupName: 'Data Entry',
         components: [
             { name: 'Attach', disabled: true },
-            { name: 'Accordion', disabled: true },
+            { name: 'Accordion', disabled: false },
             { name: 'Autocomplete', disabled: true },
             { name: 'Button', disabled: false },
             { name: 'ButtonGroup', disabled: true },
