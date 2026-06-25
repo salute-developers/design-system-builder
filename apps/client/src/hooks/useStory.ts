@@ -20,6 +20,7 @@ import {
     CellStories,
     DividerStories,
     EmptyStateStories,
+    AccordionStories,
 } from '../stories';
 
 interface Story {
@@ -48,6 +49,7 @@ const componentMapper: Record<string, Story[]> = {
     Cell: CellStories,
     Divider: DividerStories,
     EmptyState: EmptyStateStories,
+    Accordion: AccordionStories,
 };
 
 export const useStory = (componentName?: string) => {
