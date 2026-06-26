@@ -825,9 +825,11 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
   const linkedPropIds = new Set(filtered.map((pv) => pv.propertyId));
   const unlinkedProps = props.filter((p) => !linkedPropIds.has(p.id));
 
-  // available props for add form (not yet linked to selected variation)
+  // available props for add form (not yet linked to selected variation), sorted alphabetically
   const alreadyInVar = pvVarId ? (linkedPropIdsByVar[pvVarId] ?? new Set()) : new Set<string>();
-  const availableProps = props.filter((p) => !alreadyInVar.has(p.id));
+  const availableProps = props
+    .filter((p) => !alreadyInVar.has(p.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div>
