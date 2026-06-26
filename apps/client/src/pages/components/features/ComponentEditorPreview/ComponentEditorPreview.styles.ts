@@ -60,7 +60,7 @@ export const StyledComponentControls = styled.div`
     flex: 1;
     min-height: 0;
     // overflow видимый, чтобы выпадающие списки контролов не обрезались нижней границей панели.
-    overflow: visible;
+    overflow: scroll;
 `;
 
 export const StyledDivider = styled.div`
