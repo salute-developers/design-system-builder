@@ -16,7 +16,7 @@ export class ShapeProp extends Prop {
     }
 
     public getWebTokenValue(componentName?: string, theme?: Theme) {
-        if (typeof this.value === 'number' || this.value === undefined) {
+        if (typeof this.value === 'number' || !this.value) {
             return;
         }
 

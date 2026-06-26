@@ -149,5 +149,5 @@ export const ListItemContentRight = styled.div`
 export const StyledDropdown = styled(Dropdown)`
     position: absolute;
     top: 0;
-    left: calc(100% - 2rem);
+    right: 0;
 `;

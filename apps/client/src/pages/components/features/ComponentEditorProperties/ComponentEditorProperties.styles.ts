@@ -8,6 +8,9 @@ export const Root = styled.div`
     min-width: 0;
     flex: 1;
 
+    min-height: 0;
+    overflow-y: auto;
+
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
@@ -137,7 +140,7 @@ export const StyledStatePropLabel = styled.div`
 
 export const StyledDropdown = styled(Dropdown)`
     top: 0;
-    left: calc(100% - 1rem);
+    right: 0;
 `;
 
 export const StyledPropLabel = styled.div`
