@@ -25,6 +25,7 @@ export async function seedAppearances(
             divider: any;
             emptyState: any;
             accordion: any;
+            slider: any;
         };
     },
 ) {
@@ -49,6 +50,7 @@ export async function seedAppearances(
         divider,
         emptyState,
         accordion,
+        slider,
     } = ctx.components;
 
     const values = [
@@ -71,6 +73,7 @@ export async function seedAppearances(
         { designSystemId: base.id, componentId: divider.id, name: 'default' },
         { designSystemId: base.id, componentId: emptyState.id, name: 'default' },
         { designSystemId: base.id, componentId: accordion.id, name: 'default' },
+        { designSystemId: base.id, componentId: slider.id, name: 'default' },
     ];
 
     await db.insert(schema.appearances).values(values).onConflictDoNothing();
@@ -96,6 +99,7 @@ export async function seedAppearances(
         divider.id,
         emptyState.id,
         accordion.id,
+        slider.id,
     ];
     const rows = await db
         .select()
@@ -126,6 +130,7 @@ export async function seedAppearances(
         base_div_default: findByComp(divider.id),
         base_emp_default: findByComp(emptyState.id),
         base_acc_default: findByComp(accordion.id),
+        base_sli_default: findByComp(slider.id),
     };
 
     console.log(`  appearances: ${rows.length} rows`);

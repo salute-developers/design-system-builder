@@ -24,6 +24,7 @@ export async function seedProperties(
             divider: any;
             emptyState: any;
             accordion: any;
+            slider: any;
         };
     },
 ) {
@@ -47,6 +48,7 @@ export async function seedProperties(
         divider,
         emptyState,
         accordion,
+        slider,
     } = ctx.components;
 
     const rows = await db
@@ -1811,6 +1813,314 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Slider ──────────────────────────────────────────────────────────
+            {
+                componentId: slider.id,
+                name: 'textFieldColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFiledFocusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldCaretColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldPlaceholderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBackgroundColorFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBorderWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBorderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBorderColorFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'labelStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'disabledAlpha',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: slider.id, name: 'size', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: slider.id,
+                name: 'labelWrapperGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'labelWrapperMarginBottom',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'labelWrapperMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'labelWrapperOnlyIconMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'labelWrapperVerticalMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: slider.id, name: 'labelColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: slider.id,
+                name: 'rangeValueBottomOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'rangeValueHorizontalMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'rangeValueHorizontalOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'rangeValueVerticalMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'rangeValueColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'doubleWrapperGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'doubleBoxShadow',
+                type: 'shadow' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbBorderStyle',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbBorderWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbBorderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbFocusBorderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: slider.id, name: 'tickSize', type: 'dimension' as const, defaultValue: '', description: '' },
+            { componentId: slider.id, name: 'tickDotColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: slider.id,
+                name: 'tickDotFilledColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'currentValueTopOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'railBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'railBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: slider.id, name: 'fillColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: slider.id,
+                name: 'textFieldWrapperGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'valueStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'railThickness',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldWebClipPath',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldWebReversedClipPath',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'textFieldWebMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2588,6 +2898,83 @@ export async function seedProperties(
             'accordionItemTitleLineHeight',
         ],
     });
+    // Slider
+    const findSlider = (name: string) => rows.find((r: any) => r.componentId === slider.id && r.name === name)!;
+    addPlatformParams(findSlider('textFieldColor').id, { web: ['textFieldColor'] });
+    addPlatformParams(findSlider('textFiledFocusColor').id, { web: ['textFiledFocusColor'] });
+    addPlatformParams(findSlider('textFieldCaretColor').id, { web: ['textFieldCaretColor'] });
+    addPlatformParams(findSlider('textFieldPlaceholderColor').id, { web: ['textFieldPlaceholderColor'] });
+    addPlatformParams(findSlider('textFieldBackgroundColor').id, { web: ['textFieldBackgroundColor'] });
+    addPlatformParams(findSlider('textFieldBackgroundColorFocus').id, { web: ['textFieldBackgroundColorFocus'] });
+    addPlatformParams(findSlider('textFieldBorderWidth').id, { web: ['textFieldBorderWidth'] });
+    addPlatformParams(findSlider('textFieldBorderColor').id, { web: ['textFieldBorderColor'] });
+    addPlatformParams(findSlider('textFieldBorderColorFocus').id, { web: ['textFieldBorderColorFocus'] });
+    addPlatformParams(findSlider('labelStyle').id, {
+        web: [
+            'labelFontFamily',
+            'labelFontSize',
+            'labelFontStyle',
+            'labelFontWeight',
+            'labelLetterSpacing',
+            'labelLineHeight',
+        ],
+    });
+    addPlatformParams(findSlider('disabledAlpha').id, { web: ['disabledOpacity'] });
+    addPlatformParams(findSlider('size').id, { web: ['size'] });
+    addPlatformParams(findSlider('labelWrapperGap').id, { web: ['labelWrapperGap'] });
+    addPlatformParams(findSlider('labelWrapperMarginBottom').id, { web: ['labelWrapperMarginBottom'] });
+    addPlatformParams(findSlider('labelWrapperMarginRight').id, { web: ['labelWrapperMarginRight'] });
+    addPlatformParams(findSlider('labelWrapperOnlyIconMarginRight').id, { web: ['labelWrapperOnlyIconMarginRight'] });
+    addPlatformParams(findSlider('labelWrapperVerticalMargin').id, { web: ['labelWrapperVerticalMargin'] });
+    addPlatformParams(findSlider('labelColor').id, { web: ['labelColor'] });
+    addPlatformParams(findSlider('rangeValueBottomOffset').id, { web: ['rangeValueBottomOffset'] });
+    addPlatformParams(findSlider('rangeValueHorizontalMargin').id, { web: ['rangeValueHorizontalMargin'] });
+    addPlatformParams(findSlider('rangeValueHorizontalOffset').id, { web: ['rangeValueHorizontalOffset'] });
+    addPlatformParams(findSlider('rangeValueVerticalMargin').id, { web: ['rangeValueVerticalMargin'] });
+    addPlatformParams(findSlider('rangeValueColor').id, { web: ['rangeValueColor'] });
+    addPlatformParams(findSlider('doubleWrapperGap').id, { web: ['doubleWrapperGap'] });
+    addPlatformParams(findSlider('doubleBoxShadow').id, { web: ['doubleBoxShadow'] });
+    addPlatformParams(findSlider('thumbSize').id, { web: ['thumbSize'] });
+    addPlatformParams(findSlider('thumbBorderStyle').id, { web: ['thumbBorderStyle'] });
+    addPlatformParams(findSlider('thumbBorderWidth').id, { web: ['thumbBorderWidth'] });
+    addPlatformParams(findSlider('thumbBorderColor').id, { web: ['thumbBorderColor'] });
+    addPlatformParams(findSlider('thumbBackgroundColor').id, { web: ['thumbBackgroundColor'] });
+    addPlatformParams(findSlider('thumbFocusBorderColor').id, { web: ['thumbFocusBorderColor'] });
+    addPlatformParams(findSlider('tickSize').id, { web: ['tickSize'] });
+    addPlatformParams(findSlider('tickDotColor').id, { web: ['tickDotColor'] });
+    addPlatformParams(findSlider('tickDotFilledColor').id, { web: ['tickDotFilledColor'] });
+    addPlatformParams(findSlider('currentValueTopOffset').id, { web: ['currentValueTopOffset'] });
+    addPlatformParams(findSlider('railBackgroundColor').id, { web: ['railBackgroundColor'] });
+    addPlatformParams(findSlider('railBorderRadius').id, { web: ['railBorderRadius'] });
+    addPlatformParams(findSlider('fillColor').id, { web: ['fillColor'] });
+    addPlatformParams(findSlider('textFieldWrapperGap').id, { web: ['textFieldWrapperGap'] });
+    addPlatformParams(findSlider('textFieldStyle').id, {
+        web: [
+            'textFieldFontFamily',
+            'textFieldFontSize',
+            'textFieldFontStyle',
+            'textFieldFontWeight',
+            'textFieldLetterSpacing',
+            'textFieldLineHeight',
+        ],
+    });
+    addPlatformParams(findSlider('valueStyle').id, {
+        web: [
+            'valueFontFamily',
+            'valueFontSize',
+            'valueFontStyle',
+            'valueFontWeight',
+            'valueLetterSpacing',
+            'valueLineHeight',
+        ],
+    });
+    addPlatformParams(findSlider('railThickness').id, { web: ['railThickness'] });
+    addPlatformParams(findSlider('textFieldHeight').id, { web: ['textFieldHeight'] });
+    addPlatformParams(findSlider('textFieldPadding').id, { web: ['textFieldPadding'] });
+    addPlatformParams(findSlider('textFieldBorderRadius').id, { web: ['textFieldBorderRadius'] });
+    addPlatformParams(findSlider('textFieldWebClipPath').id, { web: ['textFieldWebClipPath'] });
+    addPlatformParams(findSlider('textFieldWebReversedClipPath').id, { web: ['textFieldWebReversedClipPath'] });
+    addPlatformParams(findSlider('textFieldWebMarginRight').id, { web: ['textFieldWebMarginRight'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -2902,6 +3289,55 @@ export async function seedProperties(
         acc_accordionItemHeaderLeftGapClear: findAccordion('accordionItemHeaderLeftGapClear'),
         acc_accordionItemTextColor: findAccordion('accordionItemTextColor'),
         acc_accordionItemTitleStyle: findAccordion('accordionItemTitleStyle'),
+        // Slider
+        sli_textFieldColor: findSlider('textFieldColor'),
+        sli_textFiledFocusColor: findSlider('textFiledFocusColor'),
+        sli_textFieldCaretColor: findSlider('textFieldCaretColor'),
+        sli_textFieldPlaceholderColor: findSlider('textFieldPlaceholderColor'),
+        sli_textFieldBackgroundColor: findSlider('textFieldBackgroundColor'),
+        sli_textFieldBackgroundColorFocus: findSlider('textFieldBackgroundColorFocus'),
+        sli_textFieldBorderWidth: findSlider('textFieldBorderWidth'),
+        sli_textFieldBorderColor: findSlider('textFieldBorderColor'),
+        sli_textFieldBorderColorFocus: findSlider('textFieldBorderColorFocus'),
+        sli_labelStyle: findSlider('labelStyle'),
+        sli_disabledAlpha: findSlider('disabledAlpha'),
+        sli_size: findSlider('size'),
+        sli_labelWrapperGap: findSlider('labelWrapperGap'),
+        sli_labelWrapperMarginBottom: findSlider('labelWrapperMarginBottom'),
+        sli_labelWrapperMarginRight: findSlider('labelWrapperMarginRight'),
+        sli_labelWrapperOnlyIconMarginRight: findSlider('labelWrapperOnlyIconMarginRight'),
+        sli_labelWrapperVerticalMargin: findSlider('labelWrapperVerticalMargin'),
+        sli_labelColor: findSlider('labelColor'),
+        sli_rangeValueBottomOffset: findSlider('rangeValueBottomOffset'),
+        sli_rangeValueHorizontalMargin: findSlider('rangeValueHorizontalMargin'),
+        sli_rangeValueHorizontalOffset: findSlider('rangeValueHorizontalOffset'),
+        sli_rangeValueVerticalMargin: findSlider('rangeValueVerticalMargin'),
+        sli_rangeValueColor: findSlider('rangeValueColor'),
+        sli_doubleWrapperGap: findSlider('doubleWrapperGap'),
+        sli_doubleBoxShadow: findSlider('doubleBoxShadow'),
+        sli_thumbSize: findSlider('thumbSize'),
+        sli_thumbBorderStyle: findSlider('thumbBorderStyle'),
+        sli_thumbBorderWidth: findSlider('thumbBorderWidth'),
+        sli_thumbBorderColor: findSlider('thumbBorderColor'),
+        sli_thumbBackgroundColor: findSlider('thumbBackgroundColor'),
+        sli_thumbFocusBorderColor: findSlider('thumbFocusBorderColor'),
+        sli_tickSize: findSlider('tickSize'),
+        sli_tickDotColor: findSlider('tickDotColor'),
+        sli_tickDotFilledColor: findSlider('tickDotFilledColor'),
+        sli_currentValueTopOffset: findSlider('currentValueTopOffset'),
+        sli_railBackgroundColor: findSlider('railBackgroundColor'),
+        sli_railBorderRadius: findSlider('railBorderRadius'),
+        sli_fillColor: findSlider('fillColor'),
+        sli_textFieldWrapperGap: findSlider('textFieldWrapperGap'),
+        sli_textFieldStyle: findSlider('textFieldStyle'),
+        sli_valueStyle: findSlider('valueStyle'),
+        sli_railThickness: findSlider('railThickness'),
+        sli_textFieldHeight: findSlider('textFieldHeight'),
+        sli_textFieldPadding: findSlider('textFieldPadding'),
+        sli_textFieldBorderRadius: findSlider('textFieldBorderRadius'),
+        sli_textFieldWebClipPath: findSlider('textFieldWebClipPath'),
+        sli_textFieldWebReversedClipPath: findSlider('textFieldWebReversedClipPath'),
+        sli_textFieldWebMarginRight: findSlider('textFieldWebMarginRight'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

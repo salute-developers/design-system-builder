@@ -17,3 +17,4 @@ export { CellStories } from './Cell.story';
 export { DividerStories } from './Divider.story';
 export { EmptyStateStories } from './EmptyState.story';
 export { AccordionStories } from './Accordion.story';
+export { SliderStories } from './Slider.story';
