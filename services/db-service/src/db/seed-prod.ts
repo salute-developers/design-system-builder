@@ -24,6 +24,7 @@ import {
     seedDividerComponent,
     seedEmptyStateComponent,
     seedAccordionComponent,
+    seedSliderComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -192,6 +193,7 @@ async function seed() {
         divider: await seedDividerComponent(db),
         emptyState: await seedEmptyStateComponent(db),
         accordion: await seedAccordionComponent(db),
+        slider: await seedSliderComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -216,6 +218,7 @@ async function seed() {
         Divider: 'divider',
         EmptyState: 'emptyState',
         Accordion: 'accordion',
+        Slider: 'slider',
     };
 
     let componentIdsToReseed: string[];

@@ -15,6 +15,7 @@ export async function seedInvariantPropertyValues(
             list: any;
             linkButton: any;
             embedIconButton: any;
+            slider: any;
         };
         appearances: Record<string, any>;
         properties: Record<string, any>;
@@ -22,8 +23,19 @@ export async function seedInvariantPropertyValues(
     },
 ) {
     const { base } = ctx.designSystems;
-    const { iconButton, button, link, checkbox, radiobox, chip, switchComponent, list, linkButton, embedIconButton } =
-        ctx.components;
+    const {
+        iconButton,
+        button,
+        link,
+        checkbox,
+        radiobox,
+        chip,
+        switchComponent,
+        list,
+        linkButton,
+        embedIconButton,
+        slider,
+    } = ctx.components;
     const a = ctx.appearances;
     const p = ctx.properties;
     const t = ctx.tokenMap;
@@ -215,6 +227,15 @@ export async function seedInvariantPropertyValues(
                 componentId: embedIconButton.id,
                 appearanceId: a.base_emb_default.id,
                 value: '0.4',
+                state: null,
+            },
+            // Slider
+            {
+                propertyId: p.sli_disabledAlpha.id,
+                designSystemId: base.id,
+                componentId: slider.id,
+                appearanceId: a.base_sli_default.id,
+                value: '1',
                 state: null,
             },
         ])

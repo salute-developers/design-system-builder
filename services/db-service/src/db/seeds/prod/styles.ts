@@ -880,6 +880,46 @@ export async function seedStyles(
             { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h2', description: '', isDefault: false },
             { designSystemId: base.id, variationId: v.accordionSize.id, name: 'm', description: '', isDefault: true },
             { designSystemId: base.id, variationId: v.accordionSize.id, name: 'h5', description: '', isDefault: false },
+
+            // ── Slider ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.sliderSize.id, name: 'm', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.sliderPointerSize.id,
+                name: 'large',
+                description: '',
+                isDefault: false,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.sliderView.id,
+                name: 'accent',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.sliderSize.id, name: 's', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.sliderPointerSize.id,
+                name: 'none',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.sliderSize.id, name: 'l', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.sliderPointerSize.id,
+                name: 'small',
+                description: '',
+                isDefault: true,
+            },
+            {
+                designSystemId: base.id,
+                variationId: v.sliderView.id,
+                name: 'default',
+                description: '',
+                isDefault: true,
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -1081,6 +1121,15 @@ export async function seedStyles(
         base_acc_size_h2: find(v.accordionSize.id, 'h2'),
         base_acc_size_m: find(v.accordionSize.id, 'm'),
         base_acc_size_h5: find(v.accordionSize.id, 'h5'),
+        // Slider
+        base_sli_size_m: find(v.sliderSize.id, 'm'),
+        base_sli_pointerSize_large: find(v.sliderPointerSize.id, 'large'),
+        base_sli_view_accent: find(v.sliderView.id, 'accent'),
+        base_sli_size_s: find(v.sliderSize.id, 's'),
+        base_sli_pointerSize_none: find(v.sliderPointerSize.id, 'none'),
+        base_sli_size_l: find(v.sliderSize.id, 'l'),
+        base_sli_pointerSize_small: find(v.sliderPointerSize.id, 'small'),
+        base_sli_view_default: find(v.sliderView.id, 'default'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
