@@ -22,6 +22,7 @@ import {
     EmptyStateStories,
     AccordionStories,
     SliderStories,
+    NoteStories,
 } from '../stories';
 
 interface Story {
@@ -52,6 +53,7 @@ const componentMapper: Record<string, Story[]> = {
     EmptyState: EmptyStateStories,
     Accordion: AccordionStories,
     Slider: SliderStories,
+    Note: NoteStories,
 };
 
 export const useStory = (componentName?: string) => {

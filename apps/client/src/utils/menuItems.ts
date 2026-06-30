@@ -40,7 +40,7 @@ const componentList = [
             { name: 'InformationWrapper', disabled: true },
             { name: 'List', disabled: false },
             { name: 'Mask', disabled: true },
-            { name: 'Note', disabled: true },
+            { name: 'Note', disabled: false },
             { name: 'Price', disabled: true },
             { name: 'Rating', disabled: true },
             { name: 'Skeleton', disabled: false },

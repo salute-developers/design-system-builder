@@ -366,6 +366,31 @@ export async function seedPropertyVariations(
             { propertyId: p.sli_textFieldBorderWidth.id, variationId: v.sliderSize.id },
             { propertyId: p.sli_doubleBoxShadow.id, variationId: v.sliderView.id },
             { propertyId: p.sli_textFieldWebReversedClipPath.id, variationId: v.sliderSize.id },
+
+            // ── Note ──────────────────────────────────────────────────────────
+            { propertyId: p.not_background.id, variationId: v.noteView.id },
+            { propertyId: p.not_color.id, variationId: v.noteView.id },
+            { propertyId: p.not_actionContentMargin.id, variationId: v.noteSize.id },
+            { propertyId: p.not_borderRadius.id, variationId: v.noteSize.id },
+            { propertyId: p.not_closeIconButtonSize.id, variationId: v.noteSize.id },
+            { propertyId: p.not_closeIconMargin.id, variationId: v.noteSize.id },
+            { propertyId: p.not_closeIconRight.id, variationId: v.noteSize.id },
+            { propertyId: p.not_closeIconSize.id, variationId: v.noteSize.id },
+            { propertyId: p.not_closeIconTop.id, variationId: v.noteSize.id },
+            { propertyId: p.not_contentGap.id, variationId: v.noteSize.id },
+            { propertyId: p.not_fixedContentBeforeHeight.id, variationId: v.noteSize.id },
+            { propertyId: p.not_fixedContentBeforePadding.id, variationId: v.noteSize.id },
+            { propertyId: p.not_fixedContentBeforeWidth.id, variationId: v.noteSize.id },
+            { propertyId: p.not_gapScalable.id, variationId: v.noteSize.id },
+            { propertyId: p.not_gap.id, variationId: v.noteSize.id },
+            { propertyId: p.not_contentBeforeColor.id, variationId: v.noteView.id },
+            { propertyId: p.not_closeIconColor.id, variationId: v.noteSize.id },
+            { propertyId: p.not_padding.id, variationId: v.noteSize.id },
+            { propertyId: p.not_paddingBottomWithActionContent.id, variationId: v.noteSize.id },
+            { propertyId: p.not_paddingScalable.id, variationId: v.noteSize.id },
+            { propertyId: p.not_textStyle.id, variationId: v.noteSize.id },
+            { propertyId: p.not_titlePaddingRight.id, variationId: v.noteSize.id },
+            { propertyId: p.not_titleStyle.id, variationId: v.noteSize.id },
         ])
         .onConflictDoNothing()
         .returning();

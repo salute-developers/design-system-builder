@@ -18,3 +18,4 @@ export { seedDividerComponent } from './divider';
 export { seedEmptyStateComponent } from './emptyState';
 export { seedAccordionComponent } from './accordion';
 export { seedSliderComponent } from './slider';
+export { seedNoteComponent } from './note';

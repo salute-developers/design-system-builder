@@ -25,6 +25,7 @@ export async function seedDesignSystemComponents(
             emptyState: any;
             accordion: any;
             slider: any;
+            note: any;
         };
     },
 ) {
@@ -50,6 +51,7 @@ export async function seedDesignSystemComponents(
         emptyState,
         accordion,
         slider,
+        note,
     } = ctx.components;
 
     const rows = await db
@@ -75,6 +77,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: emptyState.id },
             { designSystemId: base.id, componentId: accordion.id },
             { designSystemId: base.id, componentId: slider.id },
+            { designSystemId: base.id, componentId: note.id },
         ])
         .onConflictDoNothing()
         .returning();
