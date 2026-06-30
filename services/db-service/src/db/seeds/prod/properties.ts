@@ -25,6 +25,7 @@ export async function seedProperties(
             emptyState: any;
             accordion: any;
             slider: any;
+            note: any;
         };
     },
 ) {
@@ -49,6 +50,7 @@ export async function seedProperties(
         emptyState,
         accordion,
         slider,
+        note,
     } = ctx.components;
 
     const rows = await db
@@ -2121,6 +2123,121 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── Note ──────────────────────────────────────────────────────────
+            {
+                componentId: note.id,
+                name: 'actionContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'background', type: 'color' as const, defaultValue: '', description: '' },
+            { componentId: note.id, name: 'borderRadius', type: 'shape' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'closeIconButtonSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'closeIconColor', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'closeIconMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'closeIconRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'closeIconSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'closeIconTop',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'color', type: 'color' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'contentBeforeColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'contentGap', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'fixedContentBeforeHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'fixedContentBeforePadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'fixedContentBeforeWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'gap', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'gapScalable',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'padding', type: 'dimension' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'paddingBottomWithActionContent',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'paddingScalable',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            { componentId: note.id, name: 'textStyle', type: 'typography' as const, defaultValue: '', description: '' },
+            {
+                componentId: note.id,
+                name: 'titlePaddingRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: note.id,
+                name: 'titleStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -2975,6 +3092,49 @@ export async function seedProperties(
     addPlatformParams(findSlider('textFieldWebClipPath').id, { web: ['textFieldWebClipPath'] });
     addPlatformParams(findSlider('textFieldWebReversedClipPath').id, { web: ['textFieldWebReversedClipPath'] });
     addPlatformParams(findSlider('textFieldWebMarginRight').id, { web: ['textFieldWebMarginRight'] });
+    // Note
+    const findNote = (name: string) => rows.find((r: any) => r.componentId === note.id && r.name === name)!;
+    addPlatformParams(findNote('actionContentMargin').id, { web: ['actionContentMargin'] });
+    addPlatformParams(findNote('background').id, { web: ['background'] });
+    addPlatformParams(findNote('borderRadius').id, { web: ['borderRadius'] });
+    addPlatformParams(findNote('closeIconButtonSize').id, { web: ['closeIconButtonSize'] });
+    addPlatformParams(findNote('closeIconColor').id, { web: ['closeIconColor'] });
+    addPlatformParams(findNote('closeIconMargin').id, { web: ['closeIconMargin'] });
+    addPlatformParams(findNote('closeIconRight').id, { web: ['closeIconRight'] });
+    addPlatformParams(findNote('closeIconSize').id, { web: ['closeIconSize'] });
+    addPlatformParams(findNote('closeIconTop').id, { web: ['closeIconTop'] });
+    addPlatformParams(findNote('color').id, { web: ['color'] });
+    addPlatformParams(findNote('contentBeforeColor').id, { web: ['contentBeforeColor'] });
+    addPlatformParams(findNote('contentGap').id, { web: ['contentGap'] });
+    addPlatformParams(findNote('fixedContentBeforeHeight').id, { web: ['fixedContentBeforeHeight'] });
+    addPlatformParams(findNote('fixedContentBeforePadding').id, { web: ['fixedContentBeforePadding'] });
+    addPlatformParams(findNote('fixedContentBeforeWidth').id, { web: ['fixedContentBeforeWidth'] });
+    addPlatformParams(findNote('gap').id, { web: ['gap'] });
+    addPlatformParams(findNote('gapScalable').id, { web: ['gapScalable'] });
+    addPlatformParams(findNote('padding').id, { web: ['padding'] });
+    addPlatformParams(findNote('paddingBottomWithActionContent').id, { web: ['paddingBottomWithActionContent'] });
+    addPlatformParams(findNote('paddingScalable').id, { web: ['paddingScalable'] });
+    addPlatformParams(findNote('textStyle').id, {
+        web: [
+            'textFontFamily',
+            'textFontSize',
+            'textFontStyle',
+            'textFontWeight',
+            'textLetterSpacing',
+            'textLineHeight',
+        ],
+    });
+    addPlatformParams(findNote('titlePaddingRight').id, { web: ['titlePaddingRight'] });
+    addPlatformParams(findNote('titleStyle').id, {
+        web: [
+            'titleFontFamily',
+            'titleFontSize',
+            'titleFontStyle',
+            'titleFontWeight',
+            'titleLetterSpacing',
+            'titleLineHeight',
+        ],
+    });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -3338,6 +3498,30 @@ export async function seedProperties(
         sli_textFieldWebClipPath: findSlider('textFieldWebClipPath'),
         sli_textFieldWebReversedClipPath: findSlider('textFieldWebReversedClipPath'),
         sli_textFieldWebMarginRight: findSlider('textFieldWebMarginRight'),
+        // Note
+        not_actionContentMargin: findNote('actionContentMargin'),
+        not_background: findNote('background'),
+        not_borderRadius: findNote('borderRadius'),
+        not_closeIconButtonSize: findNote('closeIconButtonSize'),
+        not_closeIconColor: findNote('closeIconColor'),
+        not_closeIconMargin: findNote('closeIconMargin'),
+        not_closeIconRight: findNote('closeIconRight'),
+        not_closeIconSize: findNote('closeIconSize'),
+        not_closeIconTop: findNote('closeIconTop'),
+        not_color: findNote('color'),
+        not_contentBeforeColor: findNote('contentBeforeColor'),
+        not_contentGap: findNote('contentGap'),
+        not_fixedContentBeforeHeight: findNote('fixedContentBeforeHeight'),
+        not_fixedContentBeforePadding: findNote('fixedContentBeforePadding'),
+        not_fixedContentBeforeWidth: findNote('fixedContentBeforeWidth'),
+        not_gap: findNote('gap'),
+        not_gapScalable: findNote('gapScalable'),
+        not_padding: findNote('padding'),
+        not_paddingBottomWithActionContent: findNote('paddingBottomWithActionContent'),
+        not_paddingScalable: findNote('paddingScalable'),
+        not_textStyle: findNote('textStyle'),
+        not_titlePaddingRight: findNote('titlePaddingRight'),
+        not_titleStyle: findNote('titleStyle'),
     };
 
     console.log(`  properties: ${rows.length} rows`);

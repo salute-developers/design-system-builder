@@ -25,6 +25,7 @@ export async function seedVariations(
             emptyState: any;
             accordion: any;
             slider: any;
+            note: any;
         };
     },
 ) {
@@ -49,6 +50,7 @@ export async function seedVariations(
         emptyState,
         accordion,
         slider,
+        note,
     } = ctx.components;
 
     const rows = await db
@@ -120,6 +122,9 @@ export async function seedVariations(
             { componentId: slider.id, name: 'size', description: 'Размер.' },
             { componentId: slider.id, name: 'pointerSize', description: 'Размер кружка.' },
             { componentId: slider.id, name: 'view', description: 'Вид.' },
+            // Note
+            { componentId: note.id, name: 'view', description: 'Вид.' },
+            { componentId: note.id, name: 'size', description: 'Размер.' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -191,6 +196,9 @@ export async function seedVariations(
         sliderSize: find(slider.id, 'size'),
         sliderPointerSize: find(slider.id, 'pointerSize'),
         sliderView: find(slider.id, 'view'),
+        // Note
+        noteView: find(note.id, 'view'),
+        noteSize: find(note.id, 'size'),
     };
 
     console.log(`  variations: ${rows.length} rows`);

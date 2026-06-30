@@ -920,6 +920,29 @@ export async function seedStyles(
                 description: '',
                 isDefault: true,
             },
+
+            // ── Note ──────────────────────────────────────────────────────────
+            { designSystemId: base.id, variationId: v.noteView.id, name: 'info', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.noteSize.id, name: 'l', description: '', isDefault: true },
+            { designSystemId: base.id, variationId: v.noteSize.id, name: 'xs', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.noteView.id, name: 'warning', description: '', isDefault: false },
+            {
+                designSystemId: base.id,
+                variationId: v.noteView.id,
+                name: 'negative',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.noteSize.id, name: 's', description: '', isDefault: false },
+            { designSystemId: base.id, variationId: v.noteView.id, name: 'default', description: '', isDefault: true },
+            {
+                designSystemId: base.id,
+                variationId: v.noteView.id,
+                name: 'positive',
+                description: '',
+                isDefault: false,
+            },
+            { designSystemId: base.id, variationId: v.noteSize.id, name: 'm', description: '', isDefault: false },
         ])
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
@@ -1130,6 +1153,16 @@ export async function seedStyles(
         base_sli_size_l: find(v.sliderSize.id, 'l'),
         base_sli_pointerSize_small: find(v.sliderPointerSize.id, 'small'),
         base_sli_view_default: find(v.sliderView.id, 'default'),
+        // Note
+        base_not_view_info: find(v.noteView.id, 'info'),
+        base_not_size_l: find(v.noteSize.id, 'l'),
+        base_not_size_xs: find(v.noteSize.id, 'xs'),
+        base_not_view_warning: find(v.noteView.id, 'warning'),
+        base_not_view_negative: find(v.noteView.id, 'negative'),
+        base_not_size_s: find(v.noteSize.id, 's'),
+        base_not_view_default: find(v.noteView.id, 'default'),
+        base_not_view_positive: find(v.noteView.id, 'positive'),
+        base_not_size_m: find(v.noteSize.id, 'm'),
     };
 
     console.log(`  styles: ${rows.length} rows`);
