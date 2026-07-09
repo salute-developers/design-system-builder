@@ -2802,7 +2802,7 @@ export async function seedProperties(
         ],
     });
     addPlatformParams(findSwitch('descriptionMaxLines').id, { web: ['descriptionMaxLines'] });
-    addPlatformParams(findSwitch('thumbPressScale').id, { web: ['thumbScale'] });
+    addPlatformParams(findSwitch('thumbPressScale').id, { web: ['thumbPressScale'] });
     addPlatformParams(findSwitch('thumbBoxShadow').id, { web: ['thumbBoxShadow'] });
     // Skeleton
     const findSkeleton = (name: string) => rows.find((r: any) => r.componentId === skeleton.id && r.name === name)!;
