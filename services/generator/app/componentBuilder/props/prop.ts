@@ -134,10 +134,14 @@ export abstract class Prop {
         return this.states.reduce((acc, item) => {
             const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
 
+            const value = getValue(item);
+
+            if (value === undefined) {
+                return acc;
+            }
+
             const formattedTokenName = this.getFormattedTokenName(token, componentName);
             const tokenName = `--plasma${formattedTokenName}${statesMap[state]}`;
-
-            const value = getValue(item);
 
             return {
                 ...acc,

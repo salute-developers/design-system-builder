@@ -1,12 +1,22 @@
 import { lowerFirstLetter, upperFirstLetter } from '../utils';
 
+// TODO: временный хардкод. В новых версиях @salutejs/plasma-new-hope имя экспортируемого
+// базового конфига некоторых компонентов не совпадает с `${lowerFirstLetter(name)}Config`.
+// Например, у Skeleton базовый конфиг называется `lineSkeletonConfig`, а не `skeletonConfig`.
+const PLASMA_CONFIG_NAME_OVERRIDES: Record<string, string> = {
+    Skeleton: 'lineSkeletonConfig',
+};
+
+const getPlasmaConfigName = (componentName: string) =>
+    PLASMA_CONFIG_NAME_OVERRIDES[componentName] ?? `${lowerFirstLetter(componentName)}Config`;
+
 const getComponentConfigImport = (componentName: string, componentConfig: string) =>
     `import { config as ${componentConfig}Config } from './${componentName}.${componentConfig}.config'`;
 
 const getComponentInstance = (componentName: string, componentConfig: string) => {
-    return `export const mergedConfig${upperFirstLetter(componentConfig)} = mergeConfig(${lowerFirstLetter(
+    return `export const mergedConfig${upperFirstLetter(componentConfig)} = mergeConfig(${getPlasmaConfigName(
         componentName,
-    )}Config, ${componentConfig}Config);
+    )}, ${componentConfig}Config);
 export const ${componentName}${upperFirstLetter(componentConfig)} = component(mergedConfigDefault);`;
 };
 
@@ -22,14 +32,14 @@ export const createMultipleComponent = (
     componentDescription: string,
     componentConfigs: string[],
 ) => `import { ComponentProps } from 'react';
-import { ${lowerFirstLetter(
+import { ${getPlasmaConfigName(
     componentName,
-)}Config, component, mergeConfig, createConditionalComponent } from '@salutejs/plasma-new-hope/styled-components';
+)}, component, mergeConfig, createConditionalComponent } from '@salutejs/plasma-new-hope/styled-components';
 
 import { config as defaultConfig } from './${componentName}.config';
 ${componentConfigs.map((config) => getComponentConfigImport(componentName, config)).join('\n')}
 
-export const mergedConfigDefault = mergeConfig(${lowerFirstLetter(componentName)}Config, defaultConfig);
+export const mergedConfigDefault = mergeConfig(${getPlasmaConfigName(componentName)}, defaultConfig);
 export const ${componentName}Default = component(mergedConfigDefault);
 ${componentConfigs.map((config) => getComponentInstance(componentName, config)).join('\n')}
 
@@ -46,13 +56,13 @@ export const ${componentName} = createConditionalComponent<${componentName}Props
 export const createSingleComponent = (
     componentName: string,
     componentDescription: string,
-) => `import { ${lowerFirstLetter(
+) => `import { ${getPlasmaConfigName(
     componentName,
-)}Config, component, mergeConfig } from '@salutejs/plasma-new-hope/styled-components';
+)}, component, mergeConfig } from '@salutejs/plasma-new-hope/styled-components';
 
 import { config } from './${componentName}.config';
 
-const mergedConfig = mergeConfig(${lowerFirstLetter(componentName)}Config, config);
+const mergedConfig = mergeConfig(${getPlasmaConfigName(componentName)}, config);
 const ${componentName}Component = component(mergedConfig);
 
 /**

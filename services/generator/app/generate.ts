@@ -27,6 +27,9 @@ export const generateBaseFileStructure = async ({
     // const __filename = fileURLToPath(import.meta.url);
     // const __dirname = dirname(__filename);
 
+    // Полностью очищаем прошлый результат: иначе остаются старые node_modules/package-lock.json
+    // и `npm install` при сборке подтягивает устаревшую версию @salutejs/plasma-new-hope.
+    await fs.remove(pathToDir);
     await fs.mkdir(pathToDir, { recursive: true });
 
     const constantsDir = path.join(__dirname, 'constants');

@@ -2,6 +2,7 @@ import type { ComponentAPI, PropConfig, PropUnion } from '../type';
 import { ColorProp } from './color';
 import { DimensionProp } from './dimension';
 import { FloatProp } from './float';
+import { ShadowProp } from './shadow';
 import { ShapeProp } from './shape';
 import { TypographyProp } from './typography';
 
@@ -38,7 +39,7 @@ export class Props {
     }
 
     public getList() {
-        return this.list;
+        return [...this.list].sort((a, b) => a.getName().localeCompare(b.getName()));
     }
 
     public getProp(id: string) {
@@ -85,6 +86,10 @@ export class Props {
 
         if (type === 'float') {
             return new FloatProp(name, item, platformMappings);
+        }
+
+        if (type === 'shadow') {
+            return new ShadowProp(name, item, platformMappings);
         }
 
         if (type === 'shape') {

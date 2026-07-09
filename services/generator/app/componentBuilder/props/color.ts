@@ -1,10 +1,16 @@
 import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import type { PlatformTokens, PropConfig, State } from '../type';
+import type { PlatformTokens, PropConfig, PropState, State } from '../type';
 import { Prop } from './prop';
 
 // TODO: импоритровать из пакета
 type Theme = any;
+
+// Суффиксы производных токенов темы для состояний (тема генерирует `<base>-hover` / `<base>-active`).
+const stateSuffixMap: Record<PropState, string> = {
+    hovered: '-hover',
+    pressed: '-active',
+};
 
 export class ColorProp extends Prop {
     protected readonly type = 'color';
@@ -29,10 +35,14 @@ export class ColorProp extends Prop {
     }
 
     private getThemeValue(tokenName?: string, theme?: Theme, themeMode?: ThemeMode) {
+        if (!tokenName) {
+            return undefined;
+        }
+
         const token = theme?.getTokenValue(`${themeMode}.${tokenName}`, 'color', 'web');
 
         if (!token) {
-            return this.value;
+            return undefined;
         }
 
         return getRestoredColorFromPalette(token, -1);
@@ -55,8 +65,14 @@ export class ColorProp extends Prop {
         }
 
         const additionalValues = this.webTokens.reduce((acc, { name }) => {
-            const getValue = ({ value }: State) =>
-                theme ? this.getThemeValue(value, theme, themeMode) : this.getCSSVar(value);
+            const getValue = (state: State) => {
+                const stateName = state.state[0];
+                const stateTokenName = state.value ?? `${this.value}${stateSuffixMap[stateName]}`;
+
+                return theme
+                    ? this.getThemeValue(stateTokenName, theme, themeMode)
+                    : this.getCSSVar(stateTokenName);
+            };
 
             return {
                 ...acc,
