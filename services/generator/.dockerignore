@@ -1,4 +1,5 @@
 node_modules
+result
 npm-debug.log
 Dockerfile
 .dockerignore
