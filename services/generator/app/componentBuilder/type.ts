@@ -1,4 +1,4 @@
-import type { ColorProp, DimensionProp, FloatProp, ShapeProp, TypographyProp } from './props';
+import type { ColorProp, DimensionProp, FloatProp, ShadowProp, ShapeProp, TypographyProp } from './props';
 
 export const DEFAULT_FONT_SIZE = 16;
 
@@ -20,13 +20,13 @@ export const DEFAULT_FONT_SIZE = 16;
 
 // ТИПЫ ПО ФАЙЛАМ
 
-export type PropType = 'color' | 'dimension' | 'float' | 'shape' | 'typography';
+export type PropType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography';
 
-export type PropState = 'hover' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
+export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
 
 export type Intersections = Record<string, string[]>;
 
-export type PropUnion = ColorProp | FloatProp | ShapeProp | DimensionProp | TypographyProp;
+export type PropUnion = ColorProp | FloatProp | ShadowProp | ShapeProp | DimensionProp | TypographyProp;
 
 export interface WebToken {
     name: string;
