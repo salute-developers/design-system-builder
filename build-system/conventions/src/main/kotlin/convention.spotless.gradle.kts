@@ -16,7 +16,7 @@ configure<SpotlessExtension> {
         target("src/*/java/**/*.java")
         importOrder() // standard import order
         removeUnusedImports()
-        googleJavaFormat("1.11.0").aosp()
+        googleJavaFormat("1.17.0").aosp()
     }
 
     kotlin {
