@@ -18,6 +18,7 @@
     "build:documentation-generator": "cd services/documentation-generator && npm run build",
     "build:client": "cd apps/client && npm run build",
     "build:admin": "cd apps/admin && npm run build",
+    "import:uikit-api-meta": "node ../scripts/import-uikit-api-meta.mjs",
     "test:services": "npm --prefix services/db-service test",
     "verify:fast": "npm run build && npm run test:services",
     "verify:full": "npm run verify:fast",
