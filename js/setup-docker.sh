@@ -69,6 +69,8 @@ show_progress() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="docker-compose.dev.yml"
 JS_COMPOSE_PROJECT_NAME="${DSBUILDER_JS_COMPOSE_PROJECT_NAME:-design-system-builder}"
+VITE_COMPOSE_PREVIEW_PLUGIN_URL="${VITE_COMPOSE_PREVIEW_PLUGIN_URL:-http://localhost:8081/}"
+export VITE_COMPOSE_PREVIEW_PLUGIN_URL
 
 # Project bootstrap (backend-kt stack: keycloak + gateway + projects-service)
 GATEWAY_URL="${DSBUILDER_GATEWAY_URL:-http://localhost:8080}"
@@ -174,6 +176,7 @@ for project in json.load(sys.stdin):
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
 echo "======================================================"
+echo_info "Compose preview plugin: $VITE_COMPOSE_PREVIEW_PLUGIN_URL"
 
 # Check if Docker is running
 if ! docker info > /dev/null 2>&1; then

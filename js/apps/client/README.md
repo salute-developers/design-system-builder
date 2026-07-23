@@ -52,3 +52,55 @@ export default tseslint.config({
   },
 })
 ```
+# DS Builder client
+
+## Compose preview plugin
+
+Compose preview is an optional pilot renderer for the `Button` component. The plugin remains a
+separately built and hosted production artifact; it is not copied into `public` or bundled by
+Vite.
+
+The repository contains a development build of the plugin. Start it with:
+
+```sh
+npm run dev:compose-plugin
+```
+
+The command unpacks `scripts/preview-compose-plugin.zip` into a temporary directory and serves it
+at `http://127.0.0.1:8081/` with CORS enabled. The temporary directory is removed when the server
+stops.
+
+To test another artifact, pass either its ZIP or unpacked directory directly:
+
+```sh
+node scripts/serve-compose-plugin.mjs /path/to/preview-compose-plugin.zip 8081
+```
+
+Then copy `.env.example` to `.env.local` and set:
+
+   ```text
+   VITE_COMPOSE_PREVIEW_PLUGIN_URL=http://127.0.0.1:8081/
+   ```
+
+Start the client with `npm run dev`. The component editor offers `React / Compose` only for
+   `Button` when the URL is configured. An unavailable or incompatible plugin reports a failure
+   inside the Compose viewport while React mode remains available.
+
+### Cross-origin browser smoke
+
+Install the Playwright browser once with `npx playwright install chromium`, start the production
+plugin at the URL above, and run:
+
+```sh
+VITE_COMPOSE_PREVIEW_PLUGIN_URL=http://127.0.0.1:8081/ npm run test:browser-smoke
+```
+
+The smoke harness uses the React `ComposePreviewFrame`, waits for manifest → ready → payload →
+success, sends a changed full canonical `BasicButton` payload, and verifies the same iframe
+instance reports a second success.
+
+### PoC boundary
+
+This PoC intentionally uses a versioned canonical fixture. It does not assemble payloads from
+`Config`, `Theme`, variation/style IDs, or db-service entities. Backend changes, plugin
+publication/catalog/signatures, and components other than the pilot Button remain out of scope.

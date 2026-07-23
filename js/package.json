@@ -10,6 +10,7 @@
     "dev:publisher": "cd services/publisher && npm run start",
     "dev:documentation-generator": "cd services/documentation-generator && npm run start:dev",
     "dev:client": "cd apps/client && npm run dev",
+    "dev:compose-plugin": "cd apps/client && npm run dev:compose-plugin",
     "dev:admin": "cd apps/admin && npm run dev",
     "build": "concurrently --kill-others-on-fail --names services,client,admin -c auto \"npm run build:services\" \"npm run build:client\" \"npm run build:admin\"",
     "build:services": "concurrently --kill-others-on-fail --names generator,db-service,docs-generator -c auto \"npm run build:generator\" \"npm run build:db-service\" \"npm run build:documentation-generator\"",

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, Variation } from '../../../../controllers';
@@ -10,6 +10,12 @@ import {
     Switch,
     TextField,
 } from '../../../../components';
+import {
+    ComposePreviewFrame,
+    createBasicButtonPreviewPayload,
+    getComposePreviewPluginUrl,
+    loadComposePreviewManifest,
+} from '../../../../composePreview';
 
 import {
     Root,
@@ -62,6 +68,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     } = props;
 
     const variations = config.getVariations();
+    const componentName = config.getName();
 
     const variationNames = useMemo(() => new Set(variations.map((variation) => variation.getName())), [variations]);
 
@@ -103,6 +110,36 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     );
 
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
+    const [rendererMode, setRendererMode] = useState<SelectButtonItem>({ label: 'React', value: 'react' });
+    const [hasCompatibleComposePlugin, setHasCompatibleComposePlugin] = useState(false);
+    const composePluginUrl = getComposePreviewPluginUrl();
+    const supportsCompose = componentName === 'Button' && hasCompatibleComposePlugin;
+    const rendererModes = useMemo(
+        () => [
+            { label: 'React', value: 'react' },
+            ...(supportsCompose ? [{ label: 'Compose', value: 'compose' }] : []),
+        ],
+        [supportsCompose],
+    );
+    const composePayload = useMemo(() => createBasicButtonPreviewPayload(args), [args]);
+
+    useEffect(() => {
+        let cancelled = false;
+        setHasCompatibleComposePlugin(false);
+        if (componentName !== 'Button' || !composePluginUrl) return;
+
+        void loadComposePreviewManifest(composePluginUrl)
+            .then(() => {
+                if (!cancelled) setHasCompatibleComposePlugin(true);
+            })
+            .catch(() => {
+                if (!cancelled) setHasCompatibleComposePlugin(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [componentName, composePluginUrl]);
     const switchBackground = useMemo(
         () =>
             getRestoredColorFromPalette(
@@ -206,6 +243,12 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             <StyledPreviewShadow>
                 <StyledPreviewBackgroundEditor>
                     <SegmentButton
+                        label="Renderer"
+                        items={rendererModes}
+                        selected={rendererMode}
+                        onSelect={setRendererMode}
+                    />
+                    <SegmentButton
                         label="Режим"
                         items={themeModeList}
                         selected={themeMode}
@@ -220,11 +263,13 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
-                    {isResolved && Story && (
+                    {rendererMode.value === 'compose' && supportsCompose && composePluginUrl ? (
+                        <ComposePreviewFrame pluginUrl={composePluginUrl} payload={composePayload} />
+                    ) : isResolved && Story ? (
                         <StyledStoryScope data-preview style={{ fontFamily: previewFontFamily }}>
                             <Story {...storyArgsValue} relatedComponents={relatedComponents} />
                         </StyledStoryScope>
-                    )}
+                    ) : null}
                     {storyItems.length > 1 && (
                         <StyledStorySelector>
                             <SegmentButton
