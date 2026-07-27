@@ -1,0 +1,142 @@
+{
+    "body": {
+        "name": "SB Sans Display",
+        "fonts": [
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Light.otf",
+                "fontStyle": "normal",
+                "fontWeight": 300
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Thin.otf",
+                "fontStyle": "normal",
+                "fontWeight": 100
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Bold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 700
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Regular.otf",
+                "fontStyle": "normal",
+                "fontWeight": 400
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Semibold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 600
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Medium.otf",
+                "fontStyle": "normal",
+                "fontWeight": 500
+            }
+        ]
+    },
+    "display": {
+        "name": "SB Sans Display",
+        "fonts": [
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Light.otf",
+                "fontStyle": "normal",
+                "fontWeight": 300
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Thin.otf",
+                "fontStyle": "normal",
+                "fontWeight": 100
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Bold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 700
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Regular.otf",
+                "fontStyle": "normal",
+                "fontWeight": 400
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Semibold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 600
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Medium.otf",
+                "fontStyle": "normal",
+                "fontWeight": 500
+            }
+        ]
+    },
+    "header": {
+        "name": "SB Sans Display",
+        "fonts": [
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Light.otf",
+                "fontStyle": "normal",
+                "fontWeight": 300
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Thin.otf",
+                "fontStyle": "normal",
+                "fontWeight": 100
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Bold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 700
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Regular.otf",
+                "fontStyle": "normal",
+                "fontWeight": 400
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Semibold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 600
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Medium.otf",
+                "fontStyle": "normal",
+                "fontWeight": 500
+            }
+        ]
+    },
+    "text": {
+        "name": "SB Sans Display",
+        "fonts": [
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Light.otf",
+                "fontStyle": "normal",
+                "fontWeight": 300
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Thin.otf",
+                "fontStyle": "normal",
+                "fontWeight": 100
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Bold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 700
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Regular.otf",
+                "fontStyle": "normal",
+                "fontWeight": 400
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Semibold.otf",
+                "fontStyle": "normal",
+                "fontWeight": 600
+            },
+            {
+                "link": "https://cdn-app.sberdevices.ru/shared-static/0.0.0/fonts/SBSansDisplay.0.2.0/SBSansDisplay-Medium.otf",
+                "fontStyle": "normal",
+                "fontWeight": 500
+            }
+        ]
+    }
+}

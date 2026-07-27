@@ -1,0 +1,6738 @@
+{
+    "dark.outline.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.default.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.inverse.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.outline.on-light.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.overlay.default.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "dark.overlay.default.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "dark.overlay.inverse.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "dark.overlay.inverse.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "dark.overlay.on-dark.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "dark.overlay.on-dark.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "dark.overlay.on-light.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "dark.overlay.on-light.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "dark.surface.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF5C",
+                "#FFFFFF52",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C",
+                "#FFFFFF14",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.default.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#0808085C",
+                "#08080852",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C",
+                "#08080814",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.inverse.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF5C",
+                "#FFFFFF52",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C",
+                "#FFFFFF14",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#0808085C",
+                "#08080852",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C",
+                "#08080814",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.surface.on-light.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "dark.text.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.default.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.inverse.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-dark.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.outline.on-light.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.overlay.default.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "light.overlay.default.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "light.overlay.inverse.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "light.overlay.inverse.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "light.overlay.on-dark.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "light.overlay.on-dark.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#08080800",
+                "#08080803",
+                "#0808080A",
+                "#08080814",
+                "#08080826",
+                "#0808083B",
+                "#08080854",
+                "#08080870",
+                "#0808088F",
+                "#080808AB",
+                "#080808C4",
+                "#080808D9",
+                "#080808EB",
+                "#080808F5",
+                "#080808FC",
+                "#080808FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "light.overlay.on-light.gradient-down": [
+        {
+            "kind": "linear",
+            "angle": 180,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.09,
+                0.1,
+                0.1,
+                0.11,
+                0.12,
+                0.13,
+                0.14
+            ]
+        }
+    ],
+    "light.overlay.on-light.gradient-up": [
+        {
+            "kind": "linear",
+            "angle": 0,
+            "colors": [
+                "#F9F9F900",
+                "#F9F9F903",
+                "#F9F9F90A",
+                "#F9F9F914",
+                "#F9F9F926",
+                "#F9F9F93B",
+                "#F9F9F954",
+                "#F9F9F970",
+                "#F9F9F98F",
+                "#F9F9F9AB",
+                "#F9F9F9C4",
+                "#F9F9F9D9",
+                "#F9F9F9EB",
+                "#F9F9F9F5",
+                "#F9F9F9FC",
+                "#F9F9F9FF"
+            ],
+            "locations": [
+                0,
+                0.01,
+                0.02,
+                0.02,
+                0.03,
+                0.04,
+                0.05,
+                0.05,
+                0.06,
+                0.07,
+                0.08,
+                0.08,
+                0.09,
+                0.1,
+                0.11,
+                0.12
+            ]
+        }
+    ],
+    "light.surface.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#0808085C",
+                "#08080852",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C",
+                "#08080814",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.default.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF5C",
+                "#FFFFFF52",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C",
+                "#FFFFFF14",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.inverse.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF5C",
+                "#FFFFFF52",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C",
+                "#FFFFFF14",
+                "#FFFFFF33",
+                "#FFFFFF0A",
+                "#FFFFFF33",
+                "#FFFFFF52",
+                "#FFFFFF5C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17",
+                "#FFFFFF14",
+                "#FFFFFF0D",
+                "#FFFFFF03",
+                "#FFFFFF0D",
+                "#FFFFFF14",
+                "#FFFFFF17"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-dark.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-deep-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#0808085C",
+                "#08080852",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C",
+                "#08080814",
+                "#08080833",
+                "#0808080A",
+                "#08080833",
+                "#08080852",
+                "#0808085C"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-deep-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-deep-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817",
+                "#08080814",
+                "#0808080D",
+                "#08080803",
+                "#0808080D",
+                "#08080814",
+                "#08080817"
+            ],
+            "locations": [
+                0,
+                0.0625,
+                0.125,
+                0.25,
+                0.375,
+                0.4375,
+                0.5,
+                0.5625,
+                0.625,
+                0.75,
+                0.875,
+                0.9375,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.skeleton-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.surface.on-light.transparent-promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.default.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.inverse.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#1A9E32FF",
+                "#04C6C9FF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-dark.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-gradient": [
+        {
+            "kind": "linear",
+            "angle": 45,
+            "colors": [
+                "#0D8523FF",
+                "#0DA8ABFF"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.accent-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-minor-gradient": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-minor-gradient-active": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ],
+    "light.text.on-light.promo-minor-gradient-hover": [
+        {
+            "kind": "linear",
+            "angle": 90,
+            "colors": [
+                "#FFFFFF",
+                "#000000"
+            ],
+            "locations": [
+                0,
+                1
+            ]
+        }
+    ]
+}
