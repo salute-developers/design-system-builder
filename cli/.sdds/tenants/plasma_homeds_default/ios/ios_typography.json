@@ -1,0 +1,1298 @@
+{
+    "screen-l.body.l.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.l.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.l.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.m.bold": {
+        "size": 16,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.m.medium": {
+        "size": 16,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.m.normal": {
+        "size": 16,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xxs.bold": {
+        "size": 10,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xxs.medium": {
+        "size": 10,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.body.xxs.normal": {
+        "size": 10,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-l.display.l.bold": {
+        "size": 128,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.l.medium": {
+        "size": 128,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.l.normal": {
+        "size": 128,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.m.bold": {
+        "size": 88,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.m.medium": {
+        "size": 88,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.m.normal": {
+        "size": 88,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.s.bold": {
+        "size": 64,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.s.medium": {
+        "size": 64,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.display.s.normal": {
+        "size": 64,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-l.header.h1.bold": {
+        "size": 48,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h1.medium": {
+        "size": 48,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h1.normal": {
+        "size": 48,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h2.bold": {
+        "size": 32,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h2.medium": {
+        "size": 32,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h2.normal": {
+        "size": 32,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h3.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h3.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h3.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h4.bold": {
+        "size": 20,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h4.medium": {
+        "size": 20,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h4.normal": {
+        "size": 20,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h5.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h5.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h5.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h6.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h6.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.header.h6.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-l.text.l.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.l.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.l.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.m.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.m.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.m.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-l.text.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.body.l.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.l.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.l.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.m.bold": {
+        "size": 16,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.m.medium": {
+        "size": 16,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.m.normal": {
+        "size": 16,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xxs.bold": {
+        "size": 10,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xxs.medium": {
+        "size": 10,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.body.xxs.normal": {
+        "size": 10,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-m.display.l.bold": {
+        "size": 128,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.l.medium": {
+        "size": 128,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.l.normal": {
+        "size": 128,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.m.bold": {
+        "size": 88,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.m.medium": {
+        "size": 88,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.m.normal": {
+        "size": 88,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.s.bold": {
+        "size": 64,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.s.medium": {
+        "size": 64,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.display.s.normal": {
+        "size": 64,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-m.header.h1.bold": {
+        "size": 48,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h1.medium": {
+        "size": 48,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h1.normal": {
+        "size": 48,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h2.bold": {
+        "size": 32,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h2.medium": {
+        "size": 32,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h2.normal": {
+        "size": 32,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h3.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h3.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h3.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h4.bold": {
+        "size": 20,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h4.medium": {
+        "size": 20,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h4.normal": {
+        "size": 20,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h5.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h5.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h5.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h6.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h6.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.header.h6.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-m.text.l.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.l.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.l.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.m.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.m.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.m.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-m.text.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.body.l.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.l.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.l.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 22,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.m.bold": {
+        "size": 16,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.m.medium": {
+        "size": 16,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.m.normal": {
+        "size": 16,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 18,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 14,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xxs.bold": {
+        "size": 10,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xxs.medium": {
+        "size": 10,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.body.xxs.normal": {
+        "size": 10,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 12,
+        "fontFamilyRef": "fontFamily.body"
+    },
+    "screen-s.display.l.bold": {
+        "size": 128,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.l.medium": {
+        "size": 128,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.l.normal": {
+        "size": 128,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 128,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.m.bold": {
+        "size": 88,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.m.medium": {
+        "size": 88,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.m.normal": {
+        "size": 88,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 92,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.s.bold": {
+        "size": 64,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.s.medium": {
+        "size": 64,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.display.s.normal": {
+        "size": 64,
+        "style": "normal",
+        "weight": "light",
+        "kerning": 0,
+        "lineHeight": 68,
+        "fontFamilyRef": "fontFamily.display"
+    },
+    "screen-s.header.h1.bold": {
+        "size": 48,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h1.medium": {
+        "size": 48,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h1.normal": {
+        "size": 48,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 52,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h2.bold": {
+        "size": 32,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h2.medium": {
+        "size": 32,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h2.normal": {
+        "size": 32,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 36,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h3.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h3.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h3.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 30,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h4.bold": {
+        "size": 20,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h4.medium": {
+        "size": 20,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h4.normal": {
+        "size": 20,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h5.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h5.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h5.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 24,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h6.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h6.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.header.h6.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": 0,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.header"
+    },
+    "screen-s.text.l.bold": {
+        "size": 24,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.l.medium": {
+        "size": 24,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.l.normal": {
+        "size": 24,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 32,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.m.bold": {
+        "size": 18,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.m.medium": {
+        "size": 18,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.m.normal": {
+        "size": 18,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 26,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.s.bold": {
+        "size": 14,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.s.medium": {
+        "size": 14,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.s.normal": {
+        "size": 14,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 20,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.xs.bold": {
+        "size": 12,
+        "style": "normal",
+        "weight": "semibold",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.xs.medium": {
+        "size": 12,
+        "style": "normal",
+        "weight": "medium",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    },
+    "screen-s.text.xs.normal": {
+        "size": 12,
+        "style": "normal",
+        "weight": "regular",
+        "kerning": -0.02,
+        "lineHeight": 16,
+        "fontFamilyRef": "fontFamily.text"
+    }
+}
