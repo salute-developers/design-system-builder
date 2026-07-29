@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preview компонентов в DS Builder — ADR-0006</title>
+  <style>
+    :root {
+      --ink: #17233c;
+      --muted: #61708b;
+      --paper: #f7f8fc;
+      --panel: #ffffff;
+      --line: #dce2ed;
+      --blue: #275efe;
+      --blue-soft: #eaf0ff;
+      --green: #087f5b;
+      --green-soft: #e5f6ef;
+      --amber: #a65f00;
+      --amber-soft: #fff2d8;
+      --red: #b03a4a;
+      --red-soft: #fae9ec;
+      --violet: #7551c8;
+      --violet-soft: #f0ebff;
+      --shadow: 0 22px 70px rgba(26, 42, 75, .14);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #e9edf4;
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    button { font: inherit; }
+
+    .deck {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      position: relative;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto 1fr auto;
+      gap: 3.2vh;
+      padding: 6.2% 7%;
+      background:
+        radial-gradient(circle at 94% 6%, rgba(39, 94, 254, .09), transparent 29%),
+        var(--paper);
+    }
+
+    .slide.active { display: grid; }
+
+    .slide.cover {
+      color: #fff;
+      background:
+        radial-gradient(circle at 85% 15%, rgba(92, 132, 255, .42), transparent 29%),
+        radial-gradient(circle at 10% 95%, rgba(83, 205, 161, .24), transparent 34%),
+        #14213b;
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: clamp(12px, 1.35vw, 22px);
+      font-weight: 700;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+
+    .cover .eyebrow { color: #91adff; }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 980px;
+      font-size: clamp(36px, 5.7vw, 86px);
+      line-height: 1.02;
+      letter-spacing: -.045em;
+    }
+
+    h2 {
+      max-width: 1180px;
+      font-size: clamp(28px, 3.65vw, 58px);
+      line-height: 1.06;
+      letter-spacing: -.035em;
+    }
+
+    h3 {
+      font-size: clamp(16px, 1.55vw, 25px);
+      line-height: 1.15;
+    }
+
+    .lead {
+      max-width: 980px;
+      color: var(--muted);
+      font-size: clamp(17px, 1.8vw, 28px);
+      line-height: 1.42;
+    }
+
+    .cover .lead { color: #c7d1e5; }
+
+    .title-stack {
+      align-self: center;
+      display: grid;
+      gap: 3vh;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: clamp(10px, 1vw, 16px);
+    }
+
+    .cover .footer { color: #91a0bd; }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: .65em;
+    }
+
+    .section-label::before {
+      width: 1.2em;
+      height: .22em;
+      border-radius: 10px;
+      background: currentColor;
+      content: "";
+    }
+
+    .content {
+      min-height: 0;
+      display: grid;
+      align-content: center;
+      gap: 3.2vh;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 3.2vw;
+      align-items: stretch;
+    }
+
+    .step {
+      position: relative;
+      display: grid;
+      align-content: start;
+      gap: 1.2vh;
+      min-height: 19vh;
+      padding: 2.2vw;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+    }
+
+    .step:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -2.4vw;
+      width: 1.6vw;
+      height: 2px;
+      background: #9ba8bd;
+      content: "";
+    }
+
+    .step:not(:last-child)::before {
+      position: absolute;
+      z-index: 2;
+      top: calc(50% - 5px);
+      right: -2.45vw;
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid #9ba8bd;
+      border-right: 2px solid #9ba8bd;
+      transform: rotate(45deg);
+      content: "";
+    }
+
+    .step .num {
+      width: 2.1em;
+      height: 2.1em;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-weight: 800;
+      font-size: clamp(12px, 1.1vw, 18px);
+    }
+
+    .step p, .card p, .role p {
+      color: var(--muted);
+      font-size: clamp(13px, 1.25vw, 20px);
+      line-height: 1.38;
+    }
+
+    .note {
+      padding: 1.8vh 2vw;
+      border-left: 5px solid var(--amber);
+      border-radius: 0 14px 14px 0;
+      color: #674010;
+      background: var(--amber-soft);
+      font-size: clamp(14px, 1.45vw, 23px);
+      line-height: 1.38;
+    }
+
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 3vw;
+      align-items: stretch;
+    }
+
+    .card {
+      display: grid;
+      align-content: start;
+      gap: 1.5vh;
+      padding: 2.4vw;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+    }
+
+    .card.good { border-top: 7px solid var(--green); }
+    .card.bad { border-top: 7px solid var(--red); }
+    .card.tradeoff { border-top: 7px solid var(--amber); }
+    .card.primary { border-top: 7px solid var(--blue); }
+
+    ul {
+      display: grid;
+      gap: 1.4vh;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    li {
+      position: relative;
+      padding-left: 1.7em;
+      color: var(--ink);
+      font-size: clamp(14px, 1.35vw, 21px);
+      line-height: 1.35;
+    }
+
+    li::before {
+      position: absolute;
+      top: .48em;
+      left: .15em;
+      width: .55em;
+      height: .55em;
+      border-radius: 50%;
+      background: var(--blue);
+      content: "";
+    }
+
+    .good li::before { background: var(--green); }
+    .bad li::before { background: var(--red); }
+    .tradeoff li::before { background: var(--amber); }
+
+    .statement {
+      align-self: center;
+      max-width: 1110px;
+      font-size: clamp(26px, 3.25vw, 52px);
+      line-height: 1.18;
+      letter-spacing: -.025em;
+    }
+
+    .statement strong { color: var(--blue); }
+
+    .split-flow {
+      display: grid;
+      grid-template-columns: 1fr .85fr 1.3fr 1fr;
+      gap: 3vw;
+      align-items: center;
+    }
+
+    .node {
+      position: relative;
+      min-height: 15vh;
+      display: grid;
+      place-items: center;
+      padding: 2vw;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      text-align: center;
+      font-size: clamp(15px, 1.5vw, 24px);
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .node.blue { color: #1745c7; background: var(--blue-soft); border-color: #b8c9ff; }
+    .node.green { color: #076447; background: var(--green-soft); border-color: #a9ddc9; }
+    .node.violet { color: #5c3aa8; background: var(--violet-soft); border-color: #cfc1f5; }
+
+    .node.arrow::after {
+      position: absolute;
+      top: calc(50% - 5px);
+      right: -2.2vw;
+      width: 10px;
+      height: 10px;
+      border-top: 3px solid #8b9ab1;
+      border-right: 3px solid #8b9ab1;
+      transform: rotate(45deg);
+      content: "";
+    }
+
+    .plugin-node {
+      display: grid;
+      gap: 1vh;
+      padding: 1.7vw;
+      border: 1px solid #cfc1f5;
+      border-radius: 20px;
+      color: #5c3aa8;
+      background: var(--violet-soft);
+      text-align: center;
+      font-size: clamp(13px, 1.25vw, 20px);
+      font-weight: 700;
+    }
+
+    .plugin-stack { display: grid; gap: 1.2vh; }
+
+    .caption {
+      color: var(--muted);
+      text-align: center;
+      font-size: clamp(13px, 1.25vw, 20px);
+    }
+
+    .bottleneck {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1fr;
+      gap: 3.4vw;
+      align-items: center;
+    }
+
+    .input-stack {
+      display: grid;
+      gap: 1.4vh;
+    }
+
+    .input-box, .output-box {
+      padding: 1.5vw;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      text-align: center;
+      font-size: clamp(13px, 1.3vw, 21px);
+      font-weight: 700;
+    }
+
+    .bottleneck-center {
+      position: relative;
+      display: grid;
+      gap: 1vh;
+      padding: 2.2vw;
+      border: 2px solid #e3a9b2;
+      border-radius: 24px;
+      color: #8c2636;
+      background: var(--red-soft);
+      text-align: center;
+    }
+
+    .bottleneck-center::before,
+    .bottleneck-center::after {
+      position: absolute;
+      top: 50%;
+      width: 2.2vw;
+      border-top: 2px solid #9ba8bd;
+      content: "";
+    }
+
+    .bottleneck-center::before { right: 100%; }
+    .bottleneck-center::after { left: 100%; }
+
+    .bottleneck-center b { font-size: clamp(16px, 1.65vw, 26px); }
+    .bottleneck-center span {
+      color: #9b5360;
+      font-size: clamp(12px, 1.15vw, 18px);
+      line-height: 1.35;
+    }
+
+    .issue-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.5vw;
+    }
+
+    .issue {
+      padding-top: 1.4vh;
+      border-top: 4px solid var(--red);
+      color: var(--muted);
+      font-size: clamp(12px, 1.15vw, 18px);
+      line-height: 1.35;
+    }
+
+    .issue b {
+      display: block;
+      margin-bottom: .5vh;
+      color: var(--ink);
+    }
+
+    .roles {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2.2vw;
+    }
+
+    .role {
+      display: grid;
+      align-content: start;
+      gap: 1.4vh;
+      padding: 2.2vw;
+      border-top: 7px solid var(--blue);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 8px 26px rgba(32, 49, 82, .07);
+    }
+
+    .role:nth-child(2) { border-color: var(--violet); }
+    .role:nth-child(3) { border-color: var(--green); }
+
+    .shared-contract {
+      padding: 1.4vh 2vw;
+      border-radius: 14px;
+      color: #1745c7;
+      background: var(--blue-soft);
+      text-align: center;
+      font-size: clamp(13px, 1.25vw, 20px);
+      font-weight: 700;
+    }
+
+    .role .owner {
+      color: var(--muted);
+      font-size: clamp(11px, 1.05vw, 17px);
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .lifecycle {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 2.7vw;
+      align-items: center;
+    }
+
+    .life-step {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 1.4vh;
+      text-align: center;
+    }
+
+    .life-step:not(:last-child)::after {
+      position: absolute;
+      top: 2.3vw;
+      right: -2vw;
+      width: 1.4vw;
+      border-top: 2px solid #9aa7bb;
+      content: "";
+    }
+
+    .life-icon {
+      width: clamp(50px, 5vw, 82px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-size: clamp(19px, 2vw, 31px);
+      font-weight: 800;
+    }
+
+    .life-step b { font-size: clamp(14px, 1.35vw, 21px); }
+    .life-step span {
+      color: var(--muted);
+      font-size: clamp(11px, 1.05vw, 17px);
+      line-height: 1.3;
+    }
+
+    .actor {
+      color: var(--blue) !important;
+      font-size: clamp(10px, .95vw, 15px) !important;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .architecture-flow {
+      display: grid;
+      grid-template-columns: 1.05fr .72fr 1.15fr 1.25fr .95fr;
+      gap: 2.4vw;
+      align-items: center;
+    }
+
+    .arch-node {
+      position: relative;
+      display: grid;
+      align-content: center;
+      gap: 1vh;
+      min-height: 19vh;
+      padding: 1.6vw;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      text-align: center;
+    }
+
+    .arch-node.arrow::after {
+      position: absolute;
+      top: calc(50% - 6px);
+      right: -1.55vw;
+      width: 10px;
+      height: 10px;
+      border-top: 3px solid #8b9ab1;
+      border-right: 3px solid #8b9ab1;
+      transform: rotate(45deg);
+      content: "";
+    }
+
+    .arch-node b {
+      font-size: clamp(14px, 1.35vw, 22px);
+      line-height: 1.25;
+    }
+
+    .arch-node span {
+      color: var(--muted);
+      font-size: clamp(11px, 1.05vw, 17px);
+      line-height: 1.35;
+    }
+
+    .arch-node.client { color: #1745c7; background: var(--blue-soft); border-color: #b8c9ff; }
+    .arch-node.sdk { color: #5c3aa8; background: var(--violet-soft); border-color: #cfc1f5; }
+    .arch-node.component { color: #076447; background: var(--green-soft); border-color: #a9ddc9; }
+
+    .protocol-node {
+      position: relative;
+      min-height: 11vh;
+      display: grid;
+      place-items: center;
+      padding: 1vw;
+      border-radius: 50%;
+      color: #1745c7;
+      background: var(--blue-soft);
+      text-align: center;
+      font-size: clamp(11px, 1.05vw, 17px);
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .protocol-node.arrow::after,
+    .arch-plugins.arrow::after {
+      position: absolute;
+      z-index: 2;
+      top: calc(50% - 6px);
+      right: -1.55vw;
+      width: 10px;
+      height: 10px;
+      border-top: 3px solid #8b9ab1;
+      border-right: 3px solid #8b9ab1;
+      transform: rotate(45deg);
+      content: "";
+    }
+
+    .arch-plugins {
+      position: relative;
+      display: grid;
+      gap: 1.2vh;
+    }
+
+    .arch-plugin {
+      padding: 1.3vw;
+      border: 1px solid #cfc1f5;
+      border-radius: 16px;
+      color: #5c3aa8;
+      background: var(--violet-soft);
+      text-align: center;
+      font-size: clamp(12px, 1.1vw, 18px);
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .platform-map {
+      display: grid;
+      grid-template-columns: .9fr 1.15fr 1.35fr;
+      gap: 3vw;
+      align-items: center;
+    }
+
+    .runtime-stack {
+      display: grid;
+      gap: 1.4vh;
+    }
+
+    .runtime {
+      display: grid;
+      gap: .6vh;
+      padding: 1.5vw;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+    }
+
+    .runtime b { font-size: clamp(14px, 1.35vw, 21px); }
+    .runtime span {
+      color: var(--muted);
+      font-size: clamp(12px, 1.1vw, 17px);
+    }
+
+    .platform-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1vw;
+    }
+
+    .platform-chip {
+      display: grid;
+      place-items: center;
+      min-height: 9vh;
+      padding: 1vw;
+      border-radius: 16px;
+      color: #076447;
+      background: var(--green-soft);
+      text-align: center;
+      font-size: clamp(13px, 1.2vw, 19px);
+      font-weight: 700;
+    }
+
+    .compare-flows {
+      display: grid;
+      gap: 2.2vh;
+    }
+
+    .compare-lane {
+      display: grid;
+      grid-template-columns: .48fr repeat(4, minmax(0, 1fr));
+      gap: 1.3vw;
+      align-items: stretch;
+    }
+
+    .lane-label {
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      color: #fff;
+      background: var(--red);
+      font-size: clamp(14px, 1.3vw, 21px);
+      font-weight: 800;
+    }
+
+    .compare-lane.new .lane-label { background: var(--green); }
+
+    .lane-step {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 11vh;
+      padding: 1.2vw;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      text-align: center;
+      font-size: clamp(12px, 1.15vw, 18px);
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .lane-step:not(:last-child)::after {
+      position: absolute;
+      z-index: 2;
+      top: calc(50% - 5px);
+      right: -.9vw;
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid #8b9ab1;
+      border-right: 2px solid #8b9ab1;
+      transform: rotate(45deg);
+      content: "";
+    }
+
+    .comparison {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      font-size: clamp(13px, 1.3vw, 20px);
+    }
+
+    .comparison th, .comparison td {
+      padding: 1.55vh 1.4vw;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .comparison th {
+      color: var(--muted);
+      font-size: .9em;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .comparison td:first-child { width: 28%; font-weight: 700; }
+    .comparison td:nth-child(2) { color: var(--red); }
+    .comparison td:nth-child(3) { color: var(--green); }
+
+    .closing {
+      display: grid;
+      grid-template-columns: 1.45fr .75fr;
+      gap: 4vw;
+      align-items: center;
+    }
+
+    .decision {
+      display: grid;
+      gap: 2.2vh;
+    }
+
+    .decision h2 { font-size: clamp(31px, 4vw, 64px); }
+
+    .big-mark {
+      width: min(22vw, 270px);
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--blue);
+      box-shadow: 0 20px 55px rgba(39, 94, 254, .28);
+      font-size: clamp(55px, 9vw, 140px);
+      font-weight: 800;
+    }
+
+    .controls {
+      position: fixed;
+      z-index: 20;
+      right: 18px;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .controls button {
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(23, 35, 60, .2);
+      border-radius: 50%;
+      color: var(--ink);
+      background: rgba(255, 255, 255, .9);
+      cursor: pointer;
+    }
+
+    .controls button:hover { background: #fff; }
+
+    .progress {
+      position: absolute;
+      z-index: 10;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: rgba(39, 94, 254, .12);
+    }
+
+    .progress > div {
+      height: 100%;
+      background: var(--blue);
+      transition: width .2s ease;
+    }
+
+    @media (max-width: 760px) {
+      .slide { gap: 2vh; padding: 5.5% 6%; }
+      .flow { gap: 2vw; }
+      .step { min-height: 16vh; border-radius: 14px; padding: 1.8vw; }
+      .card, .role { padding: 2vw; border-radius: 14px; }
+      .node { min-height: 13vh; border-radius: 14px; }
+    }
+
+    @media print {
+      html, body { display: block; background: #fff; overflow: visible; }
+      .deck { width: auto; height: auto; overflow: visible; box-shadow: none; }
+      .slide {
+        position: relative;
+        width: 13.333in;
+        height: 7.5in;
+        display: grid !important;
+        page-break-after: always;
+      }
+      .controls, .progress { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-live="polite">
+    <section class="slide cover active">
+      <div class="eyebrow">ADR-0006 · Архитектурное предложение</div>
+      <div class="title-stack">
+        <h1>Preview настоящих компонентов в DS Builder</h1>
+        <p class="lead">Как отделить конфигурацию дизайн-системы от платформенного рендера и дать командам добавлять свои компоненты без релиза приложения DS Builder</p>
+      </div>
+      <div class="footer"><span>Design System Builder</span><span>2026</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Проблема</div>
+        <h2>Preview нельзя расширить без изменения самого DS Builder</h2>
+      </header>
+      <div class="content">
+        <p class="statement">Сегодня DS Builder показывает только <strong>заранее встроенные React stories</strong>. Пользователь не может подключить свой компонент, а поддержка новой платформы требует разработки и релиза со стороны SDDS Team.</p>
+        <div class="note">Нужно отделить управление конфигурацией от платформенного кода, который отображает настоящий компонент.</div>
+      </div>
+      <div class="footer"><span>Текущая архитектура ограничивает развитие preview</span><span>2</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Текущий подход</div>
+        <h2>Сегодня preview вручную встроен в React-приложение DS Builder</h2>
+      </header>
+      <div class="content">
+        <div class="flow">
+          <div class="step">
+            <span class="num">1</span>
+            <h3>Backend отдаёт настройки</h3>
+            <p>Тема и конфигурация компонента приходят отдельными проекциями.</p>
+          </div>
+          <div class="step">
+            <span class="num">2</span>
+            <h3>Клиент готовит CSS</h3>
+            <p>React-приложение DS Builder преобразует настройки в CSS variables.</p>
+          </div>
+          <div class="step">
+            <span class="num">3</span>
+            <h3>Mapper выбирает story</h3>
+            <p>Компонент должен быть заранее зарегистрирован вручную.</p>
+          </div>
+          <div class="step">
+            <span class="num">4</span>
+            <h3>React рисует preview</h3>
+            <p>Локальная story получает args и отображается внутри приложения.</p>
+          </div>
+        </div>
+        <div class="note">Конфигурация приходит из backend, а renderer живёт и выпускается вместе с приложением DS Builder.</div>
+      </div>
+      <div class="footer"><span>Backend model → CSS → mapper → local story</span><span>3</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Что в нём хорошо</div>
+        <h2>Текущий подход прост и эффективен в ограниченном масштабе</h2>
+      </header>
+      <div class="content">
+        <div class="columns">
+          <article class="card good">
+            <h3>Низкий порог входа</h3>
+            <ul>
+              <li>Один runtime — React в браузере</li>
+              <li>Простая локальная отладка</li>
+              <li>Нет отдельной инфраструктуры плагинов</li>
+            </ul>
+          </article>
+          <article class="card good">
+            <h3>Предсказуемая поставка</h3>
+            <ul>
+              <li>Все renderer проверяются вместе с приложением DS Builder</li>
+              <li>Нет загрузки внешнего исполняемого кода</li>
+              <li>Хорошо подходит для фиксированного набора компонентов</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+      <div class="footer"><span>Почему текущую реализацию не нужно считать ошибкой</span><span>4</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Где он перестаёт работать</div>
+        <h2>Встроенный каталог stories делает приложение DS Builder точкой блокировки</h2>
+      </header>
+      <div class="content">
+        <div class="bottleneck">
+          <div class="input-stack">
+            <div class="input-box">Новые Core-компоненты</div>
+            <div class="input-box">Новые stories и примеры</div>
+            <div class="input-box">Новые платформы</div>
+          </div>
+          <div class="bottleneck-center">
+            <b>SDDS Team изменяет и выпускает приложение DS Builder</b>
+            <span>Story и mapper каждого компонента зашиты в React frontend</span>
+          </div>
+          <div class="output-box">Доступный пользователю preview</div>
+        </div>
+        <div class="issue-row">
+          <div class="issue"><b>Связанные релизы</b>Story нельзя добавить или обновить отдельно от приложения.</div>
+          <div class="issue"><b>Только Core-каталог</b>Пользователь не может подключить свой компонент.</div>
+          <div class="issue"><b>Один runtime</b>React story не заменяет Compose, Android или iOS-компонент.</div>
+        </div>
+        <div class="note">Главная проблема — не качество React preview, а невозможность масштабировать его как общий механизм.</div>
+      </div>
+      <div class="footer"><span>Цена расширения растёт вместе с экосистемой</span><span>5</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Предлагаемое решение</div>
+        <h2>DS Builder управляет preview, а платформенный модуль рисует компонент</h2>
+      </header>
+      <div class="content">
+        <div class="split-flow">
+          <div class="node blue arrow">DS Builder<br>собирает выбранное состояние</div>
+          <div class="node arrow">Единое описание<br>preview</div>
+          <div class="plugin-stack">
+            <div class="plugin-node">Core preview-модуль от SDDS Team</div>
+            <div class="plugin-node">Preview-модуль команды дизайн-системы</div>
+          </div>
+          <div class="node green">Настоящий компонент<br>выбранной платформы</div>
+        </div>
+        <p class="caption">Клиент выбирает один совместимый preview-модуль, который владеет выбранным компонентом.</p>
+      </div>
+      <div class="footer"><span>Конфигурация и renderer связаны контрактом, а не кодом приложения</span><span>6</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Архитектура решения</div>
+        <h2>Приложение управляет сессией, SDK — платформой, plugin — компонентом</h2>
+      </header>
+      <div class="content">
+        <div class="architecture-flow">
+          <div class="arch-node client arrow">
+            <b>Приложение DS Builder</b>
+            <span>Собирает конфигурацию, выбирает plugin и управляет preview-сессией</span>
+          </div>
+          <div class="protocol-node arrow">Preview<br>Protocol</div>
+          <div class="arch-node sdk arrow">
+            <b>Preview Host + Platform SDK</b>
+            <span>Запускает нужный runtime, готовит тему и передаёт состояние renderer</span>
+          </div>
+          <div class="arch-plugins arrow">
+            <div class="arch-plugin">Core Preview Plugin<br>от SDDS Team</div>
+            <div class="arch-plugin">Design System Preview Plugin<br>от пользователя</div>
+          </div>
+          <div class="arch-node component">
+            <b>Настоящий компонент</b>
+            <span>Compose, React, Android или iOS</span>
+          </div>
+        </div>
+        <div class="note">SDK не содержит renderer конкретных компонентов: renderer и соответствие componentId → platform API принадлежат выбранному plugin.</div>
+      </div>
+      <div class="footer"><span>DS Builder app → protocol → platform SDK/host → plugin → component</span><span>7</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Разные платформы</div>
+        <h2>Общий процесс не требует общего UI runtime</h2>
+      </header>
+      <div class="content">
+        <div class="platform-map">
+          <div class="node blue arrow">Приложение<br>DS Builder</div>
+          <div class="runtime-stack">
+            <div class="runtime"><b>Web runtime</b><span>Браузер или встроенный WebView</span></div>
+            <div class="runtime"><b>Нативный runtime</b><span>Emulator, simulator или device</span></div>
+          </div>
+          <div class="platform-pair">
+            <div class="platform-chip">Compose / Wasm</div>
+            <div class="platform-chip">React</div>
+            <div class="platform-chip">Android View</div>
+            <div class="platform-chip">UIKit / SwiftUI</div>
+          </div>
+        </div>
+        <p class="caption">Единым остаётся язык взаимодействия; способ исполнения выбирается платформой.</p>
+      </div>
+      <div class="footer"><span>Один preview-процесс, несколько способов исполнения</span><span>8</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Ответственность</div>
+        <h2>Границы владения становятся явными</h2>
+      </header>
+      <div class="content">
+        <div class="roles">
+          <article class="role">
+            <span class="owner">DS Builder</span>
+            <h3>Управляет контекстом и сессией</h3>
+            <p>Собирает конфигурацию, выбирает совместимый модуль, запускает host и показывает результат.</p>
+          </article>
+          <article class="role">
+            <span class="owner">SDDS Team</span>
+            <h3>Поставляет общую платформу</h3>
+            <p>Владеет контрактом, SDK, hosts, tooling и preview всех Core-компонентов.</p>
+          </article>
+          <article class="role">
+            <span class="owner">Design-system teams</span>
+            <h3>Владеют своими renderer</h3>
+            <p>Разрабатывают, проверяют и публикуют preview-модули пользовательских компонентов.</p>
+          </article>
+        </div>
+        <div class="shared-contract">Все участники работают через единый Preview Protocol и одинаковую модель публикации модулей</div>
+      </div>
+      <div class="footer"><span>Общая инфраструктура централизована, продуктовый код остаётся у владельцев</span><span>9</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Что получаем</div>
+        <h2>Новая модель снимает блокировки, но добавляет инфраструктуру</h2>
+      </header>
+      <div class="content">
+        <div class="columns">
+          <article class="card good">
+            <h3>Преимущества</h3>
+            <ul>
+              <li>Настоящие компоненты каждой платформы</li>
+              <li>Новые компоненты без пересборки приложения DS Builder</li>
+              <li>Независимые релизы Core и design-system модулей</li>
+              <li>Одинаковая модель для встроенных и пользовательских компонентов</li>
+            </ul>
+          </article>
+          <article class="card tradeoff">
+            <h3>Недостатки и цена</h3>
+            <ul>
+              <li>Нужно создать SDK, hosts и сервис артефактов</li>
+              <li>Исполняемые модули требуют security и trust policy</li>
+              <li>Сложнее диагностика нескольких runtime</li>
+              <li>Каждая платформа должна поддерживать свой renderer</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+      <div class="footer"><span>Гибкость достигается через явный контракт и платформенную ответственность</span><span>10</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Сравнение</div>
+        <h2>Новый renderer больше не требует релиза приложения DS Builder</h2>
+      </header>
+      <div class="content">
+        <div class="compare-flows">
+          <div class="compare-lane">
+            <div class="lane-label">Сейчас</div>
+            <div class="lane-step">SDDS Team создаёт Core-компонент</div>
+            <div class="lane-step">SDDS Team добавляет story и mapper в React frontend</div>
+            <div class="lane-step">SDDS Team выпускает новую версию DS Builder</div>
+            <div class="lane-step">Доступны только встроенные Core-компоненты</div>
+          </div>
+          <div class="compare-lane new">
+            <div class="lane-label">Новый подход</div>
+            <div class="lane-step">Компонент создаёт SDDS Team или пользователь дизайн-системы</div>
+            <div class="lane-step">Владелец добавляет renderer через Platform SDK</div>
+            <div class="lane-step">Владелец публикует независимый preview-plugin</div>
+            <div class="lane-step">Preview доступен без релиза приложения</div>
+          </div>
+        </div>
+        <div class="note">Главное изменение: право добавить preview переходит от единственной команды SDDS Team к владельцу конкретного компонента.</div>
+      </div>
+      <div class="footer"><span>От встроенного каталога к расширяемой preview-платформе</span><span>11</span></div>
+    </section>
+
+    <section class="slide">
+      <header>
+        <div class="eyebrow section-label">Итоговое предложение</div>
+      </header>
+      <div class="content closing">
+        <div class="decision">
+          <h2>Зафиксировать разделение ответственности и начать с Compose/Wasm</h2>
+          <p class="lead">Первый шаг проверяет ключевую гипотезу: один независимо публикуемый preview-модуль работает и в текущем React frontend, и в новом DS Builder MP.</p>
+        </div>
+        <div class="big-mark" aria-label="Стрелка вперёд">→</div>
+      </div>
+      <div class="footer"><span>ADR-0006 · решение на ревью</span><span>12</span></div>
+    </section>
+
+    <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+  </main>
+
+  <nav class="controls" aria-label="Навигация по презентации">
+    <button id="prev" type="button" aria-label="Предыдущий слайд">←</button>
+    <button id="next" type="button" aria-label="Следующий слайд">→</button>
+  </nav>
+
+  <script>
+    (() => {
+      const slides = [...document.querySelectorAll(".slide")];
+      const progress = document.getElementById("progressBar");
+      let index = Math.max(0, Math.min(slides.length - 1, Number(location.hash.slice(1)) - 1 || 0));
+
+      function show(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+        progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+        history.replaceState(null, "", `#${index + 1}`);
+        document.title = `${index + 1}/${slides.length} · Preview компонентов в DS Builder`;
+      }
+
+      document.getElementById("prev").addEventListener("click", () => show(index - 1));
+      document.getElementById("next").addEventListener("click", () => show(index + 1));
+      document.addEventListener("keydown", (event) => {
+        if (["ArrowRight", "PageDown", " ", "Enter"].includes(event.key)) {
+          event.preventDefault();
+          show(index + 1);
+        }
+        if (["ArrowLeft", "PageUp", "Backspace"].includes(event.key)) {
+          event.preventDefault();
+          show(index - 1);
+        }
+        if (event.key === "Home") show(0);
+        if (event.key === "End") show(slides.length - 1);
+      });
+      show(index);
+    })();
+  </script>
+</body>
+</html>

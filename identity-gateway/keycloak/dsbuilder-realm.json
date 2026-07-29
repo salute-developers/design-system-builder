@@ -26,9 +26,13 @@
       "directAccessGrantsEnabled": true,
       "standardFlowEnabled": true,
       "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:3002/*",
         "http://localhost:8080/*"
       ],
       "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:3002",
         "http://localhost:8080"
       ],
       "protocol": "openid-connect",

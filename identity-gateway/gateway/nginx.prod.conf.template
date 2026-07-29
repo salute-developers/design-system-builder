@@ -20,6 +20,11 @@ http {
         "" $http_host;
     }
 
+    map $http_origin $cors_allowed_origin {
+        default "";
+        "${OIDC_WEB_ORIGIN}" $http_origin;
+    }
+
     log_format gateway '$remote_addr - $request_id [$time_local] "$request" '
                        '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
 
@@ -60,6 +65,20 @@ http {
         proxy_connect_timeout 10s;
         proxy_send_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
         proxy_read_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+        add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+        add_header Vary Origin always;
+        error_page 401 = @gateway_unauthorized;
+        error_page 403 = @gateway_forbidden;
 
         location = /health {
             access_log off;
@@ -422,6 +441,22 @@ http {
             proxy_set_header Authorization $http_authorization;
             proxy_set_header X-Original-URI $request_uri;
             proxy_pass http://auth_helper/internal/auth/user;
+        }
+
+        location @gateway_unauthorized {
+            add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+            add_header Vary Origin always;
+            return 401;
+        }
+
+        location @gateway_forbidden {
+            add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+            add_header Vary Origin always;
+            return 403;
         }
     }
 }
