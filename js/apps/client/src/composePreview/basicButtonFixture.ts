@@ -1,11 +1,11 @@
-import { PreviewPayload } from './types';
+import { PreviewPayloadInput } from './types';
 
 /**
  * Versioned integration fixture aligned with preview-compose-plugin's canonical
  * Preview Protocol v1 BasicButton fixture. It deliberately does not depend on
  * Config, Theme, variations, or backend entities.
  */
-export const BASIC_BUTTON_PREVIEW_FIXTURE: PreviewPayload = {
+export const BASIC_BUTTON_PREVIEW_FIXTURE: PreviewPayloadInput = {
     protocolVersion: 1,
     platform: 'COMPOSE',
     assets: [],
@@ -69,9 +69,9 @@ export const BASIC_BUTTON_PREVIEW_FIXTURE: PreviewPayload = {
 
 export const createBasicButtonPreviewPayload = (
     args: Record<string, string | boolean>,
-): PreviewPayload => {
-    const example = BASIC_BUTTON_PREVIEW_FIXTURE.example as Record<string, JsonCompatible>;
-    const props = example.props as Record<string, JsonCompatible>;
+): PreviewPayloadInput => {
+    const example = BASIC_BUTTON_PREVIEW_FIXTURE.example;
+    const props = example.props;
 
     return {
         ...BASIC_BUTTON_PREVIEW_FIXTURE,
@@ -86,5 +86,3 @@ export const createBasicButtonPreviewPayload = (
         },
     };
 };
-
-type JsonCompatible = null | boolean | number | string | JsonCompatible[] | { [key: string]: JsonCompatible };

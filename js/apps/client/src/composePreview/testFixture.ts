@@ -9,6 +9,8 @@ export const compatibleManifest: ComposePreviewManifest = {
         readyMessageType: PREVIEW_MESSAGE_TYPES.ready,
         payloadMessageType: PREVIEW_MESSAGE_TYPES.payload,
         resultMessageType: PREVIEW_MESSAGE_TYPES.result,
+        describeMessageType: PREVIEW_MESSAGE_TYPES.describe,
+        descriptionMessageType: PREVIEW_MESSAGE_TYPES.description,
     },
     components: ['BasicButton'],
 };

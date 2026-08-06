@@ -60,15 +60,16 @@ Compose preview is an optional pilot renderer for the `Button` component. The pl
 separately built and hosted production artifact; it is not copied into `public` or bundled by
 Vite.
 
-The repository contains a development build of the plugin. Start it with:
+Point `COMPOSE_PREVIEW_PLUGIN_ARTIFACT` to an independently built plugin directory or ZIP and
+start its local artifact server:
 
 ```sh
-npm run dev:compose-plugin
+COMPOSE_PREVIEW_PLUGIN_ARTIFACT=/path/to/preview-compose-plugin.zip npm run dev:compose-plugin
 ```
 
-The command unpacks `scripts/preview-compose-plugin.zip` into a temporary directory and serves it
-at `http://127.0.0.1:8081/` with CORS enabled. The temporary directory is removed when the server
-stops.
+The artifact is intentionally not stored in `apps/client`: the Compose plugin is independently
+built and published, and the client consumes it through its versioned manifest. The command
+serves the supplied artifact at `http://127.0.0.1:8081/` with CORS enabled.
 
 To test another artifact, pass either its ZIP or unpacked directory directly:
 
@@ -88,19 +89,29 @@ Start the client with `npm run dev`. The component editor offers `React / Compos
 
 ### Cross-origin browser smoke
 
-Install the Playwright browser once with `npx playwright install chromium`, start the production
-plugin at the URL above, and run:
+Install the Playwright browser once with `npx playwright install chromium` and run:
 
 ```sh
-VITE_COMPOSE_PREVIEW_PLUGIN_URL=http://127.0.0.1:8081/ npm run test:browser-smoke
+COMPOSE_PREVIEW_PLUGIN_ARTIFACT=/path/to/preview-compose-plugin.zip npm run test:browser-smoke
 ```
 
 The smoke harness uses the React `ComposePreviewFrame`, waits for manifest → ready → payload →
 success, sends a changed full canonical `BasicButton` payload, and verifies the same iframe
 instance reports a second success.
 
+### Preview Protocol schema
+
+The schema in `src/composePreview/schema` is a synchronized consumer snapshot. Its canonical
+source is `design-system-builder-kt/preview/contract/schemas/v1`:
+
+```sh
+npm run sync:preview-schema
+npm run check:preview-schema
+```
+
 ### PoC boundary
 
-This PoC intentionally uses a versioned canonical fixture. It does not assemble payloads from
-`Config`, `Theme`, variation/style IDs, or db-service entities. Backend changes, plugin
-publication/catalog/signatures, and components other than the pilot Button remain out of scope.
+The smoke harness uses a versioned canonical fixture, while the component editor assembles its
+payload from the current `Config`, `Theme`, variation/style selections and story descriptor.
+Backend changes, plugin publication/catalog/signatures, and components without explicit
+`Meta.preview.compose` metadata remain out of scope.

@@ -2,20 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 
 import { loadComposePreviewManifest } from './manifest';
 import { ComposePreviewSession } from './session';
-import { PreviewPayload } from './types';
+import { PreviewComponentDescription, PreviewPayloadInput } from './types';
 import type { LoadedComposePreviewManifest } from './types';
 import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
 interface ComposePreviewFrameProps {
     pluginUrl: string;
-    payload: PreviewPayload;
+    payload: PreviewPayloadInput;
     timeoutMs?: number;
+    onDescription?: (description: PreviewComponentDescription) => void;
+    onDescriptionError?: (error: Error) => void;
     loadManifest?: (pluginUrl: string) => Promise<LoadedComposePreviewManifest>;
     createSession?: (
         plugin: LoadedComposePreviewManifest,
         targetWindow: Window,
         timeoutMs?: number,
-    ) => Pick<ComposePreviewSession, 'waitUntilReady' | 'send' | 'reload' | 'dispose'>;
+    ) => Pick<ComposePreviewSession, 'waitUntilReady' | 'send' | 'describeComponent' | 'reload' | 'dispose'>;
 }
 
 type FrameStatus = 'loading' | 'ready' | 'rendering' | 'success' | 'failure';
@@ -27,12 +29,15 @@ export const ComposePreviewFrame = ({
     pluginUrl,
     payload,
     timeoutMs,
+    onDescription,
+    onDescriptionError,
     loadManifest = loadComposePreviewManifest,
     createSession = defaultCreateSession,
 }: ComposePreviewFrameProps) => {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const sessionRef = useRef<ReturnType<NonNullable<ComposePreviewFrameProps['createSession']>>>();
     const latestRequestRef = useRef<string>();
+    const latestDescriptionRef = useRef<string>();
     const [status, setStatus] = useState<FrameStatus>('loading');
     const [failure, setFailure] = useState<string>();
     const [readyVersion, setReadyVersion] = useState(0);
@@ -69,8 +74,25 @@ export const ComposePreviewFrame = ({
             sessionRef.current?.dispose();
             sessionRef.current = undefined;
             latestRequestRef.current = undefined;
+            latestDescriptionRef.current = undefined;
         };
     }, [pluginUrl, timeoutMs, loadManifest, createSession]);
+
+    useEffect(() => {
+        const session = sessionRef.current;
+        if (!session || !readyVersion) return;
+
+        const { requestId, result } = session.describeComponent(payload.component.id);
+        latestDescriptionRef.current = requestId;
+        void result
+            .then((description) => {
+                if (latestDescriptionRef.current === requestId) onDescription?.(description);
+            })
+            .catch((error) => {
+                if (latestDescriptionRef.current !== requestId) return;
+                onDescriptionError?.(error instanceof Error ? error : new Error(String(error)));
+            });
+    }, [payload.component.id, readyVersion, onDescription, onDescriptionError]);
 
     useEffect(() => {
         const session = sessionRef.current;
@@ -99,7 +121,26 @@ export const ComposePreviewFrame = ({
                 title="Compose component preview"
                 sandbox="allow-scripts allow-same-origin"
                 onLoad={() => {
-                    if (sessionRef.current && status !== 'loading') sessionRef.current.reload();
+                    const session = sessionRef.current;
+                    if (!session || status === 'loading') return;
+
+                    session.reload();
+                    latestRequestRef.current = undefined;
+                    latestDescriptionRef.current = undefined;
+                    setFailure(undefined);
+                    setStatus('loading');
+                    void session
+                        .waitUntilReady()
+                        .then(() => {
+                            if (sessionRef.current !== session) return;
+                            setStatus('ready');
+                            setReadyVersion((version) => version + 1);
+                        })
+                        .catch((error) => {
+                            if (sessionRef.current !== session) return;
+                            setFailure(error instanceof Error ? error.message : String(error));
+                            setStatus('failure');
+                        });
                 }}
             />
             {status === 'loading' && <Status>Loading Compose preview…</Status>}

@@ -1,12 +1,22 @@
 /* global URL, console, process */
 
 import { execFileSync } from 'node:child_process';
-import { createReadStream, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 
-const artifactPath = resolve(process.argv[2] ?? '');
+const artifactArgument = process.argv[2] || process.env.COMPOSE_PREVIEW_PLUGIN_ARTIFACT;
+if (!artifactArgument) {
+    throw new Error(
+        'Compose plugin artifact is not configured. Pass its path as the first argument or set ' +
+            'COMPOSE_PREVIEW_PLUGIN_ARTIFACT=/path/to/preview-compose-plugin.zip',
+    );
+}
+const artifactPath = resolve(artifactArgument);
+if (!existsSync(artifactPath)) {
+    throw new Error(`Compose plugin artifact does not exist: ${artifactPath}`);
+}
 const port = Number(process.argv[3] ?? 8081);
 let temporaryRoot;
 const root =
@@ -23,10 +33,6 @@ const contentTypes = {
     '.json': 'application/json; charset=utf-8',
     '.wasm': 'application/wasm',
 };
-
-if (!process.argv[2]) {
-    throw new Error('Usage: node scripts/serve-compose-plugin.mjs <artifact-directory> [port]');
-}
 
 const server = createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);

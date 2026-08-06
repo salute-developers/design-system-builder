@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, Variation } from '../../../../controllers';
@@ -12,9 +12,12 @@ import {
 } from '../../../../components';
 import {
     ComposePreviewFrame,
-    createBasicButtonPreviewPayload,
+    assembleComposePreviewPayload,
+    createComponentPreviewDraft,
     getComposePreviewPluginUrl,
     loadComposePreviewManifest,
+    PreviewComponentDescription,
+    PreviewExamplePropertyDescription,
 } from '../../../../composePreview';
 
 import {
@@ -27,7 +30,7 @@ import {
     StyledStorySelector,
     StyledStoryScope,
 } from './ComponentEditorPreview.styles';
-import { backgroundList } from './ComponentEditorPreview.utils';
+import { backgroundList, getBackgroundTokenName } from './ComponentEditorPreview.utils';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -111,9 +114,15 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
     const [rendererMode, setRendererMode] = useState<SelectButtonItem>({ label: 'React', value: 'react' });
-    const [hasCompatibleComposePlugin, setHasCompatibleComposePlugin] = useState(false);
+    const [composePreviewMetadata, setComposePreviewMetadata] = useState<{
+        componentId: string;
+        storyId: string;
+    }>();
+    const [composeDescription, setComposeDescription] = useState<PreviewComponentDescription>();
+    const [composeDescriptionError, setComposeDescriptionError] = useState<string>();
+    const [composeExampleProps, setComposeExampleProps] = useState<Record<string, string | number | boolean>>({});
     const composePluginUrl = getComposePreviewPluginUrl();
-    const supportsCompose = componentName === 'Button' && hasCompatibleComposePlugin;
+    const supportsCompose = Boolean(composePreviewMetadata);
     const rendererModes = useMemo(
         () => [
             { label: 'React', value: 'react' },
@@ -121,25 +130,72 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         ],
         [supportsCompose],
     );
-    const composePayload = useMemo(() => createBasicButtonPreviewPayload(args), [args]);
+    const composeAssembly = useMemo(() => {
+        const surfaceToken = getBackgroundTokenName(String(themeMode.value), String(background.label));
+        const surfaceColor = getRestoredColorFromPalette(
+            theme.getTokenValue(surfaceToken, 'color', 'web') || '#FFFFFFFF',
+            -1,
+        );
+        const draft = createComponentPreviewDraft({
+            config,
+            theme,
+            previewMetadata: composePreviewMetadata,
+            args,
+            variationSelections: args,
+            exampleProps: composeExampleProps,
+            themeMode: String(themeMode.value),
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: surfaceColor },
+        });
+        return draft.ok ? assembleComposePreviewPayload(draft.draft) : draft;
+    }, [
+        args,
+        background,
+        composePreviewMetadata,
+        composeExampleProps,
+        config,
+        config.getRevision(),
+        theme,
+        theme.getRevision(),
+        themeMode,
+    ]);
+    const lastComposePayload = useRef(
+        composeAssembly.ok ? ('payload' in composeAssembly ? composeAssembly.payload : undefined) : undefined,
+    );
+    if (composeAssembly.ok && 'payload' in composeAssembly) lastComposePayload.current = composeAssembly.payload;
+    const composeDiagnostic =
+        composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
 
     useEffect(() => {
         let cancelled = false;
-        setHasCompatibleComposePlugin(false);
-        if (componentName !== 'Button' || !composePluginUrl) return;
+        setComposePreviewMetadata(undefined);
+        setComposeDescription(undefined);
+        setComposeExampleProps({});
+        setComposeDescriptionError(undefined);
+        if (!composePluginUrl) return;
 
         void loadComposePreviewManifest(composePluginUrl)
-            .then(() => {
-                if (!cancelled) setHasCompatibleComposePlugin(true);
+            .then((plugin) => {
+                if (cancelled) return;
+                const storedMetadata = config.getPreviewMetadata();
+                const componentId =
+                    storedMetadata.componentId &&
+                    storedMetadata.storyId &&
+                    plugin.manifest.components.includes(storedMetadata.componentId)
+                        ? storedMetadata.componentId
+                        : undefined;
+                setComposePreviewMetadata(
+                    componentId ? { componentId, storyId: storedMetadata.storyId! } : undefined,
+                );
             })
             .catch(() => {
-                if (!cancelled) setHasCompatibleComposePlugin(false);
+                if (!cancelled) setComposePreviewMetadata(undefined);
             });
 
         return () => {
             cancelled = true;
         };
-    }, [componentName, composePluginUrl]);
+    }, [componentName, composePluginUrl, config]);
     const switchBackground = useMemo(
         () =>
             getRestoredColorFromPalette(
@@ -152,6 +208,35 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         () => (theme.getTokenValue('body', 'fontFamily', 'web') as { name?: string } | undefined)?.name,
         [theme],
     );
+
+    const onComposeDescription = useCallback((description: PreviewComponentDescription) => {
+        setComposeDescriptionError(undefined);
+        setComposeDescription((previousDescription) => {
+            setComposeExampleProps((previousValues) => {
+                const previousByName = new Map(previousDescription?.properties.map((property) => [property.name, property]));
+                return Object.fromEntries(
+                    description.properties.map((property) => {
+                        const previousProperty = previousByName.get(property.name);
+                        const previousValue = previousValues[property.name];
+                        const compatible =
+                            previousDescription?.componentId === description.componentId &&
+                            previousProperty?.type === property.type &&
+                            (property.type !== 'singleChoice' ||
+                                (previousProperty?.type === 'singleChoice' &&
+                                    previousProperty.variants.join('\0') === property.variants.join('\0'))) &&
+                            isCompatibleComposeValue(property, previousValue);
+                        return [property.name, compatible ? previousValue : property.defaultValue];
+                    }),
+                );
+            });
+            return description;
+        });
+    }, []);
+    const onComposeDescriptionError = useCallback((error: Error) => {
+        setComposeDescription(undefined);
+        setComposeExampleProps({});
+        setComposeDescriptionError(error.message);
+    }, []);
 
     const onBackgroundSelect = (item: SelectButtonItem) => {
         setBackground(item);
@@ -238,6 +323,54 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         );
     };
 
+    const updateComposeExampleProp = (name: string, value: string | number | boolean) => {
+        setComposeExampleProps((current) => ({ ...current, [name]: value }));
+    };
+
+    const renderComposeProp = (property: PreviewExamplePropertyDescription) => {
+        const value = composeExampleProps[property.name] ?? property.defaultValue;
+        const label = upperFirstLetter(property.name);
+        if (property.type === 'boolean') {
+            return (
+                <Switch
+                    key={`compose:${property.name}`}
+                    label={label}
+                    checked={value as boolean}
+                    backgroundColor={switchBackground}
+                    onToggle={(nextValue) => updateComposeExampleProp(property.name, nextValue)}
+                />
+            );
+        }
+        if (property.type === 'singleChoice') {
+            const items = property.variants.map((variant) => ({ label: variant, value: variant }));
+            return (
+                <SelectButton
+                    key={`compose:${property.name}`}
+                    label={label}
+                    items={items}
+                    selected={{ label: String(value), value: String(value) }}
+                    onItemSelect={(item) => updateComposeExampleProp(property.name, String(item.value))}
+                />
+            );
+        }
+        return (
+            <TextField
+                key={`compose:${property.name}`}
+                label={label}
+                type={property.type === 'string' ? 'text' : 'number'}
+                value={String(value)}
+                onChange={(nextValue) => {
+                    if (property.type === 'string') {
+                        updateComposeExampleProp(property.name, nextValue);
+                        return;
+                    }
+                    const parsed = property.type === 'int' ? Number.parseInt(nextValue, 10) : Number(nextValue);
+                    if (Number.isFinite(parsed)) updateComposeExampleProp(property.name, parsed);
+                }}
+            />
+        );
+    };
+
     return (
         <Root>
             <StyledPreviewShadow>
@@ -264,13 +397,27 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
                     {rendererMode.value === 'compose' && supportsCompose && composePluginUrl ? (
-                        <ComposePreviewFrame pluginUrl={composePluginUrl} payload={composePayload} />
+                        <>
+                            {lastComposePayload.current ? (
+                                <ComposePreviewFrame
+                                    pluginUrl={composePluginUrl}
+                                    payload={lastComposePayload.current}
+                                    onDescription={onComposeDescription}
+                                    onDescriptionError={onComposeDescriptionError}
+                                />
+                            ) : isResolved && Story ? (
+                                <StyledStoryScope data-preview style={{ fontFamily: previewFontFamily }}>
+                                    <Story {...storyArgsValue} relatedComponents={relatedComponents} />
+                                </StyledStoryScope>
+                            ) : null}
+                            {composeDiagnostic && <div role="alert">{composeDiagnostic}</div>}
+                        </>
                     ) : isResolved && Story ? (
                         <StyledStoryScope data-preview style={{ fontFamily: previewFontFamily }}>
                             <Story {...storyArgsValue} relatedComponents={relatedComponents} />
                         </StyledStoryScope>
                     ) : null}
-                    {storyItems.length > 1 && (
+                    {rendererMode.value !== 'compose' && storyItems.length > 1 && (
                         <StyledStorySelector>
                             <SegmentButton
                                 label="История"
@@ -284,9 +431,22 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 <StyledComponentControls>
                     {variations.map(renderDynamicProps)}
                     <StyledDivider />
-                    {storyArgs.map(renderStoryProps)}
+                    {rendererMode.value === 'compose'
+                        ? composeDescription?.properties.map(renderComposeProp)
+                        : storyArgs.map(renderStoryProps)}
                 </StyledComponentControls>
             </StyledPreviewShadow>
         </Root>
     );
+};
+
+const isCompatibleComposeValue = (
+    property: PreviewExamplePropertyDescription,
+    value: unknown,
+): value is string | number | boolean => {
+    if (property.type === 'string') return typeof value === 'string';
+    if (property.type === 'boolean') return typeof value === 'boolean';
+    if (property.type === 'int') return typeof value === 'number' && Number.isInteger(value);
+    if (property.type === 'float') return typeof value === 'number' && Number.isFinite(value);
+    return typeof value === 'string' && property.variants.includes(value);
 };

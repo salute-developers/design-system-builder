@@ -16,6 +16,7 @@ export abstract class Prop {
     protected adjustment?: string | number;
 
     protected webTokens?: WebToken[] | null;
+    protected platformMappings?: PlatformTokens;
 
     constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
         const { value, id, adjustment, states } = data;
@@ -28,6 +29,7 @@ export abstract class Prop {
         this.states = states;
 
         this.webTokens = platformTokens?.web;
+        this.platformMappings = platformTokens;
     }
 
     public getName() {
@@ -107,6 +109,10 @@ export abstract class Prop {
 
     public getWebTokens() {
         return this.webTokens;
+    }
+
+    public getPlatformMappings(): Readonly<PlatformTokens> | undefined {
+        return this.platformMappings;
     }
 
     protected getAdditionalTokens(token: string, getValue: (state: State) => string | number | undefined) {

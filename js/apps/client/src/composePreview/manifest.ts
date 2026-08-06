@@ -14,7 +14,9 @@ const hasExpectedMessages = (value: unknown): value is ComposePreviewManifest['p
     isRecord(value) &&
     value.readyMessageType === PREVIEW_MESSAGE_TYPES.ready &&
     value.payloadMessageType === PREVIEW_MESSAGE_TYPES.payload &&
-    value.resultMessageType === PREVIEW_MESSAGE_TYPES.result;
+    value.resultMessageType === PREVIEW_MESSAGE_TYPES.result &&
+    value.describeMessageType === PREVIEW_MESSAGE_TYPES.describe &&
+    value.descriptionMessageType === PREVIEW_MESSAGE_TYPES.description;
 
 export const validateComposePreviewManifest = (value: unknown): ComposePreviewManifest => {
     if (!isRecord(value)) {

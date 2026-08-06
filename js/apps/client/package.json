@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:compose-plugin": "node scripts/serve-compose-plugin.mjs scripts/preview-compose-plugin.zip 8081",
+    "dev:compose-plugin": "node scripts/serve-compose-plugin.mjs",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:browser-smoke": "playwright test",
+    "sync:preview-schema": "node scripts/sync-preview-payload-schema.mjs",
+    "check:preview-schema": "node scripts/sync-preview-payload-schema.mjs --check",
     "preview": "vite preview"
   },
   "dependencies": {
