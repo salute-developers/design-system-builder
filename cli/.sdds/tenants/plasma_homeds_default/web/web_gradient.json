@@ -1,0 +1,1274 @@
+{
+    "dark.outline.default.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.outline.default.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.default.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.default.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.default.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.default.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.default.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.default.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.default.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.default.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.default.transparent-accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.default.transparent-accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.inverse.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "dark.outline.inverse.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.inverse.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.inverse.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.inverse.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.inverse.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.inverse.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.inverse.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.inverse.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.inverse.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.inverse.transparent-accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.inverse.transparent-accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-dark.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.outline.on-dark.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-dark.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-dark.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-dark.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-dark.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-dark.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-dark.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-dark.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-dark.transparent-accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-light.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "dark.outline.on-light.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-light.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-light.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-light.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-light.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-light.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-light.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-light.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.outline.on-light.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.outline.on-light.transparent-accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.outline.on-light.transparent-accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.overlay.default.gradient-down": [
+        "linear-gradient(180deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.95%, rgba(8, 8, 8, 0.04) 1.9%, rgba(8, 8, 8, 0.08) 2.86%, rgba(8, 8, 8, 0.15) 3.81%, rgba(8, 8, 8, 0.23) 4.76%, rgba(8, 8, 8, 0.33) 5.71%, rgba(8, 8, 8, 0.44) 6.67%, rgba(8, 8, 8, 0.56) 7.62%, rgba(8, 8, 8, 0.67) 8.57%, rgba(8, 8, 8, 0.77) 9.52%, rgba(8, 8, 8, 0.85) 10.48%, rgba(8, 8, 8, 0.92) 11.43%, rgba(8, 8, 8, 0.96) 12.38%, rgba(8, 8, 8, 0.99) 13.33%, #080808 14.29%)"
+    ],
+    "dark.overlay.default.gradient-up": [
+        "linear-gradient(0deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.77%, rgba(8, 8, 8, 0.04) 1.54%, rgba(8, 8, 8, 0.08) 2.31%, rgba(8, 8, 8, 0.15) 3.08%, rgba(8, 8, 8, 0.23) 3.86%, rgba(8, 8, 8, 0.33) 4.63%, rgba(8, 8, 8, 0.44) 5.4%, rgba(8, 8, 8, 0.56) 6.17%, rgba(8, 8, 8, 0.67) 6.94%, rgba(8, 8, 8, 0.77) 7.71%, rgba(8, 8, 8, 0.85) 8.48%, rgba(8, 8, 8, 0.92) 9.25%, rgba(8, 8, 8, 0.96) 10.02%, rgba(8, 8, 8, 0.99) 10.8%, #080808 11.57%)"
+    ],
+    "dark.overlay.inverse.gradient-down": [
+        "linear-gradient(180deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.95%, rgba(249, 249, 249, 0.04) 1.9%, rgba(249, 249, 249, 0.08) 2.86%, rgba(249, 249, 249, 0.15) 3.81%, rgba(249, 249, 249, 0.23) 4.76%, rgba(249, 249, 249, 0.33) 5.71%, rgba(249, 249, 249, 0.44) 6.67%, rgba(249, 249, 249, 0.56) 7.62%, rgba(249, 249, 249, 0.67) 8.57%, rgba(249, 249, 249, 0.77) 9.52%, rgba(249, 249, 249, 0.85) 10.48%, rgba(249, 249, 249, 0.92) 11.43%, rgba(249, 249, 249, 0.96) 12.38%, rgba(249, 249, 249, 0.99) 13.33%, #F9F9F9 14.29%)"
+    ],
+    "dark.overlay.inverse.gradient-up": [
+        "linear-gradient(0deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.77%, rgba(249, 249, 249, 0.04) 1.54%, rgba(249, 249, 249, 0.08) 2.31%, rgba(249, 249, 249, 0.15) 3.08%, rgba(249, 249, 249, 0.23) 3.86%, rgba(249, 249, 249, 0.33) 4.63%, rgba(249, 249, 249, 0.44) 5.4%, rgba(249, 249, 249, 0.56) 6.17%, rgba(249, 249, 249, 0.67) 6.94%, rgba(249, 249, 249, 0.77) 7.71%, rgba(249, 249, 249, 0.85) 8.48%, rgba(249, 249, 249, 0.92) 9.25%, rgba(249, 249, 249, 0.96) 10.02%, rgba(249, 249, 249, 0.99) 10.8%, #F9F9F9 11.57%)"
+    ],
+    "dark.overlay.on-dark.gradient-down": [
+        "linear-gradient(180deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.95%, rgba(8, 8, 8, 0.04) 1.9%, rgba(8, 8, 8, 0.08) 2.86%, rgba(8, 8, 8, 0.15) 3.81%, rgba(8, 8, 8, 0.23) 4.76%, rgba(8, 8, 8, 0.33) 5.71%, rgba(8, 8, 8, 0.44) 6.67%, rgba(8, 8, 8, 0.56) 7.62%, rgba(8, 8, 8, 0.67) 8.57%, rgba(8, 8, 8, 0.77) 9.52%, rgba(8, 8, 8, 0.85) 10.48%, rgba(8, 8, 8, 0.92) 11.43%, rgba(8, 8, 8, 0.96) 12.38%, rgba(8, 8, 8, 0.99) 13.33%, #080808 14.29%)"
+    ],
+    "dark.overlay.on-dark.gradient-up": [
+        "linear-gradient(0deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.77%, rgba(8, 8, 8, 0.04) 1.54%, rgba(8, 8, 8, 0.08) 2.31%, rgba(8, 8, 8, 0.15) 3.08%, rgba(8, 8, 8, 0.23) 3.86%, rgba(8, 8, 8, 0.33) 4.63%, rgba(8, 8, 8, 0.44) 5.4%, rgba(8, 8, 8, 0.56) 6.17%, rgba(8, 8, 8, 0.67) 6.94%, rgba(8, 8, 8, 0.77) 7.71%, rgba(8, 8, 8, 0.85) 8.48%, rgba(8, 8, 8, 0.92) 9.25%, rgba(8, 8, 8, 0.96) 10.02%, rgba(8, 8, 8, 0.99) 10.8%, #080808 11.57%)"
+    ],
+    "dark.overlay.on-light.gradient-down": [
+        "linear-gradient(180deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.95%, rgba(249, 249, 249, 0.04) 1.9%, rgba(249, 249, 249, 0.08) 2.86%, rgba(249, 249, 249, 0.15) 3.81%, rgba(249, 249, 249, 0.23) 4.76%, rgba(249, 249, 249, 0.33) 5.71%, rgba(249, 249, 249, 0.44) 6.67%, rgba(249, 249, 249, 0.56) 7.62%, rgba(249, 249, 249, 0.67) 8.57%, rgba(249, 249, 249, 0.77) 9.52%, rgba(249, 249, 249, 0.85) 10.48%, rgba(249, 249, 249, 0.92) 11.43%, rgba(249, 249, 249, 0.96) 12.38%, rgba(249, 249, 249, 0.99) 13.33%, #F9F9F9 14.29%)"
+    ],
+    "dark.overlay.on-light.gradient-up": [
+        "linear-gradient(0deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.77%, rgba(249, 249, 249, 0.04) 1.54%, rgba(249, 249, 249, 0.08) 2.31%, rgba(249, 249, 249, 0.15) 3.08%, rgba(249, 249, 249, 0.23) 3.86%, rgba(249, 249, 249, 0.33) 4.63%, rgba(249, 249, 249, 0.44) 5.4%, rgba(249, 249, 249, 0.56) 6.17%, rgba(249, 249, 249, 0.67) 6.94%, rgba(249, 249, 249, 0.77) 7.71%, rgba(249, 249, 249, 0.85) 8.48%, rgba(249, 249, 249, 0.92) 9.25%, rgba(249, 249, 249, 0.96) 10.02%, rgba(249, 249, 249, 0.99) 10.8%, #F9F9F9 11.57%)"
+    ],
+    "dark.surface.default.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.surface.default.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.default.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.default.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.default.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #FFFFFF5C 0%, #FFFFFF52 6.25%, #FFFFFF33 12.5%, #FFFFFF0A 25%, #FFFFFF33 37.5%, #FFFFFF52 43.75%, #FFFFFF5C 50%, #FFFFFF14 56.25%, #FFFFFF33 62.5%, #FFFFFF0A 75%, #FFFFFF33 87.5%, #FFFFFF52 93.75%, #FFFFFF5C 100%)"
+    ],
+    "dark.surface.default.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.skeleton-gradient": [
+        "linear-gradient(90deg, #FFFFFF17 0%, #FFFFFF14 6.25%, #FFFFFF0D 12.5%, #FFFFFF03 25%, #FFFFFF0D 37.5%, #FFFFFF14 43.75%, #FFFFFF17 50%, #FFFFFF14 56.25%, #FFFFFF0D 62.5%, #FFFFFF03 75%, #FFFFFF0D 87.5%, #FFFFFF14 93.75%, #FFFFFF17 100%)"
+    ],
+    "dark.surface.default.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.default.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.default.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.default.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.surface.inverse.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.inverse.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.inverse.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.inverse.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #0808085C 0%, #08080852 6.25%, #08080833 12.5%, #0808080A 25%, #08080833 37.5%, #08080852 43.75%, #0808085C 50%, #08080814 56.25%, #08080833 62.5%, #0808080A 75%, #08080833 87.5%, #08080852 93.75%, #0808085C 100%)"
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.skeleton-gradient": [
+        "linear-gradient(90deg, #08080817 0%, #08080814 6.25%, #0808080D 12.5%, #08080803 25%, #0808080D 37.5%, #08080814 43.75%, #08080817 50%, #08080814 56.25%, #0808080D 62.5%, #08080803 75%, #0808080D 87.5%, #08080814 93.75%, #08080817 100%)"
+    ],
+    "dark.surface.inverse.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.inverse.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.inverse.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.inverse.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #FFFFFF5C 0%, #FFFFFF52 6.25%, #FFFFFF33 12.5%, #FFFFFF0A 25%, #FFFFFF33 37.5%, #FFFFFF52 43.75%, #FFFFFF5C 50%, #FFFFFF14 56.25%, #FFFFFF33 62.5%, #FFFFFF0A 75%, #FFFFFF33 87.5%, #FFFFFF52 93.75%, #FFFFFF5C 100%)"
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.skeleton-gradient": [
+        "linear-gradient(90deg, #FFFFFF17 0%, #FFFFFF14 6.25%, #FFFFFF0D 12.5%, #FFFFFF03 25%, #FFFFFF0D 37.5%, #FFFFFF14 43.75%, #FFFFFF17 50%, #FFFFFF14 56.25%, #FFFFFF0D 62.5%, #FFFFFF03 75%, #FFFFFF0D 87.5%, #FFFFFF14 93.75%, #FFFFFF17 100%)"
+    ],
+    "dark.surface.on-dark.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-dark.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.surface.on-light.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-light.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-light.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-light.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #0808085C 0%, #08080852 6.25%, #08080833 12.5%, #0808080A 25%, #08080833 37.5%, #08080852 43.75%, #0808085C 50%, #08080814 56.25%, #08080833 62.5%, #0808080A 75%, #08080833 87.5%, #08080852 93.75%, #0808085C 100%)"
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.skeleton-gradient": [
+        "linear-gradient(90deg, #08080817 0%, #08080814 6.25%, #0808080D 12.5%, #08080803 25%, #0808080D 37.5%, #08080814 43.75%, #08080817 50%, #08080814 56.25%, #0808080D 62.5%, #08080803 75%, #0808080D 87.5%, #08080814 93.75%, #08080817 100%)"
+    ],
+    "dark.surface.on-light.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-light.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.surface.on-light.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "dark.surface.on-light.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "dark.text.default.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.text.default.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.default.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.default.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.default.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.default.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.default.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.default.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.default.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.inverse.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "dark.text.inverse.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.inverse.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.inverse.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.inverse.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.inverse.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.inverse.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.inverse.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.inverse.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-dark.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "dark.text.on-dark.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-dark.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-dark.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-dark.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-dark.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-dark.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-dark.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-dark.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-light.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "dark.text.on-light.accent-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-light.accent-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-light.accent-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-light.accent-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-light.promo-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-light.promo-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "dark.text.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "dark.text.on-light.promo-minor-gradient-active": [
+        "#E6E6E6FF"
+    ],
+    "dark.text.on-light.promo-minor-gradient-hover": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "light.outline.default.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.default.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.default.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.default.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.default.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.default.transparent-accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.default.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.inverse.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.outline.inverse.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.inverse.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.inverse.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.inverse.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.inverse.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.inverse.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.inverse.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.inverse.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.inverse.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.inverse.transparent-accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.inverse.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-dark.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.outline.on-dark.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-dark.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-dark.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-dark.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-dark.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-dark.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-dark.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-dark.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-dark.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-dark.transparent-accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-dark.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-light.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "light.outline.on-light.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-light.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-light.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-light.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-light.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-light.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-light.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-light.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.outline.on-light.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.outline.on-light.transparent-accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.outline.on-light.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.overlay.default.gradient-down": [
+        "linear-gradient(180deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.95%, rgba(249, 249, 249, 0.04) 1.9%, rgba(249, 249, 249, 0.08) 2.86%, rgba(249, 249, 249, 0.15) 3.81%, rgba(249, 249, 249, 0.23) 4.76%, rgba(249, 249, 249, 0.33) 5.71%, rgba(249, 249, 249, 0.44) 6.67%, rgba(249, 249, 249, 0.56) 7.62%, rgba(249, 249, 249, 0.67) 8.57%, rgba(249, 249, 249, 0.77) 9.52%, rgba(249, 249, 249, 0.85) 10.48%, rgba(249, 249, 249, 0.92) 11.43%, rgba(249, 249, 249, 0.96) 12.38%, rgba(249, 249, 249, 0.99) 13.33%, #F9F9F9 14.29%)"
+    ],
+    "light.overlay.default.gradient-up": [
+        "linear-gradient(0deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.77%, rgba(249, 249, 249, 0.04) 1.54%, rgba(249, 249, 249, 0.08) 2.31%, rgba(249, 249, 249, 0.15) 3.08%, rgba(249, 249, 249, 0.23) 3.86%, rgba(249, 249, 249, 0.33) 4.63%, rgba(249, 249, 249, 0.44) 5.4%, rgba(249, 249, 249, 0.56) 6.17%, rgba(249, 249, 249, 0.67) 6.94%, rgba(249, 249, 249, 0.77) 7.71%, rgba(249, 249, 249, 0.85) 8.48%, rgba(249, 249, 249, 0.92) 9.25%, rgba(249, 249, 249, 0.96) 10.02%, rgba(249, 249, 249, 0.99) 10.8%, #F9F9F9 11.57%)"
+    ],
+    "light.overlay.inverse.gradient-down": [
+        "linear-gradient(180deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.95%, rgba(8, 8, 8, 0.04) 1.9%, rgba(8, 8, 8, 0.08) 2.86%, rgba(8, 8, 8, 0.15) 3.81%, rgba(8, 8, 8, 0.23) 4.76%, rgba(8, 8, 8, 0.33) 5.71%, rgba(8, 8, 8, 0.44) 6.67%, rgba(8, 8, 8, 0.56) 7.62%, rgba(8, 8, 8, 0.67) 8.57%, rgba(8, 8, 8, 0.77) 9.52%, rgba(8, 8, 8, 0.85) 10.48%, rgba(8, 8, 8, 0.92) 11.43%, rgba(8, 8, 8, 0.96) 12.38%, rgba(8, 8, 8, 0.99) 13.33%, #080808 14.29%)"
+    ],
+    "light.overlay.inverse.gradient-up": [
+        "linear-gradient(0deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.77%, rgba(8, 8, 8, 0.04) 1.54%, rgba(8, 8, 8, 0.08) 2.31%, rgba(8, 8, 8, 0.15) 3.08%, rgba(8, 8, 8, 0.23) 3.86%, rgba(8, 8, 8, 0.33) 4.63%, rgba(8, 8, 8, 0.44) 5.4%, rgba(8, 8, 8, 0.56) 6.17%, rgba(8, 8, 8, 0.67) 6.94%, rgba(8, 8, 8, 0.77) 7.71%, rgba(8, 8, 8, 0.85) 8.48%, rgba(8, 8, 8, 0.92) 9.25%, rgba(8, 8, 8, 0.96) 10.02%, rgba(8, 8, 8, 0.99) 10.8%, #080808 11.57%)"
+    ],
+    "light.overlay.on-dark.gradient-down": [
+        "linear-gradient(180deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.95%, rgba(8, 8, 8, 0.04) 1.9%, rgba(8, 8, 8, 0.08) 2.86%, rgba(8, 8, 8, 0.15) 3.81%, rgba(8, 8, 8, 0.23) 4.76%, rgba(8, 8, 8, 0.33) 5.71%, rgba(8, 8, 8, 0.44) 6.67%, rgba(8, 8, 8, 0.56) 7.62%, rgba(8, 8, 8, 0.67) 8.57%, rgba(8, 8, 8, 0.77) 9.52%, rgba(8, 8, 8, 0.85) 10.48%, rgba(8, 8, 8, 0.92) 11.43%, rgba(8, 8, 8, 0.96) 12.38%, rgba(8, 8, 8, 0.99) 13.33%, #080808 14.29%)"
+    ],
+    "light.overlay.on-dark.gradient-up": [
+        "linear-gradient(0deg, rgba(8, 8, 8, 0.00) 0%, rgba(8, 8, 8, 0.01) 0.77%, rgba(8, 8, 8, 0.04) 1.54%, rgba(8, 8, 8, 0.08) 2.31%, rgba(8, 8, 8, 0.15) 3.08%, rgba(8, 8, 8, 0.23) 3.86%, rgba(8, 8, 8, 0.33) 4.63%, rgba(8, 8, 8, 0.44) 5.4%, rgba(8, 8, 8, 0.56) 6.17%, rgba(8, 8, 8, 0.67) 6.94%, rgba(8, 8, 8, 0.77) 7.71%, rgba(8, 8, 8, 0.85) 8.48%, rgba(8, 8, 8, 0.92) 9.25%, rgba(8, 8, 8, 0.96) 10.02%, rgba(8, 8, 8, 0.99) 10.8%, #080808 11.57%)"
+    ],
+    "light.overlay.on-light.gradient-down": [
+        "linear-gradient(180deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.95%, rgba(249, 249, 249, 0.04) 1.9%, rgba(249, 249, 249, 0.08) 2.86%, rgba(249, 249, 249, 0.15) 3.81%, rgba(249, 249, 249, 0.23) 4.76%, rgba(249, 249, 249, 0.33) 5.71%, rgba(249, 249, 249, 0.44) 6.67%, rgba(249, 249, 249, 0.56) 7.62%, rgba(249, 249, 249, 0.67) 8.57%, rgba(249, 249, 249, 0.77) 9.52%, rgba(249, 249, 249, 0.85) 10.48%, rgba(249, 249, 249, 0.92) 11.43%, rgba(249, 249, 249, 0.96) 12.38%, rgba(249, 249, 249, 0.99) 13.33%, #F9F9F9 14.29%)"
+    ],
+    "light.overlay.on-light.gradient-up": [
+        "linear-gradient(0deg, rgba(249, 249, 249, 0.00) 0%, rgba(249, 249, 249, 0.01) 0.77%, rgba(249, 249, 249, 0.04) 1.54%, rgba(249, 249, 249, 0.08) 2.31%, rgba(249, 249, 249, 0.15) 3.08%, rgba(249, 249, 249, 0.23) 3.86%, rgba(249, 249, 249, 0.33) 4.63%, rgba(249, 249, 249, 0.44) 5.4%, rgba(249, 249, 249, 0.56) 6.17%, rgba(249, 249, 249, 0.67) 6.94%, rgba(249, 249, 249, 0.77) 7.71%, rgba(249, 249, 249, 0.85) 8.48%, rgba(249, 249, 249, 0.92) 9.25%, rgba(249, 249, 249, 0.96) 10.02%, rgba(249, 249, 249, 0.99) 10.8%, #F9F9F9 11.57%)"
+    ],
+    "light.surface.default.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.surface.default.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.default.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.default.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.default.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #0808085C 0%, #08080852 6.25%, #08080833 12.5%, #0808080A 25%, #08080833 37.5%, #08080852 43.75%, #0808085C 50%, #08080814 56.25%, #08080833 62.5%, #0808080A 75%, #08080833 87.5%, #08080852 93.75%, #0808085C 100%)"
+    ],
+    "light.surface.default.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.skeleton-gradient": [
+        "linear-gradient(90deg, #08080817 0%, #08080814 6.25%, #0808080D 12.5%, #08080803 25%, #0808080D 37.5%, #08080814 43.75%, #08080817 50%, #08080814 56.25%, #0808080D 62.5%, #08080803 75%, #0808080D 87.5%, #08080814 93.75%, #08080817 100%)"
+    ],
+    "light.surface.default.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.default.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.default.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.default.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.surface.inverse.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.inverse.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.inverse.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.inverse.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #FFFFFF5C 0%, #FFFFFF52 6.25%, #FFFFFF33 12.5%, #FFFFFF0A 25%, #FFFFFF33 37.5%, #FFFFFF52 43.75%, #FFFFFF5C 50%, #FFFFFF14 56.25%, #FFFFFF33 62.5%, #FFFFFF0A 75%, #FFFFFF33 87.5%, #FFFFFF52 93.75%, #FFFFFF5C 100%)"
+    ],
+    "light.surface.inverse.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.skeleton-gradient": [
+        "linear-gradient(90deg, #FFFFFF17 0%, #FFFFFF14 6.25%, #FFFFFF0D 12.5%, #FFFFFF03 25%, #FFFFFF0D 37.5%, #FFFFFF14 43.75%, #FFFFFF17 50%, #FFFFFF14 56.25%, #FFFFFF0D 62.5%, #FFFFFF03 75%, #FFFFFF0D 87.5%, #FFFFFF14 93.75%, #FFFFFF17 100%)"
+    ],
+    "light.surface.inverse.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.inverse.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.inverse.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.inverse.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.surface.on-dark.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-dark.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-dark.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-dark.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #FFFFFF5C 0%, #FFFFFF52 6.25%, #FFFFFF33 12.5%, #FFFFFF0A 25%, #FFFFFF33 37.5%, #FFFFFF52 43.75%, #FFFFFF5C 50%, #FFFFFF14 56.25%, #FFFFFF33 62.5%, #FFFFFF0A 75%, #FFFFFF33 87.5%, #FFFFFF52 93.75%, #FFFFFF5C 100%)"
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.skeleton-gradient": [
+        "linear-gradient(90deg, #FFFFFF17 0%, #FFFFFF14 6.25%, #FFFFFF0D 12.5%, #FFFFFF03 25%, #FFFFFF0D 37.5%, #FFFFFF14 43.75%, #FFFFFF17 50%, #FFFFFF14 56.25%, #FFFFFF0D 62.5%, #FFFFFF03 75%, #FFFFFF0D 87.5%, #FFFFFF14 93.75%, #FFFFFF17 100%)"
+    ],
+    "light.surface.on-dark.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-dark.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-dark.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-dark.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.surface.on-light.accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-light.accent-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-light.promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-light.promo-minor-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.skeleton-deep-gradient": [
+        "linear-gradient(90deg, #0808085C 0%, #08080852 6.25%, #08080833 12.5%, #0808080A 25%, #08080833 37.5%, #08080852 43.75%, #0808085C 50%, #08080814 56.25%, #08080833 62.5%, #0808080A 75%, #08080833 87.5%, #08080852 93.75%, #0808085C 100%)"
+    ],
+    "light.surface.on-light.skeleton-deep-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.skeleton-deep-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.skeleton-gradient": [
+        "linear-gradient(90deg, #08080817 0%, #08080814 6.25%, #0808080D 12.5%, #08080803 25%, #0808080D 37.5%, #08080814 43.75%, #08080817 50%, #08080814 56.25%, #0808080D 62.5%, #08080803 75%, #0808080D 87.5%, #08080814 93.75%, #08080817 100%)"
+    ],
+    "light.surface.on-light.skeleton-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.skeleton-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.transparent-accent-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-light.transparent-accent-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.transparent-accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.transparent-promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.surface.on-light.transparent-promo-gradient-active": [
+        "#FFFFFFFF"
+    ],
+    "light.surface.on-light.transparent-promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.default.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "light.text.default.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.default.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.default.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.default.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.default.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.default.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.default.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.default.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.default.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.default.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.default.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.inverse.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.text.inverse.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.inverse.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.inverse.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.inverse.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.inverse.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.inverse.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.inverse.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.inverse.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.inverse.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.inverse.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.inverse.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-dark.accent-gradient": [
+        "linear-gradient(45deg, #1A9E32FF 0%, #04C6C9FF 100%)"
+    ],
+    "light.text.on-dark.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-dark.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-dark.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-dark.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-dark.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-dark.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-dark.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-dark.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-dark.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-dark.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-dark.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-light.accent-gradient": [
+        "linear-gradient(45deg, #0D8523FF 0%, #0DA8ABFF 100%)"
+    ],
+    "light.text.on-light.accent-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-light.accent-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-light.accent-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-light.accent-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-light.accent-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-light.promo-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-light.promo-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-light.promo-gradient-hover": [
+        "#FFFFFFFF"
+    ],
+    "light.text.on-light.promo-minor-gradient": [
+        "#FFFFFF"
+    ],
+    "light.text.on-light.promo-minor-gradient-active": [
+        "#CCCCCCFF"
+    ],
+    "light.text.on-light.promo-minor-gradient-hover": [
+        "#FFFFFFFF"
+    ]
+}
