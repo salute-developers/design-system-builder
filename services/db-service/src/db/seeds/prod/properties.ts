@@ -1281,7 +1281,7 @@ export async function seedProperties(
             },
             {
                 componentId: list.id,
-                name: 'litItemStyle',
+                name: 'listItemStyle',
                 type: 'typography' as const,
                 defaultValue: '',
                 description: '',
@@ -2835,7 +2835,7 @@ export async function seedProperties(
     addPlatformParams(findList('listItemFocusColor').id, { web: ['listItemFocusColor'] });
     addPlatformParams(findList('listItemDividerWidth').id, { web: ['listItemDividerWidth'] });
     addPlatformParams(findList('listItemTightDifference').id, { web: ['listItemTightDifference'] });
-    addPlatformParams(findList('litItemStyle').id, {
+    addPlatformParams(findList('listItemStyle').id, {
         web: [
             'listItemFontFamily',
             'listItemFontSize',
@@ -3363,7 +3363,7 @@ export async function seedProperties(
         lis_listItemFocusColor: findList('listItemFocusColor'),
         lis_listItemDividerWidth: findList('listItemDividerWidth'),
         lis_listItemTightDifference: findList('listItemTightDifference'),
-        lis_litItemStyle: findList('litItemStyle'),
+        lis_listItemStyle: findList('listItemStyle'),
         // LinkButton
         lin_linkButtonTextColor: findLinkButton('linkButtonTextColor'),
         lin_linkButtonPadding: findLinkButton('linkButtonPadding'),

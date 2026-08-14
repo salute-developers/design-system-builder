@@ -110,6 +110,22 @@ router.get("/:name/component-configs", (req, res) =>
           )
         : [];
 
+    // ── Adjustments (корректировки платформенных параметров) ──────────────────
+    const vpvIds = vpvRows.map((r) => r.id);
+    const ipvIds = ipvRows.map((r) => r.id);
+    const [vpvAdjRows, ipvAdjRows] = await Promise.all([
+      vpvIds.length > 0
+        ? db.select().from(variationPlatformParamAdjustments).where(
+            inArray(variationPlatformParamAdjustments.vpvId, vpvIds),
+          )
+        : Promise.resolve([] as (typeof variationPlatformParamAdjustments.$inferSelect)[]),
+      ipvIds.length > 0
+        ? db.select().from(invariantPlatformParamAdjustments).where(
+            inArray(invariantPlatformParamAdjustments.ipvId, ipvIds),
+          )
+        : Promise.resolve([] as (typeof invariantPlatformParamAdjustments.$inferSelect)[]),
+    ]);
+
     // Collect all tokenIds from vpv + ipv to resolve token names for rows where value IS NULL
     const referencedTokenIds = [
       ...new Set([
@@ -135,6 +151,57 @@ router.get("/:name/component-configs", (req, res) =>
       if (resolved && propType === "typography") return stripScreenPrefix(resolved);
       return resolved;
     };
+
+    // Шаблоны web-параметров (свойство-уровневые): platformParamId -> template
+    const templateByPppId = new Map<string, string>();
+    for (const a of [...vpvAdjRows, ...ipvAdjRows]) {
+      if (a.template && !templateByPppId.has(a.platformParamId)) {
+        templateByPppId.set(a.platformParamId, a.template);
+      }
+    }
+
+    // Пер-значенческие офсеты: id строки ipv/vpv -> adjustment. Строки-копии
+    // родительского значения (наследие старого импорта) не являются
+    // корректировками и отфильтровываются. Legacy-JSON несёт один скаляр на
+    // значение, поэтому при разных офсетах по платформам выбор детерминирован:
+    // приоритет у web (его потребляют генератор и превью), дальше xml/compose/ios.
+    const parentResolved = (row: { value: string | null; tokenId: string | null }) =>
+      row.value ?? (row.tokenId ? (tokenNameById.get(row.tokenId) ?? null) : null);
+    const vpvRowById = new Map(vpvRows.map((r) => [r.id, r]));
+    const ipvRowById = new Map(ipvRows.map((r) => [r.id, r]));
+    const pppPlatformById = new Map(pppRows.map((p) => [p.id, p.platform]));
+    const ADJ_PLATFORM_PRIORITY: Record<string, number> = { web: 0, xml: 1, compose: 2, ios: 3 };
+    const adjustmentPickByValueRowId = new Map<string, { value: string; prio: number }>();
+    const considerAdjustment = (
+      valueRowId: string,
+      a: { platformParamId: string; value: string | null },
+      parent: { value: string | null; tokenId: string | null } | undefined,
+    ) => {
+      if (a.value == null) return;
+      // Офсет по контракту потребителей — число (shape.ts делает Number(adjustment)).
+      // Нечисловые значения — это либо копии значений от старого импорта, либо
+      // платформо-специфичные строки (dp, имена шейпов), которым в web-CSS не место.
+      if (a.value.trim() === "" || !Number.isFinite(Number(a.value))) return;
+      if (!parent || a.value === parentResolved(parent)) return;
+      const platform = pppPlatformById.get(a.platformParamId) ?? "";
+      const prio = ADJ_PLATFORM_PRIORITY[platform] ?? 9;
+      const current = adjustmentPickByValueRowId.get(valueRowId);
+      if (!current || prio < current.prio) {
+        adjustmentPickByValueRowId.set(valueRowId, { value: a.value, prio });
+      }
+    };
+    for (const a of vpvAdjRows) considerAdjustment(a.vpvId, a, vpvRowById.get(a.vpvId));
+    for (const a of ipvAdjRows) considerAdjustment(a.ipvId, a, ipvRowById.get(a.ipvId));
+    const adjustmentByValueRowId = new Map(
+      [...adjustmentPickByValueRowId].map(([id, pick]) => [id, pick.value]),
+    );
+
+    const webPppIdByPropAndName = new Map<string, string>();
+    for (const ppp of pppRows) {
+      if (ppp.platform === "web") {
+        webPppIdByPropAndName.set(`${ppp.propertyId}::${ppp.name}`, ppp.id);
+      }
+    }
 
     // ── Lookup maps ────────────────────────────────────────────────────────────
     function groupBy<T>(arr: T[], key: (item: T) => string): Map<string, T[]> {
@@ -173,12 +240,16 @@ router.get("/:name/component-configs", (req, res) =>
 
     function buildWebMappings(
       propertyId: string,
-    ): { name: string; adjustment: null }[] | null {
+    ): { name: string; adjustment: string | null }[] | null {
       const params = platformParamsByPropertyId.get(propertyId);
       const web = params?.web;
       if (!web || web.length === 0) return null;
 
-      return web.map((name) => ({ name, adjustment: null }));
+      return web.map((name) => ({
+        name,
+        adjustment:
+          templateByPppId.get(webPppIdByPropAndName.get(`${propertyId}::${name}`) ?? "") ?? null,
+      }));
     }
 
     function hasAnyPlatformParam(propertyId: string): boolean {
@@ -270,6 +341,9 @@ router.get("/:name/component-configs", (req, res) =>
         ).map((ipv) => ({
           id: ipv.propertyId,
           value: resolveValue(ipv.value, ipv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+          ...(adjustmentByValueRowId.has(ipv.id)
+            ? { adjustment: adjustmentByValueRowId.get(ipv.id) }
+            : {}),
         }));
 
         // variations: each variation with its styles and vpvs
@@ -297,6 +371,9 @@ router.get("/:name/component-configs", (req, res) =>
               return {
                 id: propId,
                 value: base ? resolveValue(base.value, base.tokenId, propById.get(propId)?.type) : null,
+                ...(base && adjustmentByValueRowId.has(base.id)
+                  ? { adjustment: adjustmentByValueRowId.get(base.id) }
+                  : {}),
                 states: (statesByPropId.get(propId) ?? []).map((sv) => ({
                   state: [sv.state],
                   value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
@@ -694,6 +771,13 @@ router.post("/create", (req, res) =>
       return;
     }
 
+    // Токены ДС (вставлены на шаге 3) — для перевода строковых значений-ссылок в tokenId
+    const dsTokens = await db
+      .select({ id: tokens.id, name: tokens.name })
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+    const tokenIdByName = new Map(dsTokens.map((t) => [t.name, t.id]));
+
     // Загружаем компоненты по имени
     const compNames = componentsData.map((c: LegacyComponent) => c.name);
     const existingComponents = await db
@@ -848,16 +932,16 @@ router.post("/create", (req, res) =>
               designSystemId: ds.id,
               componentId: component.id,
               appearanceId: appearance.id,
-              value: valueStr,
+              ...encodePropValue(valueStr, tokenIdByName),
               state: (inv.states ? null : null) as any,
             })
             .returning();
 
-          // Создаём adjustments для каждой платформы
+          // Создаём adjustments (только реальные корректировки)
           await insertInvariantAdjustments(
             ipv.id,
             info,
-            valueStr,
+            toAdjustmentStr(inv.adjustment),
             pppByKey,
           );
         }
@@ -883,12 +967,12 @@ router.post("/create", (req, res) =>
                   propertyId: info.dbProp.id,
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
-                  value: valueStr,
+                  ...encodePropValue(valueStr, tokenIdByName),
                   state: null,
                 })
                 .returning();
 
-              await insertVariationAdjustments(vpv.id, info, valueStr, pppByKey);
+              await insertVariationAdjustments(vpv.id, info, toAdjustmentStr(prop.adjustment), pppByKey);
 
               // states
               for (const stateEntry of prop.states ?? []) {
@@ -907,12 +991,12 @@ router.post("/create", (req, res) =>
                     propertyId: info.dbProp.id,
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
-                    value: stateValueStr,
+                    ...encodePropValue(stateValueStr, tokenIdByName),
                     state: stateVal as any,
                   })
                   .returning();
 
-                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
+                await insertVariationAdjustments(svpv.id, info, null, pppByKey, false);
               }
             }
           }
@@ -1074,6 +1158,13 @@ router.post("/:name/update", (req, res) =>
       res.json({ id: ds.id });
       return;
     }
+
+    // Токены ДС (обновлены на шаге 3) — для перевода строковых значений-ссылок в tokenId
+    const dsTokens = await db
+      .select({ id: tokens.id, name: tokens.name })
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+    const tokenIdByName = new Map(dsTokens.map((t) => [t.name, t.id]));
 
     const compNames = componentsData.map((c: LegacyComponent) => c.name);
     const existingComponents = await db
@@ -1297,12 +1388,12 @@ router.post("/:name/update", (req, res) =>
               designSystemId: ds.id,
               componentId: component.id,
               appearanceId: appearance.id,
-              value: valueStr,
+              ...encodePropValue(valueStr, tokenIdByName),
               state: (inv.states ? null : null) as any,
             })
             .returning();
 
-          await insertInvariantAdjustments(ipv.id, info, valueStr, pppByKey);
+          await insertInvariantAdjustments(ipv.id, info, toAdjustmentStr(inv.adjustment), pppByKey);
         }
 
         // variation props (vpv)
@@ -1325,12 +1416,12 @@ router.post("/:name/update", (req, res) =>
                   propertyId: info.dbProp.id,
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
-                  value: valueStr,
+                  ...encodePropValue(valueStr, tokenIdByName),
                   state: null,
                 })
                 .returning();
 
-              await insertVariationAdjustments(vpv.id, info, valueStr, pppByKey);
+              await insertVariationAdjustments(vpv.id, info, toAdjustmentStr(prop.adjustment), pppByKey);
 
               // states
               for (const stateEntry of prop.states ?? []) {
@@ -1349,12 +1440,12 @@ router.post("/:name/update", (req, res) =>
                     propertyId: info.dbProp.id,
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
-                    value: stateValueStr,
+                    ...encodePropValue(stateValueStr, tokenIdByName),
                     state: stateVal as any,
                   })
                   .returning();
 
-                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
+                await insertVariationAdjustments(svpv.id, info, null, pppByKey, false);
               }
             }
           }
@@ -1370,86 +1461,114 @@ router.post("/:name/update", (req, res) =>
 
 type PppRow = { id: string; propertyId: string; platform: string; name: string };
 
+// Нормализация adjustment из legacy-JSON: число или строка -> строка, пусто -> null
+function toAdjustmentStr(v: unknown): string | null {
+  return v === null || v === undefined || v === "" ? null : String(v);
+}
+
 async function insertVariationAdjustments(
   vpvId: string,
   info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
-  value: string | null,
+  adjustment: string | null,
   pppByKey: Map<string, PppRow>,
+  includeTemplates = true,
 ) {
-  const rows = buildAdjustmentRows(info, value, pppByKey);
-  for (const row of rows) {
-    await db.insert(variationPlatformParamAdjustments).values({
+  const rows = buildAdjustmentRows(info, adjustment, pppByKey, includeTemplates);
+  if (rows.length === 0) return;
+  // Без onConflictDoNothing: после мержа в buildAdjustmentRows конфликт по
+  // уникальному индексу (vpvId, platformParamId) — всегда баг, и он должен
+  // падать, а не молча терять строку.
+  await db.insert(variationPlatformParamAdjustments).values(
+    rows.map((row) => ({
       vpvId,
       platformParamId: row.platformParamId,
       value: row.value,
       template: row.template,
-    }).onConflictDoNothing();
-  }
+    })),
+  );
+}
+
+// Если строковое значение свойства совпадает с именем токена ДС, храним ссылку
+// tokenId вместо сырой строки — иначе теряется связь «свойство → токен».
+function encodePropValue(
+  valueStr: string | null,
+  tokenIdByName: Map<string, string>,
+): { value: string | null; tokenId: string | null } {
+  const tokenId = valueStr !== null ? tokenIdByName.get(valueStr) ?? null : null;
+  return tokenId ? { value: null, tokenId } : { value: valueStr, tokenId: null };
 }
 
 async function insertInvariantAdjustments(
   ipvId: string,
   info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
-  value: string | null,
+  adjustment: string | null,
   pppByKey: Map<string, PppRow>,
+  includeTemplates = true,
 ) {
-  const rows = buildAdjustmentRows(info, value, pppByKey);
-  for (const row of rows) {
-    await db.insert(invariantPlatformParamAdjustments).values({
+  const rows = buildAdjustmentRows(info, adjustment, pppByKey, includeTemplates);
+  if (rows.length === 0) return;
+  await db.insert(invariantPlatformParamAdjustments).values(
+    rows.map((row) => ({
       ipvId,
       platformParamId: row.platformParamId,
       value: row.value,
       template: row.template,
-    }).onConflictDoNothing();
-  }
+    })),
+  );
 }
 
+// Adjustment-строки — это только реальные корректировки: пер-значенческий офсет
+// (props[].adjustment, например '-2' для shape) и web-шаблоны
+// (platformMappings.web[].adjustment, например '0 $1 -0.125rem').
+// Значение свойства сюда НЕ копируется — оно живёт в ipv/vpv (value | tokenId),
+// а копии, которые писал старый импорт, никем не читались и только шумели.
 function buildAdjustmentRows(
   info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
-  value: string | null,
+  adjustment: string | null,
   pppByKey: Map<string, PppRow>,
+  includeTemplates: boolean,
 ): { platformParamId: string; value: string | null; template: string | null }[] {
   if (!info.dbProp) return [];
   const propId = info.dbProp.id;
-  const rows: { platformParamId: string; value: string | null; template: string | null }[] = [];
 
-  // xml
-  if (info.platformMappings.xml) {
-    const ppp = pppByKey.get(`${propId}::xml::${info.platformMappings.xml}`);
-    if (ppp && (value !== null)) {
-      rows.push({ platformParamId: ppp.id, value, template: null });
+  // На (valueRowId, platformParamId) стоит уникальный индекс, поэтому офсет и
+  // web-шаблон одного параметра мержатся в одну строку — вторая вставка была бы
+  // молча отброшена onConflictDoNothing.
+  const rowByPppId = new Map<string, { value: string | null; template: string | null }>();
+  const upsertRow = (pppId: string, patch: Partial<{ value: string; template: string }>) => {
+    const current = rowByPppId.get(pppId) ?? { value: null, template: null };
+    rowByPppId.set(pppId, { ...current, ...patch });
+  };
+
+  if (adjustment !== null) {
+    const singleParams: [string, string | null][] = [
+      ["xml", info.platformMappings.xml],
+      ["compose", info.platformMappings.compose],
+      ["ios", info.platformMappings.ios],
+    ];
+    for (const [platform, name] of singleParams) {
+      if (!name) continue;
+      const ppp = pppByKey.get(`${propId}::${platform}::${name}`);
+      if (ppp) upsertRow(ppp.id, { value: adjustment });
     }
-  }
-  // compose
-  if (info.platformMappings.compose) {
-    const ppp = pppByKey.get(`${propId}::compose::${info.platformMappings.compose}`);
-    if (ppp && (value !== null)) {
-      rows.push({ platformParamId: ppp.id, value, template: null });
-    }
-  }
-  // ios
-  if (info.platformMappings.ios) {
-    const ppp = pppByKey.get(`${propId}::ios::${info.platformMappings.ios}`);
-    if (ppp && (value !== null)) {
-      rows.push({ platformParamId: ppp.id, value, template: null });
-    }
-  }
-  // web
-  for (const webEntry of info.platformMappings.web ?? []) {
-    const ppp = pppByKey.get(`${propId}::web::${webEntry.name}`);
-    if (!ppp) continue;
-    const hasValue = value !== null;
-    const hasTemplate = webEntry.adjustment !== null && webEntry.adjustment !== undefined;
-    if (hasValue || hasTemplate) {
-      rows.push({
-        platformParamId: ppp.id,
-        value: hasValue ? value : null,
-        template: hasTemplate ? webEntry.adjustment : null,
-      });
+    for (const webEntry of info.platformMappings.web ?? []) {
+      const ppp = pppByKey.get(`${propId}::web::${webEntry.name}`);
+      if (ppp) upsertRow(ppp.id, { value: adjustment });
     }
   }
 
-  return rows;
+  // Шаблоны свойство-уровневые, поэтому пишутся только для базовой строки
+  // значения (state IS NULL), а не для каждого state.
+  if (includeTemplates) {
+    for (const webEntry of info.platformMappings.web ?? []) {
+      const template = toAdjustmentStr(webEntry.adjustment);
+      if (template === null) continue;
+      const ppp = pppByKey.get(`${propId}::web::${webEntry.name}`);
+      if (ppp) upsertRow(ppp.id, { template });
+    }
+  }
+
+  return [...rowByPppId].map(([platformParamId, row]) => ({ platformParamId, ...row }));
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1518,7 +1637,7 @@ interface LegacyConfig {
   id: string;
   config: {
     defaultVariations?: { variationID: string; styleID: string }[];
-    invariantProps?: { id: string; value: unknown; states?: unknown }[];
+    invariantProps?: { id: string; value: unknown; adjustment?: unknown; states?: unknown }[];
     variations?: {
       id: string;
       styles?: {
@@ -1527,6 +1646,7 @@ interface LegacyConfig {
         props?: {
           id: string;
           value: unknown;
+          adjustment?: unknown;
           states?: { state: string | string[]; value: unknown }[];
         }[];
       }[];

@@ -158,7 +158,7 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: chip.id,
                 appearanceId: a.base_chi_default.id,
-                value: 'text.default.accent',
+                tokenId: t['text.default.accent'].id,
                 state: null,
             },
             // Switch
@@ -175,7 +175,7 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: switchComponent.id,
                 appearanceId: a.base_swi_default.id,
-                value: 'surface.default.accent',
+                tokenId: t['surface.default.accent'].id,
                 state: null,
             },
             // List
@@ -192,7 +192,7 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: list.id,
                 appearanceId: a.base_lis_default.id,
-                value: 'surface.default.accent',
+                tokenId: t['surface.default.accent'].id,
                 state: null,
             },
             // LinkButton
@@ -209,7 +209,7 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: linkButton.id,
                 appearanceId: a.base_lin_default.id,
-                value: 'text.default.accent',
+                tokenId: t['text.default.accent'].id,
                 state: null,
             },
             // EmbedIconButton
@@ -218,7 +218,7 @@ export async function seedInvariantPropertyValues(
                 designSystemId: base.id,
                 componentId: embedIconButton.id,
                 appearanceId: a.base_emb_default.id,
-                value: 'surface.default.accent',
+                tokenId: t['surface.default.accent'].id,
                 state: null,
             },
             {

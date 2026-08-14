@@ -135,7 +135,7 @@ export const StyledStatePropLabel = styled.div`
     padding-left: 0.75rem;
     overflow: hidden;
     text-overflow: ellipsis;
-    whitespace: nowrap;
+    white-space: nowrap;
 `;
 
 export const StyledDropdown = styled(Dropdown)`
@@ -147,5 +147,5 @@ export const StyledPropLabel = styled.div`
     width: 8.75rem;
     overflow: hidden;
     text-overflow: ellipsis;
-    whitespace: nowrap;
+    white-space: nowrap;
 `;
