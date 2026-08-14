@@ -107,26 +107,14 @@ SELECT ipv."id", cs."id" FROM "invariant_property_values" ipv
 JOIN "component_states" cs ON cs."component_id" = ipv."component_id" AND cs."name" = ipv."state"::text
 WHERE ipv."state" IS NOT NULL AND ipv."state"::text NOT IN ('pressed','hovered','focused','selected','activated','readonly','disabled');
 --> statement-breakpoint
-ALTER TABLE "invariant_property_values" ALTER COLUMN "state" SET DATA TYPE text;
---> statement-breakpoint
 ALTER TABLE "property_value_states" ALTER COLUMN "state" SET DATA TYPE text;
 --> statement-breakpoint
-ALTER TABLE "variation_property_values" ALTER COLUMN "state" SET DATA TYPE text;
---> statement-breakpoint
-DROP TYPE "public"."state";
---> statement-breakpoint
-CREATE TYPE "public"."state" AS ENUM('pressed', 'hovered', 'focused', 'selected', 'activated', 'readonly', 'disabled');
---> statement-breakpoint
-ALTER TABLE "invariant_property_values" ALTER COLUMN "state" SET DATA TYPE "public"."state" USING "state"::"public"."state";
---> statement-breakpoint
-ALTER TABLE "property_value_states" ALTER COLUMN "state" SET DATA TYPE "public"."state" USING "state"::"public"."state";
---> statement-breakpoint
-ALTER TABLE "variation_property_values" ALTER COLUMN "state" SET DATA TYPE "public"."state" USING "state"::"public"."state";
---> statement-breakpoint
-CREATE UNIQUE INDEX "ipv_ds_comp_prop_app_states_unique" ON "invariant_property_values" USING btree ("design_system_id","component_id","property_id","appearance_id","states_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "vpv_style_property_appearance_states_unique" ON "variation_property_values" USING btree ("style_id","property_id","appearance_id","states_key");
---> statement-breakpoint
+-- Колонки состояний снимаются до сужения enum.
+--
+-- Они переехали в property_value_states и здесь только мешают: приведение к суженному типу
+-- отвергло бы значение вроде `checked`, которое ещё лежит в колонке, — при том что колонка
+-- удаляется следующим шагом. В property_value_states к этому моменту остались лишь состояния
+-- взаимодействия, поэтому её приведение проходит.
 ALTER TABLE "invariant_property_values" DROP CONSTRAINT "invariant_property_values_component_state_id_component_states_id_fk";
 --> statement-breakpoint
 ALTER TABLE "variation_property_values" DROP CONSTRAINT "variation_property_values_component_state_id_component_states_id_fk";
@@ -138,3 +126,13 @@ ALTER TABLE "invariant_property_values" DROP COLUMN "component_state_id";
 ALTER TABLE "variation_property_values" DROP COLUMN "state";
 --> statement-breakpoint
 ALTER TABLE "variation_property_values" DROP COLUMN "component_state_id";
+--> statement-breakpoint
+DROP TYPE "public"."state";
+--> statement-breakpoint
+CREATE TYPE "public"."state" AS ENUM('pressed', 'hovered', 'focused', 'selected', 'activated', 'readonly', 'disabled');
+--> statement-breakpoint
+ALTER TABLE "property_value_states" ALTER COLUMN "state" SET DATA TYPE "public"."state" USING "state"::"public"."state";
+--> statement-breakpoint
+CREATE UNIQUE INDEX "ipv_ds_comp_prop_app_states_unique" ON "invariant_property_values" USING btree ("design_system_id","component_id","property_id","appearance_id","states_key");
+--> statement-breakpoint
+CREATE UNIQUE INDEX "vpv_style_property_appearance_states_unique" ON "variation_property_values" USING btree ("style_id","property_id","appearance_id","states_key");
