@@ -21,6 +21,8 @@ import {
   components,
   variationPlatformParamAdjustments,
   invariantPlatformParamAdjustments,
+  propertyValueStates,
+  componentStates,
 } from "../../db/schema";
 import { assertFound, designSystemBelongsToScope, getProjectId, tryCatch } from "./utils";
 
@@ -92,7 +94,7 @@ router.get("/:name/component-configs", (req, res) =>
             and(
               eq(invariantPropertyValues.designSystemId, dsId),
               inArray(invariantPropertyValues.componentId, componentIds),
-              isNull(invariantPropertyValues.state),
+              eq(invariantPropertyValues.statesKey, ""),
             ),
           )
         : Promise.resolve([]),
@@ -357,7 +359,7 @@ router.get("/:name/component-configs", (req, res) =>
             const baseByPropId = new Map<string, (typeof vpvs)[0]>();
             const statesByPropId = new Map<string, (typeof vpvs)[0][]>();
             for (const vpv of vpvs) {
-              if (vpv.state === null) {
+              if (vpv.statesKey === "") {
                 baseByPropId.set(vpv.propertyId, vpv);
               } else {
                 if (!statesByPropId.has(vpv.propertyId)) statesByPropId.set(vpv.propertyId, []);
@@ -375,7 +377,7 @@ router.get("/:name/component-configs", (req, res) =>
                   ? { adjustment: adjustmentByValueRowId.get(base.id) }
                   : {}),
                 states: (statesByPropId.get(propId) ?? []).map((sv) => ({
-                  state: [sv.state],
+                  state: sv.statesKey.split(","),
                   value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
                 })),
               };
@@ -933,7 +935,7 @@ router.post("/create", (req, res) =>
               componentId: component.id,
               appearanceId: appearance.id,
               ...encodePropValue(valueStr, tokenIdByName),
-              state: (inv.states ? null : null) as any,
+              statesKey: "",
             })
             .returning();
 
@@ -968,7 +970,7 @@ router.post("/create", (req, res) =>
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
                   ...encodePropValue(valueStr, tokenIdByName),
-                  state: null,
+                  statesKey: "",
                 })
                 .returning();
 
@@ -976,15 +978,20 @@ router.post("/create", (req, res) =>
 
               // states
               for (const stateEntry of prop.states ?? []) {
-                const stateVal = Array.isArray(stateEntry.state)
-                  ? stateEntry.state[0]
-                  : stateEntry.state;
-                if (!stateVal) continue;
+                // Переопределение задаётся набором состояний: `["checked", "focused"]` означает
+                // «отмечен И в фокусе». Прежняя колонка вмещала одно состояние, поэтому здесь
+                // бралось только первое, а остальные терялись.
+                const stateValues = (Array.isArray(stateEntry.state)
+                  ? stateEntry.state
+                  : [stateEntry.state]
+                ).filter((value): value is string => Boolean(value));
+                if (stateValues.length === 0) continue;
 
                 const stateValueStr = stateEntry.value !== null && stateEntry.value !== undefined
                   ? String(stateEntry.value)
                   : null;
 
+                const sorted = [...stateValues].sort();
                 const [svpv] = await db
                   .insert(variationPropertyValues)
                   .values({
@@ -992,11 +999,25 @@ router.post("/create", (req, res) =>
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
                     ...encodePropValue(stateValueStr, tokenIdByName),
-                    state: stateVal as any,
+                    statesKey: sorted.join(","),
                   })
                   .returning();
 
-                await insertVariationAdjustments(svpv.id, info, null, pppByKey, false);
+                const known = await db
+                  .select()
+                  .from(componentStates)
+                  .where(eq(componentStates.componentId, component.id));
+
+                await db.insert(propertyValueStates).values(
+                  sorted.map((name) => {
+                    const semantic = known.find((row: any) => row.name === name);
+                    return semantic
+                      ? { variationPropertyValueId: svpv.id, componentStateId: semantic.id }
+                      : { variationPropertyValueId: svpv.id, state: name as any };
+                  }),
+                );
+
+                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
               }
             }
           }
@@ -1389,7 +1410,7 @@ router.post("/:name/update", (req, res) =>
               componentId: component.id,
               appearanceId: appearance.id,
               ...encodePropValue(valueStr, tokenIdByName),
-              state: (inv.states ? null : null) as any,
+              statesKey: "",
             })
             .returning();
 
@@ -1417,7 +1438,7 @@ router.post("/:name/update", (req, res) =>
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
                   ...encodePropValue(valueStr, tokenIdByName),
-                  state: null,
+                  statesKey: "",
                 })
                 .returning();
 
@@ -1425,15 +1446,20 @@ router.post("/:name/update", (req, res) =>
 
               // states
               for (const stateEntry of prop.states ?? []) {
-                const stateVal = Array.isArray(stateEntry.state)
-                  ? stateEntry.state[0]
-                  : stateEntry.state;
-                if (!stateVal) continue;
+                // Переопределение задаётся набором состояний: `["checked", "focused"]` означает
+                // «отмечен И в фокусе». Прежняя колонка вмещала одно состояние, поэтому здесь
+                // бралось только первое, а остальные терялись.
+                const stateValues = (Array.isArray(stateEntry.state)
+                  ? stateEntry.state
+                  : [stateEntry.state]
+                ).filter((value): value is string => Boolean(value));
+                if (stateValues.length === 0) continue;
 
                 const stateValueStr = stateEntry.value !== null && stateEntry.value !== undefined
                   ? String(stateEntry.value)
                   : null;
 
+                const sorted = [...stateValues].sort();
                 const [svpv] = await db
                   .insert(variationPropertyValues)
                   .values({
@@ -1441,11 +1467,25 @@ router.post("/:name/update", (req, res) =>
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
                     ...encodePropValue(stateValueStr, tokenIdByName),
-                    state: stateVal as any,
+                    statesKey: sorted.join(","),
                   })
                   .returning();
 
-                await insertVariationAdjustments(svpv.id, info, null, pppByKey, false);
+                const known = await db
+                  .select()
+                  .from(componentStates)
+                  .where(eq(componentStates.componentId, component.id));
+
+                await db.insert(propertyValueStates).values(
+                  sorted.map((name) => {
+                    const semantic = known.find((row: any) => row.name === name);
+                    return semantic
+                      ? { variationPropertyValueId: svpv.id, componentStateId: semantic.id }
+                      : { variationPropertyValueId: svpv.id, state: name as any };
+                  }),
+                );
+
+                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
               }
             }
           }

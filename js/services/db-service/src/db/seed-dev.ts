@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { db, client } from './index';
 import * as schema from './schema';
 
@@ -24,6 +25,26 @@ import { seedPalette } from './seeds/dev/palette';
 import { seedComponentReuseConfigs } from './seeds/dev/component_reuse_configs';
 import { seedVariationPlatformParamAdjustments } from './seeds/dev/variation_platform_param_adjustments';
 import { seedInvariantPlatformParamAdjustments } from './seeds/dev/invariant_platform_param_adjustments';
+
+/**
+ * Проставляет `combination_key` строкам сочетаний после того, как заполнены участники.
+ *
+ * Ключ — отсортированные идентификаторы стилей-участников: именно он делает уникальность
+ * сочетания выразимой индексом, потому что сам состав лежит в отдельной таблице. Сид
+ * вставляет сочетания раньше участников, поэтому ключ заполняется отдельным шагом.
+ */
+async function fillCombinationKeys(db: any) {
+  await db.execute(sql`
+    UPDATE style_combinations sc
+    SET combination_key = coalesce((
+      SELECT string_agg(m.style_id::text, ',' ORDER BY m.style_id::text)
+      FROM style_combination_members m
+      WHERE m.combination_id = sc.id
+    ), '')
+  `);
+  console.log('  style_combinations: combination_key заполнен');
+}
+
 
 // ─── Clear ────────────────────────────────────────────────────────────────────
 // Delete in reverse FK dependency order
@@ -96,6 +117,7 @@ async function seed() {
   // Combinations, configs, and audit
   const styleCombinations = await seedStyleCombinations(db, { appearances, properties });
   await seedStyleCombinationMembers(db, { styleCombinations, styles });
+  await fillCombinationKeys(db);
   await seedComponentReuseConfigs(db, { designSystems, componentDeps, appearances, variations, styles });
   await seedDocumentationPages(db, { designSystems });
   await seedDesignSystemChanges(db, { designSystems, tokens, styles, variations, tenants, appearances, properties });

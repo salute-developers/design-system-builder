@@ -1,17 +1,13 @@
 import "../zod-extend";
 import { z } from "zod";
+import { propertyTypeEnum, stateEnum } from "../db/schema";
 
 const uuidSchema = z.string().uuid("Must be a valid UUID");
 
 // Enum schemas
-export const PropertyTypeSchema = z.enum([
-  "color",
-  "typography",
-  "shape",
-  "shadow",
-  "dimension",
-  "float",
-]);
+// Значения берутся из схемы БД, а не дублируются списком: миграция 0004 расширила оба enum,
+// и ручная копия молча отвергала бы допустимые типы.
+export const PropertyTypeSchema = z.enum(propertyTypeEnum.enumValues);
 export const TokenTypeSchema = z.enum([
   "color",
   "gradient",
@@ -35,14 +31,7 @@ export const OperationSchema = z.enum([
   "moved",
 ]);
 export const RelationTypeSchema = z.enum(["reuse", "compose"]);
-export const StateSchema = z.enum([
-  "pressed",
-  "hovered",
-  "focused",
-  "selected",
-  "readonly",
-  "disabled",
-]);
+export const StateSchema = z.enum(stateEnum.enumValues);
 export const PaletteTypeSchema = z.enum(["general", "additional"]);
 
 // Common param schemas

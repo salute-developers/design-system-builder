@@ -9,6 +9,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -21,6 +22,16 @@ export const propertyTypeEnum = pgEnum("property_type", [
   "shadow",
   "dimension",
   "float",
+  "component_style",
+  "value",
+  "icon",
+  "boolean",
+  "gradient",
+  "blur",
+  // Тип из uikit-api-meta.json: счётчики и длительности (PaginationDots.edgeCount,
+  // Wheel.visibleItemsCount, RectSkeleton.duration). В конфигурациях оформления те же
+  // свойства записаны как value или float — глобальный слой берёт тип из кода.
+  "integer",
 ]);
 
 export const tokenTypeEnum = pgEnum("token_type", [
@@ -59,11 +70,19 @@ export const operationEnum = pgEnum("operation", [
 
 export const relationTypeEnum = pgEnum("relation_type", ["reuse", "compose"]);
 
+// Состояния взаимодействия: они принадлежат модели ввода, а не конкретному компоненту,
+// и потому одинаковы для всех. Состояния, специфичные для компонента (`checked`,
+// `indeterminate`, `collapsed` и прочие), живут в component_states: они объявляются кодом
+// компонента и у каждого свои.
+//
+// `activated` относится сюда же: его используют пять компонентов, и ни один не объявляет
+// его собственным состоянием в uikit-api-meta.json.
 export const stateEnum = pgEnum("state", [
   "pressed",
   "hovered",
   "focused",
   "selected",
+  "activated",
   "readonly",
   "disabled",
 ]);
@@ -194,6 +213,34 @@ export const properties = pgTable(
   (t) => [
     uniqueIndex("properties_component_id_name_unique").on(t.componentId, t.name),
   ],
+);
+
+// Состояния, специфичные для компонента.
+//
+// Объявляются кодом компонента: в `uikit-api-meta.json` у него есть поле `stateEnum`
+// с перечислением. Например `CheckBoxStates` даёт `checked` и `indeterminate`,
+// `CollapsingNavigationBarStates` — `collapsed` и `expanded`.
+//
+// Хранить их значениями общего enum было бы неверно: множество открыто и растёт с каждым
+// новым компонентом, а принадлежность состояния компоненту при этом теряется.
+export const componentStates = pgTable(
+  "component_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    componentId: uuid("component_id")
+      .notNull()
+      .references(() => components.id, { onDelete: "cascade" }),
+    // Имя в той форме, в какой оно встречается в конфигурациях оформления: `dragging-over`,
+    // а не `DraggingOver`. В api-meta для этого есть поле `configName`.
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [uniqueIndex("cs_component_id_name_unique").on(t.componentId, t.name)],
 );
 
 export const propertyPlatformParams = pgTable(
@@ -389,7 +436,7 @@ export const variationPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    state: stateEnum("state"),
+    statesKey: text("states_key").notNull().default(""),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -398,12 +445,12 @@ export const variationPropertyValues = pgTable(
       .$onUpdateFn(() => new Date()),
   },
   (t) => [
-    uniqueIndex("vpv_style_property_appearance_no_state_unique")
-      .on(t.styleId, t.propertyId, t.appearanceId)
-      .where(sql`state IS NULL`),
-    uniqueIndex("vpv_style_property_appearance_state_unique")
-      .on(t.styleId, t.propertyId, t.appearanceId, t.state)
-      .where(sql`state IS NOT NULL`),
+    uniqueIndex("vpv_style_property_appearance_states_unique").on(
+      t.styleId,
+      t.propertyId,
+      t.appearanceId,
+      t.statesKey,
+    ),
   ],
 );
 
@@ -425,7 +472,7 @@ export const invariantPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    state: stateEnum("state"),
+    statesKey: text("states_key").notNull().default(""),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -434,18 +481,81 @@ export const invariantPropertyValues = pgTable(
       .$onUpdateFn(() => new Date()),
   },
   (t) => [
-    uniqueIndex("ipv_ds_comp_prop_app_no_state_unique")
-      .on(t.designSystemId, t.componentId, t.propertyId, t.appearanceId)
-      .where(sql`state IS NULL`),
-    uniqueIndex("ipv_ds_comp_prop_app_state_unique")
-      .on(
-        t.designSystemId,
-        t.componentId,
-        t.propertyId,
-        t.appearanceId,
-        t.state,
-      )
-      .where(sql`state IS NOT NULL`),
+    uniqueIndex("ipv_ds_comp_prop_app_states_unique").on(
+      t.designSystemId,
+      t.componentId,
+      t.propertyId,
+      t.appearanceId,
+      t.statesKey,
+    ),
+  ],
+);
+
+// Состояния, при которых действует значение свойства.
+//
+// Конфигурации задают переопределение сразу для набора состояний, причём набор смешивает оба
+// вида: `["checked", "focused"]` — это «отмечен И в фокусе». Из 212 таких наборов в корпусе
+// 126 состоят только из состояний взаимодействия, а 86 сочетают их с состоянием компонента.
+//
+// Колонка в таблице значений вмещала бы одно состояние, поэтому набор пришлось бы разворачивать
+// в несколько строк — и конъюнкция превратилась бы в набор независимых переопределений.
+//
+// Значение без записей в этой таблице является базовым, то есть действует вне состояний.
+export const propertyValueStates = pgTable(
+  "property_value_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    // К какому значению относится набор: ровно одна из двух ссылок заполнена.
+    variationPropertyValueId: uuid("variation_property_value_id").references(
+      () => variationPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+    invariantPropertyValueId: uuid("invariant_property_value_id").references(
+      () => invariantPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+
+    // Какое это состояние: взаимодействия либо специфичное для компонента.
+    // Ровно одно из двух заполнено.
+    state: stateEnum("state"),
+    componentStateId: uuid("component_state_id").references(() => componentStates.id, {
+      onDelete: "cascade",
+    }),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    check(
+      "pvs_exactly_one_value",
+      sql`(
+        (${t.variationPropertyValueId} is not null)::int +
+        (${t.invariantPropertyValueId} is not null)::int
+      ) = 1`,
+    ),
+    check(
+      "pvs_exactly_one_state",
+      sql`(
+        (${t.state} is not null)::int +
+        (${t.componentStateId} is not null)::int
+      ) = 1`,
+    ),
+    uniqueIndex("pvs_variation_value_state_unique")
+      .on(t.variationPropertyValueId, t.state)
+      .where(sql`variation_property_value_id is not null and state is not null`),
+    uniqueIndex("pvs_variation_value_component_state_unique")
+      .on(t.variationPropertyValueId, t.componentStateId)
+      .where(sql`variation_property_value_id is not null and component_state_id is not null`),
+    uniqueIndex("pvs_invariant_value_state_unique")
+      .on(t.invariantPropertyValueId, t.state)
+      .where(sql`invariant_property_value_id is not null and state is not null`),
+    uniqueIndex("pvs_invariant_value_component_state_unique")
+      .on(t.invariantPropertyValueId, t.componentStateId)
+      .where(sql`invariant_property_value_id is not null and component_state_id is not null`),
   ],
 );
 
@@ -594,6 +704,11 @@ export const styleCombinations = pgTable(
     appearanceId: uuid("appearance_id")
       .notNull()
       .references(() => appearances.id, { onDelete: "cascade" }),
+    // Канонический ключ сочетания: отсортированные id стилей-участников через запятую.
+    // Состав сочетания хранится в style_combination_members, поэтому уникальность по нему
+    // невыразима индексом на этой таблице. Через кросс-осевые значения проходит более
+    // половины импорта, и без ключа повторная загрузка дублировала бы их.
+    combinationKey: text("combination_key").notNull().default(""),
     value: text("value").notNull(),
     states: jsonb("states"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -602,6 +717,13 @@ export const styleCombinations = pgTable(
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
+  (t) => [
+    uniqueIndex("sc_property_appearance_combination_unique").on(
+      t.propertyId,
+      t.appearanceId,
+      t.combinationKey,
+    ),
+  ],
 );
 
 export const styleCombinationMembers = pgTable(
@@ -624,6 +746,96 @@ export const styleCombinationMembers = pgTable(
     uniqueIndex(
       "scm_combination_id_style_id_unique",
     ).on(t.combinationId, t.styleId),
+  ],
+);
+
+// Реляционная связь ссылок component_style с оформлением дочернего компонента.
+//
+// Значение свойства типа `component_style` имеет вид `<styleName>[.<axis>...]`, например
+// `basic-button.size-40.mode-accent-grey`. До этой таблицы связь существовала только строкой:
+// целостность не проверялась, а разбор ссылки был задачей читающей стороны.
+//
+// Родительский контекст здесь не хранится: строка значения, на которую ссылается запись,
+// уже знает, при каком сочетании осей родителя ссылка действует. Хранить его второй раз
+// значило бы завести второй источник истины.
+export const componentStyleReferences = pgTable(
+  "component_style_references",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    designSystemId: uuid("design_system_id")
+      .notNull()
+      .references(() => designSystems.id, { onDelete: "cascade" }),
+
+    // Ровно одна из трёх ссылок заполнена — в зависимости от того, от скольких осей родителя
+    // зависит значение: ни от одной, от одной, либо от нескольких.
+    invariantPropertyValueId: uuid("invariant_property_value_id").references(
+      () => invariantPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+    variationPropertyValueId: uuid("variation_property_value_id").references(
+      () => variationPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+    styleCombinationId: uuid("style_combination_id").references(() => styleCombinations.id, {
+      onDelete: "cascade",
+    }),
+
+    // Оформление дочернего компонента, на которое указывает первый сегмент ссылки.
+    targetAppearanceId: uuid("target_appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+
+    // Исходная строка ссылки. Сохраняется, потому что порядок осей в ней не выводится
+    // из набора стилей, а он нужен для обратного преобразования в native-формат.
+    reference: text("reference").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    check(
+      "csr_exactly_one_source",
+      sql`(
+        (${t.invariantPropertyValueId} is not null)::int +
+        (${t.variationPropertyValueId} is not null)::int +
+        (${t.styleCombinationId} is not null)::int
+      ) = 1`,
+    ),
+    uniqueIndex("csr_invariant_value_unique")
+      .on(t.invariantPropertyValueId)
+      .where(sql`invariant_property_value_id is not null`),
+    uniqueIndex("csr_variation_value_unique")
+      .on(t.variationPropertyValueId)
+      .where(sql`variation_property_value_id is not null`),
+    uniqueIndex("csr_style_combination_unique")
+      .on(t.styleCombinationId)
+      .where(sql`style_combination_id is not null`),
+    index("csr_target_appearance_idx").on(t.targetAppearanceId),
+  ],
+);
+
+// Стили дочернего компонента, названные хвостом ссылки: от нуля до трёх на запись.
+export const componentStyleReferenceStyles = pgTable(
+  "component_style_reference_styles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    referenceId: uuid("reference_id")
+      .notNull()
+      .references(() => componentStyleReferences.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("csrs_reference_id_style_id_unique").on(t.referenceId, t.styleId),
   ],
 );
 
