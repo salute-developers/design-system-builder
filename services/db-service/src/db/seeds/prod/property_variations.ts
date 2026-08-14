@@ -221,7 +221,7 @@ export async function seedPropertyVariations(
             { propertyId: p.lis_listItemBorderWidth.id, variationId: v.listSize.id },
             { propertyId: p.lis_listItemGap.id, variationId: v.listSize.id },
             { propertyId: p.lis_listItemTightDifference.id, variationId: v.listSize.id },
-            { propertyId: p.lis_litItemStyle.id, variationId: v.listSize.id },
+            { propertyId: p.lis_listItemStyle.id, variationId: v.listSize.id },
             { propertyId: p.lis_listItemDividerWidth.id, variationId: v.listSize.id },
             { propertyId: p.lis_listBackground.id, variationId: v.listView.id },
             { propertyId: p.lis_listPadding.id, variationId: v.listSize.id },
