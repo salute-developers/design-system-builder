@@ -13,6 +13,10 @@ const getPlasmaConfigName = (componentName: string) =>
 const getComponentConfigImport = (componentName: string, componentConfig: string) =>
     `import { config as ${componentConfig}Config } from './${componentName}.${componentConfig}.config'`;
 
+// TODO: баг — вариантный компонент собирается из mergedConfigDefault вместо своего
+// mergedConfig${upperFirstLetter(componentConfig)}, поэтому все варианты будут выглядеть как default.
+// Сейчас не стреляет: у компонентов в БД всегда один конфиг и работает createSingleComponent.
+// Поправить на component(mergedConfig${upperFirstLetter(componentConfig)}) при добавлении поддержки множественных конфигов.
 const getComponentInstance = (componentName: string, componentConfig: string) => {
     return `export const mergedConfig${upperFirstLetter(componentConfig)} = mergeConfig(${getPlasmaConfigName(
         componentName,
