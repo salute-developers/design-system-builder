@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createSelectSchema } from "drizzle-zod";
 import * as s from "../validation/schema";
 import * as tables from "../db/schema";
+import { ImportRequestSchema } from "../db/import/commonConfig";
 
 const registry = new OpenAPIRegistry();
 
@@ -810,6 +811,73 @@ registry.registerPath({
       description: "Schema text",
       ...json(z.object({ dbml: z.string(), mermaid: z.string() })),
     },
+  },
+});
+
+// ─── Импорт компонентов ───────────────────────────────────────────────────────
+
+const ImportReportSchema = registry.register(
+  "ComponentImportReport",
+  z
+    .object({
+      created: z.number().openapi({ description: "Конфигураций создано" }),
+      updated: z.number().openapi({ description: "Конфигураций обновлено" }),
+      unchanged: z.number().openapi({ description: "Конфигураций без изменений" }),
+      rejected: z.array(
+        z.object({
+          componentName: z.string(),
+          styleName: z.string(),
+          reason: z.string(),
+        }),
+      ),
+      unresolvedTokens: z
+        .array(z.string())
+        .openapi({ description: "Имена токенов, не найденные в дизайн-системе. Значение сохранено текстом, ссылка пуста" }),
+      unresolvedComponentStyles: z
+        .array(z.string())
+        .openapi({ description: "Ссылки component_style, чей стиль не сопоставлен компоненту" }),
+      unknownProperties: z
+        .array(z.string())
+        .openapi({ description: "Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода" }),
+    })
+    .openapi("ComponentImportReport"),
+);
+
+registry.registerPath({
+  method: "post",
+  path: `${DS_PREFIX}/design-systems/{id}/components:import`,
+  tags: ["Design Systems"],
+  summary: "Импорт конфигураций компонентов одним запросом",
+  description: [
+    "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется",
+    "в одной транзакции: частично применённый импорт компонентной модели хуже отказа.",
+    "",
+    "Ключ upsert — пара (componentName, styleName); styleName соответствует appearance.",
+    "Импорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому",
+    "свойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,",
+    "variations, properties) остаётся аддитивным и не переписывается.",
+    "",
+    "При dryRun=true выполняется та же работа, после чего транзакция откатывается,",
+    "поэтому отчёт плана совпадает с отчётом применения.",
+    "",
+    "Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из",
+    "uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,",
+    "которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в",
+    "unknownProperties, остальная часть конфигурации грузится.",
+    "",
+    "Требует scope components:write, если запрос пришёл с ключом проекта.",
+  ].join("\n"),
+  request: {
+    params: z.object({ id: UuidSchema }),
+    body: { required: true, ...json(ImportRequestSchema) },
+  },
+  responses: {
+    200: { description: "Отчёт импорта", ...json(ImportReportSchema) },
+    400: { description: "Тело запроса не соответствует формату", ...json(ErrorResponseSchema) },
+    403: { description: "У ключа нет scope components:write", ...json(ErrorResponseSchema) },
+    404: { description: "Дизайн-система не найдена или недоступна проекту", ...json(ErrorResponseSchema) },
+    422: { description: "Импорт отклонён при записи", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
   },
 });
 
