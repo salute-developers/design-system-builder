@@ -1,5 +1,5 @@
 {
-  "id": "efcc3453-1cf9-4469-95c6-65f38bf33b7b",
+  "id": "f4a33809-8a2e-4349-a4c5-3c425c81aa5b",
   "prevId": "a4e29069-2b7f-46d7-a07b-8bf4c7a675d7",
   "version": "7",
   "dialect": "postgresql",
@@ -382,6 +382,394 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.component_states": {
+      "name": "component_states",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "component_id": {
+          "name": "component_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cs_component_id_name_unique": {
+          "name": "cs_component_id_name_unique",
+          "columns": [
+            {
+              "expression": "component_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "component_states_component_id_components_id_fk": {
+          "name": "component_states_component_id_components_id_fk",
+          "tableFrom": "component_states",
+          "tableTo": "components",
+          "columnsFrom": [
+            "component_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.component_style_reference_styles": {
+      "name": "component_style_reference_styles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "reference_id": {
+          "name": "reference_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "style_id": {
+          "name": "style_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "csrs_reference_id_style_id_unique": {
+          "name": "csrs_reference_id_style_id_unique",
+          "columns": [
+            {
+              "expression": "reference_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "style_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "component_style_reference_styles_reference_id_component_style_references_id_fk": {
+          "name": "component_style_reference_styles_reference_id_component_style_references_id_fk",
+          "tableFrom": "component_style_reference_styles",
+          "tableTo": "component_style_references",
+          "columnsFrom": [
+            "reference_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "component_style_reference_styles_style_id_styles_id_fk": {
+          "name": "component_style_reference_styles_style_id_styles_id_fk",
+          "tableFrom": "component_style_reference_styles",
+          "tableTo": "styles",
+          "columnsFrom": [
+            "style_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.component_style_references": {
+      "name": "component_style_references",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "design_system_id": {
+          "name": "design_system_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invariant_property_value_id": {
+          "name": "invariant_property_value_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "variation_property_value_id": {
+          "name": "variation_property_value_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "style_combination_id": {
+          "name": "style_combination_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_appearance_id": {
+          "name": "target_appearance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "csr_invariant_value_unique": {
+          "name": "csr_invariant_value_unique",
+          "columns": [
+            {
+              "expression": "invariant_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "invariant_property_value_id is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "csr_variation_value_unique": {
+          "name": "csr_variation_value_unique",
+          "columns": [
+            {
+              "expression": "variation_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "variation_property_value_id is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "csr_style_combination_unique": {
+          "name": "csr_style_combination_unique",
+          "columns": [
+            {
+              "expression": "style_combination_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "style_combination_id is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "csr_target_appearance_idx": {
+          "name": "csr_target_appearance_idx",
+          "columns": [
+            {
+              "expression": "target_appearance_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "component_style_references_design_system_id_design_systems_id_fk": {
+          "name": "component_style_references_design_system_id_design_systems_id_fk",
+          "tableFrom": "component_style_references",
+          "tableTo": "design_systems",
+          "columnsFrom": [
+            "design_system_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "component_style_references_invariant_property_value_id_invariant_property_values_id_fk": {
+          "name": "component_style_references_invariant_property_value_id_invariant_property_values_id_fk",
+          "tableFrom": "component_style_references",
+          "tableTo": "invariant_property_values",
+          "columnsFrom": [
+            "invariant_property_value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "component_style_references_variation_property_value_id_variation_property_values_id_fk": {
+          "name": "component_style_references_variation_property_value_id_variation_property_values_id_fk",
+          "tableFrom": "component_style_references",
+          "tableTo": "variation_property_values",
+          "columnsFrom": [
+            "variation_property_value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "component_style_references_style_combination_id_style_combinations_id_fk": {
+          "name": "component_style_references_style_combination_id_style_combinations_id_fk",
+          "tableFrom": "component_style_references",
+          "tableTo": "style_combinations",
+          "columnsFrom": [
+            "style_combination_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "component_style_references_target_appearance_id_appearances_id_fk": {
+          "name": "component_style_references_target_appearance_id_appearances_id_fk",
+          "tableFrom": "component_style_references",
+          "tableTo": "appearances",
+          "columnsFrom": [
+            "target_appearance_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "csr_exactly_one_source": {
+          "name": "csr_exactly_one_source",
+          "value": "(\n        (\"component_style_references\".\"invariant_property_value_id\" is not null)::int +\n        (\"component_style_references\".\"variation_property_value_id\" is not null)::int +\n        (\"component_style_references\".\"style_combination_id\" is not null)::int\n      ) = 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.components": {
@@ -1040,12 +1428,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "state": {
-          "name": "state",
-          "type": "state",
-          "typeSchema": "public",
+        "states_key": {
+          "name": "states_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "''"
         },
         "created_at": {
           "name": "created_at",
@@ -1063,42 +1451,8 @@
         }
       },
       "indexes": {
-        "ipv_ds_comp_prop_app_no_state_unique": {
-          "name": "ipv_ds_comp_prop_app_no_state_unique",
-          "columns": [
-            {
-              "expression": "design_system_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "component_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "property_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "appearance_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "state IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "ipv_ds_comp_prop_app_state_unique": {
-          "name": "ipv_ds_comp_prop_app_state_unique",
+        "ipv_ds_comp_prop_app_states_unique": {
+          "name": "ipv_ds_comp_prop_app_states_unique",
           "columns": [
             {
               "expression": "design_system_id",
@@ -1125,14 +1479,13 @@
               "nulls": "last"
             },
             {
-              "expression": "state",
+              "expression": "states_key",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "state IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1492,6 +1845,203 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.property_value_states": {
+      "name": "property_value_states",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "variation_property_value_id": {
+          "name": "variation_property_value_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invariant_property_value_id": {
+          "name": "invariant_property_value_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "component_state_id": {
+          "name": "component_state_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "pvs_variation_value_state_unique": {
+          "name": "pvs_variation_value_state_unique",
+          "columns": [
+            {
+              "expression": "variation_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "variation_property_value_id is not null and state is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pvs_variation_value_component_state_unique": {
+          "name": "pvs_variation_value_component_state_unique",
+          "columns": [
+            {
+              "expression": "variation_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "component_state_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "variation_property_value_id is not null and component_state_id is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pvs_invariant_value_state_unique": {
+          "name": "pvs_invariant_value_state_unique",
+          "columns": [
+            {
+              "expression": "invariant_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "invariant_property_value_id is not null and state is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pvs_invariant_value_component_state_unique": {
+          "name": "pvs_invariant_value_component_state_unique",
+          "columns": [
+            {
+              "expression": "invariant_property_value_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "component_state_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "invariant_property_value_id is not null and component_state_id is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "property_value_states_variation_property_value_id_variation_property_values_id_fk": {
+          "name": "property_value_states_variation_property_value_id_variation_property_values_id_fk",
+          "tableFrom": "property_value_states",
+          "tableTo": "variation_property_values",
+          "columnsFrom": [
+            "variation_property_value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "property_value_states_invariant_property_value_id_invariant_property_values_id_fk": {
+          "name": "property_value_states_invariant_property_value_id_invariant_property_values_id_fk",
+          "tableFrom": "property_value_states",
+          "tableTo": "invariant_property_values",
+          "columnsFrom": [
+            "invariant_property_value_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "property_value_states_component_state_id_component_states_id_fk": {
+          "name": "property_value_states_component_state_id_component_states_id_fk",
+          "tableFrom": "property_value_states",
+          "tableTo": "component_states",
+          "columnsFrom": [
+            "component_state_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pvs_exactly_one_value": {
+          "name": "pvs_exactly_one_value",
+          "value": "(\n        (\"property_value_states\".\"variation_property_value_id\" is not null)::int +\n        (\"property_value_states\".\"invariant_property_value_id\" is not null)::int\n      ) = 1"
+        },
+        "pvs_exactly_one_state": {
+          "name": "pvs_exactly_one_state",
+          "value": "(\n        (\"property_value_states\".\"state\" is not null)::int +\n        (\"property_value_states\".\"component_state_id\" is not null)::int\n      ) = 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.property_variations": {
@@ -2512,12 +3062,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "state": {
-          "name": "state",
-          "type": "state",
-          "typeSchema": "public",
+        "states_key": {
+          "name": "states_key",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "''"
         },
         "created_at": {
           "name": "created_at",
@@ -2535,36 +3085,8 @@
         }
       },
       "indexes": {
-        "vpv_style_property_appearance_no_state_unique": {
-          "name": "vpv_style_property_appearance_no_state_unique",
-          "columns": [
-            {
-              "expression": "style_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "property_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "appearance_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "state IS NULL",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "vpv_style_property_appearance_state_unique": {
-          "name": "vpv_style_property_appearance_state_unique",
+        "vpv_style_property_appearance_states_unique": {
+          "name": "vpv_style_property_appearance_states_unique",
           "columns": [
             {
               "expression": "style_id",
@@ -2585,14 +3107,13 @@
               "nulls": "last"
             },
             {
-              "expression": "state",
+              "expression": "states_key",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": true,
-          "where": "state IS NOT NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2837,19 +3358,9 @@
         "hovered",
         "focused",
         "selected",
-        "readonly",
-        "disabled",
         "activated",
-        "checked",
-        "indeterminate",
-        "error",
-        "text-inlined",
-        "collapsed",
-        "inactive",
-        "in-edit",
-        "vertical",
-        "dragging-over",
-        "expanded"
+        "readonly",
+        "disabled"
       ]
     },
     "public.token_type": {

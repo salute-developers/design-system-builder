@@ -33,22 +33,8 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1786443248482,
-      "tag": "0004_broken_black_crow",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1786623739671,
-      "tag": "0005_nifty_bullseye",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1786628928388,
-      "tag": "0006_premium_changeling",
+      "when": 1780398385681,
+      "tag": "0004_component_import",
       "breakpoints": true
     }
   ]
