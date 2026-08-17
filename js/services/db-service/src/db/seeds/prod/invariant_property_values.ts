@@ -50,7 +50,7 @@ export async function seedInvariantPropertyValues(
                 componentId: iconButton.id,
                 appearanceId: a.base_ib_default.id,
                 value: '0',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.ib_disableAlpha.id,
@@ -58,7 +58,7 @@ export async function seedInvariantPropertyValues(
                 componentId: iconButton.id,
                 appearanceId: a.base_ib_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.ib_focusColor.id,
@@ -66,7 +66,7 @@ export async function seedInvariantPropertyValues(
                 componentId: iconButton.id,
                 appearanceId: a.base_ib_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // Button
             {
@@ -75,7 +75,7 @@ export async function seedInvariantPropertyValues(
                 componentId: button.id,
                 appearanceId: a.base_btn_default.id,
                 value: '0',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.btn_disableAlpha.id,
@@ -83,7 +83,7 @@ export async function seedInvariantPropertyValues(
                 componentId: button.id,
                 appearanceId: a.base_btn_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.btn_focusColor.id,
@@ -91,7 +91,7 @@ export async function seedInvariantPropertyValues(
                 componentId: button.id,
                 appearanceId: a.base_btn_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // Link
             {
@@ -100,7 +100,7 @@ export async function seedInvariantPropertyValues(
                 componentId: link.id,
                 appearanceId: a.base_link_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.link_disableAlpha.id,
@@ -108,7 +108,7 @@ export async function seedInvariantPropertyValues(
                 componentId: link.id,
                 appearanceId: a.base_link_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             // Checkbox
             {
@@ -117,7 +117,7 @@ export async function seedInvariantPropertyValues(
                 componentId: checkbox.id,
                 appearanceId: a.base_cb_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.cb_disableAlpha.id,
@@ -125,7 +125,7 @@ export async function seedInvariantPropertyValues(
                 componentId: checkbox.id,
                 appearanceId: a.base_cb_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             // Radiobox
             {
@@ -134,7 +134,7 @@ export async function seedInvariantPropertyValues(
                 componentId: radiobox.id,
                 appearanceId: a.base_rb_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.rb_focusColor.id,
@@ -142,7 +142,7 @@ export async function seedInvariantPropertyValues(
                 componentId: radiobox.id,
                 appearanceId: a.base_rb_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // Chip
             {
@@ -151,7 +151,7 @@ export async function seedInvariantPropertyValues(
                 componentId: chip.id,
                 appearanceId: a.base_chi_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.chi_focusColor.id,
@@ -159,7 +159,7 @@ export async function seedInvariantPropertyValues(
                 componentId: chip.id,
                 appearanceId: a.base_chi_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // Switch
             {
@@ -168,7 +168,7 @@ export async function seedInvariantPropertyValues(
                 componentId: switchComponent.id,
                 appearanceId: a.base_swi_default.id,
                 value: '1',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.swi_trackFocusColor.id,
@@ -176,7 +176,7 @@ export async function seedInvariantPropertyValues(
                 componentId: switchComponent.id,
                 appearanceId: a.base_swi_default.id,
                 tokenId: t['surface.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // List
             {
@@ -185,7 +185,7 @@ export async function seedInvariantPropertyValues(
                 componentId: list.id,
                 appearanceId: a.base_lis_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.lis_listItemFocusColor.id,
@@ -193,7 +193,7 @@ export async function seedInvariantPropertyValues(
                 componentId: list.id,
                 appearanceId: a.base_lis_default.id,
                 tokenId: t['surface.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // LinkButton
             {
@@ -202,7 +202,7 @@ export async function seedInvariantPropertyValues(
                 componentId: linkButton.id,
                 appearanceId: a.base_lin_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.lin_linkButtonFocusColor.id,
@@ -210,7 +210,7 @@ export async function seedInvariantPropertyValues(
                 componentId: linkButton.id,
                 appearanceId: a.base_lin_default.id,
                 tokenId: t['text.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             // EmbedIconButton
             {
@@ -219,7 +219,7 @@ export async function seedInvariantPropertyValues(
                 componentId: embedIconButton.id,
                 appearanceId: a.base_emb_default.id,
                 tokenId: t['surface.default.accent'].id,
-                state: null,
+                statesKey: '',
             },
             {
                 propertyId: p.emb_embedIconButtonDisabledAlpha.id,
@@ -227,7 +227,7 @@ export async function seedInvariantPropertyValues(
                 componentId: embedIconButton.id,
                 appearanceId: a.base_emb_default.id,
                 value: '0.4',
-                state: null,
+                statesKey: '',
             },
             // Slider
             {
@@ -236,7 +236,7 @@ export async function seedInvariantPropertyValues(
                 componentId: slider.id,
                 appearanceId: a.base_sli_default.id,
                 value: '1',
-                state: null,
+                statesKey: '',
             },
         ])
         .onConflictDoNothing()

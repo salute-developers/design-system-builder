@@ -8814,7 +8814,25 @@ export async function seedVariationPropertyValues(
         },
     ];
 
-    await db.insert(schema.variationPropertyValues).values(rows).onConflictDoNothing();
+    // Состояние переехало из колонки в property_value_states; в таблице значений
+    // остаётся канонический ключ набора. У сида набор всегда из одного состояния.
+    const inserted = await db
+      .insert(schema.variationPropertyValues)
+      .values(rows.map(({ state, ...rest }: any) => ({ ...rest, statesKey: state ?? '' })))
+      .onConflictDoNothing()
+      .returning();
+
+    const stateLinks = inserted
+      .map((value: { id: string }, index: number) => ({ value, state: rows[index]?.state }))
+      .filter((entry: { state?: string | null }) => Boolean(entry.state))
+      .map((entry: { value: { id: string }; state: string }) => ({
+        variationPropertyValueId: entry.value.id,
+        state: entry.state,
+      }));
+
+    if (stateLinks.length > 0) {
+      await db.insert(schema.propertyValueStates).values(stateLinks).onConflictDoNothing();
+    }
 
     // Load all VPV rows for the styles we just inserted into
     const styleIds = [...new Set(rows.map((r: any) => r.styleId))];

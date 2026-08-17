@@ -12,6 +12,18 @@ type VpvRow = {
 function tok(p: string, s: string, a: string, t: string, state?: VpvRow['state']): VpvRow {
   return { propertyId: p, styleId: s, appearanceId: a, tokenId: t, state: state ?? null };
 }
+
+/**
+ * Раскладывает строку сида по новой модели состояний.
+ *
+ * Значение больше не несёт состояние колонкой: набор лежит в property_value_states,
+ * а в таблице значений остаётся канонический ключ набора. У сида набор всегда из
+ * одного состояния, поэтому ключ равен его имени.
+ */
+function toRow(row: VpvRow) {
+  const { state, ...rest } = row;
+  return { ...rest, statesKey: state ?? '' };
+}
 function val(p: string, s: string, a: string, value: string): VpvRow {
   return { propertyId: p, styleId: s, appearanceId: a, value, state: null };
 }
@@ -102,7 +114,23 @@ export async function seedVariationPropertyValues(
     val(p.lnk_underLineWidth.id, s.plasma_lnk_size_m.id, a.plasma_lnk_default.id, '2'),
   ];
 
-  const inserted = await db.insert(schema.variationPropertyValues).values(rows).returning();
-  console.log(`  variation_property_values: ${inserted.length} rows`);
+  const inserted = await db
+    .insert(schema.variationPropertyValues)
+    .values(rows.map(toRow))
+    .returning();
+
+  const stateLinks = inserted
+    .map((value: { id: string }, index: number) => ({ value, state: rows[index].state }))
+    .filter((entry: { state?: string | null }) => Boolean(entry.state))
+    .map((entry: { value: { id: string }; state: string }) => ({
+      variationPropertyValueId: entry.value.id,
+      state: entry.state,
+    }));
+
+  if (stateLinks.length > 0) {
+    await db.insert(schema.propertyValueStates).values(stateLinks);
+  }
+
+  console.log(`  variation_property_values: ${inserted.length} rows, ${stateLinks.length} state links`);
   return inserted;
 }
