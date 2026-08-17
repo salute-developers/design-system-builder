@@ -44,6 +44,14 @@ export interface ImportReport {
    * объявленных компонентом в `uikit-api-meta.json`. Значения для них не записаны.
    */
   unknownStates: string[];
+  /**
+   * Свойства, у которых тип глобального слоя не встречается в конфигурациях ни разу.
+   *
+   * Тип глобального слоя приходит из кода компонента, тип значения — из конфигурации
+   * оформления, и расходиться они не должны. Различия в записи одного и того же числа
+   * (`integer` против `float` или `value`) сюда не попадают.
+   */
+  typeMismatches: string[];
 }
 
 /** Строка значения в форме, пригодной для сравнения «до» и «после». */
@@ -70,6 +78,7 @@ export const importComponents = async (
     unresolvedComponentStyles: [],
     unknownProperties: [],
     unknownStates: [],
+    typeMismatches: [],
   };
 
   const tokens = await tx
@@ -85,6 +94,7 @@ export const importComponents = async (
   const unresolvedComponentStyles = new Set<string>();
   const unknownProperties = new Set<string>();
   const unknownStates = new Set<string>();
+  const typeMismatches = new Set<string>();
   const componentStateIds = new Map<string, string>();
   const pendingReferences: PendingReference[] = [];
 
@@ -102,6 +112,7 @@ export const importComponents = async (
       unresolvedComponentStyles,
       unknownProperties,
       unknownStates,
+      typeMismatches,
       componentStateIds,
       pendingReferences,
     });
@@ -123,6 +134,7 @@ export const importComponents = async (
     unresolvedComponentStyles,
     unknownProperties,
     unknownStates,
+    typeMismatches,
     componentStateIds,
     pendingReferences,
   });
@@ -131,6 +143,7 @@ export const importComponents = async (
   report.unresolvedComponentStyles = [...unresolvedComponentStyles].sort();
   report.unknownProperties = [...unknownProperties].sort();
   report.unknownStates = [...unknownStates].sort();
+  report.typeMismatches = [...typeMismatches].sort();
   return report;
 };
 
@@ -169,6 +182,8 @@ interface ImportContext {
   componentStateIds: Map<string, string>;
   /** Состояния, которых нет ни в enum, ни среди объявленных компонентом. */
   unknownStates: Set<string>;
+  /** Свойства, чей тип в глобальном слое не встречается в конфигурациях. */
+  typeMismatches: Set<string>;
   /**
    * Ссылки `component_style`, ожидающие разрешения вторым проходом.
    *
@@ -641,6 +656,47 @@ const applyDefaults = async (
  * значение параметра, отсутствующего в `uikit-api-meta.json`. Такие имена собираются
  * в отчёт, значения для них не записываются, остальная конфигурация грузится обычным образом.
  */
+/**
+ * Типы, различающиеся лишь записью одного и того же значения.
+ *
+ * Код объявляет `integer`, конфигурация пишет `float` или `value`, а хранится всё равно
+ * текстом. Такое расхождение сообщать незачем: на корпусе оно даёт пять срабатываний
+ * из шести, и проверка утонула бы в них.
+ */
+const NUMERIC_TYPES = new Set(["integer", "float", "dimension", "value"]);
+
+const sameTypeFamily = (left: string, right: string): boolean =>
+  left === right || (NUMERIC_TYPES.has(left) && NUMERIC_TYPES.has(right));
+
+/**
+ * Типы свойства, объявленные в конфигурации.
+ *
+ * Свойство может законно принимать несколько типов: у семи свойств корпуса тип зависит
+ * от значения оси — `view=gradient` даёт градиентный токен, остальные значения цветовой.
+ * Поэтому собирается множество, а не одно значение.
+ */
+const collectPropertyTypes = (config: CommonConfig): Map<string, Set<string>> => {
+  const types = new Map<string, Set<string>>();
+
+  const add = (name: string, type: string | undefined): void => {
+    if (!type) return;
+    if (!types.has(name)) types.set(name, new Set());
+    types.get(name)!.add(type);
+  };
+
+  for (const [name, property] of Object.entries(config.invariants)) {
+    add(name, property.type);
+  }
+  for (const variation of config.variations) {
+    for (const value of variation.values) {
+      for (const [name, property] of Object.entries(value.properties)) {
+        add(name, property.type);
+      }
+    }
+  }
+  return types;
+};
+
 const findProperties = async (
   tx: Tx,
   componentId: string,
@@ -648,18 +704,37 @@ const findProperties = async (
   context: ImportContext,
 ): Promise<Map<string, string>> => {
   const rows = await tx
-    .select({ id: schema.properties.id, name: schema.properties.name })
+    .select({
+      id: schema.properties.id,
+      name: schema.properties.name,
+      type: schema.properties.type,
+    })
     .from(schema.properties)
     .where(eq(schema.properties.componentId, componentId));
-  const byCanonical = new Map(rows.map((row) => [canonical(row.name), row.id]));
+  const byCanonical = new Map(rows.map((row) => [canonical(row.name), row]));
+
+  const declaredTypes = collectPropertyTypes(config);
 
   const ids = new Map<string, string>();
   for (const name of collectPropertyNames(config)) {
-    const id = byCanonical.get(canonical(name));
-    if (id) {
-      ids.set(name, id);
-    } else {
+    const row = byCanonical.get(canonical(name));
+    if (!row) {
       context.unknownProperties.add(name);
+      continue;
+    }
+    ids.set(name, row.id);
+
+    // Тип глобального слоя приходит из кода компонента, тип значения — из конфигурации.
+    // Сообщаем, только когда тип из базы не встречается в конфигурации ни разу: иначе
+    // сработало бы на свойствах, законно принимающих и цвет, и градиент.
+    const declared = declaredTypes.get(name);
+    if (declared && declared.size > 0) {
+      const compatible = [...declared].some((type) => sameTypeFamily(type, row.type));
+      if (!compatible) {
+        context.typeMismatches.add(
+          `${name}: global '${row.type}', config '${[...declared].sort().join("/")}'`,
+        );
+      }
     }
   }
   return ids;
