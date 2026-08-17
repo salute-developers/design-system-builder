@@ -246,7 +246,10 @@ router.get("/", (req, res) =>
         propertyId: string;
         value: string | null;
         tokenId: string | null;
-        state: string | null;
+        // Канонический ключ набора состояний: пустая строка у базового значения,
+        // иначе имена через запятую. Значение может действовать при нескольких
+        // состояниях сразу, поэтому одной колонкой набор не выражается.
+        statesKey: string;
       }[],
     ): Record<string, PropEntry> {
       const byPropId = groupBy(rows, (r) => r.propertyId);
@@ -254,8 +257,8 @@ router.get("/", (req, res) =>
 
       for (const [propertyId, propRows] of byPropId) {
         const prop = propById.get(propertyId);
-        const base = propRows.find((r) => r.state === null);
-        const stateRows = propRows.filter((r) => r.state !== null);
+        const base = propRows.find((r) => r.statesKey === "");
+        const stateRows = propRows.filter((r) => r.statesKey !== "");
 
         // Ключ — имя property; фолбэк на id, если имя почему-то недоступно.
         const key = prop?.name ?? propertyId;
@@ -265,7 +268,7 @@ router.get("/", (req, res) =>
           type: prop?.type ?? "value",
           value: base ? resolveValue(base.value, base.tokenId) : null,
           states: stateRows.map((sr) => ({
-            state: [sr.state as string],
+            state: sr.statesKey.split(","),
             value: resolveValue(sr.value, sr.tokenId),
           })),
         };
@@ -280,7 +283,7 @@ router.get("/", (req, res) =>
         propertyId: r.propertyId,
         value: r.value,
         tokenId: r.tokenId,
-        state: r.state,
+        statesKey: r.statesKey,
       })),
     );
 
@@ -331,7 +334,7 @@ router.get("/", (req, res) =>
               propertyId: v.propertyId,
               value: v.value,
               tokenId: v.tokenId,
-              state: v.state,
+              statesKey: v.statesKey,
             })),
           ),
         };
