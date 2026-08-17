@@ -143,7 +143,23 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
 
 // ─── Properties Tab ───────────────────────────────────────────────────────────
 
-const PROP_TYPES = ['color', 'typography', 'shape', 'shadow', 'dimension', 'float'] as const;
+// Перечень должен совпадать с propertyTypeEnum в схеме БД. Тип берётся из сгенерированных
+// типов API, поэтому расхождение поймает компилятор, а не проявится в рантайме.
+const PROP_TYPES = [
+  'color',
+  'typography',
+  'shape',
+  'shadow',
+  'dimension',
+  'float',
+  'component_style',
+  'value',
+  'icon',
+  'boolean',
+  'gradient',
+  'blur',
+  'integer',
+] as const satisfies readonly components['schemas']['Property']['type'][];
 type PlatformKey = 'xml' | 'compose' | 'ios' | 'web';
 const PLATFORMS: PlatformKey[] = ['xml', 'compose', 'ios', 'web'];
 

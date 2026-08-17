@@ -9,6 +9,8 @@
  * properties компонента как web-параметры «как есть».
  */
 
+import type { components } from '../api/types.gen';
+
 const RAW_GITHUB_BASE = 'https://raw.githubusercontent.com/salute-developers/plasma/dev/packages';
 
 /** tokens.ts может иметь как `.ts`, так и `.tsx` расширение. */
@@ -59,7 +61,8 @@ export async function fetchTokenNames(componentName: string): Promise<string[]> 
   throw new Error(`Не удалось загрузить tokens.ts: ${urls.join(', ')}`);
 }
 
-export type PropertyType = 'color' | 'typography' | 'shape' | 'shadow' | 'dimension' | 'float';
+/** Тип свойства — тот же, что отдаёт API; список ведётся в схеме БД. */
+export type PropertyType = components['schemas']['Property']['type'];
 
 /** Имя property + его тип + набор web-токенов (имён из tokens.ts). */
 export interface ImportedProperty {
