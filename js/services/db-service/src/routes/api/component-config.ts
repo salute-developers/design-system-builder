@@ -288,10 +288,14 @@ router.get("/", (req, res) =>
     );
 
     // ── root / colorScheme variation ──────────────────────────────────────────
+    // Ссылаться можно только на ось, попавшую в ответ.
+    const filledVariations = variationRows.filter(
+      (v) => (stylesByVariationId.get(v.id) ?? []).length > 0,
+    );
     const rootVariationId =
-      variationRows.find((v) => v.name === ROOT_VARIATION_NAME)?.id ?? null;
+      filledVariations.find((v) => v.name === ROOT_VARIATION_NAME)?.id ?? null;
     const colorSchemeVariationId =
-      variationRows.find((v) => v.name === COLOR_SCHEME_VARIATION_NAME)?.id ?? null;
+      filledVariations.find((v) => v.name === COLOR_SCHEME_VARIATION_NAME)?.id ?? null;
 
     // ── defaults (дефолтный стиль каждой вариации) ─────────────────────────────
     const defaults = variationRows.flatMap((variation) => {
@@ -302,7 +306,14 @@ router.get("/", (req, res) =>
     });
 
     // ── variations ────────────────────────────────────────────────────────────
-    const variationsConfig = variationRows.map((variation) => {
+    //
+    // Ось объявлена кодом компонента и потому есть у него всегда, но значения ей
+    // задаёт конкретная дизайн-система. Ось без значений в этой дизайн-системе
+    // потребителю бесполезна, поэтому в ответ не попадает: `variant` у CheckBox
+    // наполняет только sdds_sbcom, остальные пять — нет.
+    const variationsConfig = variationRows
+      .filter((variation) => (stylesByVariationId.get(variation.id) ?? []).length > 0)
+      .map((variation) => {
       const varStyles = stylesByVariationId.get(variation.id) ?? [];
 
         // Сочетание принадлежит ровно одному стилю-участнику, иначе оно попало бы
