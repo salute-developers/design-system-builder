@@ -334,13 +334,30 @@ export const UpdateComponentStateSchema = z.object({
   description: z.string().trim().max(1000).optional(),
 });
 
-// Property Value States (набор состояний значения — пишется импортом)
-export const CreatePropertyValueStateSchema = z.object({
-  variationPropertyValueId: uuidSchema.optional(),
-  invariantPropertyValueId: uuidSchema.optional(),
-  state: z.enum(stateEnum.enumValues).optional(),
-  componentStateId: uuidSchema.optional(),
-});
+// Property Value States (набор состояний значения)
+//
+// Связь относится ровно к одному значению и несёт ровно одно состояние: либо состояние
+// взаимодействия из enum, либо ссылку на состояние, объявленное компонентом. То же
+// проверяют CHECK-констрейнты в схеме, но здесь отказ приходит с внятным сообщением
+// и статусом 400 вместо сырой ошибки Postgres.
+export const CreatePropertyValueStateSchema = z
+  .object({
+    variationPropertyValueId: uuidSchema.optional(),
+    invariantPropertyValueId: uuidSchema.optional(),
+    state: z.enum(stateEnum.enumValues).optional(),
+    componentStateId: uuidSchema.optional(),
+  })
+  .refine(
+    (value) =>
+      Number(Boolean(value.variationPropertyValueId)) +
+        Number(Boolean(value.invariantPropertyValueId)) ===
+      1,
+    { message: "Exactly one of variationPropertyValueId or invariantPropertyValueId is required" },
+  )
+  .refine(
+    (value) => Number(Boolean(value.state)) + Number(Boolean(value.componentStateId)) === 1,
+    { message: "Exactly one of state or componentStateId is required" },
+  );
 
 // Component Style References (реляционная ссылка на стиль другого компонента — пишется импортом)
 export const CreateComponentStyleReferenceSchema = z.object({

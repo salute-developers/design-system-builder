@@ -661,6 +661,26 @@ registerCrud(`${DS_PREFIX}/style-combination-members`, "Style Combination Member
 // component_style_reference_styles) CRUD-маршрутов не имеют: их пишет импорт,
 // поэтому в spec.ts они присутствуют только схемами ответа.
 registerCrud(`${DS_PREFIX}/component-states`, "Component States", ComponentStateSchema, schemas.CreateComponentState, schemas.UpdateComponentState);
+registerCrud(`${DS_PREFIX}/property-value-states`, "Property Value States", PropertyValueStateSchema, schemas.CreatePropertyValueState);
+
+// Выборка связей по значению: нужна копированию дизайн-системы, которое переносит
+// значение вместе с набором состояний.
+for (const [suffix, description] of [
+  ["by-variation-value", "variation property value"],
+  ["by-invariant-value", "invariant property value"],
+] as const) {
+  registry.registerPath({
+    method: "get",
+    path: `${DS_PREFIX}/property-value-states/${suffix}/{id}`,
+    tags: ["Property Value States"],
+    summary: `List states of a ${description}`,
+    request: { params: z.object({ id: z.string().uuid() }) },
+    responses: {
+      200: { description: "Property value states", ...json(z.array(PropertyValueStateSchema)) },
+      500: { description: "Server error", ...json(ErrorResponseSchema) },
+    },
+  });
+}
 
 // Design System Changes (audit log -- no update/delete)
 registry.registerPath({

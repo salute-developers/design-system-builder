@@ -1005,8 +1005,8 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
     await Promise.all(
       baseIpvs
         .filter((ipv) => appIdMap.has(ipv.appearanceId))
-        .map((ipv) =>
-          api.POST('/ds/invariant-property-values', {
+        .map(async (ipv) => {
+          const created = await api.POST('/ds/invariant-property-values', {
             body: {
               propertyId: ipv.propertyId,
               designSystemId: targetDsId,
@@ -1014,12 +1014,12 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
               appearanceId: appIdMap.get(ipv.appearanceId)!,
               tokenId: mapTokenId(ipv.tokenId),
               value: ipv.value ?? undefined,
-              // Состояния переехали в property_value_states: копируется ключ набора.
-              // Сами связи не копируются — CRUD-маршрута для них нет.
               statesKey: ipv.statesKey,
             },
-          }),
-        ),
+          });
+
+          await copyValueStates('invariant', ipv.id, created.data?.id, ipv.statesKey);
+        }),
     );
   }
 
@@ -1039,23 +1039,67 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
       await Promise.all(
         allBaseVpvs
           .filter((vpv) => styleIdMap.has(vpv.styleId) && appIdMap.has(vpv.appearanceId))
-          .map((vpv) =>
-            api.POST('/ds/variation-property-values', {
+          .map(async (vpv) => {
+            const created = await api.POST('/ds/variation-property-values', {
               body: {
                 propertyId: vpv.propertyId,
                 styleId: styleIdMap.get(vpv.styleId)!,
                 appearanceId: appIdMap.get(vpv.appearanceId)!,
                 tokenId: mapTokenId(vpv.tokenId),
                 value: vpv.value ?? undefined,
-                // Состояния переехали в property_value_states: копируется ключ набора.
-                // Сами связи не копируются — CRUD-маршрута для них нет.
                 statesKey: vpv.statesKey,
               },
-            }),
-          ),
+            });
+
+            await copyValueStates('variation', vpv.id, created.data?.id, vpv.statesKey);
+          }),
       );
     }
   }
+}
+
+/**
+ * Переносит состояния значения на его копию.
+ *
+ * Значение несёт набор состояний, а не одно: набор лежит в property_value_states,
+ * в самом значении остаётся канонический ключ. Скопировать ключ недостаточно —
+ * без связей таблица останется неполной.
+ *
+ * Идентификаторы состояний переносятся как есть: состояние взаимодействия хранится
+ * значением enum, а состояние компонента ссылается на component_states, который
+ * принадлежит компоненту, а не дизайн-системе.
+ */
+async function copyValueStates(
+  kind: 'variation' | 'invariant',
+  sourceValueId: string,
+  targetValueId: string | undefined,
+  statesKey: string,
+) {
+  if (!targetValueId || !statesKey) {
+    return;
+  }
+
+  const path =
+    kind === 'variation'
+      ? '/ds/property-value-states/by-variation-value/{id}'
+      : '/ds/property-value-states/by-invariant-value/{id}';
+
+  const source = await api.GET(path, { params: { path: { id: sourceValueId } } });
+  const links = source.data ?? [];
+
+  await Promise.all(
+    links.map((link) =>
+      api.POST('/ds/property-value-states', {
+        body: {
+          ...(kind === 'variation'
+            ? { variationPropertyValueId: targetValueId }
+            : { invariantPropertyValueId: targetValueId }),
+          state: link.state ?? undefined,
+          componentStateId: link.componentStateId ?? undefined,
+        },
+      }),
+    ),
+  );
 }
 
 // ─── Design Systems Tab ──────────────────────────────────────────────────────
