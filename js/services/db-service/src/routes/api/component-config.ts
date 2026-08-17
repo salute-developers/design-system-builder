@@ -305,30 +305,27 @@ router.get("/", (req, res) =>
     const variationsConfig = variationRows.map((variation) => {
       const varStyles = stylesByVariationId.get(variation.id) ?? [];
 
-      const values = varStyles.map((style) => {
+        // Сочетание принадлежит ровно одному стилю-участнику, иначе оно попало бы
+      // в ответ столько раз, сколько в нём осей. Владельца выбираем детерминированно:
+      // ось цветовой схемы, если она в сочетании есть, иначе наименьший styleId.
+      // Какой именно участник назначен владельцем, на восстановление конфигурации
+      // не влияет: координата владельца и targets в сумме дают тот же набор осей.
+      const ownerOf = (combinationId: string): string | null => {
+        const members = stylesByCombination.get(combinationId) ?? [];
+        if (members.length === 0) return null;
+
+        const scheme = members.find(
+          (sid) => styleById.get(sid)?.variationId === colorSchemeVariationId,
+        );
+        return scheme ?? [...members].sort()[0];
+      };
+
+      const values = varStyles.flatMap((style) => {
         // targets: для каждой комбинации, в которую входит стиль, перечисляем
         // остальные стили-члены как пересечения {variationId, styleName}.
-        const targets = (combinationsByStyle.get(style.id) ?? []).map(
-          (combinationId) => {
-            const memberStyleIds = (
-              stylesByCombination.get(combinationId) ?? []
-            ).filter((sid) => sid !== style.id);
-
-            return {
-              properties: memberStyleIds.map((sid) => {
-                const memberStyle = styleById.get(sid);
-                return {
-                  id: memberStyle?.variationId ?? sid,
-                  value: memberStyle?.name ?? "",
-                };
-              }),
-            };
-          },
-        );
-
-        return {
+        // Значения, зависящие только от этой оси.
+        const base = {
           name: style.name,
-          targets,
           properties: buildProperties(
             (vpvByStyleId.get(style.id) ?? []).map((v) => ({
               propertyId: v.propertyId,
@@ -338,6 +335,53 @@ router.get("/", (req, res) =>
             })),
           ),
         };
+
+        // Значения, зависящие от нескольких осей сразу. Сочетания с одинаковым
+        // набором координат объединяются в одну запись: их различает свойство,
+        // а не координата.
+        const byCoordinates = new Map<
+          string,
+          { targets: { id: string; value: string }[]; rows: typeof combinationRows }
+        >();
+
+        for (const combinationId of combinationsByStyle.get(style.id) ?? []) {
+          if (ownerOf(combinationId) !== style.id) continue;
+
+          const coordinates = (stylesByCombination.get(combinationId) ?? [])
+            .filter((sid) => sid !== style.id)
+            .map((sid) => {
+              const memberStyle = styleById.get(sid);
+              return {
+                id: memberStyle?.variationId ?? sid,
+                value: memberStyle?.name ?? "",
+              };
+            })
+            .sort((a, b) => a.id.localeCompare(b.id));
+
+          const key = coordinates.map((c) => `${c.id}=${c.value}`).join("|");
+          if (!byCoordinates.has(key)) {
+            byCoordinates.set(key, { targets: coordinates, rows: [] });
+          }
+          byCoordinates.get(key)!.rows.push(
+            ...combinationRows.filter((c) => c.id === combinationId),
+          );
+        }
+
+        const crossAxis = [...byCoordinates.values()].map((group) => ({
+          name: style.name,
+          targets: [{ properties: group.targets }],
+          properties: buildProperties(
+            group.rows.map((c) => ({
+              propertyId: c.propertyId,
+              value: c.value,
+              // У сочетаний нет ссылки на токен: имя токена лежит в value как текст.
+              tokenId: null,
+              statesKey: "",
+            })),
+          ),
+        }));
+
+        return [base, ...crossAxis];
       });
 
       return {
