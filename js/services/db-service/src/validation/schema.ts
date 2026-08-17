@@ -243,12 +243,14 @@ export const CreateVariationPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  // Канонический ключ набора состояний. Сами состояния лежат в property_value_states:
+  // значение может действовать при нескольких состояниях сразу, и колонкой это не выразить.
+  statesKey: z.string().trim().optional(),
 });
 export const UpdateVariationPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  statesKey: z.string().trim().optional(),
 });
 
 // Invariant Property Values
@@ -259,12 +261,12 @@ export const CreateInvariantPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  statesKey: z.string().trim().optional(),
 });
 export const UpdateInvariantPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  statesKey: z.string().trim().optional(),
 });
 
 // Documentation Pages
@@ -317,6 +319,41 @@ export const UpdateStyleCombinationSchema = z.object({
 // Style Combination Members
 export const CreateStyleCombinationMemberSchema = z.object({
   combinationId: uuidSchema,
+  styleId: uuidSchema,
+});
+
+// Component States (объявляются кодом компонента, заливаются из uikit-api-meta.json)
+export const CreateComponentStateSchema = z.object({
+  componentId: uuidSchema,
+  name: z.string().trim().min(1).max(255),
+  description: z.string().trim().max(1000).optional(),
+});
+
+export const UpdateComponentStateSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  description: z.string().trim().max(1000).optional(),
+});
+
+// Property Value States (набор состояний значения — пишется импортом)
+export const CreatePropertyValueStateSchema = z.object({
+  variationPropertyValueId: uuidSchema.optional(),
+  invariantPropertyValueId: uuidSchema.optional(),
+  state: z.enum(stateEnum.enumValues).optional(),
+  componentStateId: uuidSchema.optional(),
+});
+
+// Component Style References (реляционная ссылка на стиль другого компонента — пишется импортом)
+export const CreateComponentStyleReferenceSchema = z.object({
+  designSystemId: uuidSchema,
+  targetAppearanceId: uuidSchema,
+  reference: z.string().trim().min(1).max(255),
+  variationPropertyValueId: uuidSchema.optional(),
+  invariantPropertyValueId: uuidSchema.optional(),
+  styleCombinationId: uuidSchema.optional(),
+});
+
+export const CreateComponentStyleReferenceStyleSchema = z.object({
+  referenceId: uuidSchema,
   styleId: uuidSchema,
 });
 
@@ -451,3 +488,18 @@ export type CreateSavedQueryRequest = z.infer<typeof CreateSavedQuerySchema>;
 export type UpdateSavedQueryRequest = z.infer<typeof UpdateSavedQuerySchema>;
 export type CreatePaletteRequest = z.infer<typeof CreatePaletteSchema>;
 export type UpdatePaletteRequest = z.infer<typeof UpdatePaletteSchema>;
+export type CreateComponentStateRequest = z.infer<
+  typeof CreateComponentStateSchema
+>;
+export type UpdateComponentStateRequest = z.infer<
+  typeof UpdateComponentStateSchema
+>;
+export type CreatePropertyValueStateRequest = z.infer<
+  typeof CreatePropertyValueStateSchema
+>;
+export type CreateComponentStyleReferenceRequest = z.infer<
+  typeof CreateComponentStyleReferenceSchema
+>;
+export type CreateComponentStyleReferenceStyleRequest = z.infer<
+  typeof CreateComponentStyleReferenceStyleSchema
+>;

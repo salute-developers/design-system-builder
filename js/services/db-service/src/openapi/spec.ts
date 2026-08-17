@@ -141,6 +141,26 @@ const StyleCombinationMemberSchema = registry.register(
   createSelectSchema(tables.styleCombinationMembers, ts).openapi("StyleCombinationMember"),
 );
 
+const ComponentStateSchema = registry.register(
+  "ComponentState",
+  createSelectSchema(tables.componentStates, ts).openapi("ComponentState"),
+);
+
+const PropertyValueStateSchema = registry.register(
+  "PropertyValueState",
+  createSelectSchema(tables.propertyValueStates, ts).openapi("PropertyValueState"),
+);
+
+const ComponentStyleReferenceSchema = registry.register(
+  "ComponentStyleReference",
+  createSelectSchema(tables.componentStyleReferences, ts).openapi("ComponentStyleReference"),
+);
+
+const ComponentStyleReferenceStyleSchema = registry.register(
+  "ComponentStyleReferenceStyle",
+  createSelectSchema(tables.componentStyleReferenceStyles, ts).openapi("ComponentStyleReferenceStyle"),
+);
+
 const DesignSystemChangeSchema = registry.register(
   "DesignSystemChange",
   createSelectSchema(tables.designSystemChanges, ts).openapi("DesignSystemChange"),
@@ -200,6 +220,11 @@ const schemas = {
   CreateStyleCombination: registry.register("CreateStyleCombination", s.CreateStyleCombinationSchema.openapi("CreateStyleCombination")),
   UpdateStyleCombination: registry.register("UpdateStyleCombination", s.UpdateStyleCombinationSchema.openapi("UpdateStyleCombination")),
   CreateStyleCombinationMember: registry.register("CreateStyleCombinationMember", s.CreateStyleCombinationMemberSchema.openapi("CreateStyleCombinationMember")),
+  CreateComponentState: registry.register("CreateComponentState", s.CreateComponentStateSchema.openapi("CreateComponentState")),
+  UpdateComponentState: registry.register("UpdateComponentState", s.UpdateComponentStateSchema.openapi("UpdateComponentState")),
+  CreatePropertyValueState: registry.register("CreatePropertyValueState", s.CreatePropertyValueStateSchema.openapi("CreatePropertyValueState")),
+  CreateComponentStyleReference: registry.register("CreateComponentStyleReference", s.CreateComponentStyleReferenceSchema.openapi("CreateComponentStyleReference")),
+  CreateComponentStyleReferenceStyle: registry.register("CreateComponentStyleReferenceStyle", s.CreateComponentStyleReferenceStyleSchema.openapi("CreateComponentStyleReferenceStyle")),
   CreateDesignSystemChange: registry.register("CreateDesignSystemChange", s.CreateDesignSystemChangeSchema.openapi("CreateDesignSystemChange")),
   CreateSavedQuery: registry.register("CreateSavedQuery", s.CreateSavedQuerySchema.openapi("CreateSavedQuery")),
   UpdateSavedQuery: registry.register("UpdateSavedQuery", s.UpdateSavedQuerySchema.openapi("UpdateSavedQuery")),
@@ -631,6 +656,11 @@ registry.registerPath({
 });
 
 registerCrud(`${DS_PREFIX}/style-combination-members`, "Style Combination Members", StyleCombinationMemberSchema, schemas.CreateStyleCombinationMember);
+
+// Остальные три таблицы (property_value_states, component_style_references,
+// component_style_reference_styles) CRUD-маршрутов не имеют: их пишет импорт,
+// поэтому в spec.ts они присутствуют только схемами ответа.
+registerCrud(`${DS_PREFIX}/component-states`, "Component States", ComponentStateSchema, schemas.CreateComponentState, schemas.UpdateComponentState);
 
 // Design System Changes (audit log -- no update/delete)
 registry.registerPath({

@@ -1014,7 +1014,9 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
               appearanceId: appIdMap.get(ipv.appearanceId)!,
               tokenId: mapTokenId(ipv.tokenId),
               value: ipv.value ?? undefined,
-              state: ipv.state ?? undefined,
+              // Состояния переехали в property_value_states: копируется ключ набора.
+              // Сами связи не копируются — CRUD-маршрута для них нет.
+              statesKey: ipv.statesKey,
             },
           }),
         ),
@@ -1045,7 +1047,9 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
                 appearanceId: appIdMap.get(vpv.appearanceId)!,
                 tokenId: mapTokenId(vpv.tokenId),
                 value: vpv.value ?? undefined,
-                state: vpv.state ?? undefined,
+                // Состояния переехали в property_value_states: копируется ключ набора.
+                // Сами связи не копируются — CRUD-маршрута для них нет.
+                statesKey: vpv.statesKey,
               },
             }),
           ),

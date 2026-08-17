@@ -6503,6 +6503,242 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ds/component-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all component states */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentState"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create component state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateComponentState"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentState"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/component-states/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get component state by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentState"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete component state */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OkResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update component state */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateComponentState"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentState"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/ds/design-system-changes": {
         parameters: {
             query?: never;
@@ -7618,6 +7854,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ds/design-systems/{id}/components:import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Импорт конфигураций компонентов одним запросом
+         * @description Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется
+         *     в одной транзакции: частично применённый импорт компонентной модели хуже отказа.
+         *
+         *     Ключ upsert — пара (componentName, styleName); styleName соответствует appearance.
+         *     Импорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому
+         *     свойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,
+         *     variations, properties) остаётся аддитивным и не переписывается.
+         *
+         *     При dryRun=true выполняется та же работа, после чего транзакция откатывается,
+         *     поэтому отчёт плана совпадает с отчётом применения.
+         *
+         *     Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из
+         *     uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,
+         *     которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в
+         *     unknownProperties, остальная часть конфигурации грузится.
+         *
+         *     Требует scope components:write, если запрос пришёл с ключом проекта.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        meta: {
+                            name: string;
+                            /** @default  */
+                            source?: string;
+                        };
+                        /** @default true */
+                        dryRun?: boolean;
+                        components: {
+                            componentName: string;
+                            styleName: string;
+                            config: {
+                                rootVariationId?: string | null;
+                                colorSchemeVariationId?: string | null;
+                                /** @default {} */
+                                invariants?: {
+                                    [key: string]: {
+                                        type: string;
+                                        value?: unknown;
+                                        default?: unknown;
+                                        alpha?: unknown;
+                                        adjustment?: unknown;
+                                        states?: {
+                                            /** @default [] */
+                                            state?: string[];
+                                            value?: unknown;
+                                            alpha?: unknown;
+                                            type?: string;
+                                        }[];
+                                    };
+                                };
+                                /** @default [] */
+                                defaults?: {
+                                    id: string;
+                                    value?: unknown;
+                                }[];
+                                /** @default [] */
+                                variations?: {
+                                    id: string;
+                                    name: string;
+                                    /** @default [] */
+                                    values?: {
+                                        name: string;
+                                        targets?: {
+                                            /** @default [] */
+                                            properties?: {
+                                                id: string;
+                                                value?: unknown;
+                                            }[];
+                                        }[];
+                                        /** @default {} */
+                                        properties?: {
+                                            [key: string]: {
+                                                type: string;
+                                                value?: unknown;
+                                                default?: unknown;
+                                                alpha?: unknown;
+                                                adjustment?: unknown;
+                                                states?: {
+                                                    /** @default [] */
+                                                    state?: string[];
+                                                    value?: unknown;
+                                                    alpha?: unknown;
+                                                    type?: string;
+                                                }[];
+                                            };
+                                        };
+                                    }[];
+                                }[];
+                            };
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Отчёт импорта */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentImportReport"];
+                    };
+                };
+                /** @description Тело запроса не соответствует формату */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description У ключа нет scope components:write */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Дизайн-система не найдена или недоступна проекту */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Импорт отклонён при записи */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7726,7 +8139,7 @@ export interface components {
             componentId: string | null;
             name: string;
             /** @enum {string} */
-            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "gradient" | "blur" | "integer";
             defaultValue: string | null;
             description: string | null;
             /**
@@ -7939,8 +8352,7 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            /** @enum {string|null} */
-            state: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled" | null;
+            statesKey: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -7966,8 +8378,7 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            /** @enum {string|null} */
-            state: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled" | null;
+            statesKey: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8048,6 +8459,7 @@ export interface components {
             propertyId: string;
             /** Format: uuid */
             appearanceId: string;
+            combinationKey: string;
             value: string;
             states: string | number | boolean | unknown | {
                 [key: string]: unknown;
@@ -8068,6 +8480,89 @@ export interface components {
             id: string;
             /** Format: uuid */
             combinationId: string;
+            /** Format: uuid */
+            styleId: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        ComponentState: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            componentId: string;
+            name: string;
+            description: string | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        PropertyValueState: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            variationPropertyValueId: string | null;
+            /** Format: uuid */
+            invariantPropertyValueId: string | null;
+            /** @enum {string|null} */
+            state: "pressed" | "hovered" | "focused" | "selected" | "activated" | "readonly" | "disabled" | null;
+            /** Format: uuid */
+            componentStateId: string | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        ComponentStyleReference: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            designSystemId: string;
+            /** Format: uuid */
+            invariantPropertyValueId: string | null;
+            /** Format: uuid */
+            variationPropertyValueId: string | null;
+            /** Format: uuid */
+            styleCombinationId: string | null;
+            /** Format: uuid */
+            targetAppearanceId: string;
+            reference: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        ComponentStyleReferenceStyle: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            referenceId: string;
             /** Format: uuid */
             styleId: string;
             /**
@@ -8189,14 +8684,14 @@ export interface components {
             componentId?: string;
             name: string;
             /** @enum {string} */
-            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "gradient" | "blur" | "integer";
             defaultValue?: string;
             description?: string;
         };
         UpdateProperty: {
             name?: string;
             /** @enum {string} */
-            type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "gradient" | "blur" | "integer";
             defaultValue?: string;
             description?: string;
         };
@@ -8353,15 +8848,13 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            statesKey?: string;
         };
         UpdateVariationPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            statesKey?: string;
         };
         CreateInvariantPropertyValue: {
             /** Format: uuid */
@@ -8375,15 +8868,13 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            statesKey?: string;
         };
         UpdateInvariantPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            statesKey?: string;
         };
         CreateDocumentationPage: {
             /** Format: uuid */
@@ -8445,6 +8936,45 @@ export interface components {
             /** Format: uuid */
             styleId: string;
         };
+        CreateComponentState: {
+            /** Format: uuid */
+            componentId: string;
+            name: string;
+            description?: string;
+        };
+        UpdateComponentState: {
+            name?: string;
+            description?: string;
+        };
+        CreatePropertyValueState: {
+            /** Format: uuid */
+            variationPropertyValueId?: string;
+            /** Format: uuid */
+            invariantPropertyValueId?: string;
+            /** @enum {string} */
+            state?: "pressed" | "hovered" | "focused" | "selected" | "activated" | "readonly" | "disabled";
+            /** Format: uuid */
+            componentStateId?: string;
+        };
+        CreateComponentStyleReference: {
+            /** Format: uuid */
+            designSystemId: string;
+            /** Format: uuid */
+            targetAppearanceId: string;
+            reference: string;
+            /** Format: uuid */
+            variationPropertyValueId?: string;
+            /** Format: uuid */
+            invariantPropertyValueId?: string;
+            /** Format: uuid */
+            styleCombinationId?: string;
+        };
+        CreateComponentStyleReferenceStyle: {
+            /** Format: uuid */
+            referenceId: string;
+            /** Format: uuid */
+            styleId: string;
+        };
         CreateDesignSystemChange: {
             /** Format: uuid */
             designSystemId: string;
@@ -8472,6 +9002,25 @@ export interface components {
         };
         UpdatePalette: {
             value?: string;
+        };
+        ComponentImportReport: {
+            /** @description Конфигураций создано */
+            created: number;
+            /** @description Конфигураций обновлено */
+            updated: number;
+            /** @description Конфигураций без изменений */
+            unchanged: number;
+            rejected: {
+                componentName: string;
+                styleName: string;
+                reason: string;
+            }[];
+            /** @description Имена токенов, не найденные в дизайн-системе. Значение сохранено текстом, ссылка пуста */
+            unresolvedTokens: string[];
+            /** @description Ссылки component_style, чей стиль не сопоставлен компоненту */
+            unresolvedComponentStyles: string[];
+            /** @description Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода */
+            unknownProperties: string[];
         };
     };
     responses: never;

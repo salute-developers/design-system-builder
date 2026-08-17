@@ -290,7 +290,14 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "gradient",
+              "blur",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -827,18 +834,8 @@
             "type": "string",
             "nullable": true
           },
-          "state": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled",
-              null
-            ]
+          "statesKey": {
+            "type": "string"
           },
           "createdAt": {
             "type": "string",
@@ -858,7 +855,7 @@
           "appearanceId",
           "tokenId",
           "value",
-          "state",
+          "statesKey",
           "createdAt",
           "updatedAt"
         ]
@@ -895,18 +892,8 @@
             "type": "string",
             "nullable": true
           },
-          "state": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled",
-              null
-            ]
+          "statesKey": {
+            "type": "string"
           },
           "createdAt": {
             "type": "string",
@@ -927,7 +914,7 @@
           "appearanceId",
           "tokenId",
           "value",
-          "state",
+          "statesKey",
           "createdAt",
           "updatedAt"
         ]
@@ -1078,6 +1065,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "combinationKey": {
+            "type": "string"
+          },
           "value": {
             "type": "string"
           },
@@ -1124,6 +1114,7 @@
           "id",
           "propertyId",
           "appearanceId",
+          "combinationKey",
           "value",
           "states",
           "createdAt",
@@ -1159,6 +1150,191 @@
         "required": [
           "id",
           "combinationId",
+          "styleId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ComponentState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "componentId",
+          "name",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PropertyValueState": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variationPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "pressed",
+              "hovered",
+              "focused",
+              "selected",
+              "activated",
+              "readonly",
+              "disabled",
+              null
+            ]
+          },
+          "componentStateId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "variationPropertyValueId",
+          "invariantPropertyValueId",
+          "state",
+          "componentStateId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ComponentStyleReference": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "variationPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "styleCombinationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "designSystemId",
+          "invariantPropertyValueId",
+          "variationPropertyValueId",
+          "styleCombinationId",
+          "targetAppearanceId",
+          "reference",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ComponentStyleReferenceStyle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "referenceId",
           "styleId",
           "createdAt",
           "updatedAt"
@@ -1510,7 +1686,14 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "gradient",
+              "blur",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -1542,7 +1725,14 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "gradient",
+              "blur",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -2039,16 +2229,8 @@
           "value": {
             "type": "string"
           },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+          "statesKey": {
+            "type": "string"
           }
         },
         "required": [
@@ -2067,16 +2249,8 @@
           "value": {
             "type": "string"
           },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+          "statesKey": {
+            "type": "string"
           }
         }
       },
@@ -2106,16 +2280,8 @@
           "value": {
             "type": "string"
           },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+          "statesKey": {
+            "type": "string"
           }
         },
         "required": [
@@ -2135,16 +2301,8 @@
           "value": {
             "type": "string"
           },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+          "statesKey": {
+            "type": "string"
           }
         }
       },
@@ -2320,6 +2478,123 @@
           "styleId"
         ]
       },
+      "CreateComponentState": {
+        "type": "object",
+        "properties": {
+          "componentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "componentId",
+          "name"
+        ]
+      },
+      "UpdateComponentState": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "CreatePropertyValueState": {
+        "type": "object",
+        "properties": {
+          "variationPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pressed",
+              "hovered",
+              "focused",
+              "selected",
+              "activated",
+              "readonly",
+              "disabled"
+            ]
+          },
+          "componentStateId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateComponentStyleReference": {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "variationPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleCombinationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "designSystemId",
+          "targetAppearanceId",
+          "reference"
+        ]
+      },
+      "CreateComponentStyleReferenceStyle": {
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "referenceId",
+          "styleId"
+        ]
+      },
       "CreateDesignSystemChange": {
         "type": "object",
         "properties": {
@@ -2427,6 +2702,75 @@
             "minLength": 1
           }
         }
+      },
+      "ComponentImportReport": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number",
+            "description": "Конфигураций создано"
+          },
+          "updated": {
+            "type": "number",
+            "description": "Конфигураций обновлено"
+          },
+          "unchanged": {
+            "type": "number",
+            "description": "Конфигураций без изменений"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentName": {
+                  "type": "string"
+                },
+                "styleName": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "componentName",
+                "styleName",
+                "reason"
+              ]
+            }
+          },
+          "unresolvedTokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Имена токенов, не найденные в дизайн-системе. Значение сохранено текстом, ссылка пуста"
+          },
+          "unresolvedComponentStyles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ссылки component_style, чей стиль не сопоставлен компоненту"
+          },
+          "unknownProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "rejected",
+          "unresolvedTokens",
+          "unresolvedComponentStyles",
+          "unknownProperties"
+        ]
       }
     },
     "parameters": {}
@@ -9330,6 +9674,259 @@
         }
       }
     },
+    "/ds/component-states": {
+      "get": {
+        "tags": [
+          "Component States"
+        ],
+        "summary": "List all component states",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ComponentState"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Component States"
+        ],
+        "summary": "Create component state",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateComponentState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/component-states/{id}": {
+      "get": {
+        "tags": [
+          "Component States"
+        ],
+        "summary": "Get component state by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentState"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Component States"
+        ],
+        "summary": "Update component state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateComponentState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Component States"
+        ],
+        "summary": "Delete component state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/design-system-changes": {
       "get": {
         "tags": [
@@ -10555,6 +11152,339 @@
                     "dbml",
                     "mermaid"
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/components:import": {
+      "post": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Импорт конфигураций компонентов одним запросом",
+        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nuikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,\nкоторого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в\nunknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "meta": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "default": ""
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "componentName": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "styleName": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "config": {
+                          "type": "object",
+                          "properties": {
+                            "rootVariationId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "colorSchemeVariationId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "invariants": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "nullable": true
+                                  },
+                                  "default": {
+                                    "nullable": true
+                                  },
+                                  "alpha": {
+                                    "nullable": true
+                                  },
+                                  "adjustment": {
+                                    "nullable": true
+                                  },
+                                  "states": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "state": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "default": []
+                                        },
+                                        "value": {
+                                          "nullable": true
+                                        },
+                                        "alpha": {
+                                          "nullable": true
+                                        },
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "type"
+                                ]
+                              },
+                              "default": {}
+                            },
+                            "defaults": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ]
+                              },
+                              "default": []
+                            },
+                            "variations": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "targets": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "properties": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "id": {
+                                                      "type": "string"
+                                                    },
+                                                    "value": {
+                                                      "nullable": true
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "id"
+                                                  ]
+                                                },
+                                                "default": []
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "properties": {
+                                          "type": "object",
+                                          "additionalProperties": {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string"
+                                              },
+                                              "value": {
+                                                "nullable": true
+                                              },
+                                              "default": {
+                                                "nullable": true
+                                              },
+                                              "alpha": {
+                                                "nullable": true
+                                              },
+                                              "adjustment": {
+                                                "nullable": true
+                                              },
+                                              "states": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "state": {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string"
+                                                      },
+                                                      "default": []
+                                                    },
+                                                    "value": {
+                                                      "nullable": true
+                                                    },
+                                                    "alpha": {
+                                                      "nullable": true
+                                                    },
+                                                    "type": {
+                                                      "type": "string"
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "type"
+                                            ]
+                                          },
+                                          "default": {}
+                                        }
+                                      },
+                                      "required": [
+                                        "name"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ]
+                              },
+                              "default": []
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "componentName",
+                        "styleName",
+                        "config"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "meta",
+                  "components"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Отчёт импорта",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentImportReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело запроса не соответствует формату",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "У ключа нет scope components:write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Дизайн-система не найдена или недоступна проекту",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Импорт отклонён при записи",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
