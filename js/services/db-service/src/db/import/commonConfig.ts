@@ -61,6 +61,9 @@ export const ImportComponentSchema = z.object({
 });
 
 export const ImportRequestSchema = z.object({
+  // Дизайн-система адресуется телом, а не путём: так же принимают designSystemId
+  // остальные POST-ручки этого API, и идентификатор проверяется до запроса в базу.
+  designSystemId: z.string().uuid(),
   meta: z.object({
     name: z.string(),
     source: z.string().default(""),

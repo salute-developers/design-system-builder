@@ -1,13 +1,13 @@
-import { Request, Router } from "express";
+import { NextFunction, Request, Response, Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index";
 import { designSystems, designSystemChanges } from "../../db/schema";
-import { ImportRequestSchema } from "../../db/import/commonConfig";
+import { ImportRequest, ImportRequestSchema } from "../../db/import/commonConfig";
+import { validateBody } from "../../validation/middleware";
 import { importComponents } from "../../db/import/componentImport";
 import { andOptional, designSystemScopeFilter, designSystemBelongsToScope, isSystemAdmin, tryCatch } from "./utils";
 
 const WRITE_SCOPE = "components:write";
-const IMPORT_ACTION = "components:import";
 
 /**
  * Признак отката транзакции для режима dry run: работа выполняется целиком, затем
@@ -40,43 +40,39 @@ const hasWriteScope = (req: Request): boolean => {
     .includes(WRITE_SCOPE);
 };
 
-const router = Router({ mergeParams: true });
+/**
+ * Отклоняет запрос без write-scope до разбора тела: пакет компонентов весит мегабайты,
+ * и проверять его для запроса, которому в любом случае отказано, незачем.
+ */
+const requireWriteScope = (req: Request, res: Response, next: NextFunction): void => {
+  if (!hasWriteScope(req)) {
+    res.status(403).json({ error: `Scope '${WRITE_SCOPE}' is required` });
+    return;
+  }
+  next();
+};
+
+const router = Router();
 
 /**
  * Загружает пакет конфигураций компонентов в дизайн-систему одним запросом.
  *
- * Путь содержит двоеточие (`components:import`), поэтому действие читается параметром:
- * в шаблоне Express двоеточие начинает имя параметра.
+ * Дизайн-система адресуется полем `designSystemId` тела: путь остаётся без параметров,
+ * а идентификатор проверяется на uuid вместе с остальным телом.
  */
-router.post("/:id/:action", (req, res) =>
+router.post("/import", requireWriteScope, validateBody(ImportRequestSchema), (req, res) =>
   tryCatch(res, async () => {
-    if (req.params.action !== IMPORT_ACTION) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
-
-    if (!hasWriteScope(req)) {
-      res.status(403).json({ error: `Scope '${WRITE_SCOPE}' is required` });
-      return;
-    }
-
-    const parsed = ImportRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: "Invalid import request", details: parsed.error.issues });
-      return;
-    }
+    const request: ImportRequest = req.body;
 
     const [designSystem] = await db
       .select()
       .from(designSystems)
-      .where(andOptional(eq(designSystems.id, req.params.id), designSystemScopeFilter(req)));
+      .where(andOptional(eq(designSystems.id, request.designSystemId), designSystemScopeFilter(req)));
 
     if (!designSystem || !designSystemBelongsToScope(designSystem, req)) {
       res.status(404).json({ error: "Not found" });
       return;
     }
-
-    const request = parsed.data;
 
     try {
       const report = await db.transaction(async (tx) => {
@@ -111,7 +107,7 @@ router.post("/:id/:action", (req, res) =>
       }
       // Импорт пишет тысячи строк в одной транзакции, поэтому причину отказа нужно видеть
       // на сервере: клиент получает только статус и краткое сообщение.
-      console.error("[components:import] failed", {
+      console.error("[component-config:import] failed", {
         designSystemId: designSystem.id,
         meta: request.meta,
         components: request.components.length,

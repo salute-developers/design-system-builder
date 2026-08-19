@@ -3,7 +3,6 @@ import { spec } from "../openapi/spec";
 import designSystemsRouter from "./api/design-systems";
 import designSystemVersionsRouter from "./api/design-system-versions";
 import componentsRouter from "./api/components";
-import componentsImportRouter from "./api/components-import";
 import componentStatesRouter from "./api/component-states";
 import propertyValueStatesRouter from "./api/property-value-states";
 import designSystemComponentsRouter from "./api/design-system-components";
@@ -30,6 +29,7 @@ import savedQueriesRouter from "./api/saved-queries";
 import paletteRouter from "./api/palette";
 import legacyRouter from "./api/legacy";
 import componentConfigRouter from "./api/component-config";
+import componentConfigImportRouter from "./api/component-config-import";
 
 // Misc (legacy utility routes)
 import tablesRouter from "./misc/tables";
@@ -48,9 +48,6 @@ router.get("/openapi.json", (_req, res) => {
 });
 
 // Resource routes
-// Импорт компонентов монтируется до основного роутера дизайн-систем: путь содержит
-// двоеточие и разбирается отдельным шаблоном.
-router.use("/ds/design-systems", componentsImportRouter);
 router.use("/ds/design-systems", designSystemsRouter);
 router.use("/ds/design-system-versions", designSystemVersionsRouter);
 router.use("/ds/component-states", componentStatesRouter);
@@ -80,6 +77,7 @@ router.use("/ds/saved-queries", savedQueriesRouter);
 router.use("/ds/palette", paletteRouter);
 router.use("/ds/legacy/design-systems", legacyRouter);
 router.use("/ds/component-config", componentConfigRouter);
+router.use("/ds/component-config", componentConfigImportRouter);
 
 // Misc utility routes
 router.use("/admin/tables", tablesRouter);

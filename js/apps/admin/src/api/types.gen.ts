@@ -8131,7 +8131,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ds/design-systems/{id}/components:import": {
+    "/ds/component-config/import": {
         parameters: {
             query?: never;
             header?: never;
@@ -8144,6 +8144,8 @@ export interface paths {
          * Импорт конфигураций компонентов одним запросом
          * @description Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется
          *     в одной транзакции: частично применённый импорт компонентной модели хуже отказа.
+         *
+         *     Дизайн-система адресуется полем designSystemId тела запроса.
          *
          *     Ключ upsert — пара (componentName, styleName); styleName соответствует appearance.
          *     Импорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому
@@ -8164,14 +8166,14 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path: {
-                    id: string;
-                };
+                path?: never;
                 cookie?: never;
             };
             requestBody: {
                 content: {
                     "application/json": {
+                        /** Format: uuid */
+                        designSystemId: string;
                         meta: {
                             name: string;
                             /** @default  */
@@ -8255,7 +8257,7 @@ export interface paths {
                         "application/json": components["schemas"]["ComponentImportReport"];
                     };
                 };
-                /** @description Тело запроса не соответствует формату */
+                /** @description Тело запроса не соответствует формату или designSystemId не является uuid */
                 400: {
                     headers: {
                         [name: string]: unknown;

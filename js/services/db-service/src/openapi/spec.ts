@@ -895,12 +895,14 @@ const ImportReportSchema = registry.register(
 
 registry.registerPath({
   method: "post",
-  path: `${DS_PREFIX}/design-systems/{id}/components:import`,
-  tags: ["Design Systems"],
+  path: `${DS_PREFIX}/component-config/import`,
+  tags: ["Component Config"],
   summary: "Импорт конфигураций компонентов одним запросом",
   description: [
     "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется",
     "в одной транзакции: частично применённый импорт компонентной модели хуже отказа.",
+    "",
+    "Дизайн-система адресуется полем designSystemId тела запроса.",
     "",
     "Ключ upsert — пара (componentName, styleName); styleName соответствует appearance.",
     "Импорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому",
@@ -918,12 +920,11 @@ registry.registerPath({
     "Требует scope components:write, если запрос пришёл с ключом проекта.",
   ].join("\n"),
   request: {
-    params: z.object({ id: UuidSchema }),
     body: { required: true, ...json(ImportRequestSchema) },
   },
   responses: {
     200: { description: "Отчёт импорта", ...json(ImportReportSchema) },
-    400: { description: "Тело запроса не соответствует формату", ...json(ErrorResponseSchema) },
+    400: { description: "Тело запроса не соответствует формату или designSystemId не является uuid", ...json(ErrorResponseSchema) },
     403: { description: "У ключа нет scope components:write", ...json(ErrorResponseSchema) },
     404: { description: "Дизайн-система не найдена или недоступна проекту", ...json(ErrorResponseSchema) },
     422: { description: "Импорт отклонён при записи", ...json(ErrorResponseSchema) },
