@@ -1030,11 +1030,13 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
               appearanceId: appIdMap.get(ipv.appearanceId)!,
               tokenId: mapTokenId(ipv.tokenId),
               value: ipv.value ?? undefined,
-              statesKey: ipv.statesKey,
+              // Набор переносится ссылкой: состояния глобальны, компонент не принадлежит
+              // дизайн-системе, поэтому копия переиспользует набор источника и новых
+              // строк в state_sets не создаётся.
+              stateSetId: ipv.stateSetId,
             },
           });
 
-          await copyValueStates('invariant', ipv.id, created.data?.id, ipv.statesKey);
         }),
     );
   }
@@ -1063,59 +1065,14 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
                 appearanceId: appIdMap.get(vpv.appearanceId)!,
                 tokenId: mapTokenId(vpv.tokenId),
                 value: vpv.value ?? undefined,
-                statesKey: vpv.statesKey,
+                stateSetId: vpv.stateSetId,
               },
             });
 
-            await copyValueStates('variation', vpv.id, created.data?.id, vpv.statesKey);
           }),
       );
     }
   }
-}
-
-/**
- * Переносит состояния значения на его копию.
- *
- * Значение несёт набор состояний, а не одно: набор лежит в property_value_states,
- * в самом значении остаётся канонический ключ. Скопировать ключ недостаточно —
- * без связей таблица останется неполной.
- *
- * Идентификаторы состояний переносятся как есть: состояние взаимодействия хранится
- * значением enum, а состояние компонента ссылается на component_states, который
- * принадлежит компоненту, а не дизайн-системе.
- */
-async function copyValueStates(
-  kind: 'variation' | 'invariant',
-  sourceValueId: string,
-  targetValueId: string | undefined,
-  statesKey: string,
-) {
-  if (!targetValueId || !statesKey) {
-    return;
-  }
-
-  const path =
-    kind === 'variation'
-      ? '/ds/property-value-states/by-variation-value/{id}'
-      : '/ds/property-value-states/by-invariant-value/{id}';
-
-  const source = await api.GET(path, { params: { path: { id: sourceValueId } } });
-  const links = source.data ?? [];
-
-  await Promise.all(
-    links.map((link) =>
-      api.POST('/ds/property-value-states', {
-        body: {
-          ...(kind === 'variation'
-            ? { variationPropertyValueId: targetValueId }
-            : { invariantPropertyValueId: targetValueId }),
-          state: link.state ?? undefined,
-          componentStateId: link.componentStateId ?? undefined,
-        },
-      }),
-    ),
-  );
 }
 
 // ─── Design Systems Tab ──────────────────────────────────────────────────────

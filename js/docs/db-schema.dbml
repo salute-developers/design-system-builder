@@ -59,15 +59,6 @@ Enum relation_type {
   compose
 }
 
-Enum state {
-  pressed
-  hovered
-  focused
-  selected
-  readonly
-  disabled
-}
-
 Enum palette_type {
   general
   additional
@@ -212,14 +203,13 @@ Table variation_property_values {
   appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
   token_id      uuid [ref: > tokens.id, note: 'on delete set null; если задан, value берётся отсюда (например dark.text.default.primary | down.soft.s)']
   value         text [note: 'например 0.4']
-  state         state [note: 'null = основное значение']
+  state_set_id  uuid [not null, ref: > state_sets.id, note: 'on delete cascade; пустой набор — строка-сентинел, а не NULL']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (style_id, property_id, appearance_id) [unique, note: 'WHERE state IS NULL']
-    (style_id, property_id, appearance_id, state) [unique, note: 'WHERE state IS NOT NULL']
+    (style_id, property_id, appearance_id, state_set_id) [unique]
   }
 }
 
@@ -232,14 +222,13 @@ Table invariant_property_values {
   appearance_id    uuid [not null, ref: > appearances.id, note: 'on delete cascade']
   token_id         uuid [ref: > tokens.id, note: 'on delete set null; если задан, value берётся отсюда']
   value            text
-  state            state [note: 'null = основное значение']
+  state_set_id     uuid [not null, ref: > state_sets.id, note: 'on delete cascade']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (design_system_id, component_id, property_id, appearance_id) [unique, note: 'WHERE state IS NULL']
-    (design_system_id, component_id, property_id, appearance_id, state) [unique, note: 'WHERE state IS NOT NULL']
+    (design_system_id, component_id, property_id, appearance_id, state_set_id) [unique]
   }
 }
 
@@ -399,13 +388,18 @@ Table style_combinations {
   id uuid [pk]
   property_id uuid [not null, ref: > properties.id, note: 'on delete cascade']
   appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  combination_key text [not null, default: '', note: 'отсортированные id стилей-участников через запятую: состав лежит в style_combination_members и индексом здесь невыразим']
   value text [not null]
-  states jsonb
+  state_set_id uuid [not null, ref: > state_sets.id, note: 'on delete cascade']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
-  note: 'без уникального индекса здесь, он реализуется через style_combination_members'
+  indexes {
+    (property_id, appearance_id, combination_key, state_set_id) [unique]
+  }
+
+  note: 'строка несёт одно значение и один набор состояний; переопределения — отдельные строки, а не массив в jsonb'
 }
 
 Table style_combination_members {
@@ -469,4 +463,86 @@ Table palette {
   indexes {
     (type, shade, saturation) [unique]
   }
+}
+
+// ─── Состояния ───────────────────────────────────────────────────────────────
+
+Table states {
+  id uuid [pk]
+  component_id uuid [ref: > components.id, note: 'on delete cascade; NULL — состояние взаимодействия, общее для всех компонентов']
+  name text [not null, note: 'в форме из конфигураций оформления: dragging-over, а не DraggingOver']
+  description text
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (component_id, name) [unique]
+    (name) [unique, note: 'WHERE component_id IS NULL']
+  }
+
+  note: 'один словарь на оба вида состояний: набор смешивает их, и разделять его по двум справочникам нечем'
+}
+
+Table state_sets {
+  id uuid [pk]
+  state_ids "uuid[]" [not null, note: 'отсортирован и дедуплицирован триггером: уникальность массива в PostgreSQL позиционная']
+  owner_component_id uuid [ref: > components.id, note: 'on delete cascade; вычисляется из состава, NULL у наборов из одних состояний взаимодействия']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (state_ids) [unique]
+    (state_ids) [type: gin, note: 'нужен триггеру удаления: state_ids @> ARRAY[...]']
+  }
+
+  note: 'внешние ключи внутрь массива невыразимы, поэтому целостность держат триггеры; пустой набор — строка-сентинел'
+}
+
+// ─── Ссылки на стили других компонентов ──────────────────────────────────────
+
+Table component_style_references {
+  id uuid [pk]
+  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  invariant_property_value_id uuid [ref: > invariant_property_values.id, note: 'on delete cascade']
+  variation_property_value_id uuid [ref: > variation_property_values.id, note: 'on delete cascade']
+  style_combination_id uuid [ref: > style_combinations.id, note: 'on delete cascade']
+  target_appearance_id uuid [not null, ref: > appearances.id, note: 'on delete cascade']
+  reference text [not null]
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (invariant_property_value_id) [unique, note: 'WHERE NOT NULL']
+    (variation_property_value_id) [unique, note: 'WHERE NOT NULL']
+    (style_combination_id) [unique, note: 'WHERE NOT NULL']
+    (target_appearance_id)
+  }
+
+  note: 'ровно один из трёх источников заполнен (CHECK csr_exactly_one_source)'
+}
+
+Table component_style_reference_styles {
+  id uuid [pk]
+  reference_id uuid [not null, ref: > component_style_references.id, note: 'on delete cascade']
+  style_id uuid [not null, ref: > styles.id, note: 'on delete cascade']
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (reference_id, style_id) [unique]
+  }
+}
+
+// ─── Служебное ───────────────────────────────────────────────────────────────
+
+Table saved_queries {
+  id uuid [pk]
+  label text [not null]
+  sql text [not null]
+
+  created_at timestamp [not null, default: `now()`]
 }

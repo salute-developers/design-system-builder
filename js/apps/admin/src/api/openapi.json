@@ -834,8 +834,9 @@
             "type": "string",
             "nullable": true
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -855,7 +856,7 @@
           "appearanceId",
           "tokenId",
           "value",
-          "statesKey",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -892,8 +893,9 @@
             "type": "string",
             "nullable": true
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -914,7 +916,7 @@
           "appearanceId",
           "tokenId",
           "value",
-          "statesKey",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -1071,33 +1073,9 @@
           "value": {
             "type": "string"
           },
-          "states": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "nullable": true
-              },
-              {
-                "type": "object",
-                "additionalProperties": {
-                  "nullable": true
-                }
-              },
-              {
-                "type": "array",
-                "items": {
-                  "nullable": true
-                }
-              }
-            ]
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -1116,7 +1094,7 @@
           "appearanceId",
           "combinationKey",
           "value",
-          "states",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -1155,7 +1133,7 @@
           "updatedAt"
         ]
       },
-      "ComponentState": {
+      "State": {
         "type": "object",
         "properties": {
           "id": {
@@ -1164,6 +1142,7 @@
           },
           "componentId": {
             "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "name": {
@@ -1193,38 +1172,21 @@
           "updatedAt"
         ]
       },
-      "PropertyValueState": {
+      "StateSet": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "variationPropertyValueId": {
-            "type": "string",
-            "nullable": true,
-            "format": "uuid"
+          "stateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
-          "invariantPropertyValueId": {
-            "type": "string",
-            "nullable": true,
-            "format": "uuid"
-          },
-          "state": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "activated",
-              "readonly",
-              "disabled",
-              null
-            ]
-          },
-          "componentStateId": {
+          "ownerComponentId": {
             "type": "string",
             "nullable": true,
             "format": "uuid"
@@ -1242,10 +1204,8 @@
         },
         "required": [
           "id",
-          "variationPropertyValueId",
-          "invariantPropertyValueId",
-          "state",
-          "componentStateId",
+          "stateIds",
+          "ownerComponentId",
           "createdAt",
           "updatedAt"
         ]
@@ -2229,14 +2189,16 @@
           "value": {
             "type": "string"
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "styleId",
-          "appearanceId"
+          "appearanceId",
+          "stateSetId"
         ]
       },
       "UpdateVariationPropertyValue": {
@@ -2249,8 +2211,9 @@
           "value": {
             "type": "string"
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2280,15 +2243,17 @@
           "value": {
             "type": "string"
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "designSystemId",
           "componentId",
-          "appearanceId"
+          "appearanceId",
+          "stateSetId"
         ]
       },
       "UpdateInvariantPropertyValue": {
@@ -2301,8 +2266,9 @@
           "value": {
             "type": "string"
           },
-          "statesKey": {
-            "type": "string"
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2435,18 +2401,23 @@
             "type": "string",
             "format": "uuid"
           },
+          "combinationKey": {
+            "type": "string"
+          },
           "value": {
             "type": "string",
             "minLength": 1
           },
-          "states": {
-            "nullable": true
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "appearanceId",
-          "value"
+          "value",
+          "stateSetId"
         ]
       },
       "UpdateStyleCombination": {
@@ -2456,8 +2427,9 @@
             "type": "string",
             "minLength": 1
           },
-          "states": {
-            "nullable": true
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2478,11 +2450,12 @@
           "styleId"
         ]
       },
-      "CreateComponentState": {
+      "CreateState": {
         "type": "object",
         "properties": {
           "componentId": {
             "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "name": {
@@ -2496,11 +2469,10 @@
           }
         },
         "required": [
-          "componentId",
           "name"
         ]
       },
-      "UpdateComponentState": {
+      "UpdateState": {
         "type": "object",
         "properties": {
           "name": {
@@ -2514,34 +2486,21 @@
           }
         }
       },
-      "CreatePropertyValueState": {
+      "ResolveStateSet": {
         "type": "object",
         "properties": {
-          "variationPropertyValueId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "invariantPropertyValueId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "activated",
-              "readonly",
-              "disabled"
-            ]
-          },
-          "componentStateId": {
-            "type": "string",
-            "format": "uuid"
+          "stateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 32
           }
-        }
+        },
+        "required": [
+          "stateIds"
+        ]
       },
       "CreateComponentStyleReference": {
         "type": "object",
@@ -9674,22 +9633,54 @@
         }
       }
     },
-    "/ds/component-states": {
+    "/ds/states": {
       "get": {
         "tags": [
-          "Component States"
+          "States"
         ],
-        "summary": "List all component states",
+        "summary": "List states, optionally filtered by component",
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "null"
+                  ]
+                }
+              ],
+              "example": "null"
+            },
+            "required": false,
+            "name": "componentId",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "List of items",
+            "description": "States",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ComponentState"
+                    "$ref": "#/components/schemas/State"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -9708,15 +9699,15 @@
       },
       "post": {
         "tags": [
-          "Component States"
+          "States"
         ],
-        "summary": "Create component state",
+        "summary": "Create state",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateComponentState"
+                "$ref": "#/components/schemas/CreateState"
               }
             }
           }
@@ -9727,7 +9718,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ComponentState"
+                  "$ref": "#/components/schemas/State"
                 }
               }
             }
@@ -9755,12 +9746,12 @@
         }
       }
     },
-    "/ds/component-states/{id}": {
+    "/ds/states/{id}": {
       "get": {
         "tags": [
-          "Component States"
+          "States"
         ],
-        "summary": "Get component state by ID",
+        "summary": "Get state by ID",
         "parameters": [
           {
             "schema": {
@@ -9779,7 +9770,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ComponentState"
+                  "$ref": "#/components/schemas/State"
                 }
               }
             }
@@ -9808,9 +9799,9 @@
       },
       "patch": {
         "tags": [
-          "Component States"
+          "States"
         ],
-        "summary": "Update component state",
+        "summary": "Update state",
         "parameters": [
           {
             "schema": {
@@ -9828,7 +9819,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateComponentState"
+                "$ref": "#/components/schemas/UpdateState"
               }
             }
           }
@@ -9839,7 +9830,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ComponentState"
+                  "$ref": "#/components/schemas/State"
                 }
               }
             }
@@ -9878,9 +9869,9 @@
       },
       "delete": {
         "tags": [
-          "Component States"
+          "States"
         ],
-        "summary": "Delete component state",
+        "summary": "Delete state",
         "parameters": [
           {
             "schema": {
@@ -9927,21 +9918,88 @@
         }
       }
     },
-    "/ds/property-value-states": {
+    "/ds/states/{id}/impact": {
       "get": {
         "tags": [
-          "Property Value States"
+          "States"
         ],
-        "summary": "List all property value states",
+        "summary": "Report what deleting a state would remove",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "List of items",
+            "description": "Deletion impact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stateSets": {
+                      "type": "integer"
+                    },
+                    "values": {
+                      "type": "integer"
+                    },
+                    "components": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "stateSets",
+                    "values",
+                    "components"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/state-sets": {
+      "get": {
+        "tags": [
+          "State Sets"
+        ],
+        "summary": "List state sets",
+        "responses": {
+          "200": {
+            "description": "State sets",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PropertyValueState"
+                    "$ref": "#/components/schemas/StateSet"
                   }
                 }
               }
@@ -9958,229 +10016,131 @@
             }
           }
         }
-      },
+      }
+    },
+    "/ds/state-sets/{id}": {
+      "get": {
+        "tags": [
+          "State Sets"
+        ],
+        "summary": "Get a state set",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateSet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/state-sets/resolve": {
       "post": {
         "tags": [
-          "Property Value States"
+          "State Sets"
         ],
-        "summary": "Create property value state",
+        "summary": "Resolve a list of state identifiers into a state set",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePropertyValueState"
+                "$ref": "#/components/schemas/ResolveStateSet"
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "Existing state set",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PropertyValueState"
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerComponentId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerComponentId"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created state set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerComponentId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerComponentId"
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "Validation error",
+            "description": "Unknown state or states of different components",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ds/property-value-states/{id}": {
-      "get": {
-        "tags": [
-          "Property Value States"
-        ],
-        "summary": "Get property value state by ID",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Item",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PropertyValueState"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Property Value States"
-        ],
-        "summary": "Delete property value state",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deleted",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ds/property-value-states/by-variation-value/{id}": {
-      "get": {
-        "tags": [
-          "Property Value States"
-        ],
-        "summary": "List states of a variation property value",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Property value states",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PropertyValueState"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ds/property-value-states/by-invariant-value/{id}": {
-      "get": {
-        "tags": [
-          "Property Value States"
-        ],
-        "summary": "List states of a invariant property value",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Property value states",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PropertyValueState"
-                  }
                 }
               }
             }

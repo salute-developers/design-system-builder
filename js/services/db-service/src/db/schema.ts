@@ -70,23 +70,6 @@ export const operationEnum = pgEnum("operation", [
 
 export const relationTypeEnum = pgEnum("relation_type", ["reuse", "compose"]);
 
-// Состояния взаимодействия: они принадлежат модели ввода, а не конкретному компоненту,
-// и потому одинаковы для всех. Состояния, специфичные для компонента (`checked`,
-// `indeterminate`, `collapsed` и прочие), живут в component_states: они объявляются кодом
-// компонента и у каждого свои.
-//
-// `activated` относится сюда же: его используют пять компонентов, и ни один не объявляет
-// его собственным состоянием в uikit-api-meta.json.
-export const stateEnum = pgEnum("state", [
-  "pressed",
-  "hovered",
-  "focused",
-  "selected",
-  "activated",
-  "readonly",
-  "disabled",
-]);
-
 export const paletteTypeEnum = pgEnum("palette_type", [
   "general",
   "additional",
@@ -215,21 +198,25 @@ export const properties = pgTable(
   ],
 );
 
-// Состояния, специфичные для компонента.
+// Словарь состояний: и взаимодействия, и объявленные кодом компонента.
 //
-// Объявляются кодом компонента: в `uikit-api-meta.json` у него есть поле `stateEnum`
-// с перечислением. Например `CheckBoxStates` даёт `checked` и `indeterminate`,
-// `CollapsingNavigationBarStates` — `collapsed` и `expanded`.
+// `component_id IS NULL` — состояние взаимодействия. Оно принадлежит модели ввода, а не
+// конкретному компоненту, и потому одинаково для всех: `pressed`, `hovered`, `focused`,
+// `selected`, `activated`, `readonly`, `disabled`. Семь таких засеиваются миграцией
+// детерминированными идентификаторами, чтобы код мог ссылаться на них без справочника.
 //
-// Хранить их значениями общего enum было бы неверно: множество открыто и растёт с каждым
-// новым компонентом, а принадлежность состояния компоненту при этом теряется.
-export const componentStates = pgTable(
-  "component_states",
+// `component_id NOT NULL` — состояние, объявленное кодом компонента: в `uikit-api-meta.json`
+// у него есть поле `stateEnum` с перечислением. `CheckBoxStates` даёт `checked` и
+// `indeterminate`, `CollapsingNavigationBarStates` — `collapsed` и `expanded`.
+//
+// Прежде это были две разные сущности — значения enum `state` и таблица `component_states`.
+// Словарь один, потому что набор состояний смешивает оба вида: `["checked", "focused"]` —
+// это «отмечен И в фокусе», и разделять такой набор по двум справочникам нечем.
+export const states = pgTable(
+  "states",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    componentId: uuid("component_id")
-      .notNull()
-      .references(() => components.id, { onDelete: "cascade" }),
+    componentId: uuid("component_id").references(() => components.id, { onDelete: "cascade" }),
     // Имя в той форме, в какой оно встречается в конфигурациях оформления: `dragging-over`,
     // а не `DraggingOver`. В api-meta для этого есть поле `configName`.
     name: text("name").notNull(),
@@ -240,7 +227,52 @@ export const componentStates = pgTable(
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
-  (t) => [uniqueIndex("cs_component_id_name_unique").on(t.componentId, t.name)],
+  (t) => [
+    uniqueIndex("states_component_id_name_unique").on(t.componentId, t.name),
+    // Имя состояния взаимодействия уникально глобально. Частичный индекс нужен потому, что
+    // NULL-ы в btree различны: без него индекс выше не помешал бы завести два `hovered`.
+    uniqueIndex("states_name_unique_global")
+      .on(t.name)
+      .where(sql`${t.componentId} is null`),
+  ],
+);
+
+// Набор состояний, при котором действует значение свойства.
+//
+// Набор — это конъюнкция (`pressed` И `checked`), и колонкой она не выражается. Прежде набор
+// хранился дважды: связями в `property_value_states` и денормализованным ключом `states_key`
+// на строке значения. Два представления одного факта разошлись на 19 строках.
+//
+// Здесь представление одно: массив **и есть** набор. Уникальность массива в PostgreSQL
+// позиционная (`{A,B}` и `{B,A}` — разные), поэтому канонизация обязательна и обеспечивается
+// триггером `state_sets_canonicalize`, а не индексом. Внешние ключи внутрь массива невыразимы,
+// поэтому целостность элементов держат триггеры — см. `drizzle/0004_component_import.sql`.
+//
+// Пустой набор — строка-сентинел с `state_ids = '{}'`, а не NULL: NULL-ы в btree различны, и
+// уникальность значений перестала бы работать именно для базовых значений, то есть для
+// большинства.
+export const stateSets = pgTable(
+  "state_sets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stateIds: uuid("state_ids").array().notNull(),
+    // Компонент, которому принадлежат компонентные состояния набора. NULL, если набор состоит
+    // из одних состояний взаимодействия: у такого набора владельца нет, и он разделяется всеми
+    // компонентами. Значение выводится из состава триггером, а не приходит от клиента.
+    ownerComponentId: uuid("owner_component_id").references(() => components.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("state_sets_state_ids_unique").on(t.stateIds),
+    // Нужен триггеру удаления: `state_ids @> ARRAY[...]`.
+    index("state_sets_state_ids_gin").using("gin", t.stateIds),
+  ],
 );
 
 export const propertyPlatformParams = pgTable(
@@ -436,7 +468,9 @@ export const variationPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    statesKey: text("states_key").notNull().default(""),
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -449,7 +483,7 @@ export const variationPropertyValues = pgTable(
       t.styleId,
       t.propertyId,
       t.appearanceId,
-      t.statesKey,
+      t.stateSetId,
     ),
   ],
 );
@@ -472,7 +506,9 @@ export const invariantPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    statesKey: text("states_key").notNull().default(""),
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -486,76 +522,8 @@ export const invariantPropertyValues = pgTable(
       t.componentId,
       t.propertyId,
       t.appearanceId,
-      t.statesKey,
+      t.stateSetId,
     ),
-  ],
-);
-
-// Состояния, при которых действует значение свойства.
-//
-// Конфигурации задают переопределение сразу для набора состояний, причём набор смешивает оба
-// вида: `["checked", "focused"]` — это «отмечен И в фокусе». Из 212 таких наборов в корпусе
-// 126 состоят только из состояний взаимодействия, а 86 сочетают их с состоянием компонента.
-//
-// Колонка в таблице значений вмещала бы одно состояние, поэтому набор пришлось бы разворачивать
-// в несколько строк — и конъюнкция превратилась бы в набор независимых переопределений.
-//
-// Значение без записей в этой таблице является базовым, то есть действует вне состояний.
-export const propertyValueStates = pgTable(
-  "property_value_states",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-
-    // К какому значению относится набор: ровно одна из двух ссылок заполнена.
-    variationPropertyValueId: uuid("variation_property_value_id").references(
-      () => variationPropertyValues.id,
-      { onDelete: "cascade" },
-    ),
-    invariantPropertyValueId: uuid("invariant_property_value_id").references(
-      () => invariantPropertyValues.id,
-      { onDelete: "cascade" },
-    ),
-
-    // Какое это состояние: взаимодействия либо специфичное для компонента.
-    // Ровно одно из двух заполнено.
-    state: stateEnum("state"),
-    componentStateId: uuid("component_state_id").references(() => componentStates.id, {
-      onDelete: "cascade",
-    }),
-
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at")
-      .defaultNow()
-      .notNull()
-      .$onUpdateFn(() => new Date()),
-  },
-  (t) => [
-    check(
-      "pvs_exactly_one_value",
-      sql`(
-        (${t.variationPropertyValueId} is not null)::int +
-        (${t.invariantPropertyValueId} is not null)::int
-      ) = 1`,
-    ),
-    check(
-      "pvs_exactly_one_state",
-      sql`(
-        (${t.state} is not null)::int +
-        (${t.componentStateId} is not null)::int
-      ) = 1`,
-    ),
-    uniqueIndex("pvs_variation_value_state_unique")
-      .on(t.variationPropertyValueId, t.state)
-      .where(sql`variation_property_value_id is not null and state is not null`),
-    uniqueIndex("pvs_variation_value_component_state_unique")
-      .on(t.variationPropertyValueId, t.componentStateId)
-      .where(sql`variation_property_value_id is not null and component_state_id is not null`),
-    uniqueIndex("pvs_invariant_value_state_unique")
-      .on(t.invariantPropertyValueId, t.state)
-      .where(sql`invariant_property_value_id is not null and state is not null`),
-    uniqueIndex("pvs_invariant_value_component_state_unique")
-      .on(t.invariantPropertyValueId, t.componentStateId)
-      .where(sql`invariant_property_value_id is not null and component_state_id is not null`),
   ],
 );
 
@@ -710,7 +678,13 @@ export const styleCombinations = pgTable(
     // половины импорта, и без ключа повторная загрузка дублировала бы их.
     combinationKey: text("combination_key").notNull().default(""),
     value: text("value").notNull(),
-    states: jsonb("states"),
+    // Строка сочетания несёт одно значение и один набор состояний. Прежде она несла базовое
+    // значение плюс массив переопределений в jsonb (`[{"state":["activated"],"value":32}]`) —
+    // четвёртое представление состояний, вне словаря и вне ссылочной целостности. Теперь
+    // каждое значение — отдельная строка со своим набором.
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -722,6 +696,7 @@ export const styleCombinations = pgTable(
       t.propertyId,
       t.appearanceId,
       t.combinationKey,
+      t.stateSetId,
     ),
   ],
 );
@@ -934,6 +909,24 @@ export const componentsRelations = relations(components, ({ many }) => ({
   parentDeps: many(componentDeps, { relationName: "parent" }),
   childDeps: many(componentDeps, { relationName: "child" }),
   invariantPropertyValues: many(invariantPropertyValues),
+  states: many(states),
+}));
+
+export const statesRelations = relations(states, ({ one }) => ({
+  component: one(components, {
+    fields: [states.componentId],
+    references: [components.id],
+  }),
+}));
+
+export const stateSetsRelations = relations(stateSets, ({ one, many }) => ({
+  ownerComponent: one(components, {
+    fields: [stateSets.ownerComponentId],
+    references: [components.id],
+  }),
+  variationPropertyValues: many(variationPropertyValues),
+  invariantPropertyValues: many(invariantPropertyValues),
+  styleCombinations: many(styleCombinations),
 }));
 
 export const designSystemComponentsRelations = relations(
@@ -1079,6 +1072,10 @@ export const variationPropertyValuesRelations = relations(
       fields: [variationPropertyValues.tokenId],
       references: [tokens.id],
     }),
+    stateSet: one(stateSets, {
+      fields: [variationPropertyValues.stateSetId],
+      references: [stateSets.id],
+    }),
     platformParamAdjustments: many(variationPlatformParamAdjustments),
   }),
 );
@@ -1105,6 +1102,10 @@ export const invariantPropertyValuesRelations = relations(
     token: one(tokens, {
       fields: [invariantPropertyValues.tokenId],
       references: [tokens.id],
+    }),
+    stateSet: one(stateSets, {
+      fields: [invariantPropertyValues.stateSetId],
+      references: [stateSets.id],
     }),
     platformParamAdjustments: many(invariantPlatformParamAdjustments),
   }),
@@ -1201,6 +1202,10 @@ export const styleCombinationsRelations = relations(
     appearance: one(appearances, {
       fields: [styleCombinations.appearanceId],
       references: [appearances.id],
+    }),
+    stateSet: one(stateSets, {
+      fields: [styleCombinations.stateSetId],
+      references: [stateSets.id],
     }),
     members: many(styleCombinationMembers),
   }),

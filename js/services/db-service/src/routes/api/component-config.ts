@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/index";
 import {
   designSystems,
@@ -14,6 +14,8 @@ import {
   styleCombinationMembers,
   properties,
   tokens,
+  states,
+  stateSets,
 } from "../../db/schema";
 import {
   assertFound,
@@ -159,6 +161,15 @@ router.get("/", (req, res) =>
         ),
     ]);
 
+    // ── Наборы состояний ────────────────────────────────────────────────────────
+    // Wire-контракт не меняется: наружу набор по-прежнему уходит списком имён. Хранится он
+    // теперь ссылкой, поэтому имена собираются здесь, одним запросом на всю конфигурацию.
+    //
+    // Имена сортируются: порядок элементов в массиве набора канонический, но имена берутся
+    // джойном, а у него без ORDER BY порядок не определён — сравнение двух выгрузок ломалось
+    // бы на перестановке.
+    const stateNamesBySetId = new Map<string, string[]>();
+
     // ── Style combinations (targets / пересечения вариаций) ────────────────────
     const propertyIds = propertyRows.map((p) => p.id);
     const combinationRows =
@@ -241,6 +252,33 @@ router.get("/", (req, res) =>
      * Ключ — имя property, его id лежит в поле `id`.
      * Базовое значение — строка с state IS NULL, остальные складываются в states[].
      */
+    {
+      const setIds = [
+        ...new Set([
+          ...vpvRows.map((r) => r.stateSetId),
+          ...ipvRows.map((r) => r.stateSetId),
+          ...combinationRows.map((r) => r.stateSetId),
+        ]),
+      ];
+
+      if (setIds.length > 0) {
+        const rows = await db
+          .select({ setId: stateSets.id, name: states.name })
+          .from(stateSets)
+          .innerJoin(states, sql`${states.id} = ANY(${stateSets.stateIds})`)
+          .where(inArray(stateSets.id, setIds));
+
+        for (const row of rows) {
+          const names = stateNamesBySetId.get(row.setId) ?? [];
+          names.push(row.name);
+          stateNamesBySetId.set(row.setId, names);
+        }
+        for (const names of stateNamesBySetId.values()) names.sort();
+      }
+    }
+
+    const stateNamesOf = (setId: string): string[] => stateNamesBySetId.get(setId) ?? [];
+
     function buildProperties(
       rows: {
         propertyId: string;
@@ -249,7 +287,7 @@ router.get("/", (req, res) =>
         // Канонический ключ набора состояний: пустая строка у базового значения,
         // иначе имена через запятую. Значение может действовать при нескольких
         // состояниях сразу, поэтому одной колонкой набор не выражается.
-        statesKey: string;
+        stateNames: string[];
       }[],
     ): Record<string, PropEntry> {
       const byPropId = groupBy(rows, (r) => r.propertyId);
@@ -257,8 +295,8 @@ router.get("/", (req, res) =>
 
       for (const [propertyId, propRows] of byPropId) {
         const prop = propById.get(propertyId);
-        const base = propRows.find((r) => r.statesKey === "");
-        const stateRows = propRows.filter((r) => r.statesKey !== "");
+        const base = propRows.find((r) => r.stateNames.length === 0);
+        const stateRows = propRows.filter((r) => r.stateNames.length > 0);
 
         // Ключ — имя property; фолбэк на id, если имя почему-то недоступно.
         const key = prop?.name ?? propertyId;
@@ -268,7 +306,7 @@ router.get("/", (req, res) =>
           type: prop?.type ?? "value",
           value: base ? resolveValue(base.value, base.tokenId) : null,
           states: stateRows.map((sr) => ({
-            state: sr.statesKey.split(","),
+            state: sr.stateNames,
             value: resolveValue(sr.value, sr.tokenId),
           })),
         };
@@ -283,7 +321,7 @@ router.get("/", (req, res) =>
         propertyId: r.propertyId,
         value: r.value,
         tokenId: r.tokenId,
-        statesKey: r.statesKey,
+        stateNames: stateNamesOf(r.stateSetId),
       })),
     );
 
@@ -342,7 +380,7 @@ router.get("/", (req, res) =>
               propertyId: v.propertyId,
               value: v.value,
               tokenId: v.tokenId,
-              statesKey: v.statesKey,
+              stateNames: stateNamesOf(v.stateSetId),
             })),
           ),
         };
@@ -387,7 +425,7 @@ router.get("/", (req, res) =>
               value: c.value,
               // У сочетаний нет ссылки на токен: имя токена лежит в value как текст.
               tokenId: null,
-              statesKey: "",
+              stateNames: stateNamesOf(c.stateSetId),
             })),
           ),
         }));

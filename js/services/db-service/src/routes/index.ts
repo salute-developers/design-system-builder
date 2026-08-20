@@ -3,8 +3,8 @@ import { spec } from "../openapi/spec";
 import designSystemsRouter from "./api/design-systems";
 import designSystemVersionsRouter from "./api/design-system-versions";
 import componentsRouter from "./api/components";
-import componentStatesRouter from "./api/component-states";
-import propertyValueStatesRouter from "./api/property-value-states";
+import statesRouter from "./api/states";
+import stateSetsRouter from "./api/state-sets";
 import designSystemComponentsRouter from "./api/design-system-components";
 import variationsRouter from "./api/variations";
 import propertiesRouter from "./api/properties";
@@ -50,8 +50,8 @@ router.get("/openapi.json", (_req, res) => {
 // Resource routes
 router.use("/ds/design-systems", designSystemsRouter);
 router.use("/ds/design-system-versions", designSystemVersionsRouter);
-router.use("/ds/component-states", componentStatesRouter);
-router.use("/ds/property-value-states", propertyValueStatesRouter);
+router.use("/ds/states", statesRouter);
+router.use("/ds/state-sets", stateSetsRouter);
 router.use("/ds/components", componentsRouter);
 router.use("/ds/design-system-components", designSystemComponentsRouter);
 router.use("/ds/variations", variationsRouter);

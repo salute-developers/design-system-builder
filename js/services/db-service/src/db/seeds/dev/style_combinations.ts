@@ -1,4 +1,5 @@
 import * as schema from '../../schema';
+import { SENTINEL_STATE_SET_ID } from '../state-sets';
 
 // style_combinations: computed values when specific styles are combined.
 export async function seedStyleCombinations(
@@ -11,19 +12,21 @@ export async function seedStyleCombinations(
   const a = ctx.appearances;
   const p = ctx.properties;
 
+  // Строка сочетания несёт один набор состояний. У сида все значения базовые, поэтому
+  // все ссылаются на сентинел: переопределения по состояниям приходят заливкой.
   const rows = await db
     .insert(schema.styleCombinations)
     .values([
       // SDDS: primary + s + rounded → width = 500
-      { propertyId: p.btn_width.id, appearanceId: a.sdds_btn_default.id, value: '500' },
+      { propertyId: p.btn_width.id, appearanceId: a.sdds_btn_default.id, value: '500' , stateSetId: SENTINEL_STATE_SET_ID },
       // SDDS: primary + s + rounded → height = 30
-      { propertyId: p.btn_height.id, appearanceId: a.sdds_btn_default.id, value: '30' },
+      { propertyId: p.btn_height.id, appearanceId: a.sdds_btn_default.id, value: '30' , stateSetId: SENTINEL_STATE_SET_ID },
       // SDDS: primary + s + rounded → labelColor = dark.text.default.accent
-      { propertyId: p.btn_labelColor.id, appearanceId: a.sdds_btn_default.id, value: 'dark.text.default.accent' },
+      { propertyId: p.btn_labelColor.id, appearanceId: a.sdds_btn_default.id, value: 'dark.text.default.accent' , stateSetId: SENTINEL_STATE_SET_ID },
       // PLASMA: primary + m → valueColor = dark.text.default.primary
-      { propertyId: p.lnk_valueColor.id, appearanceId: a.plasma_lnk_default.id, value: 'dark.text.default.primary' },
+      { propertyId: p.lnk_valueColor.id, appearanceId: a.plasma_lnk_default.id, value: 'dark.text.default.primary' , stateSetId: SENTINEL_STATE_SET_ID },
       // PLASMA: primary + m → underLineWidth = 5
-      { propertyId: p.lnk_underLineWidth.id, appearanceId: a.plasma_lnk_default.id, value: '5' },
+      { propertyId: p.lnk_underLineWidth.id, appearanceId: a.plasma_lnk_default.id, value: '5' , stateSetId: SENTINEL_STATE_SET_ID },
     ])
     .returning();
 

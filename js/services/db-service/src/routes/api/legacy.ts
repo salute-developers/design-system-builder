@@ -1,6 +1,6 @@
 import { Router } from "express";
 import archiver from "archiver";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/index";
 import {
   designSystems,
@@ -21,10 +21,93 @@ import {
   components,
   variationPlatformParamAdjustments,
   invariantPlatformParamAdjustments,
-  propertyValueStates,
-  componentStates,
+  states,
+  stateSets,
 } from "../../db/schema";
 import { assertFound, designSystemBelongsToScope, getProjectId, tryCatch } from "./utils";
+
+
+/**
+ * Строка-сентинел пустого набора. Идентификатор детерминирован миграцией — ровно затем,
+ * чтобы код мог ссылаться на базовое значение без обращения к справочнику.
+ */
+const SENTINEL_STATE_SET_ID = "00000000-0000-4000-8000-0000000000ff";
+
+/**
+ * Имена состояний набора, отсортированные.
+ *
+ * Наружу набор уходит списком имён — legacy-формат этого требует, — а хранится ссылкой.
+ * Сортировка нужна потому, что имена берутся джойном, а у него без ORDER BY порядок
+ * не определён.
+ */
+const loadStateNames = async (setIds: string[]): Promise<Map<string, string[]>> => {
+  const byId = new Map<string, string[]>();
+  if (setIds.length === 0) return byId;
+
+  const rows = await db
+    .select({ setId: stateSets.id, name: states.name })
+    .from(stateSets)
+    .innerJoin(states, sql`${states.id} = ANY(${stateSets.stateIds})`)
+    .where(inArray(stateSets.id, setIds));
+
+  for (const row of rows) {
+    const names = byId.get(row.setId) ?? [];
+    names.push(row.name);
+    byId.set(row.setId, names);
+  }
+  for (const names of byId.values()) names.sort();
+  return byId;
+};
+
+/**
+ * Разрешает имена состояний в идентификатор набора.
+ *
+ * Имя компонентного состояния ищется **только** среди состояний своего компонента: имя
+ * уникально лишь внутри компонента, и запрос по одному имени вернул бы чужое состояние.
+ * Пустой список даёт строку-сентинел, то есть базовое значение.
+ *
+ * Канонизацию массива, проверку элементов и вычисление владельца делает триггер на таблице,
+ * поэтому здесь они не дублируются.
+ */
+const resolveStateSetId = async (
+  componentId: string,
+  names: string[],
+): Promise<string | null> => {
+  const ids: string[] = [];
+
+  for (const name of names) {
+    const [own] = await db
+      .select({ id: states.id })
+      .from(states)
+      .where(and(eq(states.componentId, componentId), eq(states.name, name)));
+    if (own) {
+      ids.push(own.id);
+      continue;
+    }
+
+    const [interaction] = await db
+      .select({ id: states.id })
+      .from(states)
+      .where(and(isNull(states.componentId), eq(states.name, name)));
+    if (!interaction) return null;
+    ids.push(interaction.id);
+  }
+
+  const canonical = [...new Set(ids)].sort();
+  const literal = sql.raw(`'{${canonical.join(",")}}'::uuid[]`);
+
+  const [existing] = await db
+    .select({ id: stateSets.id })
+    .from(stateSets)
+    .where(sql`${stateSets.stateIds} = ${literal}`);
+  if (existing) return existing.id;
+
+  const [created] = await db
+    .insert(stateSets)
+    .values({ stateIds: canonical })
+    .returning({ id: stateSets.id });
+  return created.id;
+};
 
 const router = Router();
 
@@ -94,7 +177,7 @@ router.get("/:name/component-configs", (req, res) =>
             and(
               eq(invariantPropertyValues.designSystemId, dsId),
               inArray(invariantPropertyValues.componentId, componentIds),
-              eq(invariantPropertyValues.statesKey, ""),
+              eq(invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
             ),
           )
         : Promise.resolve([]),
@@ -233,6 +316,13 @@ router.get("/:name/component-configs", (req, res) =>
       (vpv) => `${vpv.styleId}::${vpv.appearanceId}`,
     );
 
+    // Набор хранится ссылкой, а legacy-формат ждёт список имён. Имена собираются одним
+    // запросом на всю выгрузку: конфигурация строится синхронно и дозапросить их некуда.
+    const stateNamesBySetId = await loadStateNames([
+      ...new Set(vpvRows.map((vpv) => vpv.stateSetId)),
+    ]);
+    const stateNamesOf = (setId: string): string[] => stateNamesBySetId.get(setId) ?? [];
+
     function getPlatformParam(propertyId: string, key: string): string {
       const params = platformParamsByPropertyId.get(propertyId);
       if (!params) return "";
@@ -359,7 +449,7 @@ router.get("/:name/component-configs", (req, res) =>
             const baseByPropId = new Map<string, (typeof vpvs)[0]>();
             const statesByPropId = new Map<string, (typeof vpvs)[0][]>();
             for (const vpv of vpvs) {
-              if (vpv.statesKey === "") {
+              if (vpv.stateSetId === SENTINEL_STATE_SET_ID) {
                 baseByPropId.set(vpv.propertyId, vpv);
               } else {
                 if (!statesByPropId.has(vpv.propertyId)) statesByPropId.set(vpv.propertyId, []);
@@ -377,7 +467,7 @@ router.get("/:name/component-configs", (req, res) =>
                   ? { adjustment: adjustmentByValueRowId.get(base.id) }
                   : {}),
                 states: (statesByPropId.get(propId) ?? []).map((sv) => ({
-                  state: sv.statesKey.split(","),
+                  state: stateNamesOf(sv.stateSetId),
                   value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
                 })),
               };
@@ -935,7 +1025,7 @@ router.post("/create", (req, res) =>
               componentId: component.id,
               appearanceId: appearance.id,
               ...encodePropValue(valueStr, tokenIdByName),
-              statesKey: "",
+              stateSetId: SENTINEL_STATE_SET_ID,
             })
             .returning();
 
@@ -970,7 +1060,7 @@ router.post("/create", (req, res) =>
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
                   ...encodePropValue(valueStr, tokenIdByName),
-                  statesKey: "",
+                  stateSetId: SENTINEL_STATE_SET_ID,
                 })
                 .returning();
 
@@ -992,6 +1082,11 @@ router.post("/create", (req, res) =>
                   : null;
 
                 const sorted = [...stateValues].sort();
+                // Набор разрешается до вставки: неизвестное состояние не создаётся
+                // конфигурацией, поэтому значение просто не пишется.
+                const stateSetId = await resolveStateSetId(component.id, sorted);
+                if (!stateSetId) continue;
+
                 const [svpv] = await db
                   .insert(variationPropertyValues)
                   .values({
@@ -999,23 +1094,9 @@ router.post("/create", (req, res) =>
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
                     ...encodePropValue(stateValueStr, tokenIdByName),
-                    statesKey: sorted.join(","),
+                    stateSetId: stateSetId,
                   })
                   .returning();
-
-                const known = await db
-                  .select()
-                  .from(componentStates)
-                  .where(eq(componentStates.componentId, component.id));
-
-                await db.insert(propertyValueStates).values(
-                  sorted.map((name) => {
-                    const semantic = known.find((row: any) => row.name === name);
-                    return semantic
-                      ? { variationPropertyValueId: svpv.id, componentStateId: semantic.id }
-                      : { variationPropertyValueId: svpv.id, state: name as any };
-                  }),
-                );
 
                 await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
               }
@@ -1410,7 +1491,7 @@ router.post("/:name/update", (req, res) =>
               componentId: component.id,
               appearanceId: appearance.id,
               ...encodePropValue(valueStr, tokenIdByName),
-              statesKey: "",
+              stateSetId: SENTINEL_STATE_SET_ID,
             })
             .returning();
 
@@ -1438,7 +1519,7 @@ router.post("/:name/update", (req, res) =>
                   styleId: dbStyle.id,
                   appearanceId: appearance.id,
                   ...encodePropValue(valueStr, tokenIdByName),
-                  statesKey: "",
+                  stateSetId: SENTINEL_STATE_SET_ID,
                 })
                 .returning();
 
@@ -1460,6 +1541,11 @@ router.post("/:name/update", (req, res) =>
                   : null;
 
                 const sorted = [...stateValues].sort();
+                // Набор разрешается до вставки: неизвестное состояние не создаётся
+                // конфигурацией, поэтому значение просто не пишется.
+                const stateSetId = await resolveStateSetId(component.id, sorted);
+                if (!stateSetId) continue;
+
                 const [svpv] = await db
                   .insert(variationPropertyValues)
                   .values({
@@ -1467,23 +1553,9 @@ router.post("/:name/update", (req, res) =>
                     styleId: dbStyle.id,
                     appearanceId: appearance.id,
                     ...encodePropValue(stateValueStr, tokenIdByName),
-                    statesKey: sorted.join(","),
+                    stateSetId: stateSetId,
                   })
                   .returning();
-
-                const known = await db
-                  .select()
-                  .from(componentStates)
-                  .where(eq(componentStates.componentId, component.id));
-
-                await db.insert(propertyValueStates).values(
-                  sorted.map((name) => {
-                    const semantic = known.find((row: any) => row.name === name);
-                    return semantic
-                      ? { variationPropertyValueId: svpv.id, componentStateId: semantic.id }
-                      : { variationPropertyValueId: svpv.id, state: name as any };
-                  }),
-                );
 
                 await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
               }

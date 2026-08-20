@@ -408,10 +408,10 @@ export const queryCatalog: CatalogQuery[] = [
           propertyType: schema.properties.type,
           value: schema.invariantPropertyValues.value,
           states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.invariant_property_value_id = ${schema.invariantPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
           )`,
           designSystemName: schema.designSystems.name,
           appearanceName: schema.appearances.name,
@@ -787,10 +787,10 @@ export const queryCatalog: CatalogQuery[] = [
           propertyName: schema.properties.name,
           propertyType: schema.properties.type,
           states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.variation_property_value_id = ${schema.variationPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
           )`,
           value: schema.variationPropertyValues.value,
           tokenId: schema.variationPropertyValues.tokenId,
@@ -818,8 +818,9 @@ export const queryCatalog: CatalogQuery[] = [
           ),
         )
         .where(sql`exists (
-          select 1 from property_value_states pvs
-          where pvs.variation_property_value_id = ${schema.variationPropertyValues.id}
+          select 1 from state_sets ss
+          where ss.id = ${schema.variationPropertyValues.stateSetId}
+            and cardinality(ss.state_ids) > 0
         )`);
 
       const invariantProps = await db
@@ -828,10 +829,10 @@ export const queryCatalog: CatalogQuery[] = [
           propertyName: schema.properties.name,
           propertyType: schema.properties.type,
           states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.invariant_property_value_id = ${schema.invariantPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
           )`,
           value: schema.invariantPropertyValues.value,
           tokenId: schema.invariantPropertyValues.tokenId,
@@ -858,8 +859,9 @@ export const queryCatalog: CatalogQuery[] = [
           ),
         )
         .where(sql`exists (
-          select 1 from property_value_states pvs
-          where pvs.invariant_property_value_id = ${schema.invariantPropertyValues.id}
+          select 1 from state_sets ss
+          where ss.id = ${schema.invariantPropertyValues.stateSetId}
+            and cardinality(ss.state_ids) > 0
         )`);
 
       return [...variationProps, ...invariantProps];
@@ -954,10 +956,10 @@ export const queryCatalog: CatalogQuery[] = [
           styleName: schema.styles.name,
           appearanceName: schema.appearances.name,
           states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.variation_property_value_id = ${schema.variationPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
           )`,
         })
         .from(schema.variationPropertyValues)
@@ -1296,10 +1298,10 @@ export const queryCatalog: CatalogQuery[] = [
               tokenId: schema.variationPropertyValues.tokenId,
               value: schema.variationPropertyValues.value,
               states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.variation_property_value_id = ${schema.variationPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
           )`,
               propertyName: schema.properties.name,
               styleName: schema.styles.name,
@@ -1338,10 +1340,10 @@ export const queryCatalog: CatalogQuery[] = [
               tokenId: schema.invariantPropertyValues.tokenId,
               value: schema.invariantPropertyValues.value,
               states: sql<string | null>`(
-            select string_agg(coalesce(pvs.state::text, cs.name), ',' order by coalesce(pvs.state::text, cs.name))
-            from property_value_states pvs
-            left join component_states cs on cs.id = pvs.component_state_id
-            where pvs.invariant_property_value_id = ${schema.invariantPropertyValues.id}
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
           )`,
               propertyName: schema.properties.name,
               componentName: schema.components.name,
@@ -1526,7 +1528,7 @@ export const queryCatalog: CatalogQuery[] = [
               propertyId: schema.styleCombinations.propertyId,
               appearanceId: schema.styleCombinations.appearanceId,
               value: schema.styleCombinations.value,
-              states: schema.styleCombinations.states,
+              stateSetId: schema.styleCombinations.stateSetId,
               propertyName: schema.properties.name,
               appearanceName: schema.appearances.name,
               componentName: schema.components.name,

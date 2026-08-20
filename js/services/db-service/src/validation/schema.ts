@@ -1,6 +1,6 @@
 import "../zod-extend";
 import { z } from "zod";
-import { propertyTypeEnum, stateEnum } from "../db/schema";
+import { propertyTypeEnum } from "../db/schema";
 
 const uuidSchema = z.string().uuid("Must be a valid UUID");
 
@@ -31,7 +31,10 @@ export const OperationSchema = z.enum([
   "moved",
 ]);
 export const RelationTypeSchema = z.enum(["reuse", "compose"]);
-export const StateSchema = z.enum(stateEnum.enumValues);
+// Словарь состояний живёт в таблице `states`, а не в типе БД, поэтому типизированный union
+// из него больше не выводится: множество открыто и растёт с каждым новым компонентом.
+// Состояние опознаётся идентификатором, а валидация имени — делом справочника.
+export const StateIdSchema = uuidSchema;
 export const PaletteTypeSchema = z.enum(["general", "additional"]);
 
 // Common param schemas
@@ -243,14 +246,16 @@ export const CreateVariationPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  // Канонический ключ набора состояний. Сами состояния лежат в property_value_states:
-  // значение может действовать при нескольких состояниях сразу, и колонкой это не выразить.
-  statesKey: z.string().trim().optional(),
+  // Набор состояний, при котором действует значение. Значение может действовать при
+  // нескольких состояниях сразу, и колонкой это не выразить, поэтому набор — отдельная
+  // сущность. Идентификатор берётся из POST /ds/state-sets/resolve; пустой набор —
+  // строка-сентинел, а не отсутствие ссылки.
+  stateSetId: uuidSchema,
 });
 export const UpdateVariationPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  statesKey: z.string().trim().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Invariant Property Values
@@ -261,12 +266,12 @@ export const CreateInvariantPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  statesKey: z.string().trim().optional(),
+  stateSetId: uuidSchema,
 });
 export const UpdateInvariantPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  statesKey: z.string().trim().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Documentation Pages
@@ -308,12 +313,15 @@ export const UpdateComponentReuseConfigSchema = z.object({
 export const CreateStyleCombinationSchema = z.object({
   propertyId: uuidSchema,
   appearanceId: uuidSchema,
+  combinationKey: z.string().trim().optional(),
   value: z.string().trim().min(1),
-  states: z.any().optional(),
+  // Строка сочетания несёт одно значение и один набор: переопределения по состояниям —
+  // отдельные строки, а не массив в jsonb.
+  stateSetId: uuidSchema,
 });
 export const UpdateStyleCombinationSchema = z.object({
   value: z.string().trim().min(1).optional(),
-  states: z.any().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Style Combination Members
@@ -322,42 +330,29 @@ export const CreateStyleCombinationMemberSchema = z.object({
   styleId: uuidSchema,
 });
 
-// Component States (объявляются кодом компонента, заливаются из uikit-api-meta.json)
-export const CreateComponentStateSchema = z.object({
-  componentId: uuidSchema,
+// States (словарь состояний: взаимодействия при пустом componentId, иначе объявленные
+// кодом компонента и залитые из uikit-api-meta.json)
+export const CreateStateSchema = z.object({
+  componentId: uuidSchema.nullish(),
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(1000).optional(),
 });
 
-export const UpdateComponentStateSchema = z.object({
+export const UpdateStateSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(1000).optional(),
 });
 
-// Property Value States (набор состояний значения)
+// State Sets (набор состояний)
 //
-// Связь относится ровно к одному значению и несёт ровно одно состояние: либо состояние
-// взаимодействия из enum, либо ссылку на состояние, объявленное компонентом. То же
-// проверяют CHECK-констрейнты в схеме, но здесь отказ приходит с внятным сообщением
-// и статусом 400 вместо сырой ошибки Postgres.
-export const CreatePropertyValueStateSchema = z
-  .object({
-    variationPropertyValueId: uuidSchema.optional(),
-    invariantPropertyValueId: uuidSchema.optional(),
-    state: z.enum(stateEnum.enumValues).optional(),
-    componentStateId: uuidSchema.optional(),
-  })
-  .refine(
-    (value) =>
-      Number(Boolean(value.variationPropertyValueId)) +
-        Number(Boolean(value.invariantPropertyValueId)) ===
-      1,
-    { message: "Exactly one of variationPropertyValueId or invariantPropertyValueId is required" },
-  )
-  .refine(
-    (value) => Number(Boolean(value.state)) + Number(Boolean(value.componentStateId)) === 1,
-    { message: "Exactly one of state or componentStateId is required" },
-  );
+// Единственная точка конструирования набора. Канонизацию массива, проверку того, что все
+// элементы существуют, и вычисление владельца делает триггер на таблице, поэтому здесь
+// проверяется только форма запроса. Прямая запись в `state_sets` из клиентского кода
+// запрещена: собранный на клиенте массив — это второе место, где набор считается своим
+// способом.
+export const ResolveStateSetSchema = z.object({
+  stateIds: z.array(uuidSchema).max(32),
+});
 
 // Component Style References (реляционная ссылка на стиль другого компонента — пишется импортом)
 export const CreateComponentStyleReferenceSchema = z.object({
@@ -505,15 +500,9 @@ export type CreateSavedQueryRequest = z.infer<typeof CreateSavedQuerySchema>;
 export type UpdateSavedQueryRequest = z.infer<typeof UpdateSavedQuerySchema>;
 export type CreatePaletteRequest = z.infer<typeof CreatePaletteSchema>;
 export type UpdatePaletteRequest = z.infer<typeof UpdatePaletteSchema>;
-export type CreateComponentStateRequest = z.infer<
-  typeof CreateComponentStateSchema
->;
-export type UpdateComponentStateRequest = z.infer<
-  typeof UpdateComponentStateSchema
->;
-export type CreatePropertyValueStateRequest = z.infer<
-  typeof CreatePropertyValueStateSchema
->;
+export type CreateStateRequest = z.infer<typeof CreateStateSchema>;
+export type UpdateStateRequest = z.infer<typeof UpdateStateSchema>;
+export type ResolveStateSetRequest = z.infer<typeof ResolveStateSetSchema>;
 export type CreateComponentStyleReferenceRequest = z.infer<
   typeof CreateComponentStyleReferenceSchema
 >;

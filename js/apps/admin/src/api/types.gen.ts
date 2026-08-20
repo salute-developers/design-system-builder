@@ -6503,30 +6503,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ds/component-states": {
+    "/ds/states": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List all component states */
+        /** List states, optionally filtered by component */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    componentId?: string | "null";
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description List of items */
+                /** @description States */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ComponentState"][];
+                        "application/json": components["schemas"]["State"][];
+                    };
+                };
+                /** @description Invalid filter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Server error */
@@ -6541,7 +6552,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create component state */
+        /** Create state */
         post: {
             parameters: {
                 query?: never;
@@ -6551,7 +6562,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["CreateComponentState"];
+                    "application/json": components["schemas"]["CreateState"];
                 };
             };
             responses: {
@@ -6561,7 +6572,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ComponentState"];
+                        "application/json": components["schemas"]["State"];
                     };
                 };
                 /** @description Validation error */
@@ -6590,14 +6601,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ds/component-states/{id}": {
+    "/ds/states/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get component state by ID */
+        /** Get state by ID */
         get: {
             parameters: {
                 query?: never;
@@ -6615,7 +6626,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ComponentState"];
+                        "application/json": components["schemas"]["State"];
                     };
                 };
                 /** @description Not found */
@@ -6640,7 +6651,7 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        /** Delete component state */
+        /** Delete state */
         delete: {
             parameters: {
                 query?: never;
@@ -6683,7 +6694,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** Update component state */
+        /** Update state */
         patch: {
             parameters: {
                 query?: never;
@@ -6695,7 +6706,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["UpdateComponentState"];
+                    "application/json": components["schemas"]["UpdateState"];
                 };
             };
             responses: {
@@ -6705,7 +6716,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["ComponentState"];
+                        "application/json": components["schemas"]["State"];
                     };
                 };
                 /** @description Validation error */
@@ -6739,30 +6750,45 @@ export interface paths {
         };
         trace?: never;
     };
-    "/ds/property-value-states": {
+    "/ds/states/{id}/impact": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List all property value states */
+        /** Report what deleting a state would remove */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    id: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description List of items */
+                /** @description Deletion impact */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PropertyValueState"][];
+                        "application/json": {
+                            stateSets: number;
+                            values: number;
+                            components: number;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Server error */
@@ -6777,7 +6803,124 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create property value state */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List state sets */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description State sets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateSet"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a state set */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description State set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateSet"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a list of state identifiers into a state set */
         post: {
             parameters: {
                 query?: never;
@@ -6785,22 +6928,41 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: {
+            requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["CreatePropertyValueState"];
+                    "application/json": components["schemas"]["ResolveStateSet"];
                 };
             };
             responses: {
-                /** @description Created */
+                /** @description Existing state set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerComponentId: string | null;
+                        };
+                    };
+                };
+                /** @description Created state set */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PropertyValueState"];
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerComponentId: string | null;
+                        };
                     };
                 };
-                /** @description Validation error */
+                /** @description Unknown state or states of different components */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -6820,196 +6982,6 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ds/property-value-states/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get property value state by ID */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Item */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PropertyValueState"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /** Delete property value state */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Deleted */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["OkResponse"];
-                    };
-                };
-                /** @description Not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ds/property-value-states/by-variation-value/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List states of a variation property value */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Property value states */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PropertyValueState"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ds/property-value-states/by-invariant-value/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List states of a invariant property value */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Property value states */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PropertyValueState"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8631,7 +8603,8 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            statesKey: string;
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8657,7 +8630,8 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            statesKey: string;
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8740,9 +8714,8 @@ export interface components {
             appearanceId: string;
             combinationKey: string;
             value: string;
-            states: string | number | boolean | unknown | {
-                [key: string]: unknown;
-            } | unknown[];
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8772,11 +8745,11 @@ export interface components {
              */
             updatedAt: string;
         };
-        ComponentState: {
+        State: {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            componentId: string;
+            componentId: string | null;
             name: string;
             description: string | null;
             /**
@@ -8790,17 +8763,12 @@ export interface components {
              */
             updatedAt: string;
         };
-        PropertyValueState: {
+        StateSet: {
             /** Format: uuid */
             id: string;
+            stateIds: string[];
             /** Format: uuid */
-            variationPropertyValueId: string | null;
-            /** Format: uuid */
-            invariantPropertyValueId: string | null;
-            /** @enum {string|null} */
-            state: "pressed" | "hovered" | "focused" | "selected" | "activated" | "readonly" | "disabled" | null;
-            /** Format: uuid */
-            componentStateId: string | null;
+            ownerComponentId: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9127,13 +9095,15 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            statesKey?: string;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateVariationPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            statesKey?: string;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateInvariantPropertyValue: {
             /** Format: uuid */
@@ -9147,13 +9117,15 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            statesKey?: string;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateInvariantPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            statesKey?: string;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateDocumentationPage: {
             /** Format: uuid */
@@ -9202,12 +9174,15 @@ export interface components {
             propertyId: string;
             /** Format: uuid */
             appearanceId: string;
+            combinationKey?: string;
             value: string;
-            states?: unknown;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateStyleCombination: {
             value?: string;
-            states?: unknown;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateStyleCombinationMember: {
             /** Format: uuid */
@@ -9215,25 +9190,18 @@ export interface components {
             /** Format: uuid */
             styleId: string;
         };
-        CreateComponentState: {
+        CreateState: {
             /** Format: uuid */
-            componentId: string;
+            componentId?: string | null;
             name: string;
             description?: string;
         };
-        UpdateComponentState: {
+        UpdateState: {
             name?: string;
             description?: string;
         };
-        CreatePropertyValueState: {
-            /** Format: uuid */
-            variationPropertyValueId?: string;
-            /** Format: uuid */
-            invariantPropertyValueId?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "activated" | "readonly" | "disabled";
-            /** Format: uuid */
-            componentStateId?: string;
+        ResolveStateSet: {
+            stateIds: string[];
         };
         CreateComponentStyleReference: {
             /** Format: uuid */

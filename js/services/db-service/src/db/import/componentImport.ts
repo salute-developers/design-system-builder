@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import * as schema from "../schema";
 import {
   CommonConfig,
@@ -14,7 +14,6 @@ type Tx = Parameters<Parameters<typeof import("../index").db.transaction>[0]>[0]
 const COMPONENT_STYLE = "component_style";
 
 const SUPPORTED_PROPERTY_TYPES = new Set(schema.propertyTypeEnum.enumValues as string[]);
-const SUPPORTED_STATES = new Set(schema.stateEnum.enumValues as string[]);
 
 export interface ImportRejection {
   componentName: string;
@@ -96,6 +95,8 @@ export const importComponents = async (
   const unknownStates = new Set<string>();
   const typeMismatches = new Set<string>();
   const componentStateIds = new Map<string, string>();
+  const interactionStateIds = await loadInteractionStates(tx);
+  const stateSetIds = new Map<string, string>();
   const pendingReferences: PendingReference[] = [];
 
   for (const entry of components) {
@@ -114,6 +115,8 @@ export const importComponents = async (
       unknownStates,
       typeMismatches,
       componentStateIds,
+      interactionStateIds,
+      stateSetIds,
       pendingReferences,
     });
     if (outcome === "rejected") {
@@ -136,6 +139,8 @@ export const importComponents = async (
     unknownStates,
     typeMismatches,
     componentStateIds,
+    interactionStateIds,
+    stateSetIds,
     pendingReferences,
   });
 
@@ -180,6 +185,15 @@ interface ImportContext {
   unknownProperties: Set<string>;
   /** Семантические состояния компонента: имя → id. Заполняется при импорте компонента. */
   componentStateIds: Map<string, string>;
+  /** Состояния взаимодействия: имя → id. Общие для всех компонентов, читаются один раз. */
+  interactionStateIds: Map<string, string>;
+  /**
+   * Кэш наборов в пределах импорта: канонический ключ из идентификаторов → id набора.
+   *
+   * Ключ строится из идентификаторов, а не из имён: одно и то же имя на разных компонентах
+   * означает разные состояния, и кэш по именам подменял бы их друг другом.
+   */
+  stateSetIds: Map<string, string>;
   /** Состояния, которых нет ни в enum, ни среди объявленных компонентом. */
   unknownStates: Set<string>;
   /** Свойства, чей тип в глобальном слое не встречается в конфигурациях. */
@@ -378,6 +392,70 @@ const resolveTargetStyles = async (
 };
 
 /**
+ * Загружает словарь состояний взаимодействия: они принадлежат модели ввода, а не компоненту,
+ * и потому читаются один раз на весь импорт.
+ */
+const loadInteractionStates = async (tx: Tx): Promise<Map<string, string>> => {
+  const rows = await tx
+    .select({ id: schema.states.id, name: schema.states.name })
+    .from(schema.states)
+    .where(isNull(schema.states.componentId));
+
+  return new Map(rows.map((row) => [canonical(row.name), row.id]));
+};
+
+/**
+ * Разрешает набор имён состояний в идентификатор набора.
+ *
+ * Имя компонентного состояния ищется **только** среди состояний этого компонента: имя
+ * уникально лишь внутри компонента, и запрос по одному имени вернул бы состояние чужого.
+ * Именно так рождается набор, который не может наступить, — и который теперь отвергается
+ * проверкой когерентности.
+ *
+ * Набор конструируется единственной серверной точкой — той же логикой, что стоит за
+ * `POST /ds/state-sets/resolve`: канонизацию, проверку элементов и вычисление владельца
+ * делает триггер на таблице.
+ */
+const resolveStateSet = async (
+  tx: Tx,
+  names: string[],
+  context: ImportContext,
+): Promise<string | null> => {
+  const ids: string[] = [];
+
+  for (const name of names) {
+    const key = canonical(name);
+    const id = context.interactionStateIds.get(key) ?? resolveComponentState(name, context);
+    if (!id) return null;
+    ids.push(id);
+  }
+
+  const canonicalIds = [...new Set(ids)].sort();
+  const cacheKey = canonicalIds.join(",");
+
+  const cached = context.stateSetIds.get(cacheKey);
+  if (cached) return cached;
+
+  const [existing] = await tx
+    .select({ id: schema.stateSets.id })
+    .from(schema.stateSets)
+    .where(sql`${schema.stateSets.stateIds} = ${sql.raw(`'{${canonicalIds.join(",")}}'::uuid[]`)}`);
+
+  if (existing) {
+    context.stateSetIds.set(cacheKey, existing.id);
+    return existing.id;
+  }
+
+  const [created] = await tx
+    .insert(schema.stateSets)
+    .values({ stateIds: canonicalIds })
+    .returning({ id: schema.stateSets.id });
+
+  context.stateSetIds.set(cacheKey, created.id);
+  return created.id;
+};
+
+/**
  * Загружает семантические состояния компонента в контекст импорта.
  *
  * Их объявляет код компонента: поле `stateEnum` в `uikit-api-meta.json`. Импорт их не создаёт,
@@ -391,9 +469,9 @@ const loadComponentStates = async (
   context.componentStateIds.clear();
 
   const rows = await tx
-    .select({ id: schema.componentStates.id, name: schema.componentStates.name })
-    .from(schema.componentStates)
-    .where(eq(schema.componentStates.componentId, componentId));
+    .select({ id: schema.states.id, name: schema.states.name })
+    .from(schema.states)
+    .where(eq(schema.states.componentId, componentId));
 
   for (const row of rows) {
     context.componentStateIds.set(canonical(row.name), row.id);
@@ -774,7 +852,12 @@ const writeInvariants = async (
     if (!propertyId) continue;
 
     for (const row of expandStates(property)) {
-      const key = `${propertyId}|${row.statesKey}`;
+      const stateSetId = await resolveStateSet(tx, row.states, context);
+      // Набор с неизвестным состоянием не создаётся: словарь ведёт код компонента,
+      // а не конфигурация. Диагностика уже записана в `unknownStates`.
+      if (!stateSetId) continue;
+
+      const key = `${propertyId}|${stateSetId}`;
       rows.set(key, {
         propertyId,
         designSystemId,
@@ -782,7 +865,7 @@ const writeInvariants = async (
         appearanceId,
         tokenId: resolveToken(row.token, context),
         value: row.value,
-        statesKey: row.statesKey,
+        stateSetId,
       });
       states.set(key, row.states);
       if (property.type === COMPONENT_STYLE && row.states.length === 0 && row.value) {
@@ -806,7 +889,6 @@ const writeInvariants = async (
     if (reference) {
       context.pendingReferences.push({ reference, source: { kind: "invariant", id: valueId } });
     }
-    await writeValueStates(tx, { invariantPropertyValueId: valueId }, states.get(key) ?? [], context);
   }
 };
 
@@ -847,14 +929,17 @@ const writeVariationValues = async (
 
         if (targetStyleIds.length === 0) {
           for (const row of expandStates(property)) {
-            const key = `${propertyId}|${ownStyleId}|${row.statesKey}`;
+            const stateSetId = await resolveStateSet(tx, row.states, context);
+            if (!stateSetId) continue;
+
+            const key = `${propertyId}|${ownStyleId}|${stateSetId}`;
             rows.set(key, {
               propertyId,
               styleId: ownStyleId,
               appearanceId,
               tokenId: resolveToken(row.token, context),
               value: row.value,
-              statesKey: row.statesKey,
+              stateSetId,
             });
             states.set(key, row.states);
             if (property.type === COMPONENT_STYLE && row.states.length === 0 && row.value) {
@@ -882,7 +967,6 @@ const writeVariationValues = async (
       if (reference) {
         context.pendingReferences.push({ reference, source: { kind: "variation", id: valueId } });
       }
-      await writeValueStates(tx, { variationPropertyValueId: valueId }, states.get(key) ?? [], context);
     }
   }
   for (const link of links) {
@@ -893,9 +977,9 @@ const writeVariationValues = async (
       .onConflictDoNothing();
   }
   for (const combination of combinations) {
-    const combinationId = await writeCombination(tx, { ...combination, appearanceId });
+    const combinationId = await writeCombination(tx, { ...combination, appearanceId }, context);
     const value = propertyValueToText(combination.property);
-    if (combination.property.type === COMPONENT_STYLE && value) {
+    if (combinationId && combination.property.type === COMPONENT_STYLE && value) {
       context.pendingReferences.push({
         reference: value,
         source: { kind: "combination", id: combinationId },
@@ -915,34 +999,69 @@ const writeCombination = async (
     styleIds: string[];
     property: PropertyValue;
   },
-): Promise<string> => {
+  context: ImportContext,
+): Promise<string | null> => {
   const members = [...new Set(input.styleIds)].sort();
-  const [combination] = await tx
-    .insert(schema.styleCombinations)
-    .values({
-      propertyId: input.propertyId,
-      appearanceId: input.appearanceId,
-      combinationKey: members.join(","),
-      value: propertyValueToText(input.property) ?? "",
-      states: input.property.states ?? null,
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.styleCombinations.propertyId,
-        schema.styleCombinations.appearanceId,
-        schema.styleCombinations.combinationKey,
-      ],
-      set: { value: sql`excluded.value`, states: sql`excluded.states` },
-    })
-    .returning({ id: schema.styleCombinations.id });
+  const combinationKey = members.join(",");
 
-  for (const styleId of members) {
-    await tx
-      .insert(schema.styleCombinationMembers)
-      .values({ combinationId: combination.id, styleId })
-      .onConflictDoNothing();
+  // Строка сочетания несёт одно значение и один набор. Прежде переопределения лежали
+  // массивом в jsonb — представление вне словаря и вне ссылочной целостности, из-за
+  // которого удаление состояния оставляло в базе имя несуществующего.
+  const insertRow = async (value: string, stateSetId: string): Promise<string> => {
+    const [row] = await tx
+      .insert(schema.styleCombinations)
+      .values({
+        propertyId: input.propertyId,
+        appearanceId: input.appearanceId,
+        combinationKey,
+        value,
+        stateSetId,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.styleCombinations.propertyId,
+          schema.styleCombinations.appearanceId,
+          schema.styleCombinations.combinationKey,
+          schema.styleCombinations.stateSetId,
+        ],
+        set: { value: sql`excluded.value` },
+      })
+      .returning({ id: schema.styleCombinations.id });
+
+    for (const styleId of members) {
+      await tx
+        .insert(schema.styleCombinationMembers)
+        .values({ combinationId: row.id, styleId })
+        .onConflictDoNothing();
+    }
+    return row.id;
+  };
+
+  const baseSetId = await resolveStateSet(tx, [], context);
+  if (!baseSetId) return null;
+
+  const baseId = await insertRow(propertyValueToText(input.property) ?? "", baseSetId);
+
+  for (const override of input.property.states ?? []) {
+    const names = [...override.state].sort();
+    if (names.length === 0) continue;
+
+    const stateSetId = await resolveStateSet(tx, names, context);
+    if (!stateSetId) continue;
+
+    const raw = override.value;
+    const text =
+      raw === undefined || raw === null
+        ? ""
+        : typeof raw === "string"
+          ? raw
+          : JSON.stringify(raw);
+
+    await insertRow(text, stateSetId);
   }
-  return combination.id;
+
+  // Ссылка `component_style` относится к базовому значению: возвращается его строка.
+  return baseId;
 };
 
 /**
@@ -987,8 +1106,6 @@ interface ExpandedValue {
   token: string | null;
   /** Состояния, при которых действует значение. Пустой набор — базовое значение. */
   states: string[];
-  /** Канонический ключ набора для уникального индекса. */
-  statesKey: string;
 }
 
 /**
@@ -1000,7 +1117,6 @@ const expandStates = (property: PropertyValue): ExpandedValue[] => {
       value: propertyValueToText(property),
       token: tokenNameOf(property),
       states: [],
-      statesKey: "",
     },
   ];
 
@@ -1020,41 +1136,9 @@ const expandStates = (property: PropertyValue): ExpandedValue[] => {
       value: text,
       token: tokenNameOf({ ...property, value: raw, default: undefined }),
       states,
-      statesKey: states.join(","),
     });
   }
   return rows;
-};
-
-/**
- * Записывает состояния, при которых действует значение.
- *
- * Каждое имя ложится либо в колонку состояний взаимодействия, либо в ссылку на состояние
- * компонента — в зависимости от того, входит ли оно в общий enum.
- */
-const writeValueStates = async (
-  tx: Tx,
-  source: { variationPropertyValueId?: string; invariantPropertyValueId?: string },
-  states: string[],
-  context: ImportContext,
-): Promise<void> => {
-  const rows = states
-    .map((name) => {
-      if (SUPPORTED_STATES.has(name)) {
-        return {
-          ...source,
-          state: name as (typeof schema.stateEnum.enumValues)[number],
-          componentStateId: null,
-        };
-      }
-      const componentStateId = resolveComponentState(name, context);
-      return componentStateId ? { ...source, state: null, componentStateId } : null;
-    })
-    .filter((row): row is NonNullable<typeof row> => row !== null);
-
-  if (rows.length > 0) {
-    await tx.insert(schema.propertyValueStates).values(rows);
-  }
 };
 
 const resolveToken = (name: string | null, context: ImportContext): string | null => {
@@ -1078,24 +1162,24 @@ const snapshot = async (tx: Tx, appearanceId: string): Promise<Set<ValueSignatur
       propertyId: schema.variationPropertyValues.propertyId,
       styleId: schema.variationPropertyValues.styleId,
       value: schema.variationPropertyValues.value,
-      statesKey: schema.variationPropertyValues.statesKey,
+      stateSetId: schema.variationPropertyValues.stateSetId,
     })
     .from(schema.variationPropertyValues)
     .where(eq(schema.variationPropertyValues.appearanceId, appearanceId));
   for (const row of variationRows) {
-    signatures.add(`v|${row.propertyId}|${row.styleId}|${row.value}|${row.statesKey}`);
+    signatures.add(`v|${row.propertyId}|${row.styleId}|${row.value}|${row.stateSetId}`);
   }
 
   const invariantRows = await tx
     .select({
       propertyId: schema.invariantPropertyValues.propertyId,
       value: schema.invariantPropertyValues.value,
-      statesKey: schema.invariantPropertyValues.statesKey,
+      stateSetId: schema.invariantPropertyValues.stateSetId,
     })
     .from(schema.invariantPropertyValues)
     .where(eq(schema.invariantPropertyValues.appearanceId, appearanceId));
   for (const row of invariantRows) {
-    signatures.add(`i|${row.propertyId}|${row.value}|${row.statesKey}`);
+    signatures.add(`i|${row.propertyId}|${row.value}|${row.stateSetId}`);
   }
 
   const combinationRows = await tx

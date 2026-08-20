@@ -141,14 +141,14 @@ const StyleCombinationMemberSchema = registry.register(
   createSelectSchema(tables.styleCombinationMembers, ts).openapi("StyleCombinationMember"),
 );
 
-const ComponentStateSchema = registry.register(
-  "ComponentState",
-  createSelectSchema(tables.componentStates, ts).openapi("ComponentState"),
+const StateSchema = registry.register(
+  "State",
+  createSelectSchema(tables.states, ts).openapi("State"),
 );
 
-const PropertyValueStateSchema = registry.register(
-  "PropertyValueState",
-  createSelectSchema(tables.propertyValueStates, ts).openapi("PropertyValueState"),
+const StateSetSchema = registry.register(
+  "StateSet",
+  createSelectSchema(tables.stateSets, ts).openapi("StateSet"),
 );
 
 const ComponentStyleReferenceSchema = registry.register(
@@ -220,9 +220,9 @@ const schemas = {
   CreateStyleCombination: registry.register("CreateStyleCombination", s.CreateStyleCombinationSchema.openapi("CreateStyleCombination")),
   UpdateStyleCombination: registry.register("UpdateStyleCombination", s.UpdateStyleCombinationSchema.openapi("UpdateStyleCombination")),
   CreateStyleCombinationMember: registry.register("CreateStyleCombinationMember", s.CreateStyleCombinationMemberSchema.openapi("CreateStyleCombinationMember")),
-  CreateComponentState: registry.register("CreateComponentState", s.CreateComponentStateSchema.openapi("CreateComponentState")),
-  UpdateComponentState: registry.register("UpdateComponentState", s.UpdateComponentStateSchema.openapi("UpdateComponentState")),
-  CreatePropertyValueState: registry.register("CreatePropertyValueState", s.CreatePropertyValueStateSchema.openapi("CreatePropertyValueState")),
+  CreateState: registry.register("CreateState", s.CreateStateSchema.openapi("CreateState")),
+  UpdateState: registry.register("UpdateState", s.UpdateStateSchema.openapi("UpdateState")),
+  ResolveStateSet: registry.register("ResolveStateSet", s.ResolveStateSetSchema.openapi("ResolveStateSet")),
   CreateComponentStyleReference: registry.register("CreateComponentStyleReference", s.CreateComponentStyleReferenceSchema.openapi("CreateComponentStyleReference")),
   CreateComponentStyleReferenceStyle: registry.register("CreateComponentStyleReferenceStyle", s.CreateComponentStyleReferenceStyleSchema.openapi("CreateComponentStyleReferenceStyle")),
   CreateDesignSystemChange: registry.register("CreateDesignSystemChange", s.CreateDesignSystemChangeSchema.openapi("CreateDesignSystemChange")),
@@ -657,30 +657,104 @@ registry.registerPath({
 
 registerCrud(`${DS_PREFIX}/style-combination-members`, "Style Combination Members", StyleCombinationMemberSchema, schemas.CreateStyleCombinationMember);
 
-// Остальные три таблицы (property_value_states, component_style_references,
-// component_style_reference_styles) CRUD-маршрутов не имеют: их пишет импорт,
-// поэтому в spec.ts они присутствуют только схемами ответа.
-registerCrud(`${DS_PREFIX}/component-states`, "Component States", ComponentStateSchema, schemas.CreateComponentState, schemas.UpdateComponentState);
-registerCrud(`${DS_PREFIX}/property-value-states`, "Property Value States", PropertyValueStateSchema, schemas.CreatePropertyValueState);
+// Остальные две таблицы (component_style_references, component_style_reference_styles)
+// CRUD-маршрутов не имеют: их пишет импорт, поэтому в spec.ts они присутствуют только
+// схемами ответа.
+registerCrud(`${DS_PREFIX}/states`, "States", StateSchema, schemas.CreateState, schemas.UpdateState);
 
-// Выборка связей по значению: нужна копированию дизайн-системы, которое переносит
-// значение вместе с набором состояний.
-for (const [suffix, description] of [
-  ["by-variation-value", "variation property value"],
-  ["by-invariant-value", "invariant property value"],
-] as const) {
-  registry.registerPath({
-    method: "get",
-    path: `${DS_PREFIX}/property-value-states/${suffix}/{id}`,
-    tags: ["Property Value States"],
-    summary: `List states of a ${description}`,
-    request: { params: z.object({ id: z.string().uuid() }) },
-    responses: {
-      200: { description: "Property value states", ...json(z.array(PropertyValueStateSchema)) },
-      500: { description: "Server error", ...json(ErrorResponseSchema) },
+// Список словаря принимает фильтр по компоненту. `componentId=null` отбирает состояния
+// взаимодействия: они не принадлежат компоненту, и по идентификатору их не выбрать.
+// registerCrud query-параметров не описывает, поэтому путь дополняется отдельно.
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/states`,
+  tags: ["States"],
+  summary: "List states, optionally filtered by component",
+  request: {
+    query: z.object({
+      componentId: z
+        .union([z.string().uuid(), z.literal("null")])
+        .optional()
+        .openapi({ example: "null" }),
+    }),
+  },
+  responses: {
+    200: { description: "States", ...json(z.array(StateSchema)) },
+    400: { description: "Invalid filter", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+// Предпросмотр удаления состояния. Наборы разделяются между значениями, поэтому удаление
+// одного состояния стоит сотен значений в десятках компонентов; цена должна быть видна
+// до нажатия, а не после.
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/states/{id}/impact`,
+  tags: ["States"],
+  summary: "Report what deleting a state would remove",
+  request: { params: z.object({ id: z.string().uuid() }) },
+  responses: {
+    200: {
+      description: "Deletion impact",
+      ...json(
+        z.object({
+          stateSets: z.number().int(),
+          values: z.number().int(),
+          components: z.number().int(),
+        }),
+      ),
     },
-  });
-}
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+// Наборы состояний: чтение плюс единственная точка конструирования. Прямого CRUD у них нет
+// намеренно — набор заводится только через resolve.
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/state-sets`,
+  tags: ["State Sets"],
+  summary: "List state sets",
+  responses: {
+    200: { description: "State sets", ...json(z.array(StateSetSchema)) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/state-sets/{id}`,
+  tags: ["State Sets"],
+  summary: "Get a state set",
+  request: { params: z.object({ id: z.string().uuid() }) },
+  responses: {
+    200: { description: "State set", ...json(StateSetSchema) },
+    404: { description: "Not found", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: `${DS_PREFIX}/state-sets/resolve`,
+  tags: ["State Sets"],
+  summary: "Resolve a list of state identifiers into a state set",
+  request: { body: json(schemas.ResolveStateSet) },
+  responses: {
+    200: {
+      description: "Existing state set",
+      ...json(z.object({ id: z.string().uuid(), ownerComponentId: z.string().uuid().nullable() })),
+    },
+    201: {
+      description: "Created state set",
+      ...json(z.object({ id: z.string().uuid(), ownerComponentId: z.string().uuid().nullable() })),
+    },
+    400: { description: "Unknown state or states of different components", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
 
 // Design System Changes (audit log -- no update/delete)
 registry.registerPath({

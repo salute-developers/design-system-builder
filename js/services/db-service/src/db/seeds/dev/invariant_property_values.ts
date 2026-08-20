@@ -1,4 +1,5 @@
 import * as schema from '../../schema';
+import { makeStateSetResolver } from '../state-sets';
 
 // Invariant property values: per (design_system, component, property, appearance).
 export async function seedInvariantPropertyValues(
@@ -52,24 +53,19 @@ export async function seedInvariantPropertyValues(
     { propertyId: p.btn_disabledAlpha.id, designSystemId: plasma.id, componentId: button.id, appearanceId: a.plasma_btn_default.id, value: '0.4', state: null },
   ];
 
-  // Состояние переехало из колонки в property_value_states; в таблице значений
-  // остаётся канонический ключ набора. У сида набор всегда из одного состояния.
+  // Состояние стало ссылкой на набор. У сида набор всегда из одного состояния
+  // взаимодействия либо пуст: состояния компонента заводит заливка api-meta.
+  const resolveStateSet = makeStateSetResolver(db);
+  const values = [];
+  for (const { state, ...rest } of rows) {
+    values.push({ ...rest, stateSetId: await resolveStateSet(state) });
+  }
+
   const inserted = await db
     .insert(schema.invariantPropertyValues)
-    .values(rows.map(({ state, ...rest }) => ({ ...rest, statesKey: state ?? '' })))
+    .values(values)
     .returning();
 
-  const stateLinks = inserted
-    .map((value: { id: string }, index: number) => ({ value, state: rows[index].state }))
-    .filter((entry: { state?: string | null }) => Boolean(entry.state))
-    .map((entry: { value: { id: string }; state: string }) => ({
-      invariantPropertyValueId: entry.value.id,
-      state: entry.state,
-    }));
-
-  if (stateLinks.length > 0) {
-    await db.insert(schema.propertyValueStates).values(stateLinks);
-  }
   console.log(`  invariant_property_values: ${inserted.length} rows`);
   return inserted;
 }
