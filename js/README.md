@@ -351,7 +351,7 @@ Skills for keeping the registry's generated artifacts in sync with the schema an
 
 GitHub Actions in [.github/workflows/](.github/workflows/) build the two frontend apps and sync them to S3:
 
-- [design-system-builder.yml](.github/workflows/design-system-builder.yml) — runs on `master`, builds `apps/client` and `apps/admin` and uploads the dists to the production S3 bucket.
+- [deploy-front-apps-prom.yml](../.github/workflows/deploy-front-apps-prom.yml) — runs on `master`, builds `apps/client` and `apps/admin` and uploads the dists to the production S3 bucket.
 - [design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same flow for pull requests.
 
 Backend services (`db-service`, `generator`, `publisher`, `documentation-generator`) are deployed separately from this repo's CI.

@@ -18,7 +18,7 @@
     "build:documentation-generator": "cd services/documentation-generator && npm run build",
     "build:client": "cd apps/client && npm run build",
     "build:admin": "cd apps/admin && npm run build",
-    "prepare": "husky"
+    "prepare": "cd .. && husky js/.husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",

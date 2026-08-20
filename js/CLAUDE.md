@@ -61,7 +61,7 @@ These were deleted intentionally. If you see stale references to them in code/do
 - NL-query backend endpoint `/api/nl-query` is still used by `QueriesPage` (`NLQueryContent`) — don't remove the backend route.
 
 ### CI / deployment
-- [.github/workflows/design-system-builder.yml](.github/workflows/design-system-builder.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
+- [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
 - [.github/workflows/design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same for PRs.
 - **Backend services are NOT deployed from this repo.** `db-service`, `generator`, `publisher`, `documentation-generator` have their own deployment elsewhere.
 
