@@ -1,0 +1,125 @@
+openapi: 3.0.3
+info:
+  title: Identity Gateway API
+  version: 1.0.0
+  description: |
+    Internal authentication helper for gateway authorization checks.
+servers:
+  - url: /
+tags:
+  - name: Health
+  - name: Auth
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      responses:
+        '200':
+          description: Service is healthy
+  /internal/auth/user:
+    get:
+      tags: [Auth]
+      summary: Authorize a user-scoped request
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      responses:
+        '204':
+          description: Request is allowed
+          headers:
+            X-User-Id:
+              $ref: '#/components/headers/XUserId'
+            X-System-Admin:
+              schema:
+                type: string
+                example: "true"
+        '401':
+          description: Missing or invalid identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+  /internal/auth/projects/{projectId}:
+    get:
+      tags: [Auth]
+      summary: Authorize a project-scoped request
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Request is allowed
+          headers:
+            X-User-Id:
+              $ref: '#/components/headers/XUserId'
+            X-System-Admin:
+              schema:
+                type: string
+                example: "false"
+            X-Project-Id:
+              schema:
+                type: string
+                example: project-123
+            X-Actor-Type:
+              schema:
+                type: string
+                example: USER
+            X-Project-Key-Id:
+              schema:
+                type: string
+                example: key-123
+            X-Project-Scopes:
+              schema:
+                type: string
+                example: projects:read,projects:write
+        '400':
+          description: Missing project id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '401':
+          description: Missing or invalid identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '403':
+          description: Access denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+components:
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+      example: Bearer eyJhbGciOi...
+  headers:
+    XUserId:
+      description: Trusted user identifier propagated by the gateway
+      schema:
+        type: string
+        example: user-123
+  schemas:
+    AuthErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Missing project id

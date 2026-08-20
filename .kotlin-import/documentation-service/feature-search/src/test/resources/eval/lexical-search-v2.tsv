@@ -1,0 +1,14 @@
+# profile=lexical-v2 recallAt5=1.0 mrr=1.0
+# id	category	query	expectedId	topK	beforeRank
+exact-reference	exact	Avatar.Xxl	binding-avatar-xxl	1	1
+normalized-qualified	normalized	com.sdds.AvatarStyles	binding-avatar-styles	5	1
+prefix	prefix	Avatar.St	binding-avatar-styles	5	2
+punctuation	punctuation	size-72	binding-size-72	5	0
+russian-morphology	russian-morphology	состоянием кнопки	kb-button-state	5	0
+english-morphology	english-morphology	buttons disabled	kb-button-state-en	5	0
+mixed-identifier	mixed	кнопка AvatarStyles	kb-avatar-styles	5	0
+camel-code	technical	AiInputStyle.mode	kb-ai-input	5	0
+component-document	title-affinity	Button	kb-basic-button	1	0
+typo	typo	AvatrStyles	binding-avatar-styles	5	0
+negative-short	negative	Av	-	5	0
+negative-noise	negative	unrelated-zebra	-	5	0

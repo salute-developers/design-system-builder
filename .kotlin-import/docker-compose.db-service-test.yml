@@ -1,0 +1,8 @@
+services:
+  db-service:
+    image: mendhak/http-https-echo:31
+    restart: unless-stopped
+    environment:
+      HTTP_PORT: 3008
+    ports:
+      - "127.0.0.1:${DB_SERVICE_PUBLIC_PORT:-3008}:3008"

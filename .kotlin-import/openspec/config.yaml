@@ -1,0 +1,118 @@
+schema: spec-driven
+
+context: |
+  Project: design-system-builder-kt is a Kotlin/Gradle mono-repo for DS Builder microservices.
+  DS Builder is a design-system builder. Product concepts include design tokens, themes, components,
+  versions, publication artifacts, build/publish pipelines, repository integrations, and package
+  registry integrations.
+
+  Repository structure:
+  - identity-gateway/ is the authentication and authorization edge service.
+  - identity-gateway/app contains the Auth Helper Ktor application, configuration, DI, and Docker files.
+  - identity-gateway/feature-auth contains JWT validation, user-scoped auth, project-scoped auth,
+    integration with Projects Service, and trusted-header generation.
+  - identity-gateway/gateway contains nginx configuration for the public gateway entrypoint.
+  - projects-service/ is the project-management microservice.
+  - projects-service/app contains the Ktor application, configuration, DI bootstrap, and Docker files.
+  - projects-service/feature-projects contains project and member management split into presentation,
+    application, domain, data, and di packages.
+  - projects-service/core contains shared infrastructure for the service.
+  - project-publisher/ is the current publishing microservice.
+  - project-publisher/app contains the Ktor application, configuration, DI, HTTP/WebSocket routing,
+    and runtime/Docker files.
+  - project-publisher/feature-publish contains the publish feature split into presentation,
+    application, domain, data, and di packages.
+  - project-publisher/core contains shared infrastructure for the service.
+  - build-system/ is an included composite build with Gradle convention plugins, Detekt/Spotless
+    configuration, and custom Detekt rules.
+  - gradle/libs.versions.toml is the shared version catalog.
+
+  Tech stack:
+  - Kotlin 2.2.x on the JVM, Gradle Kotlin DSL, composite builds.
+  - Ktor 3.3.x for HTTP/WebSocket services and kotlinx.serialization for JSON.
+  - Koin 4.1.x for dependency injection.
+  - Exposed 1.0.0-rc and PostgreSQL JDBC for persistence.
+  - Logback for logging.
+  - kotlin.test/JUnit and Ktor test host for tests.
+  - Detekt and Spotless/ktlint are configured by build-system conventions.
+
+  Architecture conventions:
+  - Preserve boundaries: presentation -> application -> domain. Infrastructure implementations live
+    in data, and dependency wiring lives in di.
+  - Do not leak Ktor, Exposed, Docker, concrete database APIs, or external SDK types into domain or
+    application unless there is an explicit architectural reason.
+  - Express new business behavior first as domain models, use cases, and application port interfaces.
+    Add data/presentation implementations separately.
+  - Prefer explicit DTO/request/response models at API boundaries. Do not serialize domain entities
+    or persistence entities directly.
+  - Keep package names under com.dsbuilder.
+  - For new microservices, follow the existing service shape: separate included build or modular
+    structure with app and feature-* modules, adding core only when shared infrastructure actually
+    appears.
+  - Before large Gradle or static-analysis changes, inspect build-system conventions.
+
+  Development conventions:
+  - Use existing Gradle convention plugins where possible: convention.core-module,
+    convention.feature-module, convention.root-project, convention.detekt, and convention.spotless.
+  - Keep formatting/static analysis compatible with build-system. Spotless uses spaces, trims
+    trailing whitespace, requires final newlines, and ktlint max_line_length is 120.
+  - Add tests next to changed logic, especially for use cases, mappers, repositories, and local
+    sources.
+  - Write KDoc for public classes, functions, and properties in Russian. Keep identifiers, endpoint
+    paths, config keys, and established technical terms in English where needed.
+  - Configuration should come from environment variables or application config. Never commit secrets,
+    local tokens, real credentials, or private URLs.
+  - Root build command: ./gradlew build.
+  - identity-gateway build command: cd identity-gateway && ./gradlew build.
+  - identity-gateway local run command: ./start-local.sh --detach.
+  - projects-service build command: cd projects-service && ./gradlew build.
+  - projects-service local run command: ./start-local.sh --detach.
+  - project-publisher build command: cd project-publisher && ./gradlew build.
+  - project-publisher run command: cd project-publisher && ./gradlew :app:run.
+  - build-system verification command after convention or Detekt-rule changes:
+    cd build-system && ./gradlew build.
+  - For every new production microservice, proposals/tasks must call out Dockerfile,
+  docker-compose/local runtime configuration, ports, env variables, and healthcheck.
+  - Include verification tasks for relevant Gradle build, detekt, spotlessCheck, and tests.
+  - If spotlessCheck fails only for changed files, run spotlessApply for the affected build and re-run checks.
+
+rules:
+  proposal:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Keep proposals concise and product-oriented. Explain why the change matters for DS Builder.
+    - List new or modified capabilities explicitly, using kebab-case capability names.
+    - Call out affected services, modules, APIs, persistence, configuration, and dependencies.
+  design:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Describe architecture and trade-offs, not line-by-line implementation.
+    - Include boundary decisions for presentation, application, domain, data, and di.
+    - Mention alternatives considered when introducing a new service, module, dependency, persistence
+      model, or security-sensitive behavior.
+  specs:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Requirements must be testable and written with SHALL/MUST language.
+    - Each requirement must include at least one four-hash Scenario section.
+    - Specify API boundary behavior through DTO/request/response contracts, not domain entities.
+  tasks:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - 'Use parseable checkbox tasks only: "- [ ] X.Y Task description".'
+    - Order tasks by implementation dependency, from scaffold/configuration through domain,
+      application, data, presentation, tests, and verification.
+    - Include focused tests for use cases, mappers, repositories/local sources, and Ktor routes when
+      those areas are touched.

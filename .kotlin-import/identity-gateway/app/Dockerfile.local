@@ -1,0 +1,8 @@
+FROM eclipse-temurin:17-jre-jammy
+
+EXPOSE 8091
+
+RUN mkdir /app
+COPY ./build/libs/*-all.jar /app/auth-helper.jar
+
+ENTRYPOINT ["java", "-jar", "/app/auth-helper.jar"]
