@@ -15,6 +15,11 @@
   },
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=22 <23",
+    "npm": ">=10 <11"
+  },
+  "packageManager": "npm@10.9.3",
   "dependencies": {
     "@fastify/cors": "8.5.0",
     "fastify": "^4.29.1"
