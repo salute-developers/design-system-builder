@@ -42,6 +42,39 @@ case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *)
         echo "Add $BIN_DIR to PATH to run dsbuilder from any directory."
-        echo "For zsh, run: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.zshrc && source ~/.zshrc"
+        SHELL_NAME=$(basename "${SHELL:-/bin/bash}")
+        case "$SHELL_NAME" in
+            zsh)
+                CONFIG_FILE="$HOME/.zshrc"
+                echo "Adding $BIN_DIR to PATH in $CONFIG_FILE ..."
+                if ! grep -q "$BIN_DIR" "$CONFIG_FILE" 2>/dev/null; then
+                    echo '' >> "$CONFIG_FILE"
+                    echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$CONFIG_FILE"
+                else
+                    echo "$BIN_DIR is already in $CONFIG_FILE, skipping."
+                fi
+                echo "Then run: source $CONFIG_FILE"
+                ;;
+            bash)
+                # bash reads ~/.bashrc for interactive shells, ~/.bash_profile for login shells
+                CONFIG_FILE="$HOME/.bashrc"
+                if [ ! -f "$CONFIG_FILE" ] && [ -f "$HOME/.bash_profile" ]; then
+                    CONFIG_FILE="$HOME/.bash_profile"
+                fi
+                echo "Adding $BIN_DIR to PATH in $CONFIG_FILE ..."
+                if ! grep -q "$BIN_DIR" "$CONFIG_FILE" 2>/dev/null; then
+                    echo '' >> "$CONFIG_FILE"
+                    echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$CONFIG_FILE"
+                else
+                    echo "$BIN_DIR is already in $CONFIG_FILE, skipping."
+                fi
+                echo "Then run: source $CONFIG_FILE"
+                ;;
+            *)
+                echo "Your shell ($SHELL_NAME) is not automatically detected."
+                echo "Add the following line to your shell config (~/.bashrc, ~/.zshrc, etc.):"
+                echo "export PATH=\"$BIN_DIR:\$PATH\""
+                ;;
+        esac
         ;;
 esac

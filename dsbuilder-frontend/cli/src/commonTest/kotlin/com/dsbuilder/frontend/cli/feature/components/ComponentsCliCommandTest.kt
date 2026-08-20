@@ -138,10 +138,14 @@ private class RecordingFileSystem : CliFileSystem {
 
     override fun resolve(parent: String, child: String): String = "${parent.trimEnd('/')}/$child"
 
+    override fun absolutePath(path: String): String = path
+
     override fun exists(path: String): Boolean {
         reads += path
         return false
     }
+
+    override fun isDirectory(path: String): Boolean = false
 
     override fun createDirectories(path: String) = Unit
 
@@ -152,7 +156,16 @@ private class RecordingFileSystem : CliFileSystem {
         return ""
     }
 
+    override fun readBytes(path: String): ByteArray {
+        reads += path
+        return byteArrayOf()
+    }
+
     override fun writeText(path: String, text: String) = Unit
+
+    override fun writeBytes(path: String, bytes: ByteArray) = Unit
+
+    override fun sink(path: String): okio.BufferedSink = okio.Buffer()
 
     override fun deleteFile(path: String) = Unit
 }

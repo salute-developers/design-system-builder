@@ -5,7 +5,7 @@ description: ADR по сервису документации DS Builder
 # ADR-0002: Документация
 
 ## Статус
-* На ревью.
+* Принято.
 
 ## Контекст
 
@@ -91,14 +91,21 @@ api/
 - нормализовать `docs.json`, markdown-контент, info-артефакты и assets во внутреннюю модель;
 - подготовить страницы документации для отображения людям;
 - построить фрагменты для поиска и агентов;
-- построить полнотекстовый и векторный индексы;
+- построить полнотекстовые и структурированные lexical-индексы;
 - опубликовать базу знаний для конкретной дизайн-системы, версии и платформы.
+
+Границы MVP:
+- вся документация является private и доступна только через project-scoped авторизацию;
+- поиск является lexical-only: PostgreSQL FTS, exact/prefix/trigram structured lookup и deterministic rank fusion;
+- embeddings, vector search, `pgvector`, LLM reranking и public visibility не реализуются;
+- `CodeBinding` поддерживает kinds `component-style` и `token` для платформ `compose`, `android-view` и `swiftui`;
+- Web/React и UIKit `CodeBinding` adapters не входят в MVP.
 
 #### Верхнеуровневая архитектура
 Сервис документации хранит и обрабатывает данные в трех слоях:
 - исходный слой - загруженный пакет документации и файлы из архива;
 - нормализованный слой - навигация, страницы, ссылки на контент, assets и машинно-собираемые артефакты;
-- слой поиска - фрагменты документации, термины точного поиска, полнотекстовый индекс, embeddings и опубликованные ресурсы
+- слой поиска - фрагменты документации, термины точного поиска, полнотекстовые индексы и опубликованные ресурсы
   базы знаний.
 
 ```mermaid
@@ -114,11 +121,8 @@ flowchart TD
     Pages --> Chunking["Разбиение на фрагменты"]
     Chunking --> Chunks["Фрагменты документации"]
     Structured --> LookupTerms["structured_lookup_terms"]
-    Chunks --> TextIndex["Полнотекстовый индекс"]
-    Chunks --> Embeddings["Embeddings"]
-    Embeddings --> VectorIndex["Векторный индекс"]
+    Chunks --> TextIndex["Technical, Russian и English FTS"]
     TextIndex --> KB["Опубликованная база знаний"]
-    VectorIndex --> KB
     LookupTerms --> KB
     Pages --> KB
     Structured --> KB
@@ -139,7 +143,7 @@ flowchart LR
         Agents["Агенты"]
     end
 
-    Gateway["identity-gateway\nauth, RBAC, public routes"]
+    Gateway["identity-gateway\nauth, project-scoped RBAC"]
 
     subgraph DocumentationService["documentation service"]
         Api["Documentation API\nKtor REST"]
@@ -147,9 +151,8 @@ flowchart LR
         Scheduler["Job Scheduler\nочередь задач обработки"]
     end
 
-    Postgres[("PostgreSQL\nпубликации, навигация,\nCodeBinding, lookup terms,\nFTS, pgvector")]
+    Postgres[("PostgreSQL\nпубликации, навигация,\nCodeBinding, lookup terms, FTS")]
     ObjectStorage[("S3-compatible storage\nraw bundle, content,\nassets, source JSON")]
-    EmbeddingProvider["Embedding Provider\nвнешний или внутренний"]
 
     Portal --> Gateway
     Builder --> Gateway
@@ -165,7 +168,6 @@ flowchart LR
     Scheduler --> Worker
     Worker --> Postgres
     Worker --> ObjectStorage
-    Worker --> EmbeddingProvider
 ```
 
 `Documentation API` обслуживает синхронные REST API: загрузку bundle, получение статуса задачи, чтение публикации,
@@ -174,25 +176,21 @@ HTTP-запросе: после приемочной валидации API со
 
 `Ingestion Worker` выполняет тяжелые шаги пайплайна: глубокую валидацию, нормализацию, разбор `components-info` и
 `theme-info`,
-построение `CodeBinding`, `structured_lookup_terms`, markdown-фрагментов, полнотекстовых индексов и embeddings. На первом
+построение `CodeBinding`, `structured_lookup_terms`, markdown-фрагментов и полнотекстовых индексов. На первом
 этапе worker может быть частью того же deployable-сервиса, что и REST API, но архитектурно это отдельный runtime-компонент:
 его можно масштабировать, перезапускать и ограничивать по ресурсам независимо от read API.
 
 `Job Scheduler` может быть реализован как таблица задач в PostgreSQL с блокировками и статусами или как отдельная очередь.
 Для первого этапа достаточно PostgreSQL-backed очереди, потому что она проще в эксплуатации и хорошо сочетается с
-атомарной публикацией. Если появятся большие bundle, высокий параллелизм или долгие embedding-задачи, очередь можно
+атомарной публикацией. Если появятся большие bundle или высокий параллелизм, очередь можно
 заменить на отдельный брокер без изменения публичного REST API.
 
 `PostgreSQL` является основной базой сервиса. В ней хранятся публикации, статусы задач, дерево навигации, страницы,
-метаданные файлов, разобранные info-артефакты, `CodeBinding`, `structured_lookup_terms`, полнотекстовые
-индексы и embeddings через `pgvector` на первом этапе.
+метаданные файлов, разобранные info-артефакты, `CodeBinding`, `structured_lookup_terms` и полнотекстовые индексы.
 
 `S3-compatible storage` или эквивалентное объектное/файловое хранилище хранит большие и неизменяемые файлы: исходный
 архив bundle, распакованные markdown/content-файлы, assets, скриншоты, примеры и исходные API/info JSON. В PostgreSQL
 хранятся ссылки, контрольные суммы, размеры и метаданные этих файлов.
-
-`Embedding Provider` является заменяемой зависимостью. Доменная модель сервиса не должна зависеть от конкретного
-поставщика embeddings; выбранная модель, версия и размерность сохраняются в метаданных embeddings.
 
 #### Модель хранения
 Сервис документации должен разделять хранение больших файлов, нормализованных метаданных и поисковых индексов.
@@ -213,7 +211,7 @@ flowchart LR
 
     FileStore --> FileStoreData["исходный архив\ncontent-файлы\nassets\nисходные API/info JSON"]
     MainDb --> MainDbData["задачи обработки\nнавигация и страницы\nссылки на файлы\nразобранные артефакты\nCodeBinding"]
-    SearchStore --> SearchStoreData["documentation_chunks\nstructured_lookup_terms\nполнотекстовый индекс\nвекторный индекс"]
+    SearchStore --> SearchStoreData["knowledge_chunks\nstructured_lookup_terms\ntechnical/Russian/English FTS"]
 
     ReadApi["REST API чтения"] --> Pointer
     ReadApi --> MainDb
@@ -238,12 +236,11 @@ flowchart LR
 - разобранная модель - для точных запросов по `CodeBinding` и терминам точного поиска.
 
 Слой поиска логически отделен от нормализованного слоя: он состоит из markdown-фрагментов, терминов точного поиска,
-полнотекстовых индексов, векторных индексов и метаданных подбора контекста. На первом этапе этот слой физически
-реализуется в PostgreSQL через отдельные таблицы, PostgreSQL Full Text Search, trigram/keyword индексы и `pgvector`.
+трёх полнотекстовых проекций и метаданных подбора контекста. В MVP этот слой физически реализуется в PostgreSQL через
+отдельные таблицы, PostgreSQL Full Text Search и btree/trigram индексы.
 Архитектурно важно, что слой поиска является
 производным: его можно перестроить из нормализованной публикации без повторной загрузки пакета. Если объем данных или
-нагрузка вырастут, реализация `SearchIndex`/`RetrievalIndex` может быть вынесена в OpenSearch/Elasticsearch или отдельное
-vector-хранилище без изменения публичного REST API.
+нагрузка вырастут, реализация `DocumentationSearchIndex` может быть вынесена в OpenSearch/Elasticsearch без изменения REST API.
 
 Опубликованная база знаний должна обновляться атомарно: клиенты либо видят предыдущую опубликованную публикацию, либо
 новую полностью построенную публикацию. Промежуточное состояние задачи обработки не должно становиться доступным через
@@ -283,10 +280,8 @@ flowchart LR
 
     subgraph KnowledgeBase["База знаний и поиск"]
         Chunk["KnowledgeChunk\nфрагмент документации"]
-        Embedding["Embedding\nвектор фрагмента"]
         Resource["KnowledgeResource\nkbUrl для поиска и получения ресурса"]
 
-        Chunk --> Embedding
         Chunk --> Resource
     end
 
@@ -304,7 +299,7 @@ flowchart LR
 
 `DocumentationPublication` - опубликованная или подготавливаемая версия документации для конкретной дизайн-системы,
 версии и платформы. Хранит статус публикации, ссылку на исходный пакет, время публикации, схему данных, версию модели
-embeddings и признаки актуальности для клиентов.
+и признаки актуальности для клиентов.
 
 `NavigationNode` - узел итогового дерева документации. Может быть группой, категорией или страницей. Хранит заголовок,
 порядок, родителя, `subjects`, признак скрытия и, для страницы, ссылку на `DocumentationPage`.
@@ -332,12 +327,9 @@ API.
 `platform`, `subject`, `codeBindingId`, исходный термин, нормализованный термин, тип термина и вес. Строится
 детерминированно адаптером из `CodeBinding`.
 
-`KnowledgeChunk` - фрагмент человекочитаемой документации для полнотекстового поиска, выдачи агентам и построения
-embeddings. Строится из markdown-секции. Хранит подготовленный для поиска текст, заголовки, `path`, `subjects`, ссылку
+`KnowledgeChunk` - фрагмент человекочитаемой документации для полнотекстового поиска и выдачи агентам. Строится из
+markdown-секции. Хранит подготовленный для поиска текст, заголовки, `path`, `subjects`, ссылку
 на исходную страницу и технические метаданные разбиения.
-
-`Embedding` - векторное представление `KnowledgeChunk`. Хранит ссылку на фрагмент, модель embeddings, размерность, версию
-модели и ссылку на запись в векторном индексе, если вектор хранится вне основной базы.
 
 `KnowledgeResource` - опубликованный ресурс базы знаний, доступный через `kbUrl`. Обычно соответствует `KnowledgeChunk`
 и используется в сценарии `search -> fetch`. Это сервисная модель документации, а не MCP resource из
@@ -354,9 +346,17 @@ embeddings. Строится из markdown-секции. Хранит подго
 - `theme-info` - информация о сгенерированных токенах, теме и references.
 
 Конкретная JSON-схема таких артефактов зависит от платформы. Имена файлов внутри bundle могут оставаться
-платформенно-нейтральными, например `components-info.json` и `theme-info.json`; принадлежность к Compose, Android View,
-iOS или Web определяется через `platform` и `artifacts.format`. Сервис документации выбирает адаптер разбора по этим
+платформенно-нейтральными, например `components-info.json` и `theme-info.json`; принадлежность определяется через
+`platform` и `artifacts.format`. Сервис документации выбирает адаптер разбора по этим
 полям, а не по суффиксу имени файла.
+
+В MVP `CodeBinding` строится только для следующих canonical platform identifiers:
+- Android Compose — `compose`;
+- Android XML/View — `android-view`;
+- SwiftUI — `swiftui`.
+
+Web/React, UIKit и design-платформы могут публиковать человекочитаемую документацию, но adapters их info-артефактов и
+`CodeBinding` для них в MVP отсутствуют.
 
 Разбор info-артефактов выполняется в три слоя:
 
@@ -371,25 +371,22 @@ iOS или Web определяется через `platform` и `artifacts.form
 types. `CodeBinding` является общей проекцией поверх платформенной модели и отвечает на вопрос: как сущность или значение
 дизайн-системы использовать в коде этой платформы.
 
-Общая часть `CodeBinding` должна быть платформенно-нейтральной:
+REST-контракт `CodeBinding`, реализованный в коде, является приоритетным и полным для MVP:
+- `id` - идентификатор binding;
 - `subject` - связь с сущностью документации или дизайн-системы;
 - `platform` - платформа, для которой построена связь;
-- `kind` - тип связи, например `component-style`, `variation`, `token`, `theme`;
+- `kind` - закрытый MVP-набор: `component-style` или `token`;
 - `name` - имя сущности или значения;
-- `sourceArtifact` - исходный info-артефакт;
-- `params` - связь параметров и вариаций из модели дизайн-системы с их именами и references в коде;
-- остальные поля зависят от `platform` и `artifacts.format`: например, для Compose это может быть `styleApi` или
-  `themeToken`, для других платформ - свои поля.
+- `platformPayload` - полный JSON payload поддержанной платформы; для компонента он содержит `key`, `coreName` и
+  `styles`, для токена - type/name/value layers и references.
 
-Поле `params` является общей частью контракта. Оно связывает имя параметра и значение вариации из DS Builder с тем, как
-это значение называется в коде конкретной платформы. Например, для Compose значение `size-72` может иметь `codeName`
-`Size72` и reference `Avatar.Size72`.
+Этот контракт считается полным для MVP. Дополнительные kinds не вводятся до отдельного изменения контракта.
 
 Внутри сервиса `CodeBinding` хранится не как отдельный исходный JSON-файл, а как запись нормализованного слоя, построенная
-из `StructuredArtifact`. Практическая модель хранения может быть гибридной: индексируемые поля (`publicationId`,
-`subject`, `platform`, `kind`, `name`, `sourceArtifact`) хранятся отдельными колонками, а параметры и платформенная часть
-могут храниться как структурированный JSON payload. Такой подход позволяет выполнять точные запросы по `subject`, `kind`
-и `name`, но не требует заранее проектировать общую реляционную схему для Compose, Android View, iOS и Web.
+из `StructuredArtifact`. Индексируемые поля (`publicationId`, `structuredArtifactId`, `subject`, `platform`, `kind`,
+`name`) хранятся отдельными колонками, а платформенная часть - в `platformPayload`. Такой подход позволяет выполнять
+точные запросы по `subject`, `kind` и `name`, но не требует общей реляционной схемы payload для Compose, Android XML/View
+и SwiftUI.
 
 ```mermaid
 flowchart LR
@@ -398,8 +395,8 @@ flowchart LR
     Artifact["StructuredArtifact\nplatform, type, format, sourceFile, parsedModel"]
     Adapter["Адаптер формата\nplatform + artifacts.format"]
     Binding["CodeBinding\nиндексируемая запись"]
-    BindingColumns["Колонки\npublicationId\nsubject\nplatform\nkind\nname\nsourceArtifact"]
-    BindingPayload["JSON payload\nparams\nstyleApi/themeToken\nдругие поля платформы"]
+    BindingColumns["Колонки\npublicationId\nstructuredArtifactId\nsubject\nplatform\nkind\nname"]
+    BindingPayload["platformPayload JSON\ncomponent styles\nили token values/references"]
 
     InfoFile --> FileStore
     InfoFile --> Adapter
@@ -413,31 +410,31 @@ flowchart LR
 
 ```json
 {
+  "id": "binding-avatar",
   "subject": "components.avatar",
   "platform": "compose",
   "kind": "component-style",
   "name": "Avatar",
-  "sourceArtifact": "components-info.json",
-  "params": [
-    {
-      "name": "size",
-      "defaultValue": "size-72",
-      "values": [
-        {
-          "value": "size-72",
-          "codeName": "Size72",
-          "reference": "Avatar.Size72"
-        }
-      ]
-    }
-  ],
-  "styleApi": {
-    "packageName": "com.sdds.sbcom.styles.avatar",
-    "stylesClassName": "AvatarStyles",
-    "stylesClassQualifiedName": "com.sdds.sbcom.styles.avatar.AvatarStyles",
-    "receiverClassQualifiedName": "com.sdds.sbcom.styles.avatar.AvatarStyles.Companion",
-    "returnTypeQualifiedName": "com.sdds.compose.uikit.AvatarStyle",
-    "modifyReceiverTypeQualifiedName": "com.sdds.compose.uikit.AvatarStyleBuilder"
+  "platformPayload": {
+    "key": "avatar",
+    "coreName": "Avatar",
+    "styles": [
+      {
+        "key": "avatar",
+        "coreName": "Avatar",
+        "styleName": "Avatar",
+        "props": [],
+        "styleApi": {
+          "stylesClassQualifiedName": "com.sdds.sbcom.styles.avatar.AvatarStyles"
+        },
+        "variations": [
+          {
+            "name": "M",
+            "composeReference": "Avatar.M"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -446,20 +443,21 @@ flowchart LR
 
 ```json
 {
+  "id": "binding-token-hover",
   "subject": "tokens.dark.surface.default.transparent-card-brightness-hover",
   "platform": "compose",
   "kind": "token",
   "name": "dark.surface.default.transparent-card-brightness-hover",
-  "sourceArtifact": "theme-info.json",
-  "token": {
+  "platformPayload": {
     "type": "color",
+    "name": "dark.surface.default.transparent-card-brightness-hover",
     "displayName": "transparentCardBrightnessHoverDefault",
     "description": "Прозрачный фон для карточек",
-    "value": {
-      "color": "0x1FFAFAFA"
-    }
-  },
-  "themeToken": {
+    "values": [
+      {
+        "color": "0x1FFAFAFA"
+      }
+    ],
     "reference": "SurfaceDefaultTransparentCardBrightnessHover",
     "themeReference": "SddsSbComTheme.colors.surfaceDefaultTransparentCardBrightnessHover"
   }
@@ -476,7 +474,7 @@ flowchart LR
   -> исходный слой
   -> нормализованная навигация и страницы
   -> фрагменты документации
-  -> полнотекстовый и векторный индексы
+  -> полнотекстовые и структурированные lexical-индексы
   -> опубликованная база знаний
 ```
 
@@ -528,7 +526,7 @@ POST /documentation/bundles
 
 ```json
 {
-  "jobId": "job_123",
+  "jobId": "2a4be621-d033-4a95-a291-21d475d3e54a",
   "status": "accepted"
 }
 ```
@@ -538,15 +536,14 @@ POST /documentation/bundles
 
 #### Задача обработки
 Задача обработки выполняется асинхронно, потому что построение базы знаний может включать парсинг большого количества
-markdown-файлов, обработку API/info-артефактов, разбиение на фрагменты, построение embeddings и обновление индексов.
+markdown-файлов, обработку API/info-артефактов, разбиение на фрагменты и обновление lexical-индексов.
 
 Статусы задачи обработки:
 - `accepted` - пакет прошел приемочную валидацию и сохранен;
 - `validating` - выполняется глубокая проверка `docs.json`, content и assets;
 - `normalizing` - строится внутренняя модель навигации, страниц, ссылок на контент, assets и машинно-собираемых артефактов;
 - `chunking` - страницы и сгенерированные блоки разбиваются на фрагменты;
-- `embedding` - для фрагментов строятся embeddings;
-- `indexing` - фрагменты записываются в полнотекстовый и векторный индексы;
+- `indexing` - фрагменты и structured lookup terms записываются в lexical-индексы;
 - `publishing` - обновляется указатель на опубликованную базу знаний;
 - `published` - база знаний доступна клиентам;
 - `failed` - обработка завершилась ошибкой.
@@ -559,8 +556,7 @@ flowchart TD
     Validating["validating\nглубокая валидация"]
     Normalizing["normalizing\nнормализованная модель"]
     Chunking["chunking\nфрагменты страниц и проекций"]
-    Embedding["embedding\nвекторы фрагментов"]
-    Indexing["indexing\nполнотекстовый и векторный индексы"]
+    Indexing["indexing\nFTS и structured lookup"]
     Publishing["publishing\nатомарное переключение активного указателя"]
     Published["published\nпубликация доступна"]
     Failed["failed\nошибки сохранены в диагностике"]
@@ -568,15 +564,13 @@ flowchart TD
     Accepted --> Validating
     Validating --> Normalizing
     Normalizing --> Chunking
-    Chunking --> Embedding
-    Embedding --> Indexing
+    Chunking --> Indexing
     Indexing --> Publishing
     Publishing --> Published
 
     Validating -. "ошибка" .-> Failed
     Normalizing -. "ошибка" .-> Failed
     Chunking -. "ошибка" .-> Failed
-    Embedding -. "ошибка" .-> Failed
     Indexing -. "ошибка" .-> Failed
     Publishing -. "ошибка" .-> Failed
 ```
@@ -591,7 +585,7 @@ GET /documentation/ingestion-jobs/{jobId}
 
 ```json
 {
-  "jobId": "job_123",
+  "jobId": "2a4be621-d033-4a95-a291-21d475d3e54a",
   "status": "chunking",
   "progress": {
     "currentStep": "chunking",
@@ -642,7 +636,7 @@ GET /documentation/ingestion-jobs/{jobId}
 ```
 
 Поля диагностики:
-- `level` - уровень сообщения: `error`, `warning` или `info`;
+- `level` - уровень сообщения: `error` или `warning`;
 - `code` - стабильный машинно-читаемый код ошибки или предупреждения;
 - `message` - человекочитаемое описание проблемы;
 - `path` - путь внутри bundle, к которому относится сообщение;
@@ -650,8 +644,8 @@ GET /documentation/ingestion-jobs/{jobId}
 - `subject` - связанная сущность документации или дизайн-системы, если ее удалось определить;
 - `details` - структурированные детали для CLI, UI и автоматической диагностики.
 
-`error` блокирует публикацию. Если во время глубокой валидации, нормализации, разбиения на фрагменты, построения
-embeddings или индексации появляется хотя бы один `error`, задача обработки должна перейти в статус `failed`, а активная
+`error` блокирует публикацию. Если во время глубокой валидации, нормализации, разбиения на фрагменты или индексации
+появляется хотя бы один `error`, задача обработки должна перейти в статус `failed`, а активная
 публикация для этой версии дизайн-системы не должна измениться.
 
 `warning` не блокирует публикацию. Такие сообщения подходят для ситуаций, которые не нарушают целостность документации,
@@ -668,7 +662,7 @@ embeddings или индексации появляется хотя бы оди
 
 ```json
 {
-  "jobId": "job_123",
+  "jobId": "2a4be621-d033-4a95-a291-21d475d3e54a",
   "status": "failed",
   "progress": {
     "currentStep": "validating"
@@ -697,8 +691,7 @@ embeddings или индексации появляется хотя бы оди
   -> глубокая валидация
   -> нормализация
   -> фрагменты документации
-  -> embeddings
-  -> индексы
+  -> lexical-индексы
   -> опубликованная база знаний
 ```
 
@@ -707,12 +700,8 @@ embeddings или индексации появляется хотя бы оди
 основой для отображения документации людям.
 
 Фрагменты документации строятся после нормализации. Сервис разбивает нормализованные страницы и сгенерированные блоки на
-компактные части, пригодные для поиска, выдачи агентам и построения embeddings. Исходные файлы пакета не являются
+компактные части, пригодные для поиска и выдачи агентам. Исходные файлы пакета не являются
 основной единицей поиска.
-
-Embeddings строятся по тексту фрагментов. Для каждого фрагмента необходимо сохранять модель и версию модели, с помощью
-которой был построен embedding, чтобы в дальнейшем можно было переиндексировать базу знаний и не смешивать векторы разных
-моделей без явного контроля.
 
 Публикация базы знаний должна быть атомарной. Пока новая задача обработки не дошла до статуса `published`, клиенты
 продолжают получать предыдущую опубликованную документацию для той же пары дизайн-система/версия/платформа.
@@ -728,7 +717,7 @@ designSystemId + designSystemVersion + platform
 ```
 
 `publicationId` не является версией документации. Это технический идентификатор конкретной публикации, построенной из
-конкретного bundle. Он нужен для диагностики, аудита, воспроизводимости агентского контекста и стабильных `kb://` ссылок
+конкретного bundle. Он нужен для диагностики, аудита, воспроизводимости агентского контекста и стабильных `dsb://` ссылок
 в рамках одной публикации.
 
 Повторная публикация той же версии должна работать как замена активной публикации. Если для пары
@@ -759,7 +748,7 @@ CLI, IDE-плагины и агенты могут сохранять `publicati
 `designSystemId + designSystemVersion + platform`.
 
 #### Фрагменты и ресурсы базы знаний
-Фрагмент документации - это минимальная единица поиска, выдачи агентам и построения embeddings. Фрагмент не равен
+Фрагмент документации - это минимальная единица поиска и выдачи агентам. Фрагмент не равен
 исходному файлу: один markdown-файл может дать несколько фрагментов. Машинно-собираемые JSON-артефакты не превращаются
 в markdown-фрагменты: они разбираются в структурированную модель и используются для точных запросов.
 
@@ -775,11 +764,11 @@ CLI, IDE-плагины и агенты могут сохранять `publicati
    детерминированные термины точного поиска (`structured_lookup_terms`) из известных полей модели.
 5. Для машинно-собираемых артефактов в MVP сервис должен поддерживать точные структурированные запросы только по
    `CodeBinding`, а также поиск по `structured_lookup_terms`. API-документация на первом этапе публикуется как
-   markdown-контент и попадает в обычный полнотекстовый и семантический поиск.
+   markdown-контент и попадает в обычный полнотекстовый поиск.
 6. Ресурс базы знаний - это опубликованный поисковый фрагмент. Он предназначен для сценариев `search -> fetch`, где поиск
    возвращает ссылку на фрагмент, а отдельный запрос получает его полный контент и метаданные.
-7. `kb://` используется как адрес сервисного ресурса базы знаний. Это не MCP resource, а внутренне адресуемый результат
-   поиска сервиса документации. Такой адрес должен быть стабильным в рамках одной публикации, но не обязан переживать
+7. `dsb://documentation/{publicationId}/{contentId}/{ordinal}` используется как адрес сервисного ресурса базы знаний.
+Это не MCP resource, а внутренне адресуемый результат поиска сервиса документации. Такой адрес должен быть стабильным в рамках одной публикации, но не обязан переживать
    новую публикацию той же дизайн-системы и версии. Для долгоживущих человекочитаемых ссылок следует использовать
    `designSystemId`, `version`, `platform` и `path` страницы.
 8. Поисковый API для markdown-фрагментов должен возвращать `kbUrl`, краткий фрагмент совпадения и метаданные, достаточные
@@ -792,7 +781,7 @@ CLI, IDE-плагины и агенты могут сохранять `publicati
 {
   "results": [
     {
-      "kbUrl": "kb://documentation/publications/pub_123/chunks/ch_456",
+      "kbUrl": "dsb://documentation/pub_123/content_456/0",
       "title": "Disabled state",
       "snippet": "Disabled state используется для...",
       "path": "components/button/overview.md",
@@ -802,17 +791,17 @@ CLI, IDE-плагины и агенты могут сохранять `publicati
 }
 ```
 
-#### Поиск и embeddings
-Сервис документации должен поддерживать два разных контура поиска:
+#### Lexical search baseline и future evolution
+Сервис документации должен поддерживать два разных контура lexical search:
 - поиск по человекочитаемой документации;
 - точный поиск по структурированным данным.
 
 Ключевое решение:
-- markdown-страницы разбиваются на `KnowledgeChunk`, по ним строятся полнотекстовый индекс и embeddings;
+- markdown-страницы разбиваются на `KnowledgeChunk`, по ним строятся technical `simple`, Russian и English FTS-проекции;
 - API-документация публикуется как markdown-секция или markdown-страница;
 - `components-info` и `theme-info` разбираются в `CodeBinding`;
 - для `CodeBinding` строятся `structured_lookup_terms` - детерминированные термины поиска из известных полей;
-- embeddings по структурированным JSON-артефактам на первом этапе не строятся;
+- embeddings, vector search и LLM reranking не входят в обязательный publication pipeline;
 - общий поиск объединяет результаты markdown-поиска и структурного поиска, но не подменяет точные данные отдельными
   текстовыми описаниями.
 
@@ -821,7 +810,7 @@ CLI, IDE-плагины и агенты могут сохранять `publicati
 построить индексы, найти релевантные ресурсы, вернуть ссылки на найденные записи и отдать полный контекст по отдельному
 запросу. Генерация финального ответа остается ответственностью агента или клиентского сценария.
 
-Для документации дизайн-системы поиск не должен строиться только на embeddings, потому что в документации много точных
+Обязательный baseline является полностью локальным и детерминированным PostgreSQL lexical search, потому что в документации много точных
 идентификаторов: имена токенов, параметры API, ссылки на стили, классы, функции и значения вариаций. Поэтому сервис
 документации должен явно разделять:
 - поиск по тексту документации;
@@ -860,7 +849,7 @@ metadata
   "path": "components/button/overview.md",
   "subjects": ["components.button"],
   "headings": ["Button", "Disabled state"],
-  "kbUrl": "kb://documentation/publications/pub_123/chunks/ch_456"
+  "kbUrl": "dsb://documentation/pub_123/content_456/0"
 }
 ```
 
@@ -873,7 +862,7 @@ markdown-секцию или markdown-страницу с таблицами API
 обычную человекочитаемую документацию. Такой подход снижает сложность интеграции с Dokka, TypeDoc, Swift tooling и
 другими платформенными генераторами.
 
-Для точного доступа используются отдельные REST API. Например, `/code-bindings` позволяет получить все вариации компонента
+Для точного доступа используются отдельные REST API. Например, `/bindings` позволяет получить опубликованные связи компонента
 и их references в коде:
 
 ```json
@@ -938,7 +927,7 @@ structured_lookup_terms
 - `params.name`;
 - `params.values.value`;
 - `params.values.codeName`;
-- `params.values.reference`;
+- variation references (`composeReference`, `viewReference`, `viewOverlayReference` или `reference`);
 - платформенной части, если адаптер явно знает ее поля. Например, для Compose это могут быть
   `styleApi.stylesClassName`, `styleApi.stylesClassQualifiedName`, `themeToken.reference`, `themeToken.themeReference`.
 
@@ -957,14 +946,17 @@ AvatarStyles                             class-name
 com.sdds.compose.uikit.AvatarStyles       qualified-name
 ```
 
-`normalized_term` строится из `term` по простым правилам: trim, приведение к нижнему регистру, нормализация пробелов.
-Символы `.`, `-`, `_` сохраняются, потому что они значимы для технических идентификаторов.
+Поля `normalized` и `tokenized` строятся общей canonical normalization: exact representation сохраняет значимые
+символы `.`, `-`, `_`, `:`, `@`, `?`, а token representation разбивает составные identifiers. Для prefix comparison
+клиентские `\`, `%`, `_` экранируются, добавляется только служебный suffix `%`, а SQL использует явный `LIKE ... ESCAPE`.
+Обе проекции имеют composite B-tree `text_pattern_ops` indexes; GIN/trigram indexes используются для fuzzy lookup.
 
 ##### Общий поиск
-Общий REST API поиска объединяет три источника:
-- полнотекстовый поиск по `KnowledgeChunk`;
-- семантический поиск по embeddings `KnowledgeChunk`;
-- точный поиск по `structured_lookup_terms`.
+Общий REST API поиска объединяет normalized exact/prefix/bounded trigram lookup по `structured_lookup_terms` и три
+полнотекстовых канала `KnowledgeChunk`: technical `simple`, Russian и English. Exact structured tiers имеют явный
+приоритет, остальные каналы объединяются versioned weighted reciprocal-rank fusion. Embeddings, vector search,
+автоматический перевод и LLM reranking могут рассматриваться только отдельным evidence-backed решением после измерения
+lexical eval corpus и не должны блокировать публикацию.
 
 Примеры запросов, которые должны обрабатываться структурированно:
 - найти кодовую ссылку для токена `color.text.primary`;
@@ -975,18 +967,16 @@ com.sdds.compose.uikit.AvatarStyles       qualified-name
 
 ```text
 1. Применить обязательные фильтры:
-   designSystemId, version, platform, visibility/access, subjects.
+   trusted projectId, designSystemId, version, platform, subjects.
 
-2. Выполнить полнотекстовый поиск по KnowledgeChunk.
+2. Выполнить literal technical, Russian и English FTS по `KnowledgeChunk` без advanced-query operators.
 
-3. Выполнить семантический поиск по embeddings KnowledgeChunk, если включен такой режим.
-
-4. Выполнить поиск по structured_lookup_terms:
+3. Выполнить поиск по `structured_lookup_terms`:
    exact match, prefix match или trigram match по normalized_term.
 
-5. Объединить результаты и удалить дубли.
+4. Сохранить exact tiers, объединить остальные каналы weighted RRF и удалить дубли.
 
-6. Вернуть результат с явным типом:
+5. Вернуть результат с явным типом и explainable match metadata:
    documentation-fragment или code-binding.
 ```
 
@@ -994,13 +984,14 @@ com.sdds.compose.uikit.AvatarStyles       qualified-name
 
 ```json
 {
-  "resultType": "documentation-fragment",
-  "kbUrl": "kb://documentation/publications/pub_123/chunks/ch_456",
+  "type": "markdown",
+  "kbUrl": "dsb://documentation/pub_123/content_456/0",
   "title": "Disabled state",
   "snippet": "Disabled state используется, когда действие недоступно...",
-  "path": "components/button/overview.md",
+  "pagePath": "components/button/overview.md",
   "subjects": ["components.button"],
-  "matchType": "full-text"
+  "matchType": "fts-russian",
+  "matchedFields": ["body"]
 }
 ```
 
@@ -1008,120 +999,76 @@ com.sdds.compose.uikit.AvatarStyles       qualified-name
 
 ```json
 {
-  "resultType": "code-binding",
+  "type": "structured",
   "codeBindingId": "cb_123",
   "title": "Avatar",
   "subject": "components.avatar",
-  "match": {
-    "term": "Avatar.Size72",
-    "termType": "reference"
-  },
-  "matchType": "structured"
+  "matchedTerm": "Avatar.Size72",
+  "termType": "reference",
+  "matchType": "exact-reference"
 }
 ```
 
-##### Полнотекстовый поиск и embeddings
-Полнотекстовый поиск нужен для лексического совпадения по естественному тексту документации. В полнотекстовый индекс
-`KnowledgeChunk` попадают:
-- `title`;
-- `text`;
-- `subjects`;
-- `path`;
-- `headings`.
+##### Полнотекстовый baseline
+Полнотекстовый поиск нужен для лексического совпадения по естественному тексту и техническим identifiers. Каждый
+`KnowledgeChunk` получает три independently queryable generated projections:
+- `technical_search_vector` с конфигурацией `simple`, raw и CamelCase-tokenized representations;
+- `russian_search_vector` для русской морфологии;
+- `english_search_vector` для английской морфологии.
 
-Семантический поиск нужен для запросов естественным языком, где пользователь не знает точного термина из документации:
-- "как сделать кнопку неактивной";
-- "какие токены отвечают за фон карточки";
-- "как использовать кнопку только с иконкой";
-- "как настроить outline стиль".
-
-Embeddings строятся только по `KnowledgeChunk`, а не по исходному bundle целиком и не по структурированным JSON-артефактам.
-Во входной текст для embedding должны попадать не только `text`, но и минимальный контекст, который помогает модели:
-
-```text
-Title: Disabled state
-Subject: components.button
-Platform: compose
-Path: components/button/overview.md
-
-Disabled state используется, когда действие недоступно...
-```
-
-Для каждого embedding сервис должен хранить:
-
-```text
-chunkId
-embeddingModel
-embeddingModelVersion
-dimensions
-contentHash
-vectorRef
-createdAt
-```
-
-`embeddingModel` и `embeddingModelVersion` нужны, чтобы не смешивать векторы разных моделей. `contentHash` нужен для
-переиспользования embedding при повторной публикации: если текст фрагмента не изменился и модель та же,
-embedding можно не пересчитывать.
+Title, headings и subjects имеют больший вес, чем body; source path и code индексируются без stemming. Exact page title и
+terminal title-token matches образуют explainable приоритетный tier перед обычным weighted RRF. Embeddings, vector search,
+`pgvector`, semantic search и LLM reranking не входят в это решение. Их добавление возможно только отдельным ADR/change
+после измеримого выигрыша относительно versioned lexical eval corpus.
 
 CLI и агенты должны использовать двухшаговую модель доступа. Для markdown-фрагментов: сначала выполнить поиск и получить
 `kbUrl`, затем запросить полный ресурс базы знаний. Для структурированных результатов: сначала найти совпадение по
 `structured_lookup_terms`, затем получить точную запись через REST API `CodeBinding` по `codeBindingId`.
 
 ##### Технологический выбор
-Для первого этапа выбран PostgreSQL как единая основа хранения и поиска:
+Для MVP выбран PostgreSQL как единая основа хранения и поиска:
 - основная нормализованная модель хранится в PostgreSQL;
-- полнотекстовый поиск строится на PostgreSQL Full Text Search;
+- полнотекстовый поиск строится на PostgreSQL Full Text Search с technical/Russian/English projections;
 - поиск по техническим идентификаторам строится через `structured_lookup_terms` и отдельные btree/trigram индексы;
-- векторный поиск строится через расширение `pgvector`;
 - файловые артефакты остаются в файловом или объектном хранилище, а PostgreSQL хранит ссылки, метаданные и индексы.
 
-Причины выбора PostgreSQL + Full Text Search + `pgvector` для первого этапа:
+Причины выбора PostgreSQL lexical search:
 - текущие сервисы DS Builder уже используют PostgreSQL;
 - уменьшается количество инфраструктурных компонентов;
 - проще обеспечить атомарность публикации и диагностику ingestion;
-- полнотекстовый, структурированный и векторный поиск можно связать с одной нормализованной моделью;
+- полнотекстовый и структурированный поиск связаны с одной нормализованной моделью;
 - для ожидаемого первого объема документации дизайн-системы этого достаточно.
 
 Практическая модель таблиц для слоя поиска и подбора контекста:
 
 ```text
-documentation_chunks
+knowledge_chunks
   id
   publication_id
-  design_system_id
-  version
-  platform
-  path
-  title
-  headings
+  page_id
+  content_id
+  source_path
+  ordinal
+  heading_path
+  page_title
+  markdown
+  search_text
+  code_text
   subjects
-  text
+  approximate_size
   kb_url
-  metadata_json
-  content_hash
-  search_vector
-
-documentation_embeddings
-  id
-  chunk_id
-  publication_id
-  embedding_model
-  embedding_model_version
-  dimensions
-  content_hash
-  vector
-  created_at
+  technical_search_vector
+  russian_search_vector
+  english_search_vector
 
 structured_lookup_terms
   id
   publication_id
-  platform
-  subject
   code_binding_id
-  term
-  normalized_term
-  term_type
-  weight
+  original
+  normalized
+  tokenized
+  category
 ```
 
 Документация может содержать русский и английский текст, а также технические идентификаторы. Поэтому полнотекстовый индекс должен
@@ -1138,42 +1085,34 @@ trigram-индексами для технических строк внутри
 - результаты структурированного поиска получают высокий приоритет при точном совпадении по `structured_lookup_terms`;
 - результаты полнотекстового поиска ранжируются по оценке PostgreSQL FTS и дополнительным повышающим коэффициентам за
   совпадение в `title` и `subjects`;
-- результаты семантического поиска ранжируются по расстоянию в `pgvector`;
-- итоговая выдача объединяется через RRF;
+- точные совпадения имени, qualified name, reference и terminal title-token образуют объяснимые приоритетные tiers;
+- остальные lexical-каналы объединяются через versioned weighted RRF;
 - повторное ранжирование через LLM не входит в первый этап, потому что увеличивает стоимость, задержку ответа и сложность диагностики.
 
 Ограничения этого выбора:
 - при большом количестве дизайн-систем, языков, версий и высоком QPS может потребоваться отдельный поисковый кластер;
-- сложное ранжирование, подсветка совпадений, морфология и распределенный поиск могут быть проще в OpenSearch/Elasticsearch;
-- векторный поиск с большим объемом embeddings может потребовать отдельного векторного хранилища.
+- сложное ранжирование, подсветка совпадений, морфология и распределенный поиск могут быть проще в OpenSearch/Elasticsearch.
 
-Поэтому архитектура должна оставлять порт `SearchIndex`/`RetrievalIndex`, чтобы заменить реализацию без изменения
+Поэтому архитектура должна оставлять порт `DocumentationSearchIndex`, чтобы заменить реализацию без изменения
 контракта сервиса:
 
 ```text
 Первый этап:
-  PostgreSQL FTS + trigram/keyword индексы + pgvector
+  PostgreSQL FTS + btree/trigram/keyword индексы
 
 Вариант масштабирования:
   OpenSearch/Elasticsearch для полнотекстового поиска
-  отдельное векторное хранилище или векторный поиск OpenSearch для embeddings
 ```
-
-Провайдер embeddings должен быть конфигурируемым. На первом этапе сервису достаточно абстракции `EmbeddingProvider`, которая
-принимает текст поискового документа и возвращает вектор фиксированной размерности. Конкретная модель выбирается
-конфигурацией окружения и сохраняется в метаданных embedding. Для OpenAI-провайдера кандидатами могут быть
-`text-embedding-3-small` для более дешевого индекса или `text-embedding-3-large` для более качественного семантического поиска.
-ADR не должен завязывать доменную модель на конкретного поставщика embeddings.
 
 ##### Публикация индексов
 Индексы должны публиковаться атомарно вместе с `DocumentationPublication`.
 
-Во время обработки сервис строит `KnowledgeChunk`, полнотекстовые индексные записи, embeddings и `structured_lookup_terms`
-для кандидатной публикации. До статуса `published` эти данные не должны участвовать в публичном поисковом API. После
+Во время обработки сервис строит `KnowledgeChunk`, три полнотекстовые проекции и `structured_lookup_terms`
+для кандидатной публикации. До статуса `published` эти данные не должны участвовать в project-scoped поисковом API. После
 успешного завершения `indexing` сервис переключает активный указатель публикации. Поисковый API всегда фильтрует
 результаты по активной публикации или по явно указанному `publicationId`.
 
-Если этап embeddings или индексации завершился ошибкой, задача переходит в `failed`, а предыдущая активная публикация и ее
+Если этап lexical indexing завершился ошибкой, задача переходит в `failed`, а предыдущая активная публикация и ее
 индексы продолжают обслуживать клиентов.
 
 ##### Подбор контекста для агентов
@@ -1181,7 +1120,7 @@ ADR не должен завязывать доменную модель на к
 трех базовых операций:
 - выполнить поиск через `GET /documentation/search`;
 - получить markdown-фрагмент через `GET /documentation/kb/fetch?url={kbUrl}`;
-- получить точную запись `CodeBinding` через `GET /documentation/publications/{publicationId}/code-bindings/{codeBindingId}`.
+- получить точную запись `CodeBinding` через `GET /documentation/publications/{publicationId}/bindings/{bindingId}`.
 
 Такой подход уменьшает количество API и оставляет подбор контекста на стороне клиента или агента. Если позже появится
 повторяющийся сценарий, где серверу выгоднее самому выбирать и упаковывать контекст, `POST /documentation/context` можно
@@ -1207,36 +1146,13 @@ ADR не должен завязывать доменную модель на к
 - `system_admin` может использовать global-role override в соответствии с ADR-0001;
 - project-bound access key может использовать только явно выданные scopes.
 
-Документация может иметь `visibility`:
-- `private` - режим по умолчанию; чтение требует project-scoped доступа;
-- `public` - режим для мастер-бренд библиотеки и другой публичной документации; чтение не требует project membership.
-
-`visibility` должен применяться ко всей публикации целиком: navigation, pages, assets, `CodeBinding`, search и
-получение ресурса базы знаний должны иметь одинаковую модель доступа. Нельзя делать публичной страницу, но оставлять закрытым ее asset или
-поисковый фрагмент. Если позже появится `POST /documentation/context`, он не должен становиться anonymous endpoint по
-умолчанию даже для public-публикаций: это более дорогой агентский сценарий, который должен идти через авторизованный
-клиент, portal backend или отдельную политику rate limit.
-
-Публичность не должна выставляться произвольно из bundle без доверенной проверки. Сервис должен получать или подтверждать
-`visibility` из доверенного источника: настройки дизайн-системы в DS Builder API, административной настройки проекта или
-отдельного permission на публикацию публичной документации. Публикация и замена public-документации все равно требуют
-авторизованного actor с правом publish.
-
-С учетом текущей архитектуры `identity-gateway` для public-документации нужен отдельный read-only маршрут без
-`auth_request /_auth_project`, например `/api/public/docs/...` или другой публичный namespace портала. Project-scoped
-маршруты вида `/api/projects/{projectId}/docs/...` должны оставаться защищенными через `identity-gateway`. Публичный
-маршрут должен проксировать только операции чтения, а сервис документации обязан проверить, что запрошенная публикация
-имеет `visibility = public`.
-
-Альтернативный вариант для мастер-бренд библиотеки - чтение через серверную часть портала с project-bound read key,
-привязанным к проекту мастер-бренда. Такой ключ должен иметь только read scopes, например `docs:read`, `docs:search` и
-`docs:assets:read`, и не должен попадать во frontend. В этом сценарии публичным для пользователя является UI портала, а
-прямой API сервиса документации остается защищенным.
+В MVP все публикации private и доступны только через project-scoped авторизацию. Поле `visibility`, anonymous read-only
+маршруты и public publication lifecycle не входят в область этого ADR. Public visibility потребует отдельного ADR/change
+с моделью доверенного управления публичностью, rate limits и согласованным доступом к navigation, pages, assets, search,
+`CodeBinding` и базе знаний.
 
 `kbUrl` не является секретом и не должен обходить авторизацию. Любой запрос `GET /documentation/kb/fetch?url={kbUrl}`
-должен сначала определить публикацию, проект, дизайн-систему и `visibility`. Для private-публикации требуется право
-пользователя или project key на чтение этой документации. Для public-публикации чтение может выполняться без project
-membership.
+должен определить публикацию, проект и дизайн-систему и проверить project-scoped право на чтение.
 
 Assets должны проверяться так же, как страницы документации. Нельзя отдавать файл asset только по `assetId` без проверки,
 что actor имеет доступ к публикации, с которой связан asset.
@@ -1245,10 +1161,9 @@ Assets должны проверяться так же, как страницы 
 После публикации базы знаний сервис должен предоставлять разные REST API для человекочитаемой документации и для
 поиска/агентских сценариев. Эти API используют одни и те же опубликованные данные, но решают разные задачи.
 
-Пути ниже описывают сервисную поверхность сервиса документации. Внешние маршруты `identity-gateway` могут добавлять
-project-scoped prefix, например `/api/projects/{projectId}/docs/...`, или public prefix, например `/api/public/docs/...`,
-и выполнять rewrite во внутренний путь сервиса. Это сохраняет требование ADR-0001 о project context в gateway routes и не
-заставляет domain service дублировать `projectId` во всех внутренних URL.
+Пути ниже описывают внутреннюю сервисную поверхность и считаются источником истины в том виде, в котором реализованы в
+коде. `identity-gateway` публикует их с project-scoped prefix `/api/projects/{projectId}/documentation/...` и выполняет
+rewrite во внутренний `/documentation/...`. Anonymous/public prefix в MVP отсутствует.
 
 API для человекочитаемой документации работает с нормализованным слоем:
 - получить опубликованную документацию для дизайн-системы, версии и платформы;
@@ -1266,11 +1181,14 @@ API для человекочитаемой документации работ�
 
 | REST API | Входные данные | Выходные данные |
 | --- | --- | --- |
-| `GET /documentation/publications/{designSystemId}/{version}/{platform}` | `designSystemId`, `version`, `platform` | активная публикация документации для версии дизайн-системы: `publicationId`, дизайн-система, версия, платформа, статус |
-| `GET /documentation/publications/{publicationId}/navigation` | `publicationId` | дерево навигации: группы, страницы, `path`, `subjects`, порядок отображения |
-| `GET /documentation/publications/{publicationId}/pages?path={pagePath}` | `publicationId`, `pagePath` | страница документации: заголовок, `path`, `subjects`, `contentRefs`, markdown-контент, assets, структурированные блоки |
+| `POST /documentation/bundles` | multipart bundle и publish metadata | принятая ingestion-задача с `jobId` |
+| `GET /documentation/ingestion-jobs/{jobId}` | `jobId` | состояние и diagnostics ingestion-задачи |
+| `GET /documentation/publications/active?designSystemId={designSystemId}&version={version}&platform={platform}` | `designSystemId`, `version`, `platform` | активная публикация документации для версии дизайн-системы |
+| `GET /documentation/publications/{publicationId}/navigation` | `publicationId` | дерево навигации с заголовками, путями, родителями и порядком отображения |
+| `GET /documentation/publications/{publicationId}/pages/{path...}` | `publicationId`, tail `path` | страница документации с markdown-контентом и метаданными |
 | `GET /documentation/publications/{publicationId}/assets/{assetId}` | `publicationId`, `assetId` | файл asset или ссылка на скачивание с `mediaType` и метаданными |
-| `GET /documentation/publications/{publicationId}/code-bindings/{codeBindingId}` | `publicationId`, `codeBindingId` | точная связь сущности с кодом платформы: компонент, стиль, вариация, токен, тема, references и платформенные данные |
+| `GET /documentation/publications/{publicationId}/bindings/{bindingId}` | `publicationId`, `bindingId` | точная связь сущности с кодом платформы |
+| `GET /documentation/publications/{publicationId}/bindings` | `publicationId`, optional `subject`, `kind`, `name`, `cursor`, `limit` | страница `CodeBinding` для диагностики и клиентов |
 
 Сервис документации не должен быть основным HTML-rendering сервисом. Он отдает markdown-контент, структурированные блоки,
 метаданные и assets. Portal, desktop-приложение, IDE-плагины и другие клиенты самостоятельно выбирают способ отображения
@@ -1285,14 +1203,12 @@ API для поиска и агентов работает со слоем по�
 
 | REST API | Входные данные | Выходные данные |
 | --- | --- | --- |
-| `GET /documentation/search?q={query}&designSystemId={designSystemId}&version={version}&platform={platform}` | поисковая строка, дизайн-система, версия, платформа, опционально `subjects` и фильтры | результаты поиска: для markdown - `kbUrl`, заголовок, snippet, `path`, `subjects`; для `CodeBinding` - `codeBindingId`, `subject`, совпавший термин |
+| `GET /documentation/search?query={query}&designSystemId={designSystemId}&version={version}&platform={platform}` | поисковая строка, дизайн-система, версия, платформа, опционально повторяемый `subject`, `cursor`, `limit` | результаты `type=markdown` с `kbUrl`, `pagePath`, snippet и match metadata либо `type=structured` с `codeBindingId`, `matchedTerm`, `termType`, `matchType` |
 | `GET /documentation/kb/fetch?url={kbUrl}` | `kbUrl` | полный ресурс базы знаний: текст фрагмента, `subjects`, ссылки на источник, технические метаданные |
-| `GET /documentation/publications/{publicationId}/code-bindings/{codeBindingId}` | `publicationId`, `codeBindingId` | полная запись `CodeBinding` с параметрами, вариациями, references и платформенной частью |
+| `GET /documentation/publications/{publicationId}/bindings/{bindingId}` | `publicationId`, `bindingId` | полная запись `CodeBinding` с параметрами, вариациями, references и платформенной частью |
 
 Следующие REST API не входят в минимальный MVP и могут быть добавлены позже при появлении конкретных сценариев:
-- `GET /documentation/publications/{publicationId}/code-bindings?subject={subject}&kind={kind}` - список `CodeBinding`
-  для портала, IDE, CLI или диагностики публикации;
-- `POST /documentation/context` - удобная надстройка над `search`, `kb/fetch` и `code-bindings/{codeBindingId}` для
+- `POST /documentation/context` - удобная надстройка над `search`, `kb/fetch` и `bindings/{bindingId}` для
   агентских сценариев;
 - `GET /documentation/publications/{publicationId}/api?subject={subject}` - структурированное API, если позже появится
   доказанная потребность в машиночитаемой API-модели. В MVP API-документация публикуется как markdown.
@@ -1301,10 +1217,7 @@ API для поиска и агентов работает со слоем по�
 ссылок в человекочитаемых клиентах следует использовать `designSystemId`, `version`, `platform` и `path`; для поисковых и
 агентских сценариев используются `kbUrl` для markdown-фрагментов и `codeBindingId` для точных связей с кодом.
 
-### Открытые вопросы
-Открытыми остаются решения, которые зависят от реализации следующих платформ и инфраструктурного выбора:
-
-- Какие финальные `format` и адаптеры будут поддержаны для Android View, iOS и Web info-артефактов?
-- Какой финальный набор значений `CodeBinding.kind` и какие обязательные поля нужны для каждого `kind`?
-- Где хранится связь Figma component/token с `subject`: в DS Builder API, отдельном design artifact или documentation
-  bundle?
+### За рамками MVP
+Public visibility, embeddings/semantic search и CodeBinding-адаптеры для Web/React/UIKit не входят в это решение. Набор
+`CodeBinding.kind` закрыт значениями `component-style` и `token`; расширение не планируется без отдельного подтвержденного
+use case и нового ADR/change.

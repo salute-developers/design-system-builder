@@ -216,6 +216,8 @@ if [[ "$BUILD_JAR" == true ]]; then
   "$ROOT_DIR/gradlew" -p "$ROOT_DIR/identity-gateway" :app:shadowJar
   log "Building Projects Service fat jar"
   "$ROOT_DIR/gradlew" -p "$ROOT_DIR/projects-service" :app:shadowJar
+  log "Building Documentation Service fat jar"
+  "$ROOT_DIR/gradlew" -p "$ROOT_DIR/documentation-service" :app:shadowJar
 fi
 
 if [[ "$BUILD_ONLY" == true ]]; then
@@ -224,7 +226,7 @@ if [[ "$BUILD_ONLY" == true ]]; then
   exit 0
 fi
 
-log "Starting Keycloak, Auth Helper, Gateway, and Projects Service"
+log "Starting Keycloak, Auth Helper, Gateway, Projects Service, and Documentation Service"
 $COMPOSE_CMD -f docker-compose.local.yml up --build -d
 bootstrap_projects_lookup_client
 

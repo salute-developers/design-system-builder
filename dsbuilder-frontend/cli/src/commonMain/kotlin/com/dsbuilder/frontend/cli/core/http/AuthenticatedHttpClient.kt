@@ -1,13 +1,17 @@
 package com.dsbuilder.frontend.cli.core.http
 
 import io.ktor.client.HttpClient
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -40,6 +44,32 @@ public sealed interface AuthenticatedHttpResult {
 }
 
 /**
+ * Файл для authenticated multipart request.
+ *
+ * @property partName имя multipart part.
+ * @property fileName имя отправляемого файла.
+ * @property contentType media type файла.
+ * @property bytes содержимое файла.
+ */
+public data class MultipartFile(
+    public val partName: String,
+    public val fileName: String,
+    public val contentType: String,
+    public val bytes: ByteArray,
+)
+
+/**
+ * Нормализованный HTTP response для feature-specific mapping.
+ *
+ * @property statusCode числовой HTTP status.
+ * @property body response body.
+ */
+public data class AuthenticatedHttpResponse(
+    public val statusCode: Int,
+    public val body: String,
+)
+
+/**
  * Общая authenticated-обертка над HTTP client для project-scoped CLI-запросов.
  */
 public interface AuthenticatedHttpClient {
@@ -55,6 +85,10 @@ public interface AuthenticatedHttpClient {
      * Ошибки backend отображаются так же, как у чтения.
      */
     public fun post(path: String, body: String): AuthenticatedHttpResult
+
+    /** Выполняет multipart POST с project API key. */
+    public fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+        error("Multipart POST is not supported by this client.")
 }
 
 /**
@@ -94,6 +128,33 @@ public class KtorAuthenticatedHttpClient(
                 setBody(body)
             }
         }
+    }
+
+    override fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse = runBlocking {
+        val response = httpClient.post(url(path)) {
+            header(HttpHeaders.Authorization, "ProjectKey $apiKey")
+            setBody(
+                MultiPartFormDataContent(
+                    formData {
+                        append(
+                            file.partName,
+                            file.bytes,
+                            Headers.build {
+                                append(HttpHeaders.ContentType, file.contentType)
+                                append(
+                                    HttpHeaders.ContentDisposition,
+                                    ContentDisposition.File.withParameter(
+                                        ContentDisposition.Parameters.FileName,
+                                        file.fileName,
+                                    ).toString(),
+                                )
+                            },
+                        )
+                    },
+                ),
+            )
+        }
+        AuthenticatedHttpResponse(response.status.value, response.bodyAsText())
     }
 
     /**

@@ -12,13 +12,6 @@ configure<SpotlessExtension> {
         endWithNewline()
     }
 
-    java {
-        target("src/*/java/**/*.java")
-        importOrder() // standard import order
-        removeUnusedImports()
-        googleJavaFormat("1.17.0").aosp()
-    }
-
     kotlin {
         target("**/*.kt")
         targetExclude("**/build/**", "**/buildSrc/**", "**/.*")

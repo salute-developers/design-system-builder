@@ -28,21 +28,12 @@ internal class KeycloakJwtVerifier(
 ) : JwtVerifier {
     override suspend fun verify(rawToken: String): JwtVerificationResult =
         try {
-            println("config = $configuration")
             tokenVerifier(rawToken).toResult()
         } catch (e: JWTVerificationException) {
-            println("JWTVerificationException ${e.stackTraceToString()}")
             JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
         } catch (e: IllegalArgumentException) {
-            println("IllegalArgumentException ${e.stackTraceToString()}")
-
             JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
         } catch (e: JwkException) {
-            println("JwkException ${e.stackTraceToString()}")
-
-            JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
-        } catch (e: Exception) {
-            println("Exception ${e.stackTraceToString()}")
             JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
         }
 

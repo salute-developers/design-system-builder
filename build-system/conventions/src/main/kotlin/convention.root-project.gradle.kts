@@ -10,34 +10,41 @@ allprojects {
     }
 }
 
-tasks.register("detektAll") {
-    val detektTasks = subprojects.flatMap {
-        it.tasks.matching { task -> task.name == "detekt" }
-    }
+val detektAll = tasks.register("detektAll") {
     val includedTasks = gradle.includedBuilds.map {
         it.task(":detektAll")
     }
-    dependsOn(detektTasks, includedTasks)
+    dependsOn(includedTasks)
 }
 
-tasks.register("spotlessCheckAll") {
-    val spotlessCheckTasks = subprojects.flatMap {
-        it.tasks.matching { task -> task.name == "spotlessCheck" }
-    }
+val spotlessCheckAll = tasks.register("spotlessCheckAll") {
     val includedTasks = gradle.includedBuilds.map {
         it.task(":spotlessCheckAll")
     }
-    dependsOn(spotlessCheckTasks, includedTasks)
+    dependsOn(includedTasks)
 }
 
-tasks.register("spotlessApplyAll") {
-    val spotlessApplyTasks = subprojects.flatMap {
-        it.tasks.matching { task -> task.name == "spotlessApply" }
-    }
+val spotlessApplyAll = tasks.register("spotlessApplyAll") {
     val includedTasks = gradle.includedBuilds.map {
         it.task(":spotlessApplyAll")
     }
-    dependsOn(spotlessApplyTasks, includedTasks)
+    dependsOn(includedTasks)
+}
+
+subprojects.forEach { subproject ->
+    subproject.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
+        detektAll.configure {
+            dependsOn("${subproject.path}:detekt")
+        }
+    }
+    subproject.pluginManager.withPlugin("com.diffplug.spotless") {
+        spotlessCheckAll.configure {
+            dependsOn("${subproject.path}:spotlessCheck")
+        }
+        spotlessApplyAll.configure {
+            dependsOn("${subproject.path}:spotlessApply")
+        }
+    }
 }
 
 

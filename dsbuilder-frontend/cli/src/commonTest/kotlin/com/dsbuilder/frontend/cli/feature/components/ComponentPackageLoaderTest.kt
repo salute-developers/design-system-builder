@@ -153,7 +153,11 @@ private class FakeFileSystem : CliFileSystem {
 
     override fun resolve(parent: String, child: String): String = "${parent.trimEnd('/')}/$child"
 
+    override fun absolutePath(path: String): String = path
+
     override fun exists(path: String): Boolean = path in files || path in directories
+
+    override fun isDirectory(path: String): Boolean = path in directories
 
     override fun createDirectories(path: String) {
         directories += path
@@ -163,9 +167,17 @@ private class FakeFileSystem : CliFileSystem {
 
     override fun readText(path: String): String = files.getValue(path)
 
+    override fun readBytes(path: String): ByteArray = files.getValue(path).encodeToByteArray()
+
     override fun writeText(path: String, text: String) {
         files[path] = text
     }
+
+    override fun writeBytes(path: String, bytes: ByteArray) {
+        files[path] = bytes.decodeToString()
+    }
+
+    override fun sink(path: String): okio.BufferedSink = okio.Buffer()
 
     override fun deleteFile(path: String) {
         files.remove(path)

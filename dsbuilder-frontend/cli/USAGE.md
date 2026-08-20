@@ -211,3 +211,30 @@ components:write
   и команда отказывает с сообщением `Configuration declares N variations but no bindings`.
 - Одна некорректная конфигурация отменяет загрузку всего пакета: частичная загрузка
   компонентной модели хуже отказа. В сообщении называются компонент, стиль и файл.
+
+## Публикация документации
+
+Сначала соберите documentation bundle, затем отправьте его через project-scoped gateway API:
+
+```bash
+dsbuilder docs generate
+dsbuilder docs publish
+```
+
+По умолчанию публикуется `.sdds/temp/docs-bundle.tar.gz`. Другой archive можно указать явно:
+
+```bash
+dsbuilder docs publish --bundle ./build/docs-bundle.tar.gz
+```
+
+Команда читает project id и credential reference из `.sdds/config.json`. API key разрешается из
+configured environment variable, затем из `DSBUILDER_API_KEY`; разовый override задаётся через
+`--api-key`. Gateway URL разрешается из `--api-url`, `DSBUILDER_API_URL` или default CLI URL:
+
+```bash
+dsbuilder docs publish \
+  --api-key dev-token \
+  --api-url http://localhost:8080
+```
+
+Опция ранней placeholder-реализации `--api-base-url` больше не поддерживается; используйте `--api-url`.

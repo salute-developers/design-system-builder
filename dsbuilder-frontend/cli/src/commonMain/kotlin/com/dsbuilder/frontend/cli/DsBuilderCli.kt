@@ -3,6 +3,7 @@ package com.dsbuilder.frontend.cli
 import com.dsbuilder.frontend.cli.core.di.coreCliModule
 import com.dsbuilder.frontend.cli.di.cliModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsFeatureModule
+import com.dsbuilder.frontend.cli.feature.docs.di.docsFeatureModule
 import com.dsbuilder.frontend.cli.feature.init.di.initFeatureModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusFeatureModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeFeatureModule
@@ -44,6 +45,7 @@ public class DsBuilderCli(
         val koin = koinApplication {
             modules(
                 coreCliModule(runtime),
+                docsFeatureModule(),
                 initFeatureModule(),
                 statusFeatureModule(),
                 themeFeatureModule(),

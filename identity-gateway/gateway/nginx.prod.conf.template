@@ -48,6 +48,10 @@ http {
         server ${DOCS_SERVICE_UPSTREAM_HOST}:${DOCS_SERVICE_UPSTREAM_PORT};
     }
 
+    upstream documentation_service_api {
+        server ${DOCUMENTATION_SERVICE_UPSTREAM_HOST}:${DOCUMENTATION_SERVICE_UPSTREAM_PORT};
+    }
+
     upstream generator_service_api {
         server ${GENERATOR_SERVICE_UPSTREAM_HOST}:${GENERATOR_SERVICE_UPSTREAM_PORT};
     }
@@ -340,6 +344,42 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_name ${DOCS_SERVICE_UPSTREAM_HOST};
             proxy_pass ${DOCS_SERVICE_UPSTREAM_SCHEME}://docs_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {
+            set $project_id $1;
+            limit_req zone=project_api burst=20 nodelay;
+            client_max_body_size ${DOCUMENTATION_MAX_REQUEST_SIZE};
+            proxy_request_buffering off;
+            proxy_buffering off;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+            proxy_read_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Request-Id $request_id;
+            proxy_set_header Host ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/documentation(/.*)?$ /documentation$1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${DOCUMENTATION_SERVICE_UPSTREAM_SCHEME}://documentation_service_api;
         }
 
         location ~ ^/api/projects/([^/]+)/generator(/.*)?$ {

@@ -14,9 +14,11 @@ import com.dsbuilder.frontend.cli.core.credentials.MissingApiKeyException
 import com.dsbuilder.frontend.cli.core.http.ApiUrlResolver
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClient
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResult
 import com.dsbuilder.frontend.cli.core.http.DEFAULT_API_URL
 import com.dsbuilder.frontend.cli.core.http.KtorAuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.cli.core.http.MultipartFile
 import com.dsbuilder.frontend.cli.feature.theme.domain.PaletteItem
 import com.dsbuilder.frontend.cli.feature.theme.domain.Platform
 import com.dsbuilder.frontend.cli.feature.theme.domain.Tenant
@@ -42,6 +44,9 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okio.Buffer
+import okio.Sink
+import okio.buffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -330,6 +335,171 @@ class DsBuilderCliTest {
         assertEquals(AuthenticatedHttpResult.Failure("Status: unauthorized. API key is missing or invalid."), result)
         assertEquals("/api/projects/project-a", request!!.url.encodedPath)
         assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
+    }
+
+    @Test
+    fun ktorHttpClientSendsAuthenticatedMultipartRequest() {
+        var request: HttpRequestData? = null
+        val engine = MockEngine {
+            request = it
+            respond(content = """{"bundleId":"bundle-a","jobId":"job-a","status":"accepted"}""")
+        }
+        val client = KtorAuthenticatedHttpClientFactory { HttpClient(engine) }.create(
+            apiUrl = "https://api.example.com/",
+            apiKey = "secret-value",
+        )
+
+        val response = client.postMultipart(
+            "/api/projects/project-a/documentation/bundles",
+            MultipartFile("bundle", "docs-bundle.tar.gz", "application/gzip", byteArrayOf(1, 2, 3)),
+        )
+
+        assertEquals(200, response.statusCode)
+        assertEquals("/api/projects/project-a/documentation/bundles", request!!.url.encodedPath)
+        assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
+        assertTrue(request!!.body.contentType?.toString()?.startsWith("multipart/form-data") == true)
+    }
+
+    @Test
+    fun docsPublishUploadsDefaultBundleAndPrintsAcceptedIdentifiers() {
+        val fileSystem = initializedFileSystem()
+        fileSystem.writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1, 2, 3))
+        var uploadedPath = ""
+        var uploadedFile: MultipartFile? = null
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                multipartResponse = AuthenticatedHttpResponse(
+                    202,
+                    """{"bundleId":"bundle-a","jobId":"job-a"}""",
+                ),
+                onPost = { path, file ->
+                    uploadedPath = path
+                    uploadedFile = file
+                },
+            ),
+        ).execute(listOf("docs", "publish"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Bundle ID: bundle-a"))
+        assertTrue(result.output.contains("Job ID: job-a"))
+        assertEquals("/api/projects/project-a/documentation/bundles", uploadedPath)
+        assertEquals("bundle", uploadedFile!!.partName)
+        assertEquals("docs-bundle.tar.gz", uploadedFile!!.fileName)
+        assertEquals("application/gzip", uploadedFile!!.contentType)
+    }
+
+    @Test
+    fun docsPublishUsesOverridesAndFormatsStructuredFailure() {
+        val fileSystem = initializedFileSystem()
+        fileSystem.writeBytes("/custom.tar.gz", byteArrayOf(4, 5))
+        var createdApiUrl = ""
+        var createdApiKey = ""
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                multipartResponse = AuthenticatedHttpResponse(
+                    422,
+                    """{"errors":[{"code":"INVALID_CONTENT","message":"Invalid bundle","path":"docs.json"}]}""",
+                ),
+                onCreate = { url, key ->
+                    createdApiUrl = url
+                    createdApiKey = key
+                },
+            ),
+        ).execute(
+            listOf(
+                "docs",
+                "publish",
+                "--bundle",
+                "/custom.tar.gz",
+                "--api-key",
+                "override-key",
+                "--api-url",
+                "https://override.example.com",
+            ),
+        )
+
+        assertEquals(1, result.exitCode)
+        assertEquals("https://override.example.com", createdApiUrl)
+        assertEquals("override-key", createdApiKey)
+        assertTrue(result.output.contains("HTTP 422"))
+        assertTrue(result.output.contains("INVALID_CONTENT"))
+        assertTrue(result.output.contains("docs.json"))
+    }
+
+    @Test
+    fun docsPublishRejectsMissingBundleBeforeRequest() {
+        val fileSystem = initializedFileSystem()
+        var posted = false
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                onPost = { _, _ -> posted = true },
+            ),
+        ).execute(listOf("docs", "publish"))
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("Bundle file was not found"))
+        assertFalse(posted)
+    }
+
+    @Test
+    fun docsPublishRejectsMissingProjectContextAndApiKeyBeforeRequest() {
+        var posted = false
+        val missingContext = DsBuilderCli(
+            fakeRuntime(onPost = { _, _ -> posted = true }),
+        ).execute(listOf("docs", "publish"))
+        val fileSystem = initializedFileSystem().apply {
+            writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1))
+        }
+        val missingKey = DsBuilderCli(
+            fakeRuntime(fileSystem = fileSystem, onPost = { _, _ -> posted = true }),
+        ).execute(listOf("docs", "publish"))
+
+        assertEquals(1, missingContext.exitCode)
+        assertTrue(missingContext.output.contains("Project is not initialized"))
+        assertEquals(1, missingKey.exitCode)
+        assertTrue(missingKey.output.contains("API key is not configured"))
+        assertFalse(posted)
+    }
+
+    @Test
+    fun docsPublishUsesSafeFallbackForHttpAndTransportFailures() {
+        val statuses = listOf(400, 401, 403, 413, 415, 503)
+        statuses.forEach { status ->
+            val fileSystem = initializedFileSystem().apply {
+                writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1))
+            }
+            val result = DsBuilderCli(
+                fakeRuntime(
+                    fileSystem = fileSystem,
+                    environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                    multipartResponse = AuthenticatedHttpResponse(status, "not-json-secret-body"),
+                ),
+            ).execute(listOf("docs", "publish"))
+
+            assertEquals(1, result.exitCode)
+            assertTrue(result.output.contains("HTTP $status"))
+            assertFalse(result.output.contains("not-json-secret-body"))
+            assertFalse(result.output.contains("secret-value"))
+        }
+
+        val transportFileSystem = initializedFileSystem().apply {
+            writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1))
+        }
+        val transport = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = transportFileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                onCreate = { _, _ -> error("network details") },
+            ),
+        ).execute(listOf("docs", "publish"))
+        assertEquals(1, transport.exitCode)
+        assertTrue(transport.output.contains("upload is unavailable"))
+        assertFalse(transport.output.contains("network details"))
     }
 
     @Test
@@ -1316,7 +1486,7 @@ class DsBuilderCliTest {
                 "tenantId": "tenant-a",
                 "paletteId": "palette-a",
                 "platform": "android",
-                "mode": "dark",
+                "mode": null,
                 "value": [{"fontSize": "16"}],
                 "createdAt": "2026-06-04T07:37:55.526Z",
                 "updatedAt": "2026-06-04T07:37:55.526Z"
@@ -1358,10 +1528,20 @@ class DsBuilderCliTest {
         httpResult: AuthenticatedHttpResult = AuthenticatedHttpResult.Success("""{"name":"default"}"""),
         httpResults: Map<String, AuthenticatedHttpResult> = emptyMap(),
         onGet: (String) -> Unit = { _ -> },
+        multipartResponse: AuthenticatedHttpResponse = AuthenticatedHttpResponse(503, ""),
+        onPost: (String, MultipartFile) -> Unit = { _, _ -> },
+        onCreate: (String, String) -> Unit = { _, _ -> },
     ): CliRuntime = CliRuntime(
         fileSystem = fileSystem,
         environmentReader = EnvironmentReader { name -> environment[name] },
-        httpClientFactory = FakeAuthenticatedHttpClientFactory(httpResult, httpResults, onGet),
+        httpClientFactory = FakeAuthenticatedHttpClientFactory(
+            httpResult,
+            httpResults,
+            onGet,
+            multipartResponse,
+            onPost,
+            onCreate,
+        ),
     )
 }
 
@@ -1369,19 +1549,30 @@ private class FakeAuthenticatedHttpClientFactory(
     private val result: AuthenticatedHttpResult,
     private val results: Map<String, AuthenticatedHttpResult>,
     private val onGet: (String) -> Unit,
+    private val multipartResponse: AuthenticatedHttpResponse,
+    private val onPost: (String, MultipartFile) -> Unit,
+    private val onCreate: (String, String) -> Unit,
 ) : AuthenticatedHttpClientFactory {
     override fun create(
         apiUrl: String,
         apiKey: String,
-    ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
-        override fun get(path: String): AuthenticatedHttpResult {
-            onGet(path)
-            return results[path] ?: result
-        }
+    ): AuthenticatedHttpClient {
+        onCreate(apiUrl, apiKey)
+        return object : AuthenticatedHttpClient {
+            override fun get(path: String): AuthenticatedHttpResult {
+                onGet(path)
+                return results[path] ?: result
+            }
 
-        override fun post(path: String, body: String): AuthenticatedHttpResult {
-            onGet(path)
-            return results[path] ?: result
+            override fun post(path: String, body: String): AuthenticatedHttpResult {
+                onGet(path)
+                return results[path] ?: result
+            }
+
+            override fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
+                onPost(path, file)
+                return multipartResponse
+            }
         }
     }
 }
@@ -1389,7 +1580,7 @@ private class FakeAuthenticatedHttpClientFactory(
 private class FakeFileSystem(
     private val currentDirectory: String,
 ) : CliFileSystem {
-    private val files = mutableMapOf<String, String>()
+    private val files = mutableMapOf<String, ByteArray>()
     private val directories = mutableSetOf<String>()
 
     override fun currentWorkingDirectory(): String = normalize(currentDirectory)
@@ -1406,9 +1597,15 @@ private class FakeFileSystem(
 
     override fun resolve(parent: String, child: String): String = normalize("${normalize(parent).trimEnd('/')}/$child")
 
+    override fun absolutePath(path: String): String = normalize(path)
+
     override fun exists(path: String): Boolean {
         val normalized = normalize(path)
         return files.containsKey(normalized) || directories.contains(normalized)
+    }
+
+    override fun isDirectory(path: String): Boolean {
+        return directories.contains(normalize(path))
     }
 
     override fun createDirectories(path: String) {
@@ -1417,17 +1614,49 @@ private class FakeFileSystem(
 
     override fun listFiles(path: String): List<String> {
         val directory = normalize(path).trimEnd('/')
-        return files.keys
-            .filter { parent(it) == directory }
-            .sorted()
+        val result = mutableListOf<String>()
+        result.addAll(files.keys.filter { parent(it) == directory }.sorted())
+        result.addAll(directories.filter { parent(it) == directory }.sorted())
+        return result
     }
 
-    override fun readText(path: String): String = files[normalize(path)] ?: error("Missing file: $path")
+    override fun readText(path: String): String =
+        files[normalize(path)]?.decodeToString() ?: error("Missing file: $path")
+
+    override fun readBytes(path: String): ByteArray =
+        files[normalize(path)] ?: error("Missing file: $path")
 
     override fun writeText(path: String, text: String) {
         val normalized = normalize(path)
         parent(normalized)?.let { directories += it }
-        files[normalized] = text
+        files[normalized] = text.encodeToByteArray()
+    }
+
+    override fun writeBytes(path: String, bytes: ByteArray) {
+        val normalized = normalize(path)
+        parent(normalized)?.let { directories += it }
+        files[normalized] = bytes
+    }
+
+    override fun sink(path: String): okio.BufferedSink {
+        val normalized = normalize(path)
+        parent(normalized)?.let { directories += it }
+        val buffer = okio.Buffer()
+        return object : okio.Sink {
+            override fun write(source: okio.Buffer, byteCount: Long) {
+                buffer.write(source, byteCount)
+            }
+
+            override fun flush() {
+                // Sink flush — no-op for in-memory buffer
+            }
+
+            override fun close() {
+                files[normalized] = buffer.readByteArray()
+            }
+
+            override fun timeout() = okio.Timeout.NONE
+        }.buffer()
     }
 
     override fun deleteFile(path: String) {
