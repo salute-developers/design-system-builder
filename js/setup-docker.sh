@@ -56,7 +56,18 @@ show_progress() {
     printf "\r${BLUE}Progress: [%3d%%] %s${NC}" $percent "$step"
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="docker-compose.dev.yml"
+JS_COMPOSE_PROJECT_NAME="${DSBUILDER_JS_COMPOSE_PROJECT_NAME:-design-system-builder}"
+
+cd "$SCRIPT_DIR"
+
+run_compose() {
+    docker compose \
+        --project-name "$JS_COMPOSE_PROJECT_NAME" \
+        -f "$COMPOSE_FILE" \
+        "$@"
+}
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
 echo "======================================================"
@@ -68,12 +79,12 @@ if ! docker info > /dev/null 2>&1; then
 fi
 echo_success "Docker is running"
 
-# Check if docker-compose is available
-if ! command -v docker-compose &> /dev/null; then
-    echo_error "docker-compose not found. Please install docker-compose."
+# Check if Docker Compose is available
+if ! docker compose version > /dev/null 2>&1; then
+    echo_error "Docker Compose plugin not found. Please install Docker Compose."
     exit 1
 fi
-echo_success "docker-compose is available"
+echo_success "Docker Compose is available"
 
 echo ""
 echo_header "🚀 Setting up development environment..."
@@ -83,11 +94,11 @@ echo "   🔍 Health checks: all services"
 
 # Stop any existing containers
 echo_step "Stopping existing containers..."
-docker-compose -f $COMPOSE_FILE down -v
+run_compose down -v
 
 # Build and start services
 echo_step "Building and starting services..."
-if docker-compose -f $COMPOSE_FILE build; then
+if run_compose build; then
     echo_success "Build successful"
 else
     echo_error "Build failed. Troubleshooting suggestions:"
@@ -108,13 +119,13 @@ fi
 
 # Start only postgres + db-service first (migrate before other services connect)
 echo_info "Starting postgres and db-service..."
-docker-compose -f $COMPOSE_FILE up -d postgres-registry db-service
+run_compose up -d postgres-registry db-service
 
 # Wait for PostgreSQL (db-service) to be ready
 echo ""
 echo_step "Waiting for PostgreSQL (db-service) to be ready..."
 timeout=60
-while ! docker-compose -f $COMPOSE_FILE exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; do
+while ! run_compose exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; do
     sleep 2
     timeout=$((timeout - 2))
     if [ $timeout -le 0 ]; then
@@ -130,7 +141,7 @@ echo_header "🗄️ Setting up databases..."
 
 # --- db-service migrations ---
 echo_step "Running db-service migrations..."
-if docker-compose -f $COMPOSE_FILE exec -T db-service npx drizzle-kit migrate; then
+if run_compose exec -T db-service npx drizzle-kit migrate; then
     echo_success "db-service migrations completed"
 else
     echo_error "db-service migrations failed"
@@ -139,7 +150,7 @@ fi
 
 # --- Seeding ---
 echo_step "Seeding db-service database (prod)..."
-if docker-compose -f $COMPOSE_FILE exec -T db-service npx tsx src/db/seed-prod.ts; then
+if run_compose exec -T db-service npx tsx src/db/seed-prod.ts; then
     echo_success "db-service database seeding (prod) completed"
 else
     echo_error "db-service database seeding (prod) failed"
@@ -148,7 +159,7 @@ fi
 
 # Now start the remaining services (client, admin, generator, etc.)
 echo_info "Starting remaining services..."
-docker-compose -f $COMPOSE_FILE up -d
+run_compose up -d
 
 # Wait for frontend services to be ready
 echo_step "Waiting for services to start..."
@@ -172,7 +183,7 @@ current_service=0
 # Check PostgreSQL (db-service)
 current_service=$((current_service + 1))
 show_progress $current_service $total_services "Checking PostgreSQL (db-service)..."
-if docker-compose -f $COMPOSE_FILE exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; then
+if run_compose exec -T postgres-registry pg_isready -U postgres -d ds_registry > /dev/null 2>&1; then
     echo_success "PostgreSQL (db-service) is healthy"
 else
     echo_error "PostgreSQL (db-service) is not healthy"
@@ -222,16 +233,16 @@ if [ "$services_healthy" = true ]; then
     echo "   🗄️ DB (db-service):  localhost:5433"
     echo ""
     echo_header "📦 View running services:"
-    docker-compose -f $COMPOSE_FILE ps
+    run_compose ps
     echo ""
     echo_header "📝 Useful commands:"
-    echo "   View logs:      docker-compose -f $COMPOSE_FILE logs -f"
-    echo "   Stop services:  docker-compose -f $COMPOSE_FILE down"
-    echo "   Restart:        docker-compose -f $COMPOSE_FILE restart"
+    echo "   View logs:      docker compose --project-name $JS_COMPOSE_PROJECT_NAME -f $COMPOSE_FILE logs -f"
+    echo "   Stop services:  docker compose --project-name $JS_COMPOSE_PROJECT_NAME -f $COMPOSE_FILE down"
+    echo "   Restart:        docker compose --project-name $JS_COMPOSE_PROJECT_NAME -f $COMPOSE_FILE restart"
     echo ""
     echo_header "🎯 Test the CLI tool:"
     echo "   cd generate-ds && npm run dev 1 --dry-run"
 else
     echo_error "Setup completed with errors. Please check the service logs:"
-    echo "   docker-compose -f $COMPOSE_FILE logs"
+    echo "   docker compose --project-name $JS_COMPOSE_PROJECT_NAME -f $COMPOSE_FILE logs"
 fi
