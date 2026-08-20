@@ -14,7 +14,7 @@ configure<SpotlessExtension> {
 
     kotlin {
         target("**/*.kt")
-        targetExclude("**/build/**", "**/buildSrc/**", "**/.*")
+        targetExclude("**/build/**", "**/buildSrc/**", "**/.*", "build-system/**")
         trimTrailingWhitespace()
         indentWithSpaces()
         endWithNewline()
@@ -36,7 +36,7 @@ configure<SpotlessExtension> {
 
     kotlinGradle {
         target("**/*.gradle.kts", "*.gradle.kts")
-        targetExclude("**/build/**")
+        targetExclude("**/build/**", "build-system/**")
         trimTrailingWhitespace()
         indentWithSpaces()
         endWithNewline()
