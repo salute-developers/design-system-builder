@@ -146,10 +146,9 @@ private fun Token.tokensByMode(values: List<TokenValue>): List<Token> {
             if (mode.isNullOrBlank()) {
                 add(token)
             } else {
-                add(token.copy(name = "${mode}.${token.name}"))
+                add(token.copy(name = "$mode.${token.name}"))
             }
         }
-
     }.distinctBy { it.name }
 }
 

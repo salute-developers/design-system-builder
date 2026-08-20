@@ -80,7 +80,11 @@ esac
     exit 1
 }
 
-supported_types='["color","typography","shape","shadow","dimension","float"]'
+# Значения property_type в схеме db-service. Расширены миграцией 0004: конфигурации
+# theme-converter используют одиннадцать типов, шесть исходных покрывали 81% свойств.
+# Список должен совпадать с propertyTypeEnum в services/db-service/src/db/schema.ts —
+# при расхождении параметры молча пропускаются, что видно по skippedParams в отчёте.
+supported_types='["color","typography","shape","shadow","dimension","float","component_style","value","icon","boolean","gradient","blur","integer"]'
 invalid_targets="$(jq -cn --argjson map "$type_map" --argjson supported "$supported_types" \
     '$map | to_entries | map(select(.value as $value | $supported | index($value) | not))')"
 if [[ "$(jq 'length' <<<"$invalid_targets")" -ne 0 ]]; then
@@ -124,6 +128,30 @@ jq \
         }
     ]' "$input" >"$manifest"
 
+# Семантические состояния компонента: их объявляет поле stateEnum.
+#
+# Имя приводится к форме, в какой состояние встречается в конфигурациях оформления: kebab-case
+# в нижнем регистре. Готовое имя даёт configName, но задано оно не везде — у остальных значений
+# имя записано PascalCase, и его нужно преобразовать. Без этого в таблице оказались бы вперемешку
+# `Checked` и `dragging-over`, а набор состояний нельзя было бы восстановить из связей текстуально.
+#
+# Имя берётся из configName,
+# если оно задано, иначе из name — в конфигурациях оформления состояния записаны в той же форме.
+states_manifest="$(mktemp)"
+jq '[
+    .[]
+    | select(.componentName? and (.stateEnum?.values? | length > 0))
+    | .componentName as $component
+    | .stateEnum.values[]
+    | {
+        component: $component,
+        name: (
+          .configName
+          // (.name | gsub("(?<a>[a-z0-9])(?<b>[A-Z])"; "\(.a)-\(.b)") | ascii_downcase)
+        )
+      }
+] | unique' "$input" >"$states_manifest"
+
 skipped="$(jq '[.[] | select(.included | not)] | length' "$manifest")"
 if $strict && [[ "$skipped" -gt 0 ]]; then
     echo "Unsupported property types found:" >&2
@@ -139,7 +167,8 @@ jq -n \
     --argjson importComponents "$components" \
     --argjson importProperties "$properties" \
     --argjson skippedParams "$skipped" \
-    '{mode:$mode, sourceComponents:$sourceComponents, importComponents:$importComponents, importProperties:$importProperties, skippedParams:$skippedParams}'
+    --argjson importStates "$(jq 'length' "$states_manifest")" \
+    '{mode:$mode, sourceComponents:$sourceComponents, importComponents:$importComponents, importProperties:$importProperties, importStates:$importStates, skippedParams:$skippedParams}'
 
 $apply || {
     echo "Dry-run only. Re-run with --apply to write to DB Service."
@@ -159,6 +188,7 @@ api() {
 }
 
 components_json="$(api GET /components)"
+component_states_json="$(api GET /component-states)"
 aliases_json="$(api GET /property-platform-params)"
 design_systems_json='[]'
 links_json='[]'
@@ -168,6 +198,7 @@ if $link_design_systems; then
 fi
 
 created_components=0
+created_states=0
 created_properties=0
 updated_properties=0
 created_aliases=0
@@ -195,6 +226,18 @@ while IFS= read -r component_name; do
             fi
         done < <(jq -r '.[].id' <<<"$design_systems_json")
     fi
+
+    while IFS= read -r state_name; do
+        [[ -z "$state_name" ]] && continue
+        if ! jq -e --arg component "$component_id" --arg name "$state_name" \
+            '.[] | select(.componentId == $component and .name == $name)' \
+            <<<"$component_states_json" >/dev/null; then
+            state="$(api POST /component-states "$(jq -cn --arg componentId "$component_id" --arg name "$state_name" \
+                '{componentId:$componentId, name:$name}')")"
+            component_states_json="$(jq -c --argjson item "$state" '. + [$item]' <<<"$component_states_json")"
+            ((created_states += 1))
+        fi
+    done < <(jq -r --arg component "$component_name" '[.[] | select(.component == $component) | .name] | .[]' "$states_manifest")
 
     existing_properties="$(api GET "/components/$component_id/properties")"
     while IFS=$'\t' read -r property_name property_type description; do
@@ -232,8 +275,9 @@ done < <(jq -r '[.[] | select(.included) | .component] | unique[]' "$manifest")
 
 jq -n \
     --argjson createdComponents "$created_components" \
+    --argjson createdStates "$created_states" \
     --argjson createdProperties "$created_properties" \
     --argjson updatedProperties "$updated_properties" \
     --argjson createdAliases "$created_aliases" \
     --argjson createdDesignSystemLinks "$created_links" \
-    '{createdComponents:$createdComponents, createdProperties:$createdProperties, updatedProperties:$updatedProperties, createdAliases:$createdAliases, createdDesignSystemLinks:$createdDesignSystemLinks}'
+    '{createdComponents:$createdComponents, createdStates:$createdStates, createdProperties:$createdProperties, updatedProperties:$updatedProperties, createdAliases:$createdAliases, createdDesignSystemLinks:$createdDesignSystemLinks}'

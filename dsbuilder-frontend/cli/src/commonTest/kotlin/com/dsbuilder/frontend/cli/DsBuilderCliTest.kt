@@ -1373,9 +1373,16 @@ private class FakeAuthenticatedHttpClientFactory(
     override fun create(
         apiUrl: String,
         apiKey: String,
-    ): AuthenticatedHttpClient = AuthenticatedHttpClient { path ->
-        onGet(path)
-        results[path] ?: result
+    ): AuthenticatedHttpClient = object : AuthenticatedHttpClient {
+        override fun get(path: String): AuthenticatedHttpResult {
+            onGet(path)
+            return results[path] ?: result
+        }
+
+        override fun post(path: String, body: String): AuthenticatedHttpResult {
+            onGet(path)
+            return results[path] ?: result
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli.di
 
+import com.dsbuilder.frontend.cli.feature.components.presentation.ComponentsCliCommand
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitCliCommand
 import com.dsbuilder.frontend.cli.feature.status.presentation.StatusCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeCliCommand
@@ -15,9 +16,10 @@ public fun cliModule(): Module = module {
         val initCommand = get<InitCliCommand>()
         val statusCommand = get<StatusCliCommand>()
         val themeCommand = get<ThemeCliCommand>()
+        val componentsCommand = get<ComponentsCliCommand>()
 
         RootCliCommand(
-            cliktSubcommands = listOf(initCommand, statusCommand, themeCommand),
+            cliktSubcommands = listOf(initCommand, statusCommand, themeCommand, componentsCommand),
         )
     }
 }

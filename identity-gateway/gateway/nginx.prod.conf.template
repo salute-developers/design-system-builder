@@ -280,6 +280,11 @@ http {
         location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {
             set $project_id $1;
 
+            # Пакет компонентов уезжает одним запросом: транзакционность импорта не допускает
+            # разбиения на пачки. Крупнейшая дизайн-система sdds_serv — 637 КБ компактного JSON,
+            # лимит поднят с запасом на рост числа компонентов. Глобальные 2m не меняются.
+            client_max_body_size 16m;
+
             limit_req zone=project_api burst=20 nodelay;
             auth_request /_auth_project;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;

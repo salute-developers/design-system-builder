@@ -130,7 +130,7 @@ CLI core SHALL resolve project API key from runtime sources in a deterministic p
 
 ### Requirement: API URL resolution
 
-CLI core SHALL resolve backend API URL from runtime sources and code defaults without reading it from `.sdds/config.json`.
+CLI core SHALL resolve backend API URL from runtime sources and code defaults without reading it from `.sdds/config.json`, and SHALL report which source produced the value so that writing commands can reject the code default.
 
 #### Scenario: CLI argument имеет высший приоритет
 
@@ -155,13 +155,19 @@ CLI core SHALL resolve backend API URL from runtime sources and code defaults wi
 - **WHEN** `.sdds/config.json` is generated or parsed
 - **THEN** CLI MUST NOT require or persist `apiUrl` in project config
 
+#### Scenario: Resolution сообщает источник значения
+
+- **WHEN** CLI core resolves the backend API URL
+- **THEN** the result MUST expose which runtime source produced the value
+- **THEN** the result MUST distinguish the code default from an explicitly provided value
+
 ### Requirement: Authenticated HTTP request foundation
 
-CLI core SHALL provide a reusable Ktor client based HTTP layer for future project-scoped commands.
+CLI core SHALL provide a reusable Ktor client based HTTP layer for project-scoped commands, supporting both reading and writing requests.
 
 #### Scenario: Project request получает Authorization header
 
-- **WHEN** a future project-scoped command sends a backend request through CLI core HTTP layer
+- **WHEN** a project-scoped command sends a backend request through CLI core HTTP layer
 - **THEN** the request MUST use the resolved API URL as the base URL
 - **THEN** the request MUST include `Authorization: ProjectKey <api_key>`
 
@@ -179,3 +185,36 @@ CLI core SHALL provide a reusable Ktor client based HTTP layer for future projec
 - **WHEN** CLI resolves an API key
 - **THEN** CLI MUST NOT verify revoked status, expiration, scopes, or project binding locally
 - **THEN** backend gateway/auth-helper/projects-service MUST remain the source of truth for API key authorization
+
+#### Scenario: HTTP layer поддерживает запись
+
+- **WHEN** a project-scoped command needs to send data to the backend
+- **THEN** CLI core HTTP layer MUST provide a request with a JSON body
+- **THEN** that request MUST use the resolved API URL as the base URL
+- **THEN** that request MUST include `Authorization: ProjectKey <api_key>`
+- **THEN** that request MUST map backend errors through the same error handling as reading requests
+
+### Requirement: Writing commands reject the default API URL
+
+CLI core SHALL provide a way for writing commands to require an explicitly provided backend API URL, because the code default points at a shared backend installation.
+
+#### Scenario: Writing command отклоняет code default
+
+- **WHEN** a writing command resolves the backend API URL
+- **WHEN** the resolved source is the code default
+- **THEN** CLI MUST return a deterministic failure output
+- **THEN** the message MUST name both `--api-url` and `DSBUILDER_API_URL`
+- **THEN** CLI MUST NOT send any backend request
+
+#### Scenario: Reading command сохраняет прежнее поведение
+
+- **WHEN** a reading command resolves the backend API URL
+- **WHEN** the resolved source is the code default
+- **THEN** CLI MUST use the code default
+- **THEN** CLI MUST NOT fail only because the default was used
+
+#### Scenario: Writing command печатает цель запроса
+
+- **WHEN** a writing command is about to send data to the backend
+- **THEN** CLI MUST print the resolved backend API URL and its source
+- **THEN** CLI MUST NOT print the raw API key
