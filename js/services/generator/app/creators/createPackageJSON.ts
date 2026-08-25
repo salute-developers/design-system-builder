@@ -84,7 +84,7 @@ export const createPackageJSON = ({
             },
             scripts: {
                 prepare: 'npm run build',
-                prebuild: 'rm -rf ./components ./es ./tokens ./theme ./css ./index.* && npm run prebuild:css',
+                prebuild: 'rm -rf ./components ./es ./tokens ./theme ./css ./index.*',
                 'prebuild:css': 'rm -rf src-css && ./scripts/copy-linaria-components.sh',
                 build: 'CSS_BUILD_PATH=css npm run copy-css-files && npm run lint -- --fix && npm run build:styled-components && npm run build:css',
                 postbuild: 'npm run generate:typings',

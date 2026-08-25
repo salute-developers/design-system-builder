@@ -87,11 +87,7 @@ export const generateThemeFiles = async ({ packageName, packageVersion, pathToDi
         version: packageVersion,
     };
 
-    try {
-        await generate([themeMeta], themeSource, path);
-    } catch (e) {
-        console.log(e);
-    }
+    await generate([themeMeta], themeSource, path);
 };
 
 export const generateDesignSystem = async (designSystemData: DesignSystemData, outputParams: OutputParams) => {
