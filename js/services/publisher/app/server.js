@@ -101,8 +101,8 @@ app.post('/upload', upload.single('package'), async (req, res) => {
 // Улучшенная функция публикации
 async function publishNpmPackage(tgzPath, npmToken) {
     return new Promise((resolve, reject) => {
-        // Создаем временный .npmrc в той же директории что и tgz файл
-        const npmrcPath = path.join(path.dirname(tgzPath), '.npmrc');
+        // У каждого запроса свой .npmrc, чтобы параллельные публикации не перезаписывали токены друг друга.
+        const npmrcPath = `${tgzPath}.npmrc`;
         const npmrcContent = `//registry.npmjs.org/:_authToken=${npmToken}
 registry=https://registry.npmjs.org/
 always-auth=true
@@ -131,6 +131,12 @@ always-auth=true
 
         let stdout = '';
         let stderr = '';
+        const timeout = setTimeout(() => {
+            if (npmProcess.exitCode === null) {
+                npmProcess.kill();
+                reject(new Error('Таймаут публикации (60 секунд)'));
+            }
+        }, 60000);
 
         npmProcess.stdout.on('data', (data) => {
             const output = data.toString();
@@ -145,6 +151,7 @@ always-auth=true
         });
 
         npmProcess.on('close', (code) => {
+            clearTimeout(timeout);
             // Всегда удаляем временный .npmrc
             if (fs.existsSync(npmrcPath)) {
                 fs.removeSync(npmrcPath);
@@ -164,19 +171,12 @@ always-auth=true
         });
 
         npmProcess.on('error', (error) => {
+            clearTimeout(timeout);
             if (fs.existsSync(npmrcPath)) {
                 fs.removeSync(npmrcPath);
             }
             reject(new Error(`Ошибка запуска npm: ${error.message}`));
         });
-
-        // Таймаут на случай зависания
-        setTimeout(() => {
-            if (npmProcess.exitCode === null) {
-                npmProcess.kill();
-                reject(new Error('Таймаут публикации (60 секунд)'));
-            }
-        }, 60000);
     });
 }
 
