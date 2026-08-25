@@ -65,7 +65,10 @@ Key relationships (foreign keys):
 Domain model:
 - A design system (e.g. SDDS, PLASMA) contains components, tokens, tenants, appearances, and styles.
 - Components have variations (e.g. size: S/M/L) and properties (e.g. color, typography).
-- Styles belong to a variation within a design system. styles.is_default marks the default style per variation per DS.
+- Styles belong to a variation within a design system.
+- appearance_variations declares which axes an appearance exposes, in which order (position), and which style is
+  its default (default_style_id); appearance_variation_values lists the declared values of each axis in order.
+  The default belongs to the pair (appearance, variation), not to the style.
 - Properties are linked to variations via property_variations (many-to-many).
 - variation_property_values store property values per style+appearance combo (optionally per state).
 - invariant_property_values store property values that don't depend on a variation (per DS+component+appearance, optionally per state).

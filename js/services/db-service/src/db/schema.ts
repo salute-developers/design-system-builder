@@ -15,6 +15,15 @@ import { relations, sql } from "drizzle-orm";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+// Словарь типов слота API компонента. Приходит из кода: `ParameterType` в `api-info-ksp`
+// и `ApiType` в `build-system/conventions/tasks/viewapi` репозитория `plasma-android`
+// объявляют ровно этот набор.
+//
+// `gradient` сюда не входит: в `plasma-android` тип `color` означает семейство paint —
+// KSP относит к нему `Color`, `Brush` и `InteractiveColor`, — а `gradient` различает
+// конкретное значение, а не слот. Замер по 40 файлам api-meta (~52 тыс. параметров)
+// не даёт ни одного `gradient`. Словарь типов значения — отдельный, см. `VALUE_TYPES`
+// в `db/import/componentImport.ts`.
 export const propertyTypeEnum = pgEnum("property_type", [
   "color",
   "typography",
@@ -26,8 +35,6 @@ export const propertyTypeEnum = pgEnum("property_type", [
   "value",
   "icon",
   "boolean",
-  "gradient",
-  "blur",
   // Тип из uikit-api-meta.json: счётчики и длительности (PaginationDots.edgeCount,
   // Wheel.visibleItemsCount, RectSkeleton.duration). В конфигурациях оформления те же
   // свойства записаны как value или float — глобальный слой берёт тип из кода.
@@ -354,7 +361,6 @@ export const styles = pgTable(
       .references(() => variations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    isDefault: boolean("is_default").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -363,9 +369,72 @@ export const styles = pgTable(
   },
   (t) => [
     uniqueIndex("styles_ds_id_variation_id_name_unique").on(t.designSystemId, t.variationId, t.name),
-    uniqueIndex("styles_variation_id_ds_id_is_default_unique")
-      .on(t.variationId, t.designSystemId)
-      .where(sql`is_default = true`),
+  ],
+);
+
+// Объявление оси вариаций на уровне appearance: какие оси открывает эта пара
+// (компонент, стиль), в каком порядке и что у оси по умолчанию.
+//
+// Уровень выбран по данным корпуса, а не по удобству: порядок осей у 18 компонентов из 70
+// не сводится к одной последовательности между стилями, состав осей различается между стилями
+// у 31 компонента внутри одной ДС, а `defaultValue` одной оси различается между стилями одного
+// компонента в 21 случае. Прежний `styles.is_default` выражал дефолт на уровне (ДС, ось)
+// и потому затирался каждой следующей конфигурацией пакета.
+export const appearanceVariations = pgTable(
+  "appearance_variations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceId: uuid("appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+    variationId: uuid("variation_id")
+      .notNull()
+      .references(() => variations.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    // Снятый дефолт не должен уносить объявление оси, поэтому set null, а не cascade.
+    defaultStyleId: uuid("default_style_id").references(() => styles.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("av_appearance_variation_unique").on(t.appearanceId, t.variationId),
+    uniqueIndex("av_appearance_position_unique").on(t.appearanceId, t.position),
+  ],
+);
+
+// Объявленные значения оси, а не использованные. 81 ось корпуса из 821 объявляет значения,
+// которых нет ни в одной вариации, ещё 21 ось не использует ни одного своего значения:
+// `plasma_b2c/badge-clear` объявляет `shape: [default, pilled]`, а переопределения несёт
+// только `pilled`. Вывести ось из строк значений — значит срезать её поверхность.
+export const appearanceVariationValues = pgTable(
+  "appearance_variation_values",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceVariationId: uuid("appearance_variation_id")
+      .notNull()
+      .references(() => appearanceVariations.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    // Идентификатор и родитель вариации в native-формате. Хранятся, а не выводятся: они
+    // авторские, и `plugin_theme_builder` строит из идентификатора имя генерируемого стиля,
+    // а из родителя — дерево наследования. Правило вывода корпусом отвергается: из 4600
+    // сегментов 923 не сводятся ни к значению оси, ни к её имени.
+    nativeId: text("native_id"),
+    nativeParent: text("native_parent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("avv_variation_style_unique").on(t.appearanceVariationId, t.styleId),
+    uniqueIndex("avv_variation_position_unique").on(t.appearanceVariationId, t.position),
   ],
 );
 
@@ -468,6 +537,14 @@ export const variationPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
+    // Хранится в той же текстовой форме, в какой пришло: значение сериализуется обратно
+    // без нормализации, поэтому text, а не numeric.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
     stateSetId: uuid("state_set_id")
       .notNull()
       .references(() => stateSets.id, { onDelete: "cascade" }),
@@ -506,6 +583,14 @@ export const invariantPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
+    // Хранится в той же текстовой форме, в какой пришло: значение сериализуется обратно
+    // без нормализации, поэтому text, а не numeric.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
     stateSetId: uuid("state_set_id")
       .notNull()
       .references(() => stateSets.id, { onDelete: "cascade" }),
@@ -662,6 +747,65 @@ export const componentReuseConfigs = pgTable(
   ],
 );
 
+// Объявление кросс-осевой координаты на уровне appearance.
+//
+// Заведено по образцу `appearance_variations`: координата — факт конфигурации, а не следствие
+// того, что по ней что-то переопределено. `pagination-dots` объявляет сочетание
+// `size=m` + `active-type=line`, не задавая ему ни одного свойства, и без отдельного объявления
+// такая координата не оставляла в модели следа — выгрузка теряла её на второй итерации.
+export const appearanceCombinations = pgTable(
+  "appearance_combinations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceId: uuid("appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+    // Тот же канонический ключ, что у `style_combinations`: отсортированные id стилей-участников
+    // через запятую. По нему значения и сопоставляются с объявлением.
+    combinationKey: text("combination_key").notNull(),
+    position: integer("position").notNull(),
+    // Идентификатор и родитель вариации в native-формате. Хранятся, а не выводятся: они
+    // авторские, и `plugin_theme_builder` строит из идентификатора имя генерируемого стиля,
+    // а из родителя — дерево наследования. Правило вывода корпусом отвергается: из 4600
+    // сегментов 923 не сводятся ни к значению оси, ни к её имени.
+    nativeId: text("native_id"),
+    nativeParent: text("native_parent"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("ac_appearance_key_unique").on(t.appearanceId, t.combinationKey),
+    uniqueIndex("ac_appearance_position_unique").on(t.appearanceId, t.position),
+  ],
+);
+
+// Участники объявленной координаты: по одному стилю на ось.
+export const appearanceCombinationMembers = pgTable(
+  "appearance_combination_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceCombinationId: uuid("appearance_combination_id")
+      .notNull()
+      .references(() => appearanceCombinations.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("acm_combination_style_unique").on(t.appearanceCombinationId, t.styleId),
+    uniqueIndex("acm_combination_position_unique").on(t.appearanceCombinationId, t.position),
+  ],
+);
+
 export const styleCombinations = pgTable(
   "style_combinations",
   {
@@ -678,6 +822,18 @@ export const styleCombinations = pgTable(
     // половины импорта, и без ключа повторная загрузка дублировала бы их.
     combinationKey: text("combination_key").notNull().default(""),
     value: text("value").notNull(),
+    // Ссылка на токен, а не только его имя текстом в `value`. Прежде она здесь
+    // отсутствовала — единственная из трёх таблиц значений, — поэтому переименование
+    // токена оставляло в сочетании имя несуществующего, а вид заливки значения
+    // (сплошной цвет против градиента) выводить было не из чего.
+    tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
+    // Хранится в той же текстовой форме, в какой пришло, без нормализации.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
     // Строка сочетания несёт одно значение и один набор состояний. Прежде она несла базовое
     // значение плюс массив переопределений в jsonb (`[{"state":["activated"],"value":32}]`) —
     // четвёртое представление состояний, вне словаря и вне ссылочной целостности. Теперь

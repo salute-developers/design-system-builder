@@ -295,8 +295,6 @@
               "value",
               "icon",
               "boolean",
-              "gradient",
-              "blur",
               "integer"
             ]
           },
@@ -556,10 +554,6 @@
             "type": "string",
             "nullable": true
           },
-          "isDefault": {
-            "type": "boolean",
-            "nullable": true
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -577,7 +571,102 @@
           "variationId",
           "name",
           "description",
-          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "appearanceId",
+          "variationId",
+          "position",
+          "defaultStyleId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appearanceVariationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "nativeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "nativeParent": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "appearanceVariationId",
+          "styleId",
+          "position",
+          "nativeId",
+          "nativeParent",
           "createdAt",
           "updatedAt"
         ]
@@ -834,6 +923,19 @@
             "type": "string",
             "nullable": true
           },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -856,6 +958,9 @@
           "appearanceId",
           "tokenId",
           "value",
+          "alpha",
+          "adjustment",
+          "position",
           "stateSetId",
           "createdAt",
           "updatedAt"
@@ -893,6 +998,19 @@
             "type": "string",
             "nullable": true
           },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -916,6 +1034,9 @@
           "appearanceId",
           "tokenId",
           "value",
+          "alpha",
+          "adjustment",
+          "position",
           "stateSetId",
           "createdAt",
           "updatedAt"
@@ -1073,6 +1194,24 @@
           "value": {
             "type": "string"
           },
+          "tokenId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -1094,6 +1233,10 @@
           "appearanceId",
           "combinationKey",
           "value",
+          "tokenId",
+          "alpha",
+          "adjustment",
+          "position",
           "stateSetId",
           "createdAt",
           "updatedAt"
@@ -1651,8 +1794,6 @@
               "value",
               "icon",
               "boolean",
-              "gradient",
-              "blur",
               "integer"
             ]
           },
@@ -1690,8 +1831,6 @@
               "value",
               "icon",
               "boolean",
-              "gradient",
-              "blur",
               "integer"
             ]
           },
@@ -1887,10 +2026,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "isDefault": {
-            "type": "boolean",
-            "default": false
           }
         },
         "required": [
@@ -1910,9 +2045,74 @@
           "description": {
             "type": "string",
             "maxLength": 1000
+          }
+        }
+      },
+      "CreateAppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "isDefault": {
-            "type": "boolean"
+          "variationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "appearanceId",
+          "variationId",
+          "position"
+        ]
+      },
+      "UpdateAppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateAppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "appearanceVariationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "appearanceVariationId",
+          "styleId",
+          "position"
+        ]
+      },
+      "UpdateAppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
           }
         }
       },
@@ -2189,6 +2389,12 @@
           "value": {
             "type": "string"
           },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -2209,6 +2415,12 @@
             "format": "uuid"
           },
           "value": {
+            "type": "string"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
             "type": "string"
           },
           "stateSetId": {
@@ -2243,6 +2455,12 @@
           "value": {
             "type": "string"
           },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -2264,6 +2482,12 @@
             "format": "uuid"
           },
           "value": {
+            "type": "string"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
             "type": "string"
           },
           "stateSetId": {
@@ -2408,6 +2632,16 @@
             "type": "string",
             "minLength": 1
           },
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
           "stateSetId": {
             "type": "string",
             "format": "uuid"
@@ -2426,6 +2660,16 @@
           "value": {
             "type": "string",
             "minLength": 1
+          },
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
           },
           "stateSetId": {
             "type": "string",
@@ -2662,6 +2906,98 @@
           }
         }
       },
+      "AppearanceAxisDeclaration": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AppearanceVariation"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "values": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            },
+            "required": [
+              "values"
+            ]
+          }
+        ]
+      },
+      "ComponentExportRequest": {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Дизайн-система, конфигурации которой выгружаются"
+          }
+        },
+        "required": [
+          "designSystemId"
+        ]
+      },
+      "ComponentExportPackage": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Имя дизайн-системы"
+              },
+              "version": {
+                "type": "string",
+                "description": "Версия последней опубликованной записи"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentName": {
+                  "type": "string",
+                  "description": "Имя компонента в написании meta.json"
+                },
+                "styleName": {
+                  "type": "string",
+                  "description": "Имя стиля, оно же имя appearance"
+                },
+                "config": {
+                  "nullable": true,
+                  "description": "Конфигурация в общем формате"
+                }
+              },
+              "required": [
+                "componentName",
+                "styleName"
+              ]
+            }
+          },
+          "underivedTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Значения paint-слота, вид заливки которых не выведен: ссылка на токен не разрешилась и отдан тип свойства. Поле информационное, выгрузку не отклоняет"
+          }
+        },
+        "required": [
+          "meta",
+          "components",
+          "underivedTypes"
+        ]
+      },
       "ComponentImportReport": {
         "type": "object",
         "properties": {
@@ -2719,6 +3055,27 @@
               "type": "string"
             },
             "description": "Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода"
+          },
+          "unknownStates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Состояния из конфигураций, которых нет ни среди состояний взаимодействия, ни среди объявленных компонентом"
+          },
+          "typeMismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства, у которых тип слота из кода не встречается в конфигурациях ни разу"
+          },
+          "gradientOnlyProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода"
           }
         },
         "required": [
@@ -2728,7 +3085,10 @@
           "rejected",
           "unresolvedTokens",
           "unresolvedComponentStyles",
-          "unknownProperties"
+          "unknownProperties",
+          "unknownStates",
+          "typeMismatches",
+          "gradientOnlyProperties"
         ]
       }
     },
@@ -6428,6 +6788,52 @@
         }
       }
     },
+    "/ds/appearances/{id}/variations": {
+      "get": {
+        "tags": [
+          "Appearances"
+        ],
+        "summary": "Объявление осей вариаций этого appearance вместе с их значениями",
+        "description": "Оси возвращаются в порядке position, значения внутри оси — тоже.\n\nРучка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка\nстрок все объявления базы и фильтровать их на клиенте значит возить мегабайты.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceAxisDeclaration"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/styles": {
       "get": {
         "tags": [
@@ -6635,6 +7041,512 @@
           "Styles"
         ],
         "summary": "Delete style",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variations": {
+      "get": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "List all appearance variations",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceVariation"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Create appearance variation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppearanceVariation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variations/{id}": {
+      "get": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Get appearance variation by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Update appearance variation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppearanceVariation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Delete appearance variation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variation-values": {
+      "get": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "List all appearance variation values",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceVariationValue"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Create appearance variation value",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppearanceVariationValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variation-values/{id}": {
+      "get": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Get appearance variation value by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Update appearance variation value",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppearanceVariationValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Delete appearance variation value",
         "parameters": [
           {
             "schema": {
@@ -11390,6 +12302,87 @@
         }
       }
     },
+    "/ds/component-config/export": {
+      "post": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Выгрузка конфигураций компонентов одним ответом",
+        "description": "Зеркало /import: тот же путь, POST, адресация телом. Существующий\nGET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.\n\nmeta.version берётся из последней опубликованной версии. Дизайн-система без версий\nотклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы\nв собранную тему.\n\nТип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен\nзначения градиентный, иначе тип свойства. properties.type описывает слот API компонента,\nгде color означает семейство paint. Значение типа color или gradient кладётся в default,\nостальные — в value; states[].type пишется только при расхождении с базовым значением.\n\nПорядок ответа детерминирован: компоненты по componentName, затем styleName,\nсвойства по имени.\n\nСвойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,\nи о них сообщает отчёт /import.\n\nТребует scope components:read, если запрос пришёл с ключом проекта.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Пакет конфигураций",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentExportPackage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело запроса не соответствует формату или designSystemId не является uuid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "У ключа нет scope components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Дизайн-система не найдена или недоступна проекту",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Нет опубликованной версии или имя компонента не восстанавливается обратно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/component-config/import": {
       "post": {
         "tags": [
@@ -11538,6 +12531,13 @@
                                       "properties": {
                                         "name": {
                                           "type": "string"
+                                        },
+                                        "nativeId": {
+                                          "type": "string"
+                                        },
+                                        "nativeParent": {
+                                          "type": "string",
+                                          "nullable": true
                                         },
                                         "targets": {
                                           "type": "array",

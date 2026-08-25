@@ -2,8 +2,11 @@ ALTER TYPE "public"."property_type" ADD VALUE 'component_style';--> statement-br
 ALTER TYPE "public"."property_type" ADD VALUE 'value';--> statement-breakpoint
 ALTER TYPE "public"."property_type" ADD VALUE 'icon';--> statement-breakpoint
 ALTER TYPE "public"."property_type" ADD VALUE 'boolean';--> statement-breakpoint
-ALTER TYPE "public"."property_type" ADD VALUE 'gradient';--> statement-breakpoint
-ALTER TYPE "public"."property_type" ADD VALUE 'blur';--> statement-breakpoint
+-- `gradient` и `blur` здесь не заводятся намеренно. Прежде они добавлялись, а следующая
+-- миграция пересоздавала перечисление без них: `properties.type` — слот API, и оба этих
+-- имени в нём не встречаются ни разу (замер: 40 файлов api-meta, ~52 тыс. параметров).
+-- Раз миграция ещё никуда не выпущена, дешевле не заводить их вовсе, чем потом снимать
+-- через DROP TYPE с перекастом колонки на всей таблице.
 ALTER TYPE "public"."property_type" ADD VALUE 'integer';--> statement-breakpoint
 CREATE TABLE "component_style_reference_styles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,

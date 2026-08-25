@@ -34,6 +34,10 @@ export const TargetSchema = z.object({
 
 export const VariationValueSchema = z.object({
   name: z.string(),
+  // Идентификатор и родитель вариации в native-формате: авторские, из координаты не выводятся,
+  // а плагин строит из них имя стиля и дерево наследования.
+  nativeId: z.string().optional(),
+  nativeParent: z.string().nullish(),
   targets: z.array(TargetSchema).optional(),
   properties: z.record(z.string(), PropertyValueSchema).default({}),
 });
@@ -72,7 +76,14 @@ export const ImportRequestSchema = z.object({
   components: z.array(ImportComponentSchema).min(1),
 });
 
+export const ExportRequestSchema = z.object({
+  // Дизайн-система адресуется телом так же, как у `/import`: путь остаётся без параметров,
+  // а идентификатор проверяется на uuid вместе с остальным телом.
+  designSystemId: z.string().uuid(),
+});
+
 export type PropertyValue = z.infer<typeof PropertyValueSchema>;
+export type ExportRequest = z.infer<typeof ExportRequestSchema>;
 export type VariationValue = z.infer<typeof VariationValueSchema>;
 export type CommonConfig = z.infer<typeof CommonConfigSchema>;
 export type ImportComponent = z.infer<typeof ImportComponentSchema>;
@@ -106,10 +117,19 @@ export const tokenNameOf = (property: PropertyValue): string | null => {
 };
 
 /**
- * Сериализует значение свойства в текст для колонки `value`.
+ * Сериализует произвольное значение конфигурации в текст.
+ *
+ * Форма сохраняется как есть: `0.2` остаётся `0.2`, а не превращается в `0.20`. Значение
+ * возвращается в конфигурацию тем же текстом, поэтому нормализация здесь означала бы
+ * расхождение выгруженного конфига с исходным.
  */
-export const propertyValueToText = (property: PropertyValue): string | null => {
-  const raw = property.default ?? property.value;
+export const rawToText = (raw: unknown): string | null => {
   if (raw === undefined || raw === null) return null;
   return typeof raw === "string" ? raw : JSON.stringify(raw);
 };
+
+/**
+ * Сериализует значение свойства в текст для колонки `value`.
+ */
+export const propertyValueToText = (property: PropertyValue): string | null =>
+  rawToText(property.default ?? property.value);

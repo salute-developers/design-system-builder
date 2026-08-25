@@ -62,7 +62,6 @@ export async function seedDesignSystemChanges(
           designSystemId: sdds.id,
           variationId: v.buttonSize.id,
           name: 'L',
-          isDefault: false,
         },
       },
       // 4. property_variation deleted: deleted a property-variation link
@@ -91,7 +90,6 @@ export async function seedDesignSystemChanges(
           designSystemId: plasma.id,
           variationId: v.buttonView.id,
           name: 'Outline',
-          isDefault: false,
         },
       },
       // 7. token created: new 'spacing.4x' token in SDDS

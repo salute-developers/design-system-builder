@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db/index";
+import { deriveValueType, placeValue, restoreJsonType } from "../../db/export/valueType";
 import {
   designSystems,
   designSystemVersions,
   components,
   appearances,
+  appearanceVariations,
+  appearanceVariationValues,
   variations,
   styles,
   invariantPropertyValues,
@@ -31,14 +34,21 @@ const ROOT_VARIATION_NAME = "size";
 const COLOR_SCHEME_VARIATION_NAME = "view";
 
 // Значение свойства в конфиге. Ключом в map выступает имя property, а id
-// кладётся отдельным полем. type зависит от типа property и допускает больше
-// вариантов, чем propertyTypeEnum (gradient, component_style, value, blur),
-// поэтому оставляем строкой.
+// кладётся отдельным полем.
+//
+// `type` — тип **значения**, а не слота, и словарь у него свой: он шире
+// `propertyTypeEnum` на `gradient` и уже на `integer`. Поэтому строка, а не enum схемы:
+// перечисление описывает тип слота API компонента, а `gradient` различает конкретное
+// значение внутри семейства paint. Полный словарь — `VALUE_TYPES` в
+// `db/import/componentImport.ts`.
 type PropEntry = {
   id: string;
   type: string;
-  value: string | null;
-  states: { state: string[]; value: string | null }[];
+  /** Значение цвета и градиента; у остальных типов поля нет. */
+  default?: unknown;
+  /** Значение всех прочих типов; у цвета и градиента поля нет. */
+  value?: unknown;
+  states: { state: string[]; value: unknown; type?: string }[];
 };
 
 /**
@@ -215,23 +225,27 @@ router.get("/", (req, res) =>
         ) as string[],
       ),
     ];
-    const tokenNameById =
+    // Вместе с именем берётся тип токена: им выводится вид заливки значения.
+    const tokenById =
       referencedTokenIds.length > 0
         ? new Map(
             (
               await db
-                .select({ id: tokens.id, name: tokens.name })
+                .select({ id: tokens.id, name: tokens.name, type: tokens.type })
                 .from(tokens)
                 .where(inArray(tokens.id, referencedTokenIds))
-            ).map((t) => [t.id, t.name]),
+            ).map((t) => [t.id, t]),
           )
-        : new Map<string, string>();
+        : new Map<string, { id: string; name: string; type: string | null }>();
 
     const resolveValue = (
       value: string | null,
       tokenId: string | null,
     ): string | null =>
-      value ?? (tokenId ? tokenNameById.get(tokenId) ?? null : null);
+      value ?? (tokenId ? tokenById.get(tokenId)?.name ?? null : null);
+
+    const tokenTypeOf = (tokenId: string | null): string | null =>
+      tokenId ? tokenById.get(tokenId)?.type ?? null : null;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     function groupBy<T>(arr: T[], key: (item: T) => string): Map<string, T[]> {
@@ -301,14 +315,28 @@ router.get("/", (req, res) =>
         // Ключ — имя property; фолбэк на id, если имя почему-то недоступно.
         const key = prop?.name ?? propertyId;
 
+        // Тип слота приходит из кода компонента и покрывает семейство целиком; какой
+        // заливкой оказалось значение, знает его токен. Прежде здесь отдавался слот,
+        // и градиент уходил потребителю сплошным цветом.
+        const slot = prop?.type ?? "value";
+        const type = deriveValueType(slot, base ? tokenTypeOf(base.tokenId) : null);
+        const rawValue = base ? resolveValue(base.value, base.tokenId) : null;
+
         result[key] = {
           id: propertyId,
-          type: prop?.type ?? "value",
-          value: base ? resolveValue(base.value, base.tokenId) : null,
-          states: stateRows.map((sr) => ({
-            state: sr.stateNames,
-            value: resolveValue(sr.value, sr.tokenId),
-          })),
+          type,
+          // Цвет и градиент модель плагина ждёт в `default`, остальные типы — в `value`.
+          ...placeValue(type, restoreJsonType(rawValue, type)),
+          states: stateRows.map((sr) => {
+            const stateType = deriveValueType(slot, tokenTypeOf(sr.tokenId));
+            return {
+              state: sr.stateNames,
+              value: restoreJsonType(resolveValue(sr.value, sr.tokenId), stateType),
+              // Тип пишется только при расхождении с базой: при его отсутствии
+              // потребитель берёт тип базового значения.
+              ...(stateType !== type ? { type: stateType } : {}),
+            };
+          }),
         };
       }
 
@@ -327,32 +355,98 @@ router.get("/", (req, res) =>
 
     // ── root / colorScheme variation ──────────────────────────────────────────
     // Ссылаться можно только на ось, попавшую в ответ.
-    const filledVariations = variationRows.filter(
-      (v) => (stylesByVariationId.get(v.id) ?? []).length > 0,
+    // ── объявление осей этого appearance ───────────────────────────────────────
+    //
+    // Оси берутся из объявления, а не выводятся из наличия стилей в дизайн-системе.
+    // Прежний вывод давал фантомные оси: стиль оси существует в ДС, потому что его
+    // завёл другой appearance того же компонента, — и ось попадала в ответ с пустым
+    // набором значений. `avatar-indicator` так получал ось `view`, которой не имеет.
+    const declaredAxisRows = await db
+      .select({
+        axisId: appearanceVariations.id,
+        variationId: appearanceVariations.variationId,
+        position: appearanceVariations.position,
+      })
+      .from(appearanceVariations)
+      .where(eq(appearanceVariations.appearanceId, appearance.id))
+      .orderBy(appearanceVariations.position);
+
+    const declaredValueRows = declaredAxisRows.length
+      ? await db
+          .select({
+            axisId: appearanceVariationValues.appearanceVariationId,
+            styleId: appearanceVariationValues.styleId,
+            position: appearanceVariationValues.position,
+          })
+          .from(appearanceVariationValues)
+          .where(
+            inArray(
+              appearanceVariationValues.appearanceVariationId,
+              declaredAxisRows.map((row) => row.axisId),
+            ),
+          )
+          .orderBy(appearanceVariationValues.position)
+      : [];
+
+    const declaredStylesByVariationId = new Map<string, typeof styleRows>();
+    const axisIdToVariationId = new Map(
+      declaredAxisRows.map((row) => [row.axisId, row.variationId]),
     );
+    for (const row of declaredValueRows) {
+      const variationId = axisIdToVariationId.get(row.axisId);
+      const style = styleById.get(row.styleId);
+      if (!variationId || !style) continue;
+
+      declaredStylesByVariationId.set(variationId, [
+        ...(declaredStylesByVariationId.get(variationId) ?? []),
+        style,
+      ]);
+    }
+
+    // Порядок осей — из объявления, а не из порядка строк `variations`.
+    const declaredVariations = declaredAxisRows.flatMap((row) => {
+      const variation = variationRows.find((entry) => entry.id === row.variationId);
+      return variation ? [variation] : [];
+    });
+
+    const filledVariations = declaredVariations;
     const rootVariationId =
       filledVariations.find((v) => v.name === ROOT_VARIATION_NAME)?.id ?? null;
     const colorSchemeVariationId =
       filledVariations.find((v) => v.name === COLOR_SCHEME_VARIATION_NAME)?.id ?? null;
 
-    // ── defaults (дефолтный стиль каждой вариации) ─────────────────────────────
-    const defaults = variationRows.flatMap((variation) => {
-      const defaultStyle = (stylesByVariationId.get(variation.id) ?? []).find(
-        (s) => s.isDefault,
-      );
-      return defaultStyle ? [{ id: variation.id, value: defaultStyle.name }] : [];
+    // ── defaults (дефолтное значение каждой оси) ───────────────────────────────
+    //
+    // Дефолт принадлежит паре (appearance, ось), а не стилю: два стиля одного компонента
+    // в одной ДС могут требовать разного дефолта одной оси. Прежде читался флаг
+    // `styles.is_default`, уникальный по (ДС, ось), и потому отдавал один дефолт всем
+    // стилям компонента.
+    const defaultStyleRows = await db
+      .select({
+        variationId: appearanceVariations.variationId,
+        styleName: styles.name,
+      })
+      .from(appearanceVariations)
+      .innerJoin(styles, eq(appearanceVariations.defaultStyleId, styles.id))
+      .where(eq(appearanceVariations.appearanceId, appearance.id));
+
+    const defaultStyleByVariationId = new Map(
+      defaultStyleRows.map((row) => [row.variationId, row.styleName]),
+    );
+
+    const defaults = declaredVariations.flatMap((variation) => {
+      const value = defaultStyleByVariationId.get(variation.id);
+      return value ? [{ id: variation.id, value }] : [];
     });
 
     // ── variations ────────────────────────────────────────────────────────────
     //
-    // Ось объявлена кодом компонента и потому есть у него всегда, но значения ей
-    // задаёт конкретная дизайн-система. Ось без значений в этой дизайн-системе
-    // потребителю бесполезна, поэтому в ответ не попадает: `variant` у CheckBox
-    // наполняет только sdds_sbcom, остальные пять — нет.
-    const variationsConfig = variationRows
-      .filter((variation) => (stylesByVariationId.get(variation.id) ?? []).length > 0)
+    // Состав, порядок и значения осей берутся из объявления этого appearance.
+    // Объявленное значение остаётся в ответе, даже если оформление его не трогает:
+    // иначе оно исчезло бы из API компонента.
+    const variationsConfig = declaredVariations
       .map((variation) => {
-      const varStyles = stylesByVariationId.get(variation.id) ?? [];
+      const varStyles = declaredStylesByVariationId.get(variation.id) ?? [];
 
         // Сочетание принадлежит ровно одному стилю-участнику, иначе оно попало бы
       // в ответ столько раз, сколько в нём осей. Владельца выбираем детерминированно:

@@ -56,6 +56,22 @@ Without Docker: `npm run dev` from the repo root. Use the granular `dev:*` scrip
 `cause`, а не в `message` верхнего уровня. Ручка, переводящая отказ в `400`, обязана разворачивать
 причину, иначе отдаст `500` с сырым SQL.
 
+### Tests: only db-service has them, and they need a database
+
+`db-service` runs [vitest](services/db-service/vitest.config.ts): `cd services/db-service && npm test`.
+No other service has tests except `documentation-generator` (jest).
+
+- Tests talk to a **real** Postgres, not a mock: the import logic is mostly SQL, and a mock would
+  assert the mock. `TEST_DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:5433/db_service_test`
+  and is deliberately a separate variable from `DATABASE_URL` — tests must never point at the dev DB.
+- The global setup creates that database if missing and runs `drizzle/` migrations against it, so the
+  tests see the same schema the running service gets, triggers included.
+- Every test body runs inside `withRollback` from [services/db-service/src/test/database.ts](services/db-service/src/test/database.ts)
+  and is rolled back, so the database is never cleaned by hand and test order does not matter.
+- The global layer (components, properties, tokens) is **not** created by the import — it comes from
+  `uikit-api-meta.json`. A test that loads a configuration must seed that layer inside its own
+  transaction first.
+
 ### Sync rules — VERY IMPORTANT
 Whenever you touch certain files in `db-service`, generated artifacts must be regenerated via the `/sync-*` skills. These skills exist specifically for this and you should use them proactively — do not hand-edit the generated files.
 

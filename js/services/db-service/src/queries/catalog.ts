@@ -893,40 +893,45 @@ export const queryCatalog: CatalogQuery[] = [
       const dsName = params?.designSystemName as string;
       const appearanceName = params?.appearanceName as string;
 
+      // Дефолт оси принадлежит appearance, поэтому запрос идёт от объявления оси,
+      // а не от стилей. Прежняя редакция фильтровала `styles.is_default` — флаг уровня
+      // (ДС, ось), — и потому отдавала один и тот же дефолт всем appearance компонента,
+      // а `selectDistinct` это скрывал.
       return db
-        .selectDistinct({
+        .select({
           componentName: schema.components.name,
           variationName: schema.variations.name,
           styleName: schema.styles.name,
           styleDescription: schema.styles.description,
         })
-        .from(schema.styles)
+        .from(schema.appearanceVariations)
+        .innerJoin(
+          schema.styles,
+          eq(schema.appearanceVariations.defaultStyleId, schema.styles.id),
+        )
         .innerJoin(
           schema.variations,
-          eq(schema.styles.variationId, schema.variations.id),
+          eq(schema.appearanceVariations.variationId, schema.variations.id),
         )
         .innerJoin(
           schema.components,
           eq(schema.variations.componentId, schema.components.id),
         )
         .innerJoin(
-          schema.designSystems,
-          eq(schema.styles.designSystemId, schema.designSystems.id),
+          schema.appearances,
+          eq(schema.appearanceVariations.appearanceId, schema.appearances.id),
         )
         .innerJoin(
-          schema.appearances,
-          and(
-            eq(schema.appearances.componentId, schema.components.id),
-            eq(schema.appearances.designSystemId, schema.designSystems.id),
-          ),
+          schema.designSystems,
+          eq(schema.appearances.designSystemId, schema.designSystems.id),
         )
         .where(
           and(
-            eq(schema.styles.isDefault, true),
             eq(schema.designSystems.name, dsName),
             eq(schema.appearances.name, appearanceName),
           ),
-        );
+        )
+        .orderBy(schema.components.name, schema.variations.name);
     },
   },
 
@@ -1248,7 +1253,9 @@ export const queryCatalog: CatalogQuery[] = [
               variationId: schema.styles.variationId,
               name: schema.styles.name,
               description: schema.styles.description,
-              isDefault: schema.styles.isDefault,
+              // Дефолт больше не факт стиля: он принадлежит паре (appearance, ось)
+              // и лежит в `appearance_variations.default_style_id`. Перечень стилей
+              // дизайн-системы одного дефолта не имеет.
               variationName: schema.variations.name,
               componentName: schema.components.name,
             })

@@ -1,4 +1,5 @@
 import * as schema from '../../schema';
+import { DeclaredStyle, seedAppearanceVariations } from '../appearance_variations';
 
 // Styles are per (design_system, variation).
 // _outline postfixes removed: the same style names work across appearances.
@@ -7,14 +8,16 @@ export async function seedStyles(
   ctx: {
     designSystems: { sdds: any; plasma: any };
     variations: Record<string, any>;
+    appearances: Record<string, any>;
   },
 ) {
   const { sdds, plasma } = ctx.designSystems;
   const v = ctx.variations;
 
-  const rows = await db
-    .insert(schema.styles)
-    .values([
+  // `isDefault` больше не колонка `styles`: дефолт принадлежит паре (appearance, ось).
+  // Отметка остаётся здесь, потому что объявление — единственное место, где записано,
+  // какое значение оси является дефолтным и в каком порядке идут значения.
+  const declared: DeclaredStyle[] = [
       // ── SDDS ──────────────────────────────────────────────────────────────
       // Button.View
       { designSystemId: sdds.id, variationId: v.buttonView.id, name: 'Primary', isDefault: true },
@@ -68,11 +71,24 @@ export async function seedStyles(
       // Link.Size
       { designSystemId: plasma.id, variationId: v.linkSize.id, name: 'S', isDefault: true },
       { designSystemId: plasma.id, variationId: v.linkSize.id, name: 'M', isDefault: false },
-    ])
+    ];
+
+  const rows = await db
+    .insert(schema.styles)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    .values(declared.map(({ isDefault, ...row }) => row))
     .returning();
 
   const find = (dsId: string, varId: string, name: string) =>
     rows.find((r: any) => r.designSystemId === dsId && r.variationId === varId && r.name === name)!;
+
+  await seedAppearanceVariations(db, {
+    declared,
+    styleId: (variationId, name) =>
+      rows.find((r: any) => r.variationId === variationId && r.name === name)!.id,
+    variations: v,
+    appearances: ctx.appearances,
+  });
 
   const s = {
     // SDDS

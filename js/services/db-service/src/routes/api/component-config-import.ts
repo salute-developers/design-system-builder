@@ -1,11 +1,11 @@
-import { NextFunction, Request, Response, Router } from "express";
+import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index";
 import { designSystems, designSystemChanges } from "../../db/schema";
 import { ImportRequest, ImportRequestSchema } from "../../db/import/commonConfig";
 import { validateBody } from "../../validation/middleware";
 import { importComponents } from "../../db/import/componentImport";
-import { andOptional, designSystemScopeFilter, designSystemBelongsToScope, isSystemAdmin, tryCatch } from "./utils";
+import { andOptional, designSystemScopeFilter, designSystemBelongsToScope, requireScope, tryCatch } from "./utils";
 
 const WRITE_SCOPE = "components:write";
 
@@ -19,39 +19,6 @@ class DryRunRollback extends Error {
   }
 }
 
-const headerValue = (req: Request, name: string): string | undefined => {
-  const raw = req.headers[name];
-  return Array.isArray(raw) ? raw[0] : raw;
-};
-
-/**
- * Проверяет write-scope. Ключ проекта приходит со списком scope в заголовке от gateway;
- * системный администратор и запросы без project-контекста проверке не подлежат.
- */
-const hasWriteScope = (req: Request): boolean => {
-  if (isSystemAdmin(req)) return true;
-
-  const raw = headerValue(req, "x-project-scopes");
-  if (raw === undefined) return true;
-
-  return raw
-    .split(",")
-    .map((scope) => scope.trim())
-    .includes(WRITE_SCOPE);
-};
-
-/**
- * Отклоняет запрос без write-scope до разбора тела: пакет компонентов весит мегабайты,
- * и проверять его для запроса, которому в любом случае отказано, незачем.
- */
-const requireWriteScope = (req: Request, res: Response, next: NextFunction): void => {
-  if (!hasWriteScope(req)) {
-    res.status(403).json({ error: `Scope '${WRITE_SCOPE}' is required` });
-    return;
-  }
-  next();
-};
-
 const router = Router();
 
 /**
@@ -60,7 +27,7 @@ const router = Router();
  * Дизайн-система адресуется полем `designSystemId` тела: путь остаётся без параметров,
  * а идентификатор проверяется на uuid вместе с остальным телом.
  */
-router.post("/import", requireWriteScope, validateBody(ImportRequestSchema), (req, res) =>
+router.post("/import", requireScope(WRITE_SCOPE), validateBody(ImportRequestSchema), (req, res) =>
   tryCatch(res, async () => {
     const request: ImportRequest = req.body;
 

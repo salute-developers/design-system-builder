@@ -3,16 +3,20 @@ package com.dsbuilder.frontend.cli.feature.components.data
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResult
 import com.dsbuilder.frontend.cli.feature.components.application.ComponentConfigRemoteSource
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsCommand
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsCommand
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.domain.ComponentImportRejection
 import com.dsbuilder.frontend.cli.feature.components.domain.ComponentImportReport
+import com.dsbuilder.frontend.cli.feature.components.domain.ExportedComponentConfig
+import com.dsbuilder.frontend.cli.feature.components.domain.ExportedComponentPackage
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonConfig
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * HTTP adapter импорта конфигураций компонентов через project-scoped backend API.
+ * HTTP adapter обмена конфигурациями компонентов через project-scoped backend API.
  */
 internal class HttpComponentConfigRemoteSource(
     private val httpClientFactory: AuthenticatedHttpClientFactory,
@@ -47,6 +51,35 @@ internal class HttpComponentConfigRemoteSource(
             is AuthenticatedHttpResult.Failure -> ImportComponentsResult.Failed(response.message)
             is AuthenticatedHttpResult.Success -> parseReport(response.body)
         }
+    }
+
+    override fun export(command: ExportComponentsCommand): ExportComponentsResult {
+        val body = json.encodeToString(
+            ExportRequest.serializer(),
+            ExportRequest(designSystemId = command.designSystemId.value),
+        )
+
+        val path = "/api/projects/${command.projectId.value}/ds/component-config/export"
+        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+
+        return when (val response = client.post(path, body)) {
+            is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(response.message)
+            is AuthenticatedHttpResult.Success -> parsePackage(response.body)
+        }
+    }
+
+    /**
+     * Разбирает выгруженный пакет и отказывает целиком, если тело успешного ответа нечитаемо.
+     */
+    private fun parsePackage(body: String): ExportComponentsResult = try {
+        ExportComponentsResult.Exported(
+            json.decodeFromString(ExportPackageResponse.serializer(), body).toDomain(),
+        )
+    } catch (exception: IllegalArgumentException) {
+        ExportComponentsResult.Failed(
+            "Error: backend returned a successful status with an unreadable component package: " +
+                "${exception.message ?: "unexpected shape"}.",
+        )
     }
 
     /**
@@ -117,18 +150,24 @@ private data class ImportReportResponse(
     val updated: Int = 0,
     val unchanged: Int = 0,
     val rejected: List<ImportRejectionResponse> = emptyList(),
+    val unresolvedTokens: List<String> = emptyList(),
+    val unresolvedComponentStyles: List<String> = emptyList(),
     val unknownProperties: List<String> = emptyList(),
     val unknownStates: List<String> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
+    val gradientOnlyProperties: List<String> = emptyList(),
 ) {
     fun toDomain(): ComponentImportReport = ComponentImportReport(
         created = created,
         updated = updated,
         unchanged = unchanged,
         rejected = rejected.map { it.toDomain() },
+        unresolvedTokens = unresolvedTokens,
+        unresolvedComponentStyles = unresolvedComponentStyles,
         unknownProperties = unknownProperties,
         unknownStates = unknownStates,
         typeMismatches = typeMismatches,
+        gradientOnlyProperties = gradientOnlyProperties,
     )
 }
 
@@ -147,3 +186,66 @@ private data class ImportRejectionResponse(
         reason = reason,
     )
 }
+
+/**
+ * Тело запроса `POST /ds/component-config/export`.
+ *
+ * @property designSystemId дизайн-система, конфигурации которой выгружаются.
+ */
+@Serializable
+private data class ExportRequest(
+    val designSystemId: String,
+)
+
+/**
+ * Тело ответа выгрузки.
+ *
+ * @property meta имя и версия пакета.
+ * @property components выгруженные конфигурации.
+ * @property underivedTypes значения, вид заливки которых модель не смогла вывести.
+ */
+@Serializable
+private data class ExportPackageResponse(
+    val meta: ExportMetaResponse,
+    val components: List<ExportComponentResponse> = emptyList(),
+    val underivedTypes: List<String> = emptyList(),
+) {
+    fun toDomain(): ExportedComponentPackage = ExportedComponentPackage(
+        name = meta.name,
+        version = meta.version,
+        configurations = components.map { component ->
+            ExportedComponentConfig(
+                componentName = component.componentName,
+                styleName = component.styleName,
+                config = component.config,
+            )
+        },
+        underivedTypes = underivedTypes,
+    )
+}
+
+/**
+ * Метаданные выгруженного пакета.
+ *
+ * @property name имя дизайн-системы.
+ * @property version версия последней опубликованной записи.
+ */
+@Serializable
+private data class ExportMetaResponse(
+    val name: String,
+    val version: String,
+)
+
+/**
+ * Одна выгруженная конфигурация.
+ *
+ * @property componentName имя компонента.
+ * @property styleName имя стиля.
+ * @property config конфигурация в common-формате.
+ */
+@Serializable
+private data class ExportComponentResponse(
+    val componentName: String,
+    val styleName: String,
+    val config: CommonConfig,
+)

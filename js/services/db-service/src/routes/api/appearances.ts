@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/index";
-import { appearances } from "../../db/schema";
+import { appearanceVariationValues, appearanceVariations, appearances } from "../../db/schema";
 import {
   CreateAppearanceSchema,
   UpdateAppearanceSchema,
@@ -31,6 +31,46 @@ router.get("/:id", validateParams(UuidParamSchema), (req, res) =>
     }
 
     res.json(row);
+  }),
+);
+
+/**
+ * Объявление осей вариаций этого appearance вместе с их значениями.
+ *
+ * Отдельная ручка, а не выборка из общего списка: копирование дизайн-системы переносит
+ * объявления по одному appearance, и тянуть ради этого все объявления базы, чтобы отфильтровать
+ * их на клиенте, значит возить мегабайты ради десятка строк.
+ */
+router.get("/:id/variations", validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    const axes = await db
+      .select()
+      .from(appearanceVariations)
+      .where(eq(appearanceVariations.appearanceId, req.params.id))
+      .orderBy(appearanceVariations.position);
+
+    if (axes.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const values = await db
+      .select()
+      .from(appearanceVariationValues)
+      .where(
+        inArray(
+          appearanceVariationValues.appearanceVariationId,
+          axes.map((axis) => axis.id),
+        ),
+      )
+      .orderBy(appearanceVariationValues.position);
+
+    res.json(
+      axes.map((axis) => ({
+        ...axis,
+        values: values.filter((value) => value.appearanceVariationId === axis.id),
+      })),
+    );
   }),
 );
 

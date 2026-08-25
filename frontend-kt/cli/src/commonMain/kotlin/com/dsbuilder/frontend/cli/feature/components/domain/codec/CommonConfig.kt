@@ -62,6 +62,27 @@ internal data class CommonVariationValue(
     val name: String,
     val targets: List<CommonTarget>? = null,
     val properties: Map<String, NativeProperty> = emptyMap(),
+    /**
+     * Идентификатор вариации в native-формате.
+     *
+     * Хранится, а не выводится: он авторский. Из 4600 сегментов корпуса под правило
+     * «сегмент равен значению оси» подходят 3773, но 798 выглядят как `outer-label` у оси
+     * `label-placement` со значением `outer`, а у булевых осей 187 сегментов равны имени оси
+     * и ещё 125 — сокращению вроде `shadow` у `has-shadow`.
+     *
+     * Терять его нельзя: `plugin_theme_builder` строит из него имя генерируемого стиля
+     * (`VariationNode.camelCaseName` разбивает `id` по точкам и переводит сегменты в CamelCase),
+     * поэтому подмена `m.has-shadow` на `m.true` переименовывает публичный стиль темы.
+     */
+    val nativeId: String? = null,
+    /**
+     * Родитель вариации в native-формате.
+     *
+     * Тоже хранится, а не выводится: у `basic_button` в `sdds_sbcom` есть вариация с двумя осями
+     * в `binding`, идентификатором `size-24` и `parent` равным `null` — из координаты такого
+     * не вывести. Плагин строит по `parent` дерево наследования стилей.
+     */
+    val nativeParent: String? = null,
 )
 
 /**

@@ -1,6 +1,9 @@
 package com.dsbuilder.frontend.cli.feature.components
 
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonConfig
+import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonDefault
+import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonVariation
+import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonVariationValue
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.ConfigCodec
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.ConfigCodecFailure
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.ConfigCodecResult
@@ -8,6 +11,8 @@ import com.dsbuilder.frontend.cli.feature.components.domain.codec.NativeConfig
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.NativeProperty
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.resolveColorSchemeAxis
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -251,7 +256,158 @@ class ConfigCodecTest {
                 restored.propertiesByCombination(),
                 "$label: свойства сочетаний изменились",
             )
+            // Идентификатор вариации авторский, и плагин строит из него имя генерируемого
+            // стиля: подмена `m.has-shadow` на `m.true` переименовывает публичный стиль темы.
+            assertEquals(
+                original.variationIds(),
+                restored.variationIds(),
+                "$label: идентификаторы вариаций изменились",
+            )
+            // Сверяются только оси, у которых список объявлен в исходнике: там, где его нет,
+            // восстановленная конфигурация список заполняет, и это пополнение, а не потеря.
+            // Сверяется сохранность объявленного, а не совпадение списков целиком: у части
+            // конфигураций корпуса значения, встречающиеся в вариациях, объявлением не покрыты
+            // (`sdds_sbcom/checkbox` объявляет `variant: [default, poll]`, а вариации носят
+            // `variant-default` и `variant-poll`), и восстановленный список их добирает.
+            // Требуется, чтобы всё объявленное осталось и осталось в том же порядке.
+            val declared = original.declaredAxisValues()
+            val restoredDeclared = restored.declaredAxisValues()
+            declared.forEach { (axis, values) ->
+                assertEquals(
+                    values,
+                    restoredDeclared[axis].orEmpty().filter { it in values },
+                    "$label: объявленные значения оси $axis или их порядок изменились",
+                )
+            }
+            // Сверяются только оси, объявленные в исходнике: у 42 конфигураций корпуса ось
+            // цветовой схемы в `bindings` отсутствует и выводится из записей `view`,
+            // а восстановленная конфигурация её объявляет — это пополнение, а не потеря.
+            // Ось цветовой схемы из сверки исключается: общий формат несёт её роль, а не
+            // объявленный вид, и восстановить `enum` для оси, которая эту роль исполняет,
+            // неоткуда. `sdds_sbcom/checkbox` объявляет `variant` как `enum` и хранит в нём
+            // записи `view`.
+            val scheme = original.colorSchemeAxis()
+            val types = original.axisTypes().filterKeys { it != scheme }
+            assertEquals(
+                types,
+                restored.axisTypes().filterKeys { it in types.keys },
+                "$label: виды осей изменились",
+            )
+            val booleanAxes = original.booleanAxisPrimitives()
+            assertEquals(
+                booleanAxes,
+                restored.booleanAxisPrimitives().filterKeys { it in booleanAxes.keys },
+                "$label: значения boolean-осей перестали быть JSON-булями",
+            )
         }
+    }
+
+    @Test
+    fun encodeWritesAxisNameNotIdentifier() {
+        // Общий формат различает идентификатор оси и её имя; native знает только имя.
+        val common = CommonConfig(
+            rootVariationId = "8b0f0b1e-0000-4000-8000-000000000001",
+            colorSchemeVariationId = null,
+            invariants = emptyMap(),
+            defaults = listOf(CommonDefault(id = "8b0f0b1e-0000-4000-8000-000000000001", value = JsonPrimitive("m"))),
+            variations = listOf(
+                CommonVariation(
+                    id = "8b0f0b1e-0000-4000-8000-000000000001",
+                    name = "size",
+                    values = listOf(
+                        CommonVariationValue(
+                            name = "m",
+                            properties = mapOf("gap" to NativeProperty(type = "dimension", value = JsonPrimitive(8))),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val native = when (val result = codec.encode(common)) {
+            is ConfigCodecResult.Success -> result.value
+            is ConfigCodecResult.Failure -> fail("encode отказал — ${result.reason.message}")
+        }
+
+        // Без этого в собранную тему уехал бы uuid вместо имени оси.
+        assertEquals(listOf("size"), native.bindings.orEmpty().map { it.name })
+        assertEquals(listOf("size"), native.variations.single().binding.orEmpty().map { it.name })
+    }
+
+    @Test
+    fun encodeKeepsDeclaredValueWithoutOverridesOutOfVariations() {
+        val common = CommonConfig(
+            rootVariationId = "shape",
+            colorSchemeVariationId = null,
+            invariants = emptyMap(),
+            defaults = listOf(CommonDefault(id = "shape", value = JsonPrimitive("default"))),
+            variations = listOf(
+                CommonVariation(
+                    id = "shape",
+                    name = "shape",
+                    values = listOf(
+                        // Значение объявлено осью, но ничего не переопределяет.
+                        CommonVariationValue(name = "default"),
+                        CommonVariationValue(
+                            name = "pilled",
+                            properties = mapOf(
+                                "shape" to NativeProperty(type = "shape", value = JsonPrimitive("round.circle")),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val native = when (val result = codec.encode(common)) {
+            is ConfigCodecResult.Success -> result.value
+            is ConfigCodecResult.Failure -> fail("encode отказал — ${result.reason.message}")
+        }
+
+        assertEquals(
+            listOf("default", "pilled"),
+            native.bindings.orEmpty().single().values.orEmpty().map { it.content },
+        )
+        // Пустая вариация означала бы сочетание без единого свойства — это другое.
+        assertEquals(listOf("pilled"), native.variations.map { it.binding.orEmpty().single().value.content })
+    }
+
+    @Test
+    fun encodeDerivesBooleanAxisType() {
+        val common = CommonConfig(
+            rootVariationId = "has-shadow",
+            colorSchemeVariationId = null,
+            invariants = emptyMap(),
+            defaults = listOf(CommonDefault(id = "has-shadow", value = JsonPrimitive(false))),
+            variations = listOf(
+                CommonVariation(
+                    id = "has-shadow",
+                    name = "has-shadow",
+                    values = listOf(
+                        CommonVariationValue(name = "false"),
+                        CommonVariationValue(
+                            name = "true",
+                            properties = mapOf(
+                                "shadow" to NativeProperty(type = "shadow", value = JsonPrimitive("down.soft.m")),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val native = when (val result = codec.encode(common)) {
+            is ConfigCodecResult.Success -> result.value
+            is ConfigCodecResult.Failure -> fail("encode отказал — ${result.reason.message}")
+        }
+
+        val binding = native.bindings.orEmpty().single()
+        assertEquals("boolean", binding.type)
+        // Список значений булевой оси не пишется: так устроены все 87 таких осей корпуса,
+        // и модель плагина принимает в `values` только строки.
+        assertNull(binding.values)
+        // А дефолт — настоящий JSON-буль: `"false"` и `false` там не одно и то же.
+        assertEquals(false, binding.defaultValue?.booleanOrNull)
     }
 
     @Test
@@ -361,3 +517,40 @@ private fun NativeConfig.propertyTypes(): Set<String> = allProperties().map { it
 private fun NativeConfig.stateNames(): Set<String> = allProperties()
     .flatMap { property -> property.states.orEmpty().flatMap { it.states } }
     .toSet()
+
+/**
+ * Объявленные значения осей вместе с их порядком: `bindings[].values` шире набора,
+ * встречающегося в вариациях, и именно эта разница теряется легче всего.
+ */
+private fun NativeConfig.declaredAxisValues(): Map<String, List<String>> = bindings.orEmpty()
+    // Оси, у которых списка нет вовсе, из сверки исключаются: восстановленная конфигурация
+    // список заполняет, и это пополнение, а не потеря.
+    .filter { it.values != null }
+    .associate { binding -> binding.name to binding.values.orEmpty().map { it.content } }
+
+/** Вид каждой оси: `view`, `boolean` или `enum`. */
+private fun NativeConfig.axisTypes(): Map<String, String?> = bindings.orEmpty()
+    .associate { it.name to it.type }
+
+/**
+ * Значения осей, объявленных типом `boolean`, вместе с их JSON-типом.
+ *
+ * Строка `"false"` и буль `false` — разные значения, и подмена одного другим не видна
+ * в сравнении по содержимому.
+ */
+private fun NativeConfig.booleanAxisPrimitives(): Map<String, List<Pair<String, Boolean>>> = bindings.orEmpty()
+    .filter { it.type == "boolean" && it.values != null }
+    .associate { binding ->
+        binding.name to binding.values.orEmpty().map { it.content to it.isString }
+    }
+
+/**
+ * Идентификаторы вариаций вместе с их родителями, по координате из значений осей.
+ *
+ * Ключом служит координата, а не сам идентификатор: сравнение по идентификатору не заметило бы
+ * перестановки, а по координате видно, какая именно вариация переименовалась.
+ */
+private fun NativeConfig.variationIds(): Map<String, Pair<String?, String?>> = variations.associate { variation ->
+    val coordinate = variation.binding.orEmpty().joinToString(",") { "${it.name}=${it.value.content}" }
+    coordinate to (variation.id?.content to variation.parent)
+}

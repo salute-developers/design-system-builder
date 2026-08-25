@@ -7,6 +7,8 @@ import com.dsbuilder.frontend.cli.core.domain.ProjectId
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClient
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResult
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsCommand
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsCommand
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.data.HttpComponentConfigRemoteSource
@@ -161,6 +163,68 @@ class HttpComponentConfigRemoteSourceTest {
         assertEquals("secret-key", seenApiKey)
     }
 
+    @Test
+    fun exportSendsSinglePostAddressedByIdentifier() {
+        val requests = mutableListOf<Pair<String, String>>()
+        val result = export(
+            onPost = { path, body ->
+                requests += path to body
+                AuthenticatedHttpResult.Success(PACKAGE)
+            },
+        )
+
+        assertTrue(result is ExportComponentsResult.Exported, "выгрузка отказала: $result")
+        assertEquals(1, requests.size, "выполнены лишние запросы: $requests")
+        assertEquals("/api/projects/project-a/ds/component-config/export", requests.single().first)
+
+        // Дизайн-система адресуется идентификатором тела, а не именем в пути.
+        val parsed = Json.parseToJsonElement(requests.single().second).jsonObject
+        assertEquals("ds-a", parsed.getValue("designSystemId").jsonPrimitive.content)
+        assertEquals(1, parsed.size, "тело несёт лишние поля: $parsed")
+    }
+
+    @Test
+    fun exportParsesPackageIntoDomainModel() {
+        val exported = export(onPost = { _, _ -> AuthenticatedHttpResult.Success(PACKAGE) })
+            as ExportComponentsResult.Exported
+
+        assertEquals("sdds_serv", exported.value.name)
+        assertEquals("0.6.0-rc", exported.value.version)
+        assertEquals(
+            listOf("avatar" to "avatar"),
+            exported.value.configurations.map { it.componentName to it.styleName },
+        )
+        assertEquals(listOf("avatar.default.background"), exported.value.underivedTypes)
+    }
+
+    @Test
+    fun exportRefusesUnreadableBodyOfSuccessfulResponse() {
+        val result = export(onPost = { _, _ -> AuthenticatedHttpResult.Success("{ not json") })
+
+        // Частичный пакет ввёл бы в заблуждение сильнее, чем отказ.
+        val failure = result as ExportComponentsResult.Failed
+        assertTrue(failure.message.contains("unreadable component package"), failure.message)
+    }
+
+    @Test
+    fun exportPropagatesTransportFailure() {
+        val result = export(onPost = { _, _ -> AuthenticatedHttpResult.Failure("Error: 403 Forbidden.") })
+
+        assertEquals("Error: 403 Forbidden.", (result as ExportComponentsResult.Failed).message)
+    }
+
+    private fun export(
+        onPost: (String, String) -> AuthenticatedHttpResult,
+    ): ExportComponentsResult =
+        HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
+            ExportComponentsCommand(
+                apiUrl = ProjectApiUrl("http://localhost:8080"),
+                apiKey = ProjectApiKey("secret-key"),
+                projectId = ProjectId("project-a"),
+                designSystemId = DesignSystemId("ds-a"),
+            ),
+        )
+
     private fun import(
         dryRun: Boolean = true,
         components: List<ConvertedComponentConfig> = defaultComponents,
@@ -187,6 +251,12 @@ class HttpComponentConfigRemoteSourceTest {
     )
 
     private companion object {
+        const val PACKAGE = """
+            {"meta":{"name":"sdds_serv","version":"0.6.0-rc"},
+             "components":[{"componentName":"avatar","styleName":"avatar","config":{"invariants":{}}}],
+             "underivedTypes":["avatar.default.background"]}
+        """
+
         const val REPORT = """
             {"created":1,"updated":2,"unchanged":3,
              "rejected":[{"componentName":"badge","styleName":"badge-clear","reason":"unknown property type"}]}

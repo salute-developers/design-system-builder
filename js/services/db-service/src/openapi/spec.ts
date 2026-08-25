@@ -91,6 +91,16 @@ const StyleSchema = registry.register(
   createSelectSchema(tables.styles, ts).openapi("Style"),
 );
 
+const AppearanceVariationSchema = registry.register(
+  "AppearanceVariation",
+  createSelectSchema(tables.appearanceVariations, ts).openapi("AppearanceVariation"),
+);
+
+const AppearanceVariationValueSchema = registry.register(
+  "AppearanceVariationValue",
+  createSelectSchema(tables.appearanceVariationValues, ts).openapi("AppearanceVariationValue"),
+);
+
 const TokenSchema = registry.register(
   "Token",
   createSelectSchema(tables.tokens, ts).openapi("Token"),
@@ -201,6 +211,10 @@ const schemas = {
   UpdateAppearance: registry.register("UpdateAppearance", s.UpdateAppearanceSchema.openapi("UpdateAppearance")),
   CreateStyle: registry.register("CreateStyle", s.CreateStyleSchema.openapi("CreateStyle")),
   UpdateStyle: registry.register("UpdateStyle", s.UpdateStyleSchema.openapi("UpdateStyle")),
+  CreateAppearanceVariation: registry.register("CreateAppearanceVariation", s.CreateAppearanceVariationSchema.openapi("CreateAppearanceVariation")),
+  UpdateAppearanceVariation: registry.register("UpdateAppearanceVariation", s.UpdateAppearanceVariationSchema.openapi("UpdateAppearanceVariation")),
+  CreateAppearanceVariationValue: registry.register("CreateAppearanceVariationValue", s.CreateAppearanceVariationValueSchema.openapi("CreateAppearanceVariationValue")),
+  UpdateAppearanceVariationValue: registry.register("UpdateAppearanceVariationValue", s.UpdateAppearanceVariationValueSchema.openapi("UpdateAppearanceVariationValue")),
   CreateToken: registry.register("CreateToken", s.CreateTokenSchema.openapi("CreateToken")),
   UpdateToken: registry.register("UpdateToken", s.UpdateTokenSchema.openapi("UpdateToken")),
   CreateTenant: registry.register("CreateTenant", s.CreateTenantSchema.openapi("CreateTenant")),
@@ -553,7 +567,43 @@ registerCrud(`${DS_PREFIX}/invariant-platform-param-adjustments`, "Invariant Pla
 registerCrud(`${DS_PREFIX}/property-variations`, "Property Variations", PropertyVariationSchema, schemas.CreatePropertyVariation);
 registerCrud(`${DS_PREFIX}/appearances`, "Appearances", AppearanceSchema, schemas.CreateAppearance, schemas.UpdateAppearance);
 
+const AppearanceAxisSchema = registry.register(
+  "AppearanceAxisDeclaration",
+  AppearanceVariationSchema.extend({
+    values: z.array(AppearanceVariationValueSchema),
+  }).openapi("AppearanceAxisDeclaration"),
+);
+
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/appearances/{id}/variations`,
+  tags: ["Appearances"],
+  summary: "Объявление осей вариаций этого appearance вместе с их значениями",
+  description: [
+    "Оси возвращаются в порядке position, значения внутри оси — тоже.",
+    "",
+    "Ручка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка",
+    "строк все объявления базы и фильтровать их на клиенте значит возить мегабайты.",
+  ].join("\n"),
+  request: { params: z.object({ id: UuidSchema }) },
+  responses: list(AppearanceAxisSchema),
+});
+
 registerCrud(`${DS_PREFIX}/styles`, "Styles", StyleSchema, schemas.CreateStyle, schemas.UpdateStyle);
+registerCrud(
+  `${DS_PREFIX}/appearance-variations`,
+  "Appearance Variations",
+  AppearanceVariationSchema,
+  schemas.CreateAppearanceVariation,
+  schemas.UpdateAppearanceVariation,
+);
+registerCrud(
+  `${DS_PREFIX}/appearance-variation-values`,
+  "Appearance Variation Values",
+  AppearanceVariationValueSchema,
+  schemas.CreateAppearanceVariationValue,
+  schemas.UpdateAppearanceVariationValue,
+);
 registry.registerPath({
   method: "get",
   path: `${DS_PREFIX}/styles/by-variation/{variationId}/by-design-system/{designSystemId}`,
@@ -938,6 +988,80 @@ registry.registerPath({
   },
 });
 
+// ─── Выгрузка компонентов ─────────────────────────────────────────────────────
+
+const ExportRequestSchema = registry.register(
+  "ComponentExportRequest",
+  z
+    .object({
+      designSystemId: z.string().uuid().openapi({ description: "Дизайн-система, конфигурации которой выгружаются" }),
+    })
+    .openapi("ComponentExportRequest"),
+);
+
+const ExportPackageSchema = registry.register(
+  "ComponentExportPackage",
+  z
+    .object({
+      meta: z.object({
+        name: z.string().openapi({ description: "Имя дизайн-системы" }),
+        version: z.string().openapi({ description: "Версия последней опубликованной записи" }),
+      }),
+      components: z.array(
+        z.object({
+          componentName: z.string().openapi({ description: "Имя компонента в написании meta.json" }),
+          styleName: z.string().openapi({ description: "Имя стиля, оно же имя appearance" }),
+          config: z.any().openapi({ description: "Конфигурация в общем формате" }),
+        }),
+      ),
+      underivedTypes: z.array(z.string()).openapi({
+        description:
+          "Значения paint-слота, вид заливки которых не выведен: ссылка на токен не разрешилась " +
+          "и отдан тип свойства. Поле информационное, выгрузку не отклоняет",
+      }),
+    })
+    .openapi("ComponentExportPackage"),
+);
+
+registry.registerPath({
+  method: "post",
+  path: `${DS_PREFIX}/component-config/export`,
+  tags: ["Component Config"],
+  summary: "Выгрузка конфигураций компонентов одним ответом",
+  description: [
+    "Зеркало /import: тот же путь, POST, адресация телом. Существующий",
+    "GET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.",
+    "",
+    "meta.version берётся из последней опубликованной версии. Дизайн-система без версий",
+    "отклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы",
+    "в собранную тему.",
+    "",
+    "Тип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен",
+    "значения градиентный, иначе тип свойства. properties.type описывает слот API компонента,",
+    "где color означает семейство paint. Значение типа color или gradient кладётся в default,",
+    "остальные — в value; states[].type пишется только при расхождении с базовым значением.",
+    "",
+    "Порядок ответа детерминирован: компоненты по componentName, затем styleName,",
+    "свойства по имени.",
+    "",
+    "Свойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,",
+    "и о них сообщает отчёт /import.",
+    "",
+    "Требует scope components:read, если запрос пришёл с ключом проекта.",
+  ].join("\n"),
+  request: {
+    body: { required: true, ...json(ExportRequestSchema) },
+  },
+  responses: {
+    200: { description: "Пакет конфигураций", ...json(ExportPackageSchema) },
+    400: { description: "Тело запроса не соответствует формату или designSystemId не является uuid", ...json(ErrorResponseSchema) },
+    403: { description: "У ключа нет scope components:read", ...json(ErrorResponseSchema) },
+    404: { description: "Дизайн-система не найдена или недоступна проекту", ...json(ErrorResponseSchema) },
+    422: { description: "Нет опубликованной версии или имя компонента не восстанавливается обратно", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
 // ─── Импорт компонентов ───────────────────────────────────────────────────────
 
 const ImportReportSchema = registry.register(
@@ -963,6 +1087,19 @@ const ImportReportSchema = registry.register(
       unknownProperties: z
         .array(z.string())
         .openapi({ description: "Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода" }),
+      unknownStates: z
+        .array(z.string())
+        .openapi({ description: "Состояния из конфигураций, которых нет ни среди состояний взаимодействия, ни среди объявленных компонентом" }),
+      typeMismatches: z
+        .array(z.string())
+        .openapi({ description: "Свойства, у которых тип слота из кода не встречается в конфигурациях ни разу" }),
+      gradientOnlyProperties: z
+        .array(z.string())
+        .openapi({
+          description:
+            "Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. " +
+            "Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода",
+        }),
     })
     .openapi("ComponentImportReport"),
 );
