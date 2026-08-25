@@ -18,68 +18,6 @@ import { Config } from './componentBuilder';
 import JSZip from 'jszip';
 import { addFolderToZip, getThemeData } from './utils';
 
-const OUTPUT_LOG_LIMIT = 12_000;
-
-const getOutputTail = (value: unknown) => {
-    if (typeof value !== 'string') {
-        return undefined;
-    }
-
-    return value.length > OUTPUT_LOG_LIMIT ? value.slice(-OUTPUT_LOG_LIMIT) : value;
-};
-
-const getErrorDetails = (error: unknown) => {
-    const processError = error as {
-        cmd?: unknown;
-        args?: unknown;
-        code?: unknown;
-        signal?: unknown;
-        stdout?: unknown;
-        stderr?: unknown;
-    };
-
-    return {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        command: typeof processError?.cmd === 'string' ? processError.cmd : undefined,
-        args: Array.isArray(processError?.args) ? processError.args : undefined,
-        code: processError?.code,
-        signal: processError?.signal,
-        stdoutTail: getOutputTail(processError?.stdout),
-        stderrTail: getOutputTail(processError?.stderr),
-    };
-};
-
-const runGenerationPhase = async <T>(
-    requestId: string,
-    phase: string,
-    pathToDir: string,
-    action: () => Promise<T>,
-) => {
-    const startedAt = Date.now();
-    console.log('[generator:phase:start]', { requestId, phase, pathToDir });
-
-    try {
-        const result = await action();
-        console.log('[generator:phase:success]', {
-            requestId,
-            phase,
-            pathToDir,
-            durationMs: Date.now() - startedAt,
-        });
-        return result;
-    } catch (error) {
-        console.error('[generator:phase:error]', {
-            requestId,
-            phase,
-            pathToDir,
-            durationMs: Date.now() - startedAt,
-            ...getErrorDetails(error),
-        });
-        throw error;
-    }
-};
-
 export const generateBaseFileStructure = async ({
     pathToDir,
     packageName,
@@ -154,56 +92,25 @@ export const generateThemeFiles = async ({ packageName, packageVersion, pathToDi
 
 export const generateDesignSystem = async (designSystemData: DesignSystemData, outputParams: OutputParams) => {
     const { packageName, packageVersion, componentsData, themeData } = designSystemData;
-    const { pathToDir, coreVersion, exportType, requestId = 'cli' } = outputParams;
-    const startedAt = Date.now();
+    const { pathToDir, coreVersion, exportType } = outputParams;
 
-    console.log('[generator:design-system:start]', {
-        requestId,
-        packageName,
-        packageVersion,
-        exportType,
-        coreVersion,
-        pathToDir,
-        componentsCount: componentsData.length,
-    });
+    await generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion });
 
-    await runGenerationPhase(requestId, 'base-files', pathToDir, () =>
-        generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion }),
-    );
+    await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: getThemeData(themeData) });
 
-    await runGenerationPhase(requestId, 'theme-files', pathToDir, () =>
-        generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: getThemeData(themeData) }),
-    );
-
-    await runGenerationPhase(requestId, 'component-files', pathToDir, () =>
-        generateComponentsFiles({ pathToDir, componentsMeta: componentsData }),
-    );
+    await generateComponentsFiles({ pathToDir, componentsMeta: componentsData });
 
     let buffer: Buffer<ArrayBufferLike> = Buffer.from('');
 
     if (exportType === 'zip') {
-        buffer = await runGenerationPhase(requestId, 'zip', pathToDir, async () => {
-            const zip = new JSZip();
-            await addFolderToZip(zip, pathToDir, zip);
-            return zip.generateAsync({ type: 'nodebuffer' });
-        });
+        const zip = new JSZip();
+        await addFolderToZip(zip, pathToDir, zip);
+        buffer = await zip.generateAsync({ type: 'nodebuffer' });
     }
 
     if (exportType === 'tgz') {
-        buffer = await runGenerationPhase(requestId, 'pacote-tarball-and-prepare', pathToDir, () =>
-            pacote.tarball(pathToDir),
-        );
+        buffer = await pacote.tarball(pathToDir);
     }
-
-    console.log('[generator:design-system:success]', {
-        requestId,
-        packageName,
-        packageVersion,
-        exportType,
-        pathToDir,
-        bufferBytes: buffer.length,
-        durationMs: Date.now() - startedAt,
-    });
 
     return buffer;
 };

@@ -17,7 +17,6 @@ export interface OutputParams {
     pathToDir: string;
     coreVersion: string;
     exportType: ExportType;
-    requestId?: string;
 }
 
 export interface GenerateRouteBody {
