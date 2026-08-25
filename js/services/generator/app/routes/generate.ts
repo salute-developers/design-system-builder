@@ -8,13 +8,16 @@ import stream from 'stream';
 import { ThemeSource } from '../themeBuilder/types';
 import { Meta } from '../componentBuilder';
 
+const createGenerateWorkingDir = () => fs.mkdtemp(`${GENERATE_ROOT_DIR}-`);
+
 export const generateAndDownloadRoute = async (server: FastifyInstance) => {
     server.post<{
         Body: GenerateRouteBody;
     }>('/generate-download', async (request, reply) => {
-        const pathToDir = GENERATE_ROOT_DIR;
+        let pathToDir: string | null = null;
 
         try {
+            pathToDir = await createGenerateWorkingDir();
             const { packageName, packageVersion = '0.1.0', exportType } = request.body;
 
             const themeData = (await fetch(
@@ -51,7 +54,9 @@ export const generateAndDownloadRoute = async (server: FastifyInstance) => {
                 message: err instanceof Error ? err.message : 'Unknown error',
             });
         } finally {
-            fs.rmSync(pathToDir, { recursive: true, force: true });
+            if (pathToDir) {
+                await fs.remove(pathToDir).catch(console.error);
+            }
         }
     });
 };
@@ -65,9 +70,10 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
     server.post<{
         Body: GenerateRouteBody;
     }>('/generate-publish', async (request, reply) => {
-        const pathToDir = GENERATE_ROOT_DIR;
+        let pathToDir: string | null = null;
 
         try {
+            pathToDir = await createGenerateWorkingDir();
             const { packageName, packageVersion = '0.1.0', exportType, npmToken } = request.body;
 
             const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
@@ -128,7 +134,9 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
                 });
             }
         } finally {
-            fs.rmSync(pathToDir, { recursive: true, force: true });
+            if (pathToDir) {
+                await fs.remove(pathToDir).catch(console.error);
+            }
         }
     });
 };
