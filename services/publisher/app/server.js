@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 const { exec, spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3007;
@@ -48,6 +49,8 @@ app.get('/', (req, res) => {
 
 // Маршрут для загрузки и публикации
 app.post('/upload', upload.single('package'), async (req, res) => {
+    const requestId = req.body.requestId || randomUUID();
+    const requestStartedAt = Date.now();
     let filePath = null;
 
     try {
@@ -69,10 +72,24 @@ app.post('/upload', upload.single('package'), async (req, res) => {
 
         // Получаем абсолютный путь к файлу
         const absolutePath = path.resolve(filePath);
-        console.log('Публикация файла:', absolutePath);
+        console.log('[publisher:request:start]', {
+            requestId,
+            packageName: req.body.packageName,
+            packageVersion: req.body.packageVersion,
+            filePath: absolutePath,
+            fileBytes: req.file.size,
+            npmTokenProvided: Boolean(npmToken)
+        });
 
         // Публикуем пакет
-        const result = await publishNpmPackage(absolutePath, npmToken);
+        const result = await publishNpmPackage(absolutePath, npmToken, requestId);
+
+        console.log('[publisher:request:success]', {
+            requestId,
+            packageName: result.packageName,
+            version: result.version,
+            durationMs: Date.now() - requestStartedAt
+        });
 
         res.json({
             success: true,
@@ -83,7 +100,13 @@ app.post('/upload', upload.single('package'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Ошибка публикации:', error);
+        console.error('[publisher:request:error]', {
+            requestId,
+            filePath,
+            durationMs: Date.now() - requestStartedAt,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined
+        });
 
         res.status(500).json({
             error: 'Ошибка при публикации пакета',
@@ -93,16 +116,29 @@ app.post('/upload', upload.single('package'), async (req, res) => {
     } finally {
         // Очищаем временные файлы
         if (filePath) {
-            await fs.remove(filePath).catch(console.error);
+            const cleanupStartedAt = Date.now();
+            await fs.remove(filePath)
+                .then(() => console.log('[publisher:cleanup:success]', {
+                    requestId,
+                    filePath,
+                    durationMs: Date.now() - cleanupStartedAt
+                }))
+                .catch((error) => console.error('[publisher:cleanup:error]', {
+                    requestId,
+                    filePath,
+                    durationMs: Date.now() - cleanupStartedAt,
+                    error: error instanceof Error ? error.message : String(error)
+                }));
         }
     }
 });
 
 // Улучшенная функция публикации
-async function publishNpmPackage(tgzPath, npmToken) {
+async function publishNpmPackage(tgzPath, npmToken, requestId) {
     return new Promise((resolve, reject) => {
-        // Создаем временный .npmrc в той же директории что и tgz файл
-        const npmrcPath = path.join(path.dirname(tgzPath), '.npmrc');
+        const startedAt = Date.now();
+        // У каждого запроса свой .npmrc, чтобы параллельные публикации не перезаписывали токены друг друга.
+        const npmrcPath = `${tgzPath}.npmrc`;
         const npmrcContent = `//registry.npmjs.org/:_authToken=${npmToken}
 registry=https://registry.npmjs.org/
 always-auth=true
@@ -110,13 +146,12 @@ always-auth=true
 
         fs.writeFileSync(npmrcPath, npmrcContent);
 
-        console.log('Публикация пакета:', tgzPath);
-        console.log('Временный .npmrc создан:', npmrcPath);
-
-        // Используем абсолютный путь к файлу и явно указываем что это файл
-        const publishCommand = `npm publish "${tgzPath}" --userconfig "${npmrcPath}"`;
-
-        console.log('Выполняется команда:', publishCommand);
+        console.log('[publisher:npm:start]', {
+            requestId,
+            tgzPath,
+            npmrcPath,
+            cwd: path.dirname(tgzPath)
+        });
 
         const npmProcess = spawn('npm', [
             'publish',
@@ -129,26 +164,52 @@ always-auth=true
             cwd: path.dirname(tgzPath) // Рабочая директория там же где и файл
         });
 
+        console.log('[publisher:npm:spawned]', {
+            requestId,
+            pid: npmProcess.pid
+        });
+
         let stdout = '';
         let stderr = '';
+        const timeout = setTimeout(() => {
+            if (npmProcess.exitCode === null) {
+                console.error('[publisher:npm:timeout]', {
+                    requestId,
+                    pid: npmProcess.pid,
+                    durationMs: Date.now() - startedAt
+                });
+                npmProcess.kill();
+                reject(new Error('Таймаут публикации (60 секунд)'));
+            }
+        }, 60000);
 
         npmProcess.stdout.on('data', (data) => {
             const output = data.toString();
             stdout += output;
-            console.log('npm stdout:', output);
+            console.log('[publisher:npm:stdout]', { requestId, output });
         });
 
         npmProcess.stderr.on('data', (data) => {
             const output = data.toString();
             stderr += output;
-            console.error('npm stderr:', output);
+            console.error('[publisher:npm:stderr]', { requestId, output });
         });
 
         npmProcess.on('close', (code) => {
+            clearTimeout(timeout);
             // Всегда удаляем временный .npmrc
             if (fs.existsSync(npmrcPath)) {
                 fs.removeSync(npmrcPath);
             }
+
+            console.log('[publisher:npm:close]', {
+                requestId,
+                pid: npmProcess.pid,
+                code,
+                durationMs: Date.now() - startedAt,
+                stdoutBytes: Buffer.byteLength(stdout),
+                stderrBytes: Buffer.byteLength(stderr)
+            });
 
             if (code === 0) {
                 const packageInfo = parseNpmPublishOutput(stdout);
@@ -164,19 +225,19 @@ always-auth=true
         });
 
         npmProcess.on('error', (error) => {
+            clearTimeout(timeout);
             if (fs.existsSync(npmrcPath)) {
                 fs.removeSync(npmrcPath);
             }
+            console.error('[publisher:npm:spawn-error]', {
+                requestId,
+                pid: npmProcess.pid,
+                durationMs: Date.now() - startedAt,
+                error: error.message,
+                stack: error.stack
+            });
             reject(new Error(`Ошибка запуска npm: ${error.message}`));
         });
-
-        // Таймаут на случай зависания
-        setTimeout(() => {
-            if (npmProcess.exitCode === null) {
-                npmProcess.kill();
-                reject(new Error('Таймаут публикации (60 секунд)'));
-            }
-        }, 60000);
     });
 }
 
