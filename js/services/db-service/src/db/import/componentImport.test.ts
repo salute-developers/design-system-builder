@@ -284,6 +284,69 @@ describe("importComponents", () => {
       });
     });
   });
+  describe("отчёт underivableVariationIds", () => {
+    it("молчит, когда идентификаторы выводятся из значений осей", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
+
+        const report = await importComponents(tx, fixture.designSystemId, [
+          configOf({
+            rootVariationId: "size",
+            colorSchemeVariationId: null,
+            invariants: {},
+            defaults: [],
+            variations: [
+              {
+                id: "size",
+                name: "size",
+                values: [
+                  {
+                    name: "m",
+                    authoredId: "m",
+                    properties: { background: { type: "color", default: fixture.colorToken } },
+                  },
+                ],
+              },
+            ],
+          }),
+        ]);
+
+        expect(report.underivableVariationIds).toEqual([]);
+      });
+    });
+
+    it("называет конфигурацию, чей идентификатор не выводится", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
+
+        // Ось `gap` со значением `none` даёт сегмент `no-gap`: вывести его неоткуда.
+        const report = await importComponents(tx, fixture.designSystemId, [
+          configOf({
+            rootVariationId: "gap",
+            colorSchemeVariationId: null,
+            invariants: {},
+            defaults: [],
+            variations: [
+              {
+                id: "gap",
+                name: "gap",
+                values: [
+                  {
+                    name: "none",
+                    authoredId: "no-gap",
+                    properties: { background: { type: "color", default: fixture.colorToken } },
+                  },
+                ],
+              },
+            ],
+          }),
+        ]);
+
+        expect(report.underivableVariationIds).toHaveLength(1);
+      });
+    });
+  });
+
   describe("отчёт gradientOnlyProperties", () => {
     it("называет свойство, которому весь пакет не дал сплошного цвета", async () => {
       await withRollback(async (tx) => {

@@ -8819,8 +8819,7 @@ export interface paths {
                                     /** @default [] */
                                     values?: {
                                         name: string;
-                                        nativeId?: string;
-                                        nativeParent?: string | null;
+                                        authoredId?: string;
                                         targets?: {
                                             /** @default [] */
                                             properties?: {
@@ -8846,6 +8845,7 @@ export interface paths {
                                             };
                                         };
                                     }[];
+                                    declaredType?: string | null;
                                 }[];
                             };
                         }[];
@@ -9163,6 +9163,8 @@ export interface components {
             position: number;
             /** Format: uuid */
             defaultStyleId: string | null;
+            isColorScheme: boolean;
+            declaredType: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9182,8 +9184,7 @@ export interface components {
             /** Format: uuid */
             styleId: string;
             position: number;
-            nativeId: string | null;
-            nativeParent: string | null;
+            authoredId: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9700,11 +9701,15 @@ export interface components {
             position: number;
             /** Format: uuid */
             defaultStyleId?: string | null;
+            isColorScheme?: boolean;
+            declaredType?: string | null;
         };
         UpdateAppearanceVariation: {
             position?: number;
             /** Format: uuid */
             defaultStyleId?: string | null;
+            isColorScheme?: boolean;
+            declaredType?: string | null;
         };
         CreateAppearanceVariationValue: {
             /** Format: uuid */
@@ -9712,9 +9717,11 @@ export interface components {
             /** Format: uuid */
             styleId: string;
             position: number;
+            authoredId?: string | null;
         };
         UpdateAppearanceVariationValue: {
             position?: number;
+            authoredId?: string | null;
         };
         CreateToken: {
             /** Format: uuid */
@@ -10024,6 +10031,8 @@ export interface components {
             typeMismatches: string[];
             /** @description Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода */
             gradientOnlyProperties: string[];
+            /** @description Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить */
+            underivableVariationIds: string[];
         };
     };
     responses: never;

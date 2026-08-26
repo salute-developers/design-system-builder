@@ -3,8 +3,7 @@ CREATE TABLE "appearance_variation_values" (
 	"appearance_variation_id" uuid NOT NULL,
 	"style_id" uuid NOT NULL,
 	"position" integer NOT NULL,
-	"native_id" text,
-	"native_parent" text,
+	"authored_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -15,6 +14,8 @@ CREATE TABLE "appearance_variations" (
 	"variation_id" uuid NOT NULL,
 	"position" integer NOT NULL,
 	"default_style_id" uuid,
+	"is_color_scheme" boolean DEFAULT false NOT NULL,
+	"declared_type" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -33,8 +34,7 @@ CREATE TABLE "appearance_combinations" (
 	"appearance_id" uuid NOT NULL,
 	"combination_key" text NOT NULL,
 	"position" integer NOT NULL,
-	"native_id" text,
-	"native_parent" text,
+	"authored_id" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -140,6 +140,26 @@ FROM "appearance_variations" av
 JOIN "appearances" a ON a."id" = av."appearance_id"
 JOIN "styles" s ON s."variation_id" = av."variation_id" AND s."design_system_id" = a."design_system_id"
 ON CONFLICT DO NOTHING;--> statement-breakpoint
+
+-- ─── Перенос данных: роль оси цветовой схемы ────────────────────────────────────
+--
+-- Роль объявляет конфигурация, и в общем виде из базы её не восстановить. Достоверно
+-- известен один случай: ось с именем `view`. Прежняя выгрузка опознавала ось схемы ровно
+-- по этому имени, поэтому для неё перенос ничего не меняет и ничего не портит.
+--
+-- Оси схемы под другими именами остаются без роли до повторной заливки пакета: в корпусе
+-- `sdds_sbcom` таких имён пять — `mode-color`, `mode`, `mute`, `state`, `variant`.
+--
+-- Фантомные значения осей, заведённые прежним импортом из ключей записей `view`, здесь
+-- НЕ удаляются. Опознать их нечем: в модели они лежат такими же строками
+-- `appearance_variation_values`, что и настоящие значения, а исходного пакета у миграции
+-- нет. Пример: у оси `state` компонента `Indicator` десять значений вместо пяти —
+-- настоящие `accent`…`warning` и фантомные `state-accent`…`state-warning`.
+-- Приводится в порядок повторным `components push`.
+UPDATE "appearance_variations" av
+SET "is_color_scheme" = true
+FROM "variations" v
+WHERE v."id" = av."variation_id" AND v."name" = 'view';--> statement-breakpoint
 
 -- ─── Перенос данных: объявления сочетаний ───────────────────────────────────────
 --

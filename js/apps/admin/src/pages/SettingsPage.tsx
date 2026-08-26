@@ -1016,6 +1016,12 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
           position: axis.position,
           // Стиль по умолчанию переносится через карту стилей: в целевой ДС он свой.
           defaultStyleId: axis.defaultStyleId ? styleIdMap.get(axis.defaultStyleId) : undefined,
+          // Роль оси цветовой схемы объявлена конфигурацией и по имени оси не выводится,
+          // поэтому её нужно переносить явно, иначе копия теряет блок `view`.
+          isColorScheme: axis.isColorScheme,
+          // Объявленный тип — независимый от роли факт, тоже невыводимый: `null` означает,
+          // что конфигурация тип не объявила, и это отличается от «тип потерян при копировании».
+          declaredType: axis.declaredType,
         },
       });
       const createdAxisId = createdAxis.data?.id;
@@ -1030,8 +1036,7 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
             appearanceVariationId: createdAxisId,
             styleId: targetStyleId,
             position: value.position,
-            nativeId: value.nativeId ?? undefined,
-            nativeParent: value.nativeParent ?? undefined,
+            authoredId: value.authoredId ?? undefined,
           },
         });
       }

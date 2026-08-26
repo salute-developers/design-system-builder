@@ -99,6 +99,9 @@ private fun ComponentImportReport.render(): String = buildString {
     // Отдельной секцией, а не среди расхождений типа: слот color покрывает и градиент,
     // поэтому это расхождение оформления и кода, а не ошибка типа.
     appendSection("Paint properties without a solid colour", gradientOnlyProperties)
+    // Не расхождение и не ошибка: список показывает, какую долю идентификаторов приходится
+    // хранить, потому что вывести их из значений осей нельзя.
+    appendSection("Variation identifiers that cannot be derived", underivableVariationIds)
 }
 
 /**

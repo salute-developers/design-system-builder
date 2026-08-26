@@ -2,6 +2,8 @@ package com.dsbuilder.frontend.cli.feature.components
 
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonConfig
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonDefault
+import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonTarget
+import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonTargetProperty
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonVariation
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.CommonVariationValue
 import com.dsbuilder.frontend.cli.feature.components.domain.codec.ConfigCodec
@@ -441,9 +443,227 @@ class ConfigCodecTest {
         is ConfigCodecResult.Failure -> fail("decode отказал: ${result.reason.message}")
     }
 
+    private fun encodeOrFail(config: CommonConfig): NativeConfig = when (val result = codec.encode(config)) {
+        is ConfigCodecResult.Success -> result.value
+        is ConfigCodecResult.Failure -> fail("encode отказал: ${result.reason.message}")
+    }
+
     private fun failureOf(text: String): ConfigCodecFailure = when (val result = codec.decode(text)) {
         is ConfigCodecResult.Success -> fail("ожидался отказ, получен успех")
         is ConfigCodecResult.Failure -> result.reason
+    }
+
+    /**
+     * Ключ записи `view` и значение оси — разные величины.
+     *
+     * В `sdds_sbcom` ключ `state-accent` стоит при значении `accent`, и совпадают они лишь
+     * в 3 случаях из 70. Прежде ключ принимался за значение оси, и рядом с пятью настоящими
+     * значениями заводилось пять фантомных.
+     */
+    @Test
+    fun decodeTakesSchemeValueFromEntryBindingNotFromKey() {
+        val native = """
+            {
+              "bindings": [
+                {"name": "state", "type": "view", "values": ["accent", "mute"], "defaultValue": "accent"}
+              ],
+              "view": {
+                "state-accent": {
+                  "props": {},
+                  "binding": [{"name": "state", "value": "accent"}]
+                }
+              }
+            }
+        """.trimIndent()
+
+        val common = decodeOrFail(native)
+        val values = common.variations.single { it.id == "state" }.values
+
+        assertEquals(listOf("accent", "mute"), values.map { it.name })
+        assertEquals("state-accent", values.single { it.name == "accent" }.authoredId)
+        assertTrue(values.none { it.name == "state-accent" }, "ключ записи не должен становиться значением оси")
+    }
+
+    /** Ключ восстанавливается из авторского идентификатора, а значение уезжает в `binding`. */
+    @Test
+    fun encodeRestoresViewEntryKeyFromAuthoredId() {
+        val common = CommonConfig(
+            colorSchemeVariationId = "state",
+            variations = listOf(
+                CommonVariation(
+                    id = "state",
+                    name = "state",
+                    values = listOf(
+                        CommonVariationValue(
+                            name = "accent",
+                            authoredId = "state-accent",
+                            properties = mapOf("background" to NativeProperty(type = "color")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val native = encodeOrFail(common)
+
+        assertEquals(setOf("state-accent"), native.view.keys)
+        assertEquals("accent", native.view.getValue("state-accent").binding?.single()?.value?.content)
+    }
+
+    /** Родитель — самый длинный точечный префикс, принадлежащий другой вариации. */
+    @Test
+    fun encodeDerivesParentFromLongestKnownPrefix() {
+        val parents = encodeParentsOf(
+            "xs" to listOf("size" to "xs"),
+            "xs.wide" to listOf("size" to "xs", "gap" to "wide"),
+            "xs.wide.default" to listOf("size" to "xs", "gap" to "wide", "shape" to "default"),
+        )
+
+        assertEquals(null, parents.getValue("xs"))
+        assertEquals("xs", parents.getValue("xs.wide"))
+        assertEquals("xs.wide", parents.getValue("xs.wide.default"))
+    }
+
+    /**
+     * Пропущенное звено не уводит вариацию в корень: префикс ищется среди существующих
+     * идентификаторов, а не отрезается механически.
+     */
+    @Test
+    fun encodeSkipsMissingLinkWhenDerivingParent() {
+        val parents = encodeParentsOf(
+            "xs" to listOf("size" to "xs"),
+            "xs.wide.default" to listOf("size" to "xs", "gap" to "wide", "shape" to "default"),
+        )
+
+        assertEquals("xs", parents.getValue("xs.wide.default"))
+    }
+
+    /**
+     * Вариация с двумя осями и идентификатором без точки остаётся корневой.
+     *
+     * Случай `basic_button` из `sdds_sbcom`: автор вклеил ось в дефолте в корневую вариацию.
+     * Из координаты такого не вывести — из идентификатора выводится.
+     */
+    @Test
+    fun encodeKeepsMultiAxisVariationRootWhenIdHasNoDot() {
+        val parents = encodeParentsOf(
+            "size-48" to listOf("size" to "size-48", "bg" to "yes"),
+            "size-48.bg-no" to listOf("size" to "size-48", "bg" to "no"),
+        )
+
+        assertEquals(null, parents.getValue("size-48"))
+        assertEquals("size-48", parents.getValue("size-48.bg-no"))
+    }
+
+    /**
+     * Одна координата, пришедшая двумя порядками осей, даёт одну вариацию.
+     *
+     * Так и приходит: у значения обычной оси координата собирается из `targets` в одном порядке,
+     * у значения оси цветовой схемы — в другом. Без канонизации ключа заводились два билдера,
+     * и второй уезжал в пакет лишней вариацией с выведенным идентификатором.
+     */
+    @Test
+    fun encodeMergesSameCoordinateComingInDifferentAxisOrder() {
+        val common = CommonConfig(
+            rootVariationId = "size",
+            colorSchemeVariationId = "mode",
+            variations = listOf(
+                CommonVariation(
+                    id = "size",
+                    name = "size",
+                    values = listOf(
+                        CommonVariationValue(
+                            name = "m",
+                            authoredId = "m",
+                            properties = mapOf("background" to NativeProperty(type = "color")),
+                        ),
+                    ),
+                ),
+                CommonVariation(
+                    id = "bg",
+                    name = "bg",
+                    values = listOf(
+                        CommonVariationValue(
+                            name = "no",
+                            authoredId = "m.bg-no",
+                            targets = listOf(CommonTarget(listOf(CommonTargetProperty("size", JsonPrimitive("m"))))),
+                            properties = mapOf("background" to NativeProperty(type = "color")),
+                        ),
+                    ),
+                ),
+                CommonVariation(
+                    id = "mode",
+                    name = "mode",
+                    values = listOf(
+                        CommonVariationValue(
+                            name = "primary",
+                            authoredId = "mode-primary",
+                            // Обратный порядок осей: сначала `bg`, потом `size`.
+                            targets = listOf(
+                                CommonTarget(
+                                    listOf(
+                                        CommonTargetProperty("bg", JsonPrimitive("no")),
+                                        CommonTargetProperty("size", JsonPrimitive("m")),
+                                    ),
+                                ),
+                            ),
+                            properties = mapOf("background" to NativeProperty(type = "color")),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val native = encodeOrFail(common)
+
+        // Координата (size=m, bg=no) собирается один раз, а не двумя вариациями.
+        assertEquals(listOf("m", "m.bg-no"), native.variations.map { it.id?.content })
+        assertEquals("m", native.variations.single { it.id?.content == "m.bg-no" }.parent)
+        assertEquals(
+            setOf("mode-primary"),
+            native.variations.single { it.id?.content == "m.bg-no" }.view.keys,
+        )
+    }
+
+    /**
+     * Собирает конфигурацию из координат и возвращает родителей по идентификаторам.
+     *
+     * Каждая координата задаётся авторским идентификатором и списком пар «ось-значение»;
+     * последняя ось считается собственной, предшествующие уезжают в `targets`.
+     */
+    private fun encodeParentsOf(
+        vararg coordinates: Pair<String, List<Pair<String, String>>>,
+    ): Map<String, String?> {
+        val axes = coordinates.flatMap { (_, binding) -> binding.map { it.first } }.distinct()
+        val common = CommonConfig(
+            rootVariationId = axes.firstOrNull(),
+            variations = axes.map { axis ->
+                CommonVariation(
+                    id = axis,
+                    name = axis,
+                    values = coordinates.mapNotNull { (authored, binding) ->
+                        val own = binding.last()
+                        if (own.first != axis) return@mapNotNull null
+                        CommonVariationValue(
+                            name = own.second,
+                            authoredId = authored,
+                            targets = binding.dropLast(1).takeIf { it.isNotEmpty() }?.let { rest ->
+                                listOf(
+                                    CommonTarget(
+                                        properties = rest.map { (name, value) ->
+                                            CommonTargetProperty(id = name, value = JsonPrimitive(value))
+                                        },
+                                    ),
+                                )
+                            },
+                            properties = mapOf("background" to NativeProperty(type = "color")),
+                        )
+                    },
+                )
+            },
+        )
+
+        return encodeOrFail(common).variations.associate { it.id!!.content to it.parent }
     }
 }
 

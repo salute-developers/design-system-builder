@@ -161,14 +161,15 @@ interface ValueRow extends StateNamed {
 interface AxisValue {
   styleId: string;
   name: string;
-  nativeId: string | null;
-  nativeParent: string | null;
+  authoredId: string | null;
 }
 
 interface Axis {
   variationId: string;
   name: string;
   defaultStyleId: string | null;
+  isColorScheme: boolean;
+  declaredType: string | null;
   values: AxisValue[];
 }
 
@@ -189,8 +190,7 @@ interface Context {
     Array<{
       targets: Array<{ id: string; value: string }>;
       rows: ValueRow[];
-      nativeId: string | null;
-      nativeParent: string | null;
+      authoredId: string | null;
     }>
   >;
   underivedTypes: Set<string>;
@@ -302,6 +302,9 @@ const buildConfig = (
     // в native-конфигурацию именем оси.
     id: axis.name,
     name: axis.name,
+    // Тип объявления отдаётся отдельно от роли: кодек обязан воспроизвести его как есть,
+    // а не вывести из того, что ось оказалась осью схемы.
+    ...(axis.declaredType ? { declaredType: axis.declaredType } : {}),
     values: axis.values.flatMap((value) => {
       const entries: Array<Record<string, unknown>> = [];
 
@@ -313,10 +316,9 @@ const buildConfig = (
       entries.push({
         name: value.name,
         properties: buildProperties(own, context, where),
-        // Идентификатор и родитель отдаются, если сохранены: плагин строит из них имя стиля
-        // и дерево наследования.
-        ...(value.nativeId ? { nativeId: value.nativeId } : {}),
-        ...(value.nativeParent !== null ? { nativeParent: value.nativeParent } : {}),
+        // Идентификатор отдаётся, если сохранён: плагин строит из него имя стиля.
+        // Родитель не отдаётся — кодек выводит его из идентификаторов.
+        ...(value.authoredId ? { authoredId: value.authoredId } : {}),
       });
 
       const combinationKey = `${appearance.appearanceId}:${value.styleId}`;
@@ -335,8 +337,7 @@ const buildConfig = (
             },
           ],
           properties: buildProperties(combination.rows, context, where),
-          ...(combination.nativeId ? { nativeId: combination.nativeId } : {}),
-          ...(combination.nativeParent !== null ? { nativeParent: combination.nativeParent } : {}),
+          ...(combination.authoredId ? { authoredId: combination.authoredId } : {}),
         });
       }
       return entries;
@@ -349,9 +350,12 @@ const buildConfig = (
     where,
   );
 
-  // Корневая ось и ось цветовой схемы определяются по имени: явного признака в схеме нет.
+  // Корневая ось определяется по имени: явного признака в схеме для неё нет.
   const rootVariationId = axes.find((axis) => axis.name === "size")?.name ?? null;
-  const colorSchemeVariationId = axes.find((axis) => axis.name === "view")?.name ?? null;
+  // Ось цветовой схемы берётся из объявления. Прежде она искалась по имени `view`, и на
+  // корпусе, где ось называется иначе, выгрузка теряла её роль: значения уходили обычными
+  // вариациями вместо блока `view`. Имён у неё шесть только в `sdds_sbcom`.
+  const colorSchemeVariationId = axes.find((axis) => axis.isColorScheme)?.name ?? null;
 
   return { rootVariationId, colorSchemeVariationId, invariants, defaults, variations };
 };
@@ -392,6 +396,8 @@ const loadContext = async (
       name: schema.variations.name,
       position: schema.appearanceVariations.position,
       defaultStyleId: schema.appearanceVariations.defaultStyleId,
+      isColorScheme: schema.appearanceVariations.isColorScheme,
+      declaredType: schema.appearanceVariations.declaredType,
       axisId: schema.appearanceVariations.id,
     })
     .from(schema.appearanceVariations)
@@ -406,8 +412,7 @@ const loadContext = async (
           styleId: schema.appearanceVariationValues.styleId,
           name: schema.styles.name,
           position: schema.appearanceVariationValues.position,
-          nativeId: schema.appearanceVariationValues.nativeId,
-          nativeParent: schema.appearanceVariationValues.nativeParent,
+          authoredId: schema.appearanceVariationValues.authoredId,
         })
         .from(schema.appearanceVariationValues)
         .innerJoin(schema.styles, eq(schema.appearanceVariationValues.styleId, schema.styles.id))
@@ -424,7 +429,7 @@ const loadContext = async (
   for (const row of valueRows) {
     valuesByAxis.set(row.axisId, [
       ...(valuesByAxis.get(row.axisId) ?? []),
-      { styleId: row.styleId, name: row.name, nativeId: row.nativeId, nativeParent: row.nativeParent },
+      { styleId: row.styleId, name: row.name, authoredId: row.authoredId },
     ]);
   }
   for (const row of axisRows) {
@@ -432,6 +437,8 @@ const loadContext = async (
       variationId: row.variationId,
       name: row.name,
       defaultStyleId: row.defaultStyleId,
+      isColorScheme: row.isColorScheme,
+      declaredType: row.declaredType,
       values: valuesByAxis.get(row.axisId) ?? [],
     };
     context.axesByAppearance.set(row.appearanceId, [
@@ -557,6 +564,10 @@ const loadContext = async (
   // выбирается участник с наибольшей позицией оси — то есть самая внутренняя ось.
   const positionByVariation = new Map<string, number>();
   for (const row of axisRows) positionByVariation.set(row.variationId, row.position);
+  // Оси цветовой схемы: они владеют сочетанием, в котором участвуют, — см. выбор владельца ниже.
+  const colorSchemeVariations = new Set(
+    axisRows.filter((row: any) => row.isColorScheme).map((row: any) => row.variationId as string),
+  );
 
   const rowsByCombination = new Map<string, ValueRow[]>();
   for (const row of combinationRows) {
@@ -577,8 +588,7 @@ const loadContext = async (
       appearanceId: schema.appearanceCombinations.appearanceId,
       combinationKey: schema.appearanceCombinations.combinationKey,
       position: schema.appearanceCombinations.position,
-      nativeId: schema.appearanceCombinations.nativeId,
-      nativeParent: schema.appearanceCombinations.nativeParent,
+      authoredId: schema.appearanceCombinations.authoredId,
     })
     .from(schema.appearanceCombinations)
     .where(inArray(schema.appearanceCombinations.appearanceId, appearanceIds))
@@ -634,10 +644,19 @@ const loadContext = async (
     const members = declaredMembersByCombination.get(declaration.id) ?? [];
     if (members.length === 0) continue;
 
-    const owner = [...members].sort(
-      (left: Member, right: Member) =>
-        (positionByVariation.get(right.variationId) ?? -1) - (positionByVariation.get(left.variationId) ?? -1),
-    )[0];
+    // Владелец сочетания — тот его участник, чьё значение несёт свойства, а остальные ему цели.
+    //
+    // Ось цветовой схемы владеет всегда, когда участвует: в native-формате её значения лежат
+    // записями `view` **внутри** вариации, то есть координата вариации им цель, а не наоборот.
+    // Прежнее правило брало ось с наибольшей позицией и на этом ошибалось: у `counter`
+    // из `sdds_sbcom` оси `mute`(0) и `type`(1), владеть должна `mute`, а выбиралась `type`.
+    //
+    // Замер по двум корпусам: правило «схема первее, иначе последняя по позиции» верно
+    // на 973 сочетаниях из 973, прежнее ошибалось в 236.
+    const byPosition = (left: Member, right: Member) =>
+      (positionByVariation.get(right.variationId) ?? -1) - (positionByVariation.get(left.variationId) ?? -1);
+    const schemeMember = members.find((member: Member) => colorSchemeVariations.has(member.variationId));
+    const owner = schemeMember ?? [...members].sort(byPosition)[0];
     const targets = members
       .filter((member: Member) => member.styleId !== owner.styleId)
       .map((member: Member) => ({ id: member.variationId, value: member.styleName }))
@@ -649,8 +668,7 @@ const loadContext = async (
       {
         targets,
         rows: rowsByKey.get(`${declaration.appearanceId}:${declaration.combinationKey}`) ?? [],
-        nativeId: declaration.nativeId,
-        nativeParent: declaration.nativeParent,
+        authoredId: declaration.authoredId,
       },
     ]);
   }

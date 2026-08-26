@@ -253,6 +253,64 @@ describe("buildComponentPackage", () => {
       });
     });
 
+    it("возвращает роль оси схемы, названной не `view`", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
+        await publishVersion(tx, fixture.designSystemId);
+
+        // Ось схемы здесь называется `state`. Прежде выгрузка искала её по имени `view`
+        // и роль теряла: значения уходили обычными вариациями вместо блока `view`.
+        const pkg = await exportOf(tx, fixture, [
+          configOf({
+            rootVariationId: null,
+            colorSchemeVariationId: "state",
+            invariants: {},
+            defaults: [],
+            variations: [
+              {
+                id: "state",
+                name: "state",
+                values: [
+                  { name: "accent", properties: { background: { type: "color", default: fixture.colorToken } } },
+                ],
+              },
+            ],
+          } as never),
+        ]);
+
+        const config = pkg.components[0].config as any;
+        expect(config.colorSchemeVariationId).toBe("state");
+      });
+    });
+
+    it("отдаёт отсутствующую роль, когда оси схемы нет", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
+        await publishVersion(tx, fixture.designSystemId);
+
+        const pkg = await exportOf(tx, fixture, [
+          configOf({
+            rootVariationId: null,
+            colorSchemeVariationId: null,
+            invariants: {},
+            defaults: [],
+            variations: [
+              {
+                id: "shape",
+                name: "shape",
+                values: [
+                  { name: "pilled", properties: { background: { type: "color", default: fixture.colorToken } } },
+                ],
+              },
+            ],
+          } as never),
+        ]);
+
+        const config = pkg.components[0].config as any;
+        expect(config.colorSchemeVariationId).toBeNull();
+      });
+    });
+
     it("отдаёт значения boolean-оси примитивами", async () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);

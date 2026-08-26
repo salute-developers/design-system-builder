@@ -128,8 +128,8 @@ rules:
       keys, and identifiers in English.
     - Keep proposals concise and product-oriented. Explain why the change matters for DS Builder.
     - List new or modified capabilities explicitly, using kebab-case capability names.
-    - Call out affected services, modules, APIs, persistence, configuration, and dependencies in
-      every part the change touches: backend-kt, frontend-kt and js.
+    - "Call out affected services, modules, APIs, persistence, configuration, and dependencies
+      in every part the change touches: backend-kt, frontend-kt and js."
   design:
     - Write all OpenSpec artifacts in Russian.
     - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,

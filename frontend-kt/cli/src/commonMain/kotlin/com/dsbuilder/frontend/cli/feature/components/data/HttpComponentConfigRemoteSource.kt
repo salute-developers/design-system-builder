@@ -156,6 +156,7 @@ private data class ImportReportResponse(
     val unknownStates: List<String> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
     val gradientOnlyProperties: List<String> = emptyList(),
+    val underivableVariationIds: List<String> = emptyList(),
 ) {
     fun toDomain(): ComponentImportReport = ComponentImportReport(
         created = created,
@@ -168,6 +169,7 @@ private data class ImportReportResponse(
         unknownStates = unknownStates,
         typeMismatches = typeMismatches,
         gradientOnlyProperties = gradientOnlyProperties,
+        underivableVariationIds = underivableVariationIds,
     )
 }
 

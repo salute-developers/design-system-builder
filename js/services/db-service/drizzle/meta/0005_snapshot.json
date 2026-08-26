@@ -155,14 +155,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "native_id": {
-          "name": "native_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "native_parent": {
-          "name": "native_parent",
+        "authored_id": {
+          "name": "authored_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -276,14 +270,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "native_id": {
-          "name": "native_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "native_parent": {
-          "name": "native_parent",
+        "authored_id": {
+          "name": "authored_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -413,6 +401,19 @@
         "default_style_id": {
           "name": "default_style_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_color_scheme": {
+          "name": "is_color_scheme",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "declared_type": {
+          "name": "declared_type",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

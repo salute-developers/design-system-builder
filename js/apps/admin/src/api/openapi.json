@@ -600,6 +600,13 @@
             "nullable": true,
             "format": "uuid"
           },
+          "isColorScheme": {
+            "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -617,6 +624,8 @@
           "variationId",
           "position",
           "defaultStyleId",
+          "isColorScheme",
+          "declaredType",
           "createdAt",
           "updatedAt"
         ]
@@ -641,11 +650,7 @@
             "minimum": -2147483648,
             "maximum": 2147483647
           },
-          "nativeId": {
-            "type": "string",
-            "nullable": true
-          },
-          "nativeParent": {
+          "authoredId": {
             "type": "string",
             "nullable": true
           },
@@ -665,8 +670,7 @@
           "appearanceVariationId",
           "styleId",
           "position",
-          "nativeId",
-          "nativeParent",
+          "authoredId",
           "createdAt",
           "updatedAt"
         ]
@@ -2066,6 +2070,14 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "isColorScheme": {
+            "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
           }
         },
         "required": [
@@ -2084,6 +2096,14 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "isColorScheme": {
+            "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
           }
         }
       },
@@ -2100,6 +2120,11 @@
           },
           "position": {
             "type": "integer"
+          },
+          "authoredId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
           }
         },
         "required": [
@@ -2113,6 +2138,11 @@
         "properties": {
           "position": {
             "type": "integer"
+          },
+          "authoredId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
           }
         }
       },
@@ -3076,6 +3106,13 @@
               "type": "string"
             },
             "description": "Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода"
+          },
+          "underivableVariationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить"
           }
         },
         "required": [
@@ -3088,7 +3125,8 @@
           "unknownProperties",
           "unknownStates",
           "typeMismatches",
-          "gradientOnlyProperties"
+          "gradientOnlyProperties",
+          "underivableVariationIds"
         ]
       }
     },
@@ -12532,12 +12570,8 @@
                                         "name": {
                                           "type": "string"
                                         },
-                                        "nativeId": {
+                                        "authoredId": {
                                           "type": "string"
-                                        },
-                                        "nativeParent": {
-                                          "type": "string",
-                                          "nullable": true
                                         },
                                         "targets": {
                                           "type": "array",
@@ -12622,6 +12656,10 @@
                                       ]
                                     },
                                     "default": []
+                                  },
+                                  "declaredType": {
+                                    "type": "string",
+                                    "nullable": true
                                   }
                                 },
                                 "required": [

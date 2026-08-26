@@ -19,6 +19,8 @@ package com.dsbuilder.frontend.cli.feature.components.domain
  * @property unknownStates состояния, которых нет ни среди состояний взаимодействия, ни среди
  * объявленных компонентом.
  * @property typeMismatches свойства, чей тип в глобальном слое не встречается в конфигурациях.
+ * @property underivableVariationIds конфигурации, чьи идентификаторы вариаций не выводятся
+ *   из значений осей и потому хранятся. Список информационный.
  * @property gradientOnlyProperties свойства с paint-слотом, которым весь пакет не дал ни одного
  * сплошного цвета. Не ошибка типа: слот `color` покрывает и градиент, поэтому в `typeMismatches`
  * они не попадают, — но расхождение оформления и кода, о котором незачем молчать.
@@ -34,6 +36,7 @@ internal data class ComponentImportReport(
     val unknownStates: List<String> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
     val gradientOnlyProperties: List<String> = emptyList(),
+    val underivableVariationIds: List<String> = emptyList(),
 )
 
 /**

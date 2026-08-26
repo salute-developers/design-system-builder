@@ -103,6 +103,18 @@ export interface ImportReport {
    * был бы рассказом о том, что этот стиль градиентный, а соседний нет.
    */
   gradientOnlyProperties: string[];
+  /**
+   * Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей.
+   *
+   * Идентификатор пишет автор, и правила сборки у него нет: где-то сегменты разделены точкой,
+   * где-то слиты дефисом, где-то ось опущена, где-то порядок обратный порядку объявления.
+   * Поэтому он хранится — иначе плагин переименовал бы публичные стили темы.
+   *
+   * Список информационный и ничего не отклоняет. Он нужен, чтобы дрейф был виден: сегодня
+   * выводимы 753 вариации из 1219 по двум корпусам, и если доля когда-нибудь дойдёт до полной,
+   * хранение можно будет снять, не ломая ничего задним числом.
+   */
+  underivableVariationIds: string[];
 }
 
 /** Строка значения в форме, пригодной для сравнения «до» и «после». */
@@ -131,6 +143,7 @@ export const importComponents = async (
     unknownStates: [],
     typeMismatches: [],
     gradientOnlyProperties: [],
+    underivableVariationIds: [],
   };
 
   const tokens = await tx
@@ -182,6 +195,9 @@ export const importComponents = async (
       });
     } else {
       report[outcome] += 1;
+      if (hasUnderivableVariationIds(entry.config)) {
+        report.underivableVariationIds.push(`${entry.componentName}.${entry.styleName}`);
+      }
     }
   }
 
@@ -205,12 +221,40 @@ export const importComponents = async (
   report.unknownProperties = [...unknownProperties].sort();
   report.unknownStates = [...unknownStates].sort();
   report.typeMismatches = [...typeMismatches].sort();
+  report.underivableVariationIds.sort();
   report.gradientOnlyProperties = [...paintTypesByProperty]
     .filter(([, types]) => types.size === 1 && types.has("gradient"))
     .map(([key]) => key)
     .sort();
   return report;
 };
+
+/**
+ * Признак того, что идентификаторы вариаций конфигурации не выводятся из значений осей.
+ *
+ * Правило вывода — склейка значений координаты точкой, то есть та конвенция, к которой стоило бы
+ * прийти. Всё, что от неё отклоняется, приходится хранить: `gap=none` даёт сегмент `no-gap`,
+ * булева `has-shadow=true` — сегмент с именем оси, а иногда две оси слиты в один сегмент.
+ *
+ * Значение без сохранённого идентификатора не считается расхождением: его в native-формате
+ * и не было, выводить нечего.
+ */
+const hasUnderivableVariationIds = (config: CommonConfig): boolean =>
+  config.variations.some((variation) =>
+    // Ось цветовой схемы пропускается: её значения несут не идентификатор вариации, а ключ
+    // записи `view`, и со склейкой значений координаты он не совпадает по построению.
+    // Считать его расхождением значило бы записать в отчёт всякую конфигурацию с `view`.
+    variation.id !== config.colorSchemeVariationId &&
+    variation.values.some((value) => {
+      if (!value.authoredId) return false;
+
+      const coordinate = [
+        ...(value.targets ?? []).flatMap((target) => target.properties).map((target) => axisValueToString(target.value)),
+        axisValueToString(value.name),
+      ];
+      return value.authoredId !== coordinate.join(".");
+    }),
+  );
 
 /**
  * Отклоняет конфигурацию, если она использует типы или состояния, которых нет в схеме.
@@ -859,14 +903,28 @@ const declareAxes = async (
       ? styleIds.get(styleKey(variation.id, defaultValue)) ?? null
       : null;
 
+    // Роль оси цветовой схемы объявляет конфигурация, и хранится она здесь же. Прежде поле
+    // отбрасывалось, а выгрузка искала ось по имени `view` — на корпусе, где она называется
+    // иначе, это теряло 67 записей из 70.
+    const isColorScheme = config.colorSchemeVariationId === variation.id;
+
     const [axis] = await tx
       .insert(schema.appearanceVariations)
-      .values({ appearanceId, variationId, position, defaultStyleId })
+      .values({
+        appearanceId,
+        variationId,
+        position,
+        defaultStyleId,
+        isColorScheme,
+        declaredType: variation.declaredType ?? null,
+      })
       .onConflictDoUpdate({
         target: [schema.appearanceVariations.appearanceId, schema.appearanceVariations.variationId],
         set: {
           position: sql`excluded.position`,
           defaultStyleId: sql`excluded.default_style_id`,
+          isColorScheme: sql`excluded.is_color_scheme`,
+          declaredType: sql`excluded.declared_type`,
         },
       })
       .returning({ id: schema.appearanceVariations.id });
@@ -876,15 +934,23 @@ const declareAxes = async (
       const styleId = styleIds.get(styleKey(variation.id, name));
       if (!styleId) continue;
 
-      const declaredValue = variation.values.find((entry) => entry.name === name);
+      // Идентификатор значения оси берётся только у записи **без пересечений**: она и есть
+      // вариация, привязанная к одной этой оси. Запись с целями описывает кросс-осевую
+      // координату, её идентификатор принадлежит сочетанию и лежит в `appearance_combinations`.
+      //
+      // Прежде бралась первая запись с подходящим именем, и значение `bg=yes` компонента
+      // `basic-button` получало `size-48` — идентификатор координаты (size-48, bg=yes).
+      // На корпусах так помечались 207 значений из 1219.
+      const declaredValue = variation.values.find(
+        (entry) => entry.name === name && (entry.targets ?? []).length === 0,
+      );
       await tx
         .insert(schema.appearanceVariationValues)
         .values({
           appearanceVariationId: axis.id,
           styleId,
           position: valuePosition,
-          nativeId: declaredValue?.nativeId ?? null,
-          nativeParent: declaredValue?.nativeParent ?? null,
+          authoredId: declaredValue?.authoredId ?? null,
         })
         .onConflictDoUpdate({
           target: [
@@ -893,8 +959,7 @@ const declareAxes = async (
           ],
           set: {
             position: sql`excluded.position`,
-            nativeId: sql`excluded.native_id`,
-            nativeParent: sql`excluded.native_parent`,
+            authoredId: sql`excluded.authored_id`,
           },
         });
       liveStyleIds.push(styleId);
@@ -1143,8 +1208,7 @@ const writeVariationValues = async (
   // `size=m` + `active-type=line`, не переопределяя ничего.
   const declaredCombinations: Array<{
     members: string[];
-    nativeId: string | null;
-    nativeParent: string | null;
+    authoredId: string | null;
   }> = [];
 
   for (const variation of config.variations) {
@@ -1160,8 +1224,7 @@ const writeVariationValues = async (
       if (targetStyleIds.length > 0) {
         declaredCombinations.push({
           members: [...targetStyleIds, ownStyleId],
-          nativeId: value.nativeId ?? null,
-          nativeParent: value.nativeParent ?? null,
+          authoredId: value.authoredId ?? null,
         });
       }
 
@@ -1248,7 +1311,7 @@ const writeVariationValues = async (
 const declareCombinations = async (
   tx: Tx,
   appearanceId: string,
-  coordinates: Array<{ members: string[]; nativeId: string | null; nativeParent: string | null }>,
+  coordinates: Array<{ members: string[]; authoredId: string | null }>,
 ): Promise<void> => {
   // Объявления переписываются целиком, а не обновляются на месте. Позиция уникальна в пределах
   // appearance, и upsert сталкивался бы сам с собой: при смене порядка координат новая позиция
@@ -1258,7 +1321,7 @@ const declareCombinations = async (
     .delete(schema.appearanceCombinations)
     .where(eq(schema.appearanceCombinations.appearanceId, appearanceId));
 
-  const keys = new Map<string, { members: string[]; nativeId: string | null; nativeParent: string | null }>();
+  const keys = new Map<string, { members: string[]; authoredId: string | null }>();
   for (const coordinate of coordinates) {
     const members = [...new Set(coordinate.members)].sort();
     keys.set(members.join(","), { ...coordinate, members });
@@ -1271,8 +1334,7 @@ const declareCombinations = async (
         appearanceId,
         combinationKey,
         position,
-        nativeId: coordinate.nativeId,
-        nativeParent: coordinate.nativeParent,
+        authoredId: coordinate.authoredId,
       })
       .returning({ id: schema.appearanceCombinations.id });
     const members = coordinate.members;

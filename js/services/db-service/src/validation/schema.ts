@@ -185,10 +185,15 @@ export const CreateAppearanceVariationSchema = z.object({
   variationId: uuidSchema,
   position: z.number().int(),
   defaultStyleId: uuidSchema.nullish(),
+  isColorScheme: z.boolean().optional(),
+  // `null` — тип не объявлен конфигурацией и выводится из набора значений, см. схему таблицы.
+  declaredType: z.string().trim().max(255).nullish(),
 });
 export const UpdateAppearanceVariationSchema = z.object({
   position: z.number().int().optional(),
   defaultStyleId: uuidSchema.nullish(),
+  isColorScheme: z.boolean().optional(),
+  declaredType: z.string().trim().max(255).nullish(),
 });
 
 // Appearance Variation Values (объявленные значения оси, а не использованные)
@@ -196,9 +201,11 @@ export const CreateAppearanceVariationValueSchema = z.object({
   appearanceVariationId: uuidSchema,
   styleId: uuidSchema,
   position: z.number().int(),
+  authoredId: z.string().trim().max(255).nullish(),
 });
 export const UpdateAppearanceVariationValueSchema = z.object({
   position: z.number().int().optional(),
+  authoredId: z.string().trim().max(255).nullish(),
 });
 
 // Tokens

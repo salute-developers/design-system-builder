@@ -46,7 +46,9 @@ in both directions, without assuming that an axis identifier equals an axis name
 - **THEN** it MUST carry axis values of boolean axes as JSON booleans, not as strings
 - **THEN** it MUST contain the same invariant properties with the same types and states
 - **THEN** it MUST contain the same properties with the same types and states for every combination of axis values
-- **THEN** codec MUST NOT be required to reproduce native fields that the common format does not carry, namely `variations[].id`, `variations[].parent` and the presence of `binding` inside a `view` entry
+- **THEN** it MUST reproduce every `view` entry under its original key
+- **THEN** it MUST reproduce `variations[].parent` for every variation
+- **THEN** codec MUST NOT be required to reproduce native fields that the common format does not carry, namely `variations[].id` when the value carries no authored identifier
 
 #### Scenario: Codec не пишет в stdout
 
@@ -121,7 +123,8 @@ Codec SHALL derive the common configuration axis metadata from the native `bindi
 
 ### Requirement: Codec maps variation targets
 
-Codec SHALL express native variation nesting as explicit targets in the common format.
+Codec SHALL express native variation nesting as explicit targets in the common format, and SHALL
+distinguish the key of a `view` entry from the axis value that entry denotes.
 
 #### Scenario: Собственная ось значения берётся из последнего binding
 
@@ -138,17 +141,37 @@ Codec SHALL express native variation nesting as explicit targets in the common f
 - **WHEN** a native variation declares `binding` with a single entry
 - **THEN** the produced common value MUST NOT contain targets
 
+#### Scenario: Имя значения схемы берётся из binding записи
+
+- **WHEN** a native configuration contains top-level `view` with key `state-accent` whose binding says `{name: "state", value: "accent"}`
+- **THEN** the produced common configuration MUST contain a value named `accent` inside the colour scheme variation
+- **THEN** codec MUST NOT produce a value named `state-accent`
+- **THEN** that value MUST carry `state-accent` as its authored identifier
+
+#### Scenario: Ключ записи используется, когда binding отсутствует
+
+- **WHEN** a native `view` entry carries no `binding`
+- **THEN** the produced common value MUST be named by the entry key
+
 #### Scenario: Корневые view становятся значениями цветовой схемы
 
-- **WHEN** a native configuration contains top-level `view` with key `accent`
+- **WHEN** a native configuration contains top-level `view` with key `accent` whose binding names the value `accent`
 - **THEN** the produced common configuration MUST contain a value named `accent` inside the color scheme variation
 - **THEN** that value MUST NOT contain targets
 
 #### Scenario: View внутри вариации получает targets
 
-- **WHEN** a native variation declares `view` with key `positive`
+- **WHEN** a native variation declares `view` with key `positive` whose binding names the value `positive`
 - **THEN** the produced common configuration MUST contain a value named `positive` inside the color scheme variation
 - **THEN** that value MUST contain targets derived from the variation `binding`
+
+#### Scenario: Encode восстанавливает ключ записи из native идентификатора
+
+- **WHEN** a common colour scheme value carries an authored identifier
+- **THEN** codec MUST use that identifier as the `view` entry key
+- **THEN** codec MUST write the value name into the entry `binding`
+- **WHEN** the value carries no authored identifier
+- **THEN** codec MUST use the value name as the entry key
 
 ### Requirement: Common configuration contract
 
@@ -222,23 +245,41 @@ because such a value is part of the component API even when it needs no override
 
 ### Requirement: Codec derives axis type
 
-Codec SHALL derive `bindings[].type` from the role and the value set of the axis, because the common
-format does not carry the axis type.
+Codec SHALL carry the axis type declared by the configuration and derive it only when the
+configuration declares none. The role of the colour scheme axis and its declared type are
+independent facts: the role says where the values go, the type says how the axis is declared.
 
-#### Scenario: Ось цветовой схемы получает тип view
+`sdds_serv` declares its colour scheme axis as `view` in all 46 cases, and the two look like one
+fact there. `sdds_sbcom` declares 10 such axes as `enum` while keeping their values in `view` —
+`counter` is one of them, and deriving the type from the role renamed its generated styles from
+`Counter.Mute` to `Counter.MuteNo`.
 
-- **WHEN** the axis identifier equals `colorSchemeVariationId`
+#### Scenario: Объявленный тип воспроизводится как есть
+
+- **WHEN** a configuration declares `bindings[].type` for an axis
+- **THEN** codec MUST produce that same type when encoding the axis back
+- **THEN** codec MUST NOT replace it with a type derived from the axis role
+
+#### Scenario: Ось цветовой схемы, объявленная перечислением
+
+- **WHEN** an axis carries the colour scheme role and is declared `enum`
+- **THEN** codec MUST place its values in `view`
+- **THEN** codec MUST produce `bindings[].type` equal to `enum`
+
+#### Scenario: Необъявленная ось цветовой схемы получает тип view
+
+- **WHEN** an axis carries the colour scheme role and the configuration declares no type for it
 - **THEN** codec MUST produce `bindings[].type` equal to `view`
 
 #### Scenario: Ось с булевыми значениями получает тип boolean
 
-- **WHEN** the declared values of an axis are exactly `true` and `false`
+- **WHEN** an axis declares no type and its values are exactly `true` and `false`
 - **THEN** codec MUST produce `bindings[].type` equal to `boolean`
 - **THEN** codec MUST produce those values as JSON booleans
 
 #### Scenario: Остальные оси получают тип enum
 
-- **WHEN** an axis is neither the colour scheme axis nor a boolean axis
+- **WHEN** an axis declares no type and is neither the colour scheme axis nor a boolean axis
 - **THEN** codec MUST produce `bindings[].type` equal to `enum`
 
 ### Requirement: Codec places property value by its type
@@ -262,4 +303,54 @@ Codec SHALL place a property value into the field the native format uses for its
 - **WHEN** a property value carries `alpha` or `adjustment`
 - **THEN** codec MUST carry them through both directions unchanged
 - **THEN** codec MUST NOT normalize their textual form
+
+### Requirement: Codec derives variation parent from identifiers
+
+Codec SHALL derive `variations[].parent` from the authored identifiers it already carries, taking the
+longest proper dot-prefix that belongs to another variation of the same configuration. The parent
+MUST NOT be carried as a separate stored field.
+
+#### Scenario: Родитель — самый длинный известный префикс
+
+- **WHEN** a configuration declares variations with identifiers `xs`, `xs.wide` and `xs.wide.default`
+- **THEN** codec MUST produce `parent` equal to `xs.wide` for `xs.wide.default`
+- **THEN** codec MUST produce `parent` equal to `xs` for `xs.wide`
+
+#### Scenario: Идентификатор без префикса даёт корневую вариацию
+
+- **WHEN** a variation identifier contains no dot
+- **THEN** codec MUST produce `parent` as null
+
+#### Scenario: Пропущенное звено не мешает
+
+- **WHEN** a configuration declares `xs` and `xs.wide.default` but no `xs.wide`
+- **THEN** codec MUST produce `parent` equal to `xs` for `xs.wide.default`
+
+#### Scenario: Корневая вариация с несколькими осями
+
+- **WHEN** a variation binds two axes and its identifier contains no dot
+- **THEN** codec MUST produce `parent` as null
+- **THEN** codec MUST NOT infer a parent from the axis coordinate
+
+### Requirement: Corpus covers more than one design system
+
+The corpus SHALL contain configurations from at least two design systems, because a single design
+system can be degenerate in ways that hide defects.
+
+`sdds_serv` proved degenerate on two counts at once: its colour scheme axis is always named `view`
+(525 entries of 525), and the key of a `view` entry always equals the axis value (525 of 525). Both
+coincidences were encoded as rules and both are false in `sdds_sbcom`, where the scheme axis carries
+six different names and the key differs from the value in 67 cases of 70.
+
+#### Scenario: Корпус охватывает вторую дизайн-систему
+
+- **WHEN** the corpus is assembled
+- **THEN** it MUST include configurations from at least two design systems
+- **THEN** it MUST include a configuration whose colour scheme axis is not named `view`
+- **THEN** it MUST include a configuration whose `view` entry key differs from its axis value
+
+#### Scenario: Вырожденность корпуса не принимается за правило
+
+- **WHEN** a rule is derived from the corpus
+- **THEN** the rule MUST hold on every design system in the corpus, not only on one
 

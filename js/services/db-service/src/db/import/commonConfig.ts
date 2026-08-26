@@ -34,10 +34,12 @@ export const TargetSchema = z.object({
 
 export const VariationValueSchema = z.object({
   name: z.string(),
-  // Идентификатор и родитель вариации в native-формате: авторские, из координаты не выводятся,
-  // а плагин строит из них имя стиля и дерево наследования.
-  nativeId: z.string().optional(),
-  nativeParent: z.string().nullish(),
+  // Идентификатор вариации, написанный автором конфигурации. Правила сборки у него нет,
+  // вывести нельзя, а плагин строит из него имя генерируемого стиля.
+  //
+  // Родитель здесь не возится: он выводится как самый длинный точечный префикс
+  // идентификатора, принадлежащий другой вариации.
+  authoredId: z.string().optional(),
   targets: z.array(TargetSchema).optional(),
   properties: z.record(z.string(), PropertyValueSchema).default({}),
 });
@@ -46,6 +48,9 @@ export const VariationSchema = z.object({
   id: z.string(),
   name: z.string(),
   values: z.array(VariationValueSchema).default([]),
+  // Тип оси, объявленный конфигурацией. Возится отдельно от роли: роль говорит, куда уезжают
+  // значения, тип — как ось объявлена, и в `sdds_sbcom` они расходятся у 10 осей.
+  declaredType: z.string().nullish(),
 });
 
 export const CommonConfigSchema = z.object({

@@ -51,7 +51,16 @@ internal class ConfigCodec(
                         binding.defaultValue?.let { CommonDefault(id = binding.name, value = it) }
                     },
                     variations = axisNames.map { axis ->
-                        CommonVariation(id = axis, name = axis, values = values.getValue(axis))
+                        CommonVariation(
+                            id = axis,
+                            name = axis,
+                            values = values.getValue(axis),
+                            // Тип берётся из объявления, а при его отсутствии выводится тем же
+                            // правилом, каким его выведет обратная сборка: поле означает тип оси
+                            // в native-форме, и круг обязан оставаться точным.
+                            declaredType = bindings.firstOrNull { it.name == axis }?.type
+                                ?: axisTypeOf(axis, colorSchemeAxis, values.getValue(axis)),
+                        )
                     },
                 )
             }
@@ -82,7 +91,22 @@ internal class ConfigCodec(
             variation.values.forEach { value -> accumulator.add(variation.id, value) }
         }
 
-        return ConfigCodecResult.Success(accumulator.build())
+        val native = accumulator.build()
+
+        // Постусловие вывода родителя: составной идентификатор без найденного родителя означает,
+        // что вариация молча уехала бы в корень дерева наследования. Проверяется здесь, а не
+        // внутри сборки, чтобы отказ шёл через тип результата, а не исключением.
+        val orphan = native.variations.firstOrNull { variation ->
+            val id = variation.id?.content.orEmpty()
+            id.contains('.') && variation.parent == null
+        }
+        if (orphan != null) {
+            return ConfigCodecResult.Failure(
+                ConfigCodecFailure.UnresolvedVariationParent(orphan.id?.content.orEmpty()),
+            )
+        }
+
+        return ConfigCodecResult.Success(native)
     }
 
     /**
@@ -99,11 +123,15 @@ internal class ConfigCodec(
     ): ConfigCodecResult<Map<String, List<CommonVariationValue>>> {
         val values = axisNames.associateWith { mutableListOf<CommonVariationValue>() }
 
-        config.view.forEach { (valueName, entry) ->
+        config.view.forEach { (entryKey, entry) ->
             val axis = colorSchemeAxis ?: return ConfigCodecResult.Failure(
                 ConfigCodecFailure.UnknownAxis(COLOR_SCHEME_BINDING_TYPE, axisNames),
             )
-            values.getValue(axis) += CommonVariationValue(name = valueName, properties = entry.props)
+            values.getValue(axis) += CommonVariationValue(
+                name = entry.axisValueOf(axis, entryKey),
+                properties = entry.props,
+                authoredId = entryKey,
+            )
         }
 
         config.variations.forEach { variation ->
@@ -114,19 +142,19 @@ internal class ConfigCodec(
                 name = binding.last().value.content,
                 targets = binding.dropLast(1).toTargets(),
                 properties = variation.props,
-                nativeId = variation.id?.content,
-                nativeParent = variation.parent,
+                authoredId = variation.id?.content,
             )
 
-            variation.view.forEach { (valueName, entry) ->
+            variation.view.forEach { (entryKey, entry) ->
                 val axis = colorSchemeAxis
                     ?: return ConfigCodecResult.Failure(
                         ConfigCodecFailure.UnknownAxis(COLOR_SCHEME_BINDING_TYPE, axisNames),
                     )
                 values.getValue(axis) += CommonVariationValue(
-                    name = valueName,
+                    name = entry.axisValueOf(axis, entryKey),
                     targets = binding.toTargets(),
                     properties = entry.props,
+                    authoredId = entryKey,
                 )
             }
         }
@@ -263,6 +291,21 @@ private class NativeAccumulator(
      * конфигурация получила бы uuid вместо `size` везде, где эти два поля различаются.
      */
     private val axisNames = config.variations.associate { it.id to it.name }
+
+    /**
+     * Порядок осей, объявленный конфигурацией.
+     *
+     * По нему канонизируется координата. Без этого одна и та же координата собиралась дважды
+     * с разным порядком осей: у значения обычной оси `targets` приходят в одном порядке,
+     * у значения оси цветовой схемы — в другом, и `builders` заводил два ключа вместо одного.
+     * Второй оставался без авторского идентификатора и уезжал в пакет лишней вариацией
+     * вроде `no.size-48` вместо `size-48.bg-no`.
+     */
+    private val axisOrder = config.variations.withIndex().associate { (index, it) -> it.id to index }
+
+    /** Приводит координату к объявленному порядку осей. */
+    private fun AxisCombination.canonical(): AxisCombination =
+        sortedBy { axisOrder[it.first] ?: Int.MAX_VALUE }
     private val defaults = config.defaults.associate { it.id to it.value }
     private val rootView = linkedMapOf<String, NativeViewEntry>()
     private val builders = linkedMapOf<AxisCombination, NativeVariationBuilder>()
@@ -273,10 +316,11 @@ private class NativeAccumulator(
      * Собираются до сборки: `parent` вычисляется по координате без последней оси, и её
      * идентификатор к этому моменту уже должен быть известен.
      */
-    private val nativeIds = mutableMapOf<AxisCombination, String>()
+    private val authoredIds = mutableMapOf<AxisCombination, String>()
 
-    /** Родители вариаций. Значение `null` означает, что вариация корневая, и это тоже факт. */
-    private val nativeParents = mutableMapOf<AxisCombination, String?>()
+    /** Координаты пустых вариаций исходника. Достраиваются в [build], если их не завело ничто. */
+    private val emptyWithAuthoredId = mutableMapOf<AxisCombination, String>()
+
     private val axisValues = config.variations.associate { it.id to linkedSetOf<JsonPrimitive>() }
 
     fun add(axis: String, value: CommonVariationValue) {
@@ -288,9 +332,27 @@ private class NativeAccumulator(
 
         // Значение, которому не сопоставлено ни свойств, ни пересечений, объявлено осью,
         // но ничего не переопределяет. Оно остаётся в `bindings[].values` и вариации
-        // не порождает: пустая вариация в native-формате означала бы другое — сочетание
-        // без единого свойства.
+        // не порождает — если только в исходнике вариации у него не было.
+        //
+        // Признак этого — авторский идентификатор: он ставится только из `variations[].id`,
+        // поэтому его наличие означает, что запись вариации в native-формате существовала,
+        // пусть и пустая. Такая в корпусе одна на 1219 — `counter.type=mute` в `sdds_sbcom`, —
+        // и без неё плагин теряет обёртку `Counter.Mute` целиком.
+        // Значение, которому не сопоставлено ни свойств, ни пересечений, объявлено осью,
+        // но ничего не переопределяет: оно остаётся в `bindings[].values` и вариации не порождает.
+        //
+        // Исключение — значение с авторским идентификатором: он ставится только из
+        // `variations[].id`, поэтому его наличие означает, что запись вариации в исходнике была,
+        // пусть и пустая. Координата достраивается в [build], если к тому времени её так никто
+        // и не завёл: у значения, под которым лежат записи `view`, билдер появится сам,
+        // а ранняя вставка переставила бы порядок вариаций.
+        //
+        // Правило работает только потому, что импорт кладёт идентификатор на значение оси
+        // лишь от записи без пересечений. Пока он брал первую попавшуюся, идентификаторы
+        // координат оседали на значениях — 207 из 1219, — и та же достройка порождала
+        // лишние вариации, ломая `BasicButton`, `IconButton` и `Loader`.
         if (value.properties.isEmpty() && targets.isEmpty()) {
+            value.authoredId?.let { emptyWithAuthoredId[(axis to own).let(::listOf).canonical()] = it }
             return
         }
 
@@ -298,17 +360,29 @@ private class NativeAccumulator(
             addSchemeValue(value, targets)
         } else {
             val key = targets.toCombination() + (axis to own)
-            value.nativeId?.let { nativeIds[key] = it }
-            if (value.nativeId != null) nativeParents[key] = value.nativeParent
+            value.authoredId?.let { authoredIds[key.canonical()] = it }
             builderFor(key).props = value.properties
         }
     }
 
     fun build(): NativeConfig {
+        // Пустые вариации исходника, которых не завело ни одно значение со свойствами.
+        for ((key, authored) in emptyWithAuthoredId) {
+            if (key !in builders) {
+                authoredIds[key] = authored
+                builderFor(key)
+            }
+        }
+
         // Вид оси нужен дважды: в объявлении `bindings` и в ссылках `binding[].value`,
         // где значение булевой оси обязано быть JSON-булем, а не строкой.
+        // Объявленный тип имеет приоритет над выводом: роль оси и её тип независимы, и
+        // `counter` в `sdds_sbcom` объявляет ось схемы как `enum`.
         val axisTypes = config.variations.associate { variation ->
-            variation.id to bindingTypeOf(variation.id, axisValues.getValue(variation.id).toList())
+            variation.id to (
+                variation.declaredType
+                    ?: bindingTypeOf(variation.id, axisValues.getValue(variation.id).toList())
+                )
         }
         return NativeConfig(
             props = config.invariants,
@@ -327,8 +401,19 @@ private class NativeAccumulator(
                     defaultValue = defaults[variation.id]?.asAxisPrimitive(type),
                 )
             },
-            variations = builders.entries.map { (key, builder) ->
-                builder.build(nativeIds, nativeParents, axisTypes)
+            // Родитель выводится по множеству известных идентификаторов, поэтому оно
+            // считается до сборки: самый длинный точечный префикс должен искаться среди
+            // всех вариаций, а не только среди уже собранных.
+            //
+            // Идентификатор берётся по канонизированному ключу, а запасной вариант — по тому
+            // порядку осей, в котором координата встретилась: ровно его билдер и пишет
+            // в `binding`, поэтому иначе множество разошлось бы с выданными идентификаторами.
+            variations = builders.entries.let { entries ->
+                val idOf = { key: AxisCombination, builder: NativeVariationBuilder ->
+                    authoredIds[key] ?: builder.key.derivedId()
+                }
+                val allIds = entries.map { (key, builder) -> idOf(key, builder) }.toSet()
+                entries.map { (key, builder) -> builder.build(idOf(key, builder), allIds, axisTypes) }
             },
         )
     }
@@ -337,10 +422,12 @@ private class NativeAccumulator(
         value: CommonVariationValue,
         targets: List<CommonTargetProperty>,
     ) {
-        // Native-формат дублирует координату записи внутрь неё самой: все 525 таких `binding`
-        // корпуса — ровно `{name: <ось схемы>, value: <ключ записи>}`. Сведений это не несёт,
-        // но без него выгрузка расходится с исходным пакетом в каждом файле, где есть `view`.
+        // Ключ записи и значение оси — разные величины, и обе восстанавливаются явно:
+        // ключом служит авторский идентификатор, а значение уезжает в `binding` внутри записи.
+        // Прежде ключом бралось имя значения — на `sdds_serv` это совпадало во всех 525
+        // случаях, а на `sdds_sbcom` расходилось в 67 из 70.
         val schemeAxis = config.colorSchemeVariationId
+        val entryKey = value.authoredId ?: value.name
         val entry = NativeViewEntry(
             props = value.properties,
             binding = schemeAxis?.let { axis ->
@@ -353,14 +440,16 @@ private class NativeAccumulator(
             },
         )
         if (targets.isEmpty()) {
-            rootView[value.name] = entry
+            rootView[entryKey] = entry
         } else {
-            builderFor(targets.toCombination()).view[value.name] = entry
+            builderFor(targets.toCombination()).view[entryKey] = entry
         }
     }
 
+    // Ключом служит канонизированная координата, а сам билдер помнит тот порядок осей,
+    // в котором координата встретилась первой: он и уезжает в `binding` вариации.
     private fun builderFor(key: AxisCombination): NativeVariationBuilder =
-        builders.getOrPut(key) { NativeVariationBuilder(key, axisNames) }
+        builders.getOrPut(key.canonical()) { NativeVariationBuilder(key, axisNames) }
 
     /**
      * Выводит вид оси из её роли и набора значений.
@@ -384,7 +473,7 @@ private class NativeAccumulator(
  * Накапливает одну native-вариацию.
  */
 private class NativeVariationBuilder(
-    private val key: AxisCombination,
+    val key: AxisCombination,
     private val axisNames: Map<String, String>,
 ) {
     var props: Map<String, NativeProperty> = emptyMap()
@@ -399,26 +488,76 @@ private class NativeVariationBuilder(
      * без последней оси.
      */
     fun build(
-        nativeIds: Map<AxisCombination, String>,
-        nativeParents: Map<AxisCombination, String?>,
+        id: String,
+        allIds: Set<String>,
         axisTypes: Map<String, String>,
-    ): NativeVariation = NativeVariation(
-        id = JsonPrimitive(nativeIds[key] ?: key.derivedId()),
-        parent = if (nativeParents.containsKey(key)) {
-            nativeParents[key]
-        } else {
-            key.dropLast(1).takeIf { it.isNotEmpty() }?.derivedId()
-        },
-        binding = key.map { (axisId, value) ->
-            NativeBindingRef(
-                name = axisNames[axisId] ?: axisId,
-                value = value.asAxisPrimitive(axisTypes[axisId] ?: ENUM_BINDING_TYPE),
-            )
-        },
-        props = props,
-        view = view,
-    )
+    ): NativeVariation {
+        return NativeVariation(
+            id = JsonPrimitive(id),
+            parent = parentOf(id, allIds),
+            binding = key.map { (axisId, value) ->
+                NativeBindingRef(
+                    name = axisNames[axisId] ?: axisId,
+                    value = value.asAxisPrimitive(axisTypes[axisId] ?: ENUM_BINDING_TYPE),
+                )
+            },
+            props = props,
+            view = view,
+        )
+    }
 }
+
+/**
+ * Родитель вариации: самый длинный точечный префикс её идентификатора, принадлежащий другой
+ * вариации той же конфигурации.
+ *
+ * Выводится, а не хранится: правило точно на 1219 вариациях из 1219 двух корпусов. Прежде
+ * родитель хранился рядом с идентификатором, потому что проверялся вывод **из координаты** —
+ * оттуда его действительно не вывести, у `basic_button` в `sdds_sbcom` есть вариация с двумя
+ * осями и `parent: null`. Вывод из самого идентификатора тогда проверен не был.
+ *
+ * Префикс ищется среди существующих идентификаторов, а не отрезается механически: в корпусе
+ * есть вариации с пропущенным звеном, и отрезание последнего сегмента дало бы ссылку в пустоту.
+ */
+private fun parentOf(id: String, allIds: Set<String>): String? {
+    val parts = id.split(".")
+    for (length in parts.size - 1 downTo 1) {
+        val candidate = parts.take(length).joinToString(".")
+        if (candidate in allIds) return candidate
+    }
+    return null
+}
+
+/**
+ * Тип оси по её роли и набору значений.
+ *
+ * Повторяет правило обратной сборки: ось цветовой схемы объявлена ролью, булева узнаётся по
+ * значениям, остальные — перечисление.
+ */
+private fun axisTypeOf(
+    axis: String,
+    colorSchemeAxis: String?,
+    values: List<CommonVariationValue>,
+): String = when {
+    axis == colorSchemeAxis -> COLOR_SCHEME_BINDING_TYPE
+    values.isNotEmpty() && values.all { it.name in BOOLEAN_AXIS_VALUES } -> BOOLEAN_BINDING_TYPE
+    else -> ENUM_BINDING_TYPE
+}
+
+/**
+ * Значение оси, которое обозначает запись `view`.
+ *
+ * Ключ карты и значение оси — разные величины: в `sdds_sbcom` ключ `state-accent` стоит при
+ * значении `accent`, и совпадают они лишь в 3 случаях из 70. Авторитетен `binding` внутри
+ * записи; ключ остаётся подписью и уезжает в `authoredId`.
+ *
+ * Записи без `binding` в корпусе есть (две в `badge_config.json`), и там ключ и значение
+ * совпадают по построению — ось объявлена с ровно такими значениями. Для них ключ и берётся.
+ */
+private fun NativeViewEntry.axisValueOf(axis: String, entryKey: String): String =
+    binding.orEmpty().firstOrNull { it.name == axis }?.value?.content
+        ?: binding.orEmpty().firstOrNull()?.value?.content
+        ?: entryKey
 
 private fun List<NativeBindingRef>.toTargets(): List<CommonTarget>? = takeIf { it.isNotEmpty() }
     ?.let { references ->
