@@ -407,7 +407,12 @@ export const queryCatalog: CatalogQuery[] = [
           propertyName: schema.properties.name,
           propertyType: schema.properties.type,
           value: schema.invariantPropertyValues.value,
-          state: schema.invariantPropertyValues.state,
+          states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
+          )`,
           designSystemName: schema.designSystems.name,
           appearanceName: schema.appearances.name,
         })
@@ -781,7 +786,12 @@ export const queryCatalog: CatalogQuery[] = [
           componentName: schema.components.name,
           propertyName: schema.properties.name,
           propertyType: schema.properties.type,
-          state: schema.variationPropertyValues.state,
+          states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
+          )`,
           value: schema.variationPropertyValues.value,
           tokenId: schema.variationPropertyValues.tokenId,
           styleName: schema.styles.name,
@@ -807,14 +817,23 @@ export const queryCatalog: CatalogQuery[] = [
             schema.appearances.id,
           ),
         )
-        .where(isNotNull(schema.variationPropertyValues.state));
+        .where(sql`exists (
+          select 1 from state_sets ss
+          where ss.id = ${schema.variationPropertyValues.stateSetId}
+            and cardinality(ss.state_ids) > 0
+        )`);
 
       const invariantProps = await db
         .select({
           componentName: schema.components.name,
           propertyName: schema.properties.name,
           propertyType: schema.properties.type,
-          state: schema.invariantPropertyValues.state,
+          states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
+          )`,
           value: schema.invariantPropertyValues.value,
           tokenId: schema.invariantPropertyValues.tokenId,
           styleName: sql<string>`null`,
@@ -839,7 +858,11 @@ export const queryCatalog: CatalogQuery[] = [
             schema.appearances.id,
           ),
         )
-        .where(isNotNull(schema.invariantPropertyValues.state));
+        .where(sql`exists (
+          select 1 from state_sets ss
+          where ss.id = ${schema.invariantPropertyValues.stateSetId}
+            and cardinality(ss.state_ids) > 0
+        )`);
 
       return [...variationProps, ...invariantProps];
     },
@@ -870,40 +893,45 @@ export const queryCatalog: CatalogQuery[] = [
       const dsName = params?.designSystemName as string;
       const appearanceName = params?.appearanceName as string;
 
+      // Дефолт оси принадлежит appearance, поэтому запрос идёт от объявления оси,
+      // а не от стилей. Прежняя редакция фильтровала `styles.is_default` — флаг уровня
+      // (ДС, ось), — и потому отдавала один и тот же дефолт всем appearance компонента,
+      // а `selectDistinct` это скрывал.
       return db
-        .selectDistinct({
+        .select({
           componentName: schema.components.name,
           variationName: schema.variations.name,
           styleName: schema.styles.name,
           styleDescription: schema.styles.description,
         })
-        .from(schema.styles)
+        .from(schema.appearanceVariations)
+        .innerJoin(
+          schema.styles,
+          eq(schema.appearanceVariations.defaultStyleId, schema.styles.id),
+        )
         .innerJoin(
           schema.variations,
-          eq(schema.styles.variationId, schema.variations.id),
+          eq(schema.appearanceVariations.variationId, schema.variations.id),
         )
         .innerJoin(
           schema.components,
           eq(schema.variations.componentId, schema.components.id),
         )
         .innerJoin(
-          schema.designSystems,
-          eq(schema.styles.designSystemId, schema.designSystems.id),
+          schema.appearances,
+          eq(schema.appearanceVariations.appearanceId, schema.appearances.id),
         )
         .innerJoin(
-          schema.appearances,
-          and(
-            eq(schema.appearances.componentId, schema.components.id),
-            eq(schema.appearances.designSystemId, schema.designSystems.id),
-          ),
+          schema.designSystems,
+          eq(schema.appearances.designSystemId, schema.designSystems.id),
         )
         .where(
           and(
-            eq(schema.styles.isDefault, true),
             eq(schema.designSystems.name, dsName),
             eq(schema.appearances.name, appearanceName),
           ),
-        );
+        )
+        .orderBy(schema.components.name, schema.variations.name);
     },
   },
 
@@ -932,7 +960,12 @@ export const queryCatalog: CatalogQuery[] = [
           tokenType: schema.tokens.type,
           styleName: schema.styles.name,
           appearanceName: schema.appearances.name,
-          state: schema.variationPropertyValues.state,
+          states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
+          )`,
         })
         .from(schema.variationPropertyValues)
         .innerJoin(
@@ -1220,7 +1253,9 @@ export const queryCatalog: CatalogQuery[] = [
               variationId: schema.styles.variationId,
               name: schema.styles.name,
               description: schema.styles.description,
-              isDefault: schema.styles.isDefault,
+              // Дефолт больше не факт стиля: он принадлежит паре (appearance, ось)
+              // и лежит в `appearance_variations.default_style_id`. Перечень стилей
+              // дизайн-системы одного дефолта не имеет.
               variationName: schema.variations.name,
               componentName: schema.components.name,
             })
@@ -1269,7 +1304,12 @@ export const queryCatalog: CatalogQuery[] = [
               appearanceId: schema.variationPropertyValues.appearanceId,
               tokenId: schema.variationPropertyValues.tokenId,
               value: schema.variationPropertyValues.value,
-              state: schema.variationPropertyValues.state,
+              states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.variationPropertyValues.stateSetId}
+          )`,
               propertyName: schema.properties.name,
               styleName: schema.styles.name,
               appearanceName: schema.appearances.name,
@@ -1306,7 +1346,12 @@ export const queryCatalog: CatalogQuery[] = [
               appearanceId: schema.invariantPropertyValues.appearanceId,
               tokenId: schema.invariantPropertyValues.tokenId,
               value: schema.invariantPropertyValues.value,
-              state: schema.invariantPropertyValues.state,
+              states: sql<string | null>`(
+            select string_agg(s.name, ',' order by s.name)
+            from state_sets ss
+            join states s on s.id = any(ss.state_ids)
+            where ss.id = ${schema.invariantPropertyValues.stateSetId}
+          )`,
               propertyName: schema.properties.name,
               componentName: schema.components.name,
               appearanceName: schema.appearances.name,
@@ -1490,7 +1535,7 @@ export const queryCatalog: CatalogQuery[] = [
               propertyId: schema.styleCombinations.propertyId,
               appearanceId: schema.styleCombinations.appearanceId,
               value: schema.styleCombinations.value,
-              states: schema.styleCombinations.states,
+              stateSetId: schema.styleCombinations.stateSetId,
               propertyName: schema.properties.name,
               appearanceName: schema.appearances.name,
               componentName: schema.components.name,

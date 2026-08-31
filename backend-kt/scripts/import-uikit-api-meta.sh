@@ -188,7 +188,11 @@ api() {
 }
 
 components_json="$(api GET /components)"
-component_states_json="$(api GET /component-states)"
+# Словарь состояний переехал: `refactor-component-state-sets` заменил `component_states`
+# на общую таблицу `states`, где состояние взаимодействия отличается от объявленного
+# компонентом пустым `componentId`. Наборы состояний живут отдельно, в `state_sets`,
+# и этому скрипту не нужны: он заводит словарь, а не значения.
+states_json="$(api GET /states)"
 aliases_json="$(api GET /property-platform-params)"
 design_systems_json='[]'
 links_json='[]'
@@ -231,10 +235,10 @@ while IFS= read -r component_name; do
         [[ -z "$state_name" ]] && continue
         if ! jq -e --arg component "$component_id" --arg name "$state_name" \
             '.[] | select(.componentId == $component and .name == $name)' \
-            <<<"$component_states_json" >/dev/null; then
-            state="$(api POST /component-states "$(jq -cn --arg componentId "$component_id" --arg name "$state_name" \
+            <<<"$states_json" >/dev/null; then
+            state="$(api POST /states "$(jq -cn --arg componentId "$component_id" --arg name "$state_name" \
                 '{componentId:$componentId, name:$name}')")"
-            component_states_json="$(jq -c --argjson item "$state" '. + [$item]' <<<"$component_states_json")"
+            states_json="$(jq -c --argjson item "$state" '. + [$item]' <<<"$states_json")"
             ((created_states += 1))
         fi
     done < <(jq -r --arg component "$component_name" '[.[] | select(.component == $component) | .name] | .[]' "$states_manifest")

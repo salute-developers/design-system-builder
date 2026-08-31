@@ -1,17 +1,13 @@
 import "../zod-extend";
 import { z } from "zod";
+import { propertyTypeEnum } from "../db/schema";
 
 const uuidSchema = z.string().uuid("Must be a valid UUID");
 
 // Enum schemas
-export const PropertyTypeSchema = z.enum([
-  "color",
-  "typography",
-  "shape",
-  "shadow",
-  "dimension",
-  "float",
-]);
+// Значения берутся из схемы БД, а не дублируются списком: миграция 0004 расширила оба enum,
+// и ручная копия молча отвергала бы допустимые типы.
+export const PropertyTypeSchema = z.enum(propertyTypeEnum.enumValues);
 export const TokenTypeSchema = z.enum([
   "color",
   "gradient",
@@ -35,14 +31,10 @@ export const OperationSchema = z.enum([
   "moved",
 ]);
 export const RelationTypeSchema = z.enum(["reuse", "compose"]);
-export const StateSchema = z.enum([
-  "pressed",
-  "hovered",
-  "focused",
-  "selected",
-  "readonly",
-  "disabled",
-]);
+// Словарь состояний живёт в таблице `states`, а не в типе БД, поэтому типизированный union
+// из него больше не выводится: множество открыто и растёт с каждым новым компонентом.
+// Состояние опознаётся идентификатором, а валидация имени — делом справочника.
+export const StateIdSchema = uuidSchema;
 export const PaletteTypeSchema = z.enum(["general", "additional"]);
 
 // Common param schemas
@@ -180,12 +172,40 @@ export const CreateStyleSchema = z.object({
   variationId: uuidSchema,
   name: z.string().trim().min(1).max(255),
   description: z.string().trim().max(1000).optional(),
-  isDefault: z.boolean().optional().default(false),
 });
 export const UpdateStyleSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   description: z.string().trim().max(1000).optional(),
-  isDefault: z.boolean().optional(),
+});
+
+// Appearance Variations (объявление оси вариаций на уровне appearance: состав, порядок
+// и дефолт принадлежат паре (компонент, стиль), а не дизайн-системе)
+export const CreateAppearanceVariationSchema = z.object({
+  appearanceId: uuidSchema,
+  variationId: uuidSchema,
+  position: z.number().int(),
+  defaultStyleId: uuidSchema.nullish(),
+  isColorScheme: z.boolean().optional(),
+  // `null` — тип не объявлен конфигурацией и выводится из набора значений, см. схему таблицы.
+  declaredType: z.string().trim().max(255).nullish(),
+});
+export const UpdateAppearanceVariationSchema = z.object({
+  position: z.number().int().optional(),
+  defaultStyleId: uuidSchema.nullish(),
+  isColorScheme: z.boolean().optional(),
+  declaredType: z.string().trim().max(255).nullish(),
+});
+
+// Appearance Variation Values (объявленные значения оси, а не использованные)
+export const CreateAppearanceVariationValueSchema = z.object({
+  appearanceVariationId: uuidSchema,
+  styleId: uuidSchema,
+  position: z.number().int(),
+  authoredId: z.string().trim().max(255).nullish(),
+});
+export const UpdateAppearanceVariationValueSchema = z.object({
+  position: z.number().int().optional(),
+  authoredId: z.string().trim().max(255).nullish(),
 });
 
 // Tokens
@@ -254,12 +274,22 @@ export const CreateVariationPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  // Прозрачность и поправка формы хранятся текстом в исходной записи: значение
+  // возвращается в конфигурацию тем же текстом, поэтому нормализация недопустима.
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  // Набор состояний, при котором действует значение. Значение может действовать при
+  // нескольких состояниях сразу, и колонкой это не выразить, поэтому набор — отдельная
+  // сущность. Идентификатор берётся из POST /ds/state-sets/resolve; пустой набор —
+  // строка-сентинел, а не отсутствие ссылки.
+  stateSetId: uuidSchema,
 });
 export const UpdateVariationPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Invariant Property Values
@@ -270,12 +300,18 @@ export const CreateInvariantPropertyValueSchema = z.object({
   appearanceId: uuidSchema,
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  // Прозрачность и поправка формы хранятся текстом в исходной записи: значение
+  // возвращается в конфигурацию тем же текстом, поэтому нормализация недопустима.
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  stateSetId: uuidSchema,
 });
 export const UpdateInvariantPropertyValueSchema = z.object({
   tokenId: uuidSchema.optional(),
   value: z.string().trim().optional(),
-  state: StateSchema.optional(),
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Documentation Pages
@@ -317,17 +353,65 @@ export const UpdateComponentReuseConfigSchema = z.object({
 export const CreateStyleCombinationSchema = z.object({
   propertyId: uuidSchema,
   appearanceId: uuidSchema,
+  combinationKey: z.string().trim().optional(),
   value: z.string().trim().min(1),
-  states: z.any().optional(),
+  tokenId: uuidSchema.optional(),
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  // Строка сочетания несёт одно значение и один набор: переопределения по состояниям —
+  // отдельные строки, а не массив в jsonb.
+  stateSetId: uuidSchema,
 });
 export const UpdateStyleCombinationSchema = z.object({
   value: z.string().trim().min(1).optional(),
-  states: z.any().optional(),
+  tokenId: uuidSchema.optional(),
+  alpha: z.string().trim().optional(),
+  adjustment: z.string().trim().optional(),
+  stateSetId: uuidSchema.optional(),
 });
 
 // Style Combination Members
 export const CreateStyleCombinationMemberSchema = z.object({
   combinationId: uuidSchema,
+  styleId: uuidSchema,
+});
+
+// States (словарь состояний: взаимодействия при пустом componentId, иначе объявленные
+// кодом компонента и залитые из uikit-api-meta.json)
+export const CreateStateSchema = z.object({
+  componentId: uuidSchema.nullish(),
+  name: z.string().trim().min(1).max(255),
+  description: z.string().trim().max(1000).optional(),
+});
+
+export const UpdateStateSchema = z.object({
+  name: z.string().trim().min(1).max(255).optional(),
+  description: z.string().trim().max(1000).optional(),
+});
+
+// State Sets (набор состояний)
+//
+// Единственная точка конструирования набора. Канонизацию массива, проверку того, что все
+// элементы существуют, и вычисление владельца делает триггер на таблице, поэтому здесь
+// проверяется только форма запроса. Прямая запись в `state_sets` из клиентского кода
+// запрещена: собранный на клиенте массив — это второе место, где набор считается своим
+// способом.
+export const ResolveStateSetSchema = z.object({
+  stateIds: z.array(uuidSchema).max(32),
+});
+
+// Component Style References (реляционная ссылка на стиль другого компонента — пишется импортом)
+export const CreateComponentStyleReferenceSchema = z.object({
+  designSystemId: uuidSchema,
+  targetAppearanceId: uuidSchema,
+  reference: z.string().trim().min(1).max(255),
+  variationPropertyValueId: uuidSchema.optional(),
+  invariantPropertyValueId: uuidSchema.optional(),
+  styleCombinationId: uuidSchema.optional(),
+});
+
+export const CreateComponentStyleReferenceStyleSchema = z.object({
+  referenceId: uuidSchema,
   styleId: uuidSchema,
 });
 
@@ -410,6 +494,10 @@ export type CreateAppearanceRequest = z.infer<typeof CreateAppearanceSchema>;
 export type UpdateAppearanceRequest = z.infer<typeof UpdateAppearanceSchema>;
 export type CreateStyleRequest = z.infer<typeof CreateStyleSchema>;
 export type UpdateStyleRequest = z.infer<typeof UpdateStyleSchema>;
+export type CreateAppearanceVariationRequest = z.infer<typeof CreateAppearanceVariationSchema>;
+export type UpdateAppearanceVariationRequest = z.infer<typeof UpdateAppearanceVariationSchema>;
+export type CreateAppearanceVariationValueRequest = z.infer<typeof CreateAppearanceVariationValueSchema>;
+export type UpdateAppearanceVariationValueRequest = z.infer<typeof UpdateAppearanceVariationValueSchema>;
 export type CreateTokenRequest = z.infer<typeof CreateTokenSchema>;
 export type UpdateTokenRequest = z.infer<typeof UpdateTokenSchema>;
 export type CreateTenantRequest = z.infer<typeof CreateTenantSchema>;
@@ -462,3 +550,12 @@ export type CreateSavedQueryRequest = z.infer<typeof CreateSavedQuerySchema>;
 export type UpdateSavedQueryRequest = z.infer<typeof UpdateSavedQuerySchema>;
 export type CreatePaletteRequest = z.infer<typeof CreatePaletteSchema>;
 export type UpdatePaletteRequest = z.infer<typeof UpdatePaletteSchema>;
+export type CreateStateRequest = z.infer<typeof CreateStateSchema>;
+export type UpdateStateRequest = z.infer<typeof UpdateStateSchema>;
+export type ResolveStateSetRequest = z.infer<typeof ResolveStateSetSchema>;
+export type CreateComponentStyleReferenceRequest = z.infer<
+  typeof CreateComponentStyleReferenceSchema
+>;
+export type CreateComponentStyleReferenceStyleRequest = z.infer<
+  typeof CreateComponentStyleReferenceStyleSchema
+>;

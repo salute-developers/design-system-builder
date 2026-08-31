@@ -1,4 +1,5 @@
 import { inArray } from 'drizzle-orm';
+import { makeStateSetResolver } from '../state-sets';
 import * as schema from '../../schema';
 
 type State = 'pressed' | 'hovered' | 'focused' | 'selected' | 'readonly' | 'disabled';
@@ -8814,7 +8815,20 @@ export async function seedVariationPropertyValues(
         },
     ];
 
-    await db.insert(schema.variationPropertyValues).values(rows).onConflictDoNothing();
+    // Значение ссылается на набор. У сида набор всегда из одного состояния
+    // взаимодействия либо пуст.
+    const resolveStateSet = makeStateSetResolver(db);
+    const values = [];
+    for (const { state, ...rest } of rows as any[]) {
+      values.push({ ...rest, stateSetId: await resolveStateSet(state) });
+    }
+
+    const inserted = await db
+      .insert(schema.variationPropertyValues)
+      .values(values)
+      .onConflictDoNothing()
+      .returning();
+
 
     // Load all VPV rows for the styles we just inserted into
     const styleIds = [...new Set(rows.map((r: any) => r.styleId))];

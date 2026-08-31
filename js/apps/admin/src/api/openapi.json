@@ -290,7 +290,12 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -549,10 +554,6 @@
             "type": "string",
             "nullable": true
           },
-          "isDefault": {
-            "type": "boolean",
-            "nullable": true
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -570,7 +571,106 @@
           "variationId",
           "name",
           "description",
-          "isDefault",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "variationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "isColorScheme": {
+            "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "appearanceId",
+          "variationId",
+          "position",
+          "defaultStyleId",
+          "isColorScheme",
+          "declaredType",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appearanceVariationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "authoredId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "appearanceVariationId",
+          "styleId",
+          "position",
+          "authoredId",
           "createdAt",
           "updatedAt"
         ]
@@ -827,18 +927,22 @@
             "type": "string",
             "nullable": true
           },
-          "state": {
+          "alpha": {
             "type": "string",
-            "nullable": true,
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled",
-              null
-            ]
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -858,7 +962,10 @@
           "appearanceId",
           "tokenId",
           "value",
-          "state",
+          "alpha",
+          "adjustment",
+          "position",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -895,18 +1002,22 @@
             "type": "string",
             "nullable": true
           },
-          "state": {
+          "alpha": {
             "type": "string",
-            "nullable": true,
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled",
-              null
-            ]
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -927,7 +1038,10 @@
           "appearanceId",
           "tokenId",
           "value",
-          "state",
+          "alpha",
+          "adjustment",
+          "position",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -1078,36 +1192,33 @@
             "type": "string",
             "format": "uuid"
           },
+          "combinationKey": {
+            "type": "string"
+          },
           "value": {
             "type": "string"
           },
-          "states": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "nullable": true
-              },
-              {
-                "type": "object",
-                "additionalProperties": {
-                  "nullable": true
-                }
-              },
-              {
-                "type": "array",
-                "items": {
-                  "nullable": true
-                }
-              }
-            ]
+          "tokenId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "position": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -1124,8 +1235,13 @@
           "id",
           "propertyId",
           "appearanceId",
+          "combinationKey",
           "value",
-          "states",
+          "tokenId",
+          "alpha",
+          "adjustment",
+          "position",
+          "stateSetId",
           "createdAt",
           "updatedAt"
         ]
@@ -1159,6 +1275,173 @@
         "required": [
           "id",
           "combinationId",
+          "styleId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "State": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "componentId",
+          "name",
+          "description",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "StateSet": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "ownerComponentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "stateIds",
+          "ownerComponentId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ComponentStyleReference": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "variationPropertyValueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "styleCombinationId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "designSystemId",
+          "invariantPropertyValueId",
+          "variationPropertyValueId",
+          "styleCombinationId",
+          "targetAppearanceId",
+          "reference",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ComponentStyleReferenceStyle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2024-01-01T00:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "referenceId",
           "styleId",
           "createdAt",
           "updatedAt"
@@ -1510,7 +1793,12 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -1542,7 +1830,12 @@
               "shape",
               "shadow",
               "dimension",
-              "float"
+              "float",
+              "component_style",
+              "value",
+              "icon",
+              "boolean",
+              "integer"
             ]
           },
           "defaultValue": {
@@ -1737,10 +2030,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "isDefault": {
-            "type": "boolean",
-            "default": false
           }
         },
         "required": [
@@ -1760,9 +2049,100 @@
           "description": {
             "type": "string",
             "maxLength": 1000
+          }
+        }
+      },
+      "CreateAppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "isDefault": {
+          "variationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "isColorScheme": {
             "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "appearanceId",
+          "variationId",
+          "position"
+        ]
+      },
+      "UpdateAppearanceVariation": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "defaultStyleId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "isColorScheme": {
+            "type": "boolean"
+          },
+          "declaredType": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        }
+      },
+      "CreateAppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "appearanceVariationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "authoredId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "appearanceVariationId",
+          "styleId",
+          "position"
+        ]
+      },
+      "UpdateAppearanceVariationValue": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer"
+          },
+          "authoredId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
           }
         }
       },
@@ -2039,22 +2419,22 @@
           "value": {
             "type": "string"
           },
-          "state": {
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
             "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "styleId",
-          "appearanceId"
+          "appearanceId",
+          "stateSetId"
         ]
       },
       "UpdateVariationPropertyValue": {
@@ -2067,16 +2447,15 @@
           "value": {
             "type": "string"
           },
-          "state": {
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
             "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+            "format": "uuid"
           }
         }
       },
@@ -2106,23 +2485,23 @@
           "value": {
             "type": "string"
           },
-          "state": {
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
             "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "designSystemId",
           "componentId",
-          "appearanceId"
+          "appearanceId",
+          "stateSetId"
         ]
       },
       "UpdateInvariantPropertyValue": {
@@ -2135,16 +2514,15 @@
           "value": {
             "type": "string"
           },
-          "state": {
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
             "type": "string",
-            "enum": [
-              "pressed",
-              "hovered",
-              "focused",
-              "selected",
-              "readonly",
-              "disabled"
-            ]
+            "format": "uuid"
           }
         }
       },
@@ -2277,18 +2655,33 @@
             "type": "string",
             "format": "uuid"
           },
+          "combinationKey": {
+            "type": "string"
+          },
           "value": {
             "type": "string",
             "minLength": 1
           },
-          "states": {
-            "nullable": true
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "propertyId",
           "appearanceId",
-          "value"
+          "value",
+          "stateSetId"
         ]
       },
       "UpdateStyleCombination": {
@@ -2298,8 +2691,19 @@
             "type": "string",
             "minLength": 1
           },
-          "states": {
-            "nullable": true
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "alpha": {
+            "type": "string"
+          },
+          "adjustment": {
+            "type": "string"
+          },
+          "stateSetId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2317,6 +2721,110 @@
         },
         "required": [
           "combinationId",
+          "styleId"
+        ]
+      },
+      "CreateState": {
+        "type": "object",
+        "properties": {
+          "componentId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateState": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      },
+      "ResolveStateSet": {
+        "type": "object",
+        "properties": {
+          "stateIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 32
+          }
+        },
+        "required": [
+          "stateIds"
+        ]
+      },
+      "CreateComponentStyleReference": {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "variationPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invariantPropertyValueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleCombinationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "designSystemId",
+          "targetAppearanceId",
+          "reference"
+        ]
+      },
+      "CreateComponentStyleReferenceStyle": {
+        "type": "object",
+        "properties": {
+          "referenceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "styleId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "referenceId",
           "styleId"
         ]
       },
@@ -2427,6 +2935,199 @@
             "minLength": 1
           }
         }
+      },
+      "AppearanceAxisDeclaration": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AppearanceVariation"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "values": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            },
+            "required": [
+              "values"
+            ]
+          }
+        ]
+      },
+      "ComponentExportRequest": {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Дизайн-система, конфигурации которой выгружаются"
+          }
+        },
+        "required": [
+          "designSystemId"
+        ]
+      },
+      "ComponentExportPackage": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Имя дизайн-системы"
+              },
+              "version": {
+                "type": "string",
+                "description": "Версия последней опубликованной записи"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentName": {
+                  "type": "string",
+                  "description": "Имя компонента в написании meta.json"
+                },
+                "styleName": {
+                  "type": "string",
+                  "description": "Имя стиля, оно же имя appearance"
+                },
+                "config": {
+                  "nullable": true,
+                  "description": "Конфигурация в общем формате"
+                }
+              },
+              "required": [
+                "componentName",
+                "styleName"
+              ]
+            }
+          },
+          "underivedTypes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Значения paint-слота, вид заливки которых не выведен: ссылка на токен не разрешилась и отдан тип свойства. Поле информационное, выгрузку не отклоняет"
+          }
+        },
+        "required": [
+          "meta",
+          "components",
+          "underivedTypes"
+        ]
+      },
+      "ComponentImportReport": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "number",
+            "description": "Конфигураций создано"
+          },
+          "updated": {
+            "type": "number",
+            "description": "Конфигураций обновлено"
+          },
+          "unchanged": {
+            "type": "number",
+            "description": "Конфигураций без изменений"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "componentName": {
+                  "type": "string"
+                },
+                "styleName": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "componentName",
+                "styleName",
+                "reason"
+              ]
+            }
+          },
+          "unresolvedTokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Имена токенов, не найденные в дизайн-системе. Значение сохранено текстом, ссылка пуста"
+          },
+          "unresolvedComponentStyles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ссылки component_style, чей стиль не сопоставлен компоненту"
+          },
+          "unknownProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода"
+          },
+          "unknownStates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Состояния из конфигураций, которых нет ни среди состояний взаимодействия, ни среди объявленных компонентом"
+          },
+          "typeMismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства, у которых тип слота из кода не встречается в конфигурациях ни разу"
+          },
+          "gradientOnlyProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода"
+          },
+          "underivableVariationIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить"
+          }
+        },
+        "required": [
+          "created",
+          "updated",
+          "unchanged",
+          "rejected",
+          "unresolvedTokens",
+          "unresolvedComponentStyles",
+          "unknownProperties",
+          "unknownStates",
+          "typeMismatches",
+          "gradientOnlyProperties",
+          "underivableVariationIds"
+        ]
       }
     },
     "parameters": {}
@@ -6125,6 +6826,52 @@
         }
       }
     },
+    "/ds/appearances/{id}/variations": {
+      "get": {
+        "tags": [
+          "Appearances"
+        ],
+        "summary": "Объявление осей вариаций этого appearance вместе с их значениями",
+        "description": "Оси возвращаются в порядке position, значения внутри оси — тоже.\n\nРучка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка\nстрок все объявления базы и фильтровать их на клиенте значит возить мегабайты.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceAxisDeclaration"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/styles": {
       "get": {
         "tags": [
@@ -6332,6 +7079,512 @@
           "Styles"
         ],
         "summary": "Delete style",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variations": {
+      "get": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "List all appearance variations",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceVariation"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Create appearance variation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppearanceVariation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variations/{id}": {
+      "get": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Get appearance variation by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Update appearance variation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppearanceVariation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Appearance Variations"
+        ],
+        "summary": "Delete appearance variation",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variation-values": {
+      "get": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "List all appearance variation values",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppearanceVariationValue"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Create appearance variation value",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppearanceVariationValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/appearance-variation-values/{id}": {
+      "get": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Get appearance variation value by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Update appearance variation value",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppearanceVariationValue"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceVariationValue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Appearance Variation Values"
+        ],
+        "summary": "Delete appearance variation value",
         "parameters": [
           {
             "schema": {
@@ -9330,6 +10583,531 @@
         }
       }
     },
+    "/ds/states": {
+      "get": {
+        "tags": [
+          "States"
+        ],
+        "summary": "List states, optionally filtered by component",
+        "parameters": [
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "null"
+                  ]
+                }
+              ],
+              "example": "null"
+            },
+            "required": false,
+            "name": "componentId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "States",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/State"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "States"
+        ],
+        "summary": "Create state",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/states/{id}": {
+      "get": {
+        "tags": [
+          "States"
+        ],
+        "summary": "Get state by ID",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "States"
+        ],
+        "summary": "Update state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateState"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "States"
+        ],
+        "summary": "Delete state",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/states/{id}/impact": {
+      "get": {
+        "tags": [
+          "States"
+        ],
+        "summary": "Report what deleting a state would remove",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deletion impact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stateSets": {
+                      "type": "integer"
+                    },
+                    "values": {
+                      "type": "integer"
+                    },
+                    "components": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "stateSets",
+                    "values",
+                    "components"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/state-sets": {
+      "get": {
+        "tags": [
+          "State Sets"
+        ],
+        "summary": "List state sets",
+        "responses": {
+          "200": {
+            "description": "State sets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StateSet"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/state-sets/{id}": {
+      "get": {
+        "tags": [
+          "State Sets"
+        ],
+        "summary": "Get a state set",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "State set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateSet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/state-sets/resolve": {
+      "post": {
+        "tags": [
+          "State Sets"
+        ],
+        "summary": "Resolve a list of state identifiers into a state set",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveStateSet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing state set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerComponentId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerComponentId"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created state set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "ownerComponentId": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ownerComponentId"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown state or states of different components",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/ds/design-system-changes": {
       "get": {
         "tags": [
@@ -10555,6 +12333,420 @@
                     "dbml",
                     "mermaid"
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/component-config/export": {
+      "post": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Выгрузка конфигураций компонентов одним ответом",
+        "description": "Зеркало /import: тот же путь, POST, адресация телом. Существующий\nGET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.\n\nmeta.version берётся из последней опубликованной версии. Дизайн-система без версий\nотклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы\nв собранную тему.\n\nТип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен\nзначения градиентный, иначе тип свойства. properties.type описывает слот API компонента,\nгде color означает семейство paint. Значение типа color или gradient кладётся в default,\nостальные — в value; states[].type пишется только при расхождении с базовым значением.\n\nПорядок ответа детерминирован: компоненты по componentName, затем styleName,\nсвойства по имени.\n\nСвойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,\nи о них сообщает отчёт /import.\n\nТребует scope components:read, если запрос пришёл с ключом проекта.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Пакет конфигураций",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentExportPackage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело запроса не соответствует формату или designSystemId не является uuid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "У ключа нет scope components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Дизайн-система не найдена или недоступна проекту",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Нет опубликованной версии или имя компонента не восстанавливается обратно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/component-config/import": {
+      "post": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Импорт конфигураций компонентов одним запросом",
+        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nДизайн-система адресуется полем designSystemId тела запроса.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nuikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,\nкоторого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в\nunknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "designSystemId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "meta": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "default": ""
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "componentName": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "styleName": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "config": {
+                          "type": "object",
+                          "properties": {
+                            "rootVariationId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "colorSchemeVariationId": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "invariants": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "nullable": true
+                                  },
+                                  "default": {
+                                    "nullable": true
+                                  },
+                                  "alpha": {
+                                    "nullable": true
+                                  },
+                                  "adjustment": {
+                                    "nullable": true
+                                  },
+                                  "states": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "state": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          },
+                                          "default": []
+                                        },
+                                        "value": {
+                                          "nullable": true
+                                        },
+                                        "alpha": {
+                                          "nullable": true
+                                        },
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "type"
+                                ]
+                              },
+                              "default": {}
+                            },
+                            "defaults": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ]
+                              },
+                              "default": []
+                            },
+                            "variations": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "authoredId": {
+                                          "type": "string"
+                                        },
+                                        "targets": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "object",
+                                            "properties": {
+                                              "properties": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "id": {
+                                                      "type": "string"
+                                                    },
+                                                    "value": {
+                                                      "nullable": true
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "id"
+                                                  ]
+                                                },
+                                                "default": []
+                                              }
+                                            }
+                                          }
+                                        },
+                                        "properties": {
+                                          "type": "object",
+                                          "additionalProperties": {
+                                            "type": "object",
+                                            "properties": {
+                                              "type": {
+                                                "type": "string"
+                                              },
+                                              "value": {
+                                                "nullable": true
+                                              },
+                                              "default": {
+                                                "nullable": true
+                                              },
+                                              "alpha": {
+                                                "nullable": true
+                                              },
+                                              "adjustment": {
+                                                "nullable": true
+                                              },
+                                              "states": {
+                                                "type": "array",
+                                                "items": {
+                                                  "type": "object",
+                                                  "properties": {
+                                                    "state": {
+                                                      "type": "array",
+                                                      "items": {
+                                                        "type": "string"
+                                                      },
+                                                      "default": []
+                                                    },
+                                                    "value": {
+                                                      "nullable": true
+                                                    },
+                                                    "alpha": {
+                                                      "nullable": true
+                                                    },
+                                                    "type": {
+                                                      "type": "string"
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            },
+                                            "required": [
+                                              "type"
+                                            ]
+                                          },
+                                          "default": {}
+                                        }
+                                      },
+                                      "required": [
+                                        "name"
+                                      ]
+                                    },
+                                    "default": []
+                                  },
+                                  "declaredType": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "name"
+                                ]
+                              },
+                              "default": []
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "componentName",
+                        "styleName",
+                        "config"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "designSystemId",
+                  "meta",
+                  "components"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Отчёт импорта",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentImportReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело запроса не соответствует формату или designSystemId не является uuid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "У ключа нет scope components:write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Дизайн-система не найдена или недоступна проекту",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Импорт отклонён при записи",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

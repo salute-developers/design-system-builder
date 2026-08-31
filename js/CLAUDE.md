@@ -35,6 +35,43 @@ Without Docker: `npm run dev` from the repo root. Use the granular `dev:*` scrip
 - [docs/db-schema.dbml](docs/db-schema.dbml) is a hand-maintained mirror for visualization. If you change `schema.ts`, update the DBML to match. If they disagree, trust `schema.ts`.
 - Enums are declared as Postgres `pgEnum`s, not as text + CHECK. Don't recommend adding CHECKs for things already covered by an enum.
 
+### Триггеры живут в миграции, а не в схеме
+
+`state_sets.state_ids` — массив `uuid[]`, и внешних ключей внутрь массива в PostgreSQL нет.
+Целостность модели состояний держат **8 триггеров**, объявленных в
+[drizzle/0004_component_import.sql](services/db-service/drizzle/0004_component_import.sql):
+канонизация массива и вычисление `owner_component_id`, удаление зависимых наборов при удалении
+состояния, запрет `TRUNCATE` на `states` и `state_sets`, защита строки-сентинела пустого набора
+и проверка того, что значение не ссылается на набор чужого компонента.
+
+Ни `schema.ts`, ни `docs/db-schema.dbml` их не выражают — drizzle триггеры не описывает. Отсюда
+два следствия:
+
+- при пересоздании или правке миграции триггеры нужно переносить руками, иначе они молча
+  исчезнут, а висячий идентификатор в массиве не обнаруживается ничем;
+- инвариант перепроверяется аудит-запросами, а не повторным добавлением ограничения. Их тексты —
+  в `openspec` change `refactor-component-state-sets`, раздел 6 файла `backend-contract.md`.
+
+Отказы этих триггеров приходят из БД, и drizzle заворачивает их: текст сообщения лежит в цепочке
+`cause`, а не в `message` верхнего уровня. Ручка, переводящая отказ в `400`, обязана разворачивать
+причину, иначе отдаст `500` с сырым SQL.
+
+### Tests: only db-service has them, and they need a database
+
+`db-service` runs [vitest](services/db-service/vitest.config.ts): `cd services/db-service && npm test`.
+No other service has tests except `documentation-generator` (jest).
+
+- Tests talk to a **real** Postgres, not a mock: the import logic is mostly SQL, and a mock would
+  assert the mock. `TEST_DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:5433/db_service_test`
+  and is deliberately a separate variable from `DATABASE_URL` — tests must never point at the dev DB.
+- The global setup creates that database if missing and runs `drizzle/` migrations against it, so the
+  tests see the same schema the running service gets, triggers included.
+- Every test body runs inside `withRollback` from [services/db-service/src/test/database.ts](services/db-service/src/test/database.ts)
+  and is rolled back, so the database is never cleaned by hand and test order does not matter.
+- The global layer (components, properties, tokens) is **not** created by the import — it comes from
+  `uikit-api-meta.json`. A test that loads a configuration must seed that layer inside its own
+  transaction first.
+
 ### Sync rules — VERY IMPORTANT
 Whenever you touch certain files in `db-service`, generated artifacts must be regenerated via the `/sync-*` skills. These skills exist specifically for this and you should use them proactively — do not hand-edit the generated files.
 
@@ -76,6 +113,7 @@ These were deleted intentionally. If you see stale references to them in code/do
 - [docker-compose.dev.yml](docker-compose.dev.yml) — full dev stack
 - [setup-docker.sh](setup-docker.sh) — one-shot dev setup
 - [docs/db-schema.dbml](docs/db-schema.dbml) — DBML mirror of the DB schema (hand-maintained)
+- [services/db-service/drizzle/0004_component_import.sql](services/db-service/drizzle/0004_component_import.sql) — триггеры модели состояний, которых нет ни в `schema.ts`, ни в DBML
 
 ## Communication
 

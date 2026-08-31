@@ -550,7 +550,10 @@ export async function seed${componentName}Component(db: any) {
 
         c = insertBeforeRegex(
             c,
-            /\n\s*\]\)\n\s*\.onConflictDoUpdate\(\{\s*\n\s*target: \[schema\.styles/,
+            // Массив объявлений закрывается `];`, а вставка идёт отдельным выражением:
+            // `isDefault` в него не попадает, но остаётся в объявлении — из него заполняются
+            // `appearance_variations`.
+            /\n\s*\];\n\n\s*const rows = await db/,
             `\n\n      // ── ${componentName} ──────────────────────────────────────────────────────────\n${styleLines}`,
             'styles values',
         );

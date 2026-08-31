@@ -9,11 +9,21 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+// Словарь типов слота API компонента. Приходит из кода: `ParameterType` в `api-info-ksp`
+// и `ApiType` в `build-system/conventions/tasks/viewapi` репозитория `plasma-android`
+// объявляют ровно этот набор.
+//
+// `gradient` сюда не входит: в `plasma-android` тип `color` означает семейство paint —
+// KSP относит к нему `Color`, `Brush` и `InteractiveColor`, — а `gradient` различает
+// конкретное значение, а не слот. Замер по 40 файлам api-meta (~52 тыс. параметров)
+// не даёт ни одного `gradient`. Словарь типов значения — отдельный, см. `VALUE_TYPES`
+// в `db/import/componentImport.ts`.
 export const propertyTypeEnum = pgEnum("property_type", [
   "color",
   "typography",
@@ -21,6 +31,14 @@ export const propertyTypeEnum = pgEnum("property_type", [
   "shadow",
   "dimension",
   "float",
+  "component_style",
+  "value",
+  "icon",
+  "boolean",
+  // Тип из uikit-api-meta.json: счётчики и длительности (PaginationDots.edgeCount,
+  // Wheel.visibleItemsCount, RectSkeleton.duration). В конфигурациях оформления те же
+  // свойства записаны как value или float — глобальный слой берёт тип из кода.
+  "integer",
 ]);
 
 export const tokenTypeEnum = pgEnum("token_type", [
@@ -58,15 +76,6 @@ export const operationEnum = pgEnum("operation", [
 ]);
 
 export const relationTypeEnum = pgEnum("relation_type", ["reuse", "compose"]);
-
-export const stateEnum = pgEnum("state", [
-  "pressed",
-  "hovered",
-  "focused",
-  "selected",
-  "readonly",
-  "disabled",
-]);
 
 export const paletteTypeEnum = pgEnum("palette_type", [
   "general",
@@ -196,6 +205,83 @@ export const properties = pgTable(
   ],
 );
 
+// Словарь состояний: и взаимодействия, и объявленные кодом компонента.
+//
+// `component_id IS NULL` — состояние взаимодействия. Оно принадлежит модели ввода, а не
+// конкретному компоненту, и потому одинаково для всех: `pressed`, `hovered`, `focused`,
+// `selected`, `activated`, `readonly`, `disabled`. Семь таких засеиваются миграцией
+// детерминированными идентификаторами, чтобы код мог ссылаться на них без справочника.
+//
+// `component_id NOT NULL` — состояние, объявленное кодом компонента: в `uikit-api-meta.json`
+// у него есть поле `stateEnum` с перечислением. `CheckBoxStates` даёт `checked` и
+// `indeterminate`, `CollapsingNavigationBarStates` — `collapsed` и `expanded`.
+//
+// Прежде это были две разные сущности — значения enum `state` и таблица `component_states`.
+// Словарь один, потому что набор состояний смешивает оба вида: `["checked", "focused"]` —
+// это «отмечен И в фокусе», и разделять такой набор по двум справочникам нечем.
+export const states = pgTable(
+  "states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    componentId: uuid("component_id").references(() => components.id, { onDelete: "cascade" }),
+    // Имя в той форме, в какой оно встречается в конфигурациях оформления: `dragging-over`,
+    // а не `DraggingOver`. В api-meta для этого есть поле `configName`.
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("states_component_id_name_unique").on(t.componentId, t.name),
+    // Имя состояния взаимодействия уникально глобально. Частичный индекс нужен потому, что
+    // NULL-ы в btree различны: без него индекс выше не помешал бы завести два `hovered`.
+    uniqueIndex("states_name_unique_global")
+      .on(t.name)
+      .where(sql`${t.componentId} is null`),
+  ],
+);
+
+// Набор состояний, при котором действует значение свойства.
+//
+// Набор — это конъюнкция (`pressed` И `checked`), и колонкой она не выражается. Прежде набор
+// хранился дважды: связями в `property_value_states` и денормализованным ключом `states_key`
+// на строке значения. Два представления одного факта разошлись на 19 строках.
+//
+// Здесь представление одно: массив **и есть** набор. Уникальность массива в PostgreSQL
+// позиционная (`{A,B}` и `{B,A}` — разные), поэтому канонизация обязательна и обеспечивается
+// триггером `state_sets_canonicalize`, а не индексом. Внешние ключи внутрь массива невыразимы,
+// поэтому целостность элементов держат триггеры — см. `drizzle/0004_component_import.sql`.
+//
+// Пустой набор — строка-сентинел с `state_ids = '{}'`, а не NULL: NULL-ы в btree различны, и
+// уникальность значений перестала бы работать именно для базовых значений, то есть для
+// большинства.
+export const stateSets = pgTable(
+  "state_sets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stateIds: uuid("state_ids").array().notNull(),
+    // Компонент, которому принадлежат компонентные состояния набора. NULL, если набор состоит
+    // из одних состояний взаимодействия: у такого набора владельца нет, и он разделяется всеми
+    // компонентами. Значение выводится из состава триггером, а не приходит от клиента.
+    ownerComponentId: uuid("owner_component_id").references(() => components.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("state_sets_state_ids_unique").on(t.stateIds),
+    // Нужен триггеру удаления: `state_ids @> ARRAY[...]`.
+    index("state_sets_state_ids_gin").using("gin", t.stateIds),
+  ],
+);
+
 export const propertyPlatformParams = pgTable(
   "property_platform_params",
   {
@@ -275,7 +361,6 @@ export const styles = pgTable(
       .references(() => variations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
-    isDefault: boolean("is_default").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -284,9 +369,96 @@ export const styles = pgTable(
   },
   (t) => [
     uniqueIndex("styles_ds_id_variation_id_name_unique").on(t.designSystemId, t.variationId, t.name),
-    uniqueIndex("styles_variation_id_ds_id_is_default_unique")
-      .on(t.variationId, t.designSystemId)
-      .where(sql`is_default = true`),
+  ],
+);
+
+// Объявление оси вариаций на уровне appearance: какие оси открывает эта пара
+// (компонент, стиль), в каком порядке и что у оси по умолчанию.
+//
+// Уровень выбран по данным корпуса, а не по удобству: порядок осей у 18 компонентов из 70
+// не сводится к одной последовательности между стилями, состав осей различается между стилями
+// у 31 компонента внутри одной ДС, а `defaultValue` одной оси различается между стилями одного
+// компонента в 21 случае. Прежний `styles.is_default` выражал дефолт на уровне (ДС, ось)
+// и потому затирался каждой следующей конфигурацией пакета.
+export const appearanceVariations = pgTable(
+  "appearance_variations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceId: uuid("appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+    variationId: uuid("variation_id")
+      .notNull()
+      .references(() => variations.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    // Снятый дефолт не должен уносить объявление оси, поэтому set null, а не cascade.
+    defaultStyleId: uuid("default_style_id").references(() => styles.id, { onDelete: "set null" }),
+    // Роль оси цветовой схемы: её значения уходят в блок `view`, а не в обычные вариации.
+    // Роль объявляет конфигурация, и восстановить её по имени оси нельзя — в корпусе
+    // `sdds_sbcom` таких имён шесть (`mode-color`, `mode`, `mute`, `state`, `view`, `variant`),
+    // тогда как прежняя выгрузка искала ровно `view` и потому теряла 67 записей из 70.
+    // Больше одной такой оси в конфигурации не бывает: замер по двум корпусам исключений
+    // не нашёл, поэтому признака достаточно, отдельная таблица не нужна.
+    isColorScheme: boolean("is_color_scheme").default(false).notNull(),
+    /**
+     * Тип оси, объявленный конфигурацией в `bindings[].type`.
+     *
+     * Хранится отдельно от роли, потому что это независимые факты. В `sdds_serv` они всегда
+     * совпадают — ось схемы объявлена `view` во всех 46 случаях, — и оттого прежде выводились
+     * одно из другого. В `sdds_sbcom` 10 осей объявлены `enum`, а значения свои держат в `view`:
+     * роль говорит, куда уезжают значения, тип — как ось объявлена.
+     *
+     * `null` означает, что конфигурация тип не объявила и его следует вывести из набора значений.
+     */
+    declaredType: text("declared_type"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("av_appearance_variation_unique").on(t.appearanceId, t.variationId),
+    uniqueIndex("av_appearance_position_unique").on(t.appearanceId, t.position),
+  ],
+);
+
+// Объявленные значения оси, а не использованные. 81 ось корпуса из 821 объявляет значения,
+// которых нет ни в одной вариации, ещё 21 ось не использует ни одного своего значения:
+// `plasma_b2c/badge-clear` объявляет `shape: [default, pilled]`, а переопределения несёт
+// только `pilled`. Вывести ось из строк значений — значит срезать её поверхность.
+export const appearanceVariationValues = pgTable(
+  "appearance_variation_values",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceVariationId: uuid("appearance_variation_id")
+      .notNull()
+      .references(() => appearanceVariations.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    // Идентификатор вариации, написанный автором конфигурации. Хранится, а не выводится:
+    // правила сборки у него нет — где-то сегменты разделены точкой, где-то слиты дефисом,
+    // где-то ось опущена, где-то порядок обратный порядку объявления. Два способа обойтись
+    // без хранения проверены на корпусе и отвергнуты: переименование значений осей оставляет
+    // 215 случаев из 1219, словарь сегментов не решает 11 конфигураций из 191.
+    //
+    // Родитель здесь не хранится: он выводится как самый длинный точечный префикс
+    // идентификатора, принадлежащий другой вариации, — правило точно на 1219 из 1219.
+    //
+    // `plugin_theme_builder` строит из идентификатора имя генерируемого стиля, поэтому
+    // подмена ломала бы публичное API собранной библиотеки.
+    authoredId: text("authored_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("avv_variation_style_unique").on(t.appearanceVariationId, t.styleId),
+    uniqueIndex("avv_variation_position_unique").on(t.appearanceVariationId, t.position),
   ],
 );
 
@@ -389,7 +561,17 @@ export const variationPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    state: stateEnum("state"),
+    // Хранится в той же текстовой форме, в какой пришло: значение сериализуется обратно
+    // без нормализации, поэтому text, а не numeric.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -398,12 +580,12 @@ export const variationPropertyValues = pgTable(
       .$onUpdateFn(() => new Date()),
   },
   (t) => [
-    uniqueIndex("vpv_style_property_appearance_no_state_unique")
-      .on(t.styleId, t.propertyId, t.appearanceId)
-      .where(sql`state IS NULL`),
-    uniqueIndex("vpv_style_property_appearance_state_unique")
-      .on(t.styleId, t.propertyId, t.appearanceId, t.state)
-      .where(sql`state IS NOT NULL`),
+    uniqueIndex("vpv_style_property_appearance_states_unique").on(
+      t.styleId,
+      t.propertyId,
+      t.appearanceId,
+      t.stateSetId,
+    ),
   ],
 );
 
@@ -425,7 +607,17 @@ export const invariantPropertyValues = pgTable(
       .references(() => appearances.id, { onDelete: "cascade" }),
     tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
     value: text("value"),
-    state: stateEnum("state"),
+    // Хранится в той же текстовой форме, в какой пришло: значение сериализуется обратно
+    // без нормализации, поэтому text, а не numeric.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -434,18 +626,13 @@ export const invariantPropertyValues = pgTable(
       .$onUpdateFn(() => new Date()),
   },
   (t) => [
-    uniqueIndex("ipv_ds_comp_prop_app_no_state_unique")
-      .on(t.designSystemId, t.componentId, t.propertyId, t.appearanceId)
-      .where(sql`state IS NULL`),
-    uniqueIndex("ipv_ds_comp_prop_app_state_unique")
-      .on(
-        t.designSystemId,
-        t.componentId,
-        t.propertyId,
-        t.appearanceId,
-        t.state,
-      )
-      .where(sql`state IS NOT NULL`),
+    uniqueIndex("ipv_ds_comp_prop_app_states_unique").on(
+      t.designSystemId,
+      t.componentId,
+      t.propertyId,
+      t.appearanceId,
+      t.stateSetId,
+    ),
   ],
 );
 
@@ -584,6 +771,71 @@ export const componentReuseConfigs = pgTable(
   ],
 );
 
+// Объявление кросс-осевой координаты на уровне appearance.
+//
+// Заведено по образцу `appearance_variations`: координата — факт конфигурации, а не следствие
+// того, что по ней что-то переопределено. `pagination-dots` объявляет сочетание
+// `size=m` + `active-type=line`, не задавая ему ни одного свойства, и без отдельного объявления
+// такая координата не оставляла в модели следа — выгрузка теряла её на второй итерации.
+export const appearanceCombinations = pgTable(
+  "appearance_combinations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceId: uuid("appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+    // Тот же канонический ключ, что у `style_combinations`: отсортированные id стилей-участников
+    // через запятую. По нему значения и сопоставляются с объявлением.
+    combinationKey: text("combination_key").notNull(),
+    position: integer("position").notNull(),
+    // Идентификатор вариации, написанный автором конфигурации. Хранится, а не выводится:
+    // правила сборки у него нет — где-то сегменты разделены точкой, где-то слиты дефисом,
+    // где-то ось опущена, где-то порядок обратный порядку объявления. Два способа обойтись
+    // без хранения проверены на корпусе и отвергнуты: переименование значений осей оставляет
+    // 215 случаев из 1219, словарь сегментов не решает 11 конфигураций из 191.
+    //
+    // Родитель здесь не хранится: он выводится как самый длинный точечный префикс
+    // идентификатора, принадлежащий другой вариации, — правило точно на 1219 из 1219.
+    //
+    // `plugin_theme_builder` строит из идентификатора имя генерируемого стиля, поэтому
+    // подмена ломала бы публичное API собранной библиотеки.
+    authoredId: text("authored_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("ac_appearance_key_unique").on(t.appearanceId, t.combinationKey),
+    uniqueIndex("ac_appearance_position_unique").on(t.appearanceId, t.position),
+  ],
+);
+
+// Участники объявленной координаты: по одному стилю на ось.
+export const appearanceCombinationMembers = pgTable(
+  "appearance_combination_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appearanceCombinationId: uuid("appearance_combination_id")
+      .notNull()
+      .references(() => appearanceCombinations.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("acm_combination_style_unique").on(t.appearanceCombinationId, t.styleId),
+    uniqueIndex("acm_combination_position_unique").on(t.appearanceCombinationId, t.position),
+  ],
+);
+
 export const styleCombinations = pgTable(
   "style_combinations",
   {
@@ -594,14 +846,45 @@ export const styleCombinations = pgTable(
     appearanceId: uuid("appearance_id")
       .notNull()
       .references(() => appearances.id, { onDelete: "cascade" }),
+    // Канонический ключ сочетания: отсортированные id стилей-участников через запятую.
+    // Состав сочетания хранится в style_combination_members, поэтому уникальность по нему
+    // невыразима индексом на этой таблице. Через кросс-осевые значения проходит более
+    // половины импорта, и без ключа повторная загрузка дублировала бы их.
+    combinationKey: text("combination_key").notNull().default(""),
     value: text("value").notNull(),
-    states: jsonb("states"),
+    // Ссылка на токен, а не только его имя текстом в `value`. Прежде она здесь
+    // отсутствовала — единственная из трёх таблиц значений, — поэтому переименование
+    // токена оставляло в сочетании имя несуществующего, а вид заливки значения
+    // (сплошной цвет против градиента) выводить было не из чего.
+    tokenId: uuid("token_id").references(() => tokens.id, { onDelete: "set null" }),
+    // Хранится в той же текстовой форме, в какой пришло, без нормализации.
+    alpha: text("alpha"),
+    adjustment: text("adjustment"),
+    // Порядок переопределений состояний. В ColorStateList Android выигрывает первое
+    // совпадение, поэтому порядок значим: `[pressed, hovered]` и `[hovered, pressed]`
+    // дают разные темы. Общий формат несёт его массивом `states`, и без колонки он терялся.
+    position: integer("position").notNull().default(0),
+    // Строка сочетания несёт одно значение и один набор состояний. Прежде она несла базовое
+    // значение плюс массив переопределений в jsonb (`[{"state":["activated"],"value":32}]`) —
+    // четвёртое представление состояний, вне словаря и вне ссылочной целостности. Теперь
+    // каждое значение — отдельная строка со своим набором.
+    stateSetId: uuid("state_set_id")
+      .notNull()
+      .references(() => stateSets.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .notNull()
       .$onUpdateFn(() => new Date()),
   },
+  (t) => [
+    uniqueIndex("sc_property_appearance_combination_unique").on(
+      t.propertyId,
+      t.appearanceId,
+      t.combinationKey,
+      t.stateSetId,
+    ),
+  ],
 );
 
 export const styleCombinationMembers = pgTable(
@@ -624,6 +907,96 @@ export const styleCombinationMembers = pgTable(
     uniqueIndex(
       "scm_combination_id_style_id_unique",
     ).on(t.combinationId, t.styleId),
+  ],
+);
+
+// Реляционная связь ссылок component_style с оформлением дочернего компонента.
+//
+// Значение свойства типа `component_style` имеет вид `<styleName>[.<axis>...]`, например
+// `basic-button.size-40.mode-accent-grey`. До этой таблицы связь существовала только строкой:
+// целостность не проверялась, а разбор ссылки был задачей читающей стороны.
+//
+// Родительский контекст здесь не хранится: строка значения, на которую ссылается запись,
+// уже знает, при каком сочетании осей родителя ссылка действует. Хранить его второй раз
+// значило бы завести второй источник истины.
+export const componentStyleReferences = pgTable(
+  "component_style_references",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    designSystemId: uuid("design_system_id")
+      .notNull()
+      .references(() => designSystems.id, { onDelete: "cascade" }),
+
+    // Ровно одна из трёх ссылок заполнена — в зависимости от того, от скольких осей родителя
+    // зависит значение: ни от одной, от одной, либо от нескольких.
+    invariantPropertyValueId: uuid("invariant_property_value_id").references(
+      () => invariantPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+    variationPropertyValueId: uuid("variation_property_value_id").references(
+      () => variationPropertyValues.id,
+      { onDelete: "cascade" },
+    ),
+    styleCombinationId: uuid("style_combination_id").references(() => styleCombinations.id, {
+      onDelete: "cascade",
+    }),
+
+    // Оформление дочернего компонента, на которое указывает первый сегмент ссылки.
+    targetAppearanceId: uuid("target_appearance_id")
+      .notNull()
+      .references(() => appearances.id, { onDelete: "cascade" }),
+
+    // Исходная строка ссылки. Сохраняется, потому что порядок осей в ней не выводится
+    // из набора стилей, а он нужен для обратного преобразования в native-формат.
+    reference: text("reference").notNull(),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    check(
+      "csr_exactly_one_source",
+      sql`(
+        (${t.invariantPropertyValueId} is not null)::int +
+        (${t.variationPropertyValueId} is not null)::int +
+        (${t.styleCombinationId} is not null)::int
+      ) = 1`,
+    ),
+    uniqueIndex("csr_invariant_value_unique")
+      .on(t.invariantPropertyValueId)
+      .where(sql`invariant_property_value_id is not null`),
+    uniqueIndex("csr_variation_value_unique")
+      .on(t.variationPropertyValueId)
+      .where(sql`variation_property_value_id is not null`),
+    uniqueIndex("csr_style_combination_unique")
+      .on(t.styleCombinationId)
+      .where(sql`style_combination_id is not null`),
+    index("csr_target_appearance_idx").on(t.targetAppearanceId),
+  ],
+);
+
+// Стили дочернего компонента, названные хвостом ссылки: от нуля до трёх на запись.
+export const componentStyleReferenceStyles = pgTable(
+  "component_style_reference_styles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    referenceId: uuid("reference_id")
+      .notNull()
+      .references(() => componentStyleReferences.id, { onDelete: "cascade" }),
+    styleId: uuid("style_id")
+      .notNull()
+      .references(() => styles.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .notNull()
+      .$onUpdateFn(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("csrs_reference_id_style_id_unique").on(t.referenceId, t.styleId),
   ],
 );
 
@@ -722,6 +1095,24 @@ export const componentsRelations = relations(components, ({ many }) => ({
   parentDeps: many(componentDeps, { relationName: "parent" }),
   childDeps: many(componentDeps, { relationName: "child" }),
   invariantPropertyValues: many(invariantPropertyValues),
+  states: many(states),
+}));
+
+export const statesRelations = relations(states, ({ one }) => ({
+  component: one(components, {
+    fields: [states.componentId],
+    references: [components.id],
+  }),
+}));
+
+export const stateSetsRelations = relations(stateSets, ({ one, many }) => ({
+  ownerComponent: one(components, {
+    fields: [stateSets.ownerComponentId],
+    references: [components.id],
+  }),
+  variationPropertyValues: many(variationPropertyValues),
+  invariantPropertyValues: many(invariantPropertyValues),
+  styleCombinations: many(styleCombinations),
 }));
 
 export const designSystemComponentsRelations = relations(
@@ -867,6 +1258,10 @@ export const variationPropertyValuesRelations = relations(
       fields: [variationPropertyValues.tokenId],
       references: [tokens.id],
     }),
+    stateSet: one(stateSets, {
+      fields: [variationPropertyValues.stateSetId],
+      references: [stateSets.id],
+    }),
     platformParamAdjustments: many(variationPlatformParamAdjustments),
   }),
 );
@@ -893,6 +1288,10 @@ export const invariantPropertyValuesRelations = relations(
     token: one(tokens, {
       fields: [invariantPropertyValues.tokenId],
       references: [tokens.id],
+    }),
+    stateSet: one(stateSets, {
+      fields: [invariantPropertyValues.stateSetId],
+      references: [stateSets.id],
     }),
     platformParamAdjustments: many(invariantPlatformParamAdjustments),
   }),
@@ -989,6 +1388,10 @@ export const styleCombinationsRelations = relations(
     appearance: one(appearances, {
       fields: [styleCombinations.appearanceId],
       references: [appearances.id],
+    }),
+    stateSet: one(stateSets, {
+      fields: [styleCombinations.stateSetId],
+      references: [stateSets.id],
     }),
     members: many(styleCombinationMembers),
   }),

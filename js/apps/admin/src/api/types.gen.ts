@@ -3482,6 +3482,59 @@ export interface paths {
         };
         trace?: never;
     };
+    "/ds/appearances/{id}/variations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Объявление осей вариаций этого appearance вместе с их значениями
+         * @description Оси возвращаются в порядке position, значения внутри оси — тоже.
+         *
+         *     Ручка нужна для переноса объявлений при копировании дизайн-системы: тянуть ради десятка
+         *     строк все объявления базы и фильтровать их на клиенте значит возить мегабайты.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceAxisDeclaration"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ds/styles": {
         parameters: {
             query?: never;
@@ -3685,6 +3738,478 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Style"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/ds/appearance-variations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all appearance variations */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariation"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create appearance variation */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateAppearanceVariation"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariation"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/appearance-variations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get appearance variation by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariation"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete appearance variation */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OkResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update appearance variation */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateAppearanceVariation"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariation"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/ds/appearance-variation-values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all appearance variation values */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariationValue"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create appearance variation value */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateAppearanceVariationValue"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariationValue"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/appearance-variation-values/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get appearance variation value by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariationValue"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete appearance variation value */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OkResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update appearance variation value */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateAppearanceVariationValue"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppearanceVariationValue"];
                     };
                 };
                 /** @description Validation error */
@@ -6503,6 +7028,491 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ds/states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List states, optionally filtered by component */
+        get: {
+            parameters: {
+                query?: {
+                    componentId?: string | "null";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description States */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["State"][];
+                    };
+                };
+                /** @description Invalid filter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create state */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateState"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["State"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/states/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get state by ID */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Item */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["State"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete state */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OkResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update state */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateState"];
+                };
+            };
+            responses: {
+                /** @description Updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["State"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/ds/states/{id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report what deleting a state would remove */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deletion impact */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            stateSets: number;
+                            values: number;
+                            components: number;
+                        };
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List state sets */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description State sets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateSet"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a state set */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description State set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StateSet"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/state-sets/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a list of state identifiers into a state set */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ResolveStateSet"];
+                };
+            };
+            responses: {
+                /** @description Existing state set */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerComponentId: string | null;
+                        };
+                    };
+                };
+                /** @description Created state set */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerComponentId: string | null;
+                        };
+                    };
+                };
+                /** @description Unknown state or states of different components */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ds/design-system-changes": {
         parameters: {
             query?: never;
@@ -7618,6 +8628,293 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ds/component-config/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Выгрузка конфигураций компонентов одним ответом
+         * @description Зеркало /import: тот же путь, POST, адресация телом. Существующий
+         *     GET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.
+         *
+         *     meta.version берётся из последней опубликованной версии. Дизайн-система без версий
+         *     отклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы
+         *     в собранную тему.
+         *
+         *     Тип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен
+         *     значения градиентный, иначе тип свойства. properties.type описывает слот API компонента,
+         *     где color означает семейство paint. Значение типа color или gradient кладётся в default,
+         *     остальные — в value; states[].type пишется только при расхождении с базовым значением.
+         *
+         *     Порядок ответа детерминирован: компоненты по componentName, затем styleName,
+         *     свойства по имени.
+         *
+         *     Свойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,
+         *     и о них сообщает отчёт /import.
+         *
+         *     Требует scope components:read, если запрос пришёл с ключом проекта.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ComponentExportRequest"];
+                };
+            };
+            responses: {
+                /** @description Пакет конфигураций */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentExportPackage"];
+                    };
+                };
+                /** @description Тело запроса не соответствует формату или designSystemId не является uuid */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description У ключа нет scope components:read */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Дизайн-система не найдена или недоступна проекту */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Нет опубликованной версии или имя компонента не восстанавливается обратно */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/component-config/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Импорт конфигураций компонентов одним запросом
+         * @description Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется
+         *     в одной транзакции: частично применённый импорт компонентной модели хуже отказа.
+         *
+         *     Дизайн-система адресуется полем designSystemId тела запроса.
+         *
+         *     Ключ upsert — пара (componentName, styleName); styleName соответствует appearance.
+         *     Импорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому
+         *     свойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,
+         *     variations, properties) остаётся аддитивным и не переписывается.
+         *
+         *     При dryRun=true выполняется та же работа, после чего транзакция откатывается,
+         *     поэтому отчёт плана совпадает с отчётом применения.
+         *
+         *     Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из
+         *     uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,
+         *     которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в
+         *     unknownProperties, остальная часть конфигурации грузится.
+         *
+         *     Требует scope components:write, если запрос пришёл с ключом проекта.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        designSystemId: string;
+                        meta: {
+                            name: string;
+                            /** @default  */
+                            source?: string;
+                        };
+                        /** @default true */
+                        dryRun?: boolean;
+                        components: {
+                            componentName: string;
+                            styleName: string;
+                            config: {
+                                rootVariationId?: string | null;
+                                colorSchemeVariationId?: string | null;
+                                /** @default {} */
+                                invariants?: {
+                                    [key: string]: {
+                                        type: string;
+                                        value?: unknown;
+                                        default?: unknown;
+                                        alpha?: unknown;
+                                        adjustment?: unknown;
+                                        states?: {
+                                            /** @default [] */
+                                            state?: string[];
+                                            value?: unknown;
+                                            alpha?: unknown;
+                                            type?: string;
+                                        }[];
+                                    };
+                                };
+                                /** @default [] */
+                                defaults?: {
+                                    id: string;
+                                    value?: unknown;
+                                }[];
+                                /** @default [] */
+                                variations?: {
+                                    id: string;
+                                    name: string;
+                                    /** @default [] */
+                                    values?: {
+                                        name: string;
+                                        authoredId?: string;
+                                        targets?: {
+                                            /** @default [] */
+                                            properties?: {
+                                                id: string;
+                                                value?: unknown;
+                                            }[];
+                                        }[];
+                                        /** @default {} */
+                                        properties?: {
+                                            [key: string]: {
+                                                type: string;
+                                                value?: unknown;
+                                                default?: unknown;
+                                                alpha?: unknown;
+                                                adjustment?: unknown;
+                                                states?: {
+                                                    /** @default [] */
+                                                    state?: string[];
+                                                    value?: unknown;
+                                                    alpha?: unknown;
+                                                    type?: string;
+                                                }[];
+                                            };
+                                        };
+                                    }[];
+                                    declaredType?: string | null;
+                                }[];
+                            };
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Отчёт импорта */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ComponentImportReport"];
+                    };
+                };
+                /** @description Тело запроса не соответствует формату или designSystemId не является uuid */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description У ключа нет scope components:write */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Дизайн-система не найдена или недоступна проекту */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Импорт отклонён при записи */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7726,7 +9023,7 @@ export interface components {
             componentId: string | null;
             name: string;
             /** @enum {string} */
-            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue: string | null;
             description: string | null;
             /**
@@ -7845,7 +9142,49 @@ export interface components {
             variationId: string;
             name: string;
             description: string | null;
-            isDefault: boolean | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        AppearanceVariation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            appearanceId: string;
+            /** Format: uuid */
+            variationId: string;
+            position: number;
+            /** Format: uuid */
+            defaultStyleId: string | null;
+            isColorScheme: boolean;
+            declaredType: string | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        AppearanceVariationValue: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            appearanceVariationId: string;
+            /** Format: uuid */
+            styleId: string;
+            position: number;
+            authoredId: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -7939,8 +9278,11 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            /** @enum {string|null} */
-            state: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled" | null;
+            alpha: string | null;
+            adjustment: string | null;
+            position: number;
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -7966,8 +9308,11 @@ export interface components {
             /** Format: uuid */
             tokenId: string | null;
             value: string | null;
-            /** @enum {string|null} */
-            state: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled" | null;
+            alpha: string | null;
+            adjustment: string | null;
+            position: number;
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8048,10 +9393,15 @@ export interface components {
             propertyId: string;
             /** Format: uuid */
             appearanceId: string;
+            combinationKey: string;
             value: string;
-            states: string | number | boolean | unknown | {
-                [key: string]: unknown;
-            } | unknown[];
+            /** Format: uuid */
+            tokenId: string | null;
+            alpha: string | null;
+            adjustment: string | null;
+            position: number;
+            /** Format: uuid */
+            stateSetId: string;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -8068,6 +9418,84 @@ export interface components {
             id: string;
             /** Format: uuid */
             combinationId: string;
+            /** Format: uuid */
+            styleId: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        State: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            componentId: string | null;
+            name: string;
+            description: string | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        StateSet: {
+            /** Format: uuid */
+            id: string;
+            stateIds: string[];
+            /** Format: uuid */
+            ownerComponentId: string | null;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        ComponentStyleReference: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            designSystemId: string;
+            /** Format: uuid */
+            invariantPropertyValueId: string | null;
+            /** Format: uuid */
+            variationPropertyValueId: string | null;
+            /** Format: uuid */
+            styleCombinationId: string | null;
+            /** Format: uuid */
+            targetAppearanceId: string;
+            reference: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @example 2024-01-01T00:00:00.000Z
+             */
+            updatedAt: string;
+        };
+        ComponentStyleReferenceStyle: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            referenceId: string;
             /** Format: uuid */
             styleId: string;
             /**
@@ -8189,14 +9617,14 @@ export interface components {
             componentId?: string;
             name: string;
             /** @enum {string} */
-            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
         };
         UpdateProperty: {
             name?: string;
             /** @enum {string} */
-            type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float";
+            type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
         };
@@ -8260,13 +9688,40 @@ export interface components {
             variationId: string;
             name: string;
             description?: string;
-            /** @default false */
-            isDefault: boolean;
         };
         UpdateStyle: {
             name?: string;
             description?: string;
-            isDefault?: boolean;
+        };
+        CreateAppearanceVariation: {
+            /** Format: uuid */
+            appearanceId: string;
+            /** Format: uuid */
+            variationId: string;
+            position: number;
+            /** Format: uuid */
+            defaultStyleId?: string | null;
+            isColorScheme?: boolean;
+            declaredType?: string | null;
+        };
+        UpdateAppearanceVariation: {
+            position?: number;
+            /** Format: uuid */
+            defaultStyleId?: string | null;
+            isColorScheme?: boolean;
+            declaredType?: string | null;
+        };
+        CreateAppearanceVariationValue: {
+            /** Format: uuid */
+            appearanceVariationId: string;
+            /** Format: uuid */
+            styleId: string;
+            position: number;
+            authoredId?: string | null;
+        };
+        UpdateAppearanceVariationValue: {
+            position?: number;
+            authoredId?: string | null;
         };
         CreateToken: {
             /** Format: uuid */
@@ -8353,15 +9808,19 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateVariationPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateInvariantPropertyValue: {
             /** Format: uuid */
@@ -8375,15 +9834,19 @@ export interface components {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateInvariantPropertyValue: {
             /** Format: uuid */
             tokenId?: string;
             value?: string;
-            /** @enum {string} */
-            state?: "pressed" | "hovered" | "focused" | "selected" | "readonly" | "disabled";
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateDocumentationPage: {
             /** Format: uuid */
@@ -8432,16 +9895,59 @@ export interface components {
             propertyId: string;
             /** Format: uuid */
             appearanceId: string;
+            combinationKey?: string;
             value: string;
-            states?: unknown;
+            /** Format: uuid */
+            tokenId?: string;
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId: string;
         };
         UpdateStyleCombination: {
             value?: string;
-            states?: unknown;
+            /** Format: uuid */
+            tokenId?: string;
+            alpha?: string;
+            adjustment?: string;
+            /** Format: uuid */
+            stateSetId?: string;
         };
         CreateStyleCombinationMember: {
             /** Format: uuid */
             combinationId: string;
+            /** Format: uuid */
+            styleId: string;
+        };
+        CreateState: {
+            /** Format: uuid */
+            componentId?: string | null;
+            name: string;
+            description?: string;
+        };
+        UpdateState: {
+            name?: string;
+            description?: string;
+        };
+        ResolveStateSet: {
+            stateIds: string[];
+        };
+        CreateComponentStyleReference: {
+            /** Format: uuid */
+            designSystemId: string;
+            /** Format: uuid */
+            targetAppearanceId: string;
+            reference: string;
+            /** Format: uuid */
+            variationPropertyValueId?: string;
+            /** Format: uuid */
+            invariantPropertyValueId?: string;
+            /** Format: uuid */
+            styleCombinationId?: string;
+        };
+        CreateComponentStyleReferenceStyle: {
+            /** Format: uuid */
+            referenceId: string;
             /** Format: uuid */
             styleId: string;
         };
@@ -8472,6 +9978,61 @@ export interface components {
         };
         UpdatePalette: {
             value?: string;
+        };
+        AppearanceAxisDeclaration: components["schemas"]["AppearanceVariation"] & {
+            values: components["schemas"]["AppearanceVariationValue"][];
+        };
+        ComponentExportRequest: {
+            /**
+             * Format: uuid
+             * @description Дизайн-система, конфигурации которой выгружаются
+             */
+            designSystemId: string;
+        };
+        ComponentExportPackage: {
+            meta: {
+                /** @description Имя дизайн-системы */
+                name: string;
+                /** @description Версия последней опубликованной записи */
+                version: string;
+            };
+            components: {
+                /** @description Имя компонента в написании meta.json */
+                componentName: string;
+                /** @description Имя стиля, оно же имя appearance */
+                styleName: string;
+                /** @description Конфигурация в общем формате */
+                config?: unknown;
+            }[];
+            /** @description Значения paint-слота, вид заливки которых не выведен: ссылка на токен не разрешилась и отдан тип свойства. Поле информационное, выгрузку не отклоняет */
+            underivedTypes: string[];
+        };
+        ComponentImportReport: {
+            /** @description Конфигураций создано */
+            created: number;
+            /** @description Конфигураций обновлено */
+            updated: number;
+            /** @description Конфигураций без изменений */
+            unchanged: number;
+            rejected: {
+                componentName: string;
+                styleName: string;
+                reason: string;
+            }[];
+            /** @description Имена токенов, не найденные в дизайн-системе. Значение сохранено текстом, ссылка пуста */
+            unresolvedTokens: string[];
+            /** @description Ссылки component_style, чей стиль не сопоставлен компоненту */
+            unresolvedComponentStyles: string[];
+            /** @description Свойства из конфигураций, отсутствующие в глобальном слое: расхождение дизайна и кода */
+            unknownProperties: string[];
+            /** @description Состояния из конфигураций, которых нет ни среди состояний взаимодействия, ни среди объявленных компонентом */
+            unknownStates: string[];
+            /** @description Свойства, у которых тип слота из кода не встречается в конфигурациях ни разу */
+            typeMismatches: string[];
+            /** @description Свойства с paint-слотом, которым весь пакет не дал ни одного сплошного цвета. Для сборки безвредно, поэтому не typeMismatch, но это расхождение оформления и кода */
+            gradientOnlyProperties: string[];
+            /** @description Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить */
+            underivableVariationIds: string[];
         };
     };
     responses: never;

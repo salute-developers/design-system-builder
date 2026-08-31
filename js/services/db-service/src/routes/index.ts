@@ -3,6 +3,8 @@ import { spec } from "../openapi/spec";
 import designSystemsRouter from "./api/design-systems";
 import designSystemVersionsRouter from "./api/design-system-versions";
 import componentsRouter from "./api/components";
+import statesRouter from "./api/states";
+import stateSetsRouter from "./api/state-sets";
 import designSystemComponentsRouter from "./api/design-system-components";
 import variationsRouter from "./api/variations";
 import propertiesRouter from "./api/properties";
@@ -12,6 +14,8 @@ import invariantPlatformParamAdjustmentsRouter from "./api/invariant-platform-pa
 import propertyVariationsRouter from "./api/property-variations";
 import appearancesRouter from "./api/appearances";
 import stylesRouter from "./api/styles";
+import appearanceVariationsRouter from "./api/appearance-variations";
+import appearanceVariationValuesRouter from "./api/appearance-variation-values";
 import tokensRouter from "./api/tokens";
 import tenantsRouter from "./api/tenants";
 import tokenValuesRouter from "./api/token-values";
@@ -27,6 +31,8 @@ import savedQueriesRouter from "./api/saved-queries";
 import paletteRouter from "./api/palette";
 import legacyRouter from "./api/legacy";
 import componentConfigRouter from "./api/component-config";
+import componentConfigImportRouter from "./api/component-config-import";
+import componentConfigExportRouter from "./api/component-config-export";
 
 // Misc (legacy utility routes)
 import tablesRouter from "./misc/tables";
@@ -47,6 +53,8 @@ router.get("/openapi.json", (_req, res) => {
 // Resource routes
 router.use("/ds/design-systems", designSystemsRouter);
 router.use("/ds/design-system-versions", designSystemVersionsRouter);
+router.use("/ds/states", statesRouter);
+router.use("/ds/state-sets", stateSetsRouter);
 router.use("/ds/components", componentsRouter);
 router.use("/ds/design-system-components", designSystemComponentsRouter);
 router.use("/ds/variations", variationsRouter);
@@ -57,6 +65,8 @@ router.use("/ds/invariant-platform-param-adjustments", invariantPlatformParamAdj
 router.use("/ds/property-variations", propertyVariationsRouter);
 router.use("/ds/appearances", appearancesRouter);
 router.use("/ds/styles", stylesRouter);
+router.use("/ds/appearance-variations", appearanceVariationsRouter);
+router.use("/ds/appearance-variation-values", appearanceVariationValuesRouter);
 router.use("/ds/tokens", tokensRouter);
 router.use("/ds/tenants", tenantsRouter);
 router.use("/ds/token-values", tokenValuesRouter);
@@ -72,6 +82,8 @@ router.use("/ds/saved-queries", savedQueriesRouter);
 router.use("/ds/palette", paletteRouter);
 router.use("/ds/legacy/design-systems", legacyRouter);
 router.use("/ds/component-config", componentConfigRouter);
+router.use("/ds/component-config", componentConfigImportRouter);
+router.use("/ds/component-config", componentConfigExportRouter);
 
 // Misc utility routes
 router.use("/admin/tables", tablesRouter);

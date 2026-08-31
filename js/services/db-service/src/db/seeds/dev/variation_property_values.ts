@@ -1,4 +1,5 @@
 import * as schema from '../../schema';
+import { makeStateSetResolver } from '../state-sets';
 
 type VpvRow = {
   propertyId: string;
@@ -11,6 +12,20 @@ type VpvRow = {
 
 function tok(p: string, s: string, a: string, t: string, state?: VpvRow['state']): VpvRow {
   return { propertyId: p, styleId: s, appearanceId: a, tokenId: t, state: state ?? null };
+}
+
+/**
+ * Раскладывает строку сида по модели наборов.
+ *
+ * Значение не несёт состояние колонкой: оно ссылается на набор. У сида набор всегда
+ * из одного состояния взаимодействия либо пуст.
+ */
+async function toRow(
+  row: VpvRow,
+  resolveStateSet: (name: string | null | undefined) => Promise<string>,
+) {
+  const { state, ...rest } = row;
+  return { ...rest, stateSetId: await resolveStateSet(state) };
 }
 function val(p: string, s: string, a: string, value: string): VpvRow {
   return { propertyId: p, styleId: s, appearanceId: a, value, state: null };
@@ -102,7 +117,18 @@ export async function seedVariationPropertyValues(
     val(p.lnk_underLineWidth.id, s.plasma_lnk_size_m.id, a.plasma_lnk_default.id, '2'),
   ];
 
-  const inserted = await db.insert(schema.variationPropertyValues).values(rows).returning();
-  console.log(`  variation_property_values: ${inserted.length} rows`);
+  const resolveStateSet = makeStateSetResolver(db);
+
+  const values = [];
+
+  for (const row of rows) values.push(await toRow(row, resolveStateSet));
+
+  const inserted = await db
+    .insert(schema.variationPropertyValues)
+    .values(values)
+    .returning();
+
+
+  console.log(`  variation_property_values: ${inserted.length} rows, наборы состояний по ссылке`);
   return inserted;
 }

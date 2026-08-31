@@ -143,7 +143,26 @@ function DesignSystemsSection({ designSystems, reload }: { designSystems: Design
 
 // ─── Properties Tab ───────────────────────────────────────────────────────────
 
-const PROP_TYPES = ['color', 'typography', 'shape', 'shadow', 'dimension', 'float'] as const;
+// Перечень должен совпадать с propertyTypeEnum в схеме БД. Тип берётся из сгенерированных
+// типов API, поэтому расхождение поймает компилятор, а не проявится в рантайме.
+//
+// Это словарь типов **слота** API компонента, а не типов значения. `gradient` сюда не входит:
+// слот `color` означает семейство paint, покрывающее и сплошную заливку, и градиент, а
+// `gradient` различает конкретное значение внутри семейства. `blur` не входит ни в один
+// из словарей — он попал в перечисление из устаревшего описания общего формата.
+const PROP_TYPES = [
+  'color',
+  'typography',
+  'shape',
+  'shadow',
+  'dimension',
+  'float',
+  'component_style',
+  'value',
+  'icon',
+  'boolean',
+  'integer',
+] as const satisfies readonly components['schemas']['Property']['type'][];
 type PlatformKey = 'xml' | 'compose' | 'ios' | 'web';
 const PLATFORMS: PlatformKey[] = ['xml', 'compose', 'ios', 'web'];
 
@@ -908,7 +927,9 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
 // ─── Copy base DS values ─────────────────────────────────────────────────────
 
 /**
- * After adding a component to a design system, copies appearances, styles,
+ * Кросс-осевые значения (`style_combinations`) не копируются — они не копировались и раньше.
+ *
+ * After adding a component to a design system, copies appearances, styles, axis declarations,
  * invariant and variation property values from the "base" design system.
  * Tokens are mapped by name; if the target DS has no matching token the
  * reference is omitted (the plain `value` is still copied).
@@ -963,7 +984,6 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
             variationId: variation.id,
             name: s.name,
             description: s.description ?? undefined,
-            isDefault: s.isDefault ?? false,
           },
         }),
       ),
@@ -972,6 +992,54 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
     for (let i = 0; i < baseStyles.length; i++) {
       const created = createdStyles[i].data;
       if (created) styleIdMap.set(baseStyles[i].id, created.id);
+    }
+  }
+
+  // 5a. Copy axis declarations
+  //
+  // Состав осей, их порядок и дефолт принадлежат паре (appearance, ось), а не стилю: прежде
+  // дефолт ехал вместе со стилем флагом `styles.is_default`, и копирования стилей хватало.
+  // Без объявлений скопированная дизайн-система осталась бы со стилями, но без вариаций.
+  for (const baseAppearance of baseAppearances) {
+    const targetAppearanceId = appIdMap.get(baseAppearance.id);
+    if (!targetAppearanceId) continue;
+
+    const axesRes = await api.GET('/ds/appearances/{id}/variations', {
+      params: { path: { id: baseAppearance.id } },
+    });
+
+    for (const axis of axesRes.data ?? []) {
+      const createdAxis = await api.POST('/ds/appearance-variations', {
+        body: {
+          appearanceId: targetAppearanceId,
+          variationId: axis.variationId,
+          position: axis.position,
+          // Стиль по умолчанию переносится через карту стилей: в целевой ДС он свой.
+          defaultStyleId: axis.defaultStyleId ? styleIdMap.get(axis.defaultStyleId) : undefined,
+          // Роль оси цветовой схемы объявлена конфигурацией и по имени оси не выводится,
+          // поэтому её нужно переносить явно, иначе копия теряет блок `view`.
+          isColorScheme: axis.isColorScheme,
+          // Объявленный тип — независимый от роли факт, тоже невыводимый: `null` означает,
+          // что конфигурация тип не объявила, и это отличается от «тип потерян при копировании».
+          declaredType: axis.declaredType,
+        },
+      });
+      const createdAxisId = createdAxis.data?.id;
+      if (!createdAxisId) continue;
+
+      for (const value of axis.values) {
+        const targetStyleId = styleIdMap.get(value.styleId);
+        if (!targetStyleId) continue;
+
+        await api.POST('/ds/appearance-variation-values', {
+          body: {
+            appearanceVariationId: createdAxisId,
+            styleId: targetStyleId,
+            position: value.position,
+            authoredId: value.authoredId ?? undefined,
+          },
+        });
+      }
     }
   }
 
@@ -1005,8 +1073,8 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
     await Promise.all(
       baseIpvs
         .filter((ipv) => appIdMap.has(ipv.appearanceId))
-        .map((ipv) =>
-          api.POST('/ds/invariant-property-values', {
+        .map(async (ipv) => {
+          const created = await api.POST('/ds/invariant-property-values', {
             body: {
               propertyId: ipv.propertyId,
               designSystemId: targetDsId,
@@ -1014,10 +1082,14 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
               appearanceId: appIdMap.get(ipv.appearanceId)!,
               tokenId: mapTokenId(ipv.tokenId),
               value: ipv.value ?? undefined,
-              state: ipv.state ?? undefined,
+              // Набор переносится ссылкой: состояния глобальны, компонент не принадлежит
+              // дизайн-системе, поэтому копия переиспользует набор источника и новых
+              // строк в state_sets не создаётся.
+              stateSetId: ipv.stateSetId,
             },
-          }),
-        ),
+          });
+
+        }),
     );
   }
 
@@ -1037,18 +1109,19 @@ async function copyBaseValues(targetDsId: string, componentId: string) {
       await Promise.all(
         allBaseVpvs
           .filter((vpv) => styleIdMap.has(vpv.styleId) && appIdMap.has(vpv.appearanceId))
-          .map((vpv) =>
-            api.POST('/ds/variation-property-values', {
+          .map(async (vpv) => {
+            const created = await api.POST('/ds/variation-property-values', {
               body: {
                 propertyId: vpv.propertyId,
                 styleId: styleIdMap.get(vpv.styleId)!,
                 appearanceId: appIdMap.get(vpv.appearanceId)!,
                 tokenId: mapTokenId(vpv.tokenId),
                 value: vpv.value ?? undefined,
-                state: vpv.state ?? undefined,
+                stateSetId: vpv.stateSetId,
               },
-            }),
-          ),
+            });
+
+          }),
       );
     }
   }
