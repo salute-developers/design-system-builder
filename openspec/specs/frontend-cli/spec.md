@@ -61,7 +61,7 @@ The `dsbuilder` CLI SHALL use a Kotlin Multiplatform command parser for root com
 
 - **WHEN** developer runs `dsbuilder components --help`
 - **THEN** CLI MUST show deterministic help for the `components` command
-- **THEN** help MUST include `push` subcommand
+- **THEN** help MUST include `push` and `fetch` subcommands
 - **THEN** CLI MUST NOT require `.sdds/config.json`, backend services, Docker, credentials, or private URLs
 
 #### Scenario: Required option is missing
@@ -132,6 +132,13 @@ The `dsbuilder` CLI SHALL route project-scoped commands through shared CLI core 
 - **THEN** CLI MUST resolve API key credentials through CLI core
 - **THEN** CLI MUST use CLI core to add `Authorization: ProjectKey <api_key>` to backend requests
 - **THEN** CLI MUST use CLI core to reject the code default backend API URL
+
+#### Scenario: Components fetch использует CLI core
+
+- **WHEN** developer runs `dsbuilder components fetch`
+- **THEN** CLI MUST resolve the nearest `.sdds/config.json` through CLI core
+- **THEN** CLI MUST resolve API key credentials through CLI core
+- **THEN** CLI MUST use CLI core to add `Authorization: ProjectKey <api_key>` to backend requests
 
 #### Scenario: Baseline commands остаются доступными
 
@@ -205,8 +212,49 @@ Use case фичи CLI SHALL обращаться к backend API только ч�
 - **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/import` через CLI core authenticated HTTP client
 - **THEN** отчёт импорта MUST приходить в use case доменной моделью
 
+#### Scenario: Components fetch обращается к backend через тот же port
+
+- **WHEN** выполняется `dsbuilder components fetch`
+- **THEN** use case MUST запрашивать пакет через тот же port-интерфейс component-config remote source
+- **THEN** реализация порта в `data` MUST выполнять `POST /api/projects/{projectId}/ds/component-config/export` через CLI core authenticated HTTP client
+- **THEN** выгруженный пакет MUST приходить в use case доменной моделью
+- **THEN** use case MUST NOT импортировать `@Serializable` модель ответа export
+
 #### Scenario: Проверки разнесены по слоям
 
 - **WHEN** выполняются тесты фичи CLI, обращающейся к backend
 - **THEN** wire-контракт (путь, состав тела, разбор ответа, нечитаемый ответ) MUST проверяться тестами реализации порта в `data`
 - **THEN** тест use case MUST использовать fake порта и проверять оркестрацию, а не форму JSON
+
+### Requirement: CLI feature local write boundary
+
+Фича CLI, пишущая в рабочую копию, SHALL решать, что и куда писать, в пакете `domain` через
+построитель плана записи, и обращаться к файловой системе только через port-интерфейс,
+объявленный в `application` и реализованный в `data`.
+
+#### Scenario: План записи строится в domain
+
+- **WHEN** фича CLI собирается записать файлы в рабочую копию
+- **THEN** состав файлов, их имена, порядок записей и содержимое MUST определяться построителем плана в пакете `domain`
+- **THEN** построитель плана MUST NOT обращаться к файловой системе
+- **THEN** построитель плана MUST возвращать либо план, либо deterministic отказ
+
+#### Scenario: Файловая система живёт за портом
+
+- **WHEN** разработчик открывает use case пишущей фичи CLI
+- **THEN** use case MUST получать чтение и запись файлов через port-интерфейсы из `application`
+- **THEN** реализации портов MUST лежать в `data` и использовать `CliFileSystem`
+- **THEN** реализация записи MUST выполнять план и MUST NOT принимать решений о составе и именах файлов
+
+#### Scenario: Отказ обнаруживается до записи
+
+- **WHEN** построитель плана возвращает отказ
+- **THEN** use case MUST вернуть deterministic сообщение
+- **THEN** ни один файл MUST NOT быть записан
+
+#### Scenario: Проверки записи разнесены по слоям
+
+- **WHEN** выполняются тесты пишущей фичи CLI
+- **THEN** политика имён, обнаружение коллизий, порядок и состав плана MUST проверяться тестами построителя на доменных моделях, без файловой системы
+- **THEN** тест use case MUST использовать fake портов чтения и записи
+

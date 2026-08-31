@@ -1,19 +1,27 @@
 import { sql } from 'drizzle-orm';
 import * as schema from '../../schema';
+import { seedAppearanceVariations } from '../appearance_variations';
 
+/**
+ * Заводит стили дизайн-системы и объявление осей вариаций на её единственном appearance.
+ *
+ * Обе части лежат вместе, потому что массив `declared` — единственное место, где записаны
+ * порядок значений оси и то, какое из них по умолчанию. Прежде дефолт хранился флагом
+ * `styles.is_default`, то есть на уровне (ДС, ось); теперь он принадлежит паре
+ * (appearance, ось) и лежит в `appearance_variations.default_style_id`.
+ */
 export async function seedStyles(
     db: any,
     ctx: {
         designSystems: { base: any };
         variations: Record<string, any>;
+        appearances: Record<string, any>;
     },
 ) {
     const { base } = ctx.designSystems;
     const v = ctx.variations;
 
-    const rows = await db
-        .insert(schema.styles)
-        .values([
+    const declared: { designSystemId: string; variationId: string; name: string; description: string; isDefault: boolean }[] = [
             // ── IconButton ──────────────────────────────────────────────────────────
             // View
             {
@@ -943,17 +951,28 @@ export async function seedStyles(
                 isDefault: false,
             },
             { designSystemId: base.id, variationId: v.noteSize.id, name: 'm', description: '', isDefault: false },
-        ])
+        ];
+
+    const rows = await db
+        .insert(schema.styles)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        .values(declared.map(({ isDefault, ...row }) => row))
         .onConflictDoUpdate({
             target: [schema.styles.designSystemId, schema.styles.variationId, schema.styles.name],
             set: {
                 description: sql`excluded.description`,
-                isDefault: sql`excluded.is_default`,
             },
         })
         .returning();
 
     const find = (varId: string, name: string) => rows.find((r: any) => r.variationId === varId && r.name === name)!;
+
+    await seedAppearanceVariations(db, {
+        declared,
+        styleId: (variationId, name) => find(variationId, name).id,
+        variations: v,
+        appearances: ctx.appearances,
+    });
 
     const s = {
         // IconButton

@@ -34,6 +34,12 @@ export const TargetSchema = z.object({
 
 export const VariationValueSchema = z.object({
   name: z.string(),
+  // Идентификатор вариации, написанный автором конфигурации. Правила сборки у него нет,
+  // вывести нельзя, а плагин строит из него имя генерируемого стиля.
+  //
+  // Родитель здесь не возится: он выводится как самый длинный точечный префикс
+  // идентификатора, принадлежащий другой вариации.
+  authoredId: z.string().optional(),
   targets: z.array(TargetSchema).optional(),
   properties: z.record(z.string(), PropertyValueSchema).default({}),
 });
@@ -42,6 +48,9 @@ export const VariationSchema = z.object({
   id: z.string(),
   name: z.string(),
   values: z.array(VariationValueSchema).default([]),
+  // Тип оси, объявленный конфигурацией. Возится отдельно от роли: роль говорит, куда уезжают
+  // значения, тип — как ось объявлена, и в `sdds_sbcom` они расходятся у 10 осей.
+  declaredType: z.string().nullish(),
 });
 
 export const CommonConfigSchema = z.object({
@@ -72,7 +81,14 @@ export const ImportRequestSchema = z.object({
   components: z.array(ImportComponentSchema).min(1),
 });
 
+export const ExportRequestSchema = z.object({
+  // Дизайн-система адресуется телом так же, как у `/import`: путь остаётся без параметров,
+  // а идентификатор проверяется на uuid вместе с остальным телом.
+  designSystemId: z.string().uuid(),
+});
+
 export type PropertyValue = z.infer<typeof PropertyValueSchema>;
+export type ExportRequest = z.infer<typeof ExportRequestSchema>;
 export type VariationValue = z.infer<typeof VariationValueSchema>;
 export type CommonConfig = z.infer<typeof CommonConfigSchema>;
 export type ImportComponent = z.infer<typeof ImportComponentSchema>;
@@ -106,10 +122,19 @@ export const tokenNameOf = (property: PropertyValue): string | null => {
 };
 
 /**
- * Сериализует значение свойства в текст для колонки `value`.
+ * Сериализует произвольное значение конфигурации в текст.
+ *
+ * Форма сохраняется как есть: `0.2` остаётся `0.2`, а не превращается в `0.20`. Значение
+ * возвращается в конфигурацию тем же текстом, поэтому нормализация здесь означала бы
+ * расхождение выгруженного конфига с исходным.
  */
-export const propertyValueToText = (property: PropertyValue): string | null => {
-  const raw = property.default ?? property.value;
+export const rawToText = (raw: unknown): string | null => {
   if (raw === undefined || raw === null) return null;
   return typeof raw === "string" ? raw : JSON.stringify(raw);
 };
+
+/**
+ * Сериализует значение свойства в текст для колонки `value`.
+ */
+export const propertyValueToText = (property: PropertyValue): string | null =>
+  rawToText(property.default ?? property.value);

@@ -15,6 +15,8 @@ import com.dsbuilder.frontend.cli.core.http.ApiUrlResolver
 import com.dsbuilder.frontend.cli.feature.components.application.ComponentConfigRemoteSource
 import com.dsbuilder.frontend.cli.feature.components.application.ComponentPackageLoader
 import com.dsbuilder.frontend.cli.feature.components.application.ComponentSource
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsCommand
+import com.dsbuilder.frontend.cli.feature.components.application.ExportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsCommand
 import com.dsbuilder.frontend.cli.feature.components.application.ImportComponentsResult
 import com.dsbuilder.frontend.cli.feature.components.application.PushComponentsCommand
@@ -253,10 +255,7 @@ class PushComponentsUseCaseTest {
                     ),
                 )
             },
-            remoteSource = ComponentConfigRemoteSource { command ->
-                onImport(command)
-                importResult
-            },
+            remoteSource = FakeComponentConfigRemoteSource(onImport, importResult),
             codec = ConfigCodec(),
         )
 
@@ -310,4 +309,23 @@ class PushComponentsUseCaseTest {
             nativeConfig = nativeConfig,
         )
     }
+}
+
+/**
+ * Fake порта обмена конфигурациями.
+ *
+ * Порт перестал быть `fun interface`, когда к `import` добавился `export`, поэтому fake стал
+ * классом. Push выгрузку не вызывает: обращение к ней здесь означало бы ошибку в барьерах.
+ */
+private class FakeComponentConfigRemoteSource(
+    private val onImport: (ImportComponentsCommand) -> Unit,
+    private val importResult: ImportComponentsResult,
+) : ComponentConfigRemoteSource {
+    override fun import(command: ImportComponentsCommand): ImportComponentsResult {
+        onImport(command)
+        return importResult
+    }
+
+    override fun export(command: ExportComponentsCommand): ExportComponentsResult =
+        error("push не выгружает пакет")
 }

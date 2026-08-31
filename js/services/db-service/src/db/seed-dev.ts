@@ -106,7 +106,7 @@ async function seed() {
   const variations = await seedVariations(db, { components });
   const properties = await seedProperties(db, { components });
   await seedPropertyVariations(db, { properties, variations });
-  const styles = await seedStyles(db, { designSystems, variations });
+  const styles = await seedStyles(db, { designSystems, variations, appearances });
 
   // Property value seeds
   const vpvRows = await seedVariationPropertyValues(db, { tokens, appearances, properties, styles });

@@ -88,9 +88,20 @@ private fun ComponentImportReport.render(): String = buildString {
 
     // Эти расхождения не отменяют импорт, но означают потерю данных либо противоречие
     // между кодом компонента и оформлением. Без вывода о них узнать неоткуда.
+    // Имена токенов, которых нет в дизайн-системе. Прежде отчёт их не печатал, и ссылка
+    // в пустоту оставалась незамеченной: значение сохранялось текстом, а вид заливки
+    // выводить было уже не из чего.
+    appendSection("Token references not found in the design system", unresolvedTokens)
+    appendSection("Component style references not matched", unresolvedComponentStyles)
     appendSection("Properties absent from the global layer", unknownProperties)
     appendSection("States absent from the global layer", unknownStates)
     appendSection("Property type mismatches", typeMismatches)
+    // Отдельной секцией, а не среди расхождений типа: слот color покрывает и градиент,
+    // поэтому это расхождение оформления и кода, а не ошибка типа.
+    appendSection("Paint properties without a solid colour", gradientOnlyProperties)
+    // Не расхождение и не ошибка: список показывает, какую долю идентификаторов приходится
+    // хранить, потому что вывести их из значений осей нельзя.
+    appendSection("Variation identifiers that cannot be derived", underivableVariationIds)
 }
 
 /**

@@ -10,6 +10,8 @@ import {
   tokenValues,
   palette,
   appearances,
+  appearanceVariations,
+  appearanceVariationValues,
   variations,
   properties,
   propertyPlatformParams,
@@ -306,6 +308,30 @@ router.get("/:name/component-configs", (req, res) =>
     const pvByPropertyId = groupBy(pvRows, (pv) => pv.propertyId);
     const appearancesByComponentId = groupBy(appearanceRows, (a) => a.componentId);
     const stylesByVariationId = groupBy(styleRows, (s) => s.variationId);
+
+    // Дефолт оси принадлежит паре (appearance, ось): два стиля одного компонента в одной
+    // ДС могут требовать разного дефолта одной оси, чего флаг `styles.is_default`,
+    // уникальный по (ДС, ось), выразить не мог.
+    const appearanceVariationRows = appearanceRows.length
+      ? await db
+          .select({
+            appearanceId: appearanceVariations.appearanceId,
+            variationId: appearanceVariations.variationId,
+            defaultStyleId: appearanceVariations.defaultStyleId,
+          })
+          .from(appearanceVariations)
+          .where(
+            inArray(
+              appearanceVariations.appearanceId,
+              appearanceRows.map((a) => a.id),
+            ),
+          )
+      : [];
+    const defaultStyleByAppearanceVariation = new Map(
+      appearanceVariationRows
+        .filter((row) => row.defaultStyleId)
+        .map((row) => [`${row.appearanceId}:${row.variationId}`, row.defaultStyleId!]),
+    );
     const ipvByComponentId = groupBy(ipvRows, (ipv) => ipv.componentId);
     const ipvByComponentAppearance = groupBy(
       ipvRows,
@@ -417,14 +443,13 @@ router.get("/:name/component-configs", (req, res) =>
 
       // sources.configs: appearances with config
       const sourcesConfigs = compAppearances.map((appearance) => {
-        // defaultVariations: isDefault styles for each variation in this DS
+        // defaultVariations: дефолт принадлежит паре (appearance, ось), поэтому берётся
+        // из её объявления, а не из флага стиля, уникального по (ДС, ось).
         const defaultVariations = compVariations.flatMap((variation) => {
-          const defaultStyle = (stylesByVariationId.get(variation.id) ?? []).find(
-            (s) => s.isDefault,
+          const styleId = defaultStyleByAppearanceVariation.get(
+            `${appearance.id}:${variation.id}`,
           );
-          return defaultStyle
-            ? [{ variationID: variation.id, styleID: defaultStyle.id }]
-            : [];
+          return styleId ? [{ variationID: variation.id, styleID: styleId }] : [];
         });
 
         // invariantProps: ipvs for this appearance
@@ -979,14 +1004,12 @@ router.post("/create", (req, res) =>
           const dbVar = jsonVarToDbVar.get(varCfg.id);
           if (!dbVar) continue;
           for (const styleCfg of varCfg.styles ?? []) {
-            const isDefault = defaultStyleByJsonVarId.get(varCfg.id) === styleCfg.id;
             const [dbStyle] = await db
               .insert(styles)
               .values({
                 designSystemId: ds.id,
                 variationId: dbVar.id,
                 name: styleCfg.name,
-                isDefault,
               })
               .returning();
             jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
@@ -1007,6 +1030,44 @@ router.post("/create", (req, res) =>
           .returning();
 
         const cfg = configEntry.config;
+
+        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
+        // поэтому два appearance одного компонента могут иметь разные дефолты.
+        const defaultStyleByVarId = new Map<string, string>();
+        for (const dv of cfg.defaultVariations ?? []) {
+          defaultStyleByVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const [position, varCfg] of (cfg.variations ?? []).entries()) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+
+          const defaultStyle = jsonStyleToDbStyle.get(
+            defaultStyleByVarId.get(varCfg.id) ?? "",
+          );
+          const [axis] = await db
+            .insert(appearanceVariations)
+            .values({
+              appearanceId: appearance.id,
+              variationId: dbVar.id,
+              position,
+              defaultStyleId: defaultStyle?.id ?? null,
+            })
+            .returning();
+
+          for (const [valuePosition, styleCfg] of (varCfg.styles ?? []).entries()) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+            await db
+              .insert(appearanceVariationValues)
+              .values({
+                appearanceVariationId: axis.id,
+                styleId: dbStyle.id,
+                position: valuePosition,
+              })
+              .onConflictDoNothing();
+          }
+        }
 
         // invariantProps
         for (const inv of cfg.invariantProps ?? []) {
@@ -1446,14 +1507,12 @@ router.post("/:name/update", (req, res) =>
           const dbVar = jsonVarToDbVar.get(varCfg.id);
           if (!dbVar) continue;
           for (const styleCfg of varCfg.styles ?? []) {
-            const isDefault = defaultStyleByJsonVarId.get(varCfg.id) === styleCfg.id;
             const [dbStyle] = await db
               .insert(styles)
               .values({
                 designSystemId: ds.id,
                 variationId: dbVar.id,
                 name: styleCfg.name,
-                isDefault,
               })
               .returning();
             jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
@@ -1473,6 +1532,44 @@ router.post("/:name/update", (req, res) =>
           .returning();
 
         const cfg = configEntry.config;
+
+        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
+        // поэтому два appearance одного компонента могут иметь разные дефолты.
+        const defaultStyleByVarId = new Map<string, string>();
+        for (const dv of cfg.defaultVariations ?? []) {
+          defaultStyleByVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const [position, varCfg] of (cfg.variations ?? []).entries()) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+
+          const defaultStyle = jsonStyleToDbStyle.get(
+            defaultStyleByVarId.get(varCfg.id) ?? "",
+          );
+          const [axis] = await db
+            .insert(appearanceVariations)
+            .values({
+              appearanceId: appearance.id,
+              variationId: dbVar.id,
+              position,
+              defaultStyleId: defaultStyle?.id ?? null,
+            })
+            .returning();
+
+          for (const [valuePosition, styleCfg] of (varCfg.styles ?? []).entries()) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+            await db
+              .insert(appearanceVariationValues)
+              .values({
+                appearanceVariationId: axis.id,
+                styleId: dbStyle.id,
+                position: valuePosition,
+              })
+              .onConflictDoNothing();
+          }
+        }
 
         // invariantProps
         for (const inv of cfg.invariantProps ?? []) {

@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { SQL, and, eq, isNull, or } from "drizzle-orm";
 import { designSystems } from "../../db/schema";
 
@@ -18,6 +18,35 @@ const headerValue = (req: Request, name: string): string | undefined => {
   const raw = req.headers[name];
   return Array.isArray(raw) ? raw[0] : raw;
 };
+
+/**
+ * Middleware, отклоняющий запрос без нужного scope до разбора тела.
+ *
+ * Ключ проекта приходит со списком scope в заголовке от gateway. Системный администратор
+ * и запросы без project-контекста проверке не подлежат: заголовка нет — значит запрос
+ * пришёл не через project-ключ.
+ *
+ * Проверка стоит до разбора тела намеренно: пакет компонентов весит мегабайты, и разбирать
+ * его для запроса, которому в любом случае отказано, незачем.
+ */
+export const requireScope =
+  (scope: string) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    const raw = headerValue(req, "x-project-scopes");
+    const allowed =
+      isSystemAdmin(req) ||
+      raw === undefined ||
+      raw
+        .split(",")
+        .map((entry) => entry.trim())
+        .includes(scope);
+
+    if (!allowed) {
+      res.status(403).json({ error: `Scope '${scope}' is required` });
+      return;
+    }
+    next();
+  };
 
 export const isSystemAdmin = (req: Request): boolean =>
   headerValue(req, "x-system-admin") === "true";

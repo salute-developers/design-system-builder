@@ -3281,8 +3281,6 @@
         "value",
         "icon",
         "boolean",
-        "gradient",
-        "blur",
         "integer"
       ]
     },

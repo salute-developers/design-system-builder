@@ -114,4 +114,21 @@ internal sealed interface ConfigCodecFailure {
         override val message: String
             get() = "Common configuration references variation '$axis' that it does not declare."
     }
+
+    /**
+     * Родитель вариации не выводится: идентификатор составной, но ни один его точечный префикс
+     * не принадлежит другой вариации.
+     *
+     * На корпусе такого не встречается — все 593 составных идентификатора двух пакетов находят
+     * префикс. Отказ существует потому, что молчаливая альтернатива хуже: вариация без родителя
+     * уезжает в корень дерева наследования, и собранная тема расходится без единого сигнала.
+     *
+     * @property variationId идентификатор вариации, родителя которой не нашлось.
+     */
+    data class UnresolvedVariationParent(
+        val variationId: String,
+    ) : ConfigCodecFailure {
+        override val message: String
+            get() = "Variation '$variationId' has a compound identifier but no known parent prefix."
+    }
 }

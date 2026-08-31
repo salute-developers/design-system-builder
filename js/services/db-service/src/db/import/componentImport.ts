@@ -6,6 +6,7 @@ import {
   PropertyValue,
   axisValueToString,
   propertyValueToText,
+  rawToText,
   tokenNameOf,
 } from "./commonConfig";
 
@@ -13,7 +14,43 @@ type Tx = Parameters<Parameters<typeof import("../index").db.transaction>[0]>[0]
 
 const COMPONENT_STYLE = "component_style";
 
-const SUPPORTED_PROPERTY_TYPES = new Set(schema.propertyTypeEnum.enumValues as string[]);
+/**
+ * Словарь типов **значения** конфигурации.
+ *
+ * Он не выводится из `propertyTypeEnum`, потому что это другой словарь. Перечисление
+ * описывает тип слота API компонента и приходит из кода; здесь перечислено то, чем может
+ * оказаться конкретное значение. Пересечение большое, но расхождения принципиальны:
+ *
+ *   * `gradient` есть здесь и отсутствует там. В `plasma-android` тип `color` означает
+ *     семейство paint — KSP относит к нему `Color`, `Brush` и `InteractiveColor`, — а
+ *     `gradient` различает конкретное значение внутри семейства, а не слот. Замер по
+ *     40 файлам api-meta (~52 тыс. параметров) не даёт ни одного `gradient`, замер по
+ *     670 конфигурациям даёт 54 значения.
+ *   * `integer` есть там и не встречается здесь ни разу: код объявляет счётчики как
+ *     `integer`, конфигурации пишут их как `float` или `value`. Оставлен, потому что
+ *     отклонять конфигурацию за тип, который слот законно носит, незачем.
+ *   * `blur` не входит ни в один из словарей. В перечисление он попал из иллюстративного
+ *     enum `common_config_scheme.json`, который сам неполон — в нём нет `icon`, `float`,
+ *     `shadow` и `boolean`, которыми корпус пользуется. Значению такого типа некуда лечь:
+ *     слота с типом `blur` не бывает, поэтому отказ честнее записи.
+ *
+ * Связывать их обратно нельзя: сужение или расширение словаря слотов не должно молча
+ * менять то, какие конфигурации принимаются.
+ */
+const VALUE_TYPES = new Set([
+  "color",
+  "gradient",
+  "typography",
+  "shape",
+  "shadow",
+  "dimension",
+  "float",
+  "integer",
+  "boolean",
+  "icon",
+  "component_style",
+  "value",
+]);
 
 export interface ImportRejection {
   componentName: string;
@@ -51,6 +88,33 @@ export interface ImportReport {
    * (`integer` против `float` или `value`) сюда не попадают.
    */
   typeMismatches: string[];
+  /**
+   * Свойства с paint-слотом, которым весь загружаемый пакет не дал ни одного значения
+   * типа `color` — только градиенты.
+   *
+   * Это расхождение оформления и кода: API компонента объявляет слот, принимающий и
+   * сплошную заливку, а дизайн пользуется лишь частью. Для сборки темы оно безвредно,
+   * поэтому в `typeMismatches` не попадает — семейство paint признано совместимым, — но
+   * и молчать о нём незачем.
+   *
+   * Считается по пакету, а не по конфигурации, и это не деталь: по отдельным
+   * конфигурациям корпус даёт 25 срабатываний на четырёх парах, но три из четырёх
+   * получают сплошной цвет в других стилях того же компонента. Отчёт по конфигурациям
+   * был бы рассказом о том, что этот стиль градиентный, а соседний нет.
+   */
+  gradientOnlyProperties: string[];
+  /**
+   * Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей.
+   *
+   * Идентификатор пишет автор, и правила сборки у него нет: где-то сегменты разделены точкой,
+   * где-то слиты дефисом, где-то ось опущена, где-то порядок обратный порядку объявления.
+   * Поэтому он хранится — иначе плагин переименовал бы публичные стили темы.
+   *
+   * Список информационный и ничего не отклоняет. Он нужен, чтобы дрейф был виден: сегодня
+   * выводимы 753 вариации из 1219 по двум корпусам, и если доля когда-нибудь дойдёт до полной,
+   * хранение можно будет снять, не ломая ничего задним числом.
+   */
+  underivableVariationIds: string[];
 }
 
 /** Строка значения в форме, пригодной для сравнения «до» и «после». */
@@ -78,6 +142,8 @@ export const importComponents = async (
     unknownProperties: [],
     unknownStates: [],
     typeMismatches: [],
+    gradientOnlyProperties: [],
+    underivableVariationIds: [],
   };
 
   const tokens = await tx
@@ -94,6 +160,7 @@ export const importComponents = async (
   const unknownProperties = new Set<string>();
   const unknownStates = new Set<string>();
   const typeMismatches = new Set<string>();
+  const paintTypesByProperty = new Map<string, Set<string>>();
   const componentStateIds = new Map<string, string>();
   const interactionStateIds = await loadInteractionStates(tx);
   const stateSetIds = new Map<string, string>();
@@ -114,6 +181,7 @@ export const importComponents = async (
       unknownProperties,
       unknownStates,
       typeMismatches,
+      paintTypesByProperty,
       componentStateIds,
       interactionStateIds,
       stateSetIds,
@@ -127,6 +195,9 @@ export const importComponents = async (
       });
     } else {
       report[outcome] += 1;
+      if (hasUnderivableVariationIds(entry.config)) {
+        report.underivableVariationIds.push(`${entry.componentName}.${entry.styleName}`);
+      }
     }
   }
 
@@ -138,6 +209,7 @@ export const importComponents = async (
     unknownProperties,
     unknownStates,
     typeMismatches,
+    paintTypesByProperty,
     componentStateIds,
     interactionStateIds,
     stateSetIds,
@@ -149,20 +221,57 @@ export const importComponents = async (
   report.unknownProperties = [...unknownProperties].sort();
   report.unknownStates = [...unknownStates].sort();
   report.typeMismatches = [...typeMismatches].sort();
+  report.underivableVariationIds.sort();
+  report.gradientOnlyProperties = [...paintTypesByProperty]
+    .filter(([, types]) => types.size === 1 && types.has("gradient"))
+    .map(([key]) => key)
+    .sort();
   return report;
 };
+
+/**
+ * Признак того, что идентификаторы вариаций конфигурации не выводятся из значений осей.
+ *
+ * Правило вывода — склейка значений координаты точкой, то есть та конвенция, к которой стоило бы
+ * прийти. Всё, что от неё отклоняется, приходится хранить: `gap=none` даёт сегмент `no-gap`,
+ * булева `has-shadow=true` — сегмент с именем оси, а иногда две оси слиты в один сегмент.
+ *
+ * Значение без сохранённого идентификатора не считается расхождением: его в native-формате
+ * и не было, выводить нечего.
+ */
+const hasUnderivableVariationIds = (config: CommonConfig): boolean =>
+  config.variations.some((variation) =>
+    // Ось цветовой схемы пропускается: её значения несут не идентификатор вариации, а ключ
+    // записи `view`, и со склейкой значений координаты он не совпадает по построению.
+    // Считать его расхождением значило бы записать в отчёт всякую конфигурацию с `view`.
+    variation.id !== config.colorSchemeVariationId &&
+    variation.values.some((value) => {
+      if (!value.authoredId) return false;
+
+      const coordinate = [
+        ...(value.targets ?? []).flatMap((target) => target.properties).map((target) => axisValueToString(target.value)),
+        axisValueToString(value.name),
+      ];
+      return value.authoredId !== coordinate.join(".");
+    }),
+  );
 
 /**
  * Отклоняет конфигурацию, если она использует типы или состояния, которых нет в схеме.
  */
 const validate = (entry: ImportComponent): ImportRejection | null => {
   for (const property of allProperties(entry.config)) {
-    if (!SUPPORTED_PROPERTY_TYPES.has(property.type)) {
-      return {
-        componentName: entry.componentName,
-        styleName: entry.styleName,
-        reason: `Unsupported property type '${property.type}'`,
-      };
+    // Переопределение состояния — такое же значение и может объявить свой тип, поэтому
+    // проверяется тем же словарём, а не пропускается.
+    const types = [property.type, ...(property.states ?? []).map((state) => state.type)];
+    for (const type of types) {
+      if (type !== undefined && !VALUE_TYPES.has(type)) {
+        return {
+          componentName: entry.componentName,
+          styleName: entry.styleName,
+          reason: `Unsupported property type '${type}'`,
+        };
+      }
     }
     // Состояния, не входящие в общий enum, считаются специфичными для компонента:
     // они проверяются позже, при разрешении в component_states.
@@ -198,6 +307,13 @@ interface ImportContext {
   unknownStates: Set<string>;
   /** Свойства, чей тип в глобальном слое не встречается в конфигурациях. */
   typeMismatches: Set<string>;
+  /**
+   * Виды заливки, встреченные у paint-свойства за весь пакет: `компонент.свойство` -> типы.
+   *
+   * Копится по всем конфигурациям пакета и подводится в конце: свойство, у которого один
+   * стиль градиентный, а другой цветной, расхождением не является.
+   */
+  paintTypesByProperty: Map<string, Set<string>>;
   /**
    * Ссылки `component_style`, ожидающие разрешения вторым проходом.
    *
@@ -248,9 +364,9 @@ const importOne = async (
 
   const variationIds = await upsertVariations(tx, componentId, entry.config);
   const styleIds = await upsertStyles(tx, designSystemId, entry.config, variationIds);
-  await applyDefaults(tx, designSystemId, entry.config, variationIds, styleIds);
+  await declareAxes(tx, appearanceId, entry.config, variationIds, styleIds);
 
-  const propertyIds = await findProperties(tx, componentId, entry.config, context);
+  const propertyIds = await findProperties(tx, componentId, entry.componentName, entry.config, context);
   await writeInvariants(tx, designSystemId, componentId, appearanceId, entry.config, propertyIds, context);
   await writeVariationValues(tx, appearanceId, entry.config, propertyIds, styleIds, variationIds, context);
   await writeComponentDeps(tx, componentId, entry.config, context);
@@ -608,7 +724,19 @@ const upsertVariations = async (
   config: CommonConfig,
 ): Promise<Map<string, string>> => {
   const ids = new Map<string, string>();
-  for (const variation of config.variations) {
+  // Ось, встречающаяся только в пересечениях, заводится наравне с объявленными: общий формат
+  // адресует ось в `targets` тем же именем, и без строки `variations` её нечем сопоставить.
+  const axes = [
+    ...config.variations.map((variation) => ({ id: variation.id, name: variation.name })),
+    ...config.variations
+      .flatMap((variation) => variation.values)
+      .flatMap((value) => value.targets ?? [])
+      .flatMap((target) => target.properties)
+      .filter((property) => !config.variations.some((variation) => variation.id === property.id))
+      .map((property) => ({ id: property.id, name: property.id })),
+  ].filter((axis, index, all) => all.findIndex((entry) => entry.id === axis.id) === index);
+
+  for (const variation of axes) {
     const [existing] = await tx
       .select({ id: schema.variations.id })
       .from(schema.variations)
@@ -685,6 +813,16 @@ const collectAxisValues = (config: CommonConfig): Array<[string, string]> => {
   // на существующее значение. У `basic-button` в `sdds_sbcom` ось `mode` объявляет дефолт
   // `primary`, тогда как фактические значения называются `mode-primary` и далее. Создание
   // стиля по такому дефолту породило бы значение, которого в конфигурации нет.
+  //
+  // Исключение — булев дефолт. Набор значений булевой оси известен по её виду и состоит ровно
+  // из `true` и `false`, поэтому значение оттуда не выдумано. Без него дефолт оси, использующей
+  // лишь одно из двух значений, ссылался бы в пустоту и терялся на выгрузке: `drawer-close-inner`
+  // объявляет `has-shadow` с дефолтом `false`, а переопределения несёт только `true`.
+  for (const entry of config.defaults) {
+    if (typeof entry.value === "boolean") {
+      add(entry.id, axisValueToString(entry.value));
+    }
+  }
   for (const variation of config.variations) {
     for (const value of variation.values) {
       add(variation.id, value.name);
@@ -699,32 +837,150 @@ const collectAxisValues = (config: CommonConfig): Array<[string, string]> => {
 };
 
 /**
- * Партиальный уникальный индекс не допускает двух стилей по умолчанию на одну ось,
- * поэтому прежний флаг снимается до установки нового.
+ * Записывает объявление осей вариаций этого appearance: состав, порядок и дефолт.
+ *
+ * Прежде дефолт ставился флагом `styles.is_default`, уникальным по (ДС, ось), и потому
+ * каждая следующая конфигурация пакета снимала его с предыдущей. Дефолт принадлежит паре
+ * (appearance, ось): в корпусе 21 случай, где два стиля одного компонента в одной ДС
+ * требуют разного дефолта одной оси.
+ *
+ * Значения оси записываются объявленными, а не использованными: значение, которому
+ * не сопоставлено ни одного переопределения, остаётся частью API компонента.
  */
-const applyDefaults = async (
+const declareAxes = async (
   tx: Tx,
-  designSystemId: string,
+  appearanceId: string,
   config: CommonConfig,
   variationIds: Map<string, string>,
   styleIds: Map<string, string>,
 ): Promise<void> => {
-  for (const entry of config.defaults) {
-    const variationId = variationIds.get(entry.id);
-    const styleId = styleIds.get(styleKey(entry.id, axisValueToString(entry.value)));
-    if (!variationId || !styleId) continue;
+  // Значения, встречающиеся только в `targets`, тоже объявлены осью: `basic-button`
+  // в `sdds_sbcom` использует ось `size` исключительно в пересечениях.
+  const valuesByAxis = new Map<string, string[]>();
+  for (const [axisId, value] of collectAxisValues(config)) {
+    valuesByAxis.set(axisId, [...(valuesByAxis.get(axisId) ?? []), value]);
+  }
+  // Порядок значений — как в конфигурации; target-only значения идут следом.
+  for (const variation of config.variations) {
+    const declared = variation.values.map((value) => value.name);
+    const rest = (valuesByAxis.get(variation.id) ?? []).filter((name) => !declared.includes(name));
+    valuesByAxis.set(variation.id, [...declared, ...rest]);
+  }
 
+  const defaultValueByAxis = new Map(
+    config.defaults.map((entry) => [entry.id, axisValueToString(entry.value)]),
+  );
+
+  // Ось, встречающаяся только в пересечениях, тоже принадлежит appearance: то же правило,
+  // что и для значений. Без неё выгруженная конфигурация ссылалась бы в `targets` на ось,
+  // которой не объявляет, и кодек отказался бы её собрать.
+  const declaredAxisIds = config.variations.map((variation) => variation.id);
+  const targetOnlyAxisIds = [...new Set(
+    config.variations
+      .flatMap((variation) => variation.values)
+      .flatMap((value) => value.targets ?? [])
+      .flatMap((target) => target.properties)
+      .map((property) => property.id)
+      .filter((axisId) => !declaredAxisIds.includes(axisId)),
+  )];
+  const axisOrder = [...declaredAxisIds, ...targetOnlyAxisIds];
+
+  // Объявления переписываются целиком по той же причине, что и объявления координат:
+  // позиция уникальна в пределах appearance, и обновление на месте сталкивалось бы само
+  // с собой при смене порядка осей.
+  await tx
+    .delete(schema.appearanceVariations)
+    .where(eq(schema.appearanceVariations.appearanceId, appearanceId));
+
+  for (const [position, axisConfigId] of axisOrder.entries()) {
+    const variation = config.variations.find((entry) => entry.id === axisConfigId)
+      ?? { id: axisConfigId, name: axisConfigId, values: [] };
+    const variationId = variationIds.get(variation.id);
+    if (!variationId) continue;
+
+    const defaultValue = defaultValueByAxis.get(variation.id);
+    const defaultStyleId = defaultValue
+      ? styleIds.get(styleKey(variation.id, defaultValue)) ?? null
+      : null;
+
+    // Роль оси цветовой схемы объявляет конфигурация, и хранится она здесь же. Прежде поле
+    // отбрасывалось, а выгрузка искала ось по имени `view` — на корпусе, где она называется
+    // иначе, это теряло 67 записей из 70.
+    const isColorScheme = config.colorSchemeVariationId === variation.id;
+
+    const [axis] = await tx
+      .insert(schema.appearanceVariations)
+      .values({
+        appearanceId,
+        variationId,
+        position,
+        defaultStyleId,
+        isColorScheme,
+        declaredType: variation.declaredType ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [schema.appearanceVariations.appearanceId, schema.appearanceVariations.variationId],
+        set: {
+          position: sql`excluded.position`,
+          defaultStyleId: sql`excluded.default_style_id`,
+          isColorScheme: sql`excluded.is_color_scheme`,
+          declaredType: sql`excluded.declared_type`,
+        },
+      })
+      .returning({ id: schema.appearanceVariations.id });
+
+    const liveStyleIds: string[] = [];
+    for (const [valuePosition, name] of (valuesByAxis.get(variation.id) ?? []).entries()) {
+      const styleId = styleIds.get(styleKey(variation.id, name));
+      if (!styleId) continue;
+
+      // Идентификатор значения оси берётся только у записи **без пересечений**: она и есть
+      // вариация, привязанная к одной этой оси. Запись с целями описывает кросс-осевую
+      // координату, её идентификатор принадлежит сочетанию и лежит в `appearance_combinations`.
+      //
+      // Прежде бралась первая запись с подходящим именем, и значение `bg=yes` компонента
+      // `basic-button` получало `size-48` — идентификатор координаты (size-48, bg=yes).
+      // На корпусах так помечались 207 значений из 1219.
+      const declaredValue = variation.values.find(
+        (entry) => entry.name === name && (entry.targets ?? []).length === 0,
+      );
+      await tx
+        .insert(schema.appearanceVariationValues)
+        .values({
+          appearanceVariationId: axis.id,
+          styleId,
+          position: valuePosition,
+          authoredId: declaredValue?.authoredId ?? null,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.appearanceVariationValues.appearanceVariationId,
+            schema.appearanceVariationValues.styleId,
+          ],
+          set: {
+            position: sql`excluded.position`,
+            authoredId: sql`excluded.authored_id`,
+          },
+        });
+      liveStyleIds.push(styleId);
+    }
+
+    // Значение, снятое из конфигурации, исчезает и из объявления — тем же порядком,
+    // что и значения свойств в `clearAppearanceValues`.
     await tx
-      .update(schema.styles)
-      .set({ isDefault: false })
+      .delete(schema.appearanceVariationValues)
       .where(
         and(
-          eq(schema.styles.designSystemId, designSystemId),
-          eq(schema.styles.variationId, variationId),
+          eq(schema.appearanceVariationValues.appearanceVariationId, axis.id),
+          liveStyleIds.length > 0
+            ? sql`${schema.appearanceVariationValues.styleId} <> ALL(${sql.raw(
+                `'{${liveStyleIds.join(",")}}'::uuid[]`,
+              )})`
+            : sql`true`,
         ),
       );
-    await tx.update(schema.styles).set({ isDefault: true }).where(eq(schema.styles.id, styleId));
   }
+
 };
 
 /**
@@ -743,8 +999,24 @@ const applyDefaults = async (
  */
 const NUMERIC_TYPES = new Set(["integer", "float", "dimension", "value"]);
 
+/**
+ * Семейство paint: слот и вид заливки, которую он принимает.
+ *
+ * Слот `color` в `plasma-android` покрывает и сплошной цвет, и градиент — KSP относит
+ * к нему `Color`, `Brush` и `InteractiveColor`, а модель плагина различает реализации
+ * дискриминатором `type` внутри значения. Значит `gradient` в цветовом свойстве — член
+ * семейства, а не расхождение с кодом.
+ *
+ * В корпусе оба типа принимают восемь пар «компонент + свойство», у пяти из них оба
+ * встречаются внутри одной ДС и переключаются значением оси, а у `slider.thumbStrokeColor` —
+ * значением состояния.
+ */
+const PAINT_TYPES = new Set(["color", "gradient"]);
+
 const sameTypeFamily = (left: string, right: string): boolean =>
-  left === right || (NUMERIC_TYPES.has(left) && NUMERIC_TYPES.has(right));
+  left === right ||
+  (NUMERIC_TYPES.has(left) && NUMERIC_TYPES.has(right)) ||
+  (PAINT_TYPES.has(left) && PAINT_TYPES.has(right));
 
 /**
  * Типы свойства, объявленные в конфигурации.
@@ -762,13 +1034,20 @@ const collectPropertyTypes = (config: CommonConfig): Map<string, Set<string>> =>
     types.get(name)!.add(type);
   };
 
-  for (const [name, property] of Object.entries(config.invariants)) {
+  // Переопределение состояния может объявить свой тип, и он тоже объявлен конфигурацией:
+  // у `slider.thumbStrokeColor` базовое значение цветовое, а `pressed` — градиентное.
+  const addAll = (name: string, property: PropertyValue): void => {
     add(name, property.type);
+    for (const state of property.states ?? []) add(name, state.type);
+  };
+
+  for (const [name, property] of Object.entries(config.invariants)) {
+    addAll(name, property);
   }
   for (const variation of config.variations) {
     for (const value of variation.values) {
       for (const [name, property] of Object.entries(value.properties)) {
-        add(name, property.type);
+        addAll(name, property);
       }
     }
   }
@@ -778,6 +1057,7 @@ const collectPropertyTypes = (config: CommonConfig): Map<string, Set<string>> =>
 const findProperties = async (
   tx: Tx,
   componentId: string,
+  componentName: string,
   config: CommonConfig,
   context: ImportContext,
 ): Promise<Map<string, string>> => {
@@ -801,6 +1081,17 @@ const findProperties = async (
       continue;
     }
     ids.set(name, row.id);
+
+    // Виды заливки копятся по всему пакету: расхождением считается свойство, которому
+    // ни один стиль не дал сплошного цвета, а не отдельный градиентный стиль.
+    if (PAINT_TYPES.has(row.type)) {
+      const key = `${componentName}.${name}`;
+      const seen = context.paintTypesByProperty.get(key) ?? new Set<string>();
+      for (const type of declaredTypes.get(name) ?? []) {
+        if (PAINT_TYPES.has(type)) seen.add(type);
+      }
+      context.paintTypesByProperty.set(key, seen);
+    }
 
     // Тип глобального слоя приходит из кода компонента, тип значения — из конфигурации.
     // Сообщаем, только когда тип из базы не встречается в конфигурации ни разу: иначе
@@ -865,6 +1156,9 @@ const writeInvariants = async (
         appearanceId,
         tokenId: resolveToken(row.token, context),
         value: row.value,
+        alpha: row.alpha,
+        adjustment: row.adjustment,
+        position: row.position,
         stateSetId,
       });
       states.set(key, row.states);
@@ -909,6 +1203,13 @@ const writeVariationValues = async (
   const states = new Map<string, string[]>();
   const links = new Set<string>();
   const combinations: Array<{ propertyId: string; styleIds: string[]; property: PropertyValue }> = [];
+  // Координаты объявляются отдельно от значений: сочетание, которому не задано ни одного
+  // свойства, всё равно объявлено конфигурацией. `pagination-dots` объявляет
+  // `size=m` + `active-type=line`, не переопределяя ничего.
+  const declaredCombinations: Array<{
+    members: string[];
+    authoredId: string | null;
+  }> = [];
 
   for (const variation of config.variations) {
     for (const value of variation.values) {
@@ -919,6 +1220,13 @@ const writeVariationValues = async (
         .flatMap((target) => target.properties)
         .map((target) => styleIds.get(styleKey(target.id, axisValueToString(target.value))))
         .filter((id): id is string => Boolean(id));
+
+      if (targetStyleIds.length > 0) {
+        declaredCombinations.push({
+          members: [...targetStyleIds, ownStyleId],
+          authoredId: value.authoredId ?? null,
+        });
+      }
 
       for (const [name, property] of Object.entries(value.properties)) {
         const propertyId = propertyIds.get(name);
@@ -939,6 +1247,9 @@ const writeVariationValues = async (
               appearanceId,
               tokenId: resolveToken(row.token, context),
               value: row.value,
+              alpha: row.alpha,
+              adjustment: row.adjustment,
+              position: row.position,
               stateSetId,
             });
             states.set(key, row.states);
@@ -976,6 +1287,8 @@ const writeVariationValues = async (
       .values({ propertyId, variationId })
       .onConflictDoNothing();
   }
+  await declareCombinations(tx, appearanceId, declaredCombinations);
+
   for (const combination of combinations) {
     const combinationId = await writeCombination(tx, { ...combination, appearanceId }, context);
     const value = propertyValueToText(combination.property);
@@ -984,6 +1297,52 @@ const writeVariationValues = async (
         reference: value,
         source: { kind: "combination", id: combinationId },
       });
+    }
+  }
+};
+
+/**
+ * Записывает объявления кросс-осевых координат этого appearance.
+ *
+ * Тот же приём, что у объявления осей: координата — факт конфигурации, а не следствие того,
+ * что по ней что-то переопределено. Без отдельного объявления сочетание без свойств не
+ * оставляло в модели следа, и выгрузка теряла его.
+ */
+const declareCombinations = async (
+  tx: Tx,
+  appearanceId: string,
+  coordinates: Array<{ members: string[]; authoredId: string | null }>,
+): Promise<void> => {
+  // Объявления переписываются целиком, а не обновляются на месте. Позиция уникальна в пределах
+  // appearance, и upsert сталкивался бы сам с собой: при смене порядка координат новая позиция
+  // занята строкой, которую ещё предстоит подвинуть. Импорт авторитетен для appearance, поэтому
+  // снести и записать заново — и проще, и вернее.
+  await tx
+    .delete(schema.appearanceCombinations)
+    .where(eq(schema.appearanceCombinations.appearanceId, appearanceId));
+
+  const keys = new Map<string, { members: string[]; authoredId: string | null }>();
+  for (const coordinate of coordinates) {
+    const members = [...new Set(coordinate.members)].sort();
+    keys.set(members.join(","), { ...coordinate, members });
+  }
+
+  for (const [position, [combinationKey, coordinate]] of [...keys].entries()) {
+    const [declaration] = await tx
+      .insert(schema.appearanceCombinations)
+      .values({
+        appearanceId,
+        combinationKey,
+        position,
+        authoredId: coordinate.authoredId,
+      })
+      .returning({ id: schema.appearanceCombinations.id });
+    const members = coordinate.members;
+
+    for (const [memberPosition, styleId] of members.entries()) {
+      await tx
+        .insert(schema.appearanceCombinationMembers)
+        .values({ appearanceCombinationId: declaration.id, styleId, position: memberPosition });
     }
   }
 };
@@ -1007,14 +1366,21 @@ const writeCombination = async (
   // Строка сочетания несёт одно значение и один набор. Прежде переопределения лежали
   // массивом в jsonb — представление вне словаря и вне ссылочной целостности, из-за
   // которого удаление состояния оставляло в базе имя несуществующего.
-  const insertRow = async (value: string, stateSetId: string): Promise<string> => {
-    const [row] = await tx
+  const insertRow = async (row: ExpandedValue, stateSetId: string): Promise<string> => {
+    const [inserted] = await tx
       .insert(schema.styleCombinations)
       .values({
         propertyId: input.propertyId,
         appearanceId: input.appearanceId,
         combinationKey,
-        value,
+        value: row.value ?? "",
+        // Ссылка на токен, а не только его имя текстом: без неё переименование токена
+        // оставляло бы в сочетании имя несуществующего, а вид заливки значения
+        // выводить было бы не из чего.
+        tokenId: resolveToken(row.token, context),
+        alpha: row.alpha,
+        adjustment: row.adjustment,
+        position: row.position,
         stateSetId,
       })
       .onConflictDoUpdate({
@@ -1024,43 +1390,39 @@ const writeCombination = async (
           schema.styleCombinations.combinationKey,
           schema.styleCombinations.stateSetId,
         ],
-        set: { value: sql`excluded.value` },
+        // Ссылка обновляется вместе со значением: иначе повторный импорт оставил бы
+        // токен от прежнего значения.
+        set: {
+          value: sql`excluded.value`,
+          tokenId: sql`excluded.token_id`,
+          alpha: sql`excluded.alpha`,
+          adjustment: sql`excluded.adjustment`,
+          position: sql`excluded.position`,
+        },
       })
       .returning({ id: schema.styleCombinations.id });
 
     for (const styleId of members) {
       await tx
         .insert(schema.styleCombinationMembers)
-        .values({ combinationId: row.id, styleId })
+        .values({ combinationId: inserted.id, styleId })
         .onConflictDoNothing();
     }
-    return row.id;
+    return inserted.id;
   };
 
-  const baseSetId = await resolveStateSet(tx, [], context);
-  if (!baseSetId) return null;
-
-  const baseId = await insertRow(propertyValueToText(input.property) ?? "", baseSetId);
-
-  for (const override of input.property.states ?? []) {
-    const names = [...override.state].sort();
-    if (names.length === 0) continue;
-
-    const stateSetId = await resolveStateSet(tx, names, context);
+  // Развёртка состояний общая с остальными таблицами значений: прежде здесь лежала
+  // своя копия, из-за чего кросс-осевые значения теряли `alpha` и ссылку на токен.
+  let baseId: string | null = null;
+  for (const row of expandStates(input.property)) {
+    const stateSetId = await resolveStateSet(tx, row.states, context);
     if (!stateSetId) continue;
 
-    const raw = override.value;
-    const text =
-      raw === undefined || raw === null
-        ? ""
-        : typeof raw === "string"
-          ? raw
-          : JSON.stringify(raw);
-
-    await insertRow(text, stateSetId);
+    const id = await insertRow(row, stateSetId);
+    // Ссылка `component_style` относится к базовому значению: возвращается его строка.
+    if (row.states.length === 0) baseId = id;
   }
 
-  // Ссылка `component_style` относится к базовому значению: возвращается его строка.
   return baseId;
 };
 
@@ -1104,8 +1466,14 @@ const writeComponentDeps = async (
 interface ExpandedValue {
   value: string | null;
   token: string | null;
+  /** Прозрачность значения. Хранится текстом в исходной форме. */
+  alpha: string | null;
+  /** Поправка для типа `shape`. Хранится текстом в исходной форме. */
+  adjustment: string | null;
   /** Состояния, при которых действует значение. Пустой набор — базовое значение. */
   states: string[];
+  /** Позиция в массиве `states` конфигурации: у базового значения 0, у переопределений 1..n. */
+  position: number;
 }
 
 /**
@@ -1116,15 +1484,15 @@ const expandStates = (property: PropertyValue): ExpandedValue[] => {
     {
       value: propertyValueToText(property),
       token: tokenNameOf(property),
+      alpha: rawToText(property.alpha),
+      adjustment: rawToText(property.adjustment),
       states: [],
+      position: 0,
     },
   ];
 
-  for (const state of property.states ?? []) {
+  for (const [index, state] of (property.states ?? []).entries()) {
     const raw = state.value;
-    const text = raw === undefined || raw === null
-      ? null
-      : typeof raw === "string" ? raw : JSON.stringify(raw);
 
     // Набор сохраняется целиком: `["checked", "focused"]` означает «отмечен И в фокусе»,
     // и разворачивать его в отдельные строки нельзя — это превратило бы конъюнкцию
@@ -1133,9 +1501,25 @@ const expandStates = (property: PropertyValue): ExpandedValue[] => {
     if (states.length === 0) continue;
 
     rows.push({
-      value: text,
-      token: tokenNameOf({ ...property, value: raw, default: undefined }),
+      value: rawToText(raw),
+      // Тип берётся у самого состояния, если оно его объявило, и только иначе
+      // у базового значения. Прежде здесь всегда стоял тип родителя, и переопределение,
+      // меняющее семью типов, теряло ссылку на токен вместе с типом.
+      //
+      // Цена ошибки — не оттенок: `plugin_theme_builder` выбирает по `states[].type`
+      // группу токенов (`Theme.gradients` против `Theme.colors`), оператор альфы
+      // (`asLayered` против `multiplyAlpha`) и представление базового значения.
+      // При отсутствии поля плагин берёт тип базы, то есть повторяет ту же ошибку,
+      // и восстановить тип на выгрузке уже неоткуда.
+      token: tokenNameOf({ ...property, type: state.type ?? property.type, value: raw, default: undefined }),
+      // Прозрачность переопределения своя. `adjustment` состояние не несёт —
+      // общий формат объявляет его только на самом значении.
+      alpha: rawToText(state.alpha),
+      adjustment: null,
       states,
+      // Порядок переопределений — из конфигурации: в ColorStateList выигрывает первое
+      // совпадение, и сортировка по именам состояний дала бы другую тему.
+      position: index + 1,
     });
   }
   return rows;

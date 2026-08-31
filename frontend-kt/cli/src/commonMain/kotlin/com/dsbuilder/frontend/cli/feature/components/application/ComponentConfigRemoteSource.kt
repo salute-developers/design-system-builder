@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.cli.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.cli.core.domain.ProjectId
 import com.dsbuilder.frontend.cli.feature.components.domain.ComponentImportReport
 import com.dsbuilder.frontend.cli.feature.components.domain.ConvertedComponentConfig
+import com.dsbuilder.frontend.cli.feature.components.domain.ExportedComponentPackage
 
 /**
  * Port загрузки конфигураций компонентов в backend.
@@ -13,11 +14,57 @@ import com.dsbuilder.frontend.cli.feature.components.domain.ConvertedComponentCo
  * Адрес backend и credentials приходят командой, а не читаются реализацией: их разрешают барьеры
  * use case до отправки, и повторное чтение обошло бы отказ по умолчательному API URL.
  */
-internal fun interface ComponentConfigRemoteSource {
+internal interface ComponentConfigRemoteSource {
     /**
      * Отправляет весь пакет одним запросом.
      */
     fun import(command: ImportComponentsCommand): ImportComponentsResult
+
+    /**
+     * Забирает весь пакет одним запросом.
+     */
+    fun export(command: ExportComponentsCommand): ExportComponentsResult
+}
+
+/**
+ * Запрос на выгрузку пакета.
+ *
+ * Дизайн-система адресуется идентификатором, а не именем: именем её адресует только старая
+ * читающая ручка, а весь остальной CLI знает `designSystemId` из project config.
+ *
+ * @property apiUrl разрешённый backend API URL.
+ * @property apiKey API key, авторизующий чтение.
+ * @property projectId идентификатор проекта.
+ * @property designSystemId дизайн-система, конфигурации которой выгружаются.
+ */
+internal data class ExportComponentsCommand(
+    val apiUrl: ProjectApiUrl,
+    val apiKey: ProjectApiKey,
+    val projectId: ProjectId,
+    val designSystemId: DesignSystemId,
+)
+
+/**
+ * Результат выгрузки пакета.
+ */
+internal sealed interface ExportComponentsResult {
+    /**
+     * Backend вернул пакет.
+     *
+     * @property value выгруженный пакет.
+     */
+    data class Exported(
+        val value: ExportedComponentPackage,
+    ) : ExportComponentsResult
+
+    /**
+     * Выгрузка не выполнена.
+     *
+     * @property message deterministic сообщение для CLI output.
+     */
+    data class Failed(
+        val message: String,
+    ) : ExportComponentsResult
 }
 
 /**

@@ -29,6 +29,24 @@ class ComponentsCliCommandTest {
     }
 
     @Test
+    fun componentsHelpListsFetch() {
+        val result = cli().execute(listOf("components", "--help"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("fetch"), result.output)
+    }
+
+    @Test
+    fun fetchHelpListsOptions() {
+        val result = cli().execute(listOf("components", "fetch", "--help"))
+
+        // Help не требует ни project config, ни backend, ни credentials.
+        assertEquals(0, result.exitCode, result.output)
+        listOf("--to", "--api-key", "--api-url")
+            .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
+    }
+
+    @Test
     fun pushHelpListsOptions() {
         val result = cli().execute(listOf("components", "push", "--help"))
 
