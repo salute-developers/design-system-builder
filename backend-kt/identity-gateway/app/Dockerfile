@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM gradle:9.1.0-jdk17 AS builder
 
 USER root
@@ -8,8 +10,9 @@ COPY ./gradle ./gradle
 COPY ./build-system ./build-system
 COPY ./identity-gateway ./identity-gateway
 
-RUN mkdir -p /root/.gradle /workspace /tmp/gradle-project-cache && \
-    gradle -p identity-gateway :app:shadowJar --no-daemon --project-cache-dir /tmp/gradle-project-cache
+RUN --mount=type=cache,id=dsb-gradle-user-home,target=/root/.gradle,sharing=locked \
+    --mount=type=cache,id=dsb-identity-gateway-project-cache,target=/workspace/.gradle-project-cache,sharing=locked \
+    gradle -p identity-gateway :app:shadowJar --no-daemon --build-cache --project-cache-dir /workspace/.gradle-project-cache
 
 FROM eclipse-temurin:17-jre-jammy
 

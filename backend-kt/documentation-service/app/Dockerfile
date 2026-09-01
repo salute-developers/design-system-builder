@@ -1,10 +1,14 @@
+# syntax=docker/dockerfile:1
+
 FROM gradle:9.1.0-jdk17 AS builder
 USER root
 WORKDIR /workspace
 COPY ./gradle ./gradle
 COPY ./build-system ./build-system
 COPY ./documentation-service ./documentation-service
-RUN gradle -p documentation-service :app:shadowJar --no-daemon
+RUN --mount=type=cache,id=dsb-gradle-user-home,target=/root/.gradle,sharing=locked \
+    --mount=type=cache,id=dsb-documentation-service-project-cache,target=/workspace/.gradle-project-cache,sharing=locked \
+    gradle -p documentation-service :app:shadowJar --no-daemon --build-cache --project-cache-dir /workspace/.gradle-project-cache
 
 FROM eclipse-temurin:17-jre-jammy
 RUN groupadd --system documentation && useradd --system --gid documentation --home /app documentation && mkdir -p /app /var/tmp/documentation && chown -R documentation:documentation /app /var/tmp/documentation
