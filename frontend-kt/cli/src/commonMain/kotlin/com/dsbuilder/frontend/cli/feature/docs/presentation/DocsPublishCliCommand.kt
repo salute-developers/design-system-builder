@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.cli.feature.docs.presentation
 
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsPublishCommand
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsPublishResult
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsPublishUseCase
+import com.dsbuilder.frontend.feature.docs.application.DocsPublishCommand
+import com.dsbuilder.frontend.feature.docs.application.DocsPublishResult
+import com.dsbuilder.frontend.feature.docs.application.DocsPublishUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
