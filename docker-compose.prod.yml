@@ -1,9 +1,9 @@
-x-keycloak-runtime-env: &keycloak-runtime-env
+x-keycloak-server-env: &keycloak-server-env
   KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
   KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
-  KC_DB: ${KC_DB:?Set KC_DB}
+  KC_DB: ${KC_DB:-postgres}
   KC_DB_URL_HOST: ${KC_DB_URL_HOST:?Set KC_DB_URL_HOST}
-  KC_DB_URL_PORT: ${KC_DB_URL_PORT:?Set KC_DB_URL_PORT}
+  KC_DB_URL_PORT: ${KC_DB_URL_PORT:-5432}
   KC_DB_URL_DATABASE: ${KEYCLOAK_POSTGRES_DB:?Set KEYCLOAK_POSTGRES_DB}
   KC_DB_USERNAME: ${KEYCLOAK_POSTGRES_USER:?Set KEYCLOAK_POSTGRES_USER}
   KC_DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD:?Set KEYCLOAK_POSTGRES_PASSWORD}
@@ -11,16 +11,6 @@ x-keycloak-runtime-env: &keycloak-runtime-env
   KC_METRICS_ENABLED: ${KC_METRICS_ENABLED:-true}
   KC_PROXY_HEADERS: ${KC_PROXY_HEADERS:-xforwarded}
   KC_HOSTNAME: ${KC_HOSTNAME:?Set KC_HOSTNAME}
-  KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
-  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
-  OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
-  OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
-  KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?Set KEYCLOAK_ISSUER}
-  KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:?Set KEYCLOAK_AUDIENCE}
-  KEYCLOAK_JWKS_URL: ${KEYCLOAK_JWKS_URL:?Set KEYCLOAK_JWKS_URL}
-  KEYCLOAK_BOOTSTRAP_URL: ${KEYCLOAK_BOOTSTRAP_URL:?Set KEYCLOAK_BOOTSTRAP_URL}
-  KEYCLOAK_UPSTREAM_HOST: ${KEYCLOAK_UPSTREAM_HOST:?Set KEYCLOAK_UPSTREAM_HOST}
-  KEYCLOAK_UPSTREAM_PORT: ${KEYCLOAK_UPSTREAM_PORT:?Set KEYCLOAK_UPSTREAM_PORT}
 
 x-projects-runtime-env: &projects-runtime-env
   PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:?Set PROJECTS_INTERNAL_API_KEY}
@@ -30,31 +20,24 @@ x-projects-runtime-env: &projects-runtime-env
   PROJECTS_ACCESS_KEYS_HASH_ITERATIONS: ${PROJECTS_ACCESS_KEYS_HASH_ITERATIONS:-120000}
   PROJECTS_ACCESS_KEYS_HASH_KEY_LENGTH_BITS: ${PROJECTS_ACCESS_KEYS_HASH_KEY_LENGTH_BITS:-256}
   PROJECTS_ACCESS_KEYS_HASH_SALT_BYTE_LENGTH: ${PROJECTS_ACCESS_KEYS_HASH_SALT_BYTE_LENGTH:-16}
-  PROJECTS_SERVICE_PORT: ${PROJECTS_SERVICE_PORT:-8082}
+  PROJECTS_SERVICE_PORT: 8082
   PROJECTS_DATABASE_URL: ${PROJECTS_DATABASE_URL:?Set PROJECTS_DATABASE_URL}
   PROJECTS_POSTGRES_USER: ${PROJECTS_POSTGRES_USER:?Set PROJECTS_POSTGRES_USER}
   PROJECTS_POSTGRES_PASSWORD: ${PROJECTS_POSTGRES_PASSWORD:?Set PROJECTS_POSTGRES_PASSWORD}
-  PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: ${PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:?Set PROJECTS_IDENTITY_KEYCLOAK_BASE_URL}
-  PROJECTS_IDENTITY_KEYCLOAK_REALM: ${PROJECTS_IDENTITY_KEYCLOAK_REALM:?Set PROJECTS_IDENTITY_KEYCLOAK_REALM}
+  PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: http://keycloak:8080
+  PROJECTS_IDENTITY_KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
   PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
   PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
   PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS: ${PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS:-1500}
 
-x-auth-helper-runtime-env: &auth-helper-runtime-env
-  AUTH_HELPER_PORT: 8091
-  PROJECT_ACCESS_MODE: ${PROJECT_ACCESS_MODE:-http}
-  PROJECT_ACCESS_DEFAULT_ROLE: ${PROJECT_ACCESS_DEFAULT_ROLE:-viewer}
-  PROJECT_ACCESS_TIMEOUT_MS: ${PROJECT_ACCESS_TIMEOUT_MS:-1500}
-  PROJECTS_SERVICE_URL: http://projects-service:8082
-
 services:
   keycloak:
     build:
-      context: .
+      context: ./backend-kt
       dockerfile: ./identity-gateway/keycloak/Dockerfile
     restart: unless-stopped
     environment:
-      <<: *keycloak-runtime-env
+      <<: *keycloak-server-env
     command:
       - start
       - --import-realm
@@ -71,11 +54,19 @@ services:
 
   keycloak-bootstrap:
     build:
-      context: .
+      context: ./backend-kt
       dockerfile: ./identity-gateway/keycloak/Dockerfile.bootstrap
     restart: "no"
     environment:
-      <<: [*keycloak-runtime-env, *projects-runtime-env]
+      KEYCLOAK_BOOTSTRAP_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
+      OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
     entrypoint:
       - /bin/sh
       - /opt/keycloak/bootstrap/bootstrap-production-keycloak.sh
@@ -83,60 +74,40 @@ services:
       keycloak:
         condition: service_healthy
 
-  gateway:
+  projects-service:
     build:
-      context: .
-      dockerfile: ./identity-gateway/gateway/Dockerfile
+      context: ./backend-kt
+      dockerfile: ./projects-service/app/Dockerfile
     restart: unless-stopped
     environment:
-      <<: *keycloak-runtime-env
-      DB_SERVICE_UPSTREAM_SCHEME: ${DB_SERVICE_UPSTREAM_SCHEME:-http}
-      DB_SERVICE_UPSTREAM_HOST: ${DB_SERVICE_UPSTREAM_HOST:?Set DB_SERVICE_UPSTREAM_HOST}
-      DB_SERVICE_UPSTREAM_PORT: ${DB_SERVICE_UPSTREAM_PORT:?Set DB_SERVICE_UPSTREAM_PORT}
-      DOCS_SERVICE_UPSTREAM_SCHEME: ${DOCS_SERVICE_UPSTREAM_SCHEME:-http}
-      DOCS_SERVICE_UPSTREAM_HOST: ${DOCS_SERVICE_UPSTREAM_HOST:?Set DOCS_SERVICE_UPSTREAM_HOST}
-      DOCS_SERVICE_UPSTREAM_PORT: ${DOCS_SERVICE_UPSTREAM_PORT:?Set DOCS_SERVICE_UPSTREAM_PORT}
-      DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: ${DOCUMENTATION_SERVICE_UPSTREAM_SCHEME:-http}
-      DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
-      DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
-      DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
-      GENERATOR_SERVICE_UPSTREAM_SCHEME: ${GENERATOR_SERVICE_UPSTREAM_SCHEME:-http}
-      GENERATOR_SERVICE_UPSTREAM_HOST: ${GENERATOR_SERVICE_UPSTREAM_HOST:?Set GENERATOR_SERVICE_UPSTREAM_HOST}
-      GENERATOR_SERVICE_UPSTREAM_PORT: ${GENERATOR_SERVICE_UPSTREAM_PORT:?Set GENERATOR_SERVICE_UPSTREAM_PORT}
-      PUBLISHER_SERVICE_UPSTREAM_SCHEME: ${PUBLISHER_SERVICE_UPSTREAM_SCHEME:-http}
-      PUBLISHER_SERVICE_UPSTREAM_HOST: ${PUBLISHER_SERVICE_UPSTREAM_HOST:?Set PUBLISHER_SERVICE_UPSTREAM_HOST}
-      PUBLISHER_SERVICE_UPSTREAM_PORT: ${PUBLISHER_SERVICE_UPSTREAM_PORT:?Set PUBLISHER_SERVICE_UPSTREAM_PORT}
-      GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
-    command:
-      - /bin/sh
-      - -c
-      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      <<: *projects-runtime-env
+    expose:
+      - "8082"
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
-      auth-helper:
-        condition: service_healthy
-      projects-service:
-        condition: service_healthy
-      documentation-service:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
       interval: 15s
       timeout: 5s
+      start_period: 20s
       retries: 5
 
   auth-helper:
     build:
-      context: .
+      context: ./backend-kt
       dockerfile: ./identity-gateway/app/Dockerfile
     restart: unless-stopped
     environment:
-      <<: [*keycloak-runtime-env, *projects-runtime-env, *auth-helper-runtime-env]
+      AUTH_HELPER_PORT: 8091
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?Set KEYCLOAK_ISSUER}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:?Set KEYCLOAK_AUDIENCE}
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}/protocol/openid-connect/certs
+      PROJECT_ACCESS_MODE: ${PROJECT_ACCESS_MODE:-http}
+      PROJECT_ACCESS_DEFAULT_ROLE: ${PROJECT_ACCESS_DEFAULT_ROLE:-viewer}
+      PROJECT_ACCESS_TIMEOUT_MS: ${PROJECT_ACCESS_TIMEOUT_MS:-1500}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:?Set PROJECTS_INTERNAL_API_KEY}
+      PROJECTS_SERVICE_URL: http://projects-service:8082
     expose:
       - "8091"
     depends_on:
@@ -151,28 +122,98 @@ services:
       start_period: 20s
       retries: 5
 
-  projects-service:
+  db-service:
     build:
-      context: .
-      dockerfile: ./projects-service/app/Dockerfile
+      context: ./js/services/db-service
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      <<: [*keycloak-runtime-env, *projects-runtime-env]
+      NODE_ENV: production
+      PORT: 3008
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
     expose:
-      - "8082"
-    depends_on:
-      keycloak-bootstrap:
-        condition: service_completed_successfully
+      - "3008"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3008/api/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+
+  publisher:
+    build:
+      context: ./js/services/publisher
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3007
+    expose:
+      - "3007"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+
+  generator:
+    build:
+      context: ./js/services/generator
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DB_SERVICE_URL: http://db-service:3008/api
+      PUBLISHER_URL: http://publisher:3007
+    expose:
+      - "3005"
+    depends_on:
+      db-service:
+        condition: service_healthy
+      publisher:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 15s
       timeout: 5s
       start_period: 20s
       retries: 5
 
+  docs-generator:
+    build:
+      context: ./js/services/documentation-generator
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      DB_SERVICE_URL: http://db-service:3008/api
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:?Set AWS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION:?Set AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:?Set AWS_S3_BUCKET}
+      OUTPUT_DIR: /home/node/app/output
+    expose:
+      - "3006"
+    volumes:
+      - docs_output:/home/node/app/output
+    depends_on:
+      db-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/documentation/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
   documentation-service:
     build:
-      context: .
+      context: ./backend-kt
       dockerfile: ./documentation-service/app/Dockerfile
     restart: unless-stopped
     environment:
@@ -180,7 +221,7 @@ services:
       DOCUMENTATION_DATABASE_URL: ${DOCUMENTATION_DATABASE_URL:?Set DOCUMENTATION_DATABASE_URL}
       DOCUMENTATION_POSTGRES_USER: ${DOCUMENTATION_POSTGRES_USER:?Set DOCUMENTATION_POSTGRES_USER}
       DOCUMENTATION_POSTGRES_PASSWORD: ${DOCUMENTATION_POSTGRES_PASSWORD:?Set DOCUMENTATION_POSTGRES_PASSWORD}
-      DB_SERVICE_BASE_URL: ${DB_SERVICE_BASE_URL:?Set DB_SERVICE_BASE_URL}
+      DB_SERVICE_BASE_URL: http://db-service:3008
       DB_SERVICE_CONNECT_TIMEOUT_MS: ${DB_SERVICE_CONNECT_TIMEOUT_MS:-1500}
       DB_SERVICE_REQUEST_TIMEOUT_MS: ${DB_SERVICE_REQUEST_TIMEOUT_MS:-3000}
       DOCUMENTATION_TEMP_DIRECTORY: /var/tmp/documentation
@@ -230,9 +271,87 @@ services:
       DOCUMENTATION_SEARCH_SNIPPET_CONTEXT: ${DOCUMENTATION_SEARCH_SNIPPET_CONTEXT:-120}
     expose:
       - "8084"
+    depends_on:
+      db-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health/ready || exit 1"]
       interval: 15s
       timeout: 5s
       start_period: 30s
       retries: 5
+
+  gateway:
+    build:
+      context: ./backend-kt
+      dockerfile: ./identity-gateway/gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_UPSTREAM_HOST: keycloak
+      KEYCLOAK_UPSTREAM_PORT: 8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
+      OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
+      DB_SERVICE_UPSTREAM_SCHEME: http
+      DB_SERVICE_UPSTREAM_HOST: db-service
+      DB_SERVICE_UPSTREAM_PORT: 3008
+      DOCS_SERVICE_UPSTREAM_SCHEME: http
+      DOCS_SERVICE_UPSTREAM_HOST: docs-generator
+      DOCS_SERVICE_UPSTREAM_PORT: 3006
+      DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: http
+      DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
+      DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
+      DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
+      GENERATOR_SERVICE_UPSTREAM_SCHEME: http
+      GENERATOR_SERVICE_UPSTREAM_HOST: generator
+      GENERATOR_SERVICE_UPSTREAM_PORT: 3005
+      PUBLISHER_SERVICE_UPSTREAM_SCHEME: http
+      PUBLISHER_SERVICE_UPSTREAM_HOST: publisher
+      PUBLISHER_SERVICE_UPSTREAM_PORT: 3007
+      GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
+    command:
+      - /bin/sh
+      - -c
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      auth-helper:
+        condition: service_healthy
+      projects-service:
+        condition: service_healthy
+      documentation-service:
+        condition: service_healthy
+      generator:
+        condition: service_healthy
+      publisher:
+        condition: service_healthy
+      docs-generator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  admin:
+    build:
+      context: ./js/apps/admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "5173"
+
+  client:
+    build:
+      context: ./js/apps/client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "4173"
+
+volumes:
+  docs_output:

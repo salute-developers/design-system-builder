@@ -1,15 +1,17 @@
-# Deploy Identity Gateway
+# Deploy production stack
 
 Инструкция описывает простой production deployment для сценария, где сервер держит checkout репозитория и поднимает stack напрямую через `docker compose`.
 
 ## Что поднимается
 
-Production stack из [docker-compose.prod.yml](./docker-compose.prod.yml) включает:
+Production stack из корневого [docker-compose.prod.yml](../docker-compose.prod.yml) включает Kotlin и JS сервисы приложения, в том числе:
 
 - `gateway` - публичный nginx entrypoint;
 - `keycloak` - встроенный identity provider;
 - `auth-helper` - internal auth service;
 - `projects-service` - внутренний downstream service;
+- `documentation-service`, `db-service`, `generator`, `publisher` и `docs-generator`;
+- `admin` и `client` как отдельные frontend-сервисы.
 
 Снаружи публикуется только порт `gateway`.
 Keycloak admin console доступна через gateway по `/admin/`.
@@ -21,8 +23,7 @@ Keycloak admin console доступна через gateway по `/admin/`.
 
 - установлен Docker с поддержкой `docker compose`;
 - сервер умеет делать `git pull` вашего репозитория;
-- для `keycloak` и `projects-service` уже созданы внешние PostgreSQL базы;
-- `db-service` опубликован на том же сервере только в localhost, например `127.0.0.1:3008:3008`;
+- для `keycloak`, `projects-service`, `documentation-service` и `db-service` уже созданы базы PostgreSQL;
 - домен и reverse proxy/TLS, если production должен работать по `https`.
 - production compose должен запускаться из корня checkout репозитория, чтобы Docker build context корректно включал и `identity-gateway`, и `projects-service`.
 
@@ -43,7 +44,7 @@ cp .env.prod.example .env.prod
 Файл `.env.prod` не должен попадать в git.
 Если deployment идет через внешнюю платформу, реальные значения обычно задаются в ее переменных окружения, а `.env.prod.example` остается шаблоном и документацией.
 
-Для удобного rollout можно использовать [deploy.sh](./deploy.sh).
+Для удобного rollout можно использовать корневой [deploy.sh](../deploy.sh).
 
 ## Deploy Bundle
 
@@ -94,56 +95,23 @@ cd identity-gateway-deploy
 
 Минимально проверьте и задайте:
 
-- `GATEWAY_PORT` - публичный порт nginx на сервере;
-- `GATEWAY_PROXY_TIMEOUT_SECONDS` - timeout в секундах для ожидания ответа и передачи request body между nginx gateway и upstream-сервисами;
-- `KEYCLOAK_ADMIN_BIND` и `KEYCLOAK_ADMIN_PORT` - bind address и порт прямого доступа к Keycloak admin console; по умолчанию прямой доступ доступен только с сервера, а публичный доступ идет через gateway `/admin/`;
-- `DB_SERVICE_UPSTREAM_SCHEME`, `DB_SERVICE_UPSTREAM_HOST` и `DB_SERVICE_UPSTREAM_PORT` - адрес `db-service`, доступный из контейнера `gateway`; для same-host deployment это обычно `http://host.docker.internal:3008`, а для обращения через публичный Coolify domain - `https://<domain>:443`;
-- `DOCS_SERVICE_UPSTREAM_SCHEME`, `DOCS_SERVICE_UPSTREAM_HOST` и `DOCS_SERVICE_UPSTREAM_PORT` - адрес `docs-service`, доступный из контейнера `gateway`;
-- `GENERATOR_SERVICE_UPSTREAM_SCHEME`, `GENERATOR_SERVICE_UPSTREAM_HOST` и `GENERATOR_SERVICE_UPSTREAM_PORT` - адрес `generator-service`, доступный из контейнера `gateway`;
-- `PUBLISHER_SERVICE_UPSTREAM_SCHEME`, `PUBLISHER_SERVICE_UPSTREAM_HOST` и `PUBLISHER_SERVICE_UPSTREAM_PORT` - адрес `publisher-service`, доступный из контейнера `gateway`;
-- `KEYCLOAK_UPSTREAM_HOST` и `KEYCLOAK_UPSTREAM_PORT` - адрес Keycloak, доступный из контейнера `gateway`;
-- `KEYCLOAK_ADMIN` и `KEYCLOAK_ADMIN_PASSWORD` - bootstrap admin credentials Keycloak;
-- `KEYCLOAK_POSTGRES_DB`, `KEYCLOAK_POSTGRES_USER`, `KEYCLOAK_POSTGRES_PASSWORD` - credentials внешней PostgreSQL для Keycloak;
-- `KC_DB`, `KC_DB_URL_HOST`, `KC_DB_URL_PORT` - подключение Keycloak к внешней PostgreSQL;
-- `KEYCLOAK_REALM` - realm, например `dsbuilder`;
-- `OIDC_CLIENT_ID` - client для login flow;
-- `OIDC_WEB_ORIGIN` - origin frontend приложения, например `https://app.example.com`;
-- `OIDC_REDIRECT_URI` - production redirect URI без `localhost`, например `https://app.example.com/auth/callback`;
-- `KEYCLOAK_ISSUER` - публичный issuer URL;
-- `KEYCLOAK_JWKS_URL` - публичный JWKS URL;
-- `KEYCLOAK_AUDIENCE` - expected audience JWT;
-- `PROJECTS_INTERNAL_API_KEY` - длинный случайный shared key для `auth-helper -> projects-service`;
-- `PROJECTS_POSTGRES_DB`, `PROJECTS_POSTGRES_USER`, `PROJECTS_POSTGRES_PASSWORD` - credentials внешней PostgreSQL для `projects-service`;
-- `PROJECTS_IDENTITY_KEYCLOAK_BASE_URL` - base URL Keycloak Admin API для `projects-service`;
-- `PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID` и `PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET` - confidential client для lookup пользователей.
+- публичные URL и OIDC-настройки `VITE_*`, `OIDC_*`, `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE` и `KC_HOSTNAME`;
+- bootstrap admin и PostgreSQL-настройки Keycloak;
+- `PROJECTS_DATABASE_URL`, credentials `projects-service` и длинный случайный `PROJECTS_INTERNAL_API_KEY`;
+- PostgreSQL URL для `db-service` (`DATABASE_URL`) и `documentation-service` (`DOCUMENTATION_DATABASE_URL`);
+- S3 credentials отдельно для Kotlin `documentation-service` и JS `docs-generator`.
 
 Важно:
 
 - `KEYCLOAK_ISSUER` должен соответствовать публичному issuer URL, который увидит клиент;
-- `KEYCLOAK_JWKS_URL` в текущем stack может указывать на внутренний URL `keycloak`, чтобы не гонять backend-трафик наружу;
-- `db-service` должен быть опубликован именно на `127.0.0.1`, а не на внешнем IP сервера;
-- `KEYCLOAK_UPSTREAM_HOST` должен резолвиться именно из контейнера nginx;
+- внутренний JWKS URL и адреса всех compose-сервисов уже заданы через service-name DNS и не требуют доменов;
 - `KC_DB_URL_DATABASE`, `KC_DB_USERNAME` и `KC_DB_PASSWORD` выводятся автоматически из `KEYCLOAK_POSTGRES_*`;
 - `PROJECTS_DATABASE_URL` должен указывать на внешнюю PostgreSQL `projects-service`;
-- `OIDC_REDIRECT_URI` должен быть разрешен в настройках client в Keycloak.
+- `DATABASE_URL` использует обычный PostgreSQL URL, а Kotlin-сервисы — JDBC URL;
+- `OIDC_REDIRECT_URI` должен быть разрешен в настройках client в Keycloak;
+- исторически названная `VITE_NPM_REGISTRY` фактически содержит npm token и попадает в браузерный bundle: не используйте широкий долгоживущий token.
 - production bootstrap отключает self-registration, email verification и password reset через email в Keycloak realm;
 - production user profile не требует `email`, `firstName` и `lastName`: вручную созданному пользователю достаточно `username` и `password`.
-
-## Dummy db-service для проверки routing
-
-Для ручной проверки nginx routing можно поднять отдельный тестовый compose:
-
-```bash
-docker compose -f docker-compose.db-service-test.yml up -d
-```
-
-Файл [docker-compose.db-service-test.yml](./docker-compose.db-service-test.yml) поднимает dummy `db-service`, который:
-
-- публикуется только на `127.0.0.1:3008`;
-- доступен для `gateway` через `host.docker.internal:3008`;
-- отвечает echo JSON, где видно path, method и headers после rewrite/proxy.
-
-Это удобно и локально, и для двух отдельных docker-compose приложений на одном сервере, если `db-service` тоже публикуется только в localhost.
 
 ## Первый запуск
 

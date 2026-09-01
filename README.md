@@ -19,6 +19,21 @@ cd backend-kt && ./gradlew build
 cd frontend-kt && ./gradlew build
 ```
 
+## Production
+
+Общий production stack описан в [docker-compose.prod.yml](./docker-compose.prod.yml). Он собирает Kotlin backend с
+контекстом `./backend-kt` и JS-приложения из их собственных директорий, а для внутренних вызовов использует DNS-имена
+compose-сервисов без публичных доменов.
+
+```bash
+cp .env.prod.example .env.prod
+./deploy.sh --check
+./deploy.sh
+```
+
+В Coolify значения из `.env.prod.example` нужно добавить в Environment Variables ресурса. Способ передачи `VITE_*`
+во frontend-сборку остается таким же, как в прежнем JS deployment.
+
 ## Локальный запуск
 
 Для первоначальной настройки и запуска общего локального контура выполните из корня репозитория:

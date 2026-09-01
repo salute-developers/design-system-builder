@@ -137,14 +137,14 @@ Standalone запуск нужен в основном для разработк
 
 ## Production docker-compose
 
-Для production используется [docker-compose.prod.yml](../docker-compose.prod.yml) и безопасный шаблон переменных [`.env.prod.example`](../.env.prod.example).
+Для production используется общий корневой [docker-compose.prod.yml](../../docker-compose.prod.yml) и безопасный шаблон переменных [`.env.prod.example`](../../.env.prod.example).
 
 Что важно:
 
 - реальные секреты не хранятся в compose-файле и не должны коммититься в git;
 - production stack поднимает `projects-service` как часть общего `identity-gateway` deployment stack;
 - `projects-service` использует внешнюю PostgreSQL через `PROJECTS_DATABASE_URL`;
-- образ `projects-service` собирается из checkout репозитория через корневой `build.context: .`;
+- образ `projects-service` собирается с `build.context: ./backend-kt`, чтобы Dockerfile видел общие Gradle build files;
 - сервис слушает только внутреннюю docker-сеть через `expose` и публикуется наружу через `identity-gateway`.
 
 Пример запуска на сервере:

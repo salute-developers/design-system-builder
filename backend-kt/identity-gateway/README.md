@@ -225,7 +225,7 @@ GET http://localhost:8080/realms/dsbuilder/protocol/openid-connect/auth
 
 ## Production docker-compose
 
-Для production добавлен [docker-compose.prod.yml](../docker-compose.prod.yml), env-шаблон [`.env.prod.example`](../.env.prod.example), отдельный nginx-шаблон [nginx.prod.conf.template](./gateway/nginx.prod.conf.template) и встроенный `keycloak` stack для сценария, когда все сервисы живут на одной машине.
+Для production используется общий корневой [docker-compose.prod.yml](../../docker-compose.prod.yml), env-шаблон [`.env.prod.example`](../../.env.prod.example), отдельный nginx-шаблон [nginx.prod.conf.template](./gateway/nginx.prod.conf.template) и встроенный `keycloak` stack.
 
 Для локальной разработки используется отдельный конфиг [nginx.local.conf](./gateway/nginx.local.conf), чтобы не смешивать dev и production routing.
 
@@ -235,17 +235,17 @@ GET http://localhost:8080/realms/dsbuilder/protocol/openid-connect/auth
 - `keycloak` во внутренней сети compose;
 - `auth-helper` и `projects-service` только во внутренней сети compose;
 - все runtime-переменные контейнеров объявлены прямо в корневом `docker-compose.prod.yml` через `${VAR}`, поэтому одинаково работают и с локальным `--env-file .env.prod`, и с переменными окружения, заданными платформой деплоя;
-- `auth-helper` и встроенный `projects-service` собираются из корня checkout репозитория через `build.context: .`;
+- `auth-helper` и встроенный `projects-service` собираются с `build.context: ./backend-kt`: их Dockerfile нужны общие Gradle wrapper и convention plugins;
 - внешние PostgreSQL для `keycloak` и `projects-service` задаются через env.
 
 Что нужно заполнить перед запуском:
 
 - admin credentials и DB credentials для `keycloak`;
 - общий `PROJECTS_INTERNAL_API_KEY` для связки `auth-helper -> projects-service`;
-- публичные и внутренние адреса Keycloak (`KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URL`, `PROJECTS_IDENTITY_KEYCLOAK_BASE_URL`, `KEYCLOAK_UPSTREAM_HOST`);
+- публичные адреса Keycloak (`KEYCLOAK_ISSUER` и `KC_HOSTNAME`); внутренние адреса уже используют compose DNS `keycloak`;
 - `OIDC_REDIRECT_URI` и `OIDC_WEB_ORIGIN` без `localhost`, например `https://app.example.com/auth/callback` и `https://app.example.com`.
 
-Запускать production compose нужно из корня checkout репозитория, чтобы Docker build context видел и `identity-gateway`, и `projects-service`.
+Запускать production compose нужно из корня checkout репозитория.
 
 Пример запуска на сервере:
 
@@ -256,11 +256,10 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up --build -d
 
 Важно:
 
-- `KEYCLOAK_UPSTREAM_HOST` должен резолвиться из контейнера `gateway`; обычно это DNS-имя внешнего Keycloak или имя контейнера в общей docker-сети;
 - `KEYCLOAK_ISSUER` должен совпадать с публичным URL, который попадет в claim `iss`;
-- `KEYCLOAK_JWKS_URL` в current stack можно держать внутренним, например `http://keycloak:8080/.../certs`;
+- JWKS и Keycloak Admin API внутри stack используют `http://keycloak:8080`;
 - `KC_DB_URL_DATABASE`, `KC_DB_USERNAME` и `KC_DB_PASSWORD` выводятся автоматически из `KEYCLOAK_POSTGRES_*`;
-- если используете отдельный production stack `projects-service`, синхронизируйте `PROJECTS_INTERNAL_API_KEY` между стеками вручную.
+- все downstream-сервисы доступны gateway по compose service names, публичные домены для них не нужны.
 
 Production nginx дополнительно публикует:
 

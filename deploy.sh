@@ -27,12 +27,12 @@ USAGE
 }
 
 log() {
-  echo "[identity-gateway deploy] $*"
+  echo "[production deploy] $*"
 }
 
 require() {
   command -v "$1" >/dev/null 2>&1 || {
-    echo "[identity-gateway deploy] Required command '$1' not found" >&2
+    echo "[production deploy] Required command '$1' not found" >&2
     exit 1
   }
 }
@@ -43,31 +43,12 @@ compose() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --pull)
-      DO_PULL=true
-      shift
-      ;;
-    --check)
-      DO_CHECK_ONLY=true
-      shift
-      ;;
-    --logs)
-      DO_LOGS=true
-      shift
-      ;;
-    --no-build)
-      NO_BUILD=true
-      shift
-      ;;
-    --help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "[identity-gateway deploy] Unknown option: $1" >&2
-      usage >&2
-      exit 2
-      ;;
+    --pull) DO_PULL=true; shift ;;
+    --check) DO_CHECK_ONLY=true; shift ;;
+    --logs) DO_LOGS=true; shift ;;
+    --no-build) NO_BUILD=true; shift ;;
+    --help) usage; exit 0 ;;
+    *) echo "[production deploy] Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
@@ -75,14 +56,14 @@ require docker
 require git
 
 if ! "${COMPOSE_CMD_ARR[@]}" version >/dev/null 2>&1; then
-  echo "[identity-gateway deploy] Docker Compose command not found: $COMPOSE_CMD" >&2
+  echo "[production deploy] Docker Compose command not found: $COMPOSE_CMD" >&2
   exit 1
 fi
 
 cd "$ROOT_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "[identity-gateway deploy] Missing $ENV_FILE. Create it from .env.prod.example first." >&2
+  echo "[production deploy] Missing $ENV_FILE. Create it from .env.prod.example first." >&2
   exit 1
 fi
 
@@ -114,7 +95,7 @@ log "Gateway health check"
 if curl --fail --silent --show-error "http://localhost:${GATEWAY_PORT:-8080}/health" >/dev/null; then
   log "Gateway is healthy"
 else
-  echo "[identity-gateway deploy] Gateway health check failed" >&2
+  echo "[production deploy] Gateway health check failed" >&2
   exit 1
 fi
 
