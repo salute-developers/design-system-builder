@@ -1,11 +1,11 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
-import com.dsbuilder.frontend.cli.feature.components.application.ComponentSource
-import com.dsbuilder.frontend.cli.feature.components.application.PushComponentsCommand
-import com.dsbuilder.frontend.cli.feature.components.application.PushComponentsResult
-import com.dsbuilder.frontend.cli.feature.components.application.PushComponentsUseCase
-import com.dsbuilder.frontend.cli.feature.components.application.PushTarget
-import com.dsbuilder.frontend.cli.feature.components.domain.ComponentImportReport
+import com.dsbuilder.frontend.feature.components.application.ComponentSource
+import com.dsbuilder.frontend.feature.components.application.PushComponentsCommand
+import com.dsbuilder.frontend.feature.components.application.PushComponentsResult
+import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
+import com.dsbuilder.frontend.feature.components.application.PushTarget
+import com.dsbuilder.frontend.feature.components.domain.ComponentImportReport
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
