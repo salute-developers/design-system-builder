@@ -1,0 +1,24 @@
+{
+  "realm": "dsbuilder",
+  "enabled": true,
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": false,
+  "resetPasswordAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Default DS Builder user"
+      },
+      {
+        "name": "system_admin",
+        "description": "Platform administrator"
+      }
+    ]
+  },
+  "defaultRoles": [
+    "user"
+  ]
+}

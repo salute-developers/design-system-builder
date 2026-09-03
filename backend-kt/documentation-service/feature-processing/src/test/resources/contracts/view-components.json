@@ -1,0 +1,1 @@
+{"name":"sample","packageName":"com.example","components":[{"key":"avatar","coreName":"Avatar","styleName":"Avatar","variations":[{"name":"m","viewReference":"Sample.Components.Avatar.M","viewOverlayReference":"Sample.Overlays.AvatarM"}]}]}

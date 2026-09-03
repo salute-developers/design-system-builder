@@ -1,0 +1,8 @@
+FROM eclipse-temurin:17-jre-jammy
+
+EXPOSE 8082
+
+RUN mkdir /app
+COPY ./build/libs/*-all.jar /app/projects-service.jar
+
+ENTRYPOINT ["java", "-jar", "/app/projects-service.jar"]

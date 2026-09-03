@@ -1,0 +1,63 @@
+services:
+  backend:
+    platform: "linux/amd64"
+    container_name: project-publisher
+    image: ${BACKEND_IMAGE:-project-publisher:dev}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    env_file:
+      - .env
+    environment:
+      TZ: ${TZ:-UTC}
+      JAVA_OPTS: ${JAVA_OPTS:-}
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_CONTEXT: default
+      DOCKER_CERT_PATH: ""
+      DOCKER_CONFIG: ""
+      SHARED_VOLUME_NAME: project-builder-builds
+      SHARED_ROOT: /tmp/builds
+      ANDROID_COMPOSE_RUNNER: plasma/android-runner-compose:main
+      ANDROID_XML_RUNNER: plasma/android-runner:main
+    volumes:
+      # DooD: чтобы бэкенд мог запускать docker-контейнеры раннера
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Кэши, чтобы сборки были быстрее (используются runner-контейнерами)
+      - gradle-cache:/var/cache/gradle
+      - npm-cache:/var/cache/npm
+
+      # Рабочие каталоги билдов (логи/артефакты)
+      - builds:/tmp/builds
+
+      # Скрипты и файлы раннера
+      - ./scripts:/app/scripts:ro
+      # .env для раннеров
+      - ./.env:/app/.env:ro
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+  db:
+    image: postgres:16
+    container_name: project-publisher-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  gradle-cache:
+  npm-cache:
+  builds:
+    name: project-builder-builds
+  pgdata:

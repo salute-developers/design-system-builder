@@ -1,14 +1,14 @@
 ---
 name: sync-validation
-description: Sync db-service/src/validation/schema.ts with the current DB schema. Use when tables are added/removed or columns change in db-service/src/db/schema.ts.
+description: Sync js/services/db-service/src/validation/schema.ts with the current DB schema. Use when tables are added/removed or columns change in js/services/db-service/src/db/schema.ts.
 ---
 
-Synchronize `db-service/src/validation/schema.ts` with the current state of `db-service/src/db/schema.ts`.
+Synchronize `js/services/db-service/src/validation/schema.ts` with the current state of `js/services/db-service/src/db/schema.ts`.
 
 ## Steps
 
-1. Read `db-service/src/db/schema.ts` — collect all exported tables and their columns.
-2. Read `db-service/src/validation/schema.ts` — collect existing Create/Update schemas and exported types.
+1. Read `js/services/db-service/src/db/schema.ts` — collect all exported tables and their columns.
+2. Read `js/services/db-service/src/validation/schema.ts` — collect existing Create/Update schemas and exported types.
 3. Diff: determine what was added, removed, or changed.
 
 ## Rules

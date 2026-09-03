@@ -142,3 +142,17 @@ cli/output/
 
 # SvelteKit build / generate output
 .svelte-kit
+
+# Kotlin / Gradle workspaces
+**/.gradle/
+**/.kotlin/
+**/.idea/
+**/build/
+**/.env
+**/.env.*
+!**/.env*.example
+frontend-kt/cli/.sdds/
+*.hprof
+.DS_Store
+local.properties
+.gigaide

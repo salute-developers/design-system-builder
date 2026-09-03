@@ -1,0 +1,18 @@
+ktor:
+    application:
+        modules:
+            - com.dsbuilder.identity.app.ApplicationKt.module
+    deployment:
+        port: "$AUTH_HELPER_PORT:8091"
+
+auth:
+    keycloak:
+        issuer: "$KEYCLOAK_ISSUER:http://localhost:8090/realms/dsbuilder"
+        audience: "$KEYCLOAK_AUDIENCE:dsbuilder-api"
+        jwksUrl: "$KEYCLOAK_JWKS_URL:http://localhost:8090/realms/dsbuilder/protocol/openid-connect/certs"
+    projectAccess:
+        mode: "$PROJECT_ACCESS_MODE:http"
+        baseUrl: "$PROJECTS_SERVICE_URL:http://projects-service:8082"
+        timeoutMs: "$PROJECT_ACCESS_TIMEOUT_MS:1500"
+        internalApiKey: "$PROJECTS_INTERNAL_API_KEY:local-projects-internal-key"
+        defaultRole: "$PROJECT_ACCESS_DEFAULT_ROLE:viewer"

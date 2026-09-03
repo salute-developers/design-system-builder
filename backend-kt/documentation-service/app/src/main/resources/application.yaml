@@ -1,0 +1,70 @@
+ktor:
+  application:
+    modules:
+      - com.dsbuilder.documentation.app.ApplicationKt.module
+  deployment:
+    port: "$DOCUMENTATION_SERVICE_PORT:8084"
+documentation:
+  database:
+    url: "$DOCUMENTATION_DATABASE_URL:jdbc:postgresql://localhost:5434/documentation_service"
+    user: "$DOCUMENTATION_POSTGRES_USER:documentation"
+    password: "$DOCUMENTATION_POSTGRES_PASSWORD:documentation"
+  temporaryDirectory: "$DOCUMENTATION_TEMP_DIRECTORY:/tmp/documentation"
+  worker:
+    enabled: "$DOCUMENTATION_WORKER_ENABLED:false"
+    pollingMs: "$DOCUMENTATION_WORKER_POLLING_MS:1000"
+    leaseSeconds: "$DOCUMENTATION_WORKER_LEASE_SECONDS:60"
+    heartbeatSeconds: "$DOCUMENTATION_WORKER_HEARTBEAT_SECONDS:20"
+    maxAttempts: "$DOCUMENTATION_WORKER_MAX_ATTEMPTS:3"
+  publication:
+    s3Prefix: "$DOCUMENTATION_PUBLICATION_S3_PREFIX:"
+  validationLimits:
+    navigationNodes: "$DOCUMENTATION_MAX_NAVIGATION_NODES:10000"
+    navigationDepth: "$DOCUMENTATION_MAX_NAVIGATION_DEPTH:32"
+    pages: "$DOCUMENTATION_MAX_PAGES:5000"
+    contentFiles: "$DOCUMENTATION_MAX_CONTENT_FILES:10000"
+    stringBytes: "$DOCUMENTATION_MAX_STRING_BYTES:65536"
+  chunking:
+    targetBytes: "$DOCUMENTATION_CHUNK_TARGET_BYTES:12000"
+    maxBytes: "$DOCUMENTATION_CHUNK_MAX_BYTES:24000"
+  pagination:
+    defaultLimit: "$DOCUMENTATION_PAGINATION_DEFAULT_LIMIT:20"
+    maxLimit: "$DOCUMENTATION_PAGINATION_MAX_LIMIT:100"
+  search:
+    maxQueryBytes: "$DOCUMENTATION_SEARCH_MAX_QUERY_BYTES:1024"
+    maxSubjects: "$DOCUMENTATION_SEARCH_MAX_SUBJECTS:50"
+    maxCursor: "$DOCUMENTATION_SEARCH_MAX_CURSOR:1000"
+    profileVersion: "$DOCUMENTATION_SEARCH_PROFILE_VERSION:lexical-v2"
+    channelCandidates: "$DOCUMENTATION_SEARCH_CHANNEL_CANDIDATES:200"
+    totalCandidates: "$DOCUMENTATION_SEARCH_TOTAL_CANDIDATES:500"
+    fuzzyMinimumLength: "$DOCUMENTATION_SEARCH_FUZZY_MINIMUM_LENGTH:5"
+    fuzzyThreshold: "$DOCUMENTATION_SEARCH_FUZZY_THRESHOLD:0.45"
+    rrfConstant: "$DOCUMENTATION_SEARCH_RRF_CONSTANT:60"
+    prefixWeight: "$DOCUMENTATION_SEARCH_PREFIX_WEIGHT:0.75"
+    trigramWeight: "$DOCUMENTATION_SEARCH_TRIGRAM_WEIGHT:0.60"
+    technicalWeight: "$DOCUMENTATION_SEARCH_TECHNICAL_WEIGHT:1.0"
+    russianWeight: "$DOCUMENTATION_SEARCH_RUSSIAN_WEIGHT:0.95"
+    englishWeight: "$DOCUMENTATION_SEARCH_ENGLISH_WEIGHT:0.95"
+    snippetLength: "$DOCUMENTATION_SEARCH_SNIPPET_LENGTH:300"
+    snippetContext: "$DOCUMENTATION_SEARCH_SNIPPET_CONTEXT:120"
+  dbService:
+    baseUrl: "$DB_SERVICE_BASE_URL:http://db-service:3008"
+    connectTimeoutMs: "$DB_SERVICE_CONNECT_TIMEOUT_MS:1500"
+    requestTimeoutMs: "$DB_SERVICE_REQUEST_TIMEOUT_MS:3000"
+  s3:
+    endpoint: "$DOCUMENTATION_S3_ENDPOINT:"
+    region: "$DOCUMENTATION_S3_REGION:us-east-1"
+    bucket: "$DOCUMENTATION_S3_BUCKET:documentation-bundles"
+    accessKey: "$DOCUMENTATION_S3_ACCESS_KEY:minio"
+    secretKey: "$DOCUMENTATION_S3_SECRET_KEY:minio123"
+    pathStyleAccess: "$DOCUMENTATION_S3_PATH_STYLE_ACCESS:true"
+    prefix: "$DOCUMENTATION_S3_PREFIX:"
+    connectTimeoutMs: "$DOCUMENTATION_S3_CONNECT_TIMEOUT_MS:2000"
+    requestTimeoutMs: "$DOCUMENTATION_S3_REQUEST_TIMEOUT_MS:10000"
+  archiveLimits:
+    compressedBytes: "$DOCUMENTATION_MAX_COMPRESSED_BYTES:104857600"
+    uncompressedBytes: "$DOCUMENTATION_MAX_UNCOMPRESSED_BYTES:524288000"
+    entryBytes: "$DOCUMENTATION_MAX_ENTRY_BYTES:104857600"
+    entries: "$DOCUMENTATION_MAX_ENTRIES:20000"
+    pathBytes: "$DOCUMENTATION_MAX_PATH_BYTES:255"
+    manifestBytes: "$DOCUMENTATION_MAX_MANIFEST_BYTES:1048576"

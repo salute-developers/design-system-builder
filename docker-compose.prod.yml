@@ -1,0 +1,331 @@
+x-keycloak-server-env: &keycloak-server-env
+  KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
+  KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+  KC_DB: ${KC_DB:-postgres}
+  KC_DB_URL_HOST: ${KC_DB_URL_HOST:?Set KC_DB_URL_HOST}
+  KC_DB_URL_PORT: ${KC_DB_URL_PORT:-5432}
+  KC_DB_URL_DATABASE: ${KEYCLOAK_POSTGRES_DB:?Set KEYCLOAK_POSTGRES_DB}
+  KC_DB_USERNAME: ${KEYCLOAK_POSTGRES_USER:?Set KEYCLOAK_POSTGRES_USER}
+  KC_DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD:?Set KEYCLOAK_POSTGRES_PASSWORD}
+  KC_HEALTH_ENABLED: ${KC_HEALTH_ENABLED:-true}
+  KC_METRICS_ENABLED: ${KC_METRICS_ENABLED:-true}
+  KC_PROXY_HEADERS: ${KC_PROXY_HEADERS:-xforwarded}
+  KC_HOSTNAME: ${KC_HOSTNAME:?Set KC_HOSTNAME}
+
+x-projects-runtime-env: &projects-runtime-env
+  PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:?Set PROJECTS_INTERNAL_API_KEY}
+  PROJECTS_ACCESS_KEYS_PREFIX: ${PROJECTS_ACCESS_KEYS_PREFIX:-dsb_pk}
+  PROJECTS_ACCESS_KEYS_DEFAULT_TTL_MS: ${PROJECTS_ACCESS_KEYS_DEFAULT_TTL_MS:-2592000000}
+  PROJECTS_ACCESS_KEYS_SECRET_BYTE_LENGTH: ${PROJECTS_ACCESS_KEYS_SECRET_BYTE_LENGTH:-32}
+  PROJECTS_ACCESS_KEYS_HASH_ITERATIONS: ${PROJECTS_ACCESS_KEYS_HASH_ITERATIONS:-120000}
+  PROJECTS_ACCESS_KEYS_HASH_KEY_LENGTH_BITS: ${PROJECTS_ACCESS_KEYS_HASH_KEY_LENGTH_BITS:-256}
+  PROJECTS_ACCESS_KEYS_HASH_SALT_BYTE_LENGTH: ${PROJECTS_ACCESS_KEYS_HASH_SALT_BYTE_LENGTH:-16}
+  PROJECTS_SERVICE_PORT: 8082
+  PROJECTS_DATABASE_URL: ${PROJECTS_DATABASE_URL:?Set PROJECTS_DATABASE_URL}
+  PROJECTS_POSTGRES_USER: ${PROJECTS_POSTGRES_USER:?Set PROJECTS_POSTGRES_USER}
+  PROJECTS_POSTGRES_PASSWORD: ${PROJECTS_POSTGRES_PASSWORD:?Set PROJECTS_POSTGRES_PASSWORD}
+  PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: http://keycloak:8080
+  PROJECTS_IDENTITY_KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
+  PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
+  PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
+  PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS: ${PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS:-1500}
+
+services:
+  keycloak:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      <<: *keycloak-server-env
+    command:
+      - start
+      - --import-realm
+      - --http-enabled=true
+      - --http-port=8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+
+  keycloak-bootstrap:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak-bootstrap:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: "no"
+    environment:
+      KEYCLOAK_BOOTSTRAP_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
+      OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?Set PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?Set KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - /opt/keycloak/bootstrap/bootstrap-production-keycloak.sh
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  projects-service:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/projects-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      <<: *projects-runtime-env
+    expose:
+      - "8082"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  auth-helper:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/auth-helper:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      AUTH_HELPER_PORT: 8091
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:?Set KEYCLOAK_ISSUER}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:?Set KEYCLOAK_AUDIENCE}
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}/protocol/openid-connect/certs
+      PROJECT_ACCESS_MODE: ${PROJECT_ACCESS_MODE:-http}
+      PROJECT_ACCESS_DEFAULT_ROLE: ${PROJECT_ACCESS_DEFAULT_ROLE:-viewer}
+      PROJECT_ACCESS_TIMEOUT_MS: ${PROJECT_ACCESS_TIMEOUT_MS:-1500}
+      PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:?Set PROJECTS_INTERNAL_API_KEY}
+      PROJECTS_SERVICE_URL: http://projects-service:8082
+    expose:
+      - "8091"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      projects-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  db-service:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/db-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3008
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+    expose:
+      - "3008"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3008/api/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+
+  publisher:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/publisher:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3007
+    expose:
+      - "3007"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+
+  generator:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/generator:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DB_SERVICE_URL: http://db-service:3008/api
+      PUBLISHER_URL: http://publisher:3007
+    expose:
+      - "3005"
+    depends_on:
+      db-service:
+        condition: service_healthy
+      publisher:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+  docs-generator:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-generator:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3006
+      DB_SERVICE_URL: http://db-service:3008/api
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:?Set AWS_ENDPOINT}
+      AWS_REGION: ${AWS_REGION:?Set AWS_REGION}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:?Set AWS_S3_BUCKET}
+      OUTPUT_DIR: /home/node/app/output
+    expose:
+      - "3006"
+    volumes:
+      - docs_output:/home/node/app/output
+    depends_on:
+      db-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/documentation/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  documentation-service:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      DOCUMENTATION_SERVICE_PORT: 8084
+      DOCUMENTATION_DATABASE_URL: ${DOCUMENTATION_DATABASE_URL:?Set DOCUMENTATION_DATABASE_URL}
+      DOCUMENTATION_POSTGRES_USER: ${DOCUMENTATION_POSTGRES_USER:?Set DOCUMENTATION_POSTGRES_USER}
+      DOCUMENTATION_POSTGRES_PASSWORD: ${DOCUMENTATION_POSTGRES_PASSWORD:?Set DOCUMENTATION_POSTGRES_PASSWORD}
+      DB_SERVICE_BASE_URL: http://db-service:3008
+      DB_SERVICE_CONNECT_TIMEOUT_MS: ${DB_SERVICE_CONNECT_TIMEOUT_MS:-1500}
+      DB_SERVICE_REQUEST_TIMEOUT_MS: ${DB_SERVICE_REQUEST_TIMEOUT_MS:-3000}
+      DOCUMENTATION_TEMP_DIRECTORY: /var/tmp/documentation
+      DOCUMENTATION_S3_ENDPOINT: ${DOCUMENTATION_S3_ENDPOINT:-}
+      DOCUMENTATION_S3_REGION: ${DOCUMENTATION_S3_REGION:?Set DOCUMENTATION_S3_REGION}
+      DOCUMENTATION_S3_BUCKET: ${DOCUMENTATION_S3_BUCKET:?Set DOCUMENTATION_S3_BUCKET}
+      DOCUMENTATION_S3_ACCESS_KEY: ${DOCUMENTATION_S3_ACCESS_KEY:?Set DOCUMENTATION_S3_ACCESS_KEY}
+      DOCUMENTATION_S3_SECRET_KEY: ${DOCUMENTATION_S3_SECRET_KEY:?Set DOCUMENTATION_S3_SECRET_KEY}
+      DOCUMENTATION_S3_PATH_STYLE_ACCESS: ${DOCUMENTATION_S3_PATH_STYLE_ACCESS:-false}
+      DOCUMENTATION_S3_PREFIX: ${DOCUMENTATION_S3_PREFIX:-raw}
+      DOCUMENTATION_PUBLICATION_S3_PREFIX: ${DOCUMENTATION_PUBLICATION_S3_PREFIX:-}
+      DOCUMENTATION_WORKER_ENABLED: ${DOCUMENTATION_WORKER_ENABLED:-true}
+      DOCUMENTATION_WORKER_POLLING_MS: ${DOCUMENTATION_WORKER_POLLING_MS:-1000}
+      DOCUMENTATION_WORKER_LEASE_SECONDS: ${DOCUMENTATION_WORKER_LEASE_SECONDS:-60}
+      DOCUMENTATION_WORKER_HEARTBEAT_SECONDS: ${DOCUMENTATION_WORKER_HEARTBEAT_SECONDS:-20}
+      DOCUMENTATION_WORKER_MAX_ATTEMPTS: ${DOCUMENTATION_WORKER_MAX_ATTEMPTS:-3}
+      DOCUMENTATION_MAX_COMPRESSED_BYTES: ${DOCUMENTATION_MAX_COMPRESSED_BYTES:-104857600}
+      DOCUMENTATION_MAX_UNCOMPRESSED_BYTES: ${DOCUMENTATION_MAX_UNCOMPRESSED_BYTES:-524288000}
+      DOCUMENTATION_MAX_ENTRY_BYTES: ${DOCUMENTATION_MAX_ENTRY_BYTES:-104857600}
+      DOCUMENTATION_MAX_ENTRIES: ${DOCUMENTATION_MAX_ENTRIES:-20000}
+      DOCUMENTATION_MAX_PATH_BYTES: ${DOCUMENTATION_MAX_PATH_BYTES:-255}
+      DOCUMENTATION_MAX_MANIFEST_BYTES: ${DOCUMENTATION_MAX_MANIFEST_BYTES:-1048576}
+      DOCUMENTATION_MAX_NAVIGATION_NODES: ${DOCUMENTATION_MAX_NAVIGATION_NODES:-10000}
+      DOCUMENTATION_MAX_NAVIGATION_DEPTH: ${DOCUMENTATION_MAX_NAVIGATION_DEPTH:-32}
+      DOCUMENTATION_MAX_PAGES: ${DOCUMENTATION_MAX_PAGES:-5000}
+      DOCUMENTATION_MAX_CONTENT_FILES: ${DOCUMENTATION_MAX_CONTENT_FILES:-10000}
+      DOCUMENTATION_MAX_STRING_BYTES: ${DOCUMENTATION_MAX_STRING_BYTES:-65536}
+      DOCUMENTATION_CHUNK_TARGET_BYTES: ${DOCUMENTATION_CHUNK_TARGET_BYTES:-12000}
+      DOCUMENTATION_CHUNK_MAX_BYTES: ${DOCUMENTATION_CHUNK_MAX_BYTES:-24000}
+      DOCUMENTATION_PAGINATION_DEFAULT_LIMIT: ${DOCUMENTATION_PAGINATION_DEFAULT_LIMIT:-20}
+      DOCUMENTATION_PAGINATION_MAX_LIMIT: ${DOCUMENTATION_PAGINATION_MAX_LIMIT:-100}
+      DOCUMENTATION_SEARCH_MAX_QUERY_BYTES: ${DOCUMENTATION_SEARCH_MAX_QUERY_BYTES:-1024}
+      DOCUMENTATION_SEARCH_MAX_SUBJECTS: ${DOCUMENTATION_SEARCH_MAX_SUBJECTS:-50}
+      DOCUMENTATION_SEARCH_MAX_CURSOR: ${DOCUMENTATION_SEARCH_MAX_CURSOR:-1000}
+      DOCUMENTATION_SEARCH_PROFILE_VERSION: ${DOCUMENTATION_SEARCH_PROFILE_VERSION:-lexical-v2}
+      DOCUMENTATION_SEARCH_CHANNEL_CANDIDATES: ${DOCUMENTATION_SEARCH_CHANNEL_CANDIDATES:-200}
+      DOCUMENTATION_SEARCH_TOTAL_CANDIDATES: ${DOCUMENTATION_SEARCH_TOTAL_CANDIDATES:-500}
+      DOCUMENTATION_SEARCH_FUZZY_MINIMUM_LENGTH: ${DOCUMENTATION_SEARCH_FUZZY_MINIMUM_LENGTH:-5}
+      DOCUMENTATION_SEARCH_FUZZY_THRESHOLD: ${DOCUMENTATION_SEARCH_FUZZY_THRESHOLD:-0.45}
+      DOCUMENTATION_SEARCH_RRF_CONSTANT: ${DOCUMENTATION_SEARCH_RRF_CONSTANT:-60}
+      DOCUMENTATION_SEARCH_PREFIX_WEIGHT: ${DOCUMENTATION_SEARCH_PREFIX_WEIGHT:-0.75}
+      DOCUMENTATION_SEARCH_TRIGRAM_WEIGHT: ${DOCUMENTATION_SEARCH_TRIGRAM_WEIGHT:-0.60}
+      DOCUMENTATION_SEARCH_TECHNICAL_WEIGHT: ${DOCUMENTATION_SEARCH_TECHNICAL_WEIGHT:-1.0}
+      DOCUMENTATION_SEARCH_RUSSIAN_WEIGHT: ${DOCUMENTATION_SEARCH_RUSSIAN_WEIGHT:-0.95}
+      DOCUMENTATION_SEARCH_ENGLISH_WEIGHT: ${DOCUMENTATION_SEARCH_ENGLISH_WEIGHT:-0.95}
+      DOCUMENTATION_SEARCH_SNIPPET_LENGTH: ${DOCUMENTATION_SEARCH_SNIPPET_LENGTH:-300}
+      DOCUMENTATION_SEARCH_SNIPPET_CONTEXT: ${DOCUMENTATION_SEARCH_SNIPPET_CONTEXT:-120}
+    expose:
+      - "8084"
+    depends_on:
+      db-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  gateway:
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/gateway:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_UPSTREAM_HOST: keycloak
+      KEYCLOAK_UPSTREAM_PORT: 8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:?Set KEYCLOAK_REALM}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:?Set OIDC_REDIRECT_URI}
+      OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:?Set OIDC_WEB_ORIGIN}
+      DB_SERVICE_UPSTREAM_SCHEME: http
+      DB_SERVICE_UPSTREAM_HOST: db-service
+      DB_SERVICE_UPSTREAM_PORT: 3008
+      DOCS_SERVICE_UPSTREAM_SCHEME: http
+      DOCS_SERVICE_UPSTREAM_HOST: docs-generator
+      DOCS_SERVICE_UPSTREAM_PORT: 3006
+      DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: http
+      DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
+      DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
+      DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
+      GENERATOR_SERVICE_UPSTREAM_SCHEME: http
+      GENERATOR_SERVICE_UPSTREAM_HOST: generator
+      GENERATOR_SERVICE_UPSTREAM_PORT: 3005
+      PUBLISHER_SERVICE_UPSTREAM_SCHEME: http
+      PUBLISHER_SERVICE_UPSTREAM_HOST: publisher
+      PUBLISHER_SERVICE_UPSTREAM_PORT: 3007
+      GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
+    command:
+      - /bin/sh
+      - -c
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+    expose:
+      - "8080"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      auth-helper:
+        condition: service_healthy
+      projects-service:
+        condition: service_healthy
+      documentation-service:
+        condition: service_healthy
+      generator:
+        condition: service_healthy
+      publisher:
+        condition: service_healthy
+      docs-generator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  docs_output:
