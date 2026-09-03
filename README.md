@@ -21,9 +21,14 @@ cd frontend-kt && ./gradlew build
 
 ## Production
 
-Общий production stack описан в [docker-compose.prod.yml](./docker-compose.prod.yml). Он собирает Kotlin backend с
-контекстом `./backend-kt` и JS-приложения из их собственных директорий, а для внутренних вызовов использует DNS-имена
-compose-сервисов без публичных доменов.
+Backend production stack описан в [docker-compose.prod.yml](./docker-compose.prod.yml). GitHub Actions вручную собирает
+десять Kotlin, JavaScript и infrastructure образов, публикует их в GitHub Container Registry (GHCR) и вызывает deploy webhook
+DEV или PROD resource в Coolify. Compose использует только готовые registry images; исходники на deployment server не
+собираются.
+
+`js/apps/client` и `js/apps/admin` не входят в Docker Compose: их environment-specific статика продолжает публиковаться
+существующими frontend workflow в S3. Снаружи Coolify публикует только `gateway`, а внутренние сервисы используют
+service-name DNS внутри compose network.
 
 ```bash
 cp .env.prod.example .env.prod
@@ -31,8 +36,8 @@ cp .env.prod.example .env.prod
 ./deploy.sh
 ```
 
-В Coolify значения из `.env.prod.example` нужно добавить в Environment Variables ресурса. Способ передачи `VITE_*`
-во frontend-сборку остается таким же, как в прежнем JS deployment.
+DEV resource использует `IMAGE_TAG=dev`, PROD — mutable alias `IMAGE_TAG=release`. Настройка GHCR permissions,
+GitHub Variables/Secrets, tag policy и Coolify resource описана в [backend-kt/DEPLOY.md](./backend-kt/DEPLOY.md).
 
 ## Локальный запуск
 

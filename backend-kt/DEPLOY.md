@@ -1,230 +1,170 @@
 # Deploy production stack
 
-Инструкция описывает простой production deployment для сценария, где сервер держит checkout репозитория и поднимает stack напрямую через `docker compose`.
+Production deployment использует готовые Docker images из GitHub Container Registry (GHCR). GitHub Actions собирает и публикует образы вручную, после чего вызывает deploy webhook нужного Coolify resource. Coolify не собирает исходники на deployment server.
 
-## Что поднимается
+## Состав stack
 
-Production stack из корневого [docker-compose.prod.yml](../docker-compose.prod.yml) включает Kotlin и JS сервисы приложения, в том числе:
+Корневой [docker-compose.prod.yml](../docker-compose.prod.yml) запускает десять backend/infra компонентов:
 
-- `gateway` - публичный nginx entrypoint;
-- `keycloak` - встроенный identity provider;
-- `auth-helper` - internal auth service;
-- `projects-service` - внутренний downstream service;
-- `documentation-service`, `db-service`, `generator`, `publisher` и `docs-generator`;
-- `admin` и `client` как отдельные frontend-сервисы.
+- `gateway`;
+- `keycloak` и одноразовый `keycloak-bootstrap`;
+- `auth-helper`;
+- `projects-service`;
+- `documentation-service`;
+- `db-service`;
+- `generator`;
+- `publisher`;
+- `docs-generator` из образа `documentation-generator`.
 
-Снаружи публикуется только порт `gateway`.
-Keycloak admin console доступна через gateway по `/admin/`.
-Прямой порт Keycloak по умолчанию привязан к `127.0.0.1`; при необходимости его можно открыть наружу через `KEYCLOAK_ADMIN_BIND` и `KEYCLOAK_ADMIN_PORT`.
+`admin` и `client` не входят в production compose. Их статика продолжает собираться отдельными frontend workflow и публиковаться в S3. Экспериментальный `project-publisher` также не входит в этот deployment.
 
-Локальный конфиг [identity-gateway/gateway/nginx.local.conf](./identity-gateway/gateway/nginx.local.conf) в production не используется. Для production gateway генерирует конфиг из [identity-gateway/gateway/nginx.prod.conf.template](./identity-gateway/gateway/nginx.prod.conf.template) и переменных окружения.
+Снаружи через Coolify proxy публикуется только `gateway` на внутреннем порту `8080`. Остальные компоненты доступны по service-name DNS внутри compose network. Keycloak admin console проксируется gateway по `/admin/`.
 
-## Требования к серверу
+## Tag policy
 
-- установлен Docker с поддержкой `docker compose`;
-- сервер умеет делать `git pull` вашего репозитория;
-- для `keycloak`, `projects-service`, `documentation-service` и `db-service` уже созданы базы PostgreSQL;
-- домен и reverse proxy/TLS, если production должен работать по `https`.
-- production compose должен запускаться из корня checkout репозитория, чтобы Docker build context корректно включал и `identity-gateway`, и `projects-service`.
+Workflow [publish-backend-images.yml](../.github/workflows/publish-backend-images.yml) запускается вручную через GitHub Actions.
 
-Keycloak в этом production stack поднимается вместе с остальными сервисами, поэтому отдельный внешний Keycloak для базового деплоя не требуется.
+Для ветки `dev` поле `release_tag` оставляют пустым. Каждый образ публикуется с mutable-тегом `dev`.
 
-## Подготовка
+Для ветки `master` обязателен тег формата `release_1.4.0`. Каждый образ получает одновременно versioned-тег и mutable alias:
 
-1. Клонируйте репозиторий на сервер.
-2. Перейдите в корень checkout репозитория.
-3. Создайте production env-файл на основе шаблона:
+```text
+release_1.4.0
+release
+```
+
+Одинаковые теги разрешено перезаписывать. PROD Coolify resource всегда использует alias `release`, поэтому workflow не меняет Coolify environment variables между релизами.
+
+## GitHub permissions и Secrets
+
+Workflow публикует в `ghcr.io/<lowercase-repository-owner>/<image>` и вычисляет namespace из `github.repository_owner`. Отдельные registry Variables, username и password для push не нужны. Workflow использует встроенный `GITHUB_TOKEN` с permissions:
+
+```yaml
+contents: read
+packages: write
+```
+
+Repository Secrets:
+
+```text
+COOLIFY_TOKEN
+COOLIFY_DEV_WEBHOOK
+COOLIFY_PROD_WEBHOOK
+```
+
+`COOLIFY_TOKEN` должен иметь только deploy permission. Deploy webhook копируется из Configuration → Webhooks соответствующего Coolify resource и должен содержать `force=false`.
+
+## GHCR
+
+1. Доставьте workflow в default branch GitHub и в обе запускаемые ветки `master`/`dev`.
+2. Убедитесь, что organization policy разрешает workflow создавать container packages.
+3. Первый успешный push создаст десять packages. Проверьте, что они private, связаны с исходным repository через OCI label и наследуют нужные permissions.
+4. Создайте для deployment server PAT classic отдельного технического или выделенного пользователя с минимальным scope `read:packages`. `write:packages`, `delete:packages` и `repo` для pull не нужны. Если organization использует SSO, авторизуйте token для неё.
+5. Авторизуйте Docker daemon deployment server тем же системным пользователем, которого Coolify использует для Docker:
+
+```bash
+printf '%s' "$GHCR_READ_TOKEN" | \
+  docker login ghcr.io \
+  --username "$GHCR_USERNAME" \
+  --password-stdin
+```
+
+6. После первой публикации проверьте pull непосредственно с deployment server:
+
+```bash
+docker pull ghcr.io/<organization>/gateway:dev
+```
+
+PAT хранится в Docker credential store deployment server, а не в репозитории или GitHub Actions Secrets. Задайте срок действия и процедуру ротации согласно политике организации. Self-hosted Registry для этого deployment не требуется.
+
+## Coolify resources
+
+Создайте два Docker Compose resource из одного репозитория и файла `/docker-compose.prod.yml`.
+
+DEV:
+
+```text
+Branch: dev
+REGISTRY_HOST=ghcr.io
+REGISTRY_NAMESPACE=<lowercase-github-organization>
+IMAGE_TAG=dev
+```
+
+PROD:
+
+```text
+Branch: master
+REGISTRY_HOST=ghcr.io
+REGISTRY_NAMESPACE=<lowercase-github-organization>
+IMAGE_TAG=release
+```
+
+В каждом resource:
+
+1. Заполните остальные variables из корневого `.env.prod.example` отдельными значениями окружения.
+2. Назначьте публичный domain только компоненту `gateway`, указав внутренний порт `8080`.
+3. Не добавляйте фиксированные host ports.
+4. Убедитесь, что deployment server может выполнить `docker pull` приватного образа.
+5. Скопируйте authenticated deploy webhook в соответствующий GitHub Secret.
+
+DEV и PROD могут работать на одном server: compose не резервирует фиксированные host ports, а Coolify создаёт отдельную network для каждого resource.
+
+## Ручной запуск workflow
+
+DEV:
+
+1. Откройте GitHub Actions → Publish backend images → Run workflow.
+2. Выберите branch `dev`.
+3. Оставьте `release_tag` пустым.
+4. Запустите workflow.
+
+PROD:
+
+1. Выберите branch `master`.
+2. Укажите `release_tag`, например `release_1.4.0`.
+3. Запустите workflow.
+
+Workflow собирает matrix из десяти образов для `linux/amd64`. Coolify webhook вызывается только после успешного завершения всей matrix. Успешный webhook response означает, что deployment поставлен в очередь; финальный status и health проверяются в Coolify.
+
+## Локальная проверка compose
+
+Создайте `.env.prod` на основе примера и выполните:
 
 ```bash
 cp .env.prod.example .env.prod
+./deploy.sh --check
 ```
 
-4. Заполните `.env.prod`.
-
-Файл `.env.prod` не должен попадать в git.
-Если deployment идет через внешнюю платформу, реальные значения обычно задаются в ее переменных окружения, а `.env.prod.example` остается шаблоном и документацией.
-
-Для удобного rollout можно использовать корневой [deploy.sh](../deploy.sh).
-
-## Deploy Bundle
-
-Для локального запуска без полного checkout можно собрать минимальный bundle архив на базе [docker-compose.local.yml](./docker-compose.local.yml):
+Если машина авторизована в registry, готовые образы можно подтянуть и запустить:
 
 ```bash
-./build-deploy-bundle.sh
-```
-
-Если fat jar уже собраны и нужно только переупаковать bundle:
-
-```bash
-./build-deploy-bundle.sh --skip-build
-```
-
-Готовый архив появится по пути:
-
-```bash
-build/distributions/identity-gateway-deploy.tar.gz
-```
-
-Внутри архива лежат:
-
-- `docker-compose.local.yml`
-- `start-local.sh`
-- `deploy.sh`
-- `DEPLOY.md`
-- `identity-gateway/.env.local`
-- `identity-gateway/.env.local.example`
-- `identity-gateway/app/Dockerfile.local`
-- `identity-gateway/app/build/libs/app-all.jar`
-- `identity-gateway/gateway/nginx.local.conf`
-- `identity-gateway/keycloak/dsbuilder-realm.json`
-- `projects-service/app/Dockerfile.local`
-- `projects-service/app/build/libs/app-all.jar`
-
-Внутри bundle `deploy.sh` запускает `start-local.sh --no-build --detach`: Gradle-проект не пересобирается, Docker-образы собираются из уже вложенных `app-all.jar`.
-
-Локально достаточно:
-
-```bash
-tar -xzf identity-gateway-deploy.tar.gz
-cd identity-gateway-deploy
 ./deploy.sh
 ```
 
-## Что заполнить в `.env.prod`
+Скрипт валидирует compose, выполняет `docker compose pull`, запускает stack и проверяет `/health` внутри контейнера gateway. Логи:
 
-Минимально проверьте и задайте:
+```bash
+./deploy.sh --logs
+```
 
-- публичные URL и OIDC-настройки `VITE_*`, `OIDC_*`, `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE` и `KC_HOSTNAME`;
+## Ошибки публикации и rollback
+
+Matrix публикует образы напрямую. Если один build/push завершился ошибкой, часть тегов уже может указывать на новый commit, но Coolify webhook не вызывается и работающий stack не меняется. После исправления причины повторно запускайте весь workflow, а не отдельный failed job.
+
+Workflow сериализован по ветке и не допускает одновременную публикацию двух наборов `dev` или двух наборов `release`.
+
+GitHub Actions summary сохраняет commit и digest каждого успешно опубликованного образа. Поскольку `dev`, `release` и даже одинаковый `release_*` являются mutable, для расследования и rollback сверяйте именно digest.
+
+Для rollback переместите alias `dev` или `release` на ранее сохранённые digests и повторно вызовите Coolify deploy webhook. Если старая GHCR package version уже удалена, пересоберите соответствующий Git commit и опубликуйте alias заново.
+
+## Runtime configuration
+
+Минимально проверьте:
+
+- публичные `OIDC_*`, `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE` и `KC_HOSTNAME`;
 - bootstrap admin и PostgreSQL-настройки Keycloak;
-- `PROJECTS_DATABASE_URL`, credentials `projects-service` и длинный случайный `PROJECTS_INTERNAL_API_KEY`;
-- PostgreSQL URL для `db-service` (`DATABASE_URL`) и `documentation-service` (`DOCUMENTATION_DATABASE_URL`);
+- `PROJECTS_DATABASE_URL`, credentials и `PROJECTS_INTERNAL_API_KEY`;
+- PostgreSQL URL для `db-service` и `documentation-service`;
 - S3 credentials отдельно для Kotlin `documentation-service` и JS `docs-generator`.
 
-Важно:
-
-- `KEYCLOAK_ISSUER` должен соответствовать публичному issuer URL, который увидит клиент;
-- внутренний JWKS URL и адреса всех compose-сервисов уже заданы через service-name DNS и не требуют доменов;
-- `KC_DB_URL_DATABASE`, `KC_DB_USERNAME` и `KC_DB_PASSWORD` выводятся автоматически из `KEYCLOAK_POSTGRES_*`;
-- `PROJECTS_DATABASE_URL` должен указывать на внешнюю PostgreSQL `projects-service`;
-- `DATABASE_URL` использует обычный PostgreSQL URL, а Kotlin-сервисы — JDBC URL;
-- `OIDC_REDIRECT_URI` должен быть разрешен в настройках client в Keycloak;
-- исторически названная `VITE_NPM_REGISTRY` фактически содержит npm token и попадает в браузерный bundle: не используйте широкий долгоживущий token.
-- production bootstrap отключает self-registration, email verification и password reset через email в Keycloak realm;
-- production user profile не требует `email`, `firstName` и `lastName`: вручную созданному пользователю достаточно `username` и `password`.
-
-## Первый запуск
-
-Из корня checkout репозитория:
-
-```bash
-./deploy.sh
-```
-
-Что делает команда:
-
-- валидирует `docker-compose.prod.yml` и `.env.prod`;
-- поднимает `keycloak`;
-- генерирует production nginx config из env-переменных;
-- bootstrap-ит realm и клиентов Keycloak;
-- запускает весь stack в фоне.
-
-Полезные режимы:
-
-```bash
-./deploy.sh --check
-./deploy.sh --logs
-./deploy.sh --no-build
-./deploy.sh --pull
-```
-
-## Проверка после запуска
-
-Проверьте состояние контейнеров:
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-```
-
-Проверьте health endpoint gateway:
-
-```bash
-curl http://localhost:${GATEWAY_PORT}/health
-```
-
-Если сервер стоит за внешним reverse proxy или балансировщиком, дополнительно проверьте публичный URL:
-
-```bash
-curl https://your-domain.example/health
-```
-
-Keycloak admin console через gateway:
-
-```text
-https://your-domain.example/admin/
-```
-
-Если `KEYCLOAK_ADMIN_BIND` открыт наружу, прямой доступ к admin console будет доступен по адресу:
-
-```text
-http://your-server.example:8090/admin/master/console/
-```
-
-Публичные aliases для OIDC API через gateway:
-
-```text
-POST https://your-domain.example/auth/token
-POST https://your-domain.example/auth/logout
-```
-
-Они проксируются в Keycloak на `/realms/<realm>/protocol/openid-connect/token` и `/realms/<realm>/protocol/openid-connect/logout`.
-`/auth/login`, `/auth/register`, Keycloak OIDC registration endpoint и browser registration action в production возвращают `404`.
-
-Проверьте логи:
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f
-```
-
-## Обновление
-
-Если сервер смотрит на `master`, базовый rollout такой:
-
-```bash
-git pull
-./deploy.sh
-```
-
-Этого достаточно, чтобы подтянуть изменения кода и пересобрать `auth-helper` и `projects-service`.
-
-## Остановка и перезапуск
-
-Остановить stack:
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml down
-```
-
-Перезапустить stack:
-
-```bash
-./deploy.sh
-```
-
-## Частые проблемы
-
-- `502 Bad Gateway` на `gateway`: обычно `auth-helper`, `projects-service` или Keycloak недоступны.
-- `401/403` на protected routes: проверьте `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URL`, `KEYCLOAK_AUDIENCE` и `PROJECTS_INTERNAL_API_KEY`.
-- redirect ведет на неверный адрес: проверьте `OIDC_REDIRECT_URI` и настройки client в Keycloak.
-- `projects-service` или `keycloak` не могут подключиться к БД: проверьте `KC_DB_URL_HOST`, `KC_DB_URL_PORT`, `PROJECTS_DATABASE_URL` и credentials внешних PostgreSQL.
-- `projects-service` не может lookup пользователя по email: проверьте `PROJECTS_IDENTITY_KEYCLOAK_*` и права service account в Keycloak.
-- nginx не может достучаться до Keycloak: проверьте `KEYCLOAK_UPSTREAM_HOST`, DNS и network route с сервера до Keycloak.
-
-## Рекомендуемый минимум по безопасности
-
-- храните `.env.prod` только на сервере;
-- используйте длинные случайные значения для `PROJECTS_INTERNAL_API_KEY`, `KEYCLOAK_POSTGRES_PASSWORD` и `PROJECTS_POSTGRES_PASSWORD`;
-- не публикуйте Postgres наружу;
-- ставьте TLS перед production gateway;
-- не держите `KEYCLOAK_ADMIN_PORT` открытым дольше, чем это реально нужно;
-- ограничьте доступ к серверу и docker group.
+`KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.

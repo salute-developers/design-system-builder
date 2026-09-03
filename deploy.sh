@@ -7,21 +7,17 @@ ENV_FILE=".env.prod"
 COMPOSE_CMD="${COMPOSE_CMD:-docker compose}"
 read -r -a COMPOSE_CMD_ARR <<< "$COMPOSE_CMD"
 
-DO_PULL=false
 DO_CHECK_ONLY=false
 DO_LOGS=false
-NO_BUILD=false
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ./deploy.sh [--pull] [--check] [--logs] [--no-build]
+  ./deploy.sh [--check] [--logs]
 
 Options:
-  --pull      Выполнить git pull перед deploy.
   --check     Только провалидировать compose/env и выйти.
   --logs      После deploy открыть docker compose logs -f.
-  --no-build  Запустить up -d без --build.
   --help      Показать help.
 USAGE
 }
@@ -43,17 +39,14 @@ compose() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --pull) DO_PULL=true; shift ;;
     --check) DO_CHECK_ONLY=true; shift ;;
     --logs) DO_LOGS=true; shift ;;
-    --no-build) NO_BUILD=true; shift ;;
     --help) usage; exit 0 ;;
     *) echo "[production deploy] Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
 require docker
-require git
 
 if ! "${COMPOSE_CMD_ARR[@]}" version >/dev/null 2>&1; then
   echo "[production deploy] Docker Compose command not found: $COMPOSE_CMD" >&2
@@ -67,11 +60,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if [[ "$DO_PULL" == true ]]; then
-  log "Pulling latest changes"
-  git pull --ff-only
-fi
-
 log "Validating production compose configuration"
 compose config >/dev/null
 
@@ -80,19 +68,26 @@ if [[ "$DO_CHECK_ONLY" == true ]]; then
   exit 0
 fi
 
-if [[ "$NO_BUILD" == true ]]; then
-  log "Starting production stack without rebuild"
-  compose up -d
-else
-  log "Building and starting production stack"
-  compose up --build -d
-fi
+log "Pulling production images"
+compose pull
+
+log "Starting production stack"
+compose up -d --remove-orphans
 
 log "Current container status"
 compose ps
 
 log "Gateway health check"
-if curl --fail --silent --show-error "http://localhost:${GATEWAY_PORT:-8080}/health" >/dev/null; then
+GATEWAY_HEALTHY=false
+for _ in {1..30}; do
+  if compose exec -T gateway wget -qO- http://127.0.0.1:8080/health >/dev/null 2>&1; then
+    GATEWAY_HEALTHY=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ "$GATEWAY_HEALTHY" == true ]]; then
   log "Gateway is healthy"
 else
   echo "[production deploy] Gateway health check failed" >&2

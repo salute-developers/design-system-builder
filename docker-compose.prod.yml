@@ -32,9 +32,8 @@ x-projects-runtime-env: &projects-runtime-env
 
 services:
   keycloak:
-    build:
-      context: ./backend-kt
-      dockerfile: ./identity-gateway/keycloak/Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: *keycloak-server-env
@@ -43,8 +42,8 @@ services:
       - --import-realm
       - --http-enabled=true
       - --http-port=8080
-    ports:
-      - "${KEYCLOAK_ADMIN_BIND:-127.0.0.1}:${KEYCLOAK_ADMIN_PORT:-8090}:8080"
+    expose:
+      - "8080"
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
       interval: 15s
@@ -53,9 +52,8 @@ services:
       retries: 10
 
   keycloak-bootstrap:
-    build:
-      context: ./backend-kt
-      dockerfile: ./identity-gateway/keycloak/Dockerfile.bootstrap
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/keycloak-bootstrap:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: "no"
     environment:
       KEYCLOAK_BOOTSTRAP_URL: http://keycloak:8080
@@ -75,9 +73,8 @@ services:
         condition: service_healthy
 
   projects-service:
-    build:
-      context: ./backend-kt
-      dockerfile: ./projects-service/app/Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/projects-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       <<: *projects-runtime-env
@@ -94,9 +91,8 @@ services:
       retries: 5
 
   auth-helper:
-    build:
-      context: ./backend-kt
-      dockerfile: ./identity-gateway/app/Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/auth-helper:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       AUTH_HELPER_PORT: 8091
@@ -123,9 +119,8 @@ services:
       retries: 5
 
   db-service:
-    build:
-      context: ./js/services/db-service
-      dockerfile: Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/db-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -142,9 +137,8 @@ services:
       retries: 5
 
   publisher:
-    build:
-      context: ./js/services/publisher
-      dockerfile: Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/publisher:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -159,9 +153,8 @@ services:
       retries: 5
 
   generator:
-    build:
-      context: ./js/services/generator
-      dockerfile: Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/generator:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -183,9 +176,8 @@ services:
       retries: 5
 
   docs-generator:
-    build:
-      context: ./js/services/documentation-generator
-      dockerfile: Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-generator:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -212,9 +204,8 @@ services:
       retries: 5
 
   documentation-service:
-    build:
-      context: ./backend-kt
-      dockerfile: ./documentation-service/app/Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-service:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       DOCUMENTATION_SERVICE_PORT: 8084
@@ -282,9 +273,8 @@ services:
       retries: 5
 
   gateway:
-    build:
-      context: ./backend-kt
-      dockerfile: ./identity-gateway/gateway/Dockerfile
+    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/gateway:${IMAGE_TAG:?Set IMAGE_TAG}
+    pull_policy: always
     restart: unless-stopped
     environment:
       KEYCLOAK_UPSTREAM_HOST: keycloak
@@ -314,8 +304,8 @@ services:
       - /bin/sh
       - -c
       - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
+    expose:
+      - "8080"
     depends_on:
       keycloak-bootstrap:
         condition: service_completed_successfully
@@ -336,22 +326,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-
-  admin:
-    build:
-      context: ./js/apps/admin
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    expose:
-      - "5173"
-
-  client:
-    build:
-      context: ./js/apps/client
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    expose:
-      - "4173"
 
 volumes:
   docs_output:
