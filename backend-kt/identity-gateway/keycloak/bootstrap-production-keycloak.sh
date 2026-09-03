@@ -17,17 +17,18 @@ login_attempt=1
 login_max_attempts=30
 
 until /opt/keycloak/bin/kcadm.sh config credentials \
-  --server "$keycloak_url" \
-  --realm master \
-  --user "${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}" \
-  --password "${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}"
+    --server "$keycloak_url" \
+    --realm master \
+    --user "${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}" \
+    --password "${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}" \
+  && /opt/keycloak/bin/kcadm.sh get "realms/$realm" --fields realm >/dev/null
 do
   if [ "$login_attempt" -ge "$login_max_attempts" ]; then
-    echo "Keycloak admin login failed after $login_attempt attempts" >&2
+    echo "Keycloak Admin API readiness check failed after $login_attempt attempts" >&2
     exit 1
   fi
 
-  echo "Keycloak admin login attempt $login_attempt failed; retrying in 2 seconds" >&2
+  echo "Keycloak Admin API readiness check $login_attempt failed; retrying in 2 seconds" >&2
   login_attempt=$((login_attempt + 1))
   sleep 2
 done
