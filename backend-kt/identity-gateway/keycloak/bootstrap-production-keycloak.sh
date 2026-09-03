@@ -21,7 +21,12 @@ until /opt/keycloak/bin/kcadm.sh config credentials \
     --realm master \
     --user "${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}" \
     --password "${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}" \
-  && /opt/keycloak/bin/kcadm.sh get "realms/$realm" --fields realm >/dev/null
+  && /opt/keycloak/bin/kcadm.sh update "realms/$realm" \
+    -s "registrationAllowed=false" \
+    -s "registrationEmailAsUsername=false" \
+    -s "verifyEmail=false" \
+    -s "loginWithEmailAllowed=false" \
+    -s "resetPasswordAllowed=false"
 do
   if [ "$login_attempt" -ge "$login_max_attempts" ]; then
     echo "Keycloak Admin API readiness check failed after $login_attempt attempts" >&2
@@ -32,13 +37,6 @@ do
   login_attempt=$((login_attempt + 1))
   sleep 2
 done
-
-/opt/keycloak/bin/kcadm.sh update "realms/$realm" \
-  -s "registrationAllowed=false" \
-  -s "registrationEmailAsUsername=false" \
-  -s "verifyEmail=false" \
-  -s "loginWithEmailAllowed=false" \
-  -s "resetPasswordAllowed=false"
 
 user_profile_config="/tmp/dsbuilder-user-profile.json"
 cat >"$user_profile_config" <<'JSON'

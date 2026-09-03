@@ -167,4 +167,4 @@ GitHub Actions summary сохраняет commit и digest каждого усп
 - PostgreSQL URL для `db-service` и `documentation-service`;
 - S3 credentials отдельно для Kotlin `documentation-service` и JS `docs-generator`.
 
-`KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.
+`KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Не включайте для stack опцию Coolify `Connect to Predefined Network`, иначе одинаковые service names разных environments окажутся в общей сети и начнут конфликтовать. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.
