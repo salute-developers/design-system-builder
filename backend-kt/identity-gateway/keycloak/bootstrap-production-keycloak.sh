@@ -13,11 +13,24 @@ extract_first_id() {
   sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
 }
 
-/opt/keycloak/bin/kcadm.sh config credentials \
+login_attempt=1
+login_max_attempts=30
+
+until /opt/keycloak/bin/kcadm.sh config credentials \
   --server "$keycloak_url" \
   --realm master \
   --user "${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}" \
   --password "${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}"
+do
+  if [ "$login_attempt" -ge "$login_max_attempts" ]; then
+    echo "Keycloak admin login failed after $login_attempt attempts" >&2
+    exit 1
+  fi
+
+  echo "Keycloak admin login attempt $login_attempt failed; retrying in 2 seconds" >&2
+  login_attempt=$((login_attempt + 1))
+  sleep 2
+done
 
 /opt/keycloak/bin/kcadm.sh update "realms/$realm" \
   -s "registrationAllowed=false" \
