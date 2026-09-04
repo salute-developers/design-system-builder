@@ -1,0 +1,82 @@
+name: Validate Kotlin backend
+
+on:
+  pull_request:
+    paths:
+      - 'backend-kt/**'
+      - '.github/workflows/validate-backend-kt.yml'
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - 'backend-kt/**'
+      - '.github/workflows/validate-backend-kt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: Analysis
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew detektAll spotlessCheckAll
+        working-directory: backend-kt
+
+  tests:
+    name: Tests (${{ matrix.project.name }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: identity-gateway
+            directory: backend-kt/identity-gateway
+          - name: projects-service
+            directory: backend-kt/projects-service
+          - name: project-publisher
+            directory: backend-kt/project-publisher
+          - name: documentation-service
+            directory: backend-kt/documentation-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test
+        working-directory: ${{ matrix.project.directory }}
+
+  build:
+    name: Build (${{ matrix.project.name }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: identity-gateway
+            directory: backend-kt/identity-gateway
+          - name: projects-service
+            directory: backend-kt/projects-service
+          - name: project-publisher
+            directory: backend-kt/project-publisher
+          - name: documentation-service
+            directory: backend-kt/documentation-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build
+        working-directory: ${{ matrix.project.directory }}

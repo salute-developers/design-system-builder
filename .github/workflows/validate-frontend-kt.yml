@@ -1,0 +1,58 @@
+name: Validate Kotlin frontend
+
+on:
+  pull_request:
+    paths:
+      - 'frontend-kt/**'
+      - '.github/workflows/validate-frontend-kt.yml'
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - 'frontend-kt/**'
+      - '.github/workflows/validate-frontend-kt.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: Analysis
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew detektAll spotlessCheckAll
+        working-directory: frontend-kt
+
+  tests:
+    name: Tests
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test
+        working-directory: frontend-kt
+
+  build:
+    name: Build
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew build
+        working-directory: frontend-kt

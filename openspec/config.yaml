@@ -1,0 +1,163 @@
+schema: spec-driven
+
+context: |
+  Project: design-system-builder is the single repository of DS Builder. The Kotlin backend services,
+  the Kotlin Multiplatform frontend tooling and the JavaScript/TypeScript implementation live in one
+  tree; there is no second repository, and a change may touch all three parts at once.
+  DS Builder is a design-system builder. Product concepts include design tokens, themes, components,
+  versions, publication artifacts, build/publish pipelines, repository integrations, and package
+  registry integrations.
+
+  Repository structure:
+  - backend-kt/ is the Kotlin backend with its own Gradle composite build and its own AGENTS.md.
+  - backend-kt/identity-gateway/ is the authentication and authorization edge service.
+  - backend-kt/identity-gateway/app contains the Auth Helper Ktor application, configuration, DI, and
+    Docker files.
+  - backend-kt/identity-gateway/feature-auth contains JWT validation, user-scoped auth, project-scoped
+    auth, integration with Projects Service, and trusted-header generation.
+  - backend-kt/identity-gateway/gateway contains nginx configuration for the public gateway entrypoint.
+  - backend-kt/projects-service/ is the project-management microservice. Its application.yaml holds the
+    catalog of project access-key scopes in entity:action form.
+  - backend-kt/projects-service/app contains the Ktor application, configuration, DI bootstrap, and
+    Docker files.
+  - backend-kt/projects-service/feature-projects contains project and member management split into
+    presentation, application, domain, data, and di packages.
+  - backend-kt/projects-service/core contains shared infrastructure for the service.
+  - backend-kt/project-publisher/ is the current publishing microservice.
+  - backend-kt/project-publisher/app contains the Ktor application, configuration, DI, HTTP/WebSocket
+    routing, and runtime/Docker files.
+  - backend-kt/project-publisher/feature-publish contains the publish feature split into presentation,
+    application, domain, data, and di packages.
+  - backend-kt/project-publisher/core contains shared infrastructure for the service.
+  - backend-kt/documentation-service/ is the documentation microservice. It reads the JS db-service.
+  - backend-kt/preview/ contains the component preview contract and its tooling.
+  - backend-kt/scripts/ contains operational scripts; import-uikit-api-meta.sh is the only writer of
+    the global component layer in db-service.
+  - backend-kt/build-system/ is an included composite build with Gradle convention plugins,
+    Detekt/Spotless configuration, and custom Detekt rules.
+  - backend-kt/gradle/libs.versions.toml is the shared version catalog of the backend build.
+  - frontend-kt/ is the Kotlin Multiplatform frontend tooling with its own Gradle build.
+  - frontend-kt/cli/ is the dsbuilder CLI, split into feature packages with presentation, application,
+    domain, data, and di. Additional rules live in frontend-kt/cli/AGENTS.md.
+  - frontend-kt/build-system/ holds the convention plugins of the frontend build.
+  - js/ is the JavaScript/TypeScript implementation. Conventions and gotchas live in js/CLAUDE.md.
+  - js/services/db-service is the source of truth of the design-system and component configuration
+    model: src/db/schema.ts is authoritative, drizzle/ holds migrations, src/routes/api/ the Express
+    routers, src/openapi/spec.ts the OpenAPI description.
+  - js/services/generator, js/services/publisher and js/services/documentation-generator are the
+    remaining Node.js services.
+  - js/apps/client and js/apps/admin are the React/Vite applications; js/apps/admin/src/api is
+    generated from the OpenAPI spec.
+  - js/docs/db-schema.dbml is a hand-maintained mirror of the DB schema; drizzle does not generate it.
+  - openspec/ holds ADRs and spec-driven artifacts for the whole product, across all three parts.
+
+  Tech stack:
+  - Kotlin 2.2.x on the JVM, Gradle Kotlin DSL, composite builds.
+  - Ktor 3.3.x for HTTP/WebSocket services and kotlinx.serialization for JSON.
+  - Koin 4.1.x for dependency injection.
+  - Exposed 1.0.0-rc and PostgreSQL JDBC for persistence in the Kotlin services.
+  - Logback for logging.
+  - kotlin.test/JUnit and Ktor test host for tests.
+  - Detekt and Spotless/ktlint are configured by build-system conventions.
+  - Kotlin Multiplatform with jvm and macos targets for the CLI.
+  - Node.js with TypeScript, Express and Drizzle ORM over PostgreSQL in db-service, Fastify in
+    generator, NestJS in documentation-generator, React 18 with Vite in the apps.
+  - ESLint and Prettier for the JS part. There is no npm workspace: every app and service carries its
+    own package.json and node_modules.
+  - js/services/db-service currently has no test runner. Adding tests there means standing one up in
+    the same change, as an explicit task.
+
+  Architecture conventions:
+  - Preserve boundaries in Kotlin code: presentation -> application -> domain. Infrastructure
+    implementations live in data, and dependency wiring lives in di.
+  - Do not leak Ktor, Exposed, Docker, concrete database APIs, or external SDK types into domain or
+    application unless there is an explicit architectural reason.
+  - Express new business behavior first as domain models, use cases, and application port interfaces.
+    Add data/presentation implementations separately.
+  - Prefer explicit DTO/request/response models at API boundaries. Do not serialize domain entities
+    or persistence entities directly.
+  - Keep package names under com.dsbuilder.
+  - For new microservices, follow the existing service shape: separate included build or modular
+    structure with app and feature-* modules, adding core only when shared infrastructure actually
+    appears.
+  - Before large Gradle or static-analysis changes, inspect build-system conventions.
+  - In db-service, schema.ts is the source of truth. Schema changes go through a new drizzle migration;
+    existing migrations are never rewritten once other changes depend on them.
+  - Changes crossing the Kotlin and JS parts must name both sides in the same change: the CLI or
+    service that calls, and the db-service endpoint, schema and migration that answer.
+
+  Development conventions:
+  - Use existing Gradle convention plugins where possible: convention.core-module,
+    convention.feature-module, convention.root-project, convention.detekt, and convention.spotless.
+  - Keep formatting/static analysis compatible with build-system. Spotless uses spaces, trims
+    trailing whitespace, requires final newlines, and ktlint max_line_length is 120.
+  - Add tests next to changed logic, especially for use cases, mappers, repositories, and local
+    sources.
+  - Write KDoc for public classes, functions, and properties in Russian. Keep identifiers, endpoint
+    paths, config keys, and established technical terms in English where needed.
+  - Configuration should come from environment variables or application config. Never commit secrets,
+    local tokens, real credentials, or private URLs.
+  - backend-kt build command: cd backend-kt && ./gradlew build.
+  - backend-kt local run command: ./backend-kt/start-local.sh --detach.
+  - identity-gateway build command: cd backend-kt/identity-gateway && ./gradlew build.
+  - projects-service build command: cd backend-kt/projects-service && ./gradlew build.
+  - project-publisher build command: cd backend-kt/project-publisher && ./gradlew build.
+  - project-publisher run command: cd backend-kt/project-publisher && ./gradlew :app:run.
+  - build-system verification command after convention or Detekt-rule changes:
+    cd backend-kt/build-system && ./gradlew build.
+  - frontend-kt build command: cd frontend-kt && ./gradlew build.
+  - js build command: cd js && npm run build.
+  - js local run command: ./js/setup-docker.sh. It recreates the JS dev volumes, so local JS data is
+    reset by it.
+  - Whole local contour: ./setup-local.sh from the repository root, ./setup-local.sh --down to stop.
+  - After changing js/services/db-service/src/db/schema.ts or src/routes/api/, run npm run db:generate
+    for a new migration where the schema changed, then the /sync-all skill once, at the end of the
+    edits, and update js/docs/db-schema.dbml by hand.
+  - For every new production microservice, proposals/tasks must call out Dockerfile,
+  docker-compose/local runtime configuration, ports, env variables, and healthcheck.
+  - Include verification tasks for every part the change touches: Gradle build, detekt, spotlessCheck
+    and tests for backend-kt and frontend-kt; npm run build, /sync-all and migration run for js.
+  - If spotlessCheck fails only for changed files, run spotlessApply for the affected build and re-run checks.
+
+rules:
+  proposal:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Keep proposals concise and product-oriented. Explain why the change matters for DS Builder.
+    - List new or modified capabilities explicitly, using kebab-case capability names.
+    - "Call out affected services, modules, APIs, persistence, configuration, and dependencies
+      in every part the change touches: backend-kt, frontend-kt and js."
+  design:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Describe architecture and trade-offs, not line-by-line implementation.
+    - Include boundary decisions for presentation, application, domain, data, and di.
+    - Mention alternatives considered when introducing a new service, module, dependency, persistence
+      model, or security-sensitive behavior.
+  specs:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - Requirements must be testable and written with SHALL/MUST language.
+    - Each requirement must include at least one four-hash Scenario section.
+    - Specify API boundary behavior through DTO/request/response contracts, not domain entities.
+  tasks:
+    - Write all OpenSpec artifacts in Russian.
+    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
+      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
+    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
+      keys, and identifiers in English.
+    - 'Use parseable checkbox tasks only: "- [ ] X.Y Task description".'
+    - Order tasks by implementation dependency, from scaffold/configuration through domain,
+      application, data, presentation, tests, and verification.
+    - Include focused tests for use cases, mappers, repositories/local sources, Ktor routes and
+      Express routers when those areas are touched. Where the touched part has no test runner yet,
+      make standing it up an explicit task instead of assuming it exists.

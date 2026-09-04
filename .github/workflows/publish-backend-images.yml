@@ -1,0 +1,196 @@
+name: Publish backend images
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Required for master; for example release_1.4.0. Leave empty for dev.'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-backend-images-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Validate publication request
+    runs-on: ubuntu-22.04
+    outputs:
+      deployment_tag: ${{ steps.tags.outputs.deployment_tag }}
+      version_tag: ${{ steps.tags.outputs.version_tag }}
+      image_namespace: ${{ steps.tags.outputs.image_namespace }}
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - name: Validate branch and tag
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_TYPE" != "branch" ]]; then
+            echo "The workflow must be run for a branch, got: $GITHUB_REF_TYPE" >&2
+            exit 1
+          fi
+
+          image_namespace="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "image_namespace=$image_namespace" >> "$GITHUB_OUTPUT"
+
+          case "$GITHUB_REF_NAME" in
+            dev)
+              if [[ -n "$RELEASE_TAG" ]]; then
+                echo "release_tag must be empty for the dev branch" >&2
+                exit 1
+              fi
+              echo "deployment_tag=dev" >> "$GITHUB_OUTPUT"
+              echo "version_tag=" >> "$GITHUB_OUTPUT"
+              ;;
+            master)
+              if [[ ! "$RELEASE_TAG" =~ ^release_[A-Za-z0-9][A-Za-z0-9_.-]{0,119}$ ]]; then
+                echo "release_tag is required for master and must match release_*" >&2
+                exit 1
+              fi
+              echo "deployment_tag=release" >> "$GITHUB_OUTPUT"
+              echo "version_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Only dev and master branches may publish images" >&2
+              exit 1
+              ;;
+          esac
+
+  build-and-push:
+    name: Build and push ${{ matrix.image }}
+    needs: prepare
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: keycloak
+            context: backend-kt
+            file: backend-kt/identity-gateway/keycloak/Dockerfile
+          - image: keycloak-bootstrap
+            context: backend-kt
+            file: backend-kt/identity-gateway/keycloak/Dockerfile.bootstrap
+          - image: gateway
+            context: backend-kt
+            file: backend-kt/identity-gateway/gateway/Dockerfile
+          - image: auth-helper
+            context: backend-kt
+            file: backend-kt/identity-gateway/app/Dockerfile
+          - image: projects-service
+            context: backend-kt
+            file: backend-kt/projects-service/app/Dockerfile
+          - image: documentation-service
+            context: backend-kt
+            file: backend-kt/documentation-service/app/Dockerfile
+          - image: db-service
+            context: js/services/db-service
+            file: js/services/db-service/Dockerfile
+          - image: generator
+            context: js/services/generator
+            file: js/services/generator/Dockerfile
+          - image: publisher
+            context: js/services/publisher
+            file: js/services/publisher/Dockerfile
+          - image: documentation-generator
+            context: js/services/documentation-generator
+            file: js/services/documentation-generator/Dockerfile
+    env:
+      IMAGE_REF: ghcr.io/${{ needs.prepare.outputs.image_namespace }}/${{ matrix.image }}
+      DEPLOYMENT_TAG: ${{ needs.prepare.outputs.deployment_tag }}
+      VERSION_TAG: ${{ needs.prepare.outputs.version_tag }}
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare image tags
+        id: image-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'tags<<EOF'
+            echo "$IMAGE_REF:$DEPLOYMENT_TAG"
+            if [[ -n "$VERSION_TAG" ]]; then
+              echo "$IMAGE_REF:$VERSION_TAG"
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Add image digest to summary
+        env:
+          SUMMARY_IMAGE: ${{ matrix.image }}
+          SUMMARY_DIGEST: ${{ steps.build.outputs.digest }}
+        shell: bash
+        run: printf "%s \`%s\`\n" "$SUMMARY_IMAGE" "$SUMMARY_DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to Coolify
+    needs:
+      - prepare
+      - build-and-push
+    runs-on: ubuntu-22.04
+    env:
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_DEV_WEBHOOK: ${{ secrets.COOLIFY_DEV_WEBHOOK }}
+      COOLIFY_PROD_WEBHOOK: ${{ secrets.COOLIFY_PROD_WEBHOOK }}
+    steps:
+      - name: Queue Coolify deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_NAME" == "dev" ]]; then
+            webhook="$COOLIFY_DEV_WEBHOOK"
+          else
+            webhook="$COOLIFY_PROD_WEBHOOK"
+          fi
+
+          if [[ -z "$webhook" || -z "$COOLIFY_TOKEN" ]]; then
+            echo "The Coolify webhook and COOLIFY_TOKEN must be configured" >&2
+            exit 1
+          fi
+
+          if [[ ! "$webhook" =~ (\?|\&)force=false(\&|$) ]]; then
+            echo "The Coolify webhook URL must contain force=false" >&2
+            exit 1
+          fi
+
+          curl --fail-with-body \
+            --silent \
+            --show-error \
+            --request GET \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$webhook"

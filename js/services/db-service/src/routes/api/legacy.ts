@@ -1,0 +1,2034 @@
+import { Router } from "express";
+import archiver from "archiver";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { db } from "../../db/index";
+import {
+  designSystems,
+  designSystemComponents,
+  designSystemVersions,
+  tokens,
+  tokenValues,
+  palette,
+  appearances,
+  appearanceVariations,
+  appearanceVariationValues,
+  variations,
+  properties,
+  propertyPlatformParams,
+  propertyVariations,
+  styles,
+  invariantPropertyValues,
+  variationPropertyValues,
+  tenants,
+  components,
+  variationPlatformParamAdjustments,
+  invariantPlatformParamAdjustments,
+  states,
+  stateSets,
+} from "../../db/schema";
+import { assertFound, designSystemBelongsToScope, getProjectId, tryCatch } from "./utils";
+
+
+/**
+ * Строка-сентинел пустого набора. Идентификатор детерминирован миграцией — ровно затем,
+ * чтобы код мог ссылаться на базовое значение без обращения к справочнику.
+ */
+const SENTINEL_STATE_SET_ID = "00000000-0000-4000-8000-0000000000ff";
+
+/**
+ * Имена состояний набора, отсортированные.
+ *
+ * Наружу набор уходит списком имён — legacy-формат этого требует, — а хранится ссылкой.
+ * Сортировка нужна потому, что имена берутся джойном, а у него без ORDER BY порядок
+ * не определён.
+ */
+const loadStateNames = async (setIds: string[]): Promise<Map<string, string[]>> => {
+  const byId = new Map<string, string[]>();
+  if (setIds.length === 0) return byId;
+
+  const rows = await db
+    .select({ setId: stateSets.id, name: states.name })
+    .from(stateSets)
+    .innerJoin(states, sql`${states.id} = ANY(${stateSets.stateIds})`)
+    .where(inArray(stateSets.id, setIds));
+
+  for (const row of rows) {
+    const names = byId.get(row.setId) ?? [];
+    names.push(row.name);
+    byId.set(row.setId, names);
+  }
+  for (const names of byId.values()) names.sort();
+  return byId;
+};
+
+/**
+ * Разрешает имена состояний в идентификатор набора.
+ *
+ * Имя компонентного состояния ищется **только** среди состояний своего компонента: имя
+ * уникально лишь внутри компонента, и запрос по одному имени вернул бы чужое состояние.
+ * Пустой список даёт строку-сентинел, то есть базовое значение.
+ *
+ * Канонизацию массива, проверку элементов и вычисление владельца делает триггер на таблице,
+ * поэтому здесь они не дублируются.
+ */
+const resolveStateSetId = async (
+  componentId: string,
+  names: string[],
+): Promise<string | null> => {
+  const ids: string[] = [];
+
+  for (const name of names) {
+    const [own] = await db
+      .select({ id: states.id })
+      .from(states)
+      .where(and(eq(states.componentId, componentId), eq(states.name, name)));
+    if (own) {
+      ids.push(own.id);
+      continue;
+    }
+
+    const [interaction] = await db
+      .select({ id: states.id })
+      .from(states)
+      .where(and(isNull(states.componentId), eq(states.name, name)));
+    if (!interaction) return null;
+    ids.push(interaction.id);
+  }
+
+  const canonical = [...new Set(ids)].sort();
+  const literal = sql.raw(`'{${canonical.join(",")}}'::uuid[]`);
+
+  const [existing] = await db
+    .select({ id: stateSets.id })
+    .from(stateSets)
+    .where(sql`${stateSets.stateIds} = ${literal}`);
+  if (existing) return existing.id;
+
+  const [created] = await db
+    .insert(stateSets)
+    .values({ stateIds: canonical })
+    .returning({ id: stateSets.id });
+  return created.id;
+};
+
+const router = Router();
+
+// GET /legacy/design-systems/:name/component-configs
+router.get("/:name/component-configs", (req, res) =>
+  tryCatch(res, async () => {
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const dsId = ds.id;
+
+    const dscRows = await db.query.designSystemComponents.findMany({
+      where: eq(designSystemComponents.designSystemId, dsId),
+      with: { component: true },
+    });
+    const componentList = dscRows.map((r) => r.component);
+    const componentIds = componentList.map((c) => c.id);
+
+    if (componentIds.length === 0) { res.json([]); return; }
+
+    const [variationRows, propertyRows, appearanceRows] = await Promise.all([
+      db.select().from(variations).where(inArray(variations.componentId, componentIds)),
+      db.select().from(properties).where(inArray(properties.componentId, componentIds)),
+      db.select().from(appearances).where(
+        and(
+          eq(appearances.designSystemId, dsId),
+          inArray(appearances.componentId, componentIds),
+        ),
+      ),
+    ]);
+
+    const propertyIds = propertyRows.map((p) => p.id);
+    const pppRows = propertyIds.length > 0
+      ? await db.select().from(propertyPlatformParams).where(inArray(propertyPlatformParams.propertyId, propertyIds))
+      : [];
+
+    // Build platformParams-like lookup: propertyId -> { xml: string[], compose: string[], ios: string[], web: string[] }
+    const platformParamsByPropertyId = new Map<string, Record<string, string[]>>();
+    for (const ppp of pppRows) {
+      if (!platformParamsByPropertyId.has(ppp.propertyId)) {
+        platformParamsByPropertyId.set(ppp.propertyId, {});
+      }
+      const map = platformParamsByPropertyId.get(ppp.propertyId)!;
+      if (!map[ppp.platform]) map[ppp.platform] = [];
+      map[ppp.platform].push(ppp.name);
+    }
+
+    const variationIds = variationRows.map((v) => v.id);
+    const appearanceIds = appearanceRows.map((a) => a.id);
+
+    const [pvRows, styleRows, ipvRows] = await Promise.all([
+      variationIds.length > 0
+        ? db.select().from(propertyVariations).where(inArray(propertyVariations.variationId, variationIds))
+        : Promise.resolve([]),
+      variationIds.length > 0
+        ? db.select().from(styles).where(
+            and(eq(styles.designSystemId, dsId), inArray(styles.variationId, variationIds)),
+          )
+        : Promise.resolve([]),
+      componentIds.length > 0
+        ? db.select().from(invariantPropertyValues).where(
+            and(
+              eq(invariantPropertyValues.designSystemId, dsId),
+              inArray(invariantPropertyValues.componentId, componentIds),
+              eq(invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
+            ),
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const styleIds = styleRows.map((s) => s.id);
+
+    const vpvRows =
+      styleIds.length > 0 && appearanceIds.length > 0
+        ? await db.select().from(variationPropertyValues).where(
+            and(
+              inArray(variationPropertyValues.styleId, styleIds),
+              inArray(variationPropertyValues.appearanceId, appearanceIds),
+            ),
+          )
+        : [];
+
+    // ── Adjustments (корректировки платформенных параметров) ──────────────────
+    const vpvIds = vpvRows.map((r) => r.id);
+    const ipvIds = ipvRows.map((r) => r.id);
+    const [vpvAdjRows, ipvAdjRows] = await Promise.all([
+      vpvIds.length > 0
+        ? db.select().from(variationPlatformParamAdjustments).where(
+            inArray(variationPlatformParamAdjustments.vpvId, vpvIds),
+          )
+        : Promise.resolve([] as (typeof variationPlatformParamAdjustments.$inferSelect)[]),
+      ipvIds.length > 0
+        ? db.select().from(invariantPlatformParamAdjustments).where(
+            inArray(invariantPlatformParamAdjustments.ipvId, ipvIds),
+          )
+        : Promise.resolve([] as (typeof invariantPlatformParamAdjustments.$inferSelect)[]),
+    ]);
+
+    // Collect all tokenIds from vpv + ipv to resolve token names for rows where value IS NULL
+    const referencedTokenIds = [
+      ...new Set([
+        ...vpvRows.map((r) => r.tokenId).filter(Boolean),
+        ...ipvRows.map((r) => r.tokenId).filter(Boolean),
+      ] as string[]),
+    ];
+    const tokenNameById = referencedTokenIds.length > 0
+      ? new Map(
+          (await db.select({ id: tokens.id, name: tokens.name }).from(tokens).where(inArray(tokens.id, referencedTokenIds)))
+            .map((t) => [t.id, t.name]),
+        )
+      : new Map<string, string>();
+
+    const stripScreenPrefix = (v: string) => v.replace(/^screen-\w+\./, "");
+
+    const resolveValue = (
+      value: string | null,
+      tokenId: string | null,
+      propType?: string | null,
+    ): string | null => {
+      const resolved = value ?? (tokenId ? (tokenNameById.get(tokenId) ?? null) : null);
+      if (resolved && propType === "typography") return stripScreenPrefix(resolved);
+      return resolved;
+    };
+
+    // Шаблоны web-параметров (свойство-уровневые): platformParamId -> template
+    const templateByPppId = new Map<string, string>();
+    for (const a of [...vpvAdjRows, ...ipvAdjRows]) {
+      if (a.template && !templateByPppId.has(a.platformParamId)) {
+        templateByPppId.set(a.platformParamId, a.template);
+      }
+    }
+
+    // Пер-значенческие офсеты: id строки ipv/vpv -> adjustment. Строки-копии
+    // родительского значения (наследие старого импорта) не являются
+    // корректировками и отфильтровываются. Legacy-JSON несёт один скаляр на
+    // значение, поэтому при разных офсетах по платформам выбор детерминирован:
+    // приоритет у web (его потребляют генератор и превью), дальше xml/compose/ios.
+    const parentResolved = (row: { value: string | null; tokenId: string | null }) =>
+      row.value ?? (row.tokenId ? (tokenNameById.get(row.tokenId) ?? null) : null);
+    const vpvRowById = new Map(vpvRows.map((r) => [r.id, r]));
+    const ipvRowById = new Map(ipvRows.map((r) => [r.id, r]));
+    const pppPlatformById = new Map(pppRows.map((p) => [p.id, p.platform]));
+    const ADJ_PLATFORM_PRIORITY: Record<string, number> = { web: 0, xml: 1, compose: 2, ios: 3 };
+    const adjustmentPickByValueRowId = new Map<string, { value: string; prio: number }>();
+    const considerAdjustment = (
+      valueRowId: string,
+      a: { platformParamId: string; value: string | null },
+      parent: { value: string | null; tokenId: string | null } | undefined,
+    ) => {
+      if (a.value == null) return;
+      // Офсет по контракту потребителей — число (shape.ts делает Number(adjustment)).
+      // Нечисловые значения — это либо копии значений от старого импорта, либо
+      // платформо-специфичные строки (dp, имена шейпов), которым в web-CSS не место.
+      if (a.value.trim() === "" || !Number.isFinite(Number(a.value))) return;
+      if (!parent || a.value === parentResolved(parent)) return;
+      const platform = pppPlatformById.get(a.platformParamId) ?? "";
+      const prio = ADJ_PLATFORM_PRIORITY[platform] ?? 9;
+      const current = adjustmentPickByValueRowId.get(valueRowId);
+      if (!current || prio < current.prio) {
+        adjustmentPickByValueRowId.set(valueRowId, { value: a.value, prio });
+      }
+    };
+    for (const a of vpvAdjRows) considerAdjustment(a.vpvId, a, vpvRowById.get(a.vpvId));
+    for (const a of ipvAdjRows) considerAdjustment(a.ipvId, a, ipvRowById.get(a.ipvId));
+    const adjustmentByValueRowId = new Map(
+      [...adjustmentPickByValueRowId].map(([id, pick]) => [id, pick.value]),
+    );
+
+    const webPppIdByPropAndName = new Map<string, string>();
+    for (const ppp of pppRows) {
+      if (ppp.platform === "web") {
+        webPppIdByPropAndName.set(`${ppp.propertyId}::${ppp.name}`, ppp.id);
+      }
+    }
+
+    // ── Lookup maps ────────────────────────────────────────────────────────────
+    function groupBy<T>(arr: T[], key: (item: T) => string): Map<string, T[]> {
+      const map = new Map<string, T[]>();
+      for (const item of arr) {
+        const k = key(item);
+        if (!map.has(k)) map.set(k, []);
+        map.get(k)!.push(item);
+      }
+      return map;
+    }
+
+    const propById = new Map(propertyRows.map((p) => [p.id, p]));
+    const variationsByComponentId = groupBy(variationRows, (v) => v.componentId);
+    const propertiesByComponentId = groupBy(propertyRows, (p) => p.componentId!);
+    const pvByVariationId = groupBy(pvRows, (pv) => pv.variationId);
+    const pvByPropertyId = groupBy(pvRows, (pv) => pv.propertyId);
+    const appearancesByComponentId = groupBy(appearanceRows, (a) => a.componentId);
+    const stylesByVariationId = groupBy(styleRows, (s) => s.variationId);
+
+    // Дефолт оси принадлежит паре (appearance, ось): два стиля одного компонента в одной
+    // ДС могут требовать разного дефолта одной оси, чего флаг `styles.is_default`,
+    // уникальный по (ДС, ось), выразить не мог.
+    const appearanceVariationRows = appearanceRows.length
+      ? await db
+          .select({
+            appearanceId: appearanceVariations.appearanceId,
+            variationId: appearanceVariations.variationId,
+            defaultStyleId: appearanceVariations.defaultStyleId,
+          })
+          .from(appearanceVariations)
+          .where(
+            inArray(
+              appearanceVariations.appearanceId,
+              appearanceRows.map((a) => a.id),
+            ),
+          )
+      : [];
+    const defaultStyleByAppearanceVariation = new Map(
+      appearanceVariationRows
+        .filter((row) => row.defaultStyleId)
+        .map((row) => [`${row.appearanceId}:${row.variationId}`, row.defaultStyleId!]),
+    );
+    const ipvByComponentId = groupBy(ipvRows, (ipv) => ipv.componentId);
+    const ipvByComponentAppearance = groupBy(
+      ipvRows,
+      (ipv) => `${ipv.componentId}::${ipv.appearanceId}`,
+    );
+    const vpvByStyleAppearance = groupBy(
+      vpvRows,
+      (vpv) => `${vpv.styleId}::${vpv.appearanceId}`,
+    );
+
+    // Набор хранится ссылкой, а legacy-формат ждёт список имён. Имена собираются одним
+    // запросом на всю выгрузку: конфигурация строится синхронно и дозапросить их некуда.
+    const stateNamesBySetId = await loadStateNames([
+      ...new Set(vpvRows.map((vpv) => vpv.stateSetId)),
+    ]);
+    const stateNamesOf = (setId: string): string[] => stateNamesBySetId.get(setId) ?? [];
+
+    function getPlatformParam(propertyId: string, key: string): string {
+      const params = platformParamsByPropertyId.get(propertyId);
+      if (!params) return "";
+      const arr = params[key];
+      return arr?.[0] ?? "";
+    }
+
+    function buildWebMappings(
+      propertyId: string,
+    ): { name: string; adjustment: string | null }[] | null {
+      const params = platformParamsByPropertyId.get(propertyId);
+      const web = params?.web;
+      if (!web || web.length === 0) return null;
+
+      return web.map((name) => ({
+        name,
+        adjustment:
+          templateByPppId.get(webPppIdByPropAndName.get(`${propertyId}::${name}`) ?? "") ?? null,
+      }));
+    }
+
+    function hasAnyPlatformParam(propertyId: string): boolean {
+      const params = platformParamsByPropertyId.get(propertyId);
+      if (!params) return false;
+      return Object.keys(params).length > 0;
+    }
+
+    const result = componentList.map((component) => {
+      const compVariations = variationsByComponentId.get(component.id) ?? [];
+      const compProperties = propertiesByComponentId.get(component.id) ?? [];
+      const compAppearances = appearancesByComponentId.get(component.id) ?? [];
+
+      // outer props: ipvs where tokenId IS NULL, deduplicated by propertyId
+      const seenPropIds = new Set<string>();
+      const outerProps = (ipvByComponentId.get(component.id) ?? [])
+        .filter((ipv) => ipv.tokenId === null && !seenPropIds.has(ipv.propertyId) && seenPropIds.add(ipv.propertyId))
+        .map((ipv) => ({
+          id: ipv.propertyId,
+          name: propById.get(ipv.propertyId)?.name ?? "",
+          value: ipv.value ?? "",
+          createdAt: ipv.createdAt,
+          updatedAt: ipv.updatedAt,
+        }));
+
+      // sources.api: properties with at least one platform param
+      const apiProperties = compProperties
+        .filter((p) => hasAnyPlatformParam(p.id))
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          description: p.description,
+          variations: (pvByPropertyId.get(p.id) ?? []).map((pv) => pv.variationId),
+          platformMappings: {
+            xml: getPlatformParam(p.id, "xml") || null,
+            compose: getPlatformParam(p.id, "compose") || null,
+            ios: getPlatformParam(p.id, "ios") || null,
+            web: buildWebMappings(p.id),
+          },
+          createdAt: p.createdAt,
+          updatedAt: p.updatedAt,
+        }));
+
+      // sources.variations: variations with their propertyVariations (tokenVariations)
+      const sourcesVariations = compVariations.map((variation) => ({
+        id: variation.id,
+        name: variation.name,
+        description: variation.description,
+        createdAt: variation.createdAt,
+        updatedAt: variation.updatedAt,
+        tokenVariations: (pvByVariationId.get(variation.id) ?? []).map((pv) => {
+          const prop = propById.get(pv.propertyId);
+          return {
+            id: pv.id,
+            tokenId: pv.propertyId,
+            token: prop
+              ? {
+                  id: prop.id,
+                  name: prop.name,
+                  type: prop.type,
+                  description: prop.description,
+                  defaultValue: prop.defaultValue ?? "",
+                  xmlParam: getPlatformParam(prop.id, "xml"),
+                  composeParam: getPlatformParam(prop.id, "compose"),
+                  iosParam: getPlatformParam(prop.id, "ios"),
+                  webParam: buildWebMappings(prop.id)?.[0]?.name ?? null,
+                }
+              : null,
+          };
+        }),
+      }));
+
+      // sources.configs: appearances with config
+      const sourcesConfigs = compAppearances.map((appearance) => {
+        // defaultVariations: дефолт принадлежит паре (appearance, ось), поэтому берётся
+        // из её объявления, а не из флага стиля, уникального по (ДС, ось).
+        const defaultVariations = compVariations.flatMap((variation) => {
+          const styleId = defaultStyleByAppearanceVariation.get(
+            `${appearance.id}:${variation.id}`,
+          );
+          return styleId ? [{ variationID: variation.id, styleID: styleId }] : [];
+        });
+
+        // invariantProps: ipvs for this appearance
+        const invariantProps = (
+          ipvByComponentAppearance.get(`${component.id}::${appearance.id}`) ?? []
+        ).map((ipv) => ({
+          id: ipv.propertyId,
+          value: resolveValue(ipv.value, ipv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+          ...(adjustmentByValueRowId.has(ipv.id)
+            ? { adjustment: adjustmentByValueRowId.get(ipv.id) }
+            : {}),
+        }));
+
+        // variations: each variation with its styles and vpvs
+        const variationsConfig = compVariations.map((variation) => {
+          const varStyles = stylesByVariationId.get(variation.id) ?? [];
+
+          const stylesConfig = varStyles.map((style) => {
+            const vpvs = vpvByStyleAppearance.get(`${style.id}::${appearance.id}`) ?? [];
+
+            // Group vpvs: base (state IS NULL) and states
+            const baseByPropId = new Map<string, (typeof vpvs)[0]>();
+            const statesByPropId = new Map<string, (typeof vpvs)[0][]>();
+            for (const vpv of vpvs) {
+              if (vpv.stateSetId === SENTINEL_STATE_SET_ID) {
+                baseByPropId.set(vpv.propertyId, vpv);
+              } else {
+                if (!statesByPropId.has(vpv.propertyId)) statesByPropId.set(vpv.propertyId, []);
+                statesByPropId.get(vpv.propertyId)!.push(vpv);
+              }
+            }
+
+            const allPropIds = new Set([...baseByPropId.keys(), ...statesByPropId.keys()]);
+            const props = [...allPropIds].map((propId) => {
+              const base = baseByPropId.get(propId);
+              return {
+                id: propId,
+                value: base ? resolveValue(base.value, base.tokenId, propById.get(propId)?.type) : null,
+                ...(base && adjustmentByValueRowId.has(base.id)
+                  ? { adjustment: adjustmentByValueRowId.get(base.id) }
+                  : {}),
+                states: (statesByPropId.get(propId) ?? []).map((sv) => ({
+                  state: stateNamesOf(sv.stateSetId),
+                  value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
+                })),
+              };
+            });
+
+            return {
+              name: style.name,
+              id: style.id,
+              intersections: null,
+              props,
+            };
+          });
+
+          return { id: variation.id, styles: stylesConfig };
+        });
+
+        return {
+          name: appearance.name ?? "default",
+          id: appearance.id,
+          config: {
+            defaultVariations,
+            invariantProps,
+            variations: variationsConfig,
+          },
+        };
+      });
+
+      return {
+        name: component.name,
+        description: component.description,
+        createdAt: component.createdAt,
+        updatedAt: component.updatedAt,
+        props: outerProps,
+        sources: {
+          api: apiProperties,
+          variations: sourcesVariations,
+          configs: sourcesConfigs,
+        },
+      };
+    });
+
+    res.json(result);
+  }),
+);
+
+// GET /legacy/design-systems/:name/theme-data
+router.get("/:name/theme-data", (req, res) =>
+  tryCatch(res, async () => {
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [latestVersion] = await db
+      .select({ version: designSystemVersions.version })
+      .from(designSystemVersions)
+      .where(eq(designSystemVersions.designSystemId, ds.id))
+      .orderBy(desc(designSystemVersions.publishedAt))
+      .limit(1);
+
+    const tokenRows = await db
+      .select()
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+
+    const tokenIds = tokenRows.map((t) => t.id);
+
+    const tokenValueRows =
+      tokenIds.length > 0
+        ? await db
+            .select({
+              tokenId: tokenValues.tokenId,
+              platform: tokenValues.platform,
+              mode: tokenValues.mode,
+              value: tokenValues.value,
+              paletteType: palette.type,
+              paletteShade: palette.shade,
+              paletteSaturation: palette.saturation,
+            })
+            .from(tokenValues)
+            .leftJoin(palette, eq(tokenValues.paletteId, palette.id))
+            .where(inArray(tokenValues.tokenId, tokenIds))
+        : [];
+
+    const tokenById = new Map(tokenRows.map((t) => [t.id, t]));
+
+    const extractUnique = (type: string, pos: number) => [
+      ...new Set(
+        tokenRows
+          .filter((t) => t.type === type)
+          .map((t) => t.name.split(".")[pos])
+          .filter(Boolean),
+      ),
+    ];
+
+    const extractMode = (tokenType: string) => [
+      ...new Set(
+        tokenValueRows
+          .filter(
+            (tv) =>
+              tv.tokenId != null &&
+              tv.mode != null &&
+              tokenById.get(tv.tokenId)?.type === tokenType,
+          )
+          .map((tv) => tv.mode as string),
+      ),
+    ];
+
+    const tokenModes = new Map<string, Set<string>>();
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.mode) continue;
+      if (!tokenModes.has(tv.tokenId)) tokenModes.set(tv.tokenId, new Set());
+      tokenModes.get(tv.tokenId)!.add(tv.mode);
+    }
+
+    const metaTokens = tokenRows.flatMap((t) => {
+      const modes = tokenModes.get(t.id);
+      if (modes && modes.size > 0) {
+        return [...modes].map((mode) => {
+          const fullName = `${mode}.${t.name}`;
+          return {
+            name: fullName,
+            tags: fullName.split("."),
+            type: t.type,
+            enabled: t.enabled,
+            description: t.description,
+            displayName: t.displayName,
+          };
+        });
+      }
+      return [
+        {
+          name: t.name,
+          tags: t.name.split("."),
+          type: t.type,
+          enabled: t.enabled,
+          description: t.description,
+          displayName: t.displayName,
+        },
+      ];
+    });
+
+    const meta = {
+      name: ds.name,
+      version: latestVersion?.version ?? null,
+      tokens: metaTokens,
+      color: {
+        mode: extractMode("color"),
+        category: extractUnique("color", 0),
+        subcategory: extractUnique("color", 1),
+      },
+      gradient: {
+        mode: extractMode("gradient"),
+        category: extractUnique("gradient", 0),
+        subcategory: extractUnique("gradient", 1),
+      },
+      shape: {
+        kind: extractUnique("shape", 0),
+        size: extractUnique("shape", 1),
+      },
+      shadow: {
+        direction: extractUnique("shadow", 0),
+        kind: extractUnique("shadow", 1),
+        size: extractUnique("shadow", 2),
+      },
+      spacing: {
+        kind: extractUnique("spacing", 0),
+        size: extractUnique("spacing", 1),
+      },
+      typography: {
+        screen: extractUnique("typography", 0),
+        kind: extractUnique("typography", 1),
+        size: extractUnique("typography", 2),
+        weight: extractUnique("typography", 3),
+      },
+      fontFamily: {
+        kind: extractUnique("fontFamily", 0),
+      },
+    };
+
+    const variations: Record<string, Record<string, Record<string, unknown>>> =
+      {};
+
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.platform) continue;
+      const token = tokenById.get(tv.tokenId);
+      if (!token?.type) continue;
+
+      let value: unknown;
+      if (tv.paletteType != null) {
+        value = `[${tv.paletteType}.${tv.paletteShade}.${tv.paletteSaturation}]`;
+      } else if (token.type === "shadow" || token.type === "gradient") {
+        value = tv.value;
+      } else {
+        value = Array.isArray(tv.value) ? tv.value[0] : tv.value;
+      }
+
+      const key = tv.mode != null ? `${tv.mode}.${token.name}` : token.name;
+
+      variations[token.type] ??= {};
+      variations[token.type][tv.platform] ??= {};
+      variations[token.type][tv.platform][key] = value;
+    }
+
+    res.json({ meta, variations });
+  }),
+);
+
+// GET /legacy/design-systems/:name/tenant-params
+router.get("/:name/tenant-params", (req, res) =>
+  tryCatch(res, async () => {
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
+
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.designSystemId, ds.id))
+      .limit(1);
+
+    if (!assertFound(tenant, res)) return;
+
+    const cfg = tenant.colorConfig ?? {};
+
+    res.json({
+      projectName: ds.projectName,
+      packagesName: ds.name,
+      grayTone: cfg.grayTone ?? null,
+      accentColor: cfg.accentColor ?? null,
+      lightStrokeSaturation: cfg.light?.strokeSaturation ?? null,
+      lightFillSaturation: cfg.light?.fillSaturation ?? null,
+      darkStrokeSaturation: cfg.dark?.strokeSaturation ?? null,
+      darkFillSaturation: cfg.dark?.fillSaturation ?? null,
+    });
+  }),
+);
+
+// POST /legacy/design-systems/create
+// Создаёт дизайн-систему на основе legacy JSON-структуры
+router.post("/create", (req, res) =>
+  tryCatch(res, async () => {
+    const body = req.body as LegacyImportBody;
+
+    const projectId = getProjectId(req);
+
+    const { name, version, parameters, themeData, componentsData } = body;
+
+    const projectName = parameters.projectName ?? name;
+    const packagesName = parameters.packagesName ?? name;
+
+    // ── 1. Design system ────────────────────────────────────────────────────
+    const [ds] = await db
+      .insert(designSystems)
+      .values({ name: packagesName, projectName, projectId })
+      .returning();
+
+    // ── 2. Tenant ────────────────────────────────────────────────────────────
+    const tenantName = `${name}_default`;
+    const colorConfig: {
+      grayTone?: string;
+      accentColor?: string;
+      light?: { strokeSaturation: number; fillSaturation: number };
+      dark?: { strokeSaturation: number; fillSaturation: number };
+    } = {};
+    if (parameters.grayTone) colorConfig.grayTone = parameters.grayTone;
+    if (parameters.accentColor) colorConfig.accentColor = parameters.accentColor;
+    if (parameters.lightStrokeSaturation !== undefined && parameters.lightFillSaturation !== undefined) {
+      colorConfig.light = {
+        strokeSaturation: parameters.lightStrokeSaturation,
+        fillSaturation: parameters.lightFillSaturation,
+      };
+    }
+    if (parameters.darkStrokeSaturation !== undefined && parameters.darkFillSaturation !== undefined) {
+      colorConfig.dark = {
+        strokeSaturation: parameters.darkStrokeSaturation,
+        fillSaturation: parameters.darkFillSaturation,
+      };
+    }
+    const [tenant] = await db
+      .insert(tenants)
+      .values({
+        designSystemId: ds.id,
+        name: tenantName,
+        colorConfig,
+      })
+      .returning();
+
+    // ── 3. Tokens + token_values ─────────────────────────────────────────────
+    if (themeData?.meta?.tokens?.length) {
+      const stripMode = (name: string) =>
+        name.startsWith("dark.") || name.startsWith("light.")
+          ? name.slice(name.indexOf(".") + 1)
+          : name;
+
+      // Deduplicate tokens by stripped name (dark./light. prefix → mode)
+      const tokenMap = new Map<string, LegacyToken>();
+      for (const t of themeData.meta.tokens) {
+        const strippedName = stripMode(t.name);
+        if (!tokenMap.has(strippedName)) {
+          tokenMap.set(strippedName, t);
+        }
+      }
+
+      const tokenInserts = [...tokenMap.entries()].map(([strippedName, t]) => ({
+        designSystemId: ds.id,
+        name: strippedName,
+        type: t.type as any,
+        displayName: t.displayName ?? null,
+        description: t.description ?? null,
+        enabled: t.enabled ?? true,
+      }));
+      const insertedTokens = await db.insert(tokens).values(tokenInserts).returning();
+      const tokenByName = new Map(insertedTokens.map((t) => [t.name, t]));
+
+      // token_values: variations[type][platform][tokenName] = value
+      const tvInserts: {
+        tokenId: string;
+        tenantId: string;
+        platform: "web" | "android" | "ios";
+        mode: "light" | "dark" | null;
+        value: any;
+      }[] = [];
+
+      const vars = themeData.variations ?? {};
+      for (const [_tokenType, platformMap] of Object.entries(vars as Record<string, Record<string, Record<string, unknown>>>)) {
+        for (const [platform, tokenMap] of Object.entries(platformMap)) {
+          for (const [tokenKey, rawValue] of Object.entries(tokenMap)) {
+            // tokenKey может быть "dark.text.default.primary" или "text.default.primary"
+            // Ищем токен по имени без префикса режима
+            let mode: "light" | "dark" | null = null;
+            let tokenName = tokenKey;
+            if (tokenKey.startsWith("dark.") || tokenKey.startsWith("light.")) {
+              const dotIdx = tokenKey.indexOf(".");
+              mode = tokenKey.slice(0, dotIdx) as "light" | "dark";
+              tokenName = tokenKey.slice(dotIdx + 1);
+            }
+
+            const token = tokenByName.get(tokenName);
+            if (!token) continue;
+
+            // Определяем value
+            let value: any;
+            if (
+              typeof rawValue === "string" &&
+              rawValue.startsWith("[") &&
+              rawValue.endsWith("]")
+            ) {
+              // palette ref — храним как есть в jsonb
+              value = [rawValue];
+            } else if (Array.isArray(rawValue)) {
+              value = rawValue;
+            } else {
+              value = [rawValue];
+            }
+
+            tvInserts.push({
+              tokenId: token.id,
+              tenantId: tenant.id,
+              platform: platform as "web" | "android" | "ios",
+              mode,
+              value,
+            });
+          }
+        }
+      }
+
+      if (tvInserts.length > 0) {
+        await db.insert(tokenValues).values(tvInserts);
+      }
+    }
+
+    // ── 4. Design system version ─────────────────────────────────────────────
+    if (version) {
+      await db.insert(designSystemVersions).values({
+        designSystemId: ds.id,
+        version,
+        snapshot: body as any,
+        publicationStatus: "published",
+      });
+    }
+
+    // ── 5. Components data ────────────────────────────────────────────────────
+    if (!componentsData?.length) {
+      res.status(201).json({ id: ds.id });
+      return;
+    }
+
+    // Токены ДС (вставлены на шаге 3) — для перевода строковых значений-ссылок в tokenId
+    const dsTokens = await db
+      .select({ id: tokens.id, name: tokens.name })
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+    const tokenIdByName = new Map(dsTokens.map((t) => [t.name, t.id]));
+
+    // Загружаем компоненты по имени
+    const compNames = componentsData.map((c: LegacyComponent) => c.name);
+    const existingComponents = await db
+      .select()
+      .from(components)
+      .where(inArray(components.name, compNames));
+    const componentByName = new Map(existingComponents.map((c) => [c.name, c]));
+
+    // Загружаем variations для этих компонентов
+    const compIds = existingComponents.map((c) => c.id);
+    const [allVariations, allProperties] = compIds.length > 0
+      ? await Promise.all([
+          db.select().from(variations).where(inArray(variations.componentId, compIds)),
+          db.select().from(properties).where(inArray(properties.componentId, compIds)),
+        ])
+      : [[], []];
+
+    // variation по componentId+name
+    const variationByCompAndName = new Map<string, typeof allVariations[0]>();
+    for (const v of allVariations) {
+      variationByCompAndName.set(`${v.componentId}::${v.name}`, v);
+    }
+
+    // property по componentId+name+type
+    const propertyByCompNameType = new Map<string, typeof allProperties[0]>();
+    for (const p of allProperties) {
+      propertyByCompNameType.set(`${p.componentId}::${p.name}::${p.type}`, p);
+    }
+
+    // property_platform_params: propertyId -> platform -> name -> ppp row
+    const allPropIds = allProperties.map((p) => p.id);
+    const allPPP = allPropIds.length > 0
+      ? await db.select().from(propertyPlatformParams).where(inArray(propertyPlatformParams.propertyId, allPropIds))
+      : [];
+    // ppp по propertyId+platform+name
+    const pppByKey = new Map<string, typeof allPPP[0]>();
+    for (const ppp of allPPP) {
+      pppByKey.set(`${ppp.propertyId}::${ppp.platform}::${ppp.name}`, ppp);
+    }
+
+    for (const compData of componentsData as LegacyComponent[]) {
+      const component = componentByName.get(compData.name);
+      if (!component) continue;
+
+      // Линкуем компонент к ДС
+      await db
+        .insert(designSystemComponents)
+        .values({ designSystemId: ds.id, componentId: component.id })
+        .onConflictDoNothing();
+
+      const { sources } = compData;
+      if (!sources) continue;
+
+      // Строим маппинг jsonId -> { dbProperty, platformParams }
+      // jsonId — UUID из JSON (не БД)
+      type ApiPropInfo = {
+        dbProp: typeof allProperties[0] | undefined;
+        platformMappings: {
+          xml: string | null;
+          compose: string | null;
+          ios: string | null;
+          web: { name: string; adjustment: string | null }[] | null;
+        };
+      };
+      const apiPropById = new Map<string, ApiPropInfo>();
+      for (const apiProp of (sources.api ?? []) as LegacyApiProp[]) {
+        const dbProp = propertyByCompNameType.get(
+          `${component.id}::${apiProp.name}::${apiProp.type}`,
+        );
+        apiPropById.set(apiProp.id, {
+          dbProp,
+          platformMappings: {
+            xml: typeof apiProp.platformMappings?.xml === "string"
+              ? apiProp.platformMappings.xml
+              : null,
+            compose: typeof apiProp.platformMappings?.compose === "string"
+              ? apiProp.platformMappings.compose
+              : null,
+            ios: typeof apiProp.platformMappings?.ios === "string"
+              ? apiProp.platformMappings.ios
+              : null,
+            web: Array.isArray(apiProp.platformMappings?.web)
+              ? apiProp.platformMappings.web
+              : null,
+          },
+        });
+      }
+
+      // Строим маппинг jsonVariationId -> dbVariation
+      const jsonVarToDbVar = new Map<string, typeof allVariations[0]>();
+      for (const srcVar of (sources.variations ?? []) as LegacySrcVariation[]) {
+        const dbVar = variationByCompAndName.get(`${component.id}::${srcVar.name}`);
+        if (dbVar) jsonVarToDbVar.set(srcVar.id, dbVar);
+      }
+
+      // Стили создаются один раз per компонент (не per appearance).
+      // Берём первый config для определения defaultVariations и styles.
+      const firstConfig = (sources.configs ?? [])[0] as LegacyConfig | undefined;
+      const jsonStyleToDbStyle = new Map<string, typeof styles.$inferSelect>();
+
+      if (firstConfig) {
+        const defaultStyleByJsonVarId = new Map<string, string>();
+        for (const dv of firstConfig.config.defaultVariations ?? []) {
+          defaultStyleByJsonVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const varCfg of firstConfig.config.variations ?? []) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+          for (const styleCfg of varCfg.styles ?? []) {
+            const [dbStyle] = await db
+              .insert(styles)
+              .values({
+                designSystemId: ds.id,
+                variationId: dbVar.id,
+                name: styleCfg.name,
+              })
+              .returning();
+            jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
+          }
+        }
+      }
+
+      // Для каждого config (appearance)
+      for (const configEntry of (sources.configs ?? []) as LegacyConfig[]) {
+        // Создаём appearance
+        const [appearance] = await db
+          .insert(appearances)
+          .values({
+            designSystemId: ds.id,
+            componentId: component.id,
+            name: configEntry.name,
+          })
+          .returning();
+
+        const cfg = configEntry.config;
+
+        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
+        // поэтому два appearance одного компонента могут иметь разные дефолты.
+        const defaultStyleByVarId = new Map<string, string>();
+        for (const dv of cfg.defaultVariations ?? []) {
+          defaultStyleByVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const [position, varCfg] of (cfg.variations ?? []).entries()) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+
+          const defaultStyle = jsonStyleToDbStyle.get(
+            defaultStyleByVarId.get(varCfg.id) ?? "",
+          );
+          const [axis] = await db
+            .insert(appearanceVariations)
+            .values({
+              appearanceId: appearance.id,
+              variationId: dbVar.id,
+              position,
+              defaultStyleId: defaultStyle?.id ?? null,
+            })
+            .returning();
+
+          for (const [valuePosition, styleCfg] of (varCfg.styles ?? []).entries()) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+            await db
+              .insert(appearanceVariationValues)
+              .values({
+                appearanceVariationId: axis.id,
+                styleId: dbStyle.id,
+                position: valuePosition,
+              })
+              .onConflictDoNothing();
+          }
+        }
+
+        // invariantProps
+        for (const inv of cfg.invariantProps ?? []) {
+          const info = apiPropById.get(inv.id);
+          if (!info?.dbProp) continue;
+
+          const valueStr = inv.value !== null && inv.value !== undefined
+            ? String(inv.value)
+            : null;
+
+          const [ipv] = await db
+            .insert(invariantPropertyValues)
+            .values({
+              propertyId: info.dbProp.id,
+              designSystemId: ds.id,
+              componentId: component.id,
+              appearanceId: appearance.id,
+              ...encodePropValue(valueStr, tokenIdByName),
+              stateSetId: SENTINEL_STATE_SET_ID,
+            })
+            .returning();
+
+          // Создаём adjustments (только реальные корректировки)
+          await insertInvariantAdjustments(
+            ipv.id,
+            info,
+            toAdjustmentStr(inv.adjustment),
+            pppByKey,
+          );
+        }
+
+        // variation props (vpv)
+        for (const varCfg of cfg.variations ?? []) {
+          for (const styleCfg of varCfg.styles ?? []) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+
+            for (const prop of styleCfg.props ?? []) {
+              const info = apiPropById.get(prop.id);
+              if (!info?.dbProp) continue;
+
+              const valueStr = prop.value !== null && prop.value !== undefined
+                ? String(prop.value)
+                : null;
+
+              // base VPV (без state)
+              const [vpv] = await db
+                .insert(variationPropertyValues)
+                .values({
+                  propertyId: info.dbProp.id,
+                  styleId: dbStyle.id,
+                  appearanceId: appearance.id,
+                  ...encodePropValue(valueStr, tokenIdByName),
+                  stateSetId: SENTINEL_STATE_SET_ID,
+                })
+                .returning();
+
+              await insertVariationAdjustments(vpv.id, info, toAdjustmentStr(prop.adjustment), pppByKey);
+
+              // states
+              for (const stateEntry of prop.states ?? []) {
+                // Переопределение задаётся набором состояний: `["checked", "focused"]` означает
+                // «отмечен И в фокусе». Прежняя колонка вмещала одно состояние, поэтому здесь
+                // бралось только первое, а остальные терялись.
+                const stateValues = (Array.isArray(stateEntry.state)
+                  ? stateEntry.state
+                  : [stateEntry.state]
+                ).filter((value): value is string => Boolean(value));
+                if (stateValues.length === 0) continue;
+
+                const stateValueStr = stateEntry.value !== null && stateEntry.value !== undefined
+                  ? String(stateEntry.value)
+                  : null;
+
+                const sorted = [...stateValues].sort();
+                // Набор разрешается до вставки: неизвестное состояние не создаётся
+                // конфигурацией, поэтому значение просто не пишется.
+                const stateSetId = await resolveStateSetId(component.id, sorted);
+                if (!stateSetId) continue;
+
+                const [svpv] = await db
+                  .insert(variationPropertyValues)
+                  .values({
+                    propertyId: info.dbProp.id,
+                    styleId: dbStyle.id,
+                    appearanceId: appearance.id,
+                    ...encodePropValue(stateValueStr, tokenIdByName),
+                    stateSetId: stateSetId,
+                  })
+                  .returning();
+
+                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    res.status(201).json({ id: ds.id });
+  }),
+);
+
+// POST /legacy/design-systems/:name/update
+// Обновляет существующую дизайн-систему на основе legacy JSON-структуры
+router.post("/:name/update", (req, res) =>
+  tryCatch(res, async () => {
+    const body = req.body as LegacyImportBody;
+    const { themeData, componentsData } = body;
+
+    // ── 1. Find existing design system ──────────────────────────────────────
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
+
+    // ── 2. Tenant (find existing, no colorConfig update) ─────────────────────
+    const tenantName = `${req.params.name}_default`;
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(and(eq(tenants.designSystemId, ds.id), eq(tenants.name, tenantName)));
+
+    if (!assertFound(tenant, res)) return;
+
+    // ── 3. Tokens + token_values ─────────────────────────────────────────────
+    if (themeData?.meta?.tokens?.length) {
+      const stripMode = (name: string) =>
+        name.startsWith("dark.") || name.startsWith("light.")
+          ? name.slice(name.indexOf(".") + 1)
+          : name;
+
+      // Deduplicate tokens by stripped name
+      const tokenMap = new Map<string, LegacyToken>();
+      for (const t of themeData.meta.tokens) {
+        const strippedName = stripMode(t.name);
+        if (!tokenMap.has(strippedName)) {
+          tokenMap.set(strippedName, t);
+        }
+      }
+
+      // Load existing tokens for this DS
+      const existingTokens = await db
+        .select()
+        .from(tokens)
+        .where(eq(tokens.designSystemId, ds.id));
+      const existingTokenByName = new Map(existingTokens.map((t) => [t.name, t]));
+
+      // Upsert tokens
+      const tokenByName = new Map<string, typeof tokens.$inferSelect>();
+      for (const [strippedName, t] of tokenMap.entries()) {
+        const existing = existingTokenByName.get(strippedName);
+        if (existing) {
+          const [updated] = await db
+            .update(tokens)
+            .set({
+              type: t.type as any,
+              displayName: t.displayName ?? null,
+              description: t.description ?? null,
+              enabled: t.enabled ?? true,
+            })
+            .where(eq(tokens.id, existing.id))
+            .returning();
+          tokenByName.set(strippedName, updated);
+        } else {
+          const [inserted] = await db
+            .insert(tokens)
+            .values({
+              designSystemId: ds.id,
+              name: strippedName,
+              type: t.type as any,
+              displayName: t.displayName ?? null,
+              description: t.description ?? null,
+              enabled: t.enabled ?? true,
+            })
+            .returning();
+          tokenByName.set(strippedName, inserted);
+        }
+      }
+
+      // Delete token_values for this tenant, then re-insert
+      const allTokenIds = [...tokenByName.values()].map((t) => t.id);
+      if (allTokenIds.length > 0) {
+        await db
+          .delete(tokenValues)
+          .where(
+            and(
+              inArray(tokenValues.tokenId, allTokenIds),
+              eq(tokenValues.tenantId, tenant.id),
+            ),
+          );
+      }
+
+      const tvInserts: {
+        tokenId: string;
+        tenantId: string;
+        platform: "web" | "android" | "ios";
+        mode: "light" | "dark" | null;
+        value: any;
+      }[] = [];
+
+      const vars = themeData.variations ?? {};
+      for (const [_tokenType, platformMap] of Object.entries(vars as Record<string, Record<string, Record<string, unknown>>>)) {
+        for (const [platform, tokenMap] of Object.entries(platformMap)) {
+          for (const [tokenKey, rawValue] of Object.entries(tokenMap)) {
+            let mode: "light" | "dark" | null = null;
+            let tokenName = tokenKey;
+            if (tokenKey.startsWith("dark.") || tokenKey.startsWith("light.")) {
+              const dotIdx = tokenKey.indexOf(".");
+              mode = tokenKey.slice(0, dotIdx) as "light" | "dark";
+              tokenName = tokenKey.slice(dotIdx + 1);
+            }
+
+            const token = tokenByName.get(tokenName);
+            if (!token) continue;
+
+            let value: any;
+            if (
+              typeof rawValue === "string" &&
+              rawValue.startsWith("[") &&
+              rawValue.endsWith("]")
+            ) {
+              value = [rawValue];
+            } else if (Array.isArray(rawValue)) {
+              value = rawValue;
+            } else {
+              value = [rawValue];
+            }
+
+            tvInserts.push({
+              tokenId: token.id,
+              tenantId: tenant.id,
+              platform: platform as "web" | "android" | "ios",
+              mode,
+              value,
+            });
+          }
+        }
+      }
+
+      if (tvInserts.length > 0) {
+        await db.insert(tokenValues).values(tvInserts);
+      }
+    }
+
+    // ── 4. Components data ────────────────────────────────────────────────────
+    if (!componentsData?.length) {
+      res.json({ id: ds.id });
+      return;
+    }
+
+    // Токены ДС (обновлены на шаге 3) — для перевода строковых значений-ссылок в tokenId
+    const dsTokens = await db
+      .select({ id: tokens.id, name: tokens.name })
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+    const tokenIdByName = new Map(dsTokens.map((t) => [t.name, t.id]));
+
+    const compNames = componentsData.map((c: LegacyComponent) => c.name);
+    const existingComponents = await db
+      .select()
+      .from(components)
+      .where(inArray(components.name, compNames));
+    const componentByName = new Map(existingComponents.map((c) => [c.name, c]));
+
+    const compIds = existingComponents.map((c) => c.id);
+    const [allVariations, allProperties] = compIds.length > 0
+      ? await Promise.all([
+          db.select().from(variations).where(inArray(variations.componentId, compIds)),
+          db.select().from(properties).where(inArray(properties.componentId, compIds)),
+        ])
+      : [[], []];
+
+    const variationByCompAndName = new Map<string, typeof allVariations[0]>();
+    for (const v of allVariations) {
+      variationByCompAndName.set(`${v.componentId}::${v.name}`, v);
+    }
+
+    const propertyByCompNameType = new Map<string, typeof allProperties[0]>();
+    for (const p of allProperties) {
+      propertyByCompNameType.set(`${p.componentId}::${p.name}::${p.type}`, p);
+    }
+
+    const allPropIds = allProperties.map((p) => p.id);
+    const allPPP = allPropIds.length > 0
+      ? await db.select().from(propertyPlatformParams).where(inArray(propertyPlatformParams.propertyId, allPropIds))
+      : [];
+    const pppByKey = new Map<string, typeof allPPP[0]>();
+    for (const ppp of allPPP) {
+      pppByKey.set(`${ppp.propertyId}::${ppp.platform}::${ppp.name}`, ppp);
+    }
+
+    for (const compData of componentsData as LegacyComponent[]) {
+      const component = componentByName.get(compData.name);
+      if (!component) continue;
+
+      // Link component to DS
+      await db
+        .insert(designSystemComponents)
+        .values({ designSystemId: ds.id, componentId: component.id })
+        .onConflictDoNothing();
+
+      const { sources } = compData;
+      if (!sources) continue;
+
+      type ApiPropInfo = {
+        dbProp: typeof allProperties[0] | undefined;
+        platformMappings: {
+          xml: string | null;
+          compose: string | null;
+          ios: string | null;
+          web: { name: string; adjustment: string | null }[] | null;
+        };
+      };
+      const apiPropById = new Map<string, ApiPropInfo>();
+      for (const apiProp of (sources.api ?? []) as LegacyApiProp[]) {
+        const dbProp = propertyByCompNameType.get(
+          `${component.id}::${apiProp.name}::${apiProp.type}`,
+        );
+        apiPropById.set(apiProp.id, {
+          dbProp,
+          platformMappings: {
+            xml: typeof apiProp.platformMappings?.xml === "string"
+              ? apiProp.platformMappings.xml
+              : null,
+            compose: typeof apiProp.platformMappings?.compose === "string"
+              ? apiProp.platformMappings.compose
+              : null,
+            ios: typeof apiProp.platformMappings?.ios === "string"
+              ? apiProp.platformMappings.ios
+              : null,
+            web: Array.isArray(apiProp.platformMappings?.web)
+              ? apiProp.platformMappings.web
+              : null,
+          },
+        });
+      }
+
+      const jsonVarToDbVar = new Map<string, typeof allVariations[0]>();
+      for (const srcVar of (sources.variations ?? []) as LegacySrcVariation[]) {
+        const dbVar = variationByCompAndName.get(`${component.id}::${srcVar.name}`);
+        if (dbVar) jsonVarToDbVar.set(srcVar.id, dbVar);
+      }
+
+      // Delete existing styles, appearances, ipv, vpv for this DS + component
+      // so we can re-create them from the incoming data
+      const existingAppearances = await db
+        .select()
+        .from(appearances)
+        .where(
+          and(
+            eq(appearances.designSystemId, ds.id),
+            eq(appearances.componentId, component.id),
+          ),
+        );
+      const existingAppearanceIds = existingAppearances.map((a) => a.id);
+
+      const existingStyles = await db
+        .select()
+        .from(styles)
+        .where(eq(styles.designSystemId, ds.id));
+      const compVariationIds = (allVariations)
+        .filter((v) => v.componentId === component.id)
+        .map((v) => v.id);
+      const compStyleIds = existingStyles
+        .filter((s) => compVariationIds.includes(s.variationId))
+        .map((s) => s.id);
+
+      // Delete vpv + adjustments
+      if (compStyleIds.length > 0 && existingAppearanceIds.length > 0) {
+        const existingVpvs = await db
+          .select({ id: variationPropertyValues.id })
+          .from(variationPropertyValues)
+          .where(
+            and(
+              inArray(variationPropertyValues.styleId, compStyleIds),
+              inArray(variationPropertyValues.appearanceId, existingAppearanceIds),
+            ),
+          );
+        const vpvIds = existingVpvs.map((v) => v.id);
+        if (vpvIds.length > 0) {
+          await db.delete(variationPlatformParamAdjustments).where(
+            inArray(variationPlatformParamAdjustments.vpvId, vpvIds),
+          );
+          await db.delete(variationPropertyValues).where(
+            inArray(variationPropertyValues.id, vpvIds),
+          );
+        }
+      }
+
+      // Delete ipv + adjustments
+      if (existingAppearanceIds.length > 0) {
+        const existingIpvs = await db
+          .select({ id: invariantPropertyValues.id })
+          .from(invariantPropertyValues)
+          .where(
+            and(
+              eq(invariantPropertyValues.designSystemId, ds.id),
+              eq(invariantPropertyValues.componentId, component.id),
+              inArray(invariantPropertyValues.appearanceId, existingAppearanceIds),
+            ),
+          );
+        const ipvIds = existingIpvs.map((v) => v.id);
+        if (ipvIds.length > 0) {
+          await db.delete(invariantPlatformParamAdjustments).where(
+            inArray(invariantPlatformParamAdjustments.ipvId, ipvIds),
+          );
+          await db.delete(invariantPropertyValues).where(
+            inArray(invariantPropertyValues.id, ipvIds),
+          );
+        }
+      }
+
+      // Delete existing styles for this DS + component's variations
+      if (compStyleIds.length > 0) {
+        await db.delete(styles).where(inArray(styles.id, compStyleIds));
+      }
+
+      // Delete existing appearances
+      if (existingAppearanceIds.length > 0) {
+        await db.delete(appearances).where(inArray(appearances.id, existingAppearanceIds));
+      }
+
+      // Re-create styles from first config
+      const firstConfig = (sources.configs ?? [])[0] as LegacyConfig | undefined;
+      const jsonStyleToDbStyle = new Map<string, typeof styles.$inferSelect>();
+
+      if (firstConfig) {
+        const defaultStyleByJsonVarId = new Map<string, string>();
+        for (const dv of firstConfig.config.defaultVariations ?? []) {
+          defaultStyleByJsonVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const varCfg of firstConfig.config.variations ?? []) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+          for (const styleCfg of varCfg.styles ?? []) {
+            const [dbStyle] = await db
+              .insert(styles)
+              .values({
+                designSystemId: ds.id,
+                variationId: dbVar.id,
+                name: styleCfg.name,
+              })
+              .returning();
+            jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
+          }
+        }
+      }
+
+      // Re-create appearances, ipv, vpv
+      for (const configEntry of (sources.configs ?? []) as LegacyConfig[]) {
+        const [appearance] = await db
+          .insert(appearances)
+          .values({
+            designSystemId: ds.id,
+            componentId: component.id,
+            name: configEntry.name,
+          })
+          .returning();
+
+        const cfg = configEntry.config;
+
+        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
+        // поэтому два appearance одного компонента могут иметь разные дефолты.
+        const defaultStyleByVarId = new Map<string, string>();
+        for (const dv of cfg.defaultVariations ?? []) {
+          defaultStyleByVarId.set(dv.variationID, dv.styleID);
+        }
+        for (const [position, varCfg] of (cfg.variations ?? []).entries()) {
+          const dbVar = jsonVarToDbVar.get(varCfg.id);
+          if (!dbVar) continue;
+
+          const defaultStyle = jsonStyleToDbStyle.get(
+            defaultStyleByVarId.get(varCfg.id) ?? "",
+          );
+          const [axis] = await db
+            .insert(appearanceVariations)
+            .values({
+              appearanceId: appearance.id,
+              variationId: dbVar.id,
+              position,
+              defaultStyleId: defaultStyle?.id ?? null,
+            })
+            .returning();
+
+          for (const [valuePosition, styleCfg] of (varCfg.styles ?? []).entries()) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+            await db
+              .insert(appearanceVariationValues)
+              .values({
+                appearanceVariationId: axis.id,
+                styleId: dbStyle.id,
+                position: valuePosition,
+              })
+              .onConflictDoNothing();
+          }
+        }
+
+        // invariantProps
+        for (const inv of cfg.invariantProps ?? []) {
+          const info = apiPropById.get(inv.id);
+          if (!info?.dbProp) continue;
+
+          const valueStr = inv.value !== null && inv.value !== undefined
+            ? String(inv.value)
+            : null;
+
+          const [ipv] = await db
+            .insert(invariantPropertyValues)
+            .values({
+              propertyId: info.dbProp.id,
+              designSystemId: ds.id,
+              componentId: component.id,
+              appearanceId: appearance.id,
+              ...encodePropValue(valueStr, tokenIdByName),
+              stateSetId: SENTINEL_STATE_SET_ID,
+            })
+            .returning();
+
+          await insertInvariantAdjustments(ipv.id, info, toAdjustmentStr(inv.adjustment), pppByKey);
+        }
+
+        // variation props (vpv)
+        for (const varCfg of cfg.variations ?? []) {
+          for (const styleCfg of varCfg.styles ?? []) {
+            const dbStyle = jsonStyleToDbStyle.get(styleCfg.id);
+            if (!dbStyle) continue;
+
+            for (const prop of styleCfg.props ?? []) {
+              const info = apiPropById.get(prop.id);
+              if (!info?.dbProp) continue;
+
+              const valueStr = prop.value !== null && prop.value !== undefined
+                ? String(prop.value)
+                : null;
+
+              const [vpv] = await db
+                .insert(variationPropertyValues)
+                .values({
+                  propertyId: info.dbProp.id,
+                  styleId: dbStyle.id,
+                  appearanceId: appearance.id,
+                  ...encodePropValue(valueStr, tokenIdByName),
+                  stateSetId: SENTINEL_STATE_SET_ID,
+                })
+                .returning();
+
+              await insertVariationAdjustments(vpv.id, info, toAdjustmentStr(prop.adjustment), pppByKey);
+
+              // states
+              for (const stateEntry of prop.states ?? []) {
+                // Переопределение задаётся набором состояний: `["checked", "focused"]` означает
+                // «отмечен И в фокусе». Прежняя колонка вмещала одно состояние, поэтому здесь
+                // бралось только первое, а остальные терялись.
+                const stateValues = (Array.isArray(stateEntry.state)
+                  ? stateEntry.state
+                  : [stateEntry.state]
+                ).filter((value): value is string => Boolean(value));
+                if (stateValues.length === 0) continue;
+
+                const stateValueStr = stateEntry.value !== null && stateEntry.value !== undefined
+                  ? String(stateEntry.value)
+                  : null;
+
+                const sorted = [...stateValues].sort();
+                // Набор разрешается до вставки: неизвестное состояние не создаётся
+                // конфигурацией, поэтому значение просто не пишется.
+                const stateSetId = await resolveStateSetId(component.id, sorted);
+                if (!stateSetId) continue;
+
+                const [svpv] = await db
+                  .insert(variationPropertyValues)
+                  .values({
+                    propertyId: info.dbProp.id,
+                    styleId: dbStyle.id,
+                    appearanceId: appearance.id,
+                    ...encodePropValue(stateValueStr, tokenIdByName),
+                    stateSetId: stateSetId,
+                  })
+                  .returning();
+
+                await insertVariationAdjustments(svpv.id, info, stateValueStr, pppByKey);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    res.json({ id: ds.id });
+  }),
+);
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+type PppRow = { id: string; propertyId: string; platform: string; name: string };
+
+// Нормализация adjustment из legacy-JSON: число или строка -> строка, пусто -> null
+function toAdjustmentStr(v: unknown): string | null {
+  return v === null || v === undefined || v === "" ? null : String(v);
+}
+
+async function insertVariationAdjustments(
+  vpvId: string,
+  info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
+  adjustment: string | null,
+  pppByKey: Map<string, PppRow>,
+  includeTemplates = true,
+) {
+  const rows = buildAdjustmentRows(info, adjustment, pppByKey, includeTemplates);
+  if (rows.length === 0) return;
+  // Без onConflictDoNothing: после мержа в buildAdjustmentRows конфликт по
+  // уникальному индексу (vpvId, platformParamId) — всегда баг, и он должен
+  // падать, а не молча терять строку.
+  await db.insert(variationPlatformParamAdjustments).values(
+    rows.map((row) => ({
+      vpvId,
+      platformParamId: row.platformParamId,
+      value: row.value,
+      template: row.template,
+    })),
+  );
+}
+
+// Если строковое значение свойства совпадает с именем токена ДС, храним ссылку
+// tokenId вместо сырой строки — иначе теряется связь «свойство → токен».
+function encodePropValue(
+  valueStr: string | null,
+  tokenIdByName: Map<string, string>,
+): { value: string | null; tokenId: string | null } {
+  const tokenId = valueStr !== null ? tokenIdByName.get(valueStr) ?? null : null;
+  return tokenId ? { value: null, tokenId } : { value: valueStr, tokenId: null };
+}
+
+async function insertInvariantAdjustments(
+  ipvId: string,
+  info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
+  adjustment: string | null,
+  pppByKey: Map<string, PppRow>,
+  includeTemplates = true,
+) {
+  const rows = buildAdjustmentRows(info, adjustment, pppByKey, includeTemplates);
+  if (rows.length === 0) return;
+  await db.insert(invariantPlatformParamAdjustments).values(
+    rows.map((row) => ({
+      ipvId,
+      platformParamId: row.platformParamId,
+      value: row.value,
+      template: row.template,
+    })),
+  );
+}
+
+// Adjustment-строки — это только реальные корректировки: пер-значенческий офсет
+// (props[].adjustment, например '-2' для shape) и web-шаблоны
+// (platformMappings.web[].adjustment, например '0 $1 -0.125rem').
+// Значение свойства сюда НЕ копируется — оно живёт в ipv/vpv (value | tokenId),
+// а копии, которые писал старый импорт, никем не читались и только шумели.
+function buildAdjustmentRows(
+  info: { dbProp: { id: string } | undefined; platformMappings: { xml: string | null; compose: string | null; ios: string | null; web: { name: string; adjustment: string | null }[] | null } },
+  adjustment: string | null,
+  pppByKey: Map<string, PppRow>,
+  includeTemplates: boolean,
+): { platformParamId: string; value: string | null; template: string | null }[] {
+  if (!info.dbProp) return [];
+  const propId = info.dbProp.id;
+
+  // На (valueRowId, platformParamId) стоит уникальный индекс, поэтому офсет и
+  // web-шаблон одного параметра мержатся в одну строку — вторая вставка была бы
+  // молча отброшена onConflictDoNothing.
+  const rowByPppId = new Map<string, { value: string | null; template: string | null }>();
+  const upsertRow = (pppId: string, patch: Partial<{ value: string; template: string }>) => {
+    const current = rowByPppId.get(pppId) ?? { value: null, template: null };
+    rowByPppId.set(pppId, { ...current, ...patch });
+  };
+
+  if (adjustment !== null) {
+    const singleParams: [string, string | null][] = [
+      ["xml", info.platformMappings.xml],
+      ["compose", info.platformMappings.compose],
+      ["ios", info.platformMappings.ios],
+    ];
+    for (const [platform, name] of singleParams) {
+      if (!name) continue;
+      const ppp = pppByKey.get(`${propId}::${platform}::${name}`);
+      if (ppp) upsertRow(ppp.id, { value: adjustment });
+    }
+    for (const webEntry of info.platformMappings.web ?? []) {
+      const ppp = pppByKey.get(`${propId}::web::${webEntry.name}`);
+      if (ppp) upsertRow(ppp.id, { value: adjustment });
+    }
+  }
+
+  // Шаблоны свойство-уровневые, поэтому пишутся только для базовой строки
+  // значения (state IS NULL), а не для каждого state.
+  if (includeTemplates) {
+    for (const webEntry of info.platformMappings.web ?? []) {
+      const template = toAdjustmentStr(webEntry.adjustment);
+      if (template === null) continue;
+      const ppp = pppByKey.get(`${propId}::web::${webEntry.name}`);
+      if (ppp) upsertRow(ppp.id, { template });
+    }
+  }
+
+  return [...rowByPppId].map(([platformParamId, row]) => ({ platformParamId, ...row }));
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface LegacyImportBody {
+  name: string;
+  version: string;
+  parameters: {
+    projectName?: string;
+    packagesName?: string;
+    grayTone?: string;
+    accentColor?: string;
+    lightStrokeSaturation?: number;
+    lightFillSaturation?: number;
+    darkStrokeSaturation?: number;
+    darkFillSaturation?: number;
+  };
+  themeData?: {
+    meta?: {
+      tokens?: LegacyToken[];
+    };
+    variations?: Record<string, Record<string, Record<string, unknown>>>;
+  };
+  componentsData?: LegacyComponent[];
+}
+
+interface LegacyToken {
+  type: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  enabled?: boolean;
+}
+
+interface LegacyComponent {
+  name: string;
+  description?: string;
+  sources?: {
+    api?: LegacyApiProp[];
+    variations?: LegacySrcVariation[];
+    configs?: LegacyConfig[];
+  };
+}
+
+interface LegacyApiProp {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  variations?: string[] | null;
+  platformMappings?: {
+    xml?: string | null;
+    compose?: string | null;
+    ios?: string | null;
+    web?: { name: string; adjustment: string | null }[] | null;
+  };
+}
+
+interface LegacySrcVariation {
+  id: string;
+  name: string;
+}
+
+interface LegacyConfig {
+  name: string;
+  id: string;
+  config: {
+    defaultVariations?: { variationID: string; styleID: string }[];
+    invariantProps?: { id: string; value: unknown; adjustment?: unknown; states?: unknown }[];
+    variations?: {
+      id: string;
+      styles?: {
+        name: string;
+        id: string;
+        props?: {
+          id: string;
+          value: unknown;
+          adjustment?: unknown;
+          states?: { state: string | string[]; value: unknown }[];
+        }[];
+      }[];
+    }[];
+  };
+}
+
+// GET /legacy/design-systems/:name/download-theme
+// Возвращает zip-архив с токенами дизайн-системы для дефолтного тенанта
+router.get("/:name/download-theme", (req, res) =>
+  tryCatch(res, async () => {
+    const [ds] = await db
+      .select()
+      .from(designSystems)
+      .where(eq(designSystems.name, req.params.name));
+
+    if (!assertFound(ds, res)) return;
+    if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
+
+    // Берём первый (дефолтный) тенант
+    const [tenant] = await db
+      .select()
+      .from(tenants)
+      .where(eq(tenants.designSystemId, ds.id))
+      .limit(1);
+
+    if (!assertFound(tenant, res)) return;
+
+    // Последняя версия для meta.json
+    const [latestVersion] = await db
+      .select({ version: designSystemVersions.version })
+      .from(designSystemVersions)
+      .where(eq(designSystemVersions.designSystemId, ds.id))
+      .orderBy(desc(designSystemVersions.publishedAt))
+      .limit(1);
+
+    // Токены дизайн-системы
+    const tokenRows = await db
+      .select()
+      .from(tokens)
+      .where(eq(tokens.designSystemId, ds.id));
+
+    const tokenIds = tokenRows.map((t) => t.id);
+
+    // Значения токенов только для дефолтного тенанта
+    const tokenValueRows =
+      tokenIds.length > 0
+        ? await db
+            .select({
+              tokenId: tokenValues.tokenId,
+              platform: tokenValues.platform,
+              mode: tokenValues.mode,
+              value: tokenValues.value,
+              paletteType: palette.type,
+              paletteShade: palette.shade,
+              paletteSaturation: palette.saturation,
+            })
+            .from(tokenValues)
+            .leftJoin(palette, eq(tokenValues.paletteId, palette.id))
+            .where(
+              and(
+                inArray(tokenValues.tokenId, tokenIds),
+                eq(tokenValues.tenantId, tenant.id),
+              ),
+            )
+        : [];
+
+    const tokenById = new Map(tokenRows.map((t) => [t.id, t]));
+
+    // Собираем режимы (light/dark) для каждого токена
+    const tokenModes = new Map<string, Set<string>>();
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.mode) continue;
+      if (!tokenModes.has(tv.tokenId)) tokenModes.set(tv.tokenId, new Set());
+      tokenModes.get(tv.tokenId)!.add(tv.mode);
+    }
+
+    // meta.json
+    const metaTokens = tokenRows.flatMap((t) => {
+      const modes = tokenModes.get(t.id);
+      if (modes && modes.size > 0) {
+        return [...modes].map((mode) => {
+          const fullName = `${mode}.${t.name}`;
+          return {
+            type: t.type,
+            name: fullName,
+            tags: fullName.split("."),
+            displayName: t.displayName,
+            description: t.description,
+            enabled: t.enabled,
+          };
+        });
+      }
+      return [
+        {
+          type: t.type,
+          name: t.name,
+          tags: t.name.split("."),
+          displayName: t.displayName,
+          description: t.description,
+          enabled: t.enabled,
+        },
+      ];
+    });
+
+    const meta = {
+      name: ds.name,
+      version: latestVersion?.version ?? "0.0.0",
+      tokens: metaTokens,
+    };
+
+    // Группируем значения: { [tokenType]: { [platform]: { [key]: value } } }
+    const grouped: Record<string, Record<string, Record<string, unknown>>> = {};
+
+    for (const tv of tokenValueRows) {
+      if (!tv.tokenId || !tv.platform) continue;
+      const token = tokenById.get(tv.tokenId);
+      if (!token?.type) continue;
+
+      let value: unknown;
+      if (tv.paletteType != null) {
+        value = `[${tv.paletteType}.${tv.paletteShade}.${tv.paletteSaturation}]`;
+      } else if (token.type === "shadow" || token.type === "gradient") {
+        value = tv.value;
+      } else {
+        value = Array.isArray(tv.value) ? tv.value[0] : tv.value;
+      }
+
+      const key = tv.mode != null ? `${tv.mode}.${token.name}` : token.name;
+
+      grouped[token.type] ??= {};
+      grouped[token.type][tv.platform] ??= {};
+      grouped[token.type][tv.platform][key] = value;
+    }
+
+    // Формируем zip
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${ds.name}.zip"`,
+    );
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    // meta.json
+    archive.append(JSON.stringify(meta, null, 4), { name: "meta.json" });
+
+    // {platform}/{platform}_{tokenType}.json
+    const platforms = ["web", "ios", "android"] as const;
+    const tokenTypes = [
+      "color",
+      "gradient",
+      "typography",
+      "fontFamily",
+      "spacing",
+      "shape",
+      "shadow",
+    ];
+
+    for (const platform of platforms) {
+      for (const tokenType of tokenTypes) {
+        const data = grouped[tokenType]?.[platform];
+        if (!data || Object.keys(data).length === 0) continue;
+
+        archive.append(JSON.stringify(data, null, 4), {
+          name: `${platform}/${platform}_${tokenType}.json`,
+        });
+      }
+    }
+
+    await archive.finalize();
+  }),
+);
+
+export default router;

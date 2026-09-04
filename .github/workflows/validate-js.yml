@@ -1,0 +1,93 @@
+name: Validate JavaScript
+
+on:
+  pull_request:
+    paths:
+      - 'js/**'
+      - '.github/actions/prepare-environment/**'
+      - '.github/workflows/validate-js.yml'
+  push:
+    branches:
+      - dev
+      - master
+    paths:
+      - 'js/**'
+      - '.github/actions/prepare-environment/**'
+      - '.github/workflows/validate-js.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: Analysis
+    if: ${{ false }} # Temporarily disabled until the JS analysis configuration is fixed.
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - run: npm ci --no-progress
+      - name: ESLint
+        run: >-
+          npm exec -- eslint
+          "apps/client/src/**/*.{ts,tsx}"
+          "apps/admin/src/**/*.{ts,tsx}"
+          "services/db-service/src/**/*.ts"
+          "services/documentation-generator/src/**/*.ts"
+          "services/generator/app/**/*.{ts,tsx}"
+      - name: Publisher syntax
+        run: node --check services/publisher/app/server.js
+
+  tests:
+    name: Tests (documentation-generator)
+    if: ${{ false }} # Temporarily disabled together with JS analysis.
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: js/services/documentation-generator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: js/services/documentation-generator/package-lock.json
+      - run: npm ci --no-progress
+      - run: npm test -- --runInBand --passWithNoTests
+
+  build:
+    name: Build (${{ matrix.project.name }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: client
+            directory: js/apps/client
+          - name: admin
+            directory: js/apps/admin
+          - name: db-service
+            directory: js/services/db-service
+          - name: documentation-generator
+            directory: js/services/documentation-generator
+          - name: generator
+            directory: js/services/generator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: ${{ matrix.project.directory }}/package-lock.json
+      - run: npm ci --no-progress
+        working-directory: ${{ matrix.project.directory }}
+      - run: npm run build
+        working-directory: ${{ matrix.project.directory }}

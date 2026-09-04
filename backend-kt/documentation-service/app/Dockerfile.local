@@ -1,0 +1,12 @@
+FROM eclipse-temurin:17-jre-jammy
+
+RUN groupadd --system documentation && \
+    useradd --system --gid documentation --home /app documentation && \
+    mkdir -p /app /var/tmp/documentation && \
+    chown -R documentation:documentation /app /var/tmp/documentation
+
+COPY --chown=documentation:documentation ./build/libs/*-all.jar /app/documentation-service.jar
+
+USER documentation
+EXPOSE 8084
+ENTRYPOINT ["java", "-jar", "/app/documentation-service.jar"]

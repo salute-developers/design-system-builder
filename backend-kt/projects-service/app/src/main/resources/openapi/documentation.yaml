@@ -1,0 +1,641 @@
+openapi: 3.0.3
+info:
+  title: Projects Service API
+  version: 1.0.0
+  description: |
+    API for managing projects, members, and project access keys.
+servers:
+  - url: /
+tags:
+  - name: Health
+  - name: Projects
+  - name: Members
+  - name: Access Keys
+  - name: Internal
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      responses:
+        '200':
+          description: Service is healthy
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List available projects for the actor
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+        - $ref: '#/components/parameters/XProjectId'
+        - $ref: '#/components/parameters/XProjectKeyId'
+        - $ref: '#/components/parameters/XProjectScopes'
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Projects]
+      summary: Create a project
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project details
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+        - $ref: '#/components/parameters/XProjectId'
+        - $ref: '#/components/parameters/XProjectKeyId'
+        - $ref: '#/components/parameters/XProjectScopes'
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags: [Projects]
+      summary: Update a project
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/archive:
+    post:
+      tags: [Projects]
+      summary: Archive a project
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '200':
+          description: Archived project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/restore:
+    post:
+      tags: [Projects]
+      summary: Restore an archived project
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '200':
+          description: Restored project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/members:
+    get:
+      tags: [Members]
+      summary: List project members
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '200':
+          description: Members list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectMemberResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Members]
+      summary: Add a project member
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertProjectMemberRequest'
+      responses:
+        '201':
+          description: Added member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/members/{userId}:
+    patch:
+      tags: [Members]
+      summary: Update member role
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectMemberRoleRequest'
+      responses:
+        '200':
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags: [Members]
+      summary: Remove a project member
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/UserIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '204':
+          description: Member removed
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/access-keys:
+    get:
+      tags: [Access Keys]
+      summary: List project access keys
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '200':
+          description: Access key list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectAccessKeyResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags: [Access Keys]
+      summary: Create a project access key
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectAccessKeyRequest'
+      responses:
+        '201':
+          description: Access key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedProjectAccessKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /projects/{projectId}/access-keys/{keyId}:
+    delete:
+      tags: [Access Keys]
+      summary: Revoke a project access key
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/KeyIdPath'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+        - $ref: '#/components/parameters/XActorType'
+      responses:
+        '200':
+          description: Revoked key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectAccessKeyResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/projects/{projectId}/access-check:
+    get:
+      tags: [Internal]
+      summary: Check effective role for a user within a project
+      parameters:
+        - $ref: '#/components/parameters/ProjectIdPath'
+        - $ref: '#/components/parameters/XInternalApiKey'
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/XSystemAdmin'
+      responses:
+        '200':
+          description: Access granted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectAccessCheckResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/access-keys/verify:
+    post:
+      tags: [Internal]
+      summary: Verify a project access key token
+      parameters:
+        - $ref: '#/components/parameters/XInternalApiKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyProjectAccessKeyRequest'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyProjectAccessKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    ProjectIdPath:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+    UserIdPath:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+    KeyIdPath:
+      name: keyId
+      in: path
+      required: true
+      schema:
+        type: string
+    XInternalApiKey:
+      name: X-Internal-Api-Key
+      in: header
+      required: false
+      schema:
+        type: string
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        example: user-123
+    XSystemAdmin:
+      name: X-System-Admin
+      in: header
+      required: false
+      schema:
+        type: boolean
+        default: false
+    XActorType:
+      name: X-Actor-Type
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [USER, PROJECT_ACCESS_KEY]
+        default: USER
+    XProjectId:
+      name: X-Project-Id
+      in: header
+      required: false
+      schema:
+        type: string
+    XProjectKeyId:
+      name: X-Project-Key-Id
+      in: header
+      required: false
+      schema:
+        type: string
+    XProjectScopes:
+      name: X-Project-Scopes
+      in: header
+      required: false
+      description: Comma-separated project scopes
+      schema:
+        type: string
+        example: projects:read,projects:write
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    CreateProjectRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+    UpsertProjectMemberRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          example: OWNER
+    UpdateProjectMemberRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          example: EDITOR
+    CreateProjectAccessKeyRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+            example: projects:read
+        ttlSeconds:
+          type: integer
+          format: int64
+          nullable: true
+    ProjectResponse:
+      type: object
+      required: [id, name, status, ownerUserId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+        ownerUserId:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    ProjectMemberResponse:
+      type: object
+      required: [userId, role, createdAt, updatedAt]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    ProjectAccessCheckResponse:
+      type: object
+      required: [projectRole]
+      properties:
+        projectRole:
+          type: string
+          example: owner
+    ProjectAccessKeyResponse:
+      type: object
+      required: [id, projectId, name, scopes, createdByUserId, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        createdByUserId:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+        revokedAt:
+          type: string
+          nullable: true
+        lastUsedAt:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    CreatedProjectAccessKeyResponse:
+      type: object
+      required: [key, secret]
+      properties:
+        key:
+          $ref: '#/components/schemas/ProjectAccessKeyResponse'
+        secret:
+          type: string
+    VerifyProjectAccessKeyRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    VerifyProjectAccessKeyResponse:
+      type: object
+      required: [projectId, keyId, scopes]
+      properties:
+        projectId:
+          type: string
+        keyId:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+          nullable: true

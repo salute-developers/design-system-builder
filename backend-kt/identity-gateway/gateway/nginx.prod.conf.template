@@ -1,0 +1,507 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    limit_req_zone $binary_remote_addr zone=project_api:10m rate=10r/s;
+
+    map $http_x_forwarded_proto $forwarded_proto {
+        default $http_x_forwarded_proto;
+        "" $scheme;
+    }
+
+    map $http_x_forwarded_port $forwarded_port {
+        default $http_x_forwarded_port;
+        "" $server_port;
+    }
+
+    map $http_x_forwarded_host $forwarded_host {
+        default $http_x_forwarded_host;
+        "" $http_host;
+    }
+
+    map $http_origin $cors_allowed_origin {
+        default "";
+        "${OIDC_WEB_ORIGIN}" $http_origin;
+    }
+
+    log_format gateway '$remote_addr - $request_id [$time_local] "$request" '
+                       '$status $body_bytes_sent "$http_referer" "$http_user_agent"';
+
+    upstream keycloak {
+        server ${KEYCLOAK_UPSTREAM_HOST}:${KEYCLOAK_UPSTREAM_PORT};
+    }
+
+    upstream auth_helper {
+        server auth-helper:8091;
+    }
+
+    upstream projects_api {
+        server projects-service:8082;
+    }
+
+    upstream db_service_api {
+        server ${DB_SERVICE_UPSTREAM_HOST}:${DB_SERVICE_UPSTREAM_PORT};
+    }
+
+    upstream docs_service_api {
+        server ${DOCS_SERVICE_UPSTREAM_HOST}:${DOCS_SERVICE_UPSTREAM_PORT};
+    }
+
+    upstream documentation_service_api {
+        server ${DOCUMENTATION_SERVICE_UPSTREAM_HOST}:${DOCUMENTATION_SERVICE_UPSTREAM_PORT};
+    }
+
+    upstream generator_service_api {
+        server ${GENERATOR_SERVICE_UPSTREAM_HOST}:${GENERATOR_SERVICE_UPSTREAM_PORT};
+    }
+
+    upstream publisher_service_api {
+        server ${PUBLISHER_SERVICE_UPSTREAM_HOST}:${PUBLISHER_SERVICE_UPSTREAM_PORT};
+    }
+
+    server {
+        listen 8080;
+        access_log /var/log/nginx/access.log gateway;
+        absolute_redirect off;
+
+        client_max_body_size 2m;
+        proxy_connect_timeout 10s;
+        proxy_send_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+        proxy_read_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        proxy_hide_header Access-Control-Allow-Origin;
+        proxy_hide_header Access-Control-Allow-Methods;
+        proxy_hide_header Access-Control-Allow-Headers;
+        add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+        add_header Vary Origin always;
+        error_page 401 = @gateway_unauthorized;
+        error_page 403 = @gateway_forbidden;
+
+        location = /health {
+            access_log off;
+            return 200 "ok\n";
+        }
+
+        location = /auth/login {
+            return 404;
+        }
+
+        location = /auth/token {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token;
+        }
+
+        location = /auth/register {
+            return 404;
+        }
+
+        location = /auth/account {
+            return 302 /realms/${KEYCLOAK_REALM}/account/;
+        }
+
+        location = /auth/logout {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout;
+        }
+
+        location = /admin {
+            return 308 /admin/;
+        }
+
+        location /admin/ {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak;
+        }
+
+        location /auth/ {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak/;
+        }
+
+        location = /realms/${KEYCLOAK_REALM}/protocol/openid-connect/registrations {
+            return 404;
+        }
+
+        location = /realms/${KEYCLOAK_REALM}/login-actions/registration {
+            return 404;
+        }
+
+        location /realms/ {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak;
+        }
+
+        location /resources/ {
+            limit_req zone=project_api burst=20 nodelay;
+
+            proxy_set_header X-Actor-Type "";
+            proxy_set_header X-User-Id "";
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin "";
+
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $forwarded_host;
+            proxy_set_header X-Forwarded-Port $forwarded_port;
+            proxy_set_header X-Forwarded-Proto $forwarded_proto;
+            proxy_pass http://keycloak;
+        }
+
+        location /internal/ {
+            return 403;
+        }
+
+        location = /api/projects {
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_user;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api(/projects)$ $1 break;
+            proxy_pass http://projects_api;
+        }
+
+        location = /api/projects/ {
+            return 308 /api/projects;
+        }
+
+        location ~ ^/api/admin(/.*)?$ {
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_user;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id "";
+            proxy_set_header X-Project-Role "";
+            proxy_set_header X-Project-Key-Id "";
+            proxy_set_header X-Project-Scopes "";
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/admin(/.*)?$ /api/admin$1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {
+            set $project_id $1;
+
+            # Пакет компонентов уезжает одним запросом: транзакционность импорта не допускает
+            # разбиения на пачки. Крупнейшая дизайн-система sdds_serv — 637 КБ компактного JSON,
+            # лимит поднят с запасом на рост числа компонентов. Глобальные 2m не меняются.
+            client_max_body_size 16m;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {
+            set $project_id $1;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host ${DOCS_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/docs(/.*)?$ $1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${DOCS_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${DOCS_SERVICE_UPSTREAM_SCHEME}://docs_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {
+            set $project_id $1;
+            limit_req zone=project_api burst=20 nodelay;
+            client_max_body_size ${DOCUMENTATION_MAX_REQUEST_SIZE};
+            proxy_request_buffering off;
+            proxy_buffering off;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+            proxy_read_timeout ${GATEWAY_PROXY_TIMEOUT_SECONDS}s;
+
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header X-Request-Id $request_id;
+            proxy_set_header Host ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/documentation(/.*)?$ /documentation$1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${DOCUMENTATION_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${DOCUMENTATION_SERVICE_UPSTREAM_SCHEME}://documentation_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/generator(/.*)?$ {
+            set $project_id $1;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host ${GENERATOR_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/generator(/.*)?$ $1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${GENERATOR_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${GENERATOR_SERVICE_UPSTREAM_SCHEME}://generator_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)/publisher(/.*)?$ {
+            set $project_id $1;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host ${PUBLISHER_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/publisher(/.*)?$ $1 break;
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${PUBLISHER_SERVICE_UPSTREAM_HOST};
+            proxy_pass ${PUBLISHER_SERVICE_UPSTREAM_SCHEME}://publisher_service_api;
+        }
+
+        location ~ ^/api/projects/([^/]+)(/.*)?$ {
+            set $project_id $1;
+
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api(/projects(?:/.*)?)$ $1 break;
+            proxy_pass http://projects_api;
+        }
+
+        location = /_auth_project {
+            internal;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header Authorization $http_authorization;
+            proxy_set_header X-Original-URI $request_uri;
+            proxy_pass http://auth_helper/internal/auth/projects/$project_id;
+        }
+
+        location = /_auth_user {
+            internal;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header Authorization $http_authorization;
+            proxy_set_header X-Original-URI $request_uri;
+            proxy_pass http://auth_helper/internal/auth/user;
+        }
+
+        location @gateway_unauthorized {
+            add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+            add_header Vary Origin always;
+            return 401;
+        }
+
+        location @gateway_forbidden {
+            add_header Access-Control-Allow-Origin $cors_allowed_origin always;
+            add_header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Authorization, Content-Type, Accept, X-Requested-With" always;
+            add_header Vary Origin always;
+            return 403;
+        }
+    }
+}
