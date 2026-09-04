@@ -31,7 +31,7 @@ jobs:
           VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL_DEV }}
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_DEV }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
-          BASE_URL: '/design-system-builder/'
+          BASE_URL: '/dev/design-system-builder/client/'
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider
           npm run build --prefix="./apps/client"
