@@ -1,5 +1,10 @@
 export const getBaseName = () => {
     const { pathname } = window.location;
+    const buildBaseName = import.meta.env.BASE_URL;
+
+    if (buildBaseName !== '/') {
+        return buildBaseName;
+    }
 
     const prMatch = pathname.match(/^\/pr\/design-system-builder-pr-\d+/);
 
