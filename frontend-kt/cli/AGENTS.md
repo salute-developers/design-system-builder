@@ -71,6 +71,35 @@ CLI output должен быть предсказуемым и тестируе�
 
 `DsBuilderCli.kt` — composition root: собирает `coreApplicationModule` и Koin-модули всех фич (`*ApplicationModule` + `*CliPresentationModule`) в один граф и резолвит `RootCliCommand`. Бизнес-логика фичей не должна жить в composition root.
 
+## Платформенные делегаты
+
+Команды генерации (`theme generate`, `components generate`, платформенный шаг `docs generate`) не знают,
+чем именно генерируется код на платформе. Они вызывают use case фичи, который обращается к
+`PlatformCapabilityRunner` из `core-platform`: тот резолвит проект, выбирает платформу, берёт делегат
+из реестра, проверяет toolchain и запускает его. Запуск процессов — только через `ProcessRunner`
+из `core-process`.
+
+Правила:
+
+- одна целевая платформа (`TargetPlatform`) — ровно один делегат; toolchain (`ios`, `android`) может
+  обслуживать несколько платформ;
+- новая платформа = модуль `platform-<toolchain>` с реализацией `PlatformDelegate` и одна строка
+  в `di/PlatformDelegatesModule.kt`; больше нигде конкретные платформы не перечисляются;
+- `feature-*` зависят только от `core-platform` (порт) и никогда не импортируют `platform-*`;
+- процессы запускаются только через `ProcessRunner`; presentation и use case'ы не запускают их сами.
+  Делегат собирает `ProcessRequest` (абсолютный исполняемый файл, абсолютная рабочая директория,
+  `environment` добавляется к окружению родителя), по умолчанию `inheritStdio = true`, чтобы вывод
+  длинных сборок шёл в терминал напрямую; захват (`inheritStdio = false`) — только для коротких
+  вызовов вроде `--version`;
+- делегат никогда не получает и не передаёт инструменту project API key;
+- пути рабочей копии — `WorkspacePaths`: `workspaceDir` всегда родитель `.sdds`;
+- выбор платформы всегда идёт через `PlatformResolver`, чтобы сообщения об ошибке были одинаковыми
+  во всех командах;
+- argv-билдер и обработка exit code каждого делегата тестируются фейком `ProcessRunner` (это
+  `fun interface`, поэтому фейк — лямбда); оркестрация use case'ов — фейком `PlatformDelegate`;
+- реальные `ProcessRunner` (`jvmMain` — `ProcessBuilder`, `macosMain` — `NSTask`) покрыты тестами,
+  запускающими `/bin/sh`, в `jvmTest` и `macosTest`.
+
 ## Build-system и convention plugins
 
 `:cli` использует `convention.kotlin-multiplatform-module` из `build-system`, как и все `core-*`/`feature-*` модули, плюс дополнительно настраивает JVM/macOS executable-таргеты и упаковку дистрибутива (см. `cli/build.gradle.kts`).

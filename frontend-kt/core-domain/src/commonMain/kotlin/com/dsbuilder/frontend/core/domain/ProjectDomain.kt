@@ -78,11 +78,13 @@ public value class ProjectApiUrl(
  * @property projectId идентификатор DS Builder project.
  * @property designSystemId идентификатор design system внутри project.
  * @property credentialEnvName имя env-переменной с project API key.
+ * @property platforms целевые платформы проекта; пустой список означает, что платформа не объявлена.
  */
 public data class ProjectConfigDraft(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
     public val credentialEnvName: CredentialEnvName,
+    public val platforms: List<TargetPlatform> = emptyList(),
 )
 
 /**
@@ -92,12 +94,14 @@ public data class ProjectConfigDraft(
  * @property designSystemId идентификатор design system внутри project.
  * @property credentialEnvName имя env-переменной с project API key.
  * @property configPath путь найденного project config.
+ * @property platforms целевые платформы проекта; пустой список означает, что платформа не объявлена.
  */
 public data class ProjectContext(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
     public val credentialEnvName: CredentialEnvName,
     public val configPath: String,
+    public val platforms: List<TargetPlatform> = emptyList(),
 )
 
 /**

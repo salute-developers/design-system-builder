@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.docs.application
 
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.docs.domain.DocumentationPlatformContext
 import com.dsbuilder.frontend.feature.docs.domain.Manifest
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
@@ -39,6 +40,13 @@ internal interface DocsProjectContextReader {
      * Возвращает fallback-версию дизайн-системы, если платформенный агрегатор её не предоставил.
      */
     fun designSystemVersion(): String
+
+    /**
+     * Возвращает целевые платформы проекта из локального config.
+     *
+     * Пустой список означает, что платформа не объявлена: без явного `--platform` команда откажет.
+     */
+    fun platforms(): List<TargetPlatform> = emptyList()
 }
 
 /**
@@ -47,6 +55,12 @@ internal interface DocsProjectContextReader {
 internal class DocsProjectContextAdapter(
     private val projectContextReader: ProjectContextReader,
 ) : DocsProjectContextReader {
+    override fun platforms(): List<TargetPlatform> =
+        when (val result = projectContextReader.requireContext()) {
+            is ProjectContextReadResult.Found -> result.context.platforms
+            is ProjectContextReadResult.Failed -> emptyList()
+        }
+
     override fun designSystemId(): String {
         return when (val result = projectContextReader.requireContext()) {
             is ProjectContextReadResult.Found -> result.context.designSystemId.value

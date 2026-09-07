@@ -26,6 +26,7 @@ internal class LocalProjectConfigWriter(
                         type = CredentialReferenceType.ENV,
                         name = command.config.credentialEnvName.value,
                     ),
+                    platforms = command.config.platforms.map { it.cliValue },
                 ),
             )
             ProjectConfigWriteResult.Created(configPath = configPath)

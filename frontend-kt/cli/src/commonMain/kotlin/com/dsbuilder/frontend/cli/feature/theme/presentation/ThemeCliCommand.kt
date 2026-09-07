@@ -9,10 +9,11 @@ import com.github.ajalt.clikt.core.subcommands
  */
 internal class ThemeCliCommand(
     fetchCommand: ThemeFetchCliCommand,
+    generateCommand: ThemeGenerateCliCommand,
     aliasCommand: ThemeAliasCliCommand,
 ) : CliktCommand(name = "theme") {
     init {
-        subcommands(fetchCommand, aliasCommand)
+        subcommands(fetchCommand, generateCommand, aliasCommand)
     }
 
     override fun help(context: Context): String = "Manage design system themes."

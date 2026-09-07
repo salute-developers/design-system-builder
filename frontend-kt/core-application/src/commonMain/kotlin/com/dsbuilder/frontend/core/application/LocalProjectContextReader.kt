@@ -4,6 +4,7 @@ import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.workspace.ProjectConfigException
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 
@@ -16,15 +17,24 @@ internal class LocalProjectContextReader(
     override fun requireContext(): ProjectContextReadResult =
         try {
             val context = projectConfigStore.requireNearestContext()
+            val platforms = context.config.platforms.map { value ->
+                TargetPlatform.fromCliValue(value)
+                    ?: return ProjectContextReadResult.Failed(unknownPlatformMessage(value, context.configPath))
+            }
             ProjectContextReadResult.Found(
                 ProjectContext(
                     projectId = ProjectId(context.config.projectId),
                     designSystemId = DesignSystemId(context.config.designSystemId),
                     credentialEnvName = CredentialEnvName(context.config.credential.name),
                     configPath = context.configPath,
+                    platforms = platforms,
                 ),
             )
         } catch (exception: ProjectConfigException) {
             ProjectContextReadResult.Failed("Error: ${exception.message}")
         }
+
+    private fun unknownPlatformMessage(value: String, configPath: String): String =
+        "Error: unknown platform '$value' in $configPath. " +
+            "Supported platforms: ${TargetPlatform.cliValues.joinToString()}."
 }

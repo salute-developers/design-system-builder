@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.cli.feature.docs.presentation.DocsCliCommand
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitCliCommand
 import com.dsbuilder.frontend.cli.feature.status.presentation.StatusCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeCliCommand
+import com.dsbuilder.frontend.cli.feature.toolchain.presentation.ToolchainCliCommand
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -19,9 +20,17 @@ public fun cliModule(): Module = module {
         val themeCommand = get<ThemeCliCommand>()
         val componentsCommand = get<ComponentsCliCommand>()
         val docsCommand = get<DocsCliCommand>()
+        val toolchainCommand = get<ToolchainCliCommand>()
 
         RootCliCommand(
-            cliktSubcommands = listOf(initCommand, statusCommand, themeCommand, componentsCommand, docsCommand),
+            cliktSubcommands = listOf(
+                initCommand,
+                statusCommand,
+                themeCommand,
+                componentsCommand,
+                docsCommand,
+                toolchainCommand,
+            ),
         )
     }
 }

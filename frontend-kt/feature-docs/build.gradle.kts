@@ -10,6 +10,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.coreDomain)
+            implementation(projects.corePlatform)
             implementation(projects.coreNetwork)
             implementation(projects.coreWorkspace)
             implementation(projects.coreApplication)
