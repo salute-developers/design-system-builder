@@ -8,7 +8,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.coreDomain)
+            // InitProjectCommand.platforms публично оперирует TargetPlatform.
+            api(projects.coreDomain)
             implementation(projects.coreWorkspace)
             // initApplicationModule(): Module is a public factory returning a Koin type.
             api(libs.koin.core)

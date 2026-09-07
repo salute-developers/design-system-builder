@@ -11,6 +11,8 @@ import kotlinx.serialization.Serializable
  * @property credential ссылка на runtime-источник project API key.
  * @property tenants downloaded tenant metadata для configured design system.
  * @property palettePath относительный путь до локального `palette.json`.
+ * @property platforms целевые платформы проекта как canonical identifiers (`swiftui`, `compose`, …).
+ * Хранятся строками: config — модель хранения, разбор значения в доменный тип делает читатель контекста.
  */
 @Serializable
 public data class ProjectConfig(
@@ -19,6 +21,7 @@ public data class ProjectConfig(
     public val credential: CredentialReference,
     public val tenants: List<ProjectConfigTenant> = emptyList(),
     public val palettePath: String? = null,
+    public val platforms: List<String> = emptyList(),
 )
 
 /**

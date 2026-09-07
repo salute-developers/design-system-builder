@@ -7,6 +7,8 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.network.MultipartFile
+import com.dsbuilder.frontend.core.process.ProcessResult
+import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.CredentialReference
 import com.dsbuilder.frontend.core.workspace.CredentialReferenceType
 import com.dsbuilder.frontend.core.workspace.ProjectConfig
@@ -1018,6 +1020,7 @@ class DsBuilderCliTest {
             onPost,
             onCreate,
         ),
+        processRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
     )
 }
 

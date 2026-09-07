@@ -6,6 +6,8 @@ import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.process.ProcessResult
+import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -140,6 +142,7 @@ class ComponentsCliCommandTest {
                         }
                     }
             },
+            processRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
         ),
     )
 }

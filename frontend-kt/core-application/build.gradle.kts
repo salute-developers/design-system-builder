@@ -14,6 +14,8 @@ kotlin {
             // modules cross this module's public API, so consumers need them transitively.
             api(projects.coreDomain)
             api(projects.coreNetwork)
+            // ClientRuntime.processRunner — публичное свойство типа ProcessRunner.
+            api(projects.coreProcess)
             api(projects.coreAuth)
             api(projects.coreWorkspace)
             // coreApplicationModule(): Module is a public factory returning a Koin type.

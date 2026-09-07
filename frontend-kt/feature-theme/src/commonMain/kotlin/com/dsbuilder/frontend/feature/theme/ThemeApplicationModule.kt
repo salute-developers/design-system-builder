@@ -4,9 +4,11 @@ import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
+import com.dsbuilder.frontend.feature.theme.application.GenerateThemeUseCase
 import com.dsbuilder.frontend.feature.theme.application.ListThemeAliasesUseCase
 import com.dsbuilder.frontend.feature.theme.application.LocalThemeWriter
 import com.dsbuilder.frontend.feature.theme.application.RemoteThemeDataSource
@@ -46,4 +48,5 @@ public fun themeApplicationModule(): Module = module {
             localThemeWriter = get<LocalThemeWriter>(),
         )
     }
+    single { GenerateThemeUseCase(get<PlatformCapabilityRunner>()) }
 }

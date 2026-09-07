@@ -7,6 +7,8 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.flag
+import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 
 /**
@@ -20,14 +22,21 @@ internal class DocsGenerateCliCommand(
     private val generateUseCase: DocsGenerateUseCase,
 ) : CliktCommand(name = "generate") {
 
-    private val docsDir: String by option("--docs-dir")
-        .default(".sdds/temp/docs")
+    private val docsDir: String? by option("--docs-dir")
+        .help("Ready documentation tree; the platform aggregation step is skipped when given.")
 
     private val outputGzip: String by option("--output")
         .default(".sdds/temp/docs-bundle.tar.gz")
 
-    private val platform: String by option("--platform")
-        .default("compose")
+    private val platform: String? by option("--platform")
+        .help("Documentation platform; taken from .sdds/config.json when omitted.")
+
+    private val noAggregate: Boolean by option("--no-aggregate")
+        .flag()
+        .help("Do not run the platform aggregation step; use the tree as it is.")
+
+    private val tool: String? by option("--tool")
+        .help("Path to the platform tool used by the aggregation step.")
 
     override fun run() {
         val result = generateUseCase.execute(
@@ -35,6 +44,8 @@ internal class DocsGenerateCliCommand(
                 docsDir = docsDir,
                 outputGzipPath = outputGzip,
                 platform = platform,
+                aggregate = !noAggregate,
+                toolOverride = tool,
             ),
         )
 

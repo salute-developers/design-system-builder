@@ -9,7 +9,10 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.coreDomain)
+            // GenerateComponentsCommand.platform публично оперирует TargetPlatform.
+            api(projects.coreDomain)
+            // GenerateComponentsUseCase публично возвращает PlatformRunResult.
+            api(projects.corePlatform)
             // FetchSource/PushTarget expose ResolvedApiUrl (core-network) as a public property.
             api(projects.coreNetwork)
             implementation(projects.coreWorkspace)

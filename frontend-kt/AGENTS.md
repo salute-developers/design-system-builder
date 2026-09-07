@@ -7,21 +7,24 @@
 ## Модульный граф
 
 ```text
-core-domain (leaf)   core-workspace (leaf)   core-auth (leaf)
-                                                    │
-                                                    ▼
-                                              core-network
+core-domain (leaf)  core-workspace (leaf)  core-auth (leaf)  core-process (leaf)
+                                                   │
+                                                   ▼
+                                             core-network
 
-core-domain, core-network, core-auth, core-workspace
+core-domain, core-network, core-auth, core-workspace, core-process
        │                 │                 │
        └─────────────────┼─────────────────┘
                           ▼
                    core-application
                           │
-    ┌─────────┬─────────┬┴────────┬─────────┐
-feature-init feature-status feature-theme feature-docs feature-components
-    │         │            │              │            │
-    └─────────┴─────┬──────┴──────────────┴────────────┘
+                          ▼
+                    core-platform ─────────────┐
+                          │                    │
+    ┌─────────┬───────────┼──────────┬─────────┤
+feature-init feature-status feature-theme feature-docs feature-components feature-toolchain
+    │         │            │              │            │                   │
+    └─────────┴─────┬──────┴──────────────┴────────────┴───────────────────┘
                     :cli (presentation + composition root)
 ```
 
@@ -31,8 +34,10 @@ feature-init feature-status feature-theme feature-docs feature-components
 - `core-auth` — разрешение project API key из CLI-аргумента и env (`ApiKeyResolver`, `EnvironmentReader`). Без зависимостей на другие `core-*`.
 - `core-workspace` — доступ к файловой системе и `.sdds/config.json` (`WorkspaceFileSystem`, `ProjectConfigStore`, `ProjectConfig`). Без зависимостей на другие `core-*`.
 - `core-network` — authenticated HTTP-клиент и разрешение backend API URL (`AuthenticatedHttpClient`, `ApiUrlResolver`). Зависит от `core-auth` — оба резолвера (API key и API URL) читают env через общий `EnvironmentReader`.
+- `core-process` — порт запуска внешних процессов (`ProcessRunner`, `ProcessRequest`, `ProcessResult`). Без зависимостей на другие `core-*`: платформенные реализации живут в composition root клиента и приезжают через `ClientRuntime`.
 - `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `ProjectApiKeyProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
-- `feature-init`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components` — по одному модулю на CLI-команду верхнего уровня. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
+- `core-platform` — делегирование платформам: порт `PlatformDelegate`, реестр `PlatformDelegateRegistry`, выбор платформы `PlatformResolver` и общий сценарий запуска `PlatformCapabilityRunner`. Зависит от `core-domain` и `core-application`. Адаптеры конкретных платформ живут в отдельных модулях `platform-<toolchain>` и в `core-platform` не попадают.
+- `feature-init`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain` — по одному модулю на CLI-команду верхнего уровня. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
 - `:cli` — тонкая presentation-обёртка и composition root. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
 
 ## Правило направления зависимостей

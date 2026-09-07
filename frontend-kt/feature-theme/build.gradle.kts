@@ -9,7 +9,10 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.coreDomain)
+            // GenerateThemeCommand.platform публично оперирует TargetPlatform.
+            api(projects.coreDomain)
+            // GenerateThemeUseCase публично возвращает PlatformRunResult и принимает PlatformRunPlan.
+            api(projects.corePlatform)
             implementation(projects.coreNetwork)
             // ThemeAliasListResult.Listed exposes ProjectConfigTenant (core-workspace) publicly.
             api(projects.coreWorkspace)

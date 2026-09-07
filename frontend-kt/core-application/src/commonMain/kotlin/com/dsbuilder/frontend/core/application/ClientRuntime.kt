@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.core.application
 
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 
 /**
@@ -13,9 +14,11 @@ import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
  * @property fileSystem доступ к файловой системе.
  * @property environmentReader доступ к env-переменным.
  * @property httpClientFactory factory для authenticated project-scoped HTTP client.
+ * @property processRunner запуск внешних процессов — платформенных инструментов дизайн-системы.
  */
 public data class ClientRuntime(
     public val fileSystem: WorkspaceFileSystem,
     public val environmentReader: EnvironmentReader,
     public val httpClientFactory: AuthenticatedHttpClientFactory,
+    public val processRunner: ProcessRunner,
 )

@@ -37,14 +37,18 @@ public sealed interface DocsInitResult {
 /**
  * Command для команды `docs generate`.
  *
- * @property docsDir директория с результатом агрегатора.
+ * @property docsDir директория с результатом агрегатора; `null` — платформенный шаг и умолчание.
  * @property outputGzipPath путь к выходному gzip-архиву.
- * @property platform платформа документации.
+ * @property platform платформа документации; `null` — взять из project config.
+ * @property aggregate запускать ли платформенную агрегацию перед сборкой пакета.
+ * @property toolOverride путь платформенного инструмента из `--tool`.
  */
 public data class DocsGenerateCommand(
-    public val docsDir: String,
+    public val docsDir: String? = null,
     public val outputGzipPath: String,
-    public val platform: String,
+    public val platform: String? = null,
+    public val aggregate: Boolean = true,
+    public val toolOverride: String? = null,
 )
 
 /**
@@ -55,9 +59,13 @@ public sealed interface DocsGenerateResult {
      * Пакет собран.
      *
      * @property bundlePath путь к собранному tar.gz-архиву.
+     * @property docsDir дерево документации, из которого собран пакет.
+     * @property aggregatedBy toolchain, собравший дерево на этом запуске; `null` — дерево было готово заранее.
      */
     public data class Success(
         public val bundlePath: String,
+        public val docsDir: String,
+        public val aggregatedBy: String? = null,
     ) : DocsGenerateResult
 
     /**

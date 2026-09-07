@@ -6,7 +6,9 @@ import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeAliasSetCliCom
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeAliasUnsetCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeFetchCliCommand
+import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeGenerateCliCommand
 import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
+import com.dsbuilder.frontend.feature.theme.application.GenerateThemeUseCase
 import com.dsbuilder.frontend.feature.theme.application.ListThemeAliasesUseCase
 import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasUseCase
 import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasUseCase
@@ -29,6 +31,13 @@ public fun themeCliPresentationModule(): Module = module {
             unsetCommand = get<ThemeAliasUnsetCliCommand>(),
         )
     }
-    single { ThemeCliCommand(get<ThemeFetchCliCommand>(), get<ThemeAliasCliCommand>()) }
+    single { ThemeGenerateCliCommand(get<GenerateThemeUseCase>()) }
+    single {
+        ThemeCliCommand(
+            fetchCommand = get<ThemeFetchCliCommand>(),
+            generateCommand = get<ThemeGenerateCliCommand>(),
+            aliasCommand = get<ThemeAliasCliCommand>(),
+        )
+    }
     single<CliktCommand> { get<ThemeCliCommand>() }
 }
