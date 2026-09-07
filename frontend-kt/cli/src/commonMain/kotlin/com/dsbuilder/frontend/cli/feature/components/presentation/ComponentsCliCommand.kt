@@ -10,9 +10,10 @@ import com.github.ajalt.clikt.core.subcommands
 internal class ComponentsCliCommand(
     pushCommand: ComponentsPushCliCommand,
     fetchCommand: ComponentsFetchCliCommand,
+    generateCommand: ComponentsGenerateCliCommand,
 ) : CliktCommand(name = "components") {
     init {
-        subcommands(pushCommand, fetchCommand)
+        subcommands(pushCommand, fetchCommand, generateCommand)
     }
 
     override fun help(context: Context): String = "Manage design system components."

@@ -1,19 +1,24 @@
 package com.dsbuilder.frontend.cli
 
 import com.dsbuilder.frontend.cli.di.cliModule
+import com.dsbuilder.frontend.cli.di.platformDelegatesModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationModule
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.application.coreApplicationModule
+import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
+import com.dsbuilder.frontend.core.platform.corePlatformModule
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
 import com.dsbuilder.frontend.feature.init.initApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
+import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.terminal
@@ -51,6 +56,8 @@ public class DsBuilderCli(
         val koin = koinApplication {
             modules(
                 coreApplicationModule(runtime),
+                corePlatformModule(),
+                platformDelegatesModule(),
                 docsApplicationModule(),
                 docsCliPresentationModule(),
                 initApplicationModule(),
@@ -61,12 +68,23 @@ public class DsBuilderCli(
                 themeCliPresentationModule(),
                 componentsApplicationModule(),
                 componentsCliPresentationModule(),
+                toolchainApplicationModule(),
+                toolchainCliPresentationModule(),
                 cliModule(),
             )
         }.koin
 
         return koin.get<RootCliCommand>().executeForResult(args)
     }
+
+    /**
+     * Возвращает реестр платформенных делегатов, собранный тем же composition root, что и команды.
+     *
+     * Нужен тестам composition root и будущим клиентам, которым важен состав делегатов,
+     * а не разбор CLI-аргументов.
+     */
+    public fun platformDelegateRegistry(): PlatformDelegateRegistry =
+        koinApplication { modules(coreApplicationModule(runtime), platformDelegatesModule()) }.koin.get()
 }
 
 private fun RootCliCommand.executeForResult(args: List<String>): CliResult {

@@ -44,6 +44,22 @@ dsbuilder --version
 dsbuilder init --project-id project-123 --design-system-id ds-456
 ```
 
+Целевую платформу проекта стоит записать сразу: тогда командам генерации и документации
+не нужен `--platform` при каждом запуске.
+
+```bash
+dsbuilder init --project-id project-123 --design-system-id ds-456 --platform swiftui
+```
+
+Опция повторяется, если проект ведёт несколько платформ:
+
+```bash
+dsbuilder init --project-id project-123 --design-system-id ds-456 \
+  --platform compose --platform android-view
+```
+
+Допустимые значения: `compose`, `android-view`, `swiftui`, `react`.
+
 По умолчанию CLI ожидает API key в переменной окружения `DSBUILDER_API_KEY`.
 Имя переменной можно сохранить в конфиге проекта:
 
@@ -212,6 +228,46 @@ components:write
 - Одна некорректная конфигурация отменяет загрузку всего пакета: частичная загрузка
   компонентной модели хуже отказа. В сообщении называются компонент, стиль и файл.
 
+## Генерация кода дизайн-системы
+
+Код темы и компонентов генерирует инструмент платформы: Swift CLI для iOS, Gradle-плагин для
+Android. CLI выбирает его по целевой платформе и передаёт пути рабочей копии.
+
+```bash
+dsbuilder theme generate
+dsbuilder components generate
+```
+
+Платформа берётся из `.sdds/config.json`. Если она там не объявлена или платформ несколько,
+её нужно назвать явно:
+
+```bash
+dsbuilder theme generate --platform swiftui
+```
+
+Куда положить результат и каким инструментом это сделать, можно задать явно:
+
+```bash
+dsbuilder theme generate --output ./Themes --tool ~/.dsbuilder/toolchains/ios/dsbuilder-ios
+```
+
+Всё после `--` уходит платформенному инструменту без изменений:
+
+```bash
+dsbuilder theme generate -- --standalone --components
+```
+
+### Какие инструменты доступны
+
+```bash
+dsbuilder toolchain list
+dsbuilder toolchain doctor
+dsbuilder toolchain doctor --platform compose
+```
+
+`doctor` ничего не генерирует: он спрашивает у каждого делегата, установлен ли его инструмент и
+подходит ли версия. Ненулевой код возврата означает, что хотя бы один инструмент непригоден.
+
 ## Публикация документации
 
 Сначала соберите documentation bundle, затем отправьте его через project-scoped gateway API:
@@ -220,6 +276,21 @@ components:write
 dsbuilder docs generate
 dsbuilder docs publish
 ```
+
+`docs generate` сначала просит инструмент платформы насытить дерево документации примерами,
+скриншотами и info-артефактами, а затем собирает из него пакет. Если для платформы инструмент
+не зарегистрирован, шаг пропускается и пакет собирается из готового дерева — как раньше.
+
+Готовое дерево задаётся явно, тогда платформенный шаг не выполняется:
+
+```bash
+dsbuilder docs generate --docs-dir ./build/docs
+dsbuilder docs generate --no-aggregate
+```
+
+Платформа документации берётся из `.sdds/config.json`; `--platform` переопределяет её и
+дополнительно принимает `design` — платформу без собственного инструмента. Проект, не объявивший
+платформу, собирает `compose`-пакет, как и до появления делегатов.
 
 По умолчанию публикуется `.sdds/temp/docs-bundle.tar.gz`. Другой archive можно указать явно:
 

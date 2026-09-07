@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.docs.domain
 
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import kotlinx.serialization.Serializable
 
 /**
@@ -110,6 +111,21 @@ public enum class DocumentationPlatform(
             entries.firstOrNull { it.manifestValue == value }
     }
 }
+
+/**
+ * Возвращает платформу документации, соответствующую целевой платформе клиента.
+ *
+ * Соответствие один к одному: у каждой [TargetPlatform] есть ровно одна платформа документации.
+ * Обратное неверно: `uikit` и `design` — платформы документации без собственного инструмента,
+ * поэтому целевой платформы у них нет и задаются они только явным `--platform`.
+ */
+public fun TargetPlatform.toDocumentationPlatform(): DocumentationPlatform =
+    when (this) {
+        TargetPlatform.COMPOSE -> DocumentationPlatform.COMPOSE
+        TargetPlatform.ANDROID_VIEW -> DocumentationPlatform.ANDROID_VIEW
+        TargetPlatform.SWIFT_UI -> DocumentationPlatform.SWIFT_UI
+        TargetPlatform.REACT -> DocumentationPlatform.REACT
+    }
 
 /**
  * Тип артефакта в пакете документации.

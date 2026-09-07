@@ -36,11 +36,15 @@ kotlin {
             implementation(projects.coreAuth)
             implementation(projects.coreWorkspace)
             implementation(projects.coreApplication)
+            implementation(projects.coreDomain)
+            implementation(projects.coreProcess)
+            implementation(projects.corePlatform)
             implementation(projects.featureInit)
             implementation(projects.featureStatus)
             implementation(projects.featureTheme)
             implementation(projects.featureDocs)
             implementation(projects.featureComponents)
+            implementation(projects.featureToolchain)
             implementation(libs.clikt)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)
@@ -65,8 +69,13 @@ kotlin {
             }
         }
 
+        val macosTest by creating {
+            dependsOn(commonTest.get())
+        }
+
         macosTargets.forEach { target ->
             target.compilations.getByName("main").defaultSourceSet.dependsOn(macosMain)
+            target.compilations.getByName("test").defaultSourceSet.dependsOn(macosTest)
         }
     }
 }

@@ -4,11 +4,13 @@ import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
+import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
@@ -60,4 +62,5 @@ public fun componentsApplicationModule(): Module = module {
             planBuilder = get<ComponentPackageWritePlanBuilder>(),
         )
     }
+    single { GenerateComponentsUseCase(get<PlatformCapabilityRunner>()) }
 }

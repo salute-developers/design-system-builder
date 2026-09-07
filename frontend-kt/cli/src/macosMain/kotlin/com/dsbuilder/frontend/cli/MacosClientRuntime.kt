@@ -3,20 +3,38 @@ package com.dsbuilder.frontend.cli
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.process.ProcessLaunchException
+import com.dsbuilder.frontend.core.process.ProcessRequest
+import com.dsbuilder.frontend.core.process.ProcessResult
+import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.darwin.Darwin
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.pointed
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
+import kotlinx.cinterop.value
 import okio.BufferedSink
 import okio.buffer
+import platform.Foundation.NSError
+import platform.Foundation.NSPipe
+import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSTask
+import platform.Foundation.NSTaskTerminationReasonUncaughtSignal
+import platform.Foundation.NSURL
+import platform.Foundation.readDataToEndOfFile
+import platform.Foundation.waitUntilExit
 import platform.posix.F_OK
 import platform.posix.PATH_MAX
 import platform.posix.SEEK_END
@@ -44,7 +62,73 @@ public actual fun defaultClientRuntime(): ClientRuntime = ClientRuntime(
     fileSystem = MacosWorkspaceFileSystem,
     environmentReader = EnvironmentReader { name -> getenv(name)?.toKString() },
     httpClientFactory = KtorAuthenticatedHttpClientFactory { HttpClient(Darwin) },
+    processRunner = MacosProcessRunner,
 )
+
+/**
+ * Запуск процессов через `NSTask`.
+ *
+ * `posix_spawn` в биндингах Kotlin/Native для macOS отсутствует, а `fork` небезопасен для runtime.
+ * В режиме наследования stdio дочерний процесс пишет прямо в терминал; в режиме захвата stdout и
+ * stderr направляются в один pipe и читаются до EOF одним потоком — так исключён deadlock
+ * на заполненном буфере.
+ */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+private object MacosProcessRunner : ProcessRunner {
+    private const val SIGNAL_EXIT_CODE_BASE = 128
+
+    override fun run(request: ProcessRequest): ProcessResult {
+        val task = NSTask()
+        task.executableURL = NSURL.fileURLWithPath(request.executable)
+        task.arguments = request.args
+        task.currentDirectoryURL = NSURL.fileURLWithPath(request.workingDirectory, isDirectory = true)
+        task.environment = mergedEnvironment(request.environment)
+
+        val pipe = if (request.inheritStdio) {
+            null
+        } else {
+            NSPipe().also {
+                task.standardOutput = it
+                task.standardError = it
+            }
+        }
+
+        memScoped {
+            val error = alloc<ObjCObjectVar<NSError?>>()
+            if (!task.launchAndReturnError(error.ptr)) {
+                val reason = error.value?.localizedDescription ?: "unknown error"
+                throw ProcessLaunchException("Cannot start process '${'$'}{request.executable}': ${'$'}reason")
+            }
+        }
+
+        val output = pipe?.let(::readToEnd).orEmpty()
+        task.waitUntilExit()
+        val status = task.terminationStatus
+        val exitCode = if (task.terminationReason == NSTaskTerminationReasonUncaughtSignal) {
+            SIGNAL_EXIT_CODE_BASE + status
+        } else {
+            status
+        }
+
+        return ProcessResult(exitCode = exitCode, output = output)
+    }
+
+    /** Окружение родителя плюс переменные запроса: одноимённые перекрываются запросом. */
+    private fun mergedEnvironment(extra: Map<String, String>): Map<Any?, Any?> {
+        val environment: MutableMap<Any?, Any?> = NSProcessInfo.processInfo.environment.toMutableMap()
+        environment.putAll(extra)
+
+        return environment
+    }
+
+    private fun readToEnd(pipe: NSPipe): String {
+        val data = pipe.fileHandleForReading.readDataToEndOfFile()
+        val length = data.length.toInt()
+        if (length == 0) return ""
+
+        return data.bytes?.readBytes(length)?.decodeToString().orEmpty()
+    }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 private object MacosWorkspaceFileSystem : WorkspaceFileSystem {
