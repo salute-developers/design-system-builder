@@ -1,13 +1,13 @@
 package com.dsbuilder.frontend.cli.feature.theme.presentation
 
-import com.dsbuilder.frontend.cli.core.config.ProjectConfigTenant
-import com.dsbuilder.frontend.cli.feature.theme.application.ListThemeAliasesUseCase
-import com.dsbuilder.frontend.cli.feature.theme.application.SetThemeAliasCommand
-import com.dsbuilder.frontend.cli.feature.theme.application.SetThemeAliasUseCase
-import com.dsbuilder.frontend.cli.feature.theme.application.ThemeAliasListResult
-import com.dsbuilder.frontend.cli.feature.theme.application.ThemeAliasMutationResult
-import com.dsbuilder.frontend.cli.feature.theme.application.UnsetThemeAliasCommand
-import com.dsbuilder.frontend.cli.feature.theme.application.UnsetThemeAliasUseCase
+import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
+import com.dsbuilder.frontend.feature.theme.application.ListThemeAliasesUseCase
+import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasCommand
+import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasUseCase
+import com.dsbuilder.frontend.feature.theme.application.ThemeAliasListResult
+import com.dsbuilder.frontend.feature.theme.application.ThemeAliasMutationResult
+import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasCommand
+import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult

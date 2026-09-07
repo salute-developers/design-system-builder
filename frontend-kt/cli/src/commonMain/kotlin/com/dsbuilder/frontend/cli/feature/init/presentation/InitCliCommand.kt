@@ -1,10 +1,10 @@
 package com.dsbuilder.frontend.cli.feature.init.presentation
 
-import com.dsbuilder.frontend.cli.core.config.CliFileSystem
-import com.dsbuilder.frontend.cli.core.credentials.DEFAULT_API_KEY_ENV
-import com.dsbuilder.frontend.cli.feature.init.application.InitProjectCommand
-import com.dsbuilder.frontend.cli.feature.init.application.InitProjectResult
-import com.dsbuilder.frontend.cli.feature.init.application.InitProjectUseCase
+import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
+import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import com.dsbuilder.frontend.feature.init.application.InitProjectCommand
+import com.dsbuilder.frontend.feature.init.application.InitProjectResult
+import com.dsbuilder.frontend.feature.init.application.InitProjectUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
@@ -17,7 +17,7 @@ import com.github.ajalt.clikt.parameters.options.required
  */
 internal class InitCliCommand(
     private val initProjectUseCase: InitProjectUseCase,
-    private val fileSystem: CliFileSystem,
+    private val fileSystem: WorkspaceFileSystem,
 ) : CliktCommand(name = "init") {
     private val projectId: String by option("--project-id").required()
 

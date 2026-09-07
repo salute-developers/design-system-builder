@@ -1,9 +1,9 @@
 package com.dsbuilder.frontend.cli.feature.docs.presentation
 
-import com.dsbuilder.frontend.cli.core.config.CliFileSystem
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsInitCommand
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsInitResult
-import com.dsbuilder.frontend.cli.feature.docs.application.DocsInitUseCase
+import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import com.dsbuilder.frontend.feature.docs.application.DocsInitCommand
+import com.dsbuilder.frontend.feature.docs.application.DocsInitResult
+import com.dsbuilder.frontend.feature.docs.application.DocsInitUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
@@ -15,7 +15,7 @@ import com.github.ajalt.clikt.core.ProgramResult
  */
 internal class DocsInitCliCommand(
     private val initUseCase: DocsInitUseCase,
-    private val fileSystem: CliFileSystem,
+    private val fileSystem: WorkspaceFileSystem,
 ) : CliktCommand(name = "init") {
 
     override fun run() {

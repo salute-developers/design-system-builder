@@ -1,12 +1,12 @@
 package com.dsbuilder.frontend.cli.feature.components
 
-import com.dsbuilder.frontend.cli.CliRuntime
 import com.dsbuilder.frontend.cli.DsBuilderCli
-import com.dsbuilder.frontend.cli.core.config.CliFileSystem
-import com.dsbuilder.frontend.cli.core.credentials.EnvironmentReader
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClient
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClientFactory
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.application.ClientRuntime
+import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -120,10 +120,10 @@ class ComponentsCliCommandTest {
     }
 
     private fun cli(
-        fileSystem: CliFileSystem = RecordingFileSystem(),
+        fileSystem: WorkspaceFileSystem = RecordingFileSystem(),
         onBackendCall: () -> Unit = {},
     ) = DsBuilderCli(
-        CliRuntime(
+        ClientRuntime(
             fileSystem = fileSystem,
             environmentReader = EnvironmentReader { null },
             httpClientFactory = object : AuthenticatedHttpClientFactory {
@@ -147,7 +147,7 @@ class ComponentsCliCommandTest {
 /**
  * Файловая система, запоминающая обращения, чтобы проверить, что help ничего не читает.
  */
-private class RecordingFileSystem : CliFileSystem {
+private class RecordingFileSystem : WorkspaceFileSystem {
     val reads: MutableList<String> = mutableListOf()
 
     override fun currentWorkingDirectory(): String = "/repo"

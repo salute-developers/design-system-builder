@@ -32,6 +32,15 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(projects.coreNetwork)
+            implementation(projects.coreAuth)
+            implementation(projects.coreWorkspace)
+            implementation(projects.coreApplication)
+            implementation(projects.featureInit)
+            implementation(projects.featureStatus)
+            implementation(projects.featureTheme)
+            implementation(projects.featureDocs)
+            implementation(projects.featureComponents)
             implementation(libs.clikt)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)

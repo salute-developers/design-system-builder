@@ -1,46 +1,21 @@
 package com.dsbuilder.frontend.cli
 
-import com.dsbuilder.frontend.cli.core.config.CliFileSystem
-import com.dsbuilder.frontend.cli.core.config.CredentialReference
-import com.dsbuilder.frontend.cli.core.config.CredentialReferenceType
-import com.dsbuilder.frontend.cli.core.config.ProjectConfig
-import com.dsbuilder.frontend.cli.core.config.ProjectConfigCodec
-import com.dsbuilder.frontend.cli.core.config.ProjectConfigException
-import com.dsbuilder.frontend.cli.core.config.ProjectConfigStore
-import com.dsbuilder.frontend.cli.core.config.ProjectConfigTenant
-import com.dsbuilder.frontend.cli.core.credentials.ApiKeyResolver
-import com.dsbuilder.frontend.cli.core.credentials.EnvironmentReader
-import com.dsbuilder.frontend.cli.core.credentials.MissingApiKeyException
-import com.dsbuilder.frontend.cli.core.http.ApiUrlResolver
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClient
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpClientFactory
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResponse
-import com.dsbuilder.frontend.cli.core.http.AuthenticatedHttpResult
-import com.dsbuilder.frontend.cli.core.http.DEFAULT_API_URL
-import com.dsbuilder.frontend.cli.core.http.KtorAuthenticatedHttpClientFactory
-import com.dsbuilder.frontend.cli.core.http.MultipartFile
-import com.dsbuilder.frontend.cli.feature.theme.domain.PaletteItem
-import com.dsbuilder.frontend.cli.feature.theme.domain.Platform
-import com.dsbuilder.frontend.cli.feature.theme.domain.Tenant
-import com.dsbuilder.frontend.cli.feature.theme.domain.TenantDirectoryNormalizer
-import com.dsbuilder.frontend.cli.feature.theme.domain.ThemeWritePlanBuildResult
-import com.dsbuilder.frontend.cli.feature.theme.domain.ThemeWritePlanBuilder
-import com.dsbuilder.frontend.cli.feature.theme.domain.Token
-import com.dsbuilder.frontend.cli.feature.theme.domain.TokenValue
-import com.dsbuilder.frontend.cli.feature.theme.domain.TokenValueNormalizationResult
-import com.dsbuilder.frontend.cli.feature.theme.domain.TokenValueNormalizer
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.engine.mock.respond
-import io.ktor.client.request.HttpRequestData
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
+import com.dsbuilder.frontend.core.application.ClientRuntime
+import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
+import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.MultipartFile
+import com.dsbuilder.frontend.core.workspace.CredentialReference
+import com.dsbuilder.frontend.core.workspace.CredentialReferenceType
+import com.dsbuilder.frontend.core.workspace.ProjectConfig
+import com.dsbuilder.frontend.core.workspace.ProjectConfigCodec
+import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
+import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
+import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,9 +24,7 @@ import okio.Sink
 import okio.buffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
@@ -72,292 +45,6 @@ class DsBuilderCliTest {
 
         assertEquals(0, result.exitCode)
         assertEquals("dsbuilder version 0.1.0", result.output)
-    }
-
-    @Test
-    fun configCodecSerializesProjectAndCredentialReferenceOnly() {
-        val codec = ProjectConfigCodec()
-
-        val text = codec.encode(projectConfig())
-        val decoded = codec.decode(text)
-
-        assertEquals("project-a", decoded.projectId)
-        assertEquals("design-system-a", decoded.designSystemId)
-        assertEquals("DSBUILDER_PROJECT_A_API_KEY", decoded.credential.name)
-        assertFalse(text.contains("apiKey"))
-        assertFalse(text.contains("apiUrl"))
-        assertFalse(text.contains("secret-value"))
-    }
-
-    @Test
-    fun configCodecReadsConfigWithoutTenantsAndWritesConfigWithTenants() {
-        val codec = ProjectConfigCodec()
-        val legacy = """
-            {
-              "projectId": "project-a",
-              "designSystemId": "design-system-a",
-              "credential": {
-                "type": "env",
-                "name": "DSBUILDER_PROJECT_A_API_KEY"
-              }
-            }
-        """.trimIndent()
-
-        val decodedLegacy = codec.decode(legacy)
-        val encoded = codec.encode(
-            decodedLegacy.copy(
-                tenants = listOf(
-                    ProjectConfigTenant(
-                        id = "tenant-a",
-                        designSystemId = "design-system-a",
-                        name = "SDDS CS",
-                        description = "Tenant",
-                        createdAt = "2026-06-04T07:37:55.526Z",
-                        updatedAt = "2026-06-04T07:37:55.526Z",
-                        alias = "main",
-                    ),
-                ),
-            ),
-        )
-        val decodedWithTenants = codec.decode(encoded)
-
-        assertEquals(emptyList(), decodedLegacy.tenants)
-        assertEquals(null, decodedLegacy.palettePath)
-        assertEquals("tenant-a", decodedWithTenants.tenants.single().id)
-        assertEquals(null, decodedWithTenants.tenants.single().directoryPath)
-        assertEquals("main", decodedWithTenants.tenants.single().alias)
-        assertFalse(encoded.contains("apiKey"))
-        assertFalse(encoded.contains("apiUrl"))
-        assertFalse(encoded.contains("secret-value"))
-    }
-
-    @Test
-    fun configCodecReadsTenantsWithoutAlias() {
-        val codec = ProjectConfigCodec()
-        val text = """
-            {
-              "projectId": "project-a",
-              "designSystemId": "design-system-a",
-              "credential": {
-                "type": "env",
-                "name": "DSBUILDER_PROJECT_A_API_KEY"
-              },
-              "tenants": [
-                {
-                  "id": "tenant-a",
-                  "designSystemId": "design-system-a",
-                  "name": "SDDS CS",
-                  "description": "Tenant",
-                  "directoryPath": ".sdds/sdds_cs",
-                  "createdAt": "2026-06-04T07:37:55.526Z",
-                  "updatedAt": "2026-06-04T07:37:55.526Z"
-                }
-              ]
-            }
-        """.trimIndent()
-
-        val decoded = codec.decode(text)
-
-        assertEquals(null, decoded.tenants.single().alias)
-    }
-
-    @Test
-    fun configCodecReadsAndWritesPalettePath() {
-        val codec = ProjectConfigCodec()
-        val encoded = codec.encode(projectConfig().copy(palettePath = ".sdds/tenants/palette.json"))
-        val decoded = codec.decode(encoded)
-
-        assertEquals(".sdds/tenants/palette.json", decoded.palettePath)
-        assertFalse(encoded.contains("apiKey"))
-        assertFalse(encoded.contains("apiUrl"))
-    }
-
-    @Test
-    fun configStoreUpdatesTenantsAndPreservesProjectCredentialMetadata() {
-        val fileSystem = initializedFileSystem()
-        val store = ProjectConfigStore(fileSystem)
-        val context = store.requireNearestContext()
-
-        store.updateTenants(
-            context = context,
-            tenants = listOf(configTenant("tenant-a")),
-        )
-        val updated = ProjectConfigCodec().decode(fileSystem.readText("/repo/.sdds/config.json"))
-
-        assertEquals("project-a", updated.projectId)
-        assertEquals("design-system-a", updated.designSystemId)
-        assertEquals("DSBUILDER_PROJECT_A_API_KEY", updated.credential.name)
-        assertEquals("tenant-a", updated.tenants.single().id)
-        assertEquals(".sdds/tenants/sdds_cs", updated.tenants.single().directoryPath)
-        assertEquals(null, updated.palettePath)
-    }
-
-    @Test
-    fun configStoreUpdatesTenantsPreservingAliasesByTenantId() {
-        val fileSystem = initializedFileSystem()
-        val store = ProjectConfigStore(fileSystem)
-        store.updateConfig("/repo/.sdds/config.json") { config ->
-            config.copy(palettePath = ".sdds/tenants/palette.json")
-        }
-        store.updateTenants(
-            configPath = "/repo/.sdds/config.json",
-            tenants = listOf(
-                configTenant("tenant-a").copy(alias = "main"),
-                configTenant("removed-tenant").copy(alias = "removed"),
-            ),
-        )
-
-        store.updateTenantsPreservingAliases(
-            configPath = "/repo/.sdds/config.json",
-            tenants = listOf(
-                configTenant("tenant-a").copy(name = "Fresh Tenant"),
-                configTenant("tenant-b"),
-            ),
-        )
-        val updated = ProjectConfigCodec().decode(fileSystem.readText("/repo/.sdds/config.json"))
-
-        assertEquals("main", updated.tenants.first { it.id == "tenant-a" }.alias)
-        assertEquals("Fresh Tenant", updated.tenants.first { it.id == "tenant-a" }.name)
-        assertEquals(null, updated.tenants.first { it.id == "tenant-b" }.alias)
-        assertFalse(updated.tenants.any { it.id == "removed-tenant" })
-        assertEquals(".sdds/tenants/palette.json", updated.palettePath)
-        assertFalse(fileSystem.readText("/repo/.sdds/config.json").contains("apiUrl"))
-    }
-
-    @Test
-    fun configDiscoveryUsesCurrentDirectoryConfig() {
-        val fileSystem = FakeFileSystem(currentDirectory = "/repo/package-a")
-        fileSystem.writeText("/repo/package-a/.sdds/config.json", ProjectConfigCodec().encode(projectConfig("current")))
-
-        val context = ProjectConfigStore(fileSystem).requireNearestContext()
-
-        assertEquals("current", context.config.projectId)
-        assertEquals("/repo/package-a/.sdds/config.json", context.configPath)
-    }
-
-    @Test
-    fun configDiscoveryUsesNearestParentConfig() {
-        val fileSystem = FakeFileSystem(currentDirectory = "/repo/package-a/src")
-        fileSystem.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig("root")))
-        fileSystem.writeText("/repo/package-a/.sdds/config.json", ProjectConfigCodec().encode(projectConfig("nearest")))
-
-        val context = ProjectConfigStore(fileSystem).requireNearestContext()
-
-        assertEquals("nearest", context.config.projectId)
-        assertEquals("/repo/package-a/.sdds/config.json", context.configPath)
-    }
-
-    @Test
-    fun missingConfigReturnsDeterministicError() {
-        val exception = assertFailsWith<ProjectConfigException> {
-            ProjectConfigStore(FakeFileSystem(currentDirectory = "/repo")).requireNearestContext()
-        }
-
-        assertNotNull(exception.message)
-        assertTrue(exception.message!!.contains("Project is not initialized"))
-    }
-
-    @Test
-    fun apiKeyArgumentHasPriorityOverEnvironment() {
-        val resolver = ApiKeyResolver(
-            EnvironmentReader { name ->
-                when (name) {
-                    "DSBUILDER_PROJECT_A_API_KEY" -> "from-config-env"
-                    "DSBUILDER_API_KEY" -> "from-default-env"
-                    else -> null
-                }
-            },
-        )
-
-        val result = resolver.resolve("from-arg", projectConfig().credential)
-
-        assertEquals("from-arg", result.value)
-        assertEquals("--api-key", result.source)
-    }
-
-    @Test
-    fun apiKeyUsesConfiguredEnvThenFallbackEnv() {
-        val configured = ApiKeyResolver(
-            EnvironmentReader { name ->
-                if (name == "DSBUILDER_PROJECT_A_API_KEY") "from-config-env" else null
-            },
-        ).resolve(null, projectConfig().credential)
-        val fallback = ApiKeyResolver(
-            EnvironmentReader { name ->
-                if (name == "DSBUILDER_API_KEY") "from-default-env" else null
-            },
-        ).resolve(null, projectConfig().credential)
-
-        assertEquals("from-config-env", configured.value)
-        assertEquals("DSBUILDER_PROJECT_A_API_KEY", configured.source)
-        assertEquals("from-default-env", fallback.value)
-        assertEquals("DSBUILDER_API_KEY", fallback.source)
-    }
-
-    @Test
-    fun missingApiKeyMentionsConfiguredEnvName() {
-        val exception = assertFailsWith<MissingApiKeyException> {
-            ApiKeyResolver(EnvironmentReader { null }).resolve(null, projectConfig().credential)
-        }
-
-        assertNotNull(exception.message)
-        assertTrue(exception.message!!.contains("DSBUILDER_PROJECT_A_API_KEY"))
-        assertTrue(exception.message!!.contains("DSBUILDER_API_KEY"))
-    }
-
-    @Test
-    fun apiUrlResolutionUsesArgumentThenEnvThenDefault() {
-        val resolver = ApiUrlResolver(
-            EnvironmentReader { name ->
-                if (name == "DSBUILDER_API_URL") "https://env.example.com" else null
-            },
-        )
-
-        assertEquals("https://arg.example.com", resolver.resolve("https://arg.example.com").value)
-        assertEquals("https://env.example.com", resolver.resolve(null).value)
-        assertEquals(DEFAULT_API_URL, ApiUrlResolver(EnvironmentReader { null }).resolve(null).value)
-    }
-
-    @Test
-    fun ktorHttpClientSendsProjectKeyAuthorizationAndMapsErrors() {
-        var request: HttpRequestData? = null
-        val engine = MockEngine {
-            request = it
-            respond(content = "{}", status = HttpStatusCode.Unauthorized)
-        }
-        val client = KtorAuthenticatedHttpClientFactory { HttpClient(engine) }.create(
-            apiUrl = "https://api.example.com",
-            apiKey = "secret-value",
-        )
-
-        val result = client.get("/api/projects/project-a")
-
-        assertEquals(AuthenticatedHttpResult.Failure("Status: unauthorized. API key is missing or invalid."), result)
-        assertEquals("/api/projects/project-a", request!!.url.encodedPath)
-        assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
-    }
-
-    @Test
-    fun ktorHttpClientSendsAuthenticatedMultipartRequest() {
-        var request: HttpRequestData? = null
-        val engine = MockEngine {
-            request = it
-            respond(content = """{"bundleId":"bundle-a","jobId":"job-a","status":"accepted"}""")
-        }
-        val client = KtorAuthenticatedHttpClientFactory { HttpClient(engine) }.create(
-            apiUrl = "https://api.example.com/",
-            apiKey = "secret-value",
-        )
-
-        val response = client.postMultipart(
-            "/api/projects/project-a/documentation/bundles",
-            MultipartFile("bundle", "docs-bundle.tar.gz", "application/gzip", byteArrayOf(1, 2, 3)),
-        )
-
-        assertEquals(200, response.statusCode)
-        assertEquals("/api/projects/project-a/documentation/bundles", request!!.url.encodedPath)
-        assertEquals("ProjectKey secret-value", request!!.headers[HttpHeaders.Authorization])
-        assertTrue(request!!.body.contentType?.toString()?.startsWith("multipart/form-data") == true)
     }
 
     @Test
@@ -752,153 +439,6 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun tenantDirectoryNormalizationHandlesSymbolsEmptyNamesAndCollisions() {
-        val normalizer = TenantDirectoryNormalizer()
-
-        val result = normalizer.normalize(
-            listOf(
-                tenant(id = "9095ed0f-tenant", name = "SDDS CS / Consumer"),
-                tenant(id = "aaaaaaaa-tenant", name = "???"),
-                tenant(id = "bbbbbbbb-tenant", name = "sdds/cs"),
-                tenant(id = "cccccccc-tenant", name = "sdds cs"),
-            ),
-        )
-
-        assertEquals("sdds_cs_consumer", result[0].directoryName)
-        assertEquals("aaaaaaaa-tenant", result[1].directoryName)
-        assertEquals("sdds_cs_bbbbbbbb", result[2].directoryName)
-        assertEquals("sdds_cs_cccccccc", result[3].directoryName)
-    }
-
-    @Test
-    fun tokenValueNormalizerSupportsAllTokenTypes() {
-        val normalizer = TokenValueNormalizer()
-
-        val color = normalizer.normalize(
-            token("color-token", "color.name", "color"),
-            tokenValue("color-token", value = listOf(JsonPrimitive("#FFFFFF"))),
-        )
-        val gradient = normalizer.normalize(
-            token("gradient-token", "gradient.name", "gradient"),
-            tokenValue("gradient-token", value = listOf(jsonObject("from" to "#000000"))),
-        )
-        val typography = normalizer.normalize(
-            token("typography-token", "typography.name", "typography"),
-            tokenValue("typography-token", value = listOf(jsonObject("fontSize" to "16"))),
-        )
-        val shadow = normalizer.normalize(
-            token("shadow-token", "shadow.name", "shadow"),
-            tokenValue("shadow-token", value = listOf(jsonObject("radius" to "8"))),
-        )
-        val shape = normalizer.normalize(
-            token("shape-token", "shape.name", "shape"),
-            tokenValue("shape-token", value = listOf(jsonObject("cornerRadius" to "4"))),
-        )
-        val webShape = normalizer.normalize(
-            token("web-shape-token", "shape.web.name", "shape"),
-            tokenValue("web-shape-token", platform = Platform.WEB, value = listOf(JsonPrimitive("4"))),
-        )
-        val webSpacing = normalizer.normalize(
-            token("web-spacing-token", "spacing.1x", "spacing"),
-            tokenValue(
-                "web-spacing-token",
-                platform = Platform.WEB,
-                value = listOf(JsonPrimitive("4")),
-            ),
-        )
-        val androidSpacing = normalizer.normalize(
-            token("android-spacing-token", "spacing.2x", "spacing"),
-            tokenValue(
-                "android-spacing-token",
-                platform = Platform.ANDROID,
-                value = listOf(jsonObject("value" to "2")),
-            ),
-        )
-        val fontFamily = normalizer.normalize(
-            token("font-token", "font.name", "fontFamily"),
-            tokenValue("font-token", value = listOf(jsonObject("fontFamily" to "Inter"))),
-        )
-
-        assertEquals(JsonPrimitive("#FFFFFF"), (color as TokenValueNormalizationResult.Success).value)
-        assertTrue((gradient as TokenValueNormalizationResult.Success).value is JsonArray)
-        assertTrue((typography as TokenValueNormalizationResult.Success).value is JsonObject)
-        assertTrue((shadow as TokenValueNormalizationResult.Success).value is JsonArray)
-        assertTrue((shape as TokenValueNormalizationResult.Success).value is JsonObject)
-        assertEquals(JsonPrimitive("4"), (webShape as TokenValueNormalizationResult.Success).value)
-        assertEquals(JsonPrimitive("4"), (webSpacing as TokenValueNormalizationResult.Success).value)
-        assertTrue((androidSpacing as TokenValueNormalizationResult.Success).value is JsonObject)
-        assertTrue((fontFamily as TokenValueNormalizationResult.Success).value is JsonObject)
-    }
-
-    @Test
-    fun themeWritePlanGroupsKnownValuesIgnoresUnknownValuesAndIgnoresModeLayout() {
-        val result = ThemeWritePlanBuilder().build(
-            tenants = listOf(tenant()),
-            tokens = listOf(
-                token("typography-token", "screen-s.header.h2.normal", "typography"),
-            ),
-            paletteItems = emptyList(),
-            valuesByTenantId = mapOf(
-                "tenant-a" to listOf(
-                    tokenValue(
-                        tokenId = "typography-token",
-                        platform = Platform.ANDROID,
-                        mode = "dark",
-                        value = listOf(jsonObject("fontSize" to "16")),
-                    ),
-                    tokenValue(tokenId = "unknown-token", platform = Platform.WEB),
-                ),
-            ),
-        ) as ThemeWritePlanBuildResult.Success
-
-        val files = result.writePlan.files.associateBy { it.relativePath }
-
-        assertTrue(files.containsKey("android/android_typography.json"))
-        assertFalse(files.containsKey("dark/android_typography.json"))
-        assertFalse(files.values.any { it.content.contains("unknown-token") })
-        assertTrue(files.getValue("android/android_typography.json").content.contains("screen-s.header.h2.normal"))
-    }
-
-    @Test
-    fun themeWritePlanBuildsPaletteObjectByShadeAndSaturationWithLastValueWinning() {
-        val result = ThemeWritePlanBuilder().build(
-            tenants = emptyList(),
-            tokens = emptyList(),
-            paletteItems = listOf(
-                paletteItem(shade = "blue", saturation = 100, value = "#EDF8FF"),
-                paletteItem(shade = "gray", saturation = 50, value = "#F8F8F8"),
-                paletteItem(shade = "blue", saturation = 100, value = "#DFF2FF"),
-            ),
-            valuesByTenantId = emptyMap(),
-        ) as ThemeWritePlanBuildResult.Success
-        val palette = result.writePlan.palette.content
-
-        assertEquals("#DFF2FF", palette.getValue("blue").jsonObject.getValue("100").jsonPrimitive.content)
-        assertEquals("#F8F8F8", palette.getValue("gray").jsonObject.getValue("50").jsonPrimitive.content)
-    }
-
-    @Test
-    fun themeWritePlanFailsForMissingEnabledValueAndInvalidValueBeforeWriting() {
-        val missing = ThemeWritePlanBuilder().build(
-            tenants = listOf(tenant()),
-            tokens = listOf(token("color-token", "color.name", "color")),
-            paletteItems = emptyList(),
-            valuesByTenantId = mapOf("tenant-a" to emptyList()),
-        )
-        val invalid = ThemeWritePlanBuilder().build(
-            tenants = listOf(tenant()),
-            tokens = listOf(token("color-token", "color.name", "color")),
-            paletteItems = emptyList(),
-            valuesByTenantId = mapOf(
-                "tenant-a" to listOf(tokenValue("color-token", value = listOf(jsonObject("bad" to "shape")))),
-            ),
-        )
-
-        assertTrue((missing as ThemeWritePlanBuildResult.Failed).message.contains("Missing value"))
-        assertTrue((invalid as ThemeWritePlanBuildResult.Failed).message.contains("Invalid value shape"))
-    }
-
-    @Test
     fun themeFetchParsesNullTokenValueAndReportsMissingValueWhenNoReplacementExists() {
         val runtime = fakeRuntime(
             fileSystem = initializedFileSystem(),
@@ -1276,70 +816,6 @@ class DsBuilderCliTest {
         updatedAt = "2026-06-04T07:37:55.526Z",
     )
 
-    private fun tenant(
-        id: String = "tenant-a",
-        name: String = "SDDS CS",
-    ): Tenant = Tenant(
-        id = id,
-        designSystemId = "design-system-a",
-        name = name,
-        description = "Tenant",
-        createdAt = "2026-06-04T07:37:55.526Z",
-        updatedAt = "2026-06-04T07:37:55.526Z",
-    )
-
-    private fun token(
-        id: String,
-        name: String,
-        type: String,
-        enabled: Boolean = true,
-    ): Token = Token(
-        id = id,
-        designSystemId = "design-system-a",
-        name = name,
-        type = type,
-        displayName = name,
-        description = "Token",
-        enabled = enabled,
-        createdAt = "2026-06-04T07:37:55.526Z",
-        updatedAt = "2026-06-04T07:37:55.526Z",
-    )
-
-    private fun tokenValue(
-        tokenId: String,
-        platform: Platform = Platform.WEB,
-        mode: String = "light",
-        value: List<JsonElement> = listOf(JsonPrimitive("#FFFFFF")),
-    ): TokenValue = TokenValue(
-        id = "value-$tokenId-${platform.directoryName}-$mode",
-        tokenId = tokenId,
-        tenantId = "tenant-a",
-        paletteId = "palette-a",
-        platform = platform,
-        mode = mode,
-        value = value,
-        createdAt = "2026-06-04T07:37:55.526Z",
-        updatedAt = "2026-06-04T07:37:55.526Z",
-    )
-
-    private fun paletteItem(
-        shade: String,
-        saturation: Int,
-        value: String,
-    ): PaletteItem = PaletteItem(
-        id = "palette-$shade-$saturation",
-        type = "general",
-        shade = shade,
-        saturation = saturation,
-        value = value,
-        createdAt = "2026-03-25T10:26:34.485Z",
-        updatedAt = "2026-04-09T08:25:46.365Z",
-    )
-
-    private fun jsonObject(vararg values: Pair<String, String>): JsonObject = JsonObject(
-        values.associate { (key, value) -> key to JsonPrimitive(value) },
-    )
-
     private fun successfulThemeHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
         "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to AuthenticatedHttpResult.Success(
             tenantsResponse(),
@@ -1531,7 +1007,7 @@ class DsBuilderCliTest {
         multipartResponse: AuthenticatedHttpResponse = AuthenticatedHttpResponse(503, ""),
         onPost: (String, MultipartFile) -> Unit = { _, _ -> },
         onCreate: (String, String) -> Unit = { _, _ -> },
-    ): CliRuntime = CliRuntime(
+    ): ClientRuntime = ClientRuntime(
         fileSystem = fileSystem,
         environmentReader = EnvironmentReader { name -> environment[name] },
         httpClientFactory = FakeAuthenticatedHttpClientFactory(
@@ -1579,7 +1055,7 @@ private class FakeAuthenticatedHttpClientFactory(
 
 private class FakeFileSystem(
     private val currentDirectory: String,
-) : CliFileSystem {
+) : WorkspaceFileSystem {
     private val files = mutableMapOf<String, ByteArray>()
     private val directories = mutableSetOf<String>()
 

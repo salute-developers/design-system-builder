@@ -1,10 +1,10 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
-import com.dsbuilder.frontend.cli.feature.components.application.ComponentDestination
-import com.dsbuilder.frontend.cli.feature.components.application.FetchComponentsCommand
-import com.dsbuilder.frontend.cli.feature.components.application.FetchComponentsResult
-import com.dsbuilder.frontend.cli.feature.components.application.FetchComponentsUseCase
-import com.dsbuilder.frontend.cli.feature.components.application.FetchSource
+import com.dsbuilder.frontend.feature.components.application.ComponentDestination
+import com.dsbuilder.frontend.feature.components.application.FetchComponentsCommand
+import com.dsbuilder.frontend.feature.components.application.FetchComponentsResult
+import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
+import com.dsbuilder.frontend.feature.components.application.FetchSource
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
