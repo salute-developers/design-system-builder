@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.cli.feature.status.presentation
 
-import com.dsbuilder.frontend.cli.feature.status.application.CheckProjectStatusCommand
-import com.dsbuilder.frontend.cli.feature.status.application.CheckProjectStatusResult
-import com.dsbuilder.frontend.cli.feature.status.application.CheckProjectStatusUseCase
+import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusCommand
+import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusResult
+import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
