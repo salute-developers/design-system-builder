@@ -22,4 +22,14 @@ plugins {
 
 includeBuild("build-system")
 
+include(":core-domain")
+include(":core-network")
+include(":core-auth")
+include(":core-workspace")
+include(":core-application")
+include(":feature-init")
+include(":feature-status")
+include(":feature-theme")
+include(":feature-docs")
+include(":feature-components")
 include(":cli")

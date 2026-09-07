@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.cli.feature.theme.presentation
 
-import com.dsbuilder.frontend.cli.feature.theme.application.FetchThemesCommand
-import com.dsbuilder.frontend.cli.feature.theme.application.FetchThemesResult
-import com.dsbuilder.frontend.cli.feature.theme.application.FetchThemesUseCase
+import com.dsbuilder.frontend.feature.theme.application.FetchThemesCommand
+import com.dsbuilder.frontend.feature.theme.application.FetchThemesResult
+import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult

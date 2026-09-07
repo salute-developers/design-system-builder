@@ -1,13 +1,19 @@
 package com.dsbuilder.frontend.cli
 
-import com.dsbuilder.frontend.cli.core.di.coreCliModule
 import com.dsbuilder.frontend.cli.di.cliModule
-import com.dsbuilder.frontend.cli.feature.components.di.componentsFeatureModule
-import com.dsbuilder.frontend.cli.feature.docs.di.docsFeatureModule
-import com.dsbuilder.frontend.cli.feature.init.di.initFeatureModule
-import com.dsbuilder.frontend.cli.feature.status.di.statusFeatureModule
-import com.dsbuilder.frontend.cli.feature.theme.di.themeFeatureModule
+import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
 import com.dsbuilder.frontend.cli.presentation.RootCliCommand
+import com.dsbuilder.frontend.core.application.ClientRuntime
+import com.dsbuilder.frontend.core.application.coreApplicationModule
+import com.dsbuilder.frontend.feature.components.componentsApplicationModule
+import com.dsbuilder.frontend.feature.docs.docsApplicationModule
+import com.dsbuilder.frontend.feature.init.initApplicationModule
+import com.dsbuilder.frontend.feature.status.statusApplicationModule
+import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.terminal
@@ -33,7 +39,7 @@ public data class CliResult(
  * Composition root CLI-приложения `dsbuilder`.
  */
 public class DsBuilderCli(
-    private val runtime: CliRuntime = defaultCliRuntime(),
+    private val runtime: ClientRuntime = defaultClientRuntime(),
 ) {
     /**
      * Обрабатывает аргументы CLI и возвращает детерминированный результат.
@@ -44,12 +50,17 @@ public class DsBuilderCli(
     public fun execute(args: List<String>): CliResult {
         val koin = koinApplication {
             modules(
-                coreCliModule(runtime),
-                docsFeatureModule(),
-                initFeatureModule(),
-                statusFeatureModule(),
-                themeFeatureModule(),
-                componentsFeatureModule(),
+                coreApplicationModule(runtime),
+                docsApplicationModule(),
+                docsCliPresentationModule(),
+                initApplicationModule(),
+                initCliPresentationModule(),
+                statusApplicationModule(),
+                statusCliPresentationModule(),
+                themeApplicationModule(),
+                themeCliPresentationModule(),
+                componentsApplicationModule(),
+                componentsCliPresentationModule(),
                 cliModule(),
             )
         }.koin
