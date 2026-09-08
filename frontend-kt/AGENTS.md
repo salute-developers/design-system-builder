@@ -25,6 +25,8 @@ core-domain, core-network, core-auth, core-workspace, core-process
 feature-init feature-status feature-theme feature-docs feature-components feature-toolchain
     │         │            │              │            │                   │
     └─────────┴─────┬──────┴──────────────┴────────────┴───────────────────┘
+                    │                    platform-ios (адаптер платформы)
+                    └────────────┬───────────────┘
                     :cli (presentation + composition root)
 ```
 
@@ -38,6 +40,7 @@ feature-init feature-status feature-theme feature-docs feature-components featur
 - `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `ProjectApiKeyProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
 - `core-platform` — делегирование платформам: порт `PlatformDelegate`, реестр `PlatformDelegateRegistry`, выбор платформы `PlatformResolver` и общий сценарий запуска `PlatformCapabilityRunner`. Зависит от `core-domain` и `core-application`. Адаптеры конкретных платформ живут в отдельных модулях `platform-<toolchain>` и в `core-platform` не попадают.
 - `feature-init`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain` — по одному модулю на CLI-команду верхнего уровня. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
+- `platform-ios` — адаптер платформы iOS: переводит capability в вызовы `dsbuilder-ios` и ищет этот инструмент на машине. Зависит от `core-platform` и `core-process`; ни один `feature-*` от него не зависит.
 - `:cli` — тонкая presentation-обёртка и composition root. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
 
 ## Правило направления зависимостей
