@@ -268,6 +268,15 @@ dsbuilder toolchain doctor --platform compose
 `doctor` ничего не генерирует: он спрашивает у каждого делегата, установлен ли его инструмент и
 подходит ли версия. Ненулевой код возврата означает, что хотя бы один инструмент непригоден.
 
+Инструмент iOS — `dsbuilder-ios` из релиза plasma-ios. CLI ищет его в таком порядке:
+`--tool <path>`, переменная `DSBUILDER_IOS_TOOL`, `~/.dsbuilder/toolchains/ios/current/dsbuilder-ios`,
+затем `PATH`. Пока команды установки нет, положите бинарь в любое из этих мест:
+
+```bash
+DSBUILDER_IOS_TOOL=~/tools/dsbuilder-ios dsbuilder theme generate
+dsbuilder theme generate --tool ~/tools/dsbuilder-ios
+```
+
 ## Публикация документации
 
 Сначала соберите documentation bundle, затем отправьте его через project-scoped gateway API:

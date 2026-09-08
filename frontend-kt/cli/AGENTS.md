@@ -84,7 +84,8 @@ CLI output должен быть предсказуемым и тестируе�
 - одна целевая платформа (`TargetPlatform`) — ровно один делегат; toolchain (`ios`, `android`) может
   обслуживать несколько платформ;
 - новая платформа = модуль `platform-<toolchain>` с реализацией `PlatformDelegate` и одна строка
-  в `di/PlatformDelegatesModule.kt`; больше нигде конкретные платформы не перечисляются;
+  в `di/PlatformDelegatesModule.kt`; больше нигде конкретные платформы не перечисляются.
+  Пример — `platform-ios`: делегат, локатор инструмента и свой Koin-module;
 - `feature-*` зависят только от `core-platform` (порт) и никогда не импортируют `platform-*`;
 - процессы запускаются только через `ProcessRunner`; presentation и use case'ы не запускают их сами.
   Делегат собирает `ProcessRequest` (абсолютный исполняемый файл, абсолютная рабочая директория,
