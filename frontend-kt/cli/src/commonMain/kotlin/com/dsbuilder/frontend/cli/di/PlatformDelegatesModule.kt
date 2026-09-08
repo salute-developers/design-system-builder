@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.cli.di
 
 import com.dsbuilder.frontend.core.platform.PlatformDelegate
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
+import com.dsbuilder.frontend.platform.ios.IosCliDelegate
 import org.koin.core.module.Module
 import org.koin.core.scope.Scope
 import org.koin.dsl.module
@@ -20,8 +21,9 @@ public fun platformDelegatesModule(): Module = module {
 /**
  * Делегаты в порядке регистрации.
  *
- * Пока пусто: адаптеры `platform-android` и `platform-ios` приезжают отдельными изменениями
- * и добавляются сюда как `get<AndroidGradleDelegate>()`, `get<IosCliDelegate>()`.
+ * Адаптер `platform-android` приезжает отдельным изменением и добавляется сюда
+ * как `get<AndroidGradleDelegate>()`.
  */
-@Suppress("UnusedReceiverParameter")
-private fun Scope.platformDelegates(): List<PlatformDelegate> = emptyList()
+private fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
+    get<IosCliDelegate>(),
+)

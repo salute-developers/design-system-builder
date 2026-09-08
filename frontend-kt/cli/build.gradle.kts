@@ -45,6 +45,7 @@ kotlin {
             implementation(projects.featureDocs)
             implementation(projects.featureComponents)
             implementation(projects.featureToolchain)
+            implementation(projects.platformIos)
             implementation(libs.clikt)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)

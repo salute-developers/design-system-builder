@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
 import com.dsbuilder.frontend.cli.presentation.PLATFORM_OPTION_HELP
-import com.dsbuilder.frontend.cli.presentation.echoPlan
 import com.dsbuilder.frontend.cli.presentation.echoResult
+import com.dsbuilder.frontend.cli.presentation.printPlan
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsCommand
@@ -39,7 +39,7 @@ internal class ComponentsGenerateCliCommand(
                 passthrough = passthrough,
                 toolOverride = tool,
             ),
-            onPlan = ::echoPlan,
+            onPlan = ::printPlan,
         )
 
         echoResult(result)
