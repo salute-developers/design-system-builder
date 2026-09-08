@@ -51,6 +51,9 @@ internal class DocsGenerateCliCommand(
 
         when (result) {
             is DocsGenerateResult.Success -> {
+                result.aggregatedBy?.let { toolchain ->
+                    echo("Documentation tree aggregated by toolchain '$toolchain' at ${result.docsDir}.")
+                }
                 echo("Bundle created at ${result.bundlePath}.")
             }
             is DocsGenerateResult.ValidationFailed -> {

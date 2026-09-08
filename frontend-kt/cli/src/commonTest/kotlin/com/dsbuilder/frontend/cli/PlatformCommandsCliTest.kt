@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.platform.ToolchainId
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
@@ -17,8 +18,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Команды делегирования на пустом реестре: help не требует ни проекта, ни инструментов,
- * а запуск отказывает детерминированно и ничего не запускает.
+ * Команды делегирования: help не требует ни проекта, ни инструментов, а запуск без
+ * установленного инструмента отказывает детерминированно и ничего не запускает.
  */
 class PlatformCommandsCliTest {
     @Test
@@ -85,7 +86,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun generateWithoutRegisteredToolchainFailsWithoutRunningAnything() {
+    fun generateWithoutInstalledToolFailsWithoutRunningAnything() {
         val fileSystem = RecordingFileSystem(
             files = mapOf(
                 "/repo/.sdds/config.json" to CONFIG_JSON,
@@ -103,35 +104,40 @@ class PlatformCommandsCliTest {
             .execute(listOf("theme", "generate"))
 
         assertEquals(1, result.exitCode)
-        assertTrue(
-            result.output.contains("No platform toolchain is registered for 'swiftui'"),
-            "платформа взята не из config: ${result.output}",
-        )
-        assertTrue(started.isEmpty(), "запущен процесс без зарегистрированного делегата")
+        // Платформа взята из config, делегат найден, но инструмента на машине нет.
+        assertTrue(result.output.contains("dsbuilder-ios was not found"), result.output)
+        assertTrue(result.output.contains("--tool"), result.output)
+        assertTrue(started.isEmpty(), "запущен процесс без установленного инструмента")
     }
 
     @Test
-    fun compositionRootBuildsAnEmptyPlatformDelegateRegistry() {
+    fun compositionRootRegistersTheIosDelegateForSwiftUiOnly() {
         val registry = cli().platformDelegateRegistry()
 
-        assertTrue(registry.all.isEmpty())
-        TargetPlatform.entries.forEach { platform -> assertNull(registry.forPlatform(platform)) }
+        assertEquals(listOf(ToolchainId("ios")), registry.all.map { it.toolchain })
+        assertEquals(ToolchainId("ios"), registry.forPlatform(TargetPlatform.SWIFT_UI)?.toolchain)
+        listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW, TargetPlatform.REACT)
+            .forEach { platform -> assertNull(registry.forPlatform(platform)) }
     }
 
     @Test
-    fun toolchainListReportsNothingRegistered() {
+    fun toolchainListShowsWhatTheClientCanDrive() {
         val result = cli().execute(listOf("toolchain", "list"))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(result.output.contains("No platform toolchains are registered"), result.output)
+        assertTrue(result.output.contains("Toolchain: ios"), result.output)
+        assertTrue(result.output.contains("swiftui"), result.output)
+        assertTrue(result.output.contains("theme generation"), result.output)
     }
 
     @Test
-    fun toolchainDoctorReportsNothingRegistered() {
+    fun toolchainDoctorFailsWhenTheToolIsNotInstalled() {
         val result = cli().execute(listOf("toolchain", "doctor"))
 
-        assertEquals(0, result.exitCode, result.output)
-        assertTrue(result.output.contains("No platform toolchains are registered"), result.output)
+        // Непригодный инструмент — ненулевой код: в CI это единственный сигнал.
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("Status: missing"), result.output)
+        assertTrue(result.output.contains("dsbuilder-ios was not found"), result.output)
     }
 
     @Test

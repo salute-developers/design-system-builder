@@ -20,9 +20,12 @@ internal fun RawOption.targetPlatform(): NullableOption<TargetPlatform, TargetPl
 
 /**
  * Печатает, что и чем запускается, до старта инструмента.
+ *
+ * Пишет напрямую, а не через terminal команды: вывод команды копится до её завершения, а
+ * инструмент пишет в терминал сразу — через `echo` план оказался бы после вывода инструмента.
  */
-internal fun CliktCommand.echoPlan(plan: PlatformRunPlan) {
-    echo(
+internal fun printPlan(plan: PlatformRunPlan) {
+    println(
         """
             Platform: ${plan.platform.cliValue}
             Toolchain: ${plan.toolchain}
