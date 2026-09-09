@@ -36,8 +36,8 @@ public class IosCliDelegate internal constructor(
      */
     override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.DOCS_AGGREGATE)
 
-    override fun doctor(workspace: WorkspacePaths): ToolchainStatus {
-        val executable = locator.locate(override = null) ?: return ToolchainStatus.Missing(missingHint())
+    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+        val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint())
 
         return when (val version = readVersion(executable, workspace)) {
             // Минимальная версия пока не проверяется: у инструмента одна опубликованная линия,

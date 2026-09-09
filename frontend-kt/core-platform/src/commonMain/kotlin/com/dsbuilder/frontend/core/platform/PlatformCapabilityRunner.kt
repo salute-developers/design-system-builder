@@ -51,8 +51,9 @@ public class PlatformCapabilityRunner internal constructor(
 
         val workspace = WorkspacePaths.fromConfigPath(fileSystem.absolutePath(context.configPath))
         val plan = PlatformRunPlan(platform = platform, toolchain = delegate.toolchain, workspace = workspace)
+        val toolOverride = command.toolOverride?.let(fileSystem::absolutePath)
 
-        when (val status = delegate.doctor(workspace)) {
+        when (val status = delegate.doctor(workspace, toolOverride)) {
             is ToolchainStatus.Ready -> Unit
             is ToolchainStatus.Missing -> return PlatformRunResult.Failed(status.hint)
             is ToolchainStatus.Incompatible -> return PlatformRunResult.Failed(
@@ -69,7 +70,7 @@ public class PlatformCapabilityRunner internal constructor(
             workspace = workspace,
             output = command.output?.let(fileSystem::absolutePath),
             passthrough = command.passthrough,
-            toolOverride = command.toolOverride?.let(fileSystem::absolutePath),
+            toolOverride = toolOverride,
         )
 
         return when (val result = delegate.run(invocation)) {
