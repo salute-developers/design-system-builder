@@ -362,7 +362,6 @@ export async function seedPropertyVariations(
             { propertyId: p.sli_tickSize.id, variationId: v.sliderSize.id },
             { propertyId: p.sli_textFieldWrapperGap.id, variationId: v.sliderSize.id },
             { propertyId: p.sli_textFieldBorderRadius.id, variationId: v.sliderSize.id },
-            { propertyId: p.sli_thumbBorderStyle.id, variationId: v.sliderPointerSize.id },
             { propertyId: p.sli_textFieldBorderWidth.id, variationId: v.sliderSize.id },
             { propertyId: p.sli_doubleBoxShadow.id, variationId: v.sliderView.id },
             { propertyId: p.sli_textFieldWebReversedClipPath.id, variationId: v.sliderSize.id },
