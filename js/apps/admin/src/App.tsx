@@ -11,6 +11,7 @@ import QueriesPage from "./pages/QueriesPage";
 import SchemaPage from "./pages/SchemaPage";
 import DocsPage from "./pages/DocsPage";
 import SettingsPage from "./pages/SettingsPage";
+import { getBaseName } from "./utils/baseName";
 import "./App.css";
 
 const AppContent = () => {
@@ -79,7 +80,7 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <BrowserRouter>
+  <BrowserRouter basename={getBaseName()}>
     <AppContent />
   </BrowserRouter>
 );
