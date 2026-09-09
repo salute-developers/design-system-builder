@@ -186,6 +186,18 @@ class IosCliDelegateTest {
         assertEquals("/custom/dsbuilder-ios", requests.single().executable)
     }
 
+    @Test
+    fun missingToolFromTheOptionIsReportedWithThatPath() {
+        val delegate = delegate(existing = emptySet())
+
+        val status =
+            assertIs<ToolchainStatus.Missing>(delegate.doctor(workspace, toolOverride = "/custom/dsbuilder-ios"))
+        val result = delegate.run(invocation(Capability.THEME, toolOverride = "/custom/dsbuilder-ios"))
+
+        assertTrue(status.hint.contains("/custom/dsbuilder-ios") && status.hint.contains("--tool"), status.hint)
+        assertTrue(assertIs<DelegateResult.ToolchainMissing>(result).hint.contains("/custom/dsbuilder-ios"))
+    }
+
     private fun invocation(
         capability: Capability,
         output: String? = null,
