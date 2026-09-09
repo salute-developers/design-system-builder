@@ -121,6 +121,22 @@ class PlatformCommandsCliTest {
     }
 
     @Test
+    fun compositionRootRegistersTheIosInstaller() {
+        val registry = cli().toolchainInstallerRegistry()
+
+        assertEquals(listOf(ToolchainId("ios")), registry.all.map { it.toolchain })
+        assertNull(registry.forToolchain(ToolchainId("android")))
+    }
+
+    @Test
+    fun toolchainInstallRefusesAToolchainItCannotInstall() {
+        val result = cli().execute(listOf("toolchain", "install", "android"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("android") && result.output.contains("ios"), result.output)
+    }
+
+    @Test
     fun toolchainListShowsWhatTheClientCanDrive() {
         val result = cli().execute(listOf("toolchain", "list"))
 
