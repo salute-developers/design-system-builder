@@ -1,5 +1,6 @@
 plugins {
     id("convention.kotlin-multiplatform-module")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 kotlin {
@@ -14,6 +15,8 @@ kotlin {
             implementation(projects.coreProcess)
             implementation(projects.coreAuth)
             implementation(projects.coreWorkspace)
+            // Ответ GitHub Releases разбирается точечно: нужны только tag и имя ассета.
+            implementation(libs.kotlinx.serialization.json)
             // iosPlatformModule(): Module — публичная фабрика, возвращающая тип Koin.
             api(libs.koin.core)
         }

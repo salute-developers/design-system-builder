@@ -263,14 +263,32 @@ dsbuilder theme generate -- --standalone --components
 dsbuilder toolchain list
 dsbuilder toolchain doctor
 dsbuilder toolchain doctor --platform compose
+dsbuilder toolchain doctor --tool ~/tools/dsbuilder-ios
 ```
 
 `doctor` ничего не генерирует: он спрашивает у каждого делегата, установлен ли его инструмент и
-подходит ли версия. Ненулевой код возврата означает, что хотя бы один инструмент непригоден.
+подходит ли версия. С `--tool` проверяется именно этот бинарь — тот, который потом и запустится.
+Ненулевой код возврата означает, что хотя бы один инструмент непригоден.
 
-Инструмент iOS — `dsbuilder-ios` из релиза plasma-ios. CLI ищет его в таком порядке:
-`--tool <path>`, переменная `DSBUILDER_IOS_TOOL`, `~/.dsbuilder/toolchains/ios/current/dsbuilder-ios`,
-затем `PATH`. Пока команды установки нет, положите бинарь в любое из этих мест:
+### Установка платформенного инструмента
+
+```bash
+dsbuilder toolchain install ios
+dsbuilder toolchain install ios --version release-01-09-2026
+dsbuilder toolchain install ios --from ~/Downloads/dsbuilder-ios-cli-release-01-09-2026.zip
+```
+
+Инструмент кладётся в `~/.dsbuilder/toolchains/<toolchain>/<версия>`, а симлинк `current`
+переставляется на неё; прежние версии остаются на диске. После установки ни `--tool`,
+ни переменные окружения не нужны — `doctor` и генерация находят инструмент сами.
+
+`--from` ставит готовый архив (путь или URL) и в сеть за релизом не ходит: так же ставят
+инструмент на машине без доступа к GitHub.
+
+Инструмент iOS — `dsbuilder-ios` из релиза plasma-ios: ассет `dsbuilder-ios-cli-<tag>.zip`,
+внутри бинарь и его `ios-api-meta.json`. Поставить его можно и вручную — CLI ищет инструмент
+в порядке `--tool <path>`, `DSBUILDER_IOS_TOOL`, `~/.dsbuilder/toolchains/ios/current/dsbuilder-ios`,
+затем `PATH`:
 
 ```bash
 DSBUILDER_IOS_TOOL=~/tools/dsbuilder-ios dsbuilder theme generate

@@ -14,4 +14,4 @@
 ## 3. Верификация
 
 - [x] 3.1 `cd frontend-kt && ./gradlew build` — тесты, detekt и spotlessCheck зелёные.
-- [ ] 3.2 E2E: `dsbuilder theme generate --platform swiftui --tool <dsbuilder-ios>` на чекауте plasma-ios.
+- [x] 3.2 E2E: `dsbuilder theme generate --platform swiftui --tool <dsbuilder-ios>` на чекауте plasma-ios.
