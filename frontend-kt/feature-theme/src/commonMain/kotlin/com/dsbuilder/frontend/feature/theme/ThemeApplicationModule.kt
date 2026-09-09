@@ -14,8 +14,11 @@ import com.dsbuilder.frontend.feature.theme.application.LocalThemeWriter
 import com.dsbuilder.frontend.feature.theme.application.RemoteThemeDataSource
 import com.dsbuilder.frontend.feature.theme.application.SetThemeAliasUseCase
 import com.dsbuilder.frontend.feature.theme.application.ThemeAliasConfigRepository
+import com.dsbuilder.frontend.feature.theme.application.TokenReadRemoteSource
+import com.dsbuilder.frontend.feature.theme.application.TokenReadUseCases
 import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasUseCase
 import com.dsbuilder.frontend.feature.theme.data.HttpRemoteThemeDataSource
+import com.dsbuilder.frontend.feature.theme.data.HttpTokenReadRemoteSource
 import com.dsbuilder.frontend.feature.theme.data.LocalThemeAliasConfigRepository
 import com.dsbuilder.frontend.feature.theme.data.LocalThemeFileWriter
 import com.dsbuilder.frontend.feature.theme.domain.ThemeWritePlanBuilder
@@ -27,6 +30,7 @@ import org.koin.dsl.module
  */
 public fun themeApplicationModule(): Module = module {
     single<RemoteThemeDataSource> { HttpRemoteThemeDataSource(get<AuthenticatedHttpClientFactory>()) }
+    single<TokenReadRemoteSource> { HttpTokenReadRemoteSource(get(), get()) }
     single { ThemeWritePlanBuilder() }
     single<LocalThemeWriter> {
         LocalThemeFileWriter(
@@ -38,6 +42,7 @@ public fun themeApplicationModule(): Module = module {
     single { ListThemeAliasesUseCase(get<ThemeAliasConfigRepository>()) }
     single { SetThemeAliasUseCase(get<ThemeAliasConfigRepository>()) }
     single { UnsetThemeAliasUseCase(get<ThemeAliasConfigRepository>()) }
+    single { TokenReadUseCases(get(), get(), get(), get()) }
     single {
         FetchThemesUseCase(
             projectContextReader = get<ProjectContextReader>(),

@@ -344,9 +344,15 @@ and SHALL keep configuration file names stable across runs.
 - **WHEN** the target directory contains no `meta.json`
 - **THEN** CLI MUST build the file name from `styleName` by replacing every `.` and `-` with `_` and appending `_config.json`
 
-#### Scenario: Коллизия имён файлов отклоняется
+#### Scenario: Коллизия вычисленных имён разрешается полной идентичностью
 
-- **WHEN** two entries of the package resolve to the same file name
+- **WHEN** two new entries produce the same file name from `styleName`
+- **THEN** CLI MUST build their file names from `componentName` and `styleName`, normalizing each by the same rule
+- **THEN** repeating a fetch MUST produce the same names
+
+#### Scenario: Коллизия унаследованных имён файлов отклоняется
+
+- **WHEN** two entries reuse the same file name from the existing `meta.json`
 - **THEN** CLI MUST return a deterministic failure output naming both entries and the file name
 - **THEN** CLI MUST NOT write any file
 
@@ -376,4 +382,3 @@ discovers them.
 - **WHEN** the backend reports such properties or values
 - **THEN** CLI MUST still write the package
 - **THEN** CLI MUST exit with a success status
-

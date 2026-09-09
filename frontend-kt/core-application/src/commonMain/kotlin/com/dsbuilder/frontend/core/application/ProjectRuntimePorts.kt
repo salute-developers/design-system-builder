@@ -1,5 +1,8 @@
 package com.dsbuilder.frontend.core.application
 
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -10,9 +13,9 @@ import com.dsbuilder.frontend.core.domain.ProjectContext
  */
 public fun interface ProjectContextReader {
     /**
-     * Возвращает configured project context для текущей директории.
+     * Возвращает configured project context для указанной или текущей директории.
      */
-    public fun requireContext(): ProjectContextReadResult
+    public fun requireContext(startingDirectory: String?): ProjectContextReadResult
 }
 
 /**
@@ -36,6 +39,47 @@ public fun interface ProjectApiUrlProvider {
      * Возвращает runtime backend API URL.
      */
     public fun resolve(override: String?): ProjectApiUrl
+}
+
+/**
+ * Port for selecting a backend credential without exposing the raw secret in public diagnostics.
+ */
+public interface CredentialProvider {
+    /**
+     * Selects the credential for one backend API call.
+     */
+    public suspend fun resolve(
+        apiUrl: ProjectApiUrl,
+        projectKeyOverride: String?,
+        credentialEnvName: CredentialEnvName,
+    ): CredentialResult
+}
+
+/**
+ * Result of credential selection.
+ */
+public sealed interface CredentialResult {
+    /**
+     * A credential was selected.
+     *
+     * @property credential raw runtime credential for backend calls.
+     * @property type public credential category safe for diagnostics.
+     */
+    public data class Selected(
+        public val credential: BackendCredential,
+        public val type: BackendCredentialType,
+    ) : CredentialResult
+
+    /**
+     * Credential selection failed.
+     *
+     * @property code stable machine-readable auth error.
+     * @property message user-facing message without secrets.
+     */
+    public data class Failed(
+        public val code: AuthErrorCode,
+        public val message: String,
+    ) : CredentialResult
 }
 
 /**

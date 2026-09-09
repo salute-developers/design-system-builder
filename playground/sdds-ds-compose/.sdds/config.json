@@ -1,0 +1,21 @@
+{
+    "projectId": "408836bf-4097-4202-a5c5-0157a23e701c",
+    "designSystemId": "da469406-1a0d-4a07-810d-835640801b20",
+    "credential": {
+        "type": "env",
+        "name": "DSB_DEV_API_KEY"
+    },
+    "tenants": [
+        {
+            "id": "e3d3ac90-cc70-40b9-9032-7988d6b990f5",
+            "designSystemId": "da469406-1a0d-4a07-810d-835640801b20",
+            "name": "sdds_serv_default",
+            "description": null,
+            "directoryPath": ".sdds/tenants/sdds_serv_default",
+            "alias": null,
+            "createdAt": "2026-09-15T11:00:15.439Z",
+            "updatedAt": "2026-09-15T11:00:15.439Z"
+        }
+    ],
+    "palettePath": ".sdds/tenants/palette.json"
+}

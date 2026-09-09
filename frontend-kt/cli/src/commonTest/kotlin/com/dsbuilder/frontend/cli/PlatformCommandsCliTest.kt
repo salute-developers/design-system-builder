@@ -174,10 +174,10 @@ class PlatformCommandsCliTest {
             httpClientFactory = object : AuthenticatedHttpClientFactory {
                 override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
                     object : AuthenticatedHttpClient {
-                        override fun get(path: String): AuthenticatedHttpResult =
+                        override suspend fun get(path: String): AuthenticatedHttpResult =
                             AuthenticatedHttpResult.Failure("unexpected")
 
-                        override fun post(path: String, body: String): AuthenticatedHttpResult =
+                        override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
                             AuthenticatedHttpResult.Failure("unexpected")
                     }
             },

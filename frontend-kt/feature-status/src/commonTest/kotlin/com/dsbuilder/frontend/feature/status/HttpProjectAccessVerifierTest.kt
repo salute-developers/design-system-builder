@@ -1,12 +1,12 @@
 package com.dsbuilder.frontend.feature.status
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectAccessCheck
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
+import com.dsbuilder.frontend.feature.status.application.ProjectAccessCheck
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessResult
 import com.dsbuilder.frontend.feature.status.data.HttpProjectAccessVerifier
 import io.ktor.client.HttpClient
@@ -14,6 +14,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -27,7 +28,7 @@ class HttpProjectAccessVerifierTest {
         projectId = ProjectId("project-a"),
         designSystemId = DesignSystemId("ds-a"),
         apiUrl = ProjectApiUrl("https://api.example.com"),
-        apiKey = ProjectApiKey("secret-value"),
+        credential = BackendCredential.ProjectKey("secret-value"),
     )
 
     private fun factory(handler: (HttpRequestData) -> Pair<HttpStatusCode, String>): AuthenticatedHttpClientFactory {
@@ -39,7 +40,7 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsAuthorizedWhenBothRequestsSucceed() {
+    fun returnsAuthorizedWhenBothRequestsSucceed() = runTest {
         val requestedPaths = mutableListOf<String>()
         val verifier = HttpProjectAccessVerifier(
             factory { request ->
@@ -64,7 +65,7 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsFailedWhenProjectRequestIsUnauthorized() {
+    fun returnsFailedWhenProjectRequestIsUnauthorized() = runTest {
         val verifier = HttpProjectAccessVerifier(
             factory { HttpStatusCode.Unauthorized to "{}" },
         )
@@ -76,7 +77,7 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsFailedWhenDesignSystemRequestIsNotFound() {
+    fun returnsFailedWhenDesignSystemRequestIsNotFound() = runTest {
         val verifier = HttpProjectAccessVerifier(
             factory { request ->
                 if (request.url.encodedPath.endsWith("/ds/design-systems/ds-a")) {
@@ -94,7 +95,7 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsFailedWhenProjectResponseCannotBeParsed() {
+    fun returnsFailedWhenProjectResponseCannotBeParsed() = runTest {
         val verifier = HttpProjectAccessVerifier(
             factory { HttpStatusCode.OK to "not-json" },
         )

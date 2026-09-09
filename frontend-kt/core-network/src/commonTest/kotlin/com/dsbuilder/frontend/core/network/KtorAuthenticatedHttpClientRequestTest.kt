@@ -6,6 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -16,7 +17,7 @@ import kotlin.test.assertTrue
  */
 class KtorAuthenticatedHttpClientRequestTest {
     @Test
-    fun ktorHttpClientSendsProjectKeyAuthorizationAndMapsErrors() {
+    fun ktorHttpClientSendsProjectKeyAuthorizationAndMapsErrors() = runTest {
         var request: HttpRequestData? = null
         val engine = MockEngine {
             request = it
@@ -35,7 +36,7 @@ class KtorAuthenticatedHttpClientRequestTest {
     }
 
     @Test
-    fun ktorHttpClientSendsAuthenticatedMultipartRequest() {
+    fun ktorHttpClientSendsAuthenticatedMultipartRequest() = runTest {
         var request: HttpRequestData? = null
         val engine = MockEngine {
             request = it

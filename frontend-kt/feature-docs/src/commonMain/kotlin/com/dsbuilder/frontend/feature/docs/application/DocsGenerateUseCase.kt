@@ -14,9 +14,6 @@ import com.dsbuilder.frontend.feature.docs.domain.MergeEngine
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
 import com.dsbuilder.frontend.feature.docs.domain.Structure
 import com.dsbuilder.frontend.feature.docs.domain.toDocumentationPlatform
-import okio.FileSystem
-import okio.Path.Companion.toPath
-import okio.SYSTEM
 
 /** Дерево документации по умолчанию, если платформенного шага не было и `--docs-dir` не задан. */
 private const val DEFAULT_DOCS_DIR = ".sdds/temp/docs"
@@ -34,7 +31,6 @@ public class DocsGenerateUseCase internal constructor(
     private val codec: DocsCodec,
     private val fileSystem: DocsFileSystem,
     private val validationEngine: DocsValidationEngine,
-    private val ioFileSystem: FileSystem = FileSystem.SYSTEM,
     private val platformAggregator: DocsPlatformAggregator = DocsPlatformAggregator { _, _ ->
         DocsAggregationResult.Skipped
     },
@@ -121,7 +117,8 @@ public class DocsGenerateUseCase internal constructor(
         val userStructure: Structure
         try {
             coreStructure = structureReader.readStructure("$docsDir/structure-core.json")
-            userStructure = structureReader.readStructure("$docsDir/structure-user.json")
+            userStructure = structureReader.readOptionalStructure("$docsDir/structure-user.json")
+                ?: Structure(schemaVersion = coreStructure.schemaVersion, navigation = emptyList())
         } catch (error: IllegalArgumentException) {
             return ResolvedDocsRead.Failure("Failed to read structure files: ${error.message}")
         }
@@ -269,19 +266,11 @@ public class DocsGenerateUseCase internal constructor(
     }
 
     private fun hasDirectory(path: String): Boolean {
-        return try {
-            ioFileSystem.metadata(path.toPath()).isDirectory
-        } catch (_: Exception) {
-            false
-        }
+        return DocsLocalFileMetadata.hasDirectory(path)
     }
 
     private fun hasFile(path: String): Boolean {
-        return try {
-            !ioFileSystem.metadata(path.toPath()).isDirectory
-        } catch (_: Exception) {
-            false
-        }
+        return DocsLocalFileMetadata.hasFile(path)
     }
 
     private fun createTarGzArchive(docsDir: String, tarGzPath: String): String {

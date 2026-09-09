@@ -7,6 +7,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
+import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder theme fetch`.
@@ -19,12 +20,14 @@ internal class ThemeFetchCliCommand(
     private val apiUrl: String? by option("--api-url")
 
     override fun run() {
-        val result = fetchThemesUseCase.execute(
-            FetchThemesCommand(
-                apiKeyOverride = apiKey,
-                apiUrlOverride = apiUrl,
-            ),
-        )
+        val result = runBlocking {
+            fetchThemesUseCase.execute(
+                FetchThemesCommand(
+                    apiKeyOverride = apiKey,
+                    apiUrlOverride = apiUrl,
+                ),
+            )
+        }
 
         when (result) {
             is FetchThemesResult.Fetched -> echo(

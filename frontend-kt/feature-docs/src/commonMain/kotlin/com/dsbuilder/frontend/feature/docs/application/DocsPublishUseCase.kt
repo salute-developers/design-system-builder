@@ -21,8 +21,8 @@ public class DocsPublishUseCase internal constructor(
     /**
      * Отправляет пакет документации в сервис документации.
      */
-    public fun execute(command: DocsPublishCommand): DocsPublishResult {
-        val context = when (val result = projectContextReader.requireContext()) {
+    public suspend fun execute(command: DocsPublishCommand): DocsPublishResult {
+        val context = when (val result = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Found -> result.context
             is ProjectContextReadResult.Failed -> return DocsPublishResult.Failed(result.message)
         }
@@ -56,7 +56,7 @@ internal interface DocsHttpClient {
     /**
      * Загружает tar.gz-пакет через project-scoped gateway endpoint.
      */
-    fun uploadBundle(request: DocsUploadRequest): DocsUploadResult
+    suspend fun uploadBundle(request: DocsUploadRequest): DocsUploadResult
 }
 
 /** Данные authenticated upload request. */

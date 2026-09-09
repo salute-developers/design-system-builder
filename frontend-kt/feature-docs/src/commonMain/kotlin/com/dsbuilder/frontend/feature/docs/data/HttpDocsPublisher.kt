@@ -22,7 +22,7 @@ internal class HttpDocsPublisher(
 ) : DocsHttpClient {
 
     @Suppress("ReturnCount")
-    override fun uploadBundle(request: DocsUploadRequest): DocsUploadResult {
+    override suspend fun uploadBundle(request: DocsUploadRequest): DocsUploadResult {
         val path = fileSystem.absolutePath(request.bundlePath)
         if (!fileSystem.exists(path)) return DocsUploadResult.Failed("Publish failed: Bundle file was not found: $path")
         if (fileSystem.isDirectory(

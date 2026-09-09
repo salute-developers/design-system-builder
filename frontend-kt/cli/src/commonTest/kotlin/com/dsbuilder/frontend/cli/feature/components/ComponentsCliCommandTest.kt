@@ -131,12 +131,12 @@ class ComponentsCliCommandTest {
             httpClientFactory = object : AuthenticatedHttpClientFactory {
                 override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
                     object : AuthenticatedHttpClient {
-                        override fun get(path: String): AuthenticatedHttpResult {
+                        override suspend fun get(path: String): AuthenticatedHttpResult {
                             onBackendCall()
                             return AuthenticatedHttpResult.Failure("unexpected")
                         }
 
-                        override fun post(path: String, body: String): AuthenticatedHttpResult {
+                        override suspend fun post(path: String, body: String): AuthenticatedHttpResult {
                             onBackendCall()
                             return AuthenticatedHttpResult.Failure("unexpected")
                         }

@@ -34,6 +34,7 @@ import com.dsbuilder.frontend.feature.components.domain.codec.CommonTargetProper
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonVariation
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonVariationValue
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,7 +56,7 @@ class FetchComponentsUseCaseTest {
     )
 
     @Test
-    fun requestsPackageOnceAndWritesIt() {
+    fun requestsPackageOnceAndWritesIt() = runTest {
         val commands = mutableListOf<ExportComponentsCommand>()
         val result = execute(onExport = { commands += it })
 
@@ -74,7 +75,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWholeFetchOnFirstConversionErrorBeforeTouchingFiles() {
+    fun failsWholeFetchOnFirstConversionErrorBeforeTouchingFiles() = runTest {
         var directoryRead = false
         var written = false
 
@@ -122,7 +123,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWhenBackendRefuses() {
+    fun failsWhenBackendRefuses() = runTest {
         var written = false
         val result = execute(
             exportResult = ExportComponentsResult.Failed("Error: backend refused."),
@@ -136,23 +137,26 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWhenPlanBuilderRejects() {
+    fun failsWhenPlanBuilderRejects() = runTest {
         var written = false
         val result = execute(
-            configurations = listOf(exported("chip", "chip"), exported("chip", "chip-embedded")),
+            configurations = listOf(exported("chip", "chip"), exported("badge", "badge")),
             existing = ExistingComponentPackage(
-                entries = listOf(ComponentPackageMetaEntry("chip", "chip", "chip_embedded_config.json")),
+                entries = listOf(
+                    ComponentPackageMetaEntry("chip", "chip", "shared_config.json"),
+                    ComponentPackageMetaEntry("badge", "badge", "shared_config.json"),
+                ),
             ),
             onWrite = { written = true },
         )
 
         val failure = result as? FetchComponentsResult.Failed ?: error("ожидался отказ: $result")
-        assertTrue(failure.message.contains("chip_embedded_config.json"), failure.message)
+        assertTrue(failure.message.contains("shared_config.json"), failure.message)
         assertTrue(!written, "запись выполнена несмотря на отказ построителя плана")
     }
 
     @Test
-    fun failsWhenCredentialsAreMissing() {
+    fun failsWhenCredentialsAreMissing() = runTest {
         var exported = false
         val result = execute(
             apiKeyProvider = ProjectApiKeyProvider { _, _ -> ProjectApiKeyResult.Missing("Error: no api key.") },
@@ -165,7 +169,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun carriesUnderivedTypesIntoResult() {
+    fun carriesUnderivedTypesIntoResult() = runTest {
         val result = execute(underivedTypes = listOf("avatar.default.background"))
 
         assertEquals(
@@ -181,7 +185,7 @@ class FetchComponentsUseCaseTest {
     )
 
     @Suppress("LongParameterList")
-    private fun execute(
+    private suspend fun execute(
         configurations: List<ExportedComponentConfig> = listOf(exported("avatar", "avatar")),
         underivedTypes: List<String> = emptyList(),
         existing: ExistingComponentPackage = ExistingComponentPackage(),
@@ -203,7 +207,10 @@ class FetchComponentsUseCaseTest {
         )
 
         val useCase = FetchComponentsUseCase(
-            projectContextReader = ProjectContextReader { ProjectContextReadResult.Found(context) },
+            projectContextReader = object : ProjectContextReader {
+                override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+                    ProjectContextReadResult.Found(context)
+            },
             projectApiKeyProvider = apiKeyProvider,
             apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
             remoteSource = FakeRemoteSource(onExport, result),
@@ -234,10 +241,10 @@ private class FakeRemoteSource(
     private val onExport: (ExportComponentsCommand) -> Unit,
     private val result: ExportComponentsResult,
 ) : com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource {
-    override fun import(command: ImportComponentsCommand): ImportComponentsResult =
+    override suspend fun import(command: ImportComponentsCommand): ImportComponentsResult =
         error("fetch не загружает пакет")
 
-    override fun export(command: ExportComponentsCommand): ExportComponentsResult {
+    override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         onExport(command)
         return result
     }

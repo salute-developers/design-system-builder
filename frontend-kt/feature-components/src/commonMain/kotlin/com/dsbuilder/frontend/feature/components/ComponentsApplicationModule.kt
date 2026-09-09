@@ -9,12 +9,15 @@ import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
+import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
+import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
@@ -33,6 +36,8 @@ public fun componentsApplicationModule(): Module = module {
     single<ComponentConfigRemoteSource> {
         HttpComponentConfigRemoteSource(httpClientFactory = get<AuthenticatedHttpClientFactory>())
     }
+    single<ComponentReadRemoteSource> { HttpComponentReadRemoteSource(get(), get()) }
+    single { ComponentReadUseCases(get(), get(), get(), get()) }
     single {
         PushComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),

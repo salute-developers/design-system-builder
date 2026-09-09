@@ -27,7 +27,7 @@ internal class HttpComponentConfigRemoteSource(
         explicitNulls = false
     }
 
-    override fun import(command: ImportComponentsCommand): ImportComponentsResult {
+    override suspend fun import(command: ImportComponentsCommand): ImportComponentsResult {
         val body = json.encodeToString(
             ImportRequest.serializer(),
             ImportRequest(
@@ -53,7 +53,7 @@ internal class HttpComponentConfigRemoteSource(
         }
     }
 
-    override fun export(command: ExportComponentsCommand): ExportComponentsResult {
+    override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         val body = json.encodeToString(
             ExportRequest.serializer(),
             ExportRequest(designSystemId = command.designSystemId.value),

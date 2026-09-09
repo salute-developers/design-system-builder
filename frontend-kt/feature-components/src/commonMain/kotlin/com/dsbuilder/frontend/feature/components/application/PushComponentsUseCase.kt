@@ -38,13 +38,13 @@ public class PushComponentsUseCase internal constructor(
      * важнее, до отправки запроса.
      */
     @Suppress("ReturnCount")
-    public fun execute(command: PushComponentsCommand): PushComponentsResult {
+    public suspend fun execute(command: PushComponentsCommand): PushComponentsResult {
         val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
             is WriteApiUrlResult.Rejected -> return PushComponentsResult.Failed(resolved.message)
             is WriteApiUrlResult.Resolved -> resolved.url
         }
 
-        val context = when (val read = projectContextReader.requireContext()) {
+        val context = when (val read = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Failed -> return PushComponentsResult.Failed(read.message)
             is ProjectContextReadResult.Found -> read.context
         }

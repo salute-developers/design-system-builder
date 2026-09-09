@@ -10,13 +10,13 @@ import com.dsbuilder.frontend.feature.theme.domain.Token
 import com.dsbuilder.frontend.feature.theme.domain.TokenValue
 
 internal interface RemoteThemeDataSource {
-    fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>>
+    suspend fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>>
 
-    fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>>
+    suspend fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>>
 
-    fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>>
+    suspend fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>>
 
-    fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>>
+    suspend fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>>
 }
 
 internal fun interface LocalThemeWriter {

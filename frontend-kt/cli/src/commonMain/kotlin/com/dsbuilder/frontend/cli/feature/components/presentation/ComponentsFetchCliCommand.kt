@@ -9,6 +9,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
+import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder components fetch`.
@@ -23,13 +24,15 @@ internal class ComponentsFetchCliCommand(
     private val apiUrl: String? by option("--api-url")
 
     override fun run() {
-        val result = fetchComponentsUseCase.execute(
-            FetchComponentsCommand(
-                destination = ComponentDestination(directory = to),
-                apiKeyOverride = apiKey,
-                apiUrlOverride = apiUrl,
-            ),
-        )
+        val result = runBlocking {
+            fetchComponentsUseCase.execute(
+                FetchComponentsCommand(
+                    destination = ComponentDestination(directory = to),
+                    apiKeyOverride = apiKey,
+                    apiUrlOverride = apiUrl,
+                ),
+            )
+        }
 
         result.source?.let { echo(it.render()) }
 

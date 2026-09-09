@@ -1,16 +1,23 @@
-import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { Request, Response, Router } from "express";
+import { SQL, and, eq, ilike, inArray, or } from "drizzle-orm";
 import { db } from "../../db/index";
 import {
+  components,
   designSystems,
   designSystemComponents,
+  styles,
   tokens,
+  tokenValues,
   tenants,
   appearances,
   designSystemChanges,
+  variations,
 } from "../../db/schema";
 import {
   CreateDesignSystemSchema,
+  PlatformSchema,
+  ModeSchema,
+  TokenTypeSchema,
   UpdateDesignSystemSchema,
   UuidParamSchema,
 } from "../../validation/schema";
@@ -20,10 +27,48 @@ import {
   assertFound,
   designSystemBelongsToScope,
   designSystemScopeFilter,
+  requireScope,
   tryCatch,
 } from "./utils";
 
 const router = Router();
+const TOKEN_READ_SCOPE = "tokens:read";
+const COMPONENT_READ_SCOPE = "components:read";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const stringQuery = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+
+const isUuid = (value: string): boolean => UUID_PATTERN.test(value);
+
+const queryLike = <T extends { name: unknown; displayName?: unknown; description?: unknown }>(
+  table: T,
+  query: string | undefined,
+): SQL | undefined => {
+  if (!query) return undefined;
+  const pattern = `%${query}%`;
+  const parts = [ilike(table.name as never, pattern)];
+  if ("displayName" in table) parts.push(ilike(table.displayName as never, pattern));
+  if ("description" in table) parts.push(ilike(table.description as never, pattern));
+  return or(...parts);
+};
+
+const requireDesignSystemAccess = async (
+  req: Request,
+  res: Response,
+): Promise<boolean> => {
+  const [designSystem] = await db
+    .select()
+    .from(designSystems)
+    .where(andOptional(eq(designSystems.id, req.params.id), designSystemScopeFilter(req as never)));
+
+  if (!designSystem || !designSystemBelongsToScope(designSystem, req as never)) {
+    res.status(404).json({ error: "Not found" });
+    return false;
+  }
+
+  return true;
+};
 
 router.get("/", (req, res) =>
   tryCatch(res, async () => {
@@ -99,23 +144,169 @@ router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
 );
 
 // GET /design-systems/:id/components
-router.get("/:id/components", validateParams(UuidParamSchema), (req, res) =>
+router.get("/:id/components", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
-    const rows = await db.query.designSystemComponents.findMany({
-      where: eq(designSystemComponents.designSystemId, req.params.id),
-      with: { component: true },
-    });
-    res.json(rows.map((r) => r.component));
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const where = andOptional(
+      eq(designSystemComponents.designSystemId, req.params.id),
+      queryLike(components, stringQuery(req.query.query)),
+    );
+    const rows = await db
+      .select({
+        id: components.id,
+        name: components.name,
+        description: components.description,
+        createdAt: components.createdAt,
+        updatedAt: components.updatedAt,
+      })
+      .from(designSystemComponents)
+      .innerJoin(components, eq(designSystemComponents.componentId, components.id))
+      .where(where);
+
+    res.json(rows);
   }),
 );
 
 // GET /design-systems/:id/tokens
-router.get("/:id/tokens", validateParams(UuidParamSchema), (req, res) =>
+router.get("/:id/tokens", requireScope(TOKEN_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const type = stringQuery(req.query.type);
+    if (type && !TokenTypeSchema.safeParse(type).success) {
+      res.status(400).json({ error: `Invalid token type '${type}'` });
+      return;
+    }
+
     const rows = await db
       .select()
       .from(tokens)
-      .where(eq(tokens.designSystemId, req.params.id));
+      .where(
+        andOptional(
+          eq(tokens.designSystemId, req.params.id),
+          type ? eq(tokens.type, type as never) : undefined,
+          queryLike(tokens, stringQuery(req.query.query)),
+        ),
+      );
+    res.json(rows);
+  }),
+);
+
+// GET /design-systems/:id/tokens/:tokenIdOrName
+router.get("/:id/tokens/:tokenIdOrName", requireScope(TOKEN_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const identifier = req.params.tokenIdOrName;
+    const [row] = await db
+      .select()
+      .from(tokens)
+      .where(
+        andOptional(
+          eq(tokens.designSystemId, req.params.id),
+          isUuid(identifier) ? or(eq(tokens.id, identifier), eq(tokens.name, identifier)) : eq(tokens.name, identifier),
+        ),
+      );
+
+    if (!assertFound(row, res)) return;
+    res.json(row);
+  }),
+);
+
+// GET /design-systems/:id/tokens/:tokenIdOrName/values
+router.get("/:id/tokens/:tokenIdOrName/values", requireScope(TOKEN_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const identifier = req.params.tokenIdOrName;
+    const [token] = await db
+      .select({ id: tokens.id })
+      .from(tokens)
+      .where(
+        andOptional(
+          eq(tokens.designSystemId, req.params.id),
+          isUuid(identifier) ? or(eq(tokens.id, identifier), eq(tokens.name, identifier)) : eq(tokens.name, identifier),
+        ),
+      );
+
+    if (!assertFound(token, res)) return;
+
+    const platform = stringQuery(req.query.platform);
+    if (platform && !PlatformSchema.safeParse(platform).success) {
+      res.status(400).json({ error: `Invalid platform '${platform}'` });
+      return;
+    }
+    const mode = stringQuery(req.query.mode);
+    if (mode && !ModeSchema.safeParse(mode).success) {
+      res.status(400).json({ error: `Invalid mode '${mode}'` });
+      return;
+    }
+
+    const rows = await db
+      .select()
+      .from(tokenValues)
+      .where(
+        andOptional(
+          eq(tokenValues.tokenId, token.id),
+          stringQuery(req.query.tenantId) ? eq(tokenValues.tenantId, stringQuery(req.query.tenantId)!) : undefined,
+          platform ? eq(tokenValues.platform, platform as never) : undefined,
+          mode ? eq(tokenValues.mode, mode as never) : undefined,
+        ),
+      );
+    res.json(rows);
+  }),
+);
+
+// GET /design-systems/:id/components/:componentIdOrName
+router.get("/:id/components/:componentIdOrName", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
+    if (!assertFound(component, res)) return;
+    res.json(component);
+  }),
+);
+
+// GET /design-systems/:id/components/:componentIdOrName/styles
+router.get("/:id/components/:componentIdOrName/styles", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
+    if (!assertFound(component, res)) return;
+
+    const componentVariations = await db
+      .select({ id: variations.id })
+      .from(variations)
+      .where(eq(variations.componentId, component.id));
+    const variationIds = componentVariations.map((row) => row.id);
+    if (variationIds.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const rows = await db
+      .select()
+      .from(styles)
+      .where(and(eq(styles.designSystemId, req.params.id), inArray(styles.variationId, variationIds)));
+    res.json(rows);
+  }),
+);
+
+// GET /design-systems/:id/components/:componentIdOrName/variations
+router.get("/:id/components/:componentIdOrName/variations", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
+  tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
+
+    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
+    if (!assertFound(component, res)) return;
+
+    const rows = await db
+      .select()
+      .from(variations)
+      .where(eq(variations.componentId, component.id));
     res.json(rows);
   }),
 );
@@ -152,5 +343,25 @@ router.get("/:id/changes", validateParams(UuidParamSchema), (req, res) =>
     res.json(rows);
   }),
 );
+
+const findDesignSystemComponent = async (designSystemId: string, identifier: string) => {
+  const [row] = await db
+    .select({
+      id: components.id,
+      name: components.name,
+      description: components.description,
+      createdAt: components.createdAt,
+      updatedAt: components.updatedAt,
+    })
+    .from(designSystemComponents)
+    .innerJoin(components, eq(designSystemComponents.componentId, components.id))
+    .where(
+      and(
+        eq(designSystemComponents.designSystemId, designSystemId),
+        isUuid(identifier) ? or(eq(components.id, identifier), eq(components.name, identifier)) : eq(components.name, identifier),
+      ),
+    );
+  return row;
+};
 
 export default router;

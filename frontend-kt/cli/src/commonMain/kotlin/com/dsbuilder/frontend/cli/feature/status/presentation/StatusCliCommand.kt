@@ -7,6 +7,7 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
+import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder status`.
@@ -19,12 +20,14 @@ internal class StatusCliCommand(
     private val apiUrl: String? by option("--api-url")
 
     override fun run() {
-        val result = checkProjectStatusUseCase.execute(
-            CheckProjectStatusCommand(
-                apiKeyOverride = apiKey,
-                apiUrlOverride = apiUrl,
-            ),
-        )
+        val result = runBlocking {
+            checkProjectStatusUseCase.execute(
+                CheckProjectStatusCommand(
+                    apiKeyOverride = apiKey,
+                    apiUrlOverride = apiUrl,
+                ),
+            )
+        }
 
         when (result) {
             is CheckProjectStatusResult.Authorized -> echo(

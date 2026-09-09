@@ -28,6 +28,7 @@ import com.dsbuilder.frontend.feature.components.domain.ComponentImportReport
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackage
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageResult
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -43,7 +44,7 @@ class PushComponentsUseCaseTest {
     )
 
     @Test
-    fun sendsWholePackageThroughRemoteSourceOnce() {
+    fun sendsWholePackageThroughRemoteSourceOnce() = runTest {
         val commands = mutableListOf<ImportComponentsCommand>()
         val result = execute(onImport = { command -> commands += command })
 
@@ -61,7 +62,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun sendsConvertedConfigurationsNotNativeOnes() {
+    fun sendsConvertedConfigurationsNotNativeOnes() = runTest {
         val commands = mutableListOf<ImportComponentsCommand>()
         execute(onImport = { command -> commands += command })
 
@@ -75,7 +76,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun dryRunIsPassedToRemoteSource() {
+    fun dryRunIsPassedToRemoteSource() = runTest {
         val commands = mutableListOf<ImportComponentsCommand>()
         val result = execute(dryRun = true, onImport = { command -> commands += command })
 
@@ -84,7 +85,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun applyIsPassedToRemoteSource() {
+    fun applyIsPassedToRemoteSource() = runTest {
         val commands = mutableListOf<ImportComponentsCommand>()
         val result = execute(dryRun = false, onImport = { command -> commands += command })
 
@@ -93,7 +94,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun reportsTargetAndPackageTogether() {
+    fun reportsTargetAndPackageTogether() = runTest {
         val result = execute()
 
         val target = assertNotNull(result.target, "цель не сообщена")
@@ -107,7 +108,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun returnsReportFromRemoteSource() {
+    fun returnsReportFromRemoteSource() = runTest {
         val result = execute()
 
         val pushed = assertNotNull(result as? PushComponentsResult.Pushed)
@@ -120,7 +121,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun rejectsDefaultApiUrlWithoutCallingRemoteSource() {
+    fun rejectsDefaultApiUrlWithoutCallingRemoteSource() = runTest {
         var requested = false
         val result = execute(
             apiUrlOverride = null,
@@ -136,7 +137,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun acceptsApiUrlFromEnvironment() {
+    fun acceptsApiUrlFromEnvironment() = runTest {
         val result = execute(
             apiUrlOverride = null,
             environment = { name -> "http://env-host".takeIf { name == API_URL_ENV } },
@@ -146,11 +147,12 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun missingProjectContextIsReportedWithoutCallingRemoteSource() {
+    fun missingProjectContextIsReportedWithoutCallingRemoteSource() = runTest {
         var requested = false
         val result = execute(
-            contextReader = ProjectContextReader {
-                ProjectContextReadResult.Failed("Error: no .sdds/config.json found.")
+            contextReader = object : ProjectContextReader {
+                override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+                    ProjectContextReadResult.Failed("Error: no .sdds/config.json found.")
             },
             onImport = { requested = true },
         )
@@ -161,7 +163,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun missingApiKeyIsReportedWithoutCallingRemoteSource() {
+    fun missingApiKeyIsReportedWithoutCallingRemoteSource() = runTest {
         var requested = false
         val result = execute(
             apiKeyProvider = ProjectApiKeyProvider { _, _ ->
@@ -176,7 +178,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun conversionFailureCancelsWholePushAndNamesTheFile() {
+    fun conversionFailureCancelsWholePushAndNamesTheFile() = runTest {
         var requested = false
         val result = execute(
             configurations = listOf(
@@ -199,7 +201,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun packageFailureIsReported() {
+    fun packageFailureIsReported() = runTest {
         val result = execute(
             loader = ComponentPackageLoader { _, _ -> ComponentPackageResult.Failed("Error: no meta.json.") },
         )
@@ -208,7 +210,7 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun remoteFailureIsReportedWithTarget() {
+    fun remoteFailureIsReportedWithTarget() = runTest {
         val result = execute(
             importResult = ImportComponentsResult.Failed(
                 "Status: forbidden. API key has no access to this project.",
@@ -221,18 +223,21 @@ class PushComponentsUseCaseTest {
     }
 
     @Test
-    fun doesNotFailOnPackageNameMismatch() {
+    fun doesNotFailOnPackageNameMismatch() = runTest {
         val result = execute(packageName = "completely-different-name")
 
         assertTrue(result is PushComponentsResult.Pushed, "push отклонён из-за расхождения имён: $result")
     }
 
     @Suppress("LongParameterList")
-    private fun execute(
+    private suspend fun execute(
         packageName: String = "sdds_sbcom",
         configurations: List<ComponentConfiguration> = defaultConfigurations,
         loader: ComponentPackageLoader? = null,
-        contextReader: ProjectContextReader = ProjectContextReader { ProjectContextReadResult.Found(context) },
+        contextReader: ProjectContextReader = object : ProjectContextReader {
+            override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+                ProjectContextReadResult.Found(context)
+        },
         apiKeyProvider: ProjectApiKeyProvider = ProjectApiKeyProvider { _, _ ->
             ProjectApiKeyResult.Found(ProjectApiKey("secret-key"))
         },
@@ -321,11 +326,11 @@ private class FakeComponentConfigRemoteSource(
     private val onImport: (ImportComponentsCommand) -> Unit,
     private val importResult: ImportComponentsResult,
 ) : ComponentConfigRemoteSource {
-    override fun import(command: ImportComponentsCommand): ImportComponentsResult {
+    override suspend fun import(command: ImportComponentsCommand): ImportComponentsResult {
         onImport(command)
         return importResult
     }
 
-    override fun export(command: ExportComponentsCommand): ExportComponentsResult =
+    override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult =
         error("push не выгружает пакет")
 }

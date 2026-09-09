@@ -12,12 +12,18 @@ internal class FilesystemStructureReader(
     private val fileSystem: WorkspaceFileSystem,
     private val json: Json,
 ) : DocsStructureReader {
+    @Suppress("TooGenericExceptionCaught")
     override fun readStructure(path: String): Structure {
         return try {
             val content = fileSystem.readText(path)
             json.decodeFromString(Structure.serializer(), content)
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
             throw IllegalArgumentException("Failed to read structure file at $path: ${e.message}", e)
         }
+    }
+
+    override fun readOptionalStructure(path: String): Structure? {
+        if (!fileSystem.exists(path)) return null
+        return readStructure(path)
     }
 }

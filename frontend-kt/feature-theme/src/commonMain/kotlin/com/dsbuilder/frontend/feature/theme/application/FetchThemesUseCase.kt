@@ -30,7 +30,7 @@ public class FetchThemesUseCase internal constructor(
     /**
      * Загружает themes и записывает их в локальную `.sdds` структуру.
      */
-    public fun execute(command: FetchThemesCommand): FetchThemesResult {
+    public suspend fun execute(command: FetchThemesCommand): FetchThemesResult {
         val runtime = when (val result = resolveRuntime(command)) {
             is RuntimeResolutionResult.Failed -> return FetchThemesResult.Failed(result.message)
             is RuntimeResolutionResult.Resolved -> result.runtime
@@ -74,7 +74,7 @@ public class FetchThemesUseCase internal constructor(
         }
 
     private fun resolveRuntime(command: FetchThemesCommand): RuntimeResolutionResult {
-        val context = when (val result = projectContextReader.requireContext()) {
+        val context = when (val result = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Failed -> return RuntimeResolutionResult.Failed(result.message)
             is ProjectContextReadResult.Found -> result.context
         }
@@ -97,7 +97,7 @@ public class FetchThemesUseCase internal constructor(
         )
     }
 
-    private fun fetchRemoteData(runtime: ThemeRuntime): RemoteDataLoadResult {
+    private suspend fun fetchRemoteData(runtime: ThemeRuntime): RemoteDataLoadResult {
         val remoteCommand = RemoteThemeCommand(
             context = runtime.context,
             apiUrl = runtime.apiUrl,
@@ -109,7 +109,7 @@ public class FetchThemesUseCase internal constructor(
         }
     }
 
-    private fun fetchTokensAndValues(
+    private suspend fun fetchTokensAndValues(
         runtime: ThemeRuntime,
         remoteCommand: RemoteThemeCommand,
         tenants: List<Tenant>,
@@ -124,7 +124,7 @@ public class FetchThemesUseCase internal constructor(
             )
         }
 
-    private fun fetchPaletteAndValues(
+    private suspend fun fetchPaletteAndValues(
         runtime: ThemeRuntime,
         remoteCommand: RemoteThemeCommand,
         tenants: List<Tenant>,
@@ -140,7 +140,7 @@ public class FetchThemesUseCase internal constructor(
             )
         }
 
-    private fun fetchValuesAndBuildRemoteData(
+    private suspend fun fetchValuesAndBuildRemoteData(
         runtime: ThemeRuntime,
         tenants: List<Tenant>,
         tokens: List<Token>,
@@ -158,25 +158,25 @@ public class FetchThemesUseCase internal constructor(
             )
         }
 
-    private fun fetchTenants(command: RemoteThemeCommand): TenantsLoadResult =
+    private suspend fun fetchTenants(command: RemoteThemeCommand): TenantsLoadResult =
         when (val result = remoteThemeDataSource.fetchTenants(command)) {
             is RemoteThemeResult.Failed -> TenantsLoadResult.Failed(result.message)
             is RemoteThemeResult.Success -> TenantsLoadResult.Loaded(result.value)
         }
 
-    private fun fetchTokens(command: RemoteThemeCommand): TokensLoadResult =
+    private suspend fun fetchTokens(command: RemoteThemeCommand): TokensLoadResult =
         when (val result = remoteThemeDataSource.fetchTokens(command)) {
             is RemoteThemeResult.Failed -> TokensLoadResult.Failed(result.message)
             is RemoteThemeResult.Success -> TokensLoadResult.Loaded(result.value)
         }
 
-    private fun fetchPalette(command: RemoteThemeCommand): PaletteLoadResult =
+    private suspend fun fetchPalette(command: RemoteThemeCommand): PaletteLoadResult =
         when (val result = remoteThemeDataSource.fetchPalette(command)) {
             is RemoteThemeResult.Failed -> PaletteLoadResult.Failed(result.message)
             is RemoteThemeResult.Success -> PaletteLoadResult.Loaded(result.value)
         }
 
-    private fun fetchTokenValues(
+    private suspend fun fetchTokenValues(
         runtime: ThemeRuntime,
         tenants: List<Tenant>,
     ): TenantValuesLoadResult {

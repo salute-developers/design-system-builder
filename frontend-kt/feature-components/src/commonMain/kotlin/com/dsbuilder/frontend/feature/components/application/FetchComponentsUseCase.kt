@@ -41,10 +41,10 @@ public class FetchComponentsUseCase internal constructor(
      * из-за неё файлы незачем.
      */
     @Suppress("ReturnCount")
-    public fun execute(command: FetchComponentsCommand): FetchComponentsResult {
+    public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
         val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride)
 
-        val context = when (val read = projectContextReader.requireContext()) {
+        val context = when (val read = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Failed -> return FetchComponentsResult.Failed(read.message)
             is ProjectContextReadResult.Found -> read.context
         }

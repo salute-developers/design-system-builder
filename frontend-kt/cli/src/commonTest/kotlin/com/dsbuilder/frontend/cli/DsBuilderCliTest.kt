@@ -37,8 +37,41 @@ class DsBuilderCliTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("Usage: dsbuilder"))
         assertTrue(result.output.contains("init"))
+        assertTrue(result.output.contains("auth"))
         assertTrue(result.output.contains("status"))
         assertTrue(result.output.contains("theme"))
+        assertTrue(result.output.contains("mcp"))
+    }
+
+    @Test
+    fun authHelpDoesNotRequireProjectContextOrBackend() {
+        val result = DsBuilderCli(fakeRuntime()).execute(listOf("auth", "--help"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("login"), result.output)
+        assertTrue(result.output.contains("status"), result.output)
+        assertTrue(result.output.contains("logout"), result.output)
+    }
+
+    @Test
+    fun authLoginRejectsPasswordArgumentBeforeParsing() {
+        val result = DsBuilderCli(fakeRuntime()).execute(
+            listOf("auth", "login", "--username", "alice", "--password", "secret"),
+        )
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("password must be entered interactively"), result.output)
+        assertFalse(result.output.contains("secret"), result.output)
+    }
+
+    @Test
+    fun mcpServeHelpDoesNotRequireProjectContextOrBackend() {
+        val result = DsBuilderCli(fakeRuntime()).execute(listOf("mcp", "serve", "--help"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Serve DS Builder MCP tools over stdio."), result.output)
+        assertTrue(result.output.contains("--workspace"), result.output)
+        assertTrue(result.output.contains("--api-url"), result.output)
     }
 
     @Test
@@ -1038,17 +1071,17 @@ private class FakeAuthenticatedHttpClientFactory(
     ): AuthenticatedHttpClient {
         onCreate(apiUrl, apiKey)
         return object : AuthenticatedHttpClient {
-            override fun get(path: String): AuthenticatedHttpResult {
+            override suspend fun get(path: String): AuthenticatedHttpResult {
                 onGet(path)
                 return results[path] ?: result
             }
 
-            override fun post(path: String, body: String): AuthenticatedHttpResult {
+            override suspend fun post(path: String, body: String): AuthenticatedHttpResult {
                 onGet(path)
                 return results[path] ?: result
             }
 
-            override fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
+            override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
                 onPost(path, file)
                 return multipartResponse
             }

@@ -2,9 +2,11 @@
 
 `frontend-kt` — отдельный Gradle build для frontend tooling DS Builder.
 
-Активный модуль:
+Активные клиентские модули:
 
-- [`cli`](./cli/src) — Kotlin Multiplatform CLI-приложение `dsbuilder`.
+- [`cli`](./cli/src) — Kotlin Multiplatform CLI-приложение `dsbuilder` для JVM/macOS, включая `dsbuilder mcp serve`.
+- [`mcp-server-core`](./mcp-server-core/src) — общий MCP server core и tool registry поверх shared use cases.
+- [`mcp-node`](./mcp-node/src) — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`.
 
 ## Проверки
 
@@ -15,6 +17,7 @@
 ./gradlew test
 ./gradlew detekt
 ./gradlew spotlessCheck
+./gradlew compileSharedMcpDependencyGraph
 ```
 
 ## Запуск CLI через Gradle
@@ -31,7 +34,25 @@
 ./gradlew :cli:runJvm --args="--help"
 ./gradlew :cli:runJvm --args="init --project-id project-123 --design-system-id ds-456"
 ./gradlew :cli:runJvm --args="status --api-url http://localhost:8080 --api-key dev-token"
+./gradlew :cli:runJvm --args="auth status --api-url http://localhost:8080"
+./gradlew :cli:runJvm --args="mcp serve --workspace /path/to/project"
 ./gradlew :cli:runJvm --args="theme fetch --api-url http://localhost:8080 --api-key dev-token"
+```
+
+## Node.js MCP launcher
+
+Для локальной проверки npm package:
+
+```bash
+./gradlew :mcp-node:npmPackMcpNodeSmoke
+```
+
+Пакет содержит executable `dsbuilder-mcp`:
+
+```bash
+dsbuilder-mcp --help
+dsbuilder-mcp auth status --api-url http://localhost:8080
+dsbuilder-mcp serve --workspace /path/to/project
 ```
 
 ## Локальная установка для macOS

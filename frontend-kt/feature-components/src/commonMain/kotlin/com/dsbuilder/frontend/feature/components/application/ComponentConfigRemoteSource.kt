@@ -18,12 +18,12 @@ internal interface ComponentConfigRemoteSource {
     /**
      * Отправляет весь пакет одним запросом.
      */
-    fun import(command: ImportComponentsCommand): ImportComponentsResult
+    suspend fun import(command: ImportComponentsCommand): ImportComponentsResult
 
     /**
      * Забирает весь пакет одним запросом.
      */
-    fun export(command: ExportComponentsCommand): ExportComponentsResult
+    suspend fun export(command: ExportComponentsCommand): ExportComponentsResult
 }
 
 /**
