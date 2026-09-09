@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.workspace.ProjectConfigException
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
+import com.dsbuilder.frontend.core.workspace.ProjectNotInitializedException
 
 /**
  * Adapter чтения project context из nearest-parent `.sdds/config.json`.
@@ -30,8 +31,10 @@ internal class LocalProjectContextReader(
                     platforms = platforms,
                 ),
             )
+        } catch (exception: ProjectNotInitializedException) {
+            ProjectContextReadResult.Failed("Error: ${exception.message}", ProjectContextFailure.NOT_INITIALIZED)
         } catch (exception: ProjectConfigException) {
-            ProjectContextReadResult.Failed("Error: ${exception.message}")
+            ProjectContextReadResult.Failed("Error: ${exception.message}", ProjectContextFailure.INVALID)
         }
 
     private fun unknownPlatformMessage(value: String, configPath: String): String =

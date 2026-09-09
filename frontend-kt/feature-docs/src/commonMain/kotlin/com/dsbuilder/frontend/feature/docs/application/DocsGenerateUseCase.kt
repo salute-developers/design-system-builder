@@ -147,12 +147,18 @@ public class DocsGenerateUseCase internal constructor(
             return explicitPlatform(requested)
         }
 
-        val configured = projectContextReader.platforms()
+        return when (val read = projectContextReader.platforms()) {
+            // Неверный config не превращаем в умолчание: пакет собрался бы с чужой платформой
+            // и с `designSystem.id = unknown`, и никто бы этого не заметил.
+            is DocsPlatformsRead.Invalid -> PlatformSelection.Failure(read.message)
+            is DocsPlatformsRead.NotInitialized -> defaultPlatform()
+            is DocsPlatformsRead.Configured -> configuredPlatform(read.platforms)
+        }
+    }
+
+    private fun configuredPlatform(configured: List<TargetPlatform>): PlatformSelection {
         if (configured.isEmpty()) {
-            return PlatformSelection.Selected(
-                documentation = DEFAULT_DOCUMENTATION_PLATFORM.toDocumentationPlatform(),
-                target = DEFAULT_DOCUMENTATION_PLATFORM,
-            )
+            return defaultPlatform()
         }
 
         return when (val resolution = PlatformResolver.resolve(null, configured)) {
@@ -164,6 +170,11 @@ public class DocsGenerateUseCase internal constructor(
             is PlatformResolution.Failed -> PlatformSelection.Failure(resolution.message)
         }
     }
+
+    private fun defaultPlatform(): PlatformSelection = PlatformSelection.Selected(
+        documentation = DEFAULT_DOCUMENTATION_PLATFORM.toDocumentationPlatform(),
+        target = DEFAULT_DOCUMENTATION_PLATFORM,
+    )
 
     /** Явная опция допускает и платформы без делегата, например `design`. */
     private fun explicitPlatform(requested: String): PlatformSelection {

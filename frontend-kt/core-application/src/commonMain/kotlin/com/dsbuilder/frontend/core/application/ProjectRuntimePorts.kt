@@ -55,10 +55,26 @@ public sealed interface ProjectContextReadResult {
      * Project context не найден или не прочитан.
      *
      * @property message user-facing ошибка.
+     * @property reason почему контекста нет: проекта нет вовсе или его config неверен.
      */
     public data class Failed(
         public val message: String,
+        public val reason: ProjectContextFailure = ProjectContextFailure.INVALID,
     ) : ProjectContextReadResult
+}
+
+/**
+ * Причина, по которой project context не прочитан.
+ *
+ * Команда с историческим умолчанием может продолжить работу без проекта, но не имеет права
+ * подменять умолчанием неверный config: иначе опечатка в нём даёт молча собранный чужой результат.
+ */
+public enum class ProjectContextFailure {
+    /** `.sdds/config.json` не найден ни в текущей директории, ни выше. */
+    NOT_INITIALIZED,
+
+    /** Config найден, но не читается, не разбирается или содержит неизвестные значения. */
+    INVALID,
 }
 
 /**
