@@ -1989,13 +1989,6 @@ export async function seedProperties(
             },
             {
                 componentId: slider.id,
-                name: 'thumbBorderStyle',
-                type: 'color' as const,
-                defaultValue: '',
-                description: '',
-            },
-            {
-                componentId: slider.id,
                 name: 'thumbBorderWidth',
                 type: 'dimension' as const,
                 defaultValue: '',
@@ -2120,6 +2113,62 @@ export async function seedProperties(
                 componentId: slider.id,
                 name: 'textFieldWebMarginRight',
                 type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'thumbBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'tickSeparatorWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'tickSeparatorHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'tickSeparatorGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'tickSeparatorBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'trackSegmentBorderRadius',
+                type: 'shape' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'disabledBackgroundOpacity',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: slider.id,
+                name: 'disabledInnerContentOpacity',
+                type: 'float' as const,
                 defaultValue: '',
                 description: '',
             },
@@ -3051,8 +3100,7 @@ export async function seedProperties(
     addPlatformParams(findSlider('rangeValueColor').id, { web: ['rangeValueColor'] });
     addPlatformParams(findSlider('doubleWrapperGap').id, { web: ['doubleWrapperGap'] });
     addPlatformParams(findSlider('doubleBoxShadow').id, { web: ['doubleBoxShadow'] });
-    addPlatformParams(findSlider('thumbSize').id, { web: ['thumbSize'] });
-    addPlatformParams(findSlider('thumbBorderStyle').id, { web: ['thumbBorderStyle'] });
+    addPlatformParams(findSlider('thumbSize').id, { web: ['thumbWidth'] });
     addPlatformParams(findSlider('thumbBorderWidth').id, { web: ['thumbBorderWidth'] });
     addPlatformParams(findSlider('thumbBorderColor').id, { web: ['thumbBorderColor'] });
     addPlatformParams(findSlider('thumbBackgroundColor').id, { web: ['thumbBackgroundColor'] });
@@ -3092,6 +3140,14 @@ export async function seedProperties(
     addPlatformParams(findSlider('textFieldWebClipPath').id, { web: ['textFieldWebClipPath'] });
     addPlatformParams(findSlider('textFieldWebReversedClipPath').id, { web: ['textFieldWebReversedClipPath'] });
     addPlatformParams(findSlider('textFieldWebMarginRight').id, { web: ['textFieldWebMarginRight'] });
+    addPlatformParams(findSlider('thumbBorderRadius').id, { web: ['thumbBorderRadius'] });
+    addPlatformParams(findSlider('tickSeparatorWidth').id, { web: ['tickSeparatorWidth'] });
+    addPlatformParams(findSlider('tickSeparatorHeight').id, { web: ['tickSeparatorHeight'] });
+    addPlatformParams(findSlider('tickSeparatorGap').id, { web: ['tickSeparatorGap'] });
+    addPlatformParams(findSlider('tickSeparatorBorderRadius').id, { web: ['tickSeparatorBorderRadius'] });
+    addPlatformParams(findSlider('trackSegmentBorderRadius').id, { web: ['trackSegmentBorderRadius'] });
+    addPlatformParams(findSlider('disabledBackgroundOpacity').id, { web: ['disabledBackgroundOpacity'] });
+    addPlatformParams(findSlider('disabledInnerContentOpacity').id, { web: ['disabledInnerContentOpacity'] });
     // Note
     const findNote = (name: string) => rows.find((r: any) => r.componentId === note.id && r.name === name)!;
     addPlatformParams(findNote('actionContentMargin').id, { web: ['actionContentMargin'] });
@@ -3476,7 +3532,6 @@ export async function seedProperties(
         sli_doubleWrapperGap: findSlider('doubleWrapperGap'),
         sli_doubleBoxShadow: findSlider('doubleBoxShadow'),
         sli_thumbSize: findSlider('thumbSize'),
-        sli_thumbBorderStyle: findSlider('thumbBorderStyle'),
         sli_thumbBorderWidth: findSlider('thumbBorderWidth'),
         sli_thumbBorderColor: findSlider('thumbBorderColor'),
         sli_thumbBackgroundColor: findSlider('thumbBackgroundColor'),
