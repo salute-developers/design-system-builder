@@ -6,6 +6,9 @@ import com.dsbuilder.frontend.core.platform.ToolchainStatus
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsCommand
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsResult
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsUseCase
+import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainCommand
+import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainResult
+import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.ListToolchainsUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.ToolchainDoctorEntry
 import com.dsbuilder.frontend.feature.toolchain.application.ToolchainSummary
@@ -13,6 +16,8 @@ import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.parameters.arguments.argument
+import com.github.ajalt.clikt.parameters.arguments.help
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 
@@ -22,9 +27,10 @@ import com.github.ajalt.clikt.parameters.options.option
 internal class ToolchainCliCommand(
     listCommand: ToolchainListCliCommand,
     doctorCommand: ToolchainDoctorCliCommand,
+    installCommand: ToolchainInstallCliCommand,
 ) : CliktCommand(name = "toolchain") {
     init {
-        subcommands(listCommand, doctorCommand)
+        subcommands(listCommand, doctorCommand, installCommand)
     }
 
     override fun help(context: Context): String = "Inspect platform toolchains available to this CLI."
@@ -91,6 +97,38 @@ internal class ToolchainDoctorCliCommand(
     }
 
     override fun help(context: Context): String = "Check that platform tools are installed and compatible."
+}
+
+/**
+ * Presentation command для `dsbuilder toolchain install`.
+ */
+internal class ToolchainInstallCliCommand(
+    private val installToolchainUseCase: InstallToolchainUseCase,
+) : CliktCommand(name = "install") {
+    private val toolchain: String by argument("toolchain")
+        .help("Toolchain to install, for example 'ios'.")
+
+    private val version: String? by option("--version")
+        .help("Install this release instead of the latest one.")
+
+    private val from: String? by option("--from")
+        .help("Install this archive (path or URL) instead of resolving a release.")
+
+    override fun run() {
+        val command = InstallToolchainCommand(toolchain = toolchain, version = version, archive = from)
+        when (val result = installToolchainUseCase.execute(command)) {
+            is InstallToolchainResult.Installed -> {
+                echo("Installed ${result.toolchain} ${result.version} at ${result.executable}.")
+            }
+
+            is InstallToolchainResult.Failed -> {
+                echo(result.message)
+                throw ProgramResult(statusCode = 1)
+            }
+        }
+    }
+
+    override fun help(context: Context): String = "Install a platform toolchain and make it current."
 }
 
 private fun ToolchainSummary.render(): String = """

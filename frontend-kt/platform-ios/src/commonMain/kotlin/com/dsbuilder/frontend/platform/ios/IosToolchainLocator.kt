@@ -15,7 +15,7 @@ internal const val IOS_TOOL_ENV: String = "DSBUILDER_IOS_TOOL"
  * Версии лежат рядом в каталогах с именем тега, но выбирает активную установщик, а не поиск:
  * теги релизов iOS — даты вида `release-01-09-2026`, и сортировать их как строки нельзя.
  */
-internal const val MANAGED_TOOLCHAIN_PATH: String = ".dsbuilder/toolchains/ios/current"
+internal const val MANAGED_TOOLCHAIN_PATH: String = "$MANAGED_TOOLCHAIN_ROOT/current"
 
 /**
  * Поиск инструмента iOS в фиксированном порядке: `--tool` → env → управляемая установка → `PATH`.

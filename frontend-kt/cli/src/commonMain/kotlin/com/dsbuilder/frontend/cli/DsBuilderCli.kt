@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.cli.presentation.RootCliCommand
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.application.coreApplicationModule
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
+import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
 import com.dsbuilder.frontend.core.platform.corePlatformModule
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
@@ -86,6 +87,14 @@ public class DsBuilderCli(
      * а не разбор CLI-аргументов.
      */
     public fun platformDelegateRegistry(): PlatformDelegateRegistry =
+        koinApplication {
+            modules(coreApplicationModule(runtime), iosPlatformModule(), platformDelegatesModule())
+        }.koin.get()
+
+    /**
+     * Возвращает реестр установщиков, собранный тем же composition root, что и команды.
+     */
+    public fun toolchainInstallerRegistry(): ToolchainInstallerRegistry =
         koinApplication {
             modules(coreApplicationModule(runtime), iosPlatformModule(), platformDelegatesModule())
         }.koin.get()

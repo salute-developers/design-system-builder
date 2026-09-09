@@ -9,7 +9,7 @@ import org.koin.dsl.module
 /**
  * Создаёт Koin module платформы iOS.
  *
- * Сам делегат в реестр не попадает: состав реестра задаёт composition root клиента.
+ * Ни делегат, ни установщик в реестры не попадают: их состав задаёт composition root клиента.
  */
 public fun iosPlatformModule(): Module = module {
     single {
@@ -19,6 +19,16 @@ public fun iosPlatformModule(): Module = module {
                 fileSystem = get<WorkspaceFileSystem>(),
                 environmentReader = get<EnvironmentReader>(),
             ),
+        )
+    }
+    single {
+        IosToolchainInstaller(
+            processRunner = get<ProcessRunner>(),
+            fileSystem = get<WorkspaceFileSystem>(),
+            environmentReader = get<EnvironmentReader>(),
+            releaseSource = { workingDirectory ->
+                IosReleaseSource(processRunner = get<ProcessRunner>(), workingDirectory = workingDirectory)
+            },
         )
     }
 }
