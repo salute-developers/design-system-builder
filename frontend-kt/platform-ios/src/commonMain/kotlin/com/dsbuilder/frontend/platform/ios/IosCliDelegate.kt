@@ -37,7 +37,7 @@ public class IosCliDelegate internal constructor(
     override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.DOCS_AGGREGATE)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
-        val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint())
+        val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
 
         return when (val version = readVersion(executable, workspace)) {
             // Минимальная версия пока не проверяется: у инструмента одна опубликованная линия,
@@ -75,7 +75,7 @@ public class IosCliDelegate internal constructor(
                     "run `dsbuilder theme generate --platform swiftui` instead.",
             )
         val executable = locator.locate(invocation.toolOverride)
-            ?: return DelegateResult.ToolchainMissing(missingHint())
+            ?: return DelegateResult.ToolchainMissing(missingHint(invocation.toolOverride))
 
         return try {
             val result = processRunner.run(
@@ -139,7 +139,11 @@ public class IosCliDelegate internal constructor(
         data class Unavailable(val reason: String) : VersionRead
     }
 
-    private fun missingHint(): String =
+    /** Названный в `--tool` путь важнее списка стандартных мест: проверялся именно он. */
+    private fun missingHint(toolOverride: String?): String = if (toolOverride != null) {
+        "$IOS_TOOL_EXECUTABLE was not found at $toolOverride, the path given by --tool."
+    } else {
         "$IOS_TOOL_EXECUTABLE was not found. Checked: ${locator.checkedLocations().joinToString()}. " +
             "Install it from the plasma-ios release or pass --tool <path>."
+    }
 }
