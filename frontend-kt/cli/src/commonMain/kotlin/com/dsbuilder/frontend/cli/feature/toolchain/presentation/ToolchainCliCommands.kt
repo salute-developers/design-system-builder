@@ -60,8 +60,12 @@ internal class ToolchainDoctorCliCommand(
     private val platform: TargetPlatform? by option("--platform").targetPlatform()
         .help("Check only the toolchain serving this platform.")
 
+    private val tool: String? by option("--tool")
+        .help("Check this tool instead of the ones found by toolchain discovery.")
+
     override fun run() {
-        when (val result = doctorToolchainsUseCase.execute(DoctorToolchainsCommand(platform = platform))) {
+        val command = DoctorToolchainsCommand(platform = platform, toolOverride = tool)
+        when (val result = doctorToolchainsUseCase.execute(command)) {
             is DoctorToolchainsResult.Checked -> echoChecked(result)
             is DoctorToolchainsResult.Failed -> {
                 echo(result.message)

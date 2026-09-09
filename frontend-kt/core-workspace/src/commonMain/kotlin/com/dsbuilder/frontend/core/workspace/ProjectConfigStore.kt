@@ -26,7 +26,7 @@ public class ProjectConfigStore(
      */
     public fun requireNearestContext(startDirectory: String = fileSystem.currentWorkingDirectory()): ProjectContext {
         val configPath = findNearestConfigPath(startDirectory)
-            ?: throw ProjectConfigException(
+            ?: throw ProjectNotInitializedException(
                 "Project is not initialized. Run `dsbuilder init --project-id <id> --design-system-id <id>`.",
             )
         val config = codec.decode(fileSystem.readText(configPath))

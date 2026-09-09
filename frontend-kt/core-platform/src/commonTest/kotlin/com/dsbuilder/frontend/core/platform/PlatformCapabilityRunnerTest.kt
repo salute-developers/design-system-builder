@@ -119,6 +119,34 @@ class PlatformCapabilityRunnerTest {
         assertTrue(message.contains("ios"), message)
     }
 
+    /**
+     * Регрессия: `doctor` обязан проверять именно тот инструмент, который задан `--tool`.
+     * Иначе команда с явным путём отказывала бы из-за отсутствия инструмента в стандартных местах.
+     */
+    @Test
+    fun explicitToolIsCheckedByDoctorInsteadOfTheStandardOnes() {
+        val delegate = FakePlatformDelegate(
+            toolchain = ToolchainId("ios"),
+            platforms = setOf(TargetPlatform.SWIFT_UI),
+            status = { toolOverride ->
+                if (toolOverride == null) {
+                    ToolchainStatus.Missing("not installed")
+                } else {
+                    ToolchainStatus.Ready(executable = toolOverride, version = "1.0.0")
+                }
+            },
+        )
+        val runner = runner(delegate, platforms = listOf(TargetPlatform.SWIFT_UI))
+
+        val result = runner.execute(
+            PlatformRunCommand(capability = Capability.THEME, toolOverride = "tools/dsbuilder-ios"),
+        )
+
+        assertIs<PlatformRunResult.Completed>(result)
+        assertEquals("/repo/tools/dsbuilder-ios", delegate.doctorCalls.single().second)
+        assertEquals("/repo/tools/dsbuilder-ios", delegate.invocations.single().toolOverride)
+    }
+
     @Test
     fun unsupportedCapabilityIsRejectedBeforeDoctor() {
         val delegate = FakePlatformDelegate(
@@ -141,7 +169,7 @@ class PlatformCapabilityRunnerTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
-            status = ToolchainStatus.Missing("Run `dsbuilder toolchain install ios`."),
+            status = { ToolchainStatus.Missing("Run `dsbuilder toolchain install ios`.") },
         )
         val runner = runner(delegate, platforms = listOf(TargetPlatform.SWIFT_UI))
 
@@ -156,7 +184,7 @@ class PlatformCapabilityRunnerTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
-            status = ToolchainStatus.Incompatible(found = "0.9.0", required = "1.2.0"),
+            status = { ToolchainStatus.Incompatible(found = "0.9.0", required = "1.2.0") },
         )
         val runner = runner(delegate, platforms = listOf(TargetPlatform.SWIFT_UI))
 

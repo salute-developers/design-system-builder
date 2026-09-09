@@ -108,6 +108,41 @@ class DocsGeneratePlatformStepTest {
         assertEquals(listOf(TargetPlatform.COMPOSE), aggregator.requests.map { it.first })
     }
 
+    /**
+     * Регрессия: неверный config нельзя превращать в умолчание — иначе опечатка в `platforms`
+     * даёт молча собранный compose-пакет с `designSystem.id = unknown`.
+     */
+    @Test
+    fun brokenProjectConfigStopsGenerationInsteadOfFallingBackToCompose() {
+        val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
+        val fileSystem = RecordingDocsFileSystem()
+        val useCase = useCase(
+            aggregator,
+            DocsPlatformsRead.Invalid("Error: unknown platform 'ios' in /repo/.sdds/config.json."),
+            fileSystem,
+        )
+
+        val result = useCase.execute(DocsGenerateCommand(outputGzipPath = "/out/docs.tar.gz"))
+
+        assertEquals(
+            "Error: unknown platform 'ios' in /repo/.sdds/config.json.",
+            assertIs<DocsGenerateResult.Failed>(result).message,
+        )
+        assertTrue(aggregator.requests.isEmpty())
+        assertTrue(fileSystem.writes.isEmpty())
+    }
+
+    @Test
+    fun projectWithoutConfigKeepsTheHistoricalComposeDefault() {
+        val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
+        val useCase = useCase(aggregator, DocsPlatformsRead.NotInitialized)
+
+        val result = useCase.execute(DocsGenerateCommand(outputGzipPath = "/out/docs.tar.gz"))
+
+        assertEquals(".sdds/temp/docs", assertIs<DocsGenerateResult.Success>(result).docsDir)
+        assertEquals(listOf(TargetPlatform.COMPOSE), aggregator.requests.map { it.first })
+    }
+
     @Test
     fun severalConfiguredPlatformsRequireAnExplicitChoice() {
         val useCase = useCase(
@@ -136,6 +171,12 @@ class DocsGeneratePlatformStepTest {
         aggregator: DocsPlatformAggregator,
         configuredPlatforms: List<TargetPlatform>,
         fileSystem: RecordingDocsFileSystem = RecordingDocsFileSystem(),
+    ) = useCase(aggregator, DocsPlatformsRead.Configured(configuredPlatforms), fileSystem)
+
+    private fun useCase(
+        aggregator: DocsPlatformAggregator,
+        platformsRead: DocsPlatformsRead,
+        fileSystem: RecordingDocsFileSystem = RecordingDocsFileSystem(),
     ) = DocsGenerateUseCase(
         structureReader = object : DocsStructureReader {
             override fun readStructure(path: String) = Structure("1.0", emptyList())
@@ -146,7 +187,7 @@ class DocsGeneratePlatformStepTest {
 
             override fun designSystemVersion() = "0.0.0"
 
-            override fun platforms() = configuredPlatforms
+            override fun platforms() = platformsRead
         },
         codec = object : DocsCodec {
             override fun serializeResolvedDocs(docs: ResolvedDocs) = "{}"

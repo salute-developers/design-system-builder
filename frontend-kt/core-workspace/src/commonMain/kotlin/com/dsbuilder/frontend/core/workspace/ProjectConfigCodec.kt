@@ -40,7 +40,18 @@ public class ProjectConfigCodec {
 /**
  * Ошибка чтения или декодирования project config.
  */
-public class ProjectConfigException(
+public open class ProjectConfigException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
+
+/**
+ * Project config не найден: проект не инициализирован.
+ *
+ * Отличается от [ProjectConfigException] намеренно: отсутствие проекта — рабочая ситуация для
+ * команд с историческим умолчанием, а нечитаемый или неверный config — ошибка, которую нельзя
+ * молча превращать в это умолчание.
+ */
+public class ProjectNotInitializedException(
+    message: String,
+) : ProjectConfigException(message)

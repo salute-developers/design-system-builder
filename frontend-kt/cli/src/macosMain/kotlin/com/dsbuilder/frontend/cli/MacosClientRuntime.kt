@@ -97,7 +97,7 @@ private object MacosProcessRunner : ProcessRunner {
             val error = alloc<ObjCObjectVar<NSError?>>()
             if (!task.launchAndReturnError(error.ptr)) {
                 val reason = error.value?.localizedDescription ?: "unknown error"
-                throw ProcessLaunchException("Cannot start process '${'$'}{request.executable}': ${'$'}reason")
+                throw ProcessLaunchException("Cannot start process ${request.executable}: $reason")
             }
         }
 

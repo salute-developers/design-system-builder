@@ -166,6 +166,26 @@ class IosCliDelegateTest {
         assertTrue(assertIs<ToolchainStatus.Missing>(failing).hint.contains("127"))
     }
 
+    /**
+     * Регрессия: `--tool` должен проверяться именно тот инструмент, который потом запустится,
+     * иначе doctor подтверждает штатную сборку, а работает подменённая.
+     */
+    @Test
+    fun doctorChecksTheToolFromTheOption() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(
+            runner = { request ->
+                requests += request
+                ProcessResult(exitCode = 0, output = "0.1.0\n")
+            },
+        )
+
+        val status = delegate.doctor(workspace, toolOverride = "/custom/dsbuilder-ios")
+
+        assertEquals("/custom/dsbuilder-ios", assertIs<ToolchainStatus.Ready>(status).executable)
+        assertEquals("/custom/dsbuilder-ios", requests.single().executable)
+    }
+
     private fun invocation(
         capability: Capability,
         output: String? = null,

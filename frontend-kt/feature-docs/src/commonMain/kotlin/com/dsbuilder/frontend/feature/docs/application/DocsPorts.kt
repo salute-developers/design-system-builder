@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.docs.application
 
+import com.dsbuilder.frontend.core.application.ProjectContextFailure
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.TargetPlatform
@@ -43,10 +44,38 @@ internal interface DocsProjectContextReader {
 
     /**
      * Возвращает целевые платформы проекта из локального config.
-     *
-     * Пустой список означает, что платформа не объявлена: без явного `--platform` команда откажет.
      */
-    fun platforms(): List<TargetPlatform> = emptyList()
+    fun platforms(): DocsPlatformsRead = DocsPlatformsRead.NotInitialized
+}
+
+/**
+ * Результат чтения целевых платформ проекта.
+ *
+ * Отсутствие проекта и неверный config — разные вещи: без проекта команда работает по
+ * историческому умолчанию, а вот подменять умолчанием сломанный config нельзя, иначе опечатка
+ * в нём даёт молча собранный пакет с чужой платформой.
+ */
+internal sealed interface DocsPlatformsRead {
+    /**
+     * Config прочитан.
+     *
+     * @property platforms объявленные платформы; пустой список означает, что их не объявили.
+     */
+    data class Configured(
+        val platforms: List<TargetPlatform>,
+    ) : DocsPlatformsRead
+
+    /** `.sdds/config.json` не найден. */
+    data object NotInitialized : DocsPlatformsRead
+
+    /**
+     * Config найден, но не читается или содержит неизвестные значения.
+     *
+     * @property message user-facing ошибка.
+     */
+    data class Invalid(
+        val message: String,
+    ) : DocsPlatformsRead
 }
 
 /**
@@ -55,10 +84,13 @@ internal interface DocsProjectContextReader {
 internal class DocsProjectContextAdapter(
     private val projectContextReader: ProjectContextReader,
 ) : DocsProjectContextReader {
-    override fun platforms(): List<TargetPlatform> =
+    override fun platforms(): DocsPlatformsRead =
         when (val result = projectContextReader.requireContext()) {
-            is ProjectContextReadResult.Found -> result.context.platforms
-            is ProjectContextReadResult.Failed -> emptyList()
+            is ProjectContextReadResult.Found -> DocsPlatformsRead.Configured(result.context.platforms)
+            is ProjectContextReadResult.Failed -> when (result.reason) {
+                ProjectContextFailure.NOT_INITIALIZED -> DocsPlatformsRead.NotInitialized
+                ProjectContextFailure.INVALID -> DocsPlatformsRead.Invalid(result.message)
+            }
         }
 
     override fun designSystemId(): String {

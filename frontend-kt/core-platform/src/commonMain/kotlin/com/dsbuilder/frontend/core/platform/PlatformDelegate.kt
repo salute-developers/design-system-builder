@@ -27,8 +27,10 @@ public interface PlatformDelegate {
      * Проверяет, что инструмент установлен и совместим, ничего не генерируя.
      *
      * @param workspace пути рабочей копии: для инструментов, живущих в проекте (Gradle), поиск идёт от неё.
+     * @param toolOverride абсолютный путь инструмента из `--tool`. Проверять нужно именно его:
+     * иначе команда с явным путём отказала бы из-за отсутствия инструмента в стандартных местах.
      */
-    public fun doctor(workspace: WorkspacePaths): ToolchainStatus
+    public fun doctor(workspace: WorkspacePaths, toolOverride: String? = null): ToolchainStatus
 
     /**
      * Запускает инструмент и ждёт завершения.

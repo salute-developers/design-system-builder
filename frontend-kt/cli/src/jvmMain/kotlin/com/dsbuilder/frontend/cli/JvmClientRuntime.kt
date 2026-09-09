@@ -46,7 +46,7 @@ private object JvmProcessRunner : ProcessRunner {
             builder.start()
         } catch (exception: IOException) {
             throw ProcessLaunchException(
-                "Cannot start process '${'$'}{request.executable}': ${'$'}{exception.message}",
+                "Cannot start process ${request.executable}: ${exception.message}",
                 exception,
             )
         }

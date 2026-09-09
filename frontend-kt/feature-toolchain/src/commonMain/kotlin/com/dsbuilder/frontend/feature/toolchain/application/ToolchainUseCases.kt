@@ -50,10 +50,15 @@ public class DoctorToolchainsUseCase internal constructor(
         }
         val workspace = resolveWorkspace()
 
+        val toolOverride = command.toolOverride?.let(fileSystem::absolutePath)
+
         return DoctorToolchainsResult.Checked(
             workspace = workspace,
             entries = delegates.map { delegate ->
-                ToolchainDoctorEntry(summary = delegate.toSummary(), status = delegate.doctor(workspace))
+                ToolchainDoctorEntry(
+                    summary = delegate.toSummary(),
+                    status = delegate.doctor(workspace, toolOverride),
+                )
             },
         )
     }
@@ -81,9 +86,11 @@ public class DoctorToolchainsUseCase internal constructor(
  * Command model для [DoctorToolchainsUseCase].
  *
  * @property platform платформа из `--platform`; `null` — проверить все toolchain'ы.
+ * @property toolOverride путь инструмента из `--tool`: проверяется именно он, а не стандартные места.
  */
 public data class DoctorToolchainsCommand(
     public val platform: TargetPlatform? = null,
+    public val toolOverride: String? = null,
 )
 
 /**

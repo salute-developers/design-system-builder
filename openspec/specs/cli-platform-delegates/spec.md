@@ -62,6 +62,11 @@ CLI SHALL resolve the target platform of a command from the explicit option firs
 - **THEN** `theme generate` and `components generate` MUST return a deterministic failure naming `--platform` and the `platforms` field of `.sdds/config.json`
 - **THEN** `docs generate` MUST keep its historical `compose` default instead of failing
 
+#### Scenario: Сломанный config не превращается в умолчание
+
+- **WHEN** `.sdds/config.json` cannot be read or declares an unknown platform
+- **THEN** `docs generate` MUST return that error instead of falling back to the `compose` default
+
 #### Scenario: Несколько платформ требуют выбора
 
 - **WHEN** `--platform` is absent and project config declares several platforms
@@ -90,6 +95,12 @@ CLI SHALL expose a `PlatformDelegate` port that declares a toolchain id, the set
 - **WHEN** CLI asks a delegate for `doctor`
 - **THEN** the delegate MUST return `Ready` with the executable path and version, `Missing` with a hint, or `Incompatible` with found and required versions
 - **THEN** `doctor` MUST NOT generate anything
+
+#### Scenario: Doctor проверяет инструмент из `--tool`
+
+- **WHEN** a command is given `--tool <path>`
+- **THEN** CLI MUST pass that path to `doctor`
+- **THEN** the delegate MUST check that tool instead of the ones found by toolchain discovery
 
 ### Requirement: Workspace paths convention
 

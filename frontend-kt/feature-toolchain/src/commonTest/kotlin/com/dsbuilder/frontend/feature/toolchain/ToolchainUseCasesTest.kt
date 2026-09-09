@@ -78,6 +78,15 @@ class ToolchainUseCasesTest {
     }
 
     @Test
+    fun doctorChecksTheToolFromTheOption() {
+        val result = doctorUseCase(listOf(ios))
+            .execute(DoctorToolchainsCommand(toolOverride = "tools/dsbuilder-ios"))
+
+        assertIs<DoctorToolchainsResult.Checked>(result)
+        assertEquals("/repo/tools/dsbuilder-ios", ios.doctorCalls.single().second)
+    }
+
+    @Test
     fun doctorRejectsPlatformWithoutToolchain() {
         val result = doctorUseCase(listOf(ios)).execute(DoctorToolchainsCommand(platform = TargetPlatform.REACT))
 
@@ -119,10 +128,10 @@ private class StubDelegate(
     override val capabilities: Set<Capability>,
     private val status: ToolchainStatus,
 ) : PlatformDelegate {
-    val doctorCalls: MutableList<WorkspacePaths> = mutableListOf()
+    val doctorCalls: MutableList<Pair<WorkspacePaths, String?>> = mutableListOf()
 
-    override fun doctor(workspace: WorkspacePaths): ToolchainStatus {
-        doctorCalls += workspace
+    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+        doctorCalls += workspace to toolOverride
         return status
     }
 
