@@ -121,6 +121,9 @@ internal class FakeFileSystem(
     private val existing: Set<String>,
     private val directories: Map<String, List<String>> = emptyMap(),
 ) : WorkspaceFileSystem {
+    /** Созданные каталоги в порядке вызова. */
+    val created: MutableList<String> = mutableListOf()
+
     override fun currentWorkingDirectory(): String = "/repo"
 
     override fun parent(path: String): String? = path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
@@ -134,7 +137,9 @@ internal class FakeFileSystem(
 
     override fun isDirectory(path: String): Boolean = path in directories
 
-    override fun createDirectories(path: String) = Unit
+    override fun createDirectories(path: String) {
+        created += path
+    }
 
     override fun listFiles(path: String): List<String> = directories[path].orEmpty()
 
