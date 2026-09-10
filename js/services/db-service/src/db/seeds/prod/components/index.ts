@@ -19,3 +19,4 @@ export { seedEmptyStateComponent } from './emptyState';
 export { seedAccordionComponent } from './accordion';
 export { seedSliderComponent } from './slider';
 export { seedNoteComponent } from './note';
+export { seedTextFieldComponent } from './textField';

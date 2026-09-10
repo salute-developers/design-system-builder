@@ -26,6 +26,7 @@ export async function seedProperties(
             accordion: any;
             slider: any;
             note: any;
+            textField: any;
         };
     },
 ) {
@@ -51,6 +52,7 @@ export async function seedProperties(
         accordion,
         slider,
         note,
+        textField,
     } = ctx.components;
 
     const rows = await db
@@ -2287,6 +2289,757 @@ export async function seedProperties(
                 defaultValue: '',
                 description: '',
             },
+
+            // ── TextField ──────────────────────────────────────────────────────────
+            {
+                componentId: textField.id,
+                name: 'color',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'placeholderColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'placeholderColorFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'backgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'backgroundColorHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'backgroundColorFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'caretColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'textBeforeColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'textAfterColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'leftHelperColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightHelperColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'titleCaptionColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'hintIconColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentSlotColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentSlotColorHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentSlotColorActive',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'dividerColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'dividerColorHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'dividerColorFocus',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'focusColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'optionalColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'height',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'paddingWithChips',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'borderRadius',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'textStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'hintTargetSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'titleCaptionInnerLabelOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'titleCaptionStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'leftHelperStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightHelperStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBorderRadius',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipClearContentMarginLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipClearContentMarginRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipCloseIconSize',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelInnerStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorSizeInner',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorSizeOuter',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'borderWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentRightWrapperGap',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBackground',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipColorHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBackgroundHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipColorActive',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBackgroundActive',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBackgroundReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipBackgroundReadOnlyHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipColorReadOnlyHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipCloseIconColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipCloseIconColorReadonly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipCloseIconColorHover',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipOpacityReadonly',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipBackgroundColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipBoxShadow',
+                type: 'shadow' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipColor',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipArrowBackground',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipPaddingTop',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipPaddingRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipPaddingBottom',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipPaddingLeft',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipMinHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipBorderRadius',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipTextStyle',
+                type: 'typography' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipContentLeftMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipArrowMaskWidth',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipArrowMaskHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipArrowHeight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'tooltipArrowEdgeMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'disabledOpacity',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'readOnlyOpacity',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'colorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'backgroundColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'placeholderColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'leftHelperColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightHelperColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'titleCaptionColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'dividerColorReadOnly',
+                type: 'color' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentSlotRightOpacityReadOnly',
+                type: 'float' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'padding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'leftContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightContentMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'hintMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'hintInnerLabelPlacementOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'leftHelperOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightHelperOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'labelInnerPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentLabelInnerPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'textBeforeMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'textAfterMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'chipPadding',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorLabelPlacementInner',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorLabelPlacementOuter',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorLabelPlacementInnerRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'indicatorLabelPlacementOuterRight',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'rightContentWithHintMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'contentRightWrapperMargin',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
+            {
+                componentId: textField.id,
+                name: 'clearHintInnerLabelPlacementOffset',
+                type: 'dimension' as const,
+                defaultValue: '',
+                description: '',
+            },
         ])
         .onConflictDoUpdate({
             target: [schema.properties.componentId, schema.properties.name],
@@ -3191,6 +3944,115 @@ export async function seedProperties(
             'titleLineHeight',
         ],
     });
+    // TextField
+    const findTextField = (name: string) => rows.find((r: any) => r.componentId === textField.id && r.name === name)!;
+    addPlatformParams(findTextField('color').id, { web: ['color'] });
+    addPlatformParams(findTextField('placeholderColor').id, { web: ['placeholderColor'] });
+    addPlatformParams(findTextField('placeholderColorFocus').id, { web: ['placeholderColorFocus'] });
+    addPlatformParams(findTextField('backgroundColor').id, { web: ['backgroundColor'] });
+    addPlatformParams(findTextField('backgroundColorHover').id, { web: ['backgroundColorHover'] });
+    addPlatformParams(findTextField('backgroundColorFocus').id, { web: ['backgroundColorFocus'] });
+    addPlatformParams(findTextField('caretColor').id, { web: ['caretColor'] });
+    addPlatformParams(findTextField('textBeforeColor').id, { web: ['textBeforeColor'] });
+    addPlatformParams(findTextField('textAfterColor').id, { web: ['textAfterColor'] });
+    addPlatformParams(findTextField('labelColor').id, { web: ['labelColor'] });
+    addPlatformParams(findTextField('leftHelperColor').id, { web: ['leftHelperColor'] });
+    addPlatformParams(findTextField('rightHelperColor').id, { web: ['rightHelperColor'] });
+    addPlatformParams(findTextField('titleCaptionColor').id, { web: ['titleCaptionColor'] });
+    addPlatformParams(findTextField('hintIconColor').id, { web: ['hintIconColor'] });
+    addPlatformParams(findTextField('contentSlotColor').id, { web: ['contentSlotColor'] });
+    addPlatformParams(findTextField('contentSlotColorHover').id, { web: ['contentSlotColorHover'] });
+    addPlatformParams(findTextField('contentSlotColorActive').id, { web: ['contentSlotColorActive'] });
+    addPlatformParams(findTextField('dividerColor').id, { web: ['dividerColor'] });
+    addPlatformParams(findTextField('dividerColorHover').id, { web: ['dividerColorHover'] });
+    addPlatformParams(findTextField('dividerColorFocus').id, { web: ['dividerColorFocus'] });
+    addPlatformParams(findTextField('focusColor').id, { web: ['focusColor'] });
+    addPlatformParams(findTextField('indicatorColor').id, { web: ['indicatorColor'] });
+    addPlatformParams(findTextField('optionalColor').id, { web: ['optionalColor'] });
+    addPlatformParams(findTextField('height').id, { web: ['height'] });
+    addPlatformParams(findTextField('paddingWithChips').id, { web: ['paddingWithChips'] });
+    addPlatformParams(findTextField('borderRadius').id, { web: ['borderRadius'] });
+    addPlatformParams(findTextField('textStyle').id, { web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'] });
+    addPlatformParams(findTextField('labelOffset').id, { web: ['labelOffset'] });
+    addPlatformParams(findTextField('labelStyle').id, { web: ['labelFontFamily', 'labelFontSize', 'labelFontStyle', 'labelFontWeight', 'labelLetterSpacing', 'labelLineHeight'] });
+    addPlatformParams(findTextField('hintTargetSize').id, { web: ['hintTargetSize'] });
+    addPlatformParams(findTextField('titleCaptionInnerLabelOffset').id, { web: ['titleCaptionInnerLabelOffset'] });
+    addPlatformParams(findTextField('titleCaptionStyle').id, { web: ['titleCaptionFontFamily', 'titleCaptionFontSize', 'titleCaptionFontStyle', 'titleCaptionFontWeight', 'titleCaptionLetterSpacing', 'titleCaptionLineHeight'] });
+    addPlatformParams(findTextField('leftHelperStyle').id, { web: ['leftHelperFontFamily', 'leftHelperFontSize', 'leftHelperFontStyle', 'leftHelperFontWeight', 'leftHelperLetterSpacing', 'leftHelperLineHeight'] });
+    addPlatformParams(findTextField('rightHelperStyle').id, { web: ['rightHelperFontFamily', 'rightHelperFontSize', 'rightHelperFontStyle', 'rightHelperFontWeight', 'rightHelperLetterSpacing', 'rightHelperLineHeight'] });
+    addPlatformParams(findTextField('chipGap').id, { web: ['chipGap'] });
+    addPlatformParams(findTextField('chipMarginRight').id, { web: ['chipMarginRight'] });
+    addPlatformParams(findTextField('chipBorderRadius').id, { web: ['chipBorderRadius'] });
+    addPlatformParams(findTextField('chipHeight').id, { web: ['chipHeight'] });
+    addPlatformParams(findTextField('chipClearContentMarginLeft').id, { web: ['chipClearContentMarginLeft'] });
+    addPlatformParams(findTextField('chipClearContentMarginRight').id, { web: ['chipClearContentMarginRight'] });
+    addPlatformParams(findTextField('chipCloseIconSize').id, { web: ['chipCloseIconSize'] });
+    addPlatformParams(findTextField('chipStyle').id, { web: ['chipFontFamily', 'chipFontSize', 'chipFontStyle', 'chipFontWeight', 'chipLetterSpacing', 'chipLineHeight'] });
+    addPlatformParams(findTextField('labelInnerStyle').id, { web: ['labelInnerFontFamily', 'labelInnerFontSize', 'labelInnerFontStyle', 'labelInnerFontWeight', 'labelInnerLetterSpacing', 'labelInnerLineHeight'] });
+    addPlatformParams(findTextField('indicatorSizeInner').id, { web: ['indicatorSizeInner'] });
+    addPlatformParams(findTextField('indicatorSizeOuter').id, { web: ['indicatorSizeOuter'] });
+    addPlatformParams(findTextField('borderWidth').id, { web: ['borderWidth'] });
+    addPlatformParams(findTextField('contentRightWrapperGap').id, { web: ['contentRightWrapperGap'] });
+    addPlatformParams(findTextField('chipColor').id, { web: ['chipColor'] });
+    addPlatformParams(findTextField('chipBackground').id, { web: ['chipBackground'] });
+    addPlatformParams(findTextField('chipColorHover').id, { web: ['chipColorHover'] });
+    addPlatformParams(findTextField('chipBackgroundHover').id, { web: ['chipBackgroundHover'] });
+    addPlatformParams(findTextField('chipColorActive').id, { web: ['chipColorActive'] });
+    addPlatformParams(findTextField('chipBackgroundActive').id, { web: ['chipBackgroundActive'] });
+    addPlatformParams(findTextField('chipBackgroundReadOnly').id, { web: ['chipBackgroundReadOnly'] });
+    addPlatformParams(findTextField('chipColorReadOnly').id, { web: ['chipColorReadOnly'] });
+    addPlatformParams(findTextField('chipBackgroundReadOnlyHover').id, { web: ['chipBackgroundReadOnlyHover'] });
+    addPlatformParams(findTextField('chipColorReadOnlyHover').id, { web: ['chipColorReadOnlyHover'] });
+    addPlatformParams(findTextField('chipCloseIconColor').id, { web: ['chipCloseIconColor'] });
+    addPlatformParams(findTextField('chipCloseIconColorReadonly').id, { web: ['chipCloseIconColorReadonly'] });
+    addPlatformParams(findTextField('chipCloseIconColorHover').id, { web: ['chipCloseIconColorHover'] });
+    addPlatformParams(findTextField('chipOpacityReadonly').id, { web: ['chipOpacityReadonly'] });
+    addPlatformParams(findTextField('tooltipBackgroundColor').id, { web: ['tooltipBackgroundColor'] });
+    addPlatformParams(findTextField('tooltipBoxShadow').id, { web: ['tooltipBoxShadow'] });
+    addPlatformParams(findTextField('tooltipColor').id, { web: ['tooltipColor'] });
+    addPlatformParams(findTextField('tooltipArrowBackground').id, { web: ['tooltipArrowBackground'] });
+    addPlatformParams(findTextField('tooltipPaddingTop').id, { web: ['tooltipPaddingTop'] });
+    addPlatformParams(findTextField('tooltipPaddingRight').id, { web: ['tooltipPaddingRight'] });
+    addPlatformParams(findTextField('tooltipPaddingBottom').id, { web: ['tooltipPaddingBottom'] });
+    addPlatformParams(findTextField('tooltipPaddingLeft').id, { web: ['tooltipPaddingLeft'] });
+    addPlatformParams(findTextField('tooltipMinHeight').id, { web: ['tooltipMinHeight'] });
+    addPlatformParams(findTextField('tooltipBorderRadius').id, { web: ['tooltipBorderRadius'] });
+    addPlatformParams(findTextField('tooltipTextStyle').id, { web: ['tooltipTextFontFamily', 'tooltipTextFontSize', 'tooltipTextFontStyle', 'tooltipTextFontWeight', 'tooltipTextFontLetterSpacing', 'tooltipTextFontLineHeight'] });
+    addPlatformParams(findTextField('tooltipContentLeftMargin').id, { web: ['tooltipContentLeftMargin'] });
+    addPlatformParams(findTextField('tooltipArrowMaskWidth').id, { web: ['tooltipArrowMaskWidth'] });
+    addPlatformParams(findTextField('tooltipArrowMaskHeight').id, { web: ['tooltipArrowMaskHeight'] });
+    addPlatformParams(findTextField('tooltipArrowHeight').id, { web: ['tooltipArrowHeight'] });
+    addPlatformParams(findTextField('tooltipArrowEdgeMargin').id, { web: ['tooltipArrowEdgeMargin'] });
+    addPlatformParams(findTextField('disabledOpacity').id, { web: ['disabledOpacity'] });
+    addPlatformParams(findTextField('readOnlyOpacity').id, { web: ['readOnlyOpacity'] });
+    addPlatformParams(findTextField('colorReadOnly').id, { web: ['colorReadOnly'] });
+    addPlatformParams(findTextField('backgroundColorReadOnly').id, { web: ['backgroundColorReadOnly'] });
+    addPlatformParams(findTextField('placeholderColorReadOnly').id, { web: ['placeholderColorReadOnly'] });
+    addPlatformParams(findTextField('leftHelperColorReadOnly').id, { web: ['leftHelperColorReadOnly'] });
+    addPlatformParams(findTextField('rightHelperColorReadOnly').id, { web: ['rightHelperColorReadOnly'] });
+    addPlatformParams(findTextField('titleCaptionColorReadOnly').id, { web: ['titleCaptionColorReadOnly'] });
+    addPlatformParams(findTextField('labelColorReadOnly').id, { web: ['labelColorReadOnly'] });
+    addPlatformParams(findTextField('dividerColorReadOnly').id, { web: ['dividerColorReadOnly'] });
+    addPlatformParams(findTextField('contentSlotRightOpacityReadOnly').id, { web: ['contentSlotRightOpacityReadOnly'] });
+    addPlatformParams(findTextField('padding').id, { web: ['padding'] });
+    addPlatformParams(findTextField('leftContentMargin').id, { web: ['leftContentMargin'] });
+    addPlatformParams(findTextField('rightContentMargin').id, { web: ['rightContentMargin'] });
+    addPlatformParams(findTextField('hintMargin').id, { web: ['hintMargin'] });
+    addPlatformParams(findTextField('hintInnerLabelPlacementOffset').id, { web: ['hintInnerLabelPlacementOffset'] });
+    addPlatformParams(findTextField('leftHelperOffset').id, { web: ['leftHelperOffset'] });
+    addPlatformParams(findTextField('rightHelperOffset').id, { web: ['rightHelperOffset'] });
+    addPlatformParams(findTextField('labelInnerPadding').id, { web: ['labelInnerPadding'] });
+    addPlatformParams(findTextField('contentLabelInnerPadding').id, { web: ['contentLabelInnerPadding'] });
+    addPlatformParams(findTextField('textBeforeMargin').id, { web: ['textBeforeMargin'] });
+    addPlatformParams(findTextField('textAfterMargin').id, { web: ['textAfterMargin'] });
+    addPlatformParams(findTextField('chipPadding').id, { web: ['chipPadding'] });
+    addPlatformParams(findTextField('indicatorLabelPlacementInner').id, { web: ['indicatorLabelPlacementInner'] });
+    addPlatformParams(findTextField('indicatorLabelPlacementOuter').id, { web: ['indicatorLabelPlacementOuter'] });
+    addPlatformParams(findTextField('indicatorLabelPlacementInnerRight').id, { web: ['indicatorLabelPlacementInnerRight'] });
+    addPlatformParams(findTextField('indicatorLabelPlacementOuterRight').id, { web: ['indicatorLabelPlacementOuterRight'] });
+    addPlatformParams(findTextField('rightContentWithHintMargin').id, { web: ['rightContentWithHintMargin'] });
+    addPlatformParams(findTextField('contentRightWrapperMargin').id, { web: ['contentRightWrapperMargin'] });
+    addPlatformParams(findTextField('clearHintInnerLabelPlacementOffset').id, { web: ['clearHintInnerLabelPlacementOffset'] });
 
     let platformParams: any[] = [];
     if (platformParamsData.length > 0) {
@@ -3577,6 +4439,114 @@ export async function seedProperties(
         not_textStyle: findNote('textStyle'),
         not_titlePaddingRight: findNote('titlePaddingRight'),
         not_titleStyle: findNote('titleStyle'),
+        // TextField
+        tex_color: findTextField('color'),
+        tex_placeholderColor: findTextField('placeholderColor'),
+        tex_placeholderColorFocus: findTextField('placeholderColorFocus'),
+        tex_backgroundColor: findTextField('backgroundColor'),
+        tex_backgroundColorHover: findTextField('backgroundColorHover'),
+        tex_backgroundColorFocus: findTextField('backgroundColorFocus'),
+        tex_caretColor: findTextField('caretColor'),
+        tex_textBeforeColor: findTextField('textBeforeColor'),
+        tex_textAfterColor: findTextField('textAfterColor'),
+        tex_labelColor: findTextField('labelColor'),
+        tex_leftHelperColor: findTextField('leftHelperColor'),
+        tex_rightHelperColor: findTextField('rightHelperColor'),
+        tex_titleCaptionColor: findTextField('titleCaptionColor'),
+        tex_hintIconColor: findTextField('hintIconColor'),
+        tex_contentSlotColor: findTextField('contentSlotColor'),
+        tex_contentSlotColorHover: findTextField('contentSlotColorHover'),
+        tex_contentSlotColorActive: findTextField('contentSlotColorActive'),
+        tex_dividerColor: findTextField('dividerColor'),
+        tex_dividerColorHover: findTextField('dividerColorHover'),
+        tex_dividerColorFocus: findTextField('dividerColorFocus'),
+        tex_focusColor: findTextField('focusColor'),
+        tex_indicatorColor: findTextField('indicatorColor'),
+        tex_optionalColor: findTextField('optionalColor'),
+        tex_height: findTextField('height'),
+        tex_paddingWithChips: findTextField('paddingWithChips'),
+        tex_borderRadius: findTextField('borderRadius'),
+        tex_textStyle: findTextField('textStyle'),
+        tex_labelOffset: findTextField('labelOffset'),
+        tex_labelStyle: findTextField('labelStyle'),
+        tex_hintTargetSize: findTextField('hintTargetSize'),
+        tex_titleCaptionInnerLabelOffset: findTextField('titleCaptionInnerLabelOffset'),
+        tex_titleCaptionStyle: findTextField('titleCaptionStyle'),
+        tex_leftHelperStyle: findTextField('leftHelperStyle'),
+        tex_rightHelperStyle: findTextField('rightHelperStyle'),
+        tex_chipGap: findTextField('chipGap'),
+        tex_chipMarginRight: findTextField('chipMarginRight'),
+        tex_chipBorderRadius: findTextField('chipBorderRadius'),
+        tex_chipHeight: findTextField('chipHeight'),
+        tex_chipClearContentMarginLeft: findTextField('chipClearContentMarginLeft'),
+        tex_chipClearContentMarginRight: findTextField('chipClearContentMarginRight'),
+        tex_chipCloseIconSize: findTextField('chipCloseIconSize'),
+        tex_chipStyle: findTextField('chipStyle'),
+        tex_labelInnerStyle: findTextField('labelInnerStyle'),
+        tex_indicatorSizeInner: findTextField('indicatorSizeInner'),
+        tex_indicatorSizeOuter: findTextField('indicatorSizeOuter'),
+        tex_borderWidth: findTextField('borderWidth'),
+        tex_contentRightWrapperGap: findTextField('contentRightWrapperGap'),
+        tex_chipColor: findTextField('chipColor'),
+        tex_chipBackground: findTextField('chipBackground'),
+        tex_chipColorHover: findTextField('chipColorHover'),
+        tex_chipBackgroundHover: findTextField('chipBackgroundHover'),
+        tex_chipColorActive: findTextField('chipColorActive'),
+        tex_chipBackgroundActive: findTextField('chipBackgroundActive'),
+        tex_chipBackgroundReadOnly: findTextField('chipBackgroundReadOnly'),
+        tex_chipColorReadOnly: findTextField('chipColorReadOnly'),
+        tex_chipBackgroundReadOnlyHover: findTextField('chipBackgroundReadOnlyHover'),
+        tex_chipColorReadOnlyHover: findTextField('chipColorReadOnlyHover'),
+        tex_chipCloseIconColor: findTextField('chipCloseIconColor'),
+        tex_chipCloseIconColorReadonly: findTextField('chipCloseIconColorReadonly'),
+        tex_chipCloseIconColorHover: findTextField('chipCloseIconColorHover'),
+        tex_chipOpacityReadonly: findTextField('chipOpacityReadonly'),
+        tex_tooltipBackgroundColor: findTextField('tooltipBackgroundColor'),
+        tex_tooltipBoxShadow: findTextField('tooltipBoxShadow'),
+        tex_tooltipColor: findTextField('tooltipColor'),
+        tex_tooltipArrowBackground: findTextField('tooltipArrowBackground'),
+        tex_tooltipPaddingTop: findTextField('tooltipPaddingTop'),
+        tex_tooltipPaddingRight: findTextField('tooltipPaddingRight'),
+        tex_tooltipPaddingBottom: findTextField('tooltipPaddingBottom'),
+        tex_tooltipPaddingLeft: findTextField('tooltipPaddingLeft'),
+        tex_tooltipMinHeight: findTextField('tooltipMinHeight'),
+        tex_tooltipBorderRadius: findTextField('tooltipBorderRadius'),
+        tex_tooltipTextStyle: findTextField('tooltipTextStyle'),
+        tex_tooltipContentLeftMargin: findTextField('tooltipContentLeftMargin'),
+        tex_tooltipArrowMaskWidth: findTextField('tooltipArrowMaskWidth'),
+        tex_tooltipArrowMaskHeight: findTextField('tooltipArrowMaskHeight'),
+        tex_tooltipArrowHeight: findTextField('tooltipArrowHeight'),
+        tex_tooltipArrowEdgeMargin: findTextField('tooltipArrowEdgeMargin'),
+        tex_disabledOpacity: findTextField('disabledOpacity'),
+        tex_readOnlyOpacity: findTextField('readOnlyOpacity'),
+        tex_colorReadOnly: findTextField('colorReadOnly'),
+        tex_backgroundColorReadOnly: findTextField('backgroundColorReadOnly'),
+        tex_placeholderColorReadOnly: findTextField('placeholderColorReadOnly'),
+        tex_leftHelperColorReadOnly: findTextField('leftHelperColorReadOnly'),
+        tex_rightHelperColorReadOnly: findTextField('rightHelperColorReadOnly'),
+        tex_titleCaptionColorReadOnly: findTextField('titleCaptionColorReadOnly'),
+        tex_labelColorReadOnly: findTextField('labelColorReadOnly'),
+        tex_dividerColorReadOnly: findTextField('dividerColorReadOnly'),
+        tex_contentSlotRightOpacityReadOnly: findTextField('contentSlotRightOpacityReadOnly'),
+        tex_padding: findTextField('padding'),
+        tex_leftContentMargin: findTextField('leftContentMargin'),
+        tex_rightContentMargin: findTextField('rightContentMargin'),
+        tex_hintMargin: findTextField('hintMargin'),
+        tex_hintInnerLabelPlacementOffset: findTextField('hintInnerLabelPlacementOffset'),
+        tex_leftHelperOffset: findTextField('leftHelperOffset'),
+        tex_rightHelperOffset: findTextField('rightHelperOffset'),
+        tex_labelInnerPadding: findTextField('labelInnerPadding'),
+        tex_contentLabelInnerPadding: findTextField('contentLabelInnerPadding'),
+        tex_textBeforeMargin: findTextField('textBeforeMargin'),
+        tex_textAfterMargin: findTextField('textAfterMargin'),
+        tex_chipPadding: findTextField('chipPadding'),
+        tex_indicatorLabelPlacementInner: findTextField('indicatorLabelPlacementInner'),
+        tex_indicatorLabelPlacementOuter: findTextField('indicatorLabelPlacementOuter'),
+        tex_indicatorLabelPlacementInnerRight: findTextField('indicatorLabelPlacementInnerRight'),
+        tex_indicatorLabelPlacementOuterRight: findTextField('indicatorLabelPlacementOuterRight'),
+        tex_rightContentWithHintMargin: findTextField('rightContentWithHintMargin'),
+        tex_contentRightWrapperMargin: findTextField('contentRightWrapperMargin'),
+        tex_clearHintInnerLabelPlacementOffset: findTextField('clearHintInnerLabelPlacementOffset'),
     };
 
     console.log(`  properties: ${rows.length} rows`);
