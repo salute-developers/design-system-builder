@@ -59,7 +59,7 @@ export const StyledComponentControls = styled.div`
 
     flex: 1;
     min-height: 0;
-    overflow: visible;
+    overflow-y: auto;
 `;
 
 export const StyledDivider = styled.div`
