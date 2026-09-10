@@ -26,6 +26,7 @@ export async function seedDesignSystemComponents(
             accordion: any;
             slider: any;
             note: any;
+            textField: any;
         };
     },
 ) {
@@ -52,6 +53,7 @@ export async function seedDesignSystemComponents(
         accordion,
         slider,
         note,
+        textField,
     } = ctx.components;
 
     const rows = await db
@@ -78,6 +80,7 @@ export async function seedDesignSystemComponents(
             { designSystemId: base.id, componentId: accordion.id },
             { designSystemId: base.id, componentId: slider.id },
             { designSystemId: base.id, componentId: note.id },
+            { designSystemId: base.id, componentId: textField.id },
         ])
         .onConflictDoNothing()
         .returning();

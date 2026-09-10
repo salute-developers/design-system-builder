@@ -26,6 +26,7 @@ export async function seedVariations(
             accordion: any;
             slider: any;
             note: any;
+            textField: any;
         };
     },
 ) {
@@ -51,6 +52,7 @@ export async function seedVariations(
         accordion,
         slider,
         note,
+        textField,
     } = ctx.components;
 
     const rows = await db
@@ -125,6 +127,13 @@ export async function seedVariations(
             // Note
             { componentId: note.id, name: 'view', description: 'Вид.' },
             { componentId: note.id, name: 'size', description: 'Размер.' },
+            // TextField
+            { componentId: textField.id, name: 'view', description: 'Вид' },
+            { componentId: textField.id, name: 'size', description: 'Размер' },
+            { componentId: textField.id, name: 'labelPlacement', description: 'Расположение лейбла' },
+            { componentId: textField.id, name: 'chipView', description: 'Вид чипа' },
+            { componentId: textField.id, name: 'hintView', description: 'Вид подсказки' },
+            { componentId: textField.id, name: 'hintSize', description: 'Размер подсказки' },
         ])
         .onConflictDoUpdate({
             target: [schema.variations.componentId, schema.variations.name],
@@ -199,6 +208,13 @@ export async function seedVariations(
         // Note
         noteView: find(note.id, 'view'),
         noteSize: find(note.id, 'size'),
+        // TextField
+        textFieldView: find(textField.id, 'view'),
+        textFieldSize: find(textField.id, 'size'),
+        textFieldLabelPlacement: find(textField.id, 'labelPlacement'),
+        textFieldChipView: find(textField.id, 'chipView'),
+        textFieldHintView: find(textField.id, 'hintView'),
+        textFieldHintSize: find(textField.id, 'hintSize'),
     };
 
     console.log(`  variations: ${rows.length} rows`);

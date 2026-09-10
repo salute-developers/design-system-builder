@@ -1,4 +1,3 @@
-import { camelToKebab } from '../../../utils';
 import type { Theme } from '../../themeBuilder';
 import type { PlatformTokens, PropConfig } from '../type';
 import { Prop } from './prop';
@@ -68,8 +67,7 @@ export class TypographyProp extends Prop {
         }
 
         return this.webTokens?.reduce((acc, { name }) => {
-            const formattedTokenName = this.getFormattedTokenName(name, componentName);
-            const tokenName = `--plasma${formattedTokenName}`;
+            const tokenName = this.getCSSVariableName(name, componentName);
 
             const tokenKey = Object.keys(value).find((key) =>
                 name.toLocaleLowerCase().includes(key.toLocaleLowerCase()),
@@ -81,7 +79,7 @@ export class TypographyProp extends Prop {
 
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: value[tokenKey],
+                [tokenName]: value[tokenKey],
             };
         }, {});
     }

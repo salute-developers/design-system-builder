@@ -17,6 +17,7 @@ export async function seedInvariantPropertyValues(
             linkButton: any;
             embedIconButton: any;
             slider: any;
+            textField: any;
         };
         appearances: Record<string, any>;
         properties: Record<string, any>;
@@ -36,6 +37,7 @@ export async function seedInvariantPropertyValues(
         linkButton,
         embedIconButton,
         slider,
+        textField,
     } = ctx.components;
     const a = ctx.appearances;
     const p = ctx.properties;
@@ -217,6 +219,84 @@ export async function seedInvariantPropertyValues(
                 componentId: slider.id,
                 appearanceId: a.base_sli_default.id,
                 value: '1',
+            },
+            // TextField (disabled / readOnly tokens are invariants, as disableAlpha in other components)
+            {
+                propertyId: p.tex_disabledOpacity.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                value: '0.4',
+            },
+            {
+                propertyId: p.tex_readOnlyOpacity.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                value: '0.1',
+            },
+            {
+                propertyId: p.tex_colorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.primary'].id,
+            },
+            {
+                propertyId: p.tex_backgroundColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['surface.default.transparent-primary'].id,
+            },
+            {
+                propertyId: p.tex_placeholderColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.secondary'].id,
+            },
+            {
+                propertyId: p.tex_leftHelperColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.secondary'].id,
+            },
+            {
+                propertyId: p.tex_rightHelperColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.secondary'].id,
+            },
+            {
+                propertyId: p.tex_titleCaptionColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.secondary'].id,
+            },
+            {
+                propertyId: p.tex_labelColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['text.default.primary'].id,
+            },
+            {
+                propertyId: p.tex_dividerColorReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                tokenId: t['surface.default.transparent-primary'].id,
+            },
+            {
+                propertyId: p.tex_contentSlotRightOpacityReadOnly.id,
+                designSystemId: base.id,
+                componentId: textField.id,
+                appearanceId: a.base_tex_default.id,
+                value: '0.4',
             },
         ].map((row) => ({ ...row, stateSetId: SENTINEL_STATE_SET_ID })))
         .onConflictDoNothing()

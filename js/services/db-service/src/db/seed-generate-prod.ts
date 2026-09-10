@@ -13,7 +13,8 @@
 
 import { db, client } from './index';
 import * as schema from './schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
+import { SENTINEL_STATE_SET_ID } from './seeds/state-sets';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -108,26 +109,39 @@ function insertBeforeRegex(content: string, regex: RegExp, addition: string, lab
 /**
  * Add a member to the `components: { ... }` type literal of a seed function.
  *
- * Prettier may keep the type on one line (`{ a: any; b: any }`) or, once it
- * grows, break it across many lines (`{\n  a: any;\n  b: any;\n}`). The naive
- * `[^}]*` + `; name: any` insertion produces a double separator (`any;\n; name`)
- * on the multi-line form, so we detect the existing trailing separator and emit
- * a matching one instead of always prefixing `;`.
+ * The member goes on its own line with the indentation of the last existing member,
+ * so the result is well-formed without prettier. Falls back to the single-line form
+ * (`{ a: any; b: any }`) when the literal has no line breaks.
  */
 function addComponentType(content: string, varName: string): string {
     return content.replace(/(components: \{)([^}]*?)(\s*})/, (_m, open, body, close) => {
         const trimmed = body.replace(/\s+$/, '');
+        const lastLine = trimmed.split('\n').pop() ?? '';
+        const indent = lastLine.match(/^\s*/)?.[0] ?? '';
+        const multiline = trimmed.includes('\n');
+        if (multiline) {
+            const sep = trimmed.endsWith(';') ? '' : ';';
+            return `${open}${trimmed}${sep}\n${indent}${varName}: any;${close}`;
+        }
         const sep = trimmed.endsWith(';') || trimmed.endsWith(',') ? '' : ';';
         return `${open}${trimmed}${sep} ${varName}: any${close}`;
     });
 }
 
 /**
- * Add a destructured member to `const { ... } = ctx.components`.
+ * Add a destructured member to `const { ... } = ctx.components`, one per line when the
+ * destructuring is already multi-line.
  */
 function addComponentDestructure(content: string, varName: string): string {
     return content.replace(/(const \{)([^}]*?)(\s*}\s*=\s*ctx\.components)/, (_m, open, body, close) => {
         const trimmed = body.replace(/\s+$/, '');
+        const lastLine = trimmed.split('\n').pop() ?? '';
+        const indent = lastLine.match(/^\s*/)?.[0] ?? '';
+        const multiline = trimmed.includes('\n');
+        if (multiline) {
+            const sep = trimmed.endsWith(',') ? '' : ',';
+            return `${open}${trimmed}${sep}\n${indent}${varName},${close}`;
+        }
         const sep = trimmed.endsWith(',') ? '' : ',';
         return `${open}${trimmed}${sep} ${varName}${close}`;
     });
@@ -240,6 +254,38 @@ async function main() {
 
     const styleIds = styles.map((s) => s.id);
     const appearanceIds = appearances.map((a) => a.id);
+
+    // Дефолт оси и порядок её значений принадлежат паре (appearance, ось), а не стилю:
+    // `styles.is_default` давно нет, флаг живёт в `appearance_variations.default_style_id`,
+    // порядок — в `appearance_variation_values.position`. Берём их с первого appearance
+    // базовой ДС: сид объявляет одну ось на все appearance компонента.
+    const defaultStyleIds = new Set<string>();
+    const stylePosition = new Map<string, number>();
+    if (appearanceIds.length > 0) {
+        const axes = await db
+            .select()
+            .from(schema.appearanceVariations)
+            .where(inArray(schema.appearanceVariations.appearanceId, appearanceIds));
+        for (const axis of axes) {
+            if (axis.defaultStyleId) defaultStyleIds.add(axis.defaultStyleId);
+        }
+        const axisIds = axes.map((a) => a.id);
+        if (axisIds.length > 0) {
+            const values = await db
+                .select()
+                .from(schema.appearanceVariationValues)
+                .where(inArray(schema.appearanceVariationValues.appearanceVariationId, axisIds));
+            for (const v of values) {
+                if (!stylePosition.has(v.styleId)) stylePosition.set(v.styleId, v.position);
+            }
+        }
+    }
+    const variationOrder = new Map(variations.map((v, i) => [v.id, i]));
+    styles.sort((a, b) => {
+        const byVariation = (variationOrder.get(a.variationId) ?? 0) - (variationOrder.get(b.variationId) ?? 0);
+        if (byVariation !== 0) return byVariation;
+        return (stylePosition.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (stylePosition.get(b.id) ?? Number.MAX_SAFE_INTEGER);
+    });
     let vpvRows: any[] = [];
     if (styleIds.length > 0 && appearanceIds.length > 0) {
         // styleId is already base-only (styles are filtered above); also pin the
@@ -265,6 +311,7 @@ async function main() {
                     eq(schema.invariantPropertyValues.componentId, component.id),
                     eq(schema.invariantPropertyValues.designSystemId, baseDs.id),
                     inArray(schema.invariantPropertyValues.propertyId, propertyIds),
+                    eq(schema.invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
                 ),
             );
     }
@@ -281,6 +328,32 @@ async function main() {
             .where(inArray(schema.tokens.id, [...tokenIdSet]));
     }
     const tokenById = new Map(tokens.map((t) => [t.id, t]));
+
+    // Состояние значения хранится ссылкой на набор (`state_set_id`), а сид ждёт имя.
+    // Сид умеет только одно состояние взаимодействия на значение: набор из нескольких
+    // состояний или состояние компонента выгрузить нельзя — такие строки пропускаются
+    // с предупреждением, чтобы не превратиться молча в базовые значения.
+    const stateNameBySetId = new Map<string, string | null>([[SENTINEL_STATE_SET_ID, null]]);
+    const setIds = [...new Set(vpvRows.map((r) => r.stateSetId as string))].filter((id) => id !== SENTINEL_STATE_SET_ID);
+    if (setIds.length > 0) {
+        const stateRows = await db
+            .select({ setId: schema.stateSets.id, name: schema.states.name, componentId: schema.states.componentId })
+            .from(schema.stateSets)
+            .innerJoin(schema.states, sql`${schema.states.id} = ANY(${schema.stateSets.stateIds})`)
+            .where(inArray(schema.stateSets.id, setIds));
+        const namesBySet = new Map<string, { name: string; componentId: string | null }[]>();
+        for (const row of stateRows) {
+            namesBySet.set(row.setId, [...(namesBySet.get(row.setId) ?? []), row]);
+        }
+        for (const [setId, names] of namesBySet) {
+            if (names.length === 1 && names[0].componentId === null) {
+                stateNameBySetId.set(setId, names[0].name);
+            } else {
+                console.warn(`  Warning: state set ${setId} (${names.map((n) => n.name).join('+')}) is not expressible in seeds; its values are skipped.`);
+            }
+        }
+    }
+    const stateOf = (row: { stateSetId: string }): string | null | undefined => stateNameBySetId.get(row.stateSetId);
 
     // ── Lookup maps ──
     const propById = new Map(properties.map((p) => [p.id, p]));
@@ -543,7 +616,7 @@ export async function seed${componentName}Component(db: any) {
             .map((s) => {
                 const variation = variationById.get(s.variationId);
                 if (!variation) return null;
-                return `      { designSystemId: base.id, variationId: v.${toVarKey(varName, variation.name)}.id, name: ${esc(s.name)}, description: ${esc(s.description)}, isDefault: ${s.isDefault} },`;
+                return `      { designSystemId: base.id, variationId: v.${toVarKey(varName, variation.name)}.id, name: ${esc(s.name)}, description: ${esc(s.description)}, isDefault: ${defaultStyleIds.has(s.id)} },`;
             })
             .filter(Boolean)
             .join('\n');
@@ -611,8 +684,10 @@ export async function seed${componentName}Component(db: any) {
                 } else {
                     tokenRef = 'null';
                 }
+                const state = stateOf(row);
+                if (state === undefined) return null;
                 const valueStr = row.value != null ? `, value: ${esc(row.value)}` : '';
-                const stateStr = row.state ? `'${row.state}'` : 'null';
+                const stateStr = state ? `'${state}'` : 'null';
 
                 return `    { propertyId: p.${propKey}.id, styleId: s.${styleKey}.id, appearanceId: ${appVarName}, tokenId: ${tokenRef}${valueStr}, state: ${stateStr} },`;
             })
@@ -621,7 +696,9 @@ export async function seed${componentName}Component(db: any) {
 
         c = insertBeforeRegex(
             c,
-            /\n\s*\];\n\s*\n\s*await db\.insert\(schema\.variationPropertyValues\)/,
+            // Между `];` и вставкой в сиде стоит резолв наборов состояний (комментарий и цикл),
+            // поэтому якорь допускает комментарии и принимает и `const resolveStateSet`, и сам insert.
+            /\n\s*\];\n\s*\n\s*(?:\/\/[^\n]*\n\s*)*(?:const resolveStateSet|await db\s*\.insert\(schema\.variationPropertyValues\))/,
             `\n\n    // ══════════════════════════════════════════════════════════════════════════\n    // ${componentName}\n    // ══════════════════════════════════════════════════════════════════════════\n\n${vpvLines}`,
             'variation_property_values rows',
         );
@@ -653,16 +730,17 @@ export async function seed${componentName}Component(db: any) {
                         const token = tokenById.get(row.tokenId);
                         if (token) tokenPart = `tokenId: t[${esc(token.name)}].id, `;
                     }
-                    const valuePart = row.value != null ? `value: ${esc(row.value)}, ` : '';
-                    const stateStr = row.state ? `'${row.state}'` : 'null';
-                    return `      { propertyId: p.${propKey}.id, designSystemId: base.id, componentId: ${varName}.id, appearanceId: a.${appKey}.id, ${tokenPart}${valuePart}state: ${stateStr} },`;
+                    const valuePart = row.value != null ? `value: ${esc(row.value)}` : '';
+                    const fields = `${tokenPart}${valuePart}`.replace(/, $/, '');
+                    return `      { propertyId: p.${propKey}.id, designSystemId: base.id, componentId: ${varName}.id, appearanceId: a.${appKey}.id, ${fields} },`;
                 })
                 .filter(Boolean)
                 .join('\n');
 
             c = insertBeforeRegex(
                 c,
-                /\n\s*\]\)\n\s*\.onConflictDoNothing\(\)/,
+                // Массив инвариантов закрывается `].map(...)`, который подмешивает сентинел набора состояний.
+                /\n\s*\](?:\.map\([^\n]*\))?,?\s*\)\s*\.onConflictDoNothing\(\)/,
                 `\n      // ${componentName}\n${ipvLines}`,
                 'invariant_property_values values',
             );

@@ -23,6 +23,7 @@ import {
     AccordionStories,
     SliderStories,
     NoteStories,
+    TextFieldStories,
 } from '../stories';
 
 interface Story {
@@ -54,6 +55,7 @@ const componentMapper: Record<string, Story[]> = {
     Accordion: AccordionStories,
     Slider: SliderStories,
     Note: NoteStories,
+    TextField: TextFieldStories,
 };
 
 export const useStory = (componentName?: string) => {

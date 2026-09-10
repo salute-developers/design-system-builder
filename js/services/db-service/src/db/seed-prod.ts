@@ -26,6 +26,7 @@ import {
     seedAccordionComponent,
     seedSliderComponent,
     seedNoteComponent,
+    seedTextFieldComponent,
 } from './seeds/prod/components';
 import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
 import { seedAppearances } from './seeds/prod/appearances';
@@ -196,6 +197,7 @@ async function seed() {
         accordion: await seedAccordionComponent(db),
         slider: await seedSliderComponent(db),
         note: await seedNoteComponent(db),
+        textField: await seedTextFieldComponent(db),
     };
 
     // ── 3. Determine which components to re-seed ─────────────────────────────
@@ -222,6 +224,7 @@ async function seed() {
         Accordion: 'accordion',
         Slider: 'slider',
         Note: 'note',
+        TextField: 'textField',
     };
 
     let componentIdsToReseed: string[];

@@ -1,4 +1,5 @@
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
+import * as plasmaCore from '@salutejs/plasma-new-hope/styled-components';
 
 import { camelToKebab } from '../../../utils';
 import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
@@ -118,6 +119,26 @@ export abstract class Prop {
             : `${componentName}${upperFirstLetter(tokenName)}`;
     }
 
+    /**
+     * Имя CSS-переменной для web-параметра. Сначала ищем её в объекте токенов ядра
+     * (`textFieldTokens.backgroundColor` → `--plasma-textfield-bg-color`): у части компонентов
+     * имена переменных не выводятся из ключа. Если ядро объекта не экспортирует или ключа в нём
+     * нет — строим имя по прежней схеме `--plasma-<component>-<param>`.
+     */
+    protected getCSSVariableName(tokenName: string, componentName?: string) {
+        if (componentName) {
+            const tokensKey = `${componentName.charAt(0).toLowerCase()}${componentName.slice(1)}Tokens`;
+            const coreTokens = (plasmaCore as Record<string, unknown>)[tokensKey] as Record<string, string> | undefined;
+            const cssVariable = coreTokens?.[tokenName];
+
+            if (typeof cssVariable === 'string' && cssVariable.trim().startsWith('--')) {
+                return cssVariable.trim();
+            }
+        }
+
+        return camelToKebab(`--plasma${this.getFormattedTokenName(tokenName, componentName)}`);
+    }
+
     protected getAdditionalTokens(
         token: string,
         getValue: (state: State) => string | number | undefined,
@@ -141,12 +162,11 @@ export abstract class Prop {
                 return acc;
             }
 
-            const formattedTokenName = this.getFormattedTokenName(token, componentName);
-            const tokenName = `--plasma${formattedTokenName}${statesMap[state]}`;
+            const tokenName = this.getCSSVariableName(`${token}${statesMap[state]}`, componentName);
 
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: value,
+                [tokenName]: value,
             };
         }, {});
     }
@@ -163,8 +183,7 @@ export abstract class Prop {
         };
 
         return this.webTokens.reduce((acc, { name, adjustment }) => {
-            const formattedTokenName = this.getFormattedTokenName(name, componentName);
-            const tokenName = `--plasma${formattedTokenName}`;
+            const tokenName = this.getCSSVariableName(name, componentName);
 
             const newValue = adjustment
                 ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
@@ -172,7 +191,7 @@ export abstract class Prop {
 
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: newValue,
+                [tokenName]: newValue,
             };
         }, {});
     }
