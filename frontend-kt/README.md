@@ -6,6 +6,9 @@
 
 - [`cli`](./cli/src) — Kotlin Multiplatform CLI-приложение `dsbuilder`.
 
+Документация CLI: [USAGE.md](./cli/USAGE.md) — справочник по командам,
+[README-ios.md](./cli/README-ios.md) — короткая инструкция по генерации для iOS.
+
 ## Проверки
 
 Команды выполняются из директории `frontend-kt`:
