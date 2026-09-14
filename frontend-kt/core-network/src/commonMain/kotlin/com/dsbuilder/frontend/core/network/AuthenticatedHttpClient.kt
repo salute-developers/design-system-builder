@@ -195,9 +195,22 @@ public class KtorAuthenticatedHttpClient(
             "Status: not found. Project or resource was not found.",
         )
         else -> AuthenticatedHttpResult.Failure(
-            "Status: failed. Backend returned HTTP ${status.value}.",
+            "Status: failed. Backend returned HTTP ${status.value}: ${errorBodySnippet()}",
         )
     }
+
+    /**
+     * Первая строка тела ответа, усечённая до лимита: backend кладёт причину отказа в JSON-поле
+     * `message`, и без него CLI печатал только код статуса, теряя ровно ту диагностику, ради
+     * которой backend отдаёт тело вообще.
+     */
+    private suspend fun HttpResponse.errorBodySnippet(): String =
+        bodyAsText()
+            .substringBefore('\n')
+            .trim()
+            .takeIf { it.isNotEmpty() }
+            ?.take(TRANSPORT_MESSAGE_LIMIT)
+            ?: "(empty body)"
 
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 }
