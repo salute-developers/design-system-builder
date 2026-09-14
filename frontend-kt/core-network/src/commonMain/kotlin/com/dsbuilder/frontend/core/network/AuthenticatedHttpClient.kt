@@ -21,6 +21,23 @@ import kotlinx.coroutines.runBlocking
 private const val TRANSPORT_MESSAGE_LIMIT = 200
 
 /**
+ * Таймаут запроса/сокета для HTTP-клиентов CLI.
+ *
+ * Импорт и выгрузка пакета — одна транзакция на весь пакет (сотни конфигураций), и дефолтный
+ * таймаут движка Ktor (порядка 10-15 секунд) рассчитан на обычные короткие запросы, а не на
+ * bulk-операции над рабочей копией. Без явного значения `components push`/`fetch` на пакете
+ * из полутора сотен конфигураций может ложно падать таймаутом до того, как backend вообще
+ * ответит — независимо от того, валиден пакет или нет.
+ */
+public const val BULK_REQUEST_TIMEOUT_MILLIS: Long = 300_000
+
+/**
+ * Таймаут установления соединения — короче, чем [BULK_REQUEST_TIMEOUT_MILLIS]: если backend
+ * недоступен, это должно быть видно быстро, а не после пяти минут ожидания.
+ */
+public const val CONNECT_TIMEOUT_MILLIS: Long = 15_000
+
+/**
  * Результат authenticated backend request.
  */
 public sealed interface AuthenticatedHttpResult {
