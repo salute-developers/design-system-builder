@@ -148,6 +148,7 @@ cli/output/
 **/.kotlin/
 **/.idea/
 **/build/
+**/.intellijPlatform/
 **/.env
 **/.env.*
 !**/.env*.example

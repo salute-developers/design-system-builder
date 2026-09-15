@@ -94,6 +94,25 @@ export const andOptional = (...parts: Array<SQL | undefined>): SQL | undefined =
   return and(...filtered);
 };
 
+/**
+ * drizzle заворачивает ошибку драйвера в `DrizzleQueryError`: в `message` верхнего уровня
+ * лежит только текст запроса и параметры, а то, что сказал Postgres (`column ... does not
+ * exist`, нарушение constraint и т.п.), — в цепочке `cause`. `String(err)` эту цепочку не
+ * разворачивает, и причина 500-ки терялась бы вместе с ответом.
+ */
+export const causeChain = (err: unknown): string[] => {
+  const messages: string[] = [];
+  for (let e: unknown = err; e instanceof Error; e = (e as { cause?: unknown }).cause) {
+    messages.push(e.message);
+  }
+  return messages;
+};
+
+const describeError = (err: unknown): string => {
+  const messages = causeChain(err);
+  return messages.length > 0 ? messages.join("\nCaused by: ") : String(err);
+};
+
 export const tryCatch = async (
   res: Response,
   fn: () => Promise<void>,
@@ -101,6 +120,7 @@ export const tryCatch = async (
   try {
     await fn();
   } catch (err) {
-    res.status(500).json({ error: String(err) });
+    console.error(err);
+    res.status(500).json({ error: describeError(err) });
   }
 };

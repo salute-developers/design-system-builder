@@ -48,6 +48,33 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "dsbuilder-studio-plugin",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "standardFlowEnabled": true,
+      "redirectUris": [
+        "http://127.0.0.1:*",
+        "http://localhost:*"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "dsbuilder-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "dsbuilder-api",
+            "access.token.claim": "true"
+          }
+        }
+      ]
     }
   ],
   "users": [
