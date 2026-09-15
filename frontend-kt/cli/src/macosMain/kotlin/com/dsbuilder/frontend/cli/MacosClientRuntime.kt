@@ -83,6 +83,13 @@ public actual fun defaultClientRuntime(): ClientRuntime = ClientRuntime(
  * В режиме наследования stdio дочерний процесс пишет прямо в терминал; в режиме захвата stdout и
  * stderr направляются в один pipe и читаются до EOF одним потоком — так исключён deadlock
  * на заполненном буфере.
+ *
+ * В режиме захвата `standardInput` дочернего процесса — тоже пустой `NSPipe`, а не унаследованный
+ * терминал: инструмент в этом режиме короткий и неинтерактивный (`--version`, `help --task`), но
+ * некоторые из них всё равно трогают stdin при инициализации консоли. Если оставить им терминал
+ * родителя, а процесс окажется вне foreground process group терминала (реальный сценарий при запуске
+ * из интерактивной оболочки), ядро присылает `SIGTTIN` и стопит процесс — это выглядит как зависание
+ * без единой строчки вывода, хотя на самом деле процесс просто ждёт ввода, который никогда не придёт.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 private object MacosProcessRunner : ProcessRunner {
@@ -101,6 +108,7 @@ private object MacosProcessRunner : ProcessRunner {
             NSPipe().also {
                 task.standardOutput = it
                 task.standardError = it
+                task.standardInput = NSPipe()
             }
         }
 

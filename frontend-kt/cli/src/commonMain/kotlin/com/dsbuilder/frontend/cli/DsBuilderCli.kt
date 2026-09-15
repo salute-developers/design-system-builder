@@ -20,6 +20,7 @@ import com.dsbuilder.frontend.feature.init.initApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
+import com.dsbuilder.frontend.platform.android.androidPlatformModule
 import com.dsbuilder.frontend.platform.ios.iosPlatformModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.parse
@@ -60,6 +61,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 corePlatformModule(),
                 iosPlatformModule(),
+                androidPlatformModule(),
                 platformDelegatesModule(),
                 docsApplicationModule(),
                 docsCliPresentationModule(),
@@ -88,7 +90,12 @@ public class DsBuilderCli(
      */
     public fun platformDelegateRegistry(): PlatformDelegateRegistry =
         koinApplication {
-            modules(coreApplicationModule(runtime), iosPlatformModule(), platformDelegatesModule())
+            modules(
+                coreApplicationModule(runtime),
+                iosPlatformModule(),
+                androidPlatformModule(),
+                platformDelegatesModule(),
+            )
         }.koin.get()
 
     /**
@@ -96,7 +103,12 @@ public class DsBuilderCli(
      */
     public fun toolchainInstallerRegistry(): ToolchainInstallerRegistry =
         koinApplication {
-            modules(coreApplicationModule(runtime), iosPlatformModule(), platformDelegatesModule())
+            modules(
+                coreApplicationModule(runtime),
+                iosPlatformModule(),
+                androidPlatformModule(),
+                platformDelegatesModule(),
+            )
         }.koin.get()
 }
 

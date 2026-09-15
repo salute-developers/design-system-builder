@@ -4,6 +4,7 @@ import com.dsbuilder.frontend.core.platform.PlatformDelegate
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstaller
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
+import com.dsbuilder.frontend.platform.android.AndroidGradleDelegate
 import com.dsbuilder.frontend.platform.ios.IosCliDelegate
 import com.dsbuilder.frontend.platform.ios.IosToolchainInstaller
 import org.koin.core.module.Module
@@ -24,12 +25,10 @@ public fun platformDelegatesModule(): Module = module {
 
 /**
  * Делегаты в порядке регистрации.
- *
- * Адаптер `platform-android` приезжает отдельным изменением и добавляется сюда
- * как `get<AndroidGradleDelegate>()`.
  */
 private fun Scope.platformDelegates(): List<PlatformDelegate> = listOf(
     get<IosCliDelegate>(),
+    get<AndroidGradleDelegate>(),
 )
 
 /**
