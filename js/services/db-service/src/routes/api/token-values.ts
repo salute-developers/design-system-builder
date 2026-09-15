@@ -1,20 +1,37 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/index";
-import { tokenValues } from "../../db/schema";
+import { designSystems, tokenValues, tokens } from "../../db/schema";
 import {
   CreateTokenValueSchema,
   UpdateTokenValueSchema,
   UuidParamSchema,
 } from "../../validation/schema";
 import { validateBody, validateParams } from "../../validation/middleware";
-import { assertFound, tryCatch } from "./utils";
+import { assertFound, designSystemScopeFilter, tryCatch } from "./utils";
 
 const router = Router();
 
-router.get("/", (_req, res) =>
+router.get("/", (req, res) =>
   tryCatch(res, async () => {
-    const rows = await db.select().from(tokenValues);
+    const scope = designSystemScopeFilter(req);
+    const query = db.select().from(tokenValues);
+    const rows = scope
+      ? await query.where(
+          inArray(
+            tokenValues.tokenId,
+            db
+              .select({ id: tokens.id })
+              .from(tokens)
+              .where(
+                inArray(
+                  tokens.designSystemId,
+                  db.select({ id: designSystems.id }).from(designSystems).where(scope),
+                ),
+              ),
+          ),
+        )
+      : await query;
     res.json(rows);
   }),
 );

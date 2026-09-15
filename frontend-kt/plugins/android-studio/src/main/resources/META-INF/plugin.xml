@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>com.dsbuilder.frontend.plugin.androidstudio</id>
+    <name>DS Builder</name>
+    <vendor>DS Builder</vendor>
+    <description><![CDATA[
+        Android Studio / IntelliJ IDEA integration for browsing DS Builder design-system tokens.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="SDDS"
+                    anchor="right"
+                    canCloseContents="false"
+                    factoryClass="com.dsbuilder.frontend.plugin.androidstudio.toolwindow.SddsToolWindowFactory"
+                    icon="/icons/sddsToolWindow.svg"/>
+    </extensions>
+</idea-plugin>
