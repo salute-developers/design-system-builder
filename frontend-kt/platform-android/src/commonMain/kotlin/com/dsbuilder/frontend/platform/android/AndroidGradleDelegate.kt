@@ -21,11 +21,11 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  * таски. Какая именно платформа (Compose, View) вообще сконфигурирована в модуле, решает
  * build.gradle.kts самого модуля — задача делегата только выбрать имя таски и запустить её.
  *
- * `THEME` и `COMPONENTS` используют пер-платформенные таски (`generateComposeTheme`/
- * `generateViewTheme` и т.д.): если платформа не сконфигурирована, соответствующей таски не
- * существует, и Gradle сам сообщает об этом понятной ошибкой вместо тихой генерации не той
- * платформы. `DOCS_AGGREGATE` — одна таска (`documentationAggregate`) на обе платформы: сам плагин
- * пока не различает Compose/View агрегацию документации отдельными тасками.
+ * Все три capability (`THEME`, `COMPONENTS`, `DOCS_AGGREGATE`) используют пер-платформенные таски
+ * (`generateComposeTheme`/`generateViewTheme`, `generateComposeComponents`/`generateViewComponents`,
+ * `aggregateComposeDocumentation`/`aggregateViewDocumentation`): если платформа не сконфигурирована,
+ * соответствующей таски не существует, и Gradle сам сообщает об этом понятной ошибкой вместо тихой
+ * генерации/агрегации не той платформы.
  */
 public class AndroidGradleDelegate internal constructor(
     private val processRunner: ProcessRunner,
@@ -129,20 +129,18 @@ public class AndroidGradleDelegate internal constructor(
 
     private companion object {
         /**
-         * Gradle-таска для `(capability, platform)`. `THEME`/`COMPONENTS` регистрируются
-         * `dsBuilder`-плагином только когда модуль конфигурирует эту платформу — пер-платформенные
-         * таски (см. KDoc класса). `documentationAggregate`, в отличие от них, одна на модуль и сама
-         * выбирает платформу по внутреннему приоритету (Compose, если сконфигурированы обе) — плагин
-         * пока не даёт способа запросить агрегацию именно под View, поэтому оба ключа платформы ведут
-         * на одну и ту же таску.
+         * Gradle-таска для `(capability, platform)`. Каждая пара ведёт на свою пер-платформенную
+         * таску, зарегистрированную `dsBuilder`-плагином только когда модуль конфигурирует эту
+         * платформу — запрос платформы, которую модуль не настраивал, честно возвращает "task not
+         * found" вместо тихой генерации/агрегации не той платформы (см. KDoc класса).
          */
         val TASK_NAMES: Map<Pair<Capability, TargetPlatform>, String> = mapOf(
             (Capability.THEME to TargetPlatform.COMPOSE) to "generateComposeTheme",
             (Capability.THEME to TargetPlatform.ANDROID_VIEW) to "generateViewTheme",
             (Capability.COMPONENTS to TargetPlatform.COMPOSE) to "generateComposeComponents",
             (Capability.COMPONENTS to TargetPlatform.ANDROID_VIEW) to "generateViewComponents",
-            (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to "documentationAggregate",
-            (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to "documentationAggregate",
+            (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to "aggregateComposeDocumentation",
+            (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to "aggregateViewDocumentation",
         )
 
         /** `doctor` не получает capability/platform — проверяет обе THEME-таски, готовность значит «хотя бы одна». */

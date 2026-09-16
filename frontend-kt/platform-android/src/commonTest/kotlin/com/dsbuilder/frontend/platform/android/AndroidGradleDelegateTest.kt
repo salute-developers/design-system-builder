@@ -33,15 +33,21 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun docsAggregateUsesTheSameTaskForBothPlatforms() {
+    fun docsAggregatePicksTheGradleTaskByPlatform() {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
         delegate.run(invocation(Capability.DOCS_AGGREGATE, TargetPlatform.COMPOSE))
         delegate.run(invocation(Capability.DOCS_AGGREGATE, TargetPlatform.ANDROID_VIEW))
 
-        assertEquals(listOf("-p", "/repo/tokens/theme-module", "documentationAggregate"), requests[0].args)
-        assertEquals(listOf("-p", "/repo/tokens/theme-module", "documentationAggregate"), requests[1].args)
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "aggregateComposeDocumentation"),
+            requests[0].args,
+        )
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "aggregateViewDocumentation"),
+            requests[1].args,
+        )
     }
 
     @Test

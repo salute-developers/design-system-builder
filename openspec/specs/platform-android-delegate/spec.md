@@ -31,9 +31,10 @@ target platforms through the `dsBuilder` Gradle plugin (`sdds-core/plugin_theme_
 
 #### Scenario: Агрегация документации
 
-- **WHEN** the delegate runs the `DOCS_AGGREGATE` capability for `compose` or for `android-view`
-- **THEN** it MUST invoke the Gradle task `documentationAggregate` in both cases, since the `dsBuilder` plugin
-  registers a single documentation-aggregation task per module and picks the platform internally
+- **WHEN** the delegate runs the `DOCS_AGGREGATE` capability for `compose`
+- **THEN** it MUST invoke the Gradle task `aggregateComposeDocumentation`
+- **WHEN** the delegate runs the `DOCS_AGGREGATE` capability for `android-view`
+- **THEN** it MUST invoke the Gradle task `aggregateViewDocumentation`
 
 #### Scenario: Инструмент вызывается по месту рабочей копии
 
