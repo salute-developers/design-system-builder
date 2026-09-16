@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.plugin.androidstudio.tokens
 
+import kotlinx.serialization.json.JsonElement
+
 /**
  * Дизайн-система DS Builder, видимая в рамках выбранного проекта.
  *
@@ -98,9 +100,12 @@ public data class DesignToken(
  * @property platform платформа, если распознана.
  * @property mode режим (светлая/тёмная тема), если значение зависит от темы; `null` — значение
  *   одно для обеих тем (например spacing).
- * @property rawValue значение как есть, JSON-текстом — точная форма зависит от типа токена и
- *   не имеет единой предметной модели на сегодняшний день, поэтому v1 показывает его как есть,
- *   а не пытается декодировать под каждый тип отдельно.
+ * @property rawValue значение как есть, JSON-текстом — используется как фолбэк отображения для
+ *   платформы `web` и для форм, которые [parseTokenValuePayload] не распознал (см. [wireValue]).
+ * @property wireValue исходный JSON этого значения (массив-обёртка, как пришёл от бэкенда) —
+ *   хранится отдельно от [rawValue], потому что типизированный разбор в [TokenValuePayload]
+ *   зависит от типа токена ([DesignToken.type]), который в этой точке ещё не известен (`tokens`
+ *   и `token-values` — разные REST-вызовы, склеиваются в [TokenWithValue]).
  */
 public data class TokenValue(
     public val id: String,
@@ -108,6 +113,7 @@ public data class TokenValue(
     public val platform: TokenPlatform?,
     public val mode: TokenMode?,
     public val rawValue: String,
+    public val wireValue: JsonElement? = null,
 )
 
 /**
@@ -119,4 +125,11 @@ public data class TokenValue(
 public data class TokenWithValue(
     public val token: DesignToken,
     public val value: TokenValue?,
-)
+) {
+    /**
+     * Типизированное значение под тип токена — см. [TokenValuePayload]. [TokenValuePayload.Unsupported],
+     * если значение не опубликовано, платформа `web`, или форма не совпала с ожидаемой для типа.
+     */
+    public val payload: TokenValuePayload
+        get() = parseTokenValuePayload(token.type, value?.platform, value?.wireValue)
+}

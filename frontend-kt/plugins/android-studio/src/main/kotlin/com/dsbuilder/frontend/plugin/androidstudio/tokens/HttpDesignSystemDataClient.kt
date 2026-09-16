@@ -67,6 +67,7 @@ public class HttpDesignSystemDataClient(
                 platform = TokenPlatform.fromWireValue(it.platform),
                 mode = TokenMode.fromWireValue(it.mode),
                 rawValue = extractDisplayValue(it.value),
+                wireValue = it.value,
             )
         }
     }

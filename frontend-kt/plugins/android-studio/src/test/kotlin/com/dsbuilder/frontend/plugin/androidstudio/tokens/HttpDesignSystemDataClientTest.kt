@@ -92,6 +92,7 @@ class HttpDesignSystemDataClientTest {
         assertEquals(TokenPlatform.ANDROID, value.platform)
         assertEquals(TokenMode.DARK, value.mode)
         assertEquals("#FF0000", value.rawValue)
+        assertEquals(kotlinx.serialization.json.Json.parseToJsonElement("""["#FF0000"]"""), value.wireValue)
     }
 
     @Test
