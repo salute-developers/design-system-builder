@@ -18,10 +18,14 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  *
  * В отличие от iOS, инструмент — не отдельный бинарь, а Gradle-таска внутри проекта пользователя:
  * делегату нужно только найти `gradlew` и запустить его с `-p <workspaceDir>` и именем нужной
- * пер-платформенной таски. Какая именно платформа (Compose, View) вообще сконфигурирована в
- * модуле, решает build.gradle.kts самого модуля — задача делегата только выбрать имя таски и
- * запустить её; если платформа не сконфигурирована, соответствующей таски не существует, и Gradle
- * сам сообщает об этом понятной ошибкой.
+ * таски. Какая именно платформа (Compose, View) вообще сконфигурирована в модуле, решает
+ * build.gradle.kts самого модуля — задача делегата только выбрать имя таски и запустить её.
+ *
+ * `THEME` и `COMPONENTS` используют пер-платформенные таски (`generateComposeTheme`/
+ * `generateViewTheme` и т.д.): если платформа не сконфигурирована, соответствующей таски не
+ * существует, и Gradle сам сообщает об этом понятной ошибкой вместо тихой генерации не той
+ * платформы. `DOCS_AGGREGATE` — одна таска (`documentationAggregate`) на обе платформы: сам плагин
+ * пока не различает Compose/View агрегацию документации отдельными тасками.
  */
 public class AndroidGradleDelegate internal constructor(
     private val processRunner: ProcessRunner,
@@ -31,7 +35,8 @@ public class AndroidGradleDelegate internal constructor(
 
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)
 
-    override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.COMPONENTS)
+    override val capabilities: Set<Capability> =
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val gradlew = locator.locate(workspace.workspaceDir, toolOverride)
@@ -123,12 +128,21 @@ public class AndroidGradleDelegate internal constructor(
     }
 
     private companion object {
-        /** Gradle-таска для `(capability, platform)`; регистрируется `dsBuilder`-плагином, только когда модуль конфигурирует эту платформу. */
+        /**
+         * Gradle-таска для `(capability, platform)`. `THEME`/`COMPONENTS` регистрируются
+         * `dsBuilder`-плагином только когда модуль конфигурирует эту платформу — пер-платформенные
+         * таски (см. KDoc класса). `documentationAggregate`, в отличие от них, одна на модуль и сама
+         * выбирает платформу по внутреннему приоритету (Compose, если сконфигурированы обе) — плагин
+         * пока не даёт способа запросить агрегацию именно под View, поэтому оба ключа платформы ведут
+         * на одну и ту же таску.
+         */
         val TASK_NAMES: Map<Pair<Capability, TargetPlatform>, String> = mapOf(
             (Capability.THEME to TargetPlatform.COMPOSE) to "generateComposeTheme",
             (Capability.THEME to TargetPlatform.ANDROID_VIEW) to "generateViewTheme",
             (Capability.COMPONENTS to TargetPlatform.COMPOSE) to "generateComposeComponents",
             (Capability.COMPONENTS to TargetPlatform.ANDROID_VIEW) to "generateViewComponents",
+            (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to "documentationAggregate",
+            (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to "documentationAggregate",
         )
 
         /** `doctor` не получает capability/platform — проверяет обе THEME-таски, готовность значит «хотя бы одна». */

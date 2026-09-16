@@ -12,7 +12,7 @@ target platforms through the `dsBuilder` Gradle plugin (`sdds-core/plugin_theme_
 
 - **WHEN** CLI builds its platform delegate registry
 - **THEN** the registry MUST resolve both `compose` and `android-view` to the `android` toolchain
-- **THEN** the `android` toolchain MUST declare the capabilities `THEME` and `COMPONENTS`
+- **THEN** the `android` toolchain MUST declare the capabilities `THEME`, `COMPONENTS` and `DOCS_AGGREGATE`
 - **THEN** `toolchain list` MUST show it without any additional configuration
 
 #### Scenario: Генерация темы
@@ -28,6 +28,12 @@ target platforms through the `dsBuilder` Gradle plugin (`sdds-core/plugin_theme_
 - **THEN** it MUST invoke the Gradle task `generateComposeComponents`
 - **WHEN** the delegate runs the `COMPONENTS` capability for `android-view`
 - **THEN** it MUST invoke the Gradle task `generateViewComponents`
+
+#### Scenario: Агрегация документации
+
+- **WHEN** the delegate runs the `DOCS_AGGREGATE` capability for `compose` or for `android-view`
+- **THEN** it MUST invoke the Gradle task `documentationAggregate` in both cases, since the `dsBuilder` plugin
+  registers a single documentation-aggregation task per module and picks the platform internally
 
 #### Scenario: Инструмент вызывается по месту рабочей копии
 

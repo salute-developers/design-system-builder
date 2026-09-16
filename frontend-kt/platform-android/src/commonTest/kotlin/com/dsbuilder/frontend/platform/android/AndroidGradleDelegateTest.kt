@@ -21,12 +21,27 @@ class AndroidGradleDelegateTest {
     private val gradlewPath = "/repo/gradlew"
 
     @Test
-    fun servesComposeAndAndroidViewWithThemeAndComponents() {
+    fun servesComposeAndAndroidViewWithThemeComponentsAndDocs() {
         val delegate = delegate()
 
         assertEquals(ToolchainId("android"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW), delegate.platforms)
-        assertEquals(setOf(Capability.THEME, Capability.COMPONENTS), delegate.capabilities)
+        assertEquals(
+            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE),
+            delegate.capabilities,
+        )
+    }
+
+    @Test
+    fun docsAggregateUsesTheSameTaskForBothPlatforms() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        delegate.run(invocation(Capability.DOCS_AGGREGATE, TargetPlatform.COMPOSE))
+        delegate.run(invocation(Capability.DOCS_AGGREGATE, TargetPlatform.ANDROID_VIEW))
+
+        assertEquals(listOf("-p", "/repo/tokens/theme-module", "documentationAggregate"), requests[0].args)
+        assertEquals(listOf("-p", "/repo/tokens/theme-module", "documentationAggregate"), requests[1].args)
     }
 
     @Test
