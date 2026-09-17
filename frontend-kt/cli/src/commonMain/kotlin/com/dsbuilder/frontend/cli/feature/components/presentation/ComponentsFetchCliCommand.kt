@@ -70,6 +70,7 @@ private fun FetchSource.render(): String = """
 private fun FetchComponentsResult.Fetched.render(): String = buildString {
     appendLine("Written to: $path")
     appendLine("Files: ${fileNames.size}")
+    snapshotPath?.let { appendLine("Component configs: $it") }
 
     appendSection(
         "Values whose paint kind could not be derived (written with the property type)",

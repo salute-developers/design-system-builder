@@ -54,6 +54,40 @@ class ComponentPackageWritePlanBuilderTest {
     }
 
     @Test
+    fun qualifiesSharedDefaultStyleWithComponentNameAndKeepsNamesOnRepeatFetch() {
+        val components = listOf(
+            "accordion", "badge", "button", "cell", "checkbox", "chip", "counter", "divider",
+            "embed-icon-button", "empty-state", "icon-button", "indicator", "link", "link-button",
+            "list", "note", "radiobox", "skeleton", "slider", "spinner", "switch",
+        )
+        val configurations = components.map { config(it, "default") }
+        val plan = planOf(configurations)
+        val expected = components.sorted().map { it.replace('-', '_') + "_default_config.json" }
+
+        assertEquals(expected, plan.configFiles.map { it.fileName })
+        val existing = ExistingComponentPackage(
+            entries = components.sorted().zip(expected).map { (component, file) ->
+                ComponentPackageMetaEntry(component, "default", file)
+            },
+            fileNames = expected,
+        )
+        assertEquals(plan, planOf(configurations.reversed(), existing))
+        val single = planOf(listOf(config("button", "default")), existing)
+        assertEquals("button_default_config.json", single.configFiles.single().fileName)
+    }
+
+    @Test
+    fun preservesExistingNameWhenAnotherComponentUsesTheSameStyle() {
+        val plan = planOf(
+            listOf(config("badge", "default"), config("button", "default")),
+            ExistingComponentPackage(
+                entries = listOf(ComponentPackageMetaEntry("button", "default", "default_config.json")),
+            ),
+        )
+        assertEquals(listOf("badge_default_config.json", "default_config.json"), plan.configFiles.map { it.fileName })
+    }
+
+    @Test
     fun reusesFileNameFromExistingPackage() {
         val existing = ExistingComponentPackage(
             entries = listOf(

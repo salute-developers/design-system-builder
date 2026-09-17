@@ -7,6 +7,8 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.platform.PlatformCapabilityRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
@@ -15,6 +17,8 @@ import com.dsbuilder.frontend.feature.components.application.LocalComponentPacka
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigsSnapshotSource
+import com.dsbuilder.frontend.feature.components.data.LocalComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
@@ -49,6 +53,8 @@ public fun componentsApplicationModule(): Module = module {
     single<LocalComponentPackageWriter> {
         LocalComponentPackageFileWriter(fileSystem = get<WorkspaceFileSystem>())
     }
+    single<ComponentConfigsSnapshotSource> { HttpComponentConfigsSnapshotSource(get<AuthenticatedHttpClientFactory>()) }
+    single<ComponentConfigsSnapshotWriter> { LocalComponentConfigsSnapshotWriter(get<WorkspaceFileSystem>()) }
     single { ComponentPackageWritePlanBuilder() }
     single {
         FetchComponentsUseCase(
@@ -60,6 +66,8 @@ public fun componentsApplicationModule(): Module = module {
             writer = get<LocalComponentPackageWriter>(),
             codec = get<ConfigCodec>(),
             planBuilder = get<ComponentPackageWritePlanBuilder>(),
+            snapshotSource = get<ComponentConfigsSnapshotSource>(),
+            snapshotWriter = get<ComponentConfigsSnapshotWriter>(),
         )
     }
     single { GenerateComponentsUseCase(get<PlatformCapabilityRunner>()) }

@@ -30,6 +30,9 @@ internal class ComponentPackageWritePlanBuilder(
             compareBy({ it.componentName }, { it.styleName }),
         )
 
+        val sharedStyleNames = ordered.groupBy { fileNameOf(it.styleName) }
+            .filterValues { group -> group.map { it.componentName }.distinct().size > 1 }
+            .keys
         val reusable = existing.entries.associate { (it.componentName to it.styleName) to it.config }
         val fileNames = ordered.map { configuration ->
             // Имя файла — факт рабочей копии, а не дизайн-системы, и правилом выводится
@@ -39,7 +42,11 @@ internal class ComponentPackageWritePlanBuilder(
             // к парам, которых в нём не было: на существующем пакете это даёт нулевой
             // дифф по именам, на пустой директории — предсказуемый результат.
             reusable[configuration.componentName to configuration.styleName]
-                ?: fileNameOf(configuration.styleName)
+                ?: if (fileNameOf(configuration.styleName) in sharedStyleNames) {
+                    fileNameOf("${configuration.componentName}_${configuration.styleName}")
+                } else {
+                    fileNameOf(configuration.styleName)
+                }
         }
 
         duplicateOf(fileNames)?.let { duplicate ->
@@ -94,8 +101,9 @@ internal class ComponentPackageWritePlanBuilder(
     /**
      * Правило имени файла для пары, которой не было в существующем пакете.
      *
-     * Имя строится из `styleName`: он уникален внутри пакета, тогда как `componentName` — нет,
-     * одному компоненту соответствует несколько стилей. Разделители приводятся к `_`.
+     * Имя строится из стиля; если нормализованное имя стиля встречается у разных компонентов,
+     * добавляется имя компонента. Имена существующего пакета сохраняются.
+     * Разделители приводятся к `_`.
      */
     private fun fileNameOf(styleName: String): String =
         styleName.map { character -> if (character == '-' || character == '.') '_' else character }
