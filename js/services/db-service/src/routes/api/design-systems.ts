@@ -314,6 +314,7 @@ router.get("/:id/components/:componentIdOrName/variations", requireScope(COMPONE
 // GET /design-systems/:id/tenants
 router.get("/:id/tenants", validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
     const rows = await db
       .select()
       .from(tenants)
@@ -325,6 +326,7 @@ router.get("/:id/tenants", validateParams(UuidParamSchema), (req, res) =>
 // GET /design-systems/:id/appearances
 router.get("/:id/appearances", validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
     const rows = await db
       .select()
       .from(appearances)
@@ -336,6 +338,7 @@ router.get("/:id/appearances", validateParams(UuidParamSchema), (req, res) =>
 // GET /design-systems/:id/changes
 router.get("/:id/changes", validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
+    if (!(await requireDesignSystemAccess(req, res))) return;
     const rows = await db
       .select()
       .from(designSystemChanges)
