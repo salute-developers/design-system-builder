@@ -650,6 +650,7 @@ class DsBuilderCliTest {
     @Test
     fun themeFetchWritesLocalFilesAndConfigTenants() {
         val fileSystem = initializedFileSystem()
+        fileSystem.writeText("/repo/.sdds/component-configs.json", "existing snapshot")
         fileSystem.writeText("/repo/.sdds/sdds_cs/web/web_spacing.json", """{"stale":"value"}""")
         fileSystem.writeText("/repo/.sdds/stale_tenant/meta.json", """[{"stale":"tenant"}]""")
         ProjectConfigStore(fileSystem).updateTenants(
@@ -702,7 +703,145 @@ class DsBuilderCliTest {
         assertFalse(fileSystem.readText("/repo/.sdds/config.json").contains("secret-value"))
         assertFalse(fileSystem.readText("/repo/.sdds/config.json").contains("apiUrl"))
         assertThemeFetchCalls(calls)
+        assertEquals("existing snapshot", fileSystem.readText("/repo/.sdds/component-configs.json"))
     }
+
+    @Test
+    fun componentsFetchReplacesComponentConfigsWithOriginalResponseAndEmptyArray() {
+        val fileSystem = initializedFileSystem()
+        val path = "/repo/.sdds/component-configs.json"
+        val endpoint = "/api/projects/project-a/ds/legacy/design-systems/SDDS%20CS/component-configs"
+        fileSystem.writeText(path, "old configs")
+        for (body in listOf("[ { \"name\": \"Button\", \"extra\": [true, null, 1] } ]", "[]")) {
+            val result = DsBuilderCli(
+                fakeRuntime(
+                    fileSystem = fileSystem,
+                    environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                    httpResults = successfulComponentHttpResults() +
+                        (endpoint to AuthenticatedHttpResult.Success(body)),
+                ),
+            ).execute(listOf("components", "fetch", "--to", "/custom-components"))
+
+            assertEquals(0, result.exitCode, result.output)
+            assertEquals(body, fileSystem.readText(path))
+            assertTrue(result.output.contains("Component configs: /repo/.sdds/component-configs.json"))
+            assertFalse(fileSystem.exists("/repo/src/.sdds/component-configs.json"))
+            assertTrue(fileSystem.exists("/custom-components/meta.json"))
+            assertFalse(fileSystem.exists("/repo/.sdds/tenants/palette.json"))
+        }
+    }
+
+    @Test
+    fun componentsFetchPreservesLocalFilesWhenSnapshotDownloadFails() {
+        val configsEndpoint = "/api/projects/project-a/ds/legacy/design-systems/SDDS%20CS/component-configs"
+        val failures = listOf(
+            configsEndpoint to AuthenticatedHttpResult.Failure("Error: unavailable"),
+            configsEndpoint to AuthenticatedHttpResult.Success("{\"apiKey\":\"secret-value\"}"),
+            configsEndpoint to AuthenticatedHttpResult.Success("[broken JSON"),
+        )
+        for (failure in failures) {
+            val fileSystem = initializedFileSystem()
+            val originalConfig = fileSystem.readText("/repo/.sdds/config.json")
+            fileSystem.writeText("/repo/.sdds/component-configs.json", "old configs")
+            fileSystem.writeText("/repo/.sdds/tenants/sdds_cs/meta.json", "old theme")
+            val result = DsBuilderCli(
+                fakeRuntime(
+                    fileSystem = fileSystem,
+                    environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                    httpResults = successfulComponentHttpResults() + failure,
+                ),
+            ).execute(listOf("components", "fetch"))
+
+            assertEquals(1, result.exitCode, failure.toString())
+            assertEquals("old configs", fileSystem.readText("/repo/.sdds/component-configs.json"))
+            assertFalse(fileSystem.exists("/repo/.sdds/components/meta.json"))
+            assertEquals("old theme", fileSystem.readText("/repo/.sdds/tenants/sdds_cs/meta.json"))
+            assertEquals(originalConfig, fileSystem.readText("/repo/.sdds/config.json"))
+            assertFalse(fileSystem.exists("/repo/.sdds/tenants/palette.json"))
+            assertFalse(result.output.contains("secret-value"))
+        }
+    }
+
+    @Test
+    fun componentsFetchEncodesDesignSystemNameAndUsesRuntimeOverrides() {
+        val calls = mutableListOf<String>()
+        val configsPath = "/api/projects/project-a/ds/legacy/design-systems/SDDS%2FCS%3F%23%25/component-configs"
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = initializedFileSystem(),
+                httpResults = successfulComponentHttpResults() + mapOf(
+                    "/api/projects/project-a/ds/component-config/export" to
+                        AuthenticatedHttpResult.Success(
+                            """{"meta":{"name":"SDDS/CS?#%","version":"latest"},"components":[]}""",
+                        ),
+                    configsPath to AuthenticatedHttpResult.Success("[]"),
+                ),
+                onGet = { calls += it },
+                onCreate = { url, key ->
+                    assertEquals("https://api.example.com", url)
+                    assertEquals("override-key", key)
+                },
+            ),
+        ).execute(listOf("components", "fetch", "--api-url", "https://api.example.com", "--api-key", "override-key"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(listOf("/api/projects/project-a/ds/component-config/export", configsPath), calls)
+    }
+
+    @Test
+    fun componentsFetchReportsComponentFileWriteFailure() {
+        val fileSystem = initializedFileSystem()
+        fileSystem.writeFailurePath = "/repo/.sdds/component-configs.json"
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                httpResults = successfulComponentHttpResults(),
+            ),
+        ).execute(listOf("components", "fetch"))
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("Cannot write component configs"))
+        assertFalse(result.output.contains("Written to:"))
+    }
+
+    @Test
+    fun componentsFetchSavesSnapshotWhenComponentsShareDefaultStyle() {
+        val fileSystem = initializedFileSystem()
+        val response = """
+            {"meta":{"name":"qwe","version":"0.1.0"},"components":[
+              {"componentName":"accordion","styleName":"default","config":{}},
+              {"componentName":"badge","styleName":"default","config":{}},
+              {"componentName":"button","styleName":"default","config":{}}
+            ]}
+        """.trimIndent()
+        val snapshot = """[{"name":"button","config":{"custom":true}}]"""
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                httpResults = mapOf(
+                    "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(response),
+                    "/api/projects/project-a/ds/legacy/design-systems/qwe/component-configs" to
+                        AuthenticatedHttpResult.Success(snapshot),
+                ),
+            ),
+        ).execute(listOf("components", "fetch"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(snapshot, fileSystem.readText("/repo/.sdds/component-configs.json"))
+        for (component in listOf("accordion", "badge", "button")) {
+            assertTrue(fileSystem.exists("/repo/.sdds/components/${component}_default_config.json"))
+        }
+    }
+
+    private fun successfulComponentHttpResults(): Map<String, AuthenticatedHttpResult> = mapOf(
+        "/api/projects/project-a/ds/component-config/export" to AuthenticatedHttpResult.Success(
+            """{"meta":{"name":"SDDS CS","version":"latest"},"components":[]}""",
+        ),
+        "/api/projects/project-a/ds/legacy/design-systems/SDDS%20CS/component-configs" to
+            AuthenticatedHttpResult.Success("[]"),
+    )
 
     private fun assertThemeFetchCalls(calls: List<String>) {
         assertEquals(
@@ -1061,6 +1200,7 @@ private class FakeFileSystem(
 ) : WorkspaceFileSystem {
     private val files = mutableMapOf<String, ByteArray>()
     private val directories = mutableSetOf<String>()
+    var writeFailurePath: String? = null
 
     override fun currentWorkingDirectory(): String = normalize(currentDirectory)
 
@@ -1106,6 +1246,7 @@ private class FakeFileSystem(
         files[normalize(path)] ?: error("Missing file: $path")
 
     override fun writeText(path: String, text: String) {
+        check(path != writeFailurePath) { "Cannot write $path" }
         val normalized = normalize(path)
         parent(normalized)?.let { directories += it }
         files[normalized] = text.encodeToByteArray()

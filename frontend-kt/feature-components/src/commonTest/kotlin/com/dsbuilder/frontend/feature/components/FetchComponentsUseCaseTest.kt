@@ -11,6 +11,9 @@ import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotResult
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.ComponentDirectoryReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
@@ -216,6 +219,10 @@ class FetchComponentsUseCaseTest {
                 ComponentPackageWriteResult.Written("/work/.sdds/components")
             },
             codec = ConfigCodec(),
+            snapshotSource = ComponentConfigsSnapshotSource { _, _ -> ComponentConfigsSnapshotResult.Loaded("[]") },
+            snapshotWriter = ComponentConfigsSnapshotWriter { _, _ ->
+                ComponentPackageWriteResult.Written("/work/.sdds/component-configs.json")
+            },
         )
 
         return useCase.execute(
