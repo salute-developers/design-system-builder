@@ -1,13 +1,15 @@
 package com.dsbuilder.frontend.feature.components
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
@@ -48,6 +50,19 @@ import kotlin.test.assertTrue
  */
 class FetchComponentsUseCaseTest {
 
+    @Test
+    fun acceptsBearerForExport() = runTest {
+        var selected: BackendCredential? = null
+        val result = execute(
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Selected(BackendCredential.Bearer("access"), BackendCredentialType.USER_SESSION),
+            ),
+            onExport = { selected = it.credential },
+        )
+        assertTrue(result is FetchComponentsResult.Fetched)
+        assertEquals(BackendCredential.Bearer("access"), selected)
+    }
+
     private val context = ProjectContext(
         projectId = ProjectId("project-a"),
         designSystemId = DesignSystemId("ds-a"),
@@ -65,7 +80,7 @@ class FetchComponentsUseCaseTest {
         assertEquals(1, commands.size)
         assertEquals("project-a", commands.single().projectId.value)
         assertEquals("ds-a", commands.single().designSystemId.value)
-        assertEquals("secret-key", commands.single().apiKey.value)
+        assertEquals(BackendCredential.ProjectKey("secret-key"), commands.single().credential)
 
         assertEquals("/work/.sdds/components", result.path)
         assertEquals(listOf("avatar_config.json"), result.fileNames)
@@ -159,7 +174,9 @@ class FetchComponentsUseCaseTest {
     fun failsWhenCredentialsAreMissing() = runTest {
         var exported = false
         val result = execute(
-            apiKeyProvider = ProjectApiKeyProvider { _, _ -> ProjectApiKeyResult.Missing("Error: no api key.") },
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: no api key."),
+            ),
             onExport = { exported = true },
         )
 
@@ -190,9 +207,9 @@ class FetchComponentsUseCaseTest {
         underivedTypes: List<String> = emptyList(),
         existing: ExistingComponentPackage = ExistingComponentPackage(),
         exportResult: ExportComponentsResult? = null,
-        apiKeyProvider: ProjectApiKeyProvider = ProjectApiKeyProvider { _, _ ->
-            ProjectApiKeyResult.Found(ProjectApiKey("secret-key"))
-        },
+        credentialProvider: CredentialProvider = testCredentialProvider(
+            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+        ),
         onExport: (ExportComponentsCommand) -> Unit = {},
         onDirectoryRead: () -> Unit = {},
         onWrite: () -> Unit = {},
@@ -211,7 +228,7 @@ class FetchComponentsUseCaseTest {
                 override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
                     ProjectContextReadResult.Found(context)
             },
-            projectApiKeyProvider = apiKeyProvider,
+            credentialProvider = credentialProvider,
             apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
             remoteSource = FakeRemoteSource(onExport, result),
             directoryReader = ComponentPackageDirectoryReader { _, _ ->

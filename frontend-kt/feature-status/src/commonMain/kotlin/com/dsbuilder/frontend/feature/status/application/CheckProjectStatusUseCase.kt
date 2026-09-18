@@ -1,13 +1,14 @@
 package com.dsbuilder.frontend.feature.status.application
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
+import com.dsbuilder.frontend.core.application.ProjectContextFailure
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
-import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 
@@ -24,16 +25,35 @@ public class CheckProjectStatusUseCase internal constructor(
      * Проверяет configured project.
      */
     public suspend fun execute(command: CheckProjectStatusCommand): CheckProjectStatusResult {
-        val context = when (val result = projectContextReader.requireContext(command.workspace)) {
-            is ProjectContextReadResult.Found -> result.context
+        val found = when (
+            val result = projectContextReader.requireContext(
+                command.workspace,
+                command.designSystemUri,
+                command.projectKeyEnvName,
+            )
+        ) {
+            is ProjectContextReadResult.Found -> result
             is ProjectContextReadResult.Failed -> return CheckProjectStatusResult.Failed(
                 message = result.message,
-                code = CheckProjectStatusErrorCode.CONTEXT_NOT_FOUND,
+                code = when (result.reason) {
+                    ProjectContextFailure.NOT_INITIALIZED -> CheckProjectStatusErrorCode.CONTEXT_REQUIRED
+                    ProjectContextFailure.INVALID_CONTEXT -> CheckProjectStatusErrorCode.INVALID_CONTEXT
+                    ProjectContextFailure.INVALID -> CheckProjectStatusErrorCode.CONTEXT_NOT_FOUND
+                },
             )
         }
-        val apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride)
+        val context = found.context
+        val apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride, found.projectEnvironment)
         val credential = when (
-            val result = selectCredential(apiUrl, command.apiKeyOverride, context.credentialEnvName)
+            val result = credentialProvider.resolve(
+                CredentialRequest(
+                    apiUrl,
+                    command.apiKeyOverride,
+                    context.credentialEnvName,
+                    context.credentialPolicy,
+                    found.projectEnvironment,
+                ),
+            )
         ) {
             is CredentialResult.Failed -> return CheckProjectStatusResult.Failed(
                 message = result.message,
@@ -42,46 +62,7 @@ public class CheckProjectStatusUseCase internal constructor(
             is CredentialResult.Selected -> result.credential
         }
 
-        return verifyWithSingleUserRetry(context, apiUrl, command.apiKeyOverride, credential)
-    }
-
-    private suspend fun selectCredential(
-        apiUrl: ProjectApiUrl,
-        apiKeyOverride: String?,
-        credentialEnvName: CredentialEnvName,
-    ): CredentialResult =
-        when (
-            val result = credentialProvider.resolve(
-                apiUrl = apiUrl,
-                projectKeyOverride = apiKeyOverride,
-                credentialEnvName = credentialEnvName,
-            )
-        ) {
-            is CredentialResult.Failed -> result
-            is CredentialResult.Selected -> result
-        }
-
-    private suspend fun verifyWithSingleUserRetry(
-        context: ProjectContext,
-        apiUrl: ProjectApiUrl,
-        apiKeyOverride: String?,
-        credential: BackendCredential,
-    ): CheckProjectStatusResult {
-        val first = verify(context, apiUrl, credential)
-        val shouldRetry = credential is BackendCredential.Bearer &&
-            first is CheckProjectStatusResult.Failed &&
-            first.message.contains("unauthorized", ignoreCase = true)
-        return if (shouldRetry) {
-            when (val result = selectCredential(apiUrl, apiKeyOverride, context.credentialEnvName)) {
-                is CredentialResult.Failed -> CheckProjectStatusResult.Failed(
-                    message = result.message,
-                    code = result.code.toStatusErrorCode(),
-                )
-                is CredentialResult.Selected -> verify(context, apiUrl, result.credential)
-            }
-        } else {
-            first
-        }
+        return verify(context, apiUrl, credential)
     }
 
     private suspend fun verify(
@@ -115,17 +96,24 @@ public class CheckProjectStatusUseCase internal constructor(
  * @property apiKeyOverride runtime override из `--api-key`.
  * @property apiUrlOverride runtime override из `--api-url`.
  * @property workspace optional starting directory for project context resolution.
+ * @property designSystemUri explicit design-system link.
+ * @property projectKeyEnvName environment variable for an explicit project key.
  */
 public data class CheckProjectStatusCommand(
     public val apiKeyOverride: String?,
     public val apiUrlOverride: String?,
     public val workspace: String? = null,
+    public val designSystemUri: String? = null,
+    public val projectKeyEnvName: String? = null,
 )
 
 /**
  * Stable status error category for non-authorized results.
  */
 public enum class CheckProjectStatusErrorCode {
+    CONTEXT_REQUIRED,
+    INVALID_CONTEXT,
+
     /** Project context was not found or could not be read. */
     CONTEXT_NOT_FOUND,
 

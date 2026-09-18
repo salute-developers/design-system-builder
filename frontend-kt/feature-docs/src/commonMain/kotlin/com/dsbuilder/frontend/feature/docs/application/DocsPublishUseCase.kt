@@ -1,11 +1,12 @@
 package com.dsbuilder.frontend.feature.docs.application
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectId
 
@@ -14,7 +15,7 @@ import com.dsbuilder.frontend.core.domain.ProjectId
  */
 public class DocsPublishUseCase internal constructor(
     private val projectContextReader: ProjectContextReader,
-    private val projectApiKeyProvider: ProjectApiKeyProvider,
+    private val credentialProvider: CredentialProvider,
     private val projectApiUrlProvider: ProjectApiUrlProvider,
     private val publisher: DocsHttpClient,
 ) {
@@ -22,21 +23,33 @@ public class DocsPublishUseCase internal constructor(
      * Отправляет пакет документации в сервис документации.
      */
     public suspend fun execute(command: DocsPublishCommand): DocsPublishResult {
-        val context = when (val result = projectContextReader.requireContext(null)) {
-            is ProjectContextReadResult.Found -> result.context
+        val found = when (
+            val result = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+        ) {
+            is ProjectContextReadResult.Found -> result
             is ProjectContextReadResult.Failed -> return DocsPublishResult.Failed(result.message)
         }
-        val apiKey = when (
-            val result = projectApiKeyProvider.resolve(command.apiKeyOverride, context.credentialEnvName)
+        val context = found.context
+        val apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride, found.projectEnvironment)
+        val credential = when (
+            val result = credentialProvider.resolve(
+                CredentialRequest(
+                    apiUrl,
+                    command.apiKeyOverride,
+                    context.credentialEnvName,
+                    context.credentialPolicy,
+                    found.projectEnvironment,
+                ),
+            )
         ) {
-            is ProjectApiKeyResult.Found -> result.value
-            is ProjectApiKeyResult.Missing -> return DocsPublishResult.Failed(result.message)
+            is CredentialResult.Selected -> result.credential
+            is CredentialResult.Failed -> return DocsPublishResult.Failed(result.message)
         }
         val request = DocsUploadRequest(
             bundlePath = command.bundlePath,
             projectId = context.projectId,
-            apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride),
-            apiKey = apiKey,
+            apiUrl = apiUrl,
+            credential = credential,
         )
         return when (val result = publisher.uploadBundle(request)) {
             is DocsUploadResult.Accepted -> DocsPublishResult.Accepted(
@@ -64,7 +77,7 @@ internal data class DocsUploadRequest(
     val bundlePath: String,
     val projectId: ProjectId,
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
 )
 
 /** Результат gateway upload. */

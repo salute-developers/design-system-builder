@@ -1,6 +1,6 @@
 package com.dsbuilder.frontend.feature.theme
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
+import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -46,7 +46,7 @@ public fun themeApplicationModule(): Module = module {
     single {
         FetchThemesUseCase(
             projectContextReader = get<ProjectContextReader>(),
-            projectApiKeyProvider = get<ProjectApiKeyProvider>(),
+            credentialProvider = get<CredentialProvider>(),
             projectApiUrlProvider = get<ProjectApiUrlProvider>(),
             remoteThemeDataSource = get<RemoteThemeDataSource>(),
             writePlanBuilder = get<ThemeWritePlanBuilder>(),

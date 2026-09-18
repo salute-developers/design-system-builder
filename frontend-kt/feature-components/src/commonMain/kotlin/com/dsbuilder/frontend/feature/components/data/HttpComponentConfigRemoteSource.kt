@@ -45,7 +45,7 @@ internal class HttpComponentConfigRemoteSource(
         )
 
         val path = "/api/projects/${command.projectId.value}/ds/component-config/import"
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> ImportComponentsResult.Failed(response.message)
@@ -60,7 +60,7 @@ internal class HttpComponentConfigRemoteSource(
         )
 
         val path = "/api/projects/${command.projectId.value}/ds/component-config/export"
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(response.message)

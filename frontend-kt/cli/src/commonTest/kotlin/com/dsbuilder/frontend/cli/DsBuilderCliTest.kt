@@ -1,7 +1,14 @@
 package com.dsbuilder.frontend.cli
 
 import com.dsbuilder.frontend.core.application.ClientRuntime
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.TokenClient
+import com.dsbuilder.frontend.core.auth.TokenResponse
+import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
@@ -30,6 +37,170 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
+    @Test
+    fun statusUsesProjectEnvForKeyAndApiUrl() {
+        val fileSystem = initializedFileSystem()
+        fileSystem.writeText(
+            "/repo/.env",
+            "DSBUILDER_PROJECT_A_API_KEY=project-secret\nDSBUILDER_API_URL=https://project.test",
+        )
+        val selected = mutableListOf<BackendCredential>()
+        val urls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                onCredential = { selected += it },
+                onCreate = { url, _ -> urls += url },
+            ),
+        ).execute(listOf("status"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(selected.all { it == BackendCredential.ProjectKey("project-secret") })
+        assertTrue(urls.all { it == "https://project.test" })
+        assertFalse(result.output.contains("project-secret"))
+    }
+
+    @Test
+    fun statusProcessEnvWinsOverProjectEnv() {
+        val fileSystem = initializedFileSystem()
+        fileSystem.writeText(
+            "/repo/.env",
+            "DSBUILDER_PROJECT_A_API_KEY=project-secret\nDSBUILDER_API_URL=https://project.test",
+        )
+        val selected = mutableListOf<BackendCredential>()
+        val urls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf(
+                    "DSBUILDER_PROJECT_A_API_KEY" to "process-secret",
+                    "DSBUILDER_API_URL" to "https://process.test",
+                ),
+                onCredential = { selected += it },
+                onCreate = { url, _ -> urls += url },
+            ),
+        ).execute(listOf("status"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(selected.all { it == BackendCredential.ProjectKey("process-secret") })
+        assertTrue(urls.all { it == "https://process.test" })
+        assertFalse(result.output.contains("process-secret"))
+    }
+
+    @Test
+    fun statusWithoutProjectContextExplainsLinkAfterLogin() {
+        val runtime = fakeRuntime(
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+        )
+
+        val result = DsBuilderCli(runtime).execute(listOf("status"))
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("--design-system"), result.output)
+        assertTrue(result.output.contains("dsbuilder init"), result.output)
+        assertFalse(result.output.contains("authentication is required"), result.output)
+    }
+
+    @Test
+    fun explicitLinkSelectsHeadlessStatusWithUserSession() {
+        val selected = mutableListOf<BackendCredential>()
+        val runtime = fakeRuntime(
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            httpResults = mapOf(
+                "/api/projects/project-b" to AuthenticatedHttpResult.Success(
+                    """{"id":"project-b","name":"Other project"}""",
+                ),
+                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                    """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
+                ),
+            ),
+            onCredential = { selected += it },
+        )
+        val link = "dsbuilder://projects/project-b/design-systems/ds-b?version=2.0&platform=compose"
+
+        val result = DsBuilderCli(runtime).execute(listOf("status", "--design-system", link))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Project: Other project"))
+        assertTrue(selected.all { it == BackendCredential.Bearer("access-token") })
+    }
+
+    @Test
+    fun explicitLinkCanSelectHeadlessProjectKeyEnvironment() {
+        val selected = mutableListOf<BackendCredential>()
+        val runtime = fakeRuntime(
+            environment = mapOf("CI_PROJECT_KEY" to "ci-secret"),
+            httpResults = mapOf(
+                "/api/projects/project-b" to AuthenticatedHttpResult.Success(
+                    """{"id":"project-b","name":"Other project"}""",
+                ),
+                "/api/projects/project-b/ds/design-systems/ds-b" to AuthenticatedHttpResult.Success(
+                    """{"id":"internal-b","designSystemId":"ds-b","name":"Other DS"}""",
+                ),
+            ),
+            onCredential = { selected += it },
+        )
+        val link = "dsbuilder://projects/project-b/design-systems/ds-b?version=2.0&platform=compose"
+
+        val result = DsBuilderCli(runtime).execute(
+            listOf("status", "--design-system", link, "--project-key-env", "CI_PROJECT_KEY"),
+        )
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(selected.all { it == BackendCredential.ProjectKey("ci-secret") })
+        assertFalse(result.output.contains("ci-secret"))
+    }
+
+    @Test
+    fun projectScopedHelpListsExplicitContextOptions() {
+        val cli = DsBuilderCli(fakeRuntime())
+        listOf(
+            listOf("status"),
+            listOf("docs", "publish"),
+            listOf("theme", "fetch"),
+            listOf("components", "push"),
+            listOf("components", "fetch"),
+        ).forEach { command ->
+            val result = cli.execute(command + "--help")
+            assertEquals(0, result.exitCode, result.output)
+            assertTrue(result.output.contains("--design-system"), result.output)
+            assertTrue(result.output.contains("--project-key-env"), result.output)
+        }
+    }
+
+    @Test
+    fun userSessionCanFetchThemeAndPublishDocsWithoutProjectKey() {
+        val fileSystem = initializedFileSystem().apply {
+            writeText(
+                "/repo/.sdds/config.json",
+                ProjectConfigCodec().encode(
+                    projectConfig().copy(credential = CredentialReference(CredentialReferenceType.USER_SESSION)),
+                ),
+            )
+            writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1))
+        }
+        val selected = mutableListOf<BackendCredential>()
+        val runtime = fakeRuntime(
+            fileSystem = fileSystem,
+            environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "ignored-key"),
+            httpResults = successfulThemeHttpResults(),
+            multipartResponse = AuthenticatedHttpResponse(200, """{"bundleId":"bundle-a","jobId":"job-a"}"""),
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            onCredential = { selected += it },
+        )
+
+        val theme = DsBuilderCli(runtime).execute(listOf("theme", "fetch"))
+        val docs = DsBuilderCli(runtime).execute(listOf("docs", "publish"))
+
+        assertEquals(0, theme.exitCode, theme.output)
+        assertEquals(0, docs.exitCode, docs.output)
+        assertTrue(selected.isNotEmpty())
+        assertTrue(selected.all { it == BackendCredential.Bearer("access-token") })
+    }
+
     @Test
     fun defaultInvocationReturnsHelpText() {
         val result = DsBuilderCli(fakeRuntime()).execute(emptyList())
@@ -169,7 +340,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishRejectsMissingProjectContextAndApiKeyBeforeRequest() {
+    fun docsPublishRejectsMissingProjectContextAndCredentialBeforeRequest() {
         var posted = false
         val missingContext = DsBuilderCli(
             fakeRuntime(onPost = { _, _ -> posted = true }),
@@ -182,9 +353,9 @@ class DsBuilderCliTest {
         ).execute(listOf("docs", "publish"))
 
         assertEquals(1, missingContext.exitCode)
-        assertTrue(missingContext.output.contains("Project is not initialized"))
+        assertTrue(missingContext.output.contains("--design-system"))
         assertEquals(1, missingKey.exitCode)
-        assertTrue(missingKey.output.contains("API key is not configured"))
+        assertTrue(missingKey.output.contains("authentication is required"))
         assertFalse(posted)
     }
 
@@ -750,6 +921,68 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun themeFetchWithLinkWritesToExplicitDestinationWithoutLocalConfig() {
+        val fileSystem = FakeFileSystem(currentDirectory = "/repo")
+        val runtime = fakeRuntime(
+            fileSystem = fileSystem,
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            httpResults = successfulThemeHttpResults(),
+        )
+        val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1.0.0&platform=compose"
+
+        val result = DsBuilderCli(runtime).execute(
+            listOf("theme", "fetch", "--design-system", link, "--destination", "/target"),
+        )
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Config: /target/.sdds/config.json"), result.output)
+        val config = ProjectConfigCodec().decode(fileSystem.readText("/target/.sdds/config.json"))
+        assertEquals("project-a", config.projectId)
+        assertEquals("design-system-a", config.designSystemId)
+        assertEquals(CredentialReferenceType.USER_SESSION, config.credential.type)
+        assertEquals(listOf("compose"), config.platforms)
+        assertTrue(fileSystem.exists("/target/.sdds/tenants/palette.json"))
+        assertFalse(fileSystem.exists("/repo/.sdds/config.json"))
+    }
+
+    @Test
+    fun themeFetchWithLinkRequiresDestinationBeforeBackendCall() {
+        val calls = mutableListOf<String>()
+        val runtime = fakeRuntime(onGet = { calls += it })
+        val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1.0.0&platform=compose"
+
+        val result = DsBuilderCli(runtime).execute(listOf("theme", "fetch", "--design-system", link))
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("--destination"), result.output)
+        assertTrue(calls.isEmpty())
+    }
+
+    @Test
+    fun themeFetchDoesNotOverwriteDestinationConfig() {
+        val fileSystem = FakeFileSystem(currentDirectory = "/repo")
+        val existingConfig = ProjectConfigCodec().encode(projectConfig())
+        fileSystem.writeText("/target/.sdds/config.json", existingConfig)
+        val runtime = fakeRuntime(
+            fileSystem = fileSystem,
+            credentialStore = testSessionStore(),
+            tokenClient = testTokenClient(),
+            httpResults = successfulThemeHttpResults(),
+        )
+        val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1.0.0&platform=compose"
+
+        val result = DsBuilderCli(runtime).execute(
+            listOf("theme", "fetch", "--design-system", link, "--destination", "/target"),
+        )
+
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("already exists"), result.output)
+        assertEquals(existingConfig, fileSystem.readText("/target/.sdds/config.json"))
+        assertFalse(fileSystem.exists("/target/.sdds/tenants/palette.json"))
+    }
+
+    @Test
     fun themeFetchPreservesAliasForExistingTenantAndRemovesMissingTenantAlias() {
         val fileSystem = initializedFileSystem()
         ProjectConfigStore(fileSystem).updateTenants(
@@ -822,7 +1055,7 @@ class DsBuilderCliTest {
         assertEquals("Status: forbidden. API key has no access to this project.", backendFailure.output)
         assertFalse(backendFailure.output.contains("secret-value"))
         assertEquals(1, credentialMissing.exitCode)
-        assertTrue(credentialMissing.output.contains("DSBUILDER_PROJECT_A_API_KEY"))
+        assertTrue(credentialMissing.output.contains("authentication is required"))
     }
 
     private fun assertPaletteWritten(fileSystem: FakeFileSystem) {
@@ -1042,6 +1275,9 @@ class DsBuilderCliTest {
         multipartResponse: AuthenticatedHttpResponse = AuthenticatedHttpResponse(503, ""),
         onPost: (String, MultipartFile) -> Unit = { _, _ -> },
         onCreate: (String, String) -> Unit = { _, _ -> },
+        credentialStore: CredentialStore? = null,
+        tokenClient: TokenClient? = null,
+        onCredential: (BackendCredential) -> Unit = {},
     ): ClientRuntime = ClientRuntime(
         fileSystem = fileSystem,
         environmentReader = EnvironmentReader { name -> environment[name] },
@@ -1052,9 +1288,37 @@ class DsBuilderCliTest {
             multipartResponse,
             onPost,
             onCreate,
+            onCredential,
         ),
         processRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
-    )
+    ).let { runtime ->
+        runtime.copy(
+            credentialStore = credentialStore ?: runtime.credentialStore,
+            tokenClient = tokenClient ?: runtime.tokenClient,
+        )
+    }
+
+    private fun testSessionStore(): CredentialStore = object : CredentialStore {
+        override suspend fun read(apiUrl: String): UserSession = UserSession(
+            schemaVersion = 1,
+            apiUrl = apiUrl,
+            username = "user@example.com",
+            refreshToken = "refresh-token",
+            refreshExpiresAt = 999,
+            updatedAt = 1,
+        )
+        override suspend fun save(session: UserSession) = Unit
+        override suspend fun delete(apiUrl: String) = Unit
+    }
+
+    private fun testTokenClient(): TokenClient = object : TokenClient {
+        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
+            AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
+        override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
+            AuthResult.Success(TokenResponse("access-token", "refresh-token", 999))
+        override suspend fun logout(apiUrl: String, refreshToken: String): AuthResult<Unit> =
+            AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
+    }
 }
 
 private class FakeAuthenticatedHttpClientFactory(
@@ -1064,7 +1328,15 @@ private class FakeAuthenticatedHttpClientFactory(
     private val multipartResponse: AuthenticatedHttpResponse,
     private val onPost: (String, MultipartFile) -> Unit,
     private val onCreate: (String, String) -> Unit,
+    private val onCredential: (BackendCredential) -> Unit,
 ) : AuthenticatedHttpClientFactory {
+    override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient {
+        onCredential(credential)
+        return when (credential) {
+            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.Bearer -> create(apiUrl, "")
+        }
+    }
     override fun create(
         apiUrl: String,
         apiKey: String,

@@ -1,6 +1,7 @@
 {
     "projectId": "408836bf-4097-4202-a5c5-0157a23e701c",
     "designSystemId": "da469406-1a0d-4a07-810d-835640801b20",
+    "platforms": ["compose"],
     "credential": {
         "type": "env",
         "name": "DSB_DEV_API_KEY"

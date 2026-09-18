@@ -11,10 +11,12 @@ import com.dsbuilder.frontend.feature.components.application.ComponentReadErrorC
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ComponentReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentReadRuntime
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 public class HttpComponentReadRemoteSource(
     private val httpClientFactory: AuthenticatedHttpClientFactory,
@@ -34,12 +36,12 @@ public class HttpComponentReadRemoteSource(
         command: ComponentConfigReadCommand,
     ): ComponentReadResult {
         val body = json.encodeToString(
-            ComponentConfigExportRequest.serializer(),
-            ComponentConfigExportRequest(
-                designSystemId = runtime.context.designSystemId.value,
-                components = listOf(command.identifier),
-                styles = command.style?.let(::listOf),
-            ),
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("designSystemId", runtime.context.designSystemId.value)
+                put("components", JsonArray(listOf(JsonPrimitive(command.identifier))))
+                command.style?.let { put("styles", JsonArray(listOf(JsonPrimitive(it)))) }
+            },
         )
         return runtime.post("/api/projects/${runtime.context.projectId.value}/ds/component-config/export", body)
     }
@@ -52,6 +54,9 @@ public class HttpComponentReadRemoteSource(
         command: ComponentGetReadCommand,
     ): ComponentReadResult =
         runtime.get(runtime.designSystemModelPath("components/${encodePath(command.identifier)}/variations"))
+
+    override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
+        runtime.get(runtime.designSystemModelPath("tokens"))
 
     private suspend fun ComponentReadRuntime.get(path: String): ComponentReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
@@ -81,20 +86,12 @@ public class HttpComponentReadRemoteSource(
     }
 }
 
-@Serializable
-private data class ComponentConfigExportRequest(
-    val designSystemId: String,
-    val components: List<String>,
-    val styles: List<String>? = null,
-)
-
 private fun AuthenticatedHttpResult.Failure.toReadError(): ComponentReadResult.Failed {
-    val code = when {
-        message.contains("unauthorized", ignoreCase = true) -> ComponentReadErrorCode.AUTH_REQUIRED
-        message.contains("forbidden", ignoreCase = true) -> ComponentReadErrorCode.FORBIDDEN
-        message.contains("not found", ignoreCase = true) -> ComponentReadErrorCode.NOT_FOUND
-        message.contains("HTTP 400", ignoreCase = true) -> ComponentReadErrorCode.INVALID_QUERY
-        message.contains("unreachable", ignoreCase = true) -> ComponentReadErrorCode.BACKEND_UNAVAILABLE
+    val code = when (statusCode) {
+        401 -> ComponentReadErrorCode.AUTH_REQUIRED
+        403 -> ComponentReadErrorCode.FORBIDDEN
+        404 -> ComponentReadErrorCode.NOT_FOUND
+        400 -> ComponentReadErrorCode.INVALID_QUERY
         else -> ComponentReadErrorCode.BACKEND_UNAVAILABLE
     }
     return ComponentReadResult.Failed(code, message)

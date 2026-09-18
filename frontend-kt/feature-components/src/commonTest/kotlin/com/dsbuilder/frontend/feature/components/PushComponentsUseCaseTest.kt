@@ -1,13 +1,15 @@
 package com.dsbuilder.frontend.feature.components
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.API_URL_ENV
@@ -36,6 +38,19 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PushComponentsUseCaseTest {
+
+    @Test
+    fun acceptsBearerForImport() = runTest {
+        var selected: BackendCredential? = null
+        val result = execute(
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Selected(BackendCredential.Bearer("access"), BackendCredentialType.USER_SESSION),
+            ),
+            onImport = { selected = it.credential },
+        )
+        assertTrue(result is PushComponentsResult.Pushed)
+        assertEquals(BackendCredential.Bearer("access"), selected)
+    }
     private val context = ProjectContext(
         projectId = ProjectId("project-a"),
         designSystemId = DesignSystemId("ds-a"),
@@ -53,7 +68,7 @@ class PushComponentsUseCaseTest {
 
         val sent = commands.single()
         assertEquals("http://localhost:8080", sent.apiUrl.value)
-        assertEquals("secret-key", sent.apiKey.value)
+        assertEquals(BackendCredential.ProjectKey("secret-key"), sent.credential)
         assertEquals("project-a", sent.projectId.value)
         assertEquals("ds-a", sent.designSystemId.value)
         assertEquals("sdds_sbcom", sent.packageName)
@@ -166,9 +181,9 @@ class PushComponentsUseCaseTest {
     fun missingApiKeyIsReportedWithoutCallingRemoteSource() = runTest {
         var requested = false
         val result = execute(
-            apiKeyProvider = ProjectApiKeyProvider { _, _ ->
-                ProjectApiKeyResult.Missing("Error: API key is not set.")
-            },
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: API key is not set."),
+            ),
             onImport = { requested = true },
         )
 
@@ -238,9 +253,9 @@ class PushComponentsUseCaseTest {
             override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
                 ProjectContextReadResult.Found(context)
         },
-        apiKeyProvider: ProjectApiKeyProvider = ProjectApiKeyProvider { _, _ ->
-            ProjectApiKeyResult.Found(ProjectApiKey("secret-key"))
-        },
+        credentialProvider: CredentialProvider = testCredentialProvider(
+            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+        ),
         dryRun: Boolean = true,
         apiUrlOverride: String? = "http://localhost:8080",
         environment: (String) -> String? = { null },
@@ -249,7 +264,7 @@ class PushComponentsUseCaseTest {
     ): PushComponentsResult {
         val useCase = PushComponentsUseCase(
             projectContextReader = contextReader,
-            projectApiKeyProvider = apiKeyProvider,
+            credentialProvider = credentialProvider,
             apiUrlResolver = ApiUrlResolver(EnvironmentReader(environment)),
             componentPackageLoader = loader ?: ComponentPackageLoader { _, _ ->
                 ComponentPackageResult.Loaded(

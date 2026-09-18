@@ -61,12 +61,11 @@ public class HttpTokenReadRemoteSource(
 }
 
 private fun AuthenticatedHttpResult.Failure.toReadError(): TokenReadResult.Failed {
-    val code = when {
-        message.contains("unauthorized", ignoreCase = true) -> TokenReadErrorCode.AUTH_REQUIRED
-        message.contains("forbidden", ignoreCase = true) -> TokenReadErrorCode.FORBIDDEN
-        message.contains("not found", ignoreCase = true) -> TokenReadErrorCode.NOT_FOUND
-        message.contains("HTTP 400", ignoreCase = true) -> TokenReadErrorCode.INVALID_QUERY
-        message.contains("unreachable", ignoreCase = true) -> TokenReadErrorCode.BACKEND_UNAVAILABLE
+    val code = when (statusCode) {
+        401 -> TokenReadErrorCode.AUTH_REQUIRED
+        403 -> TokenReadErrorCode.FORBIDDEN
+        404 -> TokenReadErrorCode.NOT_FOUND
+        400 -> TokenReadErrorCode.INVALID_QUERY
         else -> TokenReadErrorCode.BACKEND_UNAVAILABLE
     }
     return TokenReadResult.Failed(code, message)

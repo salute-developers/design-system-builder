@@ -1,6 +1,6 @@
 package com.dsbuilder.frontend.feature.components
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
+import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -41,7 +41,7 @@ public fun componentsApplicationModule(): Module = module {
     single {
         PushComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),
-            projectApiKeyProvider = get<ProjectApiKeyProvider>(),
+            credentialProvider = get<CredentialProvider>(),
             apiUrlResolver = get<ApiUrlResolver>(),
             componentPackageLoader = get<ComponentPackageLoader>(),
             remoteSource = get<ComponentConfigRemoteSource>(),
@@ -58,7 +58,7 @@ public fun componentsApplicationModule(): Module = module {
     single {
         FetchComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),
-            projectApiKeyProvider = get<ProjectApiKeyProvider>(),
+            credentialProvider = get<CredentialProvider>(),
             apiUrlResolver = get<ApiUrlResolver>(),
             remoteSource = get<ComponentConfigRemoteSource>(),
             directoryReader = get<ComponentPackageDirectoryReader>(),

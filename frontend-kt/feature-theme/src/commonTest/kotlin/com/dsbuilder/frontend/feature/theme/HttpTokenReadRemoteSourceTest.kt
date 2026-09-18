@@ -53,7 +53,7 @@ class HttpTokenReadRemoteSourceTest {
     fun forbiddenBackendFailureMapsToStableCode() = runTest {
         val source = HttpTokenReadRemoteSource(
             httpClientFactory = FakeHttpClientFactory {
-                AuthenticatedHttpResult.Failure("Status: forbidden. API key has no access to this project.")
+                AuthenticatedHttpResult.Failure("Status: forbidden. API key has no access to this project.", 403)
             },
             json = Json,
         )

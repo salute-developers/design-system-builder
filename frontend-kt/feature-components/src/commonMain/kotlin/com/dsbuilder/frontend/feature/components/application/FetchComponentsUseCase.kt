@@ -1,7 +1,8 @@
 package com.dsbuilder.frontend.feature.components.application
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -24,7 +25,7 @@ import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
  */
 public class FetchComponentsUseCase internal constructor(
     private val projectContextReader: ProjectContextReader,
-    private val projectApiKeyProvider: ProjectApiKeyProvider,
+    private val credentialProvider: CredentialProvider,
     private val apiUrlResolver: ApiUrlResolver,
     private val remoteSource: ComponentConfigRemoteSource,
     private val directoryReader: ComponentPackageDirectoryReader,
@@ -42,23 +43,38 @@ public class FetchComponentsUseCase internal constructor(
      */
     @Suppress("ReturnCount")
     public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
-        val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride)
-
-        val context = when (val read = projectContextReader.requireContext(null)) {
+        val found = when (
+            val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+        ) {
             is ProjectContextReadResult.Failed -> return FetchComponentsResult.Failed(read.message)
-            is ProjectContextReadResult.Found -> read.context
+            is ProjectContextReadResult.Found -> read
         }
+        val context = found.context
+        if (context.configPath.isBlank() && command.destination.directory == null) {
+            return FetchComponentsResult.Failed("--to is required with --design-system.")
+        }
+        val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride, found.projectEnvironment)
 
-        val apiKey = when (val key = projectApiKeyProvider.resolve(command.apiKeyOverride, context.credentialEnvName)) {
-            is ProjectApiKeyResult.Missing -> return FetchComponentsResult.Failed(key.message)
-            is ProjectApiKeyResult.Found -> key.value
+        val credential = when (
+            val selected = credentialProvider.resolve(
+                CredentialRequest(
+                    ProjectApiUrl(apiUrl.value),
+                    command.apiKeyOverride,
+                    context.credentialEnvName,
+                    context.credentialPolicy,
+                    found.projectEnvironment,
+                ),
+            )
+        ) {
+            is CredentialResult.Failed -> return FetchComponentsResult.Failed(selected.message)
+            is CredentialResult.Selected -> selected.credential
         }
 
         val exported = when (
             val result = remoteSource.export(
                 ExportComponentsCommand(
                     apiUrl = ProjectApiUrl(apiUrl.value),
-                    apiKey = apiKey,
+                    credential = credential,
                     projectId = context.projectId,
                     designSystemId = context.designSystemId,
                 ),
@@ -167,11 +183,15 @@ private sealed interface RenderResult {
  * @property destination куда писать пакет.
  * @property apiKeyOverride API key, переданный аргументом.
  * @property apiUrlOverride backend API URL, переданный аргументом.
+ * @property designSystemUri явная ссылка на дизайн-систему.
+ * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  */
 public data class FetchComponentsCommand(
     public val destination: ComponentDestination,
     public val apiKeyOverride: String? = null,
     public val apiUrlOverride: String? = null,
+    public val designSystemUri: String? = null,
+    public val projectKeyEnvName: String? = null,
 )
 
 /**

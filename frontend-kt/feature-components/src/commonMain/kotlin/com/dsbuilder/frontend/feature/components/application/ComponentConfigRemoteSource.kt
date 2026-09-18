@@ -1,7 +1,7 @@
 package com.dsbuilder.frontend.feature.components.application
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.feature.components.domain.ComponentImportReport
@@ -39,7 +39,7 @@ internal interface ComponentConfigRemoteSource {
  */
 internal data class ExportComponentsCommand(
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
     val projectId: ProjectId,
     val designSystemId: DesignSystemId,
 )
@@ -81,7 +81,7 @@ internal sealed interface ExportComponentsResult {
  */
 internal data class ImportComponentsCommand(
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
     val projectId: ProjectId,
     val designSystemId: DesignSystemId,
     val packageName: String,

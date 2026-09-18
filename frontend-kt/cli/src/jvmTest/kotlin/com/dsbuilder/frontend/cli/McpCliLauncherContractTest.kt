@@ -31,8 +31,10 @@ class McpCliLauncherContractTest {
 
             stdin.writeLine(initializedNotification())
             stdin.writeLine(toolsListRequest())
+            stdin.writeLine(contextRequest())
             stdin.flush()
             val toolsListResponse = stdout.readLine()
+            val contextResponse = stdout.readLine()
 
             stdin.close()
 
@@ -44,6 +46,19 @@ class McpCliLauncherContractTest {
             assertTrue(toolsListResponse.contains(""""id":2"""), toolsListResponse)
             assertTrue(toolsListResponse.contains("design_system_get_context"), toolsListResponse)
             assertTrue(toolsListResponse.contains("project_get_status"), toolsListResponse)
+            assertTrue(contextResponse.contains("project-headless"), contextResponse)
+            assertTrue(contextResponse.contains("explicit-link"), contextResponse)
+            assertTrue(toolsListResponse.contains("components.basic-button"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("component-style"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("The value component is not valid"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("\"enum\":[\"component-style\",\"token\"]"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("BasicButton.S.Accent"), toolsListResponse)
+            assertTrue(toolsListResponse.contains("android for Compose"), toolsListResponse)
+            assertTrue(
+                toolsListResponse.contains("queries such as BasicButton or button may be empty"),
+                toolsListResponse,
+            )
+            assertTrue(toolsListResponse.contains("\"enum\":[\"light\",\"dark\"]"), toolsListResponse)
             assertTrue(!initializeResponse.contains("Run DS Builder MCP tools."), initializeResponse)
             assertTrue(!toolsListResponse.contains("Run DS Builder MCP tools."), toolsListResponse)
             assertTrue(!toolsListResponse.contains("secret"), toolsListResponse)
@@ -68,6 +83,11 @@ class McpCliLauncherContractTest {
     private fun toolsListRequest(): String =
         """
         {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+        """.trimIndent()
+
+    private fun contextRequest(): String =
+        """
+        {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0&platform=compose"}}}
         """.trimIndent()
 }
 

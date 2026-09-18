@@ -37,9 +37,11 @@ public sealed interface AuthenticatedHttpResult {
      * Backend вернул user-facing failure без raw secret.
      *
      * @property message deterministic сообщение для CLI output.
+     * @property statusCode numeric HTTP status, or null for a transport failure.
      */
     public data class Failure(
         public val message: String,
+        public val statusCode: Int? = null,
     ) : AuthenticatedHttpResult
 }
 
@@ -196,16 +198,20 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
         status.isSuccess() -> AuthenticatedHttpResult.Success(bodyAsText())
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
-            "Status: unauthorized. API key is missing or invalid.",
+            "Status: unauthorized. Credential is missing or invalid.",
+            status.value,
         )
         status == HttpStatusCode.Forbidden -> AuthenticatedHttpResult.Failure(
-            "Status: forbidden. API key has no access to this project.",
+            "Status: forbidden. Credential has no access to this project.",
+            status.value,
         )
         status == HttpStatusCode.NotFound -> AuthenticatedHttpResult.Failure(
             "Status: not found. Project or resource was not found.",
+            status.value,
         )
         else -> AuthenticatedHttpResult.Failure(
             "Status: failed. Backend returned HTTP ${status.value}.",
+            status.value,
         )
     }
 

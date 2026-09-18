@@ -39,6 +39,27 @@
 ./gradlew :cli:runJvm --args="theme fetch --api-url http://localhost:8080 --api-key dev-token"
 ```
 
+## Контекст и авторизация
+
+Локальная `.sdds/config.json` выбирает проект и дизайн-систему. `credential.type = "auto"`
+сначала читает проектный ключ из указанной env-переменной, затем пользовательскую сессию;
+старое значение `"env"` сохраняет этот порядок. `"user-session"` использует только
+сессию после `dsbuilder auth login`. `"project-key-env"` использует только ключ из env.
+Секреты в config не записываются.
+
+Для работы без `.sdds` передайте ссылку каждому CLI-вызову или MCP tool call:
+
+```bash
+dsbuilder status --design-system 'dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose'
+dsbuilder docs publish --bundle ./docs-bundle.tar.gz --design-system 'dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose'
+DSBUILDER_API_KEY=... dsbuilder status --design-system 'dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose' --project-key-env DSBUILDER_API_KEY
+```
+
+Ссылка задаёт только контекст. API URL выбирается отдельно через `--api-url` или
+`DSBUILDER_API_URL`. Без `--project-key-env` явная ссылка использует пользовательскую сессию.
+Для `components push/fetch` с явной ссылкой требуются локальные `--from`/`--to`.
+`theme fetch` записывает данные в локальную `.sdds`. При запуске без локального config укажите ссылку и каталог: `dsbuilder theme fetch --design-system '<uri>' --destination ./my-project`. Команда создаст `./my-project/.sdds/config.json` и не перезапишет существующий config.
+
 ## Node.js MCP launcher
 
 Для локальной проверки npm package:

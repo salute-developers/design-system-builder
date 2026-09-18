@@ -97,6 +97,7 @@ internal class DocsProjectContextAdapter(
             is ProjectContextReadResult.Failed -> when (result.reason) {
                 ProjectContextFailure.NOT_INITIALIZED -> DocsPlatformsRead.NotInitialized
                 ProjectContextFailure.INVALID -> DocsPlatformsRead.Invalid(result.message)
+                ProjectContextFailure.INVALID_CONTEXT -> DocsPlatformsRead.Invalid(result.message)
             }
         }
 

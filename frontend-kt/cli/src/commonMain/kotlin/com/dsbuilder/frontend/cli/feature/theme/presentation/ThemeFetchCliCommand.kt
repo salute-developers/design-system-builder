@@ -18,6 +18,12 @@ internal class ThemeFetchCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val apiUrl: String? by option("--api-url")
+    private val designSystem: String? by option("--design-system")
+    private val projectKeyEnv: String? by option("--project-key-env")
+    private val destination: String? by option(
+        "--destination",
+        help = "Local directory for a new .sdds when using a design-system link.",
+    )
 
     override fun run() {
         val result = runBlocking {
@@ -25,6 +31,9 @@ internal class ThemeFetchCliCommand(
                 FetchThemesCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = apiUrl,
+                    designSystemUri = designSystem,
+                    projectKeyEnvName = projectKeyEnv,
+                    destinationDirectory = destination,
                 ),
             )
         }

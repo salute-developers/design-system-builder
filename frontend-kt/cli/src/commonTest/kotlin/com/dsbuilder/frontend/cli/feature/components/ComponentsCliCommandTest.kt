@@ -64,7 +64,7 @@ class ComponentsCliCommandTest {
     fun pushHelpDoesNotOfferRemoteSource() {
         val result = cli().execute(listOf("components", "push", "--help"))
 
-        assertTrue(!result.output.contains("--design-system"), result.output)
+        assertTrue(result.output.contains("--design-system"), result.output)
         assertTrue(!result.output.contains("--version"), result.output)
     }
 
@@ -108,17 +108,16 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun pushWithoutExplicitApiUrlIsRejectedBeforeAnyRequest() {
+    fun pushWithoutProjectContextIsRejectedBeforeAnyRequest() {
         val fileSystem = RecordingFileSystem()
         var backendCalls = 0
 
         val result = cli(fileSystem) { backendCalls++ }.execute(listOf("components", "push"))
 
         assertEquals(1, result.exitCode)
-        assertTrue(result.output.contains("--api-url"), result.output)
-        assertTrue(result.output.contains("DSBUILDER_API_URL"), result.output)
+        assertTrue(result.output.contains("--design-system"), result.output)
         assertEquals(0, backendCalls, "запрос отправлен несмотря на умолчание API URL")
-        assertTrue(fileSystem.reads.isEmpty(), "прочитан config, хотя URL отклонён: ${fileSystem.reads}")
+        assertTrue(fileSystem.reads.isNotEmpty(), "project context не искался")
     }
 
     private fun cli(

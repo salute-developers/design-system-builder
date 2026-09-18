@@ -5,32 +5,37 @@
 ## Requirements
 ### Requirement: CLI components push command
 
-CLI `dsbuilder` SHALL provide project-scoped command `components push` for uploading component configurations of a design system into the DS Builder backend.
+CLI `dsbuilder` SHALL предоставлять project-scoped команду `components push` для отправки конфигураций компонентов дизайн-системы в backend DS Builder с выбранным credential.
 
 #### Scenario: Components push использует project-scoped context
 
-- **WHEN** developer runs `dsbuilder components push` inside an initialized project directory
-- **THEN** CLI MUST resolve the nearest `.sdds/config.json`
-- **THEN** CLI MUST resolve API key credentials through CLI core
-- **THEN** CLI MUST use `projectId` and `designSystemId` from config for design-system scoped requests
-- **THEN** CLI MUST include `Authorization: ProjectKey <api_key>` in backend requests
-- **THEN** CLI MUST NOT print the raw API key
+- **WHEN** разработчик запускает `dsbuilder components push` внутри initialized project directory
+- **THEN** CLI MUST разрешить ближайшую `.sdds/config.json`
+- **THEN** CLI MUST разрешить credential через CLI core
+- **THEN** CLI MUST использовать `projectId` и `designSystemId` из config
+- **THEN** CLI MUST отправить `Authorization: ProjectKey <key>` либо `Authorization: Bearer <token>` согласно policy
+- **THEN** CLI MUST NOT выводить raw credential
 
 #### Scenario: Components push help не требует project config
 
-- **WHEN** developer runs `dsbuilder components --help` or `dsbuilder components push --help`
-- **THEN** CLI MUST show deterministic help
-- **THEN** CLI MUST NOT require `.sdds/config.json`, backend services, Docker, credentials, or private URLs
+- **WHEN** разработчик запускает `dsbuilder components --help` или `dsbuilder components push --help`
+- **THEN** CLI MUST показать deterministic help
+- **THEN** CLI MUST NOT требовать `.sdds/config.json`, backend, credential или private URL
+
+#### Scenario: Components push с user session
+
+- **WHEN** config выбирает `user-session` и backend разрешает операцию пользователю
+- **THEN** CLI MUST выполнить запрос с Bearer access token без project key
 
 ### Requirement: Components push requires explicit backend target
 
-CLI `components push` SHALL refuse to run when the backend API URL was resolved from the code default, because the code default points at a shared backend installation.
+CLI `components push` SHALL refuse to run when the backend API URL was resolved from the code default, because the code default points at a shared backend installation. Команда SHALL сначала разрешить локальный context, чтобы проектный `.env` мог предоставить явно настроенный API URL.
 
 #### Scenario: Push без явного API URL отклоняется
 
-- **WHEN** developer runs `dsbuilder components push`
+- **WHEN** developer runs `dsbuilder components push` в инициализированном проекте
 - **WHEN** `--api-url` is absent
-- **WHEN** environment does not contain `DSBUILDER_API_URL`
+- **WHEN** env процесса и проектный `.env` не содержат `DSBUILDER_API_URL`
 - **THEN** CLI MUST return a deterministic failure output explaining that a backend API URL must be provided explicitly
 - **THEN** the message MUST name both `--api-url` and `DSBUILDER_API_URL`
 - **THEN** CLI MUST NOT send any backend request
@@ -40,6 +45,12 @@ CLI `components push` SHALL refuse to run when the backend API URL was resolved 
 - **WHEN** developer runs `dsbuilder components push --api-url http://localhost:8080`
 - **THEN** CLI MUST use `http://localhost:8080` as the backend API URL
 - **THEN** CLI MUST NOT write the API URL into `.sdds/config.json`
+
+#### Scenario: Push принимает проектный API URL
+
+- **WHEN** локальная `.sdds/config.json` найдена и соседний `.env` содержит `DSBUILDER_API_URL`
+- **WHEN** `--api-url` и env процесса не задают URL
+- **THEN** CLI MUST использовать URL из `.env` как явно настроенный backend target
 
 #### Scenario: Push печатает resolved target перед записью
 
@@ -211,31 +222,31 @@ CLI `components push` SHALL upload the whole package in a single request to the 
 
 ### Requirement: CLI components fetch command
 
-CLI `dsbuilder` SHALL provide project-scoped command `components fetch` for downloading component
-configurations of a design system from the DS Builder backend into a local component package.
+CLI `dsbuilder` SHALL предоставлять project-scoped команду `components fetch` для загрузки конфигураций компонентов дизайн-системы из backend DS Builder в локальный component package с выбранным credential.
 
 #### Scenario: Components fetch использует project-scoped context
 
-- **WHEN** developer runs `dsbuilder components fetch` inside an initialized project directory
-- **THEN** CLI MUST resolve the nearest `.sdds/config.json`
-- **THEN** CLI MUST resolve API key credentials through CLI core
-- **THEN** CLI MUST use `projectId` and `designSystemId` from config for the request
-- **THEN** CLI MUST include `Authorization: ProjectKey <api_key>` in backend requests
-- **THEN** CLI MUST NOT print the raw API key
+- **WHEN** разработчик запускает `dsbuilder components fetch` внутри initialized project directory
+- **THEN** CLI MUST разрешить ближайшую `.sdds/config.json`
+- **THEN** CLI MUST разрешить credential через CLI core
+- **THEN** CLI MUST использовать `projectId` и `designSystemId` из config для запроса
+- **THEN** CLI MUST отправить `Authorization: ProjectKey <key>` либо `Authorization: Bearer <token>` согласно policy
+- **THEN** CLI MUST NOT выводить raw credential
 
 #### Scenario: Components fetch help не требует project config
 
-- **WHEN** developer runs `dsbuilder components fetch --help`
-- **THEN** CLI MUST show deterministic help
-- **THEN** CLI MUST NOT require `.sdds/config.json`, backend services, Docker, credentials, or private URLs
+- **WHEN** разработчик запускает `dsbuilder components fetch --help`
+- **THEN** CLI MUST показать deterministic help
+- **THEN** CLI MUST NOT требовать `.sdds/config.json`, backend, credential или private URL
 
 #### Scenario: Fetch печатает resolved source перед записью
 
-- **WHEN** `dsbuilder components fetch` has received the package from the backend
-- **THEN** CLI MUST print the resolved backend API URL and the source of that URL
-- **THEN** CLI MUST print `projectId` and `designSystemId` used for the request
-- **THEN** CLI MUST print the package name, its version and the number of configurations
-- **THEN** CLI MUST print the target directory
+- **WHEN** `dsbuilder components fetch` получил package от backend
+- **THEN** CLI MUST вывести resolved backend API URL и источник этого URL
+- **THEN** CLI MUST вывести `projectId` и `designSystemId`, использованные для запроса
+- **THEN** CLI MUST вывести имя package, его version и число configurations
+- **THEN** CLI MUST вывести target directory
+- **THEN** CLI MUST NOT выводить raw credential
 
 ### Requirement: Components fetch backend contract
 

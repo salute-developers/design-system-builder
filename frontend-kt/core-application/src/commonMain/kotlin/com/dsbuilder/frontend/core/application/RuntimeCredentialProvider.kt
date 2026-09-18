@@ -11,6 +11,7 @@ import com.dsbuilder.frontend.core.auth.RotatingCredentialStore
 import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 
 /**
@@ -25,19 +26,44 @@ internal class RuntimeCredentialProvider(
         apiUrl: ProjectApiUrl,
         projectKeyOverride: String?,
         credentialEnvName: CredentialEnvName,
-    ): CredentialResult =
-        resolveProjectKey(projectKeyOverride, credentialEnvName)?.let { projectKey ->
+    ): CredentialResult = resolve(
+        CredentialRequest(apiUrl, projectKeyOverride, credentialEnvName, CredentialPolicy.AUTO),
+    )
+
+    override suspend fun resolve(
+        apiUrl: ProjectApiUrl,
+        projectKeyOverride: String?,
+        credentialEnvName: CredentialEnvName,
+        policy: CredentialPolicy,
+    ): CredentialResult = resolve(CredentialRequest(apiUrl, projectKeyOverride, credentialEnvName, policy))
+
+    override suspend fun resolve(request: CredentialRequest): CredentialResult {
+        val apiUrl = request.apiUrl
+        val projectKeyOverride = request.projectKeyOverride
+        val credentialEnvName = request.credentialEnvName
+        val policy = request.policy
+        if (policy == CredentialPolicy.USER_SESSION) return resolveSessionCredential(apiUrl)
+        val key = resolveProjectKey(projectKeyOverride, credentialEnvName, request.projectEnvironment)
+        if (key == null && policy == CredentialPolicy.PROJECT_KEY_ENV) {
+            return CredentialResult.Failed(
+                AuthErrorCode.AUTH_REQUIRED,
+                "Error: project key is required from ${credentialEnvName.value}.",
+            )
+        }
+        return key?.let { projectKey ->
             CredentialResult.Selected(
                 credential = BackendCredential.ProjectKey(projectKey.value),
                 type = BackendCredentialType.PROJECT_KEY,
             )
         } ?: resolveSessionCredential(apiUrl)
+    }
 
     private fun resolveProjectKey(
         projectKeyOverride: String?,
         credentialEnvName: CredentialEnvName,
+        projectEnvironment: com.dsbuilder.frontend.core.auth.EnvironmentReader?,
     ) = try {
-        apiKeyResolver.resolve(projectKeyOverride, credentialEnvName.value)
+        apiKeyResolver.resolve(projectKeyOverride, credentialEnvName.value, projectEnvironment)
     } catch (_: MissingApiKeyException) {
         null
     }

@@ -243,8 +243,11 @@ private object NodeWorkspaceFileSystem : WorkspaceFileSystem {
     override fun readText(path: String): String =
         nodeFs.readFileSync(path, "utf8") as String
 
-    override fun readBytes(path: String): ByteArray =
-        error("Binary reads are not used by the MCP Node launcher.")
+    override fun readBytes(path: String): ByteArray {
+        val buffer = nodeFs.readFileSync(path)
+        val size = buffer.length as Int
+        return ByteArray(size) { index -> (buffer[index] as Int).toByte() }
+    }
 
     override fun writeText(path: String, text: String) {
         nodeFs.writeFileSync(path, text)

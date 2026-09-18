@@ -11,6 +11,7 @@ import com.dsbuilder.frontend.core.auth.TokenClient
 import com.dsbuilder.frontend.core.auth.TokenResponse
 import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.network.API_URL_ENV
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
@@ -24,7 +25,9 @@ import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 /**
  * Characterization-тесты на текущее поведение [LocalProjectContextReader] и
@@ -32,6 +35,218 @@ import kotlin.test.assertIs
  * Gradle-модуль `core-application` (ADR-0004).
  */
 class RuntimeAdaptersTest {
+    @Test
+    fun runtimeResolverReloadsProjectEnvPerCallWithoutUsingItForExplicitLink() = runTest {
+        val fileSystem = InMemoryFileSystem(currentDirectory = "/repo")
+        fileSystem.files["/repo/.sdds/config.json"] = ProjectConfigCodec().encode(
+            ProjectConfig(
+                "project-a", "design-system-a", CredentialReference(CredentialReferenceType.ENV, "PROJECT_KEY"),
+            ),
+        )
+        fileSystem.files["/repo/.env"] = "PROJECT_KEY=first-key\nDSBUILDER_API_URL=https://first.test"
+        val contextResolver = ContextResolver(
+            listOf(NearestProjectConfigContextSource(ProjectConfigStore(fileSystem))),
+            ProjectEnvironmentLoader(fileSystem),
+        )
+        val process = EnvironmentReader { null }
+        val credentials = RuntimeCredentialProvider(
+            com.dsbuilder.frontend.core.auth.ApiKeyResolver(process),
+            object : CredentialStore {
+                override suspend fun read(apiUrl: String): UserSession? = null
+                override suspend fun save(session: UserSession) = Unit
+                override suspend fun delete(apiUrl: String) = Unit
+            },
+            NoopTokenClient,
+        )
+        val resolver = RuntimeRequestResolver(contextResolver, ApiUrlResolver(process), credentials)
+
+        val first = assertIs<RuntimeResolution.Resolved>(resolver.resolve(RuntimeRequest()))
+        assertEquals("first-key", assertIs<BackendCredential.ProjectKey>(first.credential).value)
+        assertEquals("https://first.test", first.apiUrl.value)
+        fileSystem.files["/repo/.env"] = "PROJECT_KEY=second-key\nDSBUILDER_API_URL=https://second.test"
+        val second = assertIs<RuntimeResolution.Resolved>(resolver.resolve(RuntimeRequest()))
+        assertEquals("second-key", assertIs<BackendCredential.ProjectKey>(second.credential).value)
+        assertEquals("https://second.test", second.apiUrl.value)
+
+        val link = "dsbuilder://projects/project-b/design-systems/design-system-b?version=1&platform=compose"
+        val explicit = assertIs<RuntimeResolution.Failed>(
+            resolver.resolve(RuntimeRequest(selection = ContextSelection.Link(link, "PROJECT_KEY"))),
+        )
+        assertEquals(RuntimeFailureCode.AUTH_REQUIRED, explicit.code)
+        assertFalse(explicit.message.contains("second-key"))
+    }
+
+    @Test
+    fun projectKeyFromLocalEnvIsUsedInAutoAndForcedKeyModes() = runTest {
+        var sessionReads = 0
+        val provider = RuntimeCredentialProvider(
+            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            credentialStore = object : CredentialStore {
+                override suspend fun read(apiUrl: String): UserSession? {
+                    sessionReads++
+                    return null
+                }
+                override suspend fun save(session: UserSession) = Unit
+                override suspend fun delete(apiUrl: String) = Unit
+            },
+            tokenClient = NoopTokenClient,
+        )
+        val project = EnvironmentReader { name -> "local-key".takeIf { name == "PROJECT_KEY" } }
+        for (policy in listOf(CredentialPolicy.AUTO, CredentialPolicy.PROJECT_KEY_ENV)) {
+            val selected = assertIs<CredentialResult.Selected>(
+                provider.resolve(
+                    CredentialRequest(
+                        ProjectApiUrl("https://api.test"),
+                        null,
+                        CredentialEnvName("PROJECT_KEY"),
+                        policy,
+                        project,
+                    ),
+                ),
+            )
+            assertEquals("local-key", assertIs<BackendCredential.ProjectKey>(selected.credential).value)
+        }
+        assertEquals(0, sessionReads)
+        assertIs<CredentialResult.Failed>(
+            provider.resolve(
+                CredentialRequest(
+                    ProjectApiUrl("https://api.test"),
+                    null,
+                    CredentialEnvName("PROJECT_KEY"),
+                    CredentialPolicy.USER_SESSION,
+                    project,
+                ),
+            ),
+        )
+        assertEquals(1, sessionReads)
+    }
+
+    @Test
+    fun nearestProjectLoadsOnlyItsRootEnvAndTakesOneSnapshot() {
+        val fileSystem = InMemoryFileSystem(currentDirectory = "/repo/nested/src")
+        val config = ProjectConfigCodec().encode(
+            ProjectConfig(
+                "project-a",
+                "design-system-a",
+                CredentialReference(CredentialReferenceType.ENV, "PROJECT_KEY"),
+            ),
+        )
+        fileSystem.files["/repo/.sdds/config.json"] = config
+        fileSystem.files["/repo/.env"] = "PROJECT_KEY=parent-key"
+        fileSystem.files["/repo/nested/.sdds/config.json"] = config
+        fileSystem.files["/repo/nested/.env"] = "PROJECT_KEY=nested-key"
+        fileSystem.files["/repo/nested/src/.env"] = "PROJECT_KEY=source-key"
+        val resolver = ContextResolver(
+            listOf(NearestProjectConfigContextSource(ProjectConfigStore(fileSystem))),
+            ProjectEnvironmentLoader(fileSystem),
+        )
+
+        val first = assertIs<ProjectContextReadResult.Found>(resolver.resolve())
+        assertEquals("nested-key", first.projectEnvironment?.get("PROJECT_KEY"))
+        fileSystem.files["/repo/nested/.env"] = "PROJECT_KEY=changed-key"
+        assertEquals("nested-key", first.projectEnvironment?.get("PROJECT_KEY"))
+        assertEquals(
+            "changed-key",
+            assertIs<ProjectContextReadResult.Found>(resolver.resolve()).projectEnvironment?.get("PROJECT_KEY"),
+        )
+        assertEquals(
+            "parent-key",
+            assertIs<ProjectContextReadResult.Found>(resolver.resolve("/repo")).projectEnvironment?.get("PROJECT_KEY"),
+        )
+    }
+
+    @Test
+    fun explicitLinkAndMissingEnvDoNotLoadProjectSecrets() {
+        val fileSystem = InMemoryFileSystem(currentDirectory = "/repo")
+        fileSystem.files["/repo/.sdds/config.json"] = ProjectConfigCodec().encode(
+            ProjectConfig(
+                "project-a", "design-system-a", CredentialReference(CredentialReferenceType.ENV, "PROJECT_KEY"),
+            ),
+        )
+        val resolver = ContextResolver(
+            listOf(NearestProjectConfigContextSource(ProjectConfigStore(fileSystem))),
+            ProjectEnvironmentLoader(fileSystem),
+        )
+        assertNull(assertIs<ProjectContextReadResult.Found>(resolver.resolve()).projectEnvironment)
+        fileSystem.files["/repo/.env"] = "PROJECT_KEY=local-secret"
+        val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1&platform=compose"
+        assertNull(
+            assertIs<ProjectContextReadResult.Found>(resolver.resolve(designSystemUri = link)).projectEnvironment,
+        )
+    }
+
+    @Test
+    fun invalidProjectEnvIsReportedWithoutSecret() {
+        val fileSystem = InMemoryFileSystem(currentDirectory = "/repo")
+        fileSystem.files["/repo/.sdds/config.json"] = ProjectConfigCodec().encode(
+            ProjectConfig(
+                "project-a", "design-system-a", CredentialReference(CredentialReferenceType.ENV, "PROJECT_KEY"),
+            ),
+        )
+        fileSystem.files["/repo/.env"] = "BAD-NAME=secret-value"
+        val resolver = ContextResolver(
+            listOf(NearestProjectConfigContextSource(ProjectConfigStore(fileSystem))),
+            ProjectEnvironmentLoader(fileSystem),
+        )
+        val result = assertIs<ProjectContextReadResult.Failed>(resolver.resolve())
+        assertEquals(ProjectContextFailure.INVALID, result.reason)
+        assertFalse(result.message.contains("secret-value"))
+    }
+
+    @Test
+    fun forcedSessionDoesNotReadProjectKey() = runTest {
+        var keyReads = 0
+        val provider = RuntimeCredentialProvider(
+            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(
+                EnvironmentReader {
+                    keyReads++
+                    "project-secret"
+                },
+            ),
+            credentialStore = object : CredentialStore {
+                override suspend fun read(apiUrl: String): UserSession? = null
+                override suspend fun save(session: UserSession) = Unit
+                override suspend fun delete(apiUrl: String) = Unit
+            },
+            tokenClient = NoopTokenClient,
+        )
+
+        val result = provider.resolve(
+            ProjectApiUrl("https://api.example.com"),
+            null,
+            CredentialEnvName("PROJECT_KEY"),
+            CredentialPolicy.USER_SESSION,
+        )
+        assertEquals(AuthErrorCode.AUTH_REQUIRED, assertIs<CredentialResult.Failed>(result).code)
+        assertEquals(0, keyReads)
+    }
+
+    @Test
+    fun forcedKeyDoesNotReadSessionWhenMissing() = runTest {
+        var sessionReads = 0
+        val provider = RuntimeCredentialProvider(
+            apiKeyResolver = com.dsbuilder.frontend.core.auth.ApiKeyResolver(EnvironmentReader { null }),
+            credentialStore = object : CredentialStore {
+                override suspend fun read(apiUrl: String): UserSession? {
+                    sessionReads++
+                    return null
+                }
+                override suspend fun save(session: UserSession) = Unit
+                override suspend fun delete(apiUrl: String) = Unit
+            },
+            tokenClient = NoopTokenClient,
+        )
+
+        val result = provider.resolve(
+            ProjectApiUrl("https://api.example.com"),
+            null,
+            CredentialEnvName("PROJECT_KEY"),
+            CredentialPolicy.PROJECT_KEY_ENV,
+        )
+        assertEquals(AuthErrorCode.AUTH_REQUIRED, assertIs<CredentialResult.Failed>(result).code)
+        assertEquals(0, sessionReads)
+    }
+
     @Test
     fun projectContextReaderReturnsFoundWhenConfigExists() {
         val fileSystem = InMemoryFileSystem(currentDirectory = "/repo")
@@ -64,7 +279,10 @@ class RuntimeAdaptersTest {
 
         assertIs<ProjectContextReadResult.Failed>(result)
         assertEquals(
-            "Error: Project is not initialized. Run `dsbuilder init --project-id <id> --design-system-id <id>`.",
+            "Error: Design-system context is required. Pass --design-system " +
+                "'dsbuilder://projects/<project-id>/design-systems/<design-system-id>" +
+                "?version=<version>&platform=<platform>', or run " +
+                "`dsbuilder init --project-id <id> --design-system-id <id>`.",
             result.message,
         )
     }
@@ -246,6 +464,44 @@ class RuntimeAdaptersTest {
         assertEquals(expected, assertIs<ProjectContextReadResult.Found>(result).context)
     }
 
+    @Test
+    fun explicitLinkWinsWithoutConsultingWorkspaceSource() {
+        var sourceCalled = false
+        val resolver = ContextResolver(
+            listOf(
+                ContextSource {
+                    sourceCalled = true
+                    ContextSourceResult.Failed("local config is invalid")
+                },
+            ),
+        )
+        val result = resolver.resolve(
+            "/unrelated/workspace",
+            "dsbuilder://projects/project-a/design-systems/ds-a?version=1.0.0&platform=compose",
+        )
+        val context = assertIs<ProjectContextReadResult.Found>(result).context
+        assertEquals("project-a", context.projectId.value)
+        assertEquals(CredentialPolicy.USER_SESSION, context.credentialPolicy)
+        assertEquals("1.0.0", context.selectedVersion)
+        assertEquals(false, sourceCalled)
+    }
+
+    @Test
+    fun invalidExplicitLinkDoesNotFallBackToWorkspace() {
+        var sourceCalled = false
+        val resolver = ContextResolver(
+            listOf(
+                ContextSource {
+                    sourceCalled = true
+                    ContextSourceResult.NotFound
+                },
+            ),
+        )
+        val result = resolver.resolve("/repo", "dsbuilder://projects/a/design-systems/b?version=1")
+        assertEquals(ProjectContextFailure.INVALID_CONTEXT, assertIs<ProjectContextReadResult.Failed>(result).reason)
+        assertEquals(false, sourceCalled)
+    }
+
     private fun session(apiUrl: String, refreshToken: String): UserSession = UserSession(
         schemaVersion = 1,
         apiUrl = apiUrl,
@@ -321,7 +577,7 @@ private class InMemoryFileSystem(
         files[path] = text
     }
 
-    override fun readBytes(path: String): ByteArray = error("не используется")
+    override fun readBytes(path: String): ByteArray = files.getValue(path).encodeToByteArray()
 
     override fun writeBytes(path: String, bytes: ByteArray): Unit = error("не используется")
 

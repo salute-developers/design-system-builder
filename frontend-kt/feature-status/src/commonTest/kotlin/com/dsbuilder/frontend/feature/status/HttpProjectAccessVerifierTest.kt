@@ -73,7 +73,7 @@ class HttpProjectAccessVerifierTest {
         val result = verifier.verify(check)
 
         assertIs<ProjectAccessResult.Failed>(result)
-        assertEquals("Status: unauthorized. API key is missing or invalid.", result.message)
+        assertEquals("Status: unauthorized. Credential is missing or invalid.", result.message)
     }
 
     @Test

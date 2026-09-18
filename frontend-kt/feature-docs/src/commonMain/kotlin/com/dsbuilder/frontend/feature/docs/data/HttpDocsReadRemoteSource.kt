@@ -143,12 +143,11 @@ public class HttpDocsReadRemoteSource(
 }
 
 private fun AuthenticatedHttpResult.Failure.toReadError(notFoundCode: DocsReadErrorCode): DocsReadResult.Failed {
-    val code = when {
-        message.contains("unauthorized", ignoreCase = true) -> DocsReadErrorCode.AUTH_REQUIRED
-        message.contains("forbidden", ignoreCase = true) -> DocsReadErrorCode.FORBIDDEN
-        message.contains("not found", ignoreCase = true) -> notFoundCode
-        message.contains("HTTP 400", ignoreCase = true) -> DocsReadErrorCode.INVALID_QUERY
-        message.contains("unreachable", ignoreCase = true) -> DocsReadErrorCode.BACKEND_UNAVAILABLE
+    val code = when (statusCode) {
+        401 -> DocsReadErrorCode.AUTH_REQUIRED
+        403 -> DocsReadErrorCode.FORBIDDEN
+        404 -> notFoundCode
+        400 -> DocsReadErrorCode.INVALID_QUERY
         else -> DocsReadErrorCode.BACKEND_UNAVAILABLE
     }
     return DocsReadResult.Failed(code, message)

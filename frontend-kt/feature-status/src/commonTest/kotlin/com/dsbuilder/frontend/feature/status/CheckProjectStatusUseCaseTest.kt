@@ -22,6 +22,7 @@ import com.dsbuilder.frontend.feature.status.application.ProjectAccessVerifier
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
 /**
@@ -123,7 +124,7 @@ class CheckProjectStatusUseCaseTest {
     }
 
     @Test
-    fun retriesOnceWhenUserBearerCredentialReceivesUnauthorized() = runTest {
+    fun leavesBearerRetryToSharedHttpLayer() = runTest {
         var credentialCalls = 0
         val credentials = listOf(
             BackendCredential.Bearer("access-old"),
@@ -151,11 +152,10 @@ class CheckProjectStatusUseCaseTest {
             },
         ).execute(CheckProjectStatusCommand(apiKeyOverride = null, apiUrlOverride = null))
 
-        assertIs<CheckProjectStatusResult.Authorized>(result)
-        assertEquals(2, attempts.size)
+        assertIs<CheckProjectStatusResult.Failed>(result)
+        assertEquals(1, attempts.size)
         assertEquals(credentials[0], attempts[0])
-        assertEquals(credentials[1], attempts[1])
-        assertEquals(2, credentialCalls)
+        assertEquals(1, credentialCalls)
     }
 
     @Test
@@ -186,6 +186,7 @@ class CheckProjectStatusUseCaseTest {
         assertEquals(1, attempts.size)
         assertEquals(BackendCredential.ProjectKey("project-key"), attempts[0])
         assertEquals(1, credentialCalls)
+        assertFalse(result.message.contains("project-key"))
     }
 
     @Test

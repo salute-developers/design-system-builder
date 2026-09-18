@@ -4,8 +4,10 @@ package com.dsbuilder.frontend.feature.theme.application
 
 import com.dsbuilder.frontend.core.application.ContextResolver
 import com.dsbuilder.frontend.core.application.CredentialProvider
-import com.dsbuilder.frontend.core.application.CredentialResult
-import com.dsbuilder.frontend.core.application.ProjectContextReadResult
+import com.dsbuilder.frontend.core.application.RuntimeFailureCode
+import com.dsbuilder.frontend.core.application.RuntimeRequest
+import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
+import com.dsbuilder.frontend.core.application.RuntimeResolution
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
@@ -36,7 +38,11 @@ public enum class TokenReadErrorCode {
     NOT_FOUND,
     BACKEND_UNAVAILABLE,
     CONTEXT_NOT_FOUND,
+    CONTEXT_REQUIRED,
+    INVALID_CONTEXT,
     INVALID_QUERY,
+    PROJECT_KEY_INVALID,
+    INVALID_AUTH_URL,
 }
 
 public sealed interface TokenReadResult {
@@ -61,41 +67,41 @@ public class TokenReadUseCases(
 ) {
     public suspend fun list(
         command: TokenListReadCommand,
-        apiUrlOverride: String? = null,
-        workspace: String? = null,
+        request: RuntimeRequest = RuntimeRequest(),
     ): TokenReadResult =
-        withRuntime(apiUrlOverride, workspace) { remoteSource.list(it, command) }
+        withRuntime(request) { remoteSource.list(it, command) }
 
     public suspend fun get(
         command: TokenGetReadCommand,
-        apiUrlOverride: String? = null,
-        workspace: String? = null,
+        request: RuntimeRequest = RuntimeRequest(),
     ): TokenReadResult =
-        withRuntime(apiUrlOverride, workspace) { remoteSource.get(it, command) }
+        withRuntime(request) { remoteSource.get(it, command) }
 
     public suspend fun values(
         command: TokenValuesReadCommand,
-        apiUrlOverride: String? = null,
-        workspace: String? = null,
+        request: RuntimeRequest = RuntimeRequest(),
     ): TokenReadResult =
-        withRuntime(apiUrlOverride, workspace) { remoteSource.values(it, command) }
+        withRuntime(request) { remoteSource.values(it, command) }
+
+    private val runtimeResolver = RuntimeRequestResolver(contextResolver, apiUrlResolver, credentialProvider)
 
     private suspend fun withRuntime(
-        apiUrlOverride: String?,
-        workspace: String?,
+        request: RuntimeRequest,
         block: suspend (TokenReadRuntime) -> TokenReadResult,
-    ): TokenReadResult {
-        val apiUrl = ProjectApiUrl(apiUrlResolver.resolve(apiUrlOverride).value)
-        val context = when (val result = contextResolver.resolve(workspace)) {
-            is ProjectContextReadResult.Failed -> return TokenReadResult.Failed(
-                TokenReadErrorCode.CONTEXT_NOT_FOUND,
-                result.message,
-            )
-            is ProjectContextReadResult.Found -> result.context
-        }
-        return when (val credential = credentialProvider.resolve(apiUrl, null, context.credentialEnvName)) {
-            is CredentialResult.Failed -> TokenReadResult.Failed(TokenReadErrorCode.AUTH_REQUIRED, credential.message)
-            is CredentialResult.Selected -> block(TokenReadRuntime(context, apiUrl, credential.credential))
-        }
+    ): TokenReadResult = when (val result = runtimeResolver.resolve(request)) {
+        is RuntimeResolution.Failed -> TokenReadResult.Failed(
+            when (result.code) {
+                RuntimeFailureCode.CONTEXT_REQUIRED -> TokenReadErrorCode.CONTEXT_REQUIRED
+                RuntimeFailureCode.INVALID_CONTEXT -> TokenReadErrorCode.INVALID_CONTEXT
+                RuntimeFailureCode.CONTEXT_NOT_FOUND -> TokenReadErrorCode.CONTEXT_NOT_FOUND
+                RuntimeFailureCode.AUTH_REQUIRED -> TokenReadErrorCode.AUTH_REQUIRED
+                RuntimeFailureCode.PROJECT_KEY_INVALID -> TokenReadErrorCode.PROJECT_KEY_INVALID
+                RuntimeFailureCode.FORBIDDEN -> TokenReadErrorCode.FORBIDDEN
+                RuntimeFailureCode.BACKEND_UNAVAILABLE -> TokenReadErrorCode.BACKEND_UNAVAILABLE
+                RuntimeFailureCode.INVALID_AUTH_URL -> TokenReadErrorCode.INVALID_AUTH_URL
+            },
+            result.message,
+        )
+        is RuntimeResolution.Resolved -> block(TokenReadRuntime(result.context, result.apiUrl, result.credential))
     }
 }

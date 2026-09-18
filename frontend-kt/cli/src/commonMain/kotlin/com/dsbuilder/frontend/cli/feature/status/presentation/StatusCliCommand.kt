@@ -18,6 +18,8 @@ internal class StatusCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val apiUrl: String? by option("--api-url")
+    private val designSystem: String? by option("--design-system")
+    private val projectKeyEnv: String? by option("--project-key-env")
 
     override fun run() {
         val result = runBlocking {
@@ -25,6 +27,8 @@ internal class StatusCliCommand(
                 CheckProjectStatusCommand(
                     apiKeyOverride = apiKey,
                     apiUrlOverride = apiUrl,
+                    designSystemUri = designSystem,
+                    projectKeyEnvName = projectKeyEnv,
                 ),
             )
         }

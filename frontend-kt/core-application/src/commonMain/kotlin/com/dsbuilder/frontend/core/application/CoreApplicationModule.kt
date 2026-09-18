@@ -19,15 +19,22 @@ public fun coreApplicationModule(runtime: ClientRuntime): Module = module {
     single<ClientRuntime> { runtime }
     single<WorkspaceFileSystem> { get<ClientRuntime>().fileSystem }
     single<EnvironmentReader> { get<ClientRuntime>().environmentReader }
-    single<AuthenticatedHttpClientFactory> { get<ClientRuntime>().httpClientFactory }
+    single<AuthenticatedHttpClientFactory> {
+        RefreshingAuthenticatedHttpClientFactory(
+            get<ClientRuntime>().httpClientFactory,
+            get<CredentialProvider>(),
+            get<CredentialStore>(),
+        )
+    }
     single<ProcessRunner> { get<ClientRuntime>().processRunner }
     single<CredentialStore> { get<ClientRuntime>().credentialStore }
     single<TokenClient> { get<ClientRuntime>().tokenClient }
     single { ProjectConfigStore(get<WorkspaceFileSystem>()) }
+    single { ProjectEnvironmentLoader(get<WorkspaceFileSystem>()) }
     single { ApiKeyResolver(get<EnvironmentReader>()) }
     single { ApiUrlResolver(get<EnvironmentReader>()) }
     single<ContextSource> { NearestProjectConfigContextSource(get<ProjectConfigStore>()) }
-    single { ContextResolver(getAll<ContextSource>()) }
+    single { ContextResolver(getAll<ContextSource>(), get<ProjectEnvironmentLoader>()) }
     single<ProjectContextReader> { LocalProjectContextReader(get<ContextResolver>()) }
     single<ProjectApiKeyProvider> { RuntimeProjectApiKeyProvider(get<ApiKeyResolver>()) }
     single<ProjectApiUrlProvider> { RuntimeProjectApiUrlProvider(get<ApiUrlResolver>()) }

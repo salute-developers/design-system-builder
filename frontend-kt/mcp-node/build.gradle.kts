@@ -174,11 +174,19 @@ tasks.register("npmPackMcpNodeSmoke") {
             writer.appendLine("""{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}""")
             writer.appendLine("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""")
             writer.appendLine("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"missing_tool","arguments":{}}}""")
+            writer.appendLine(
+                """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{"designSystem":"dsbuilder://projects/project-headless/design-systems/ds-headless?version=1.0&platform=compose"}}}""",
+            )
+            writer.appendLine(
+                """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"design_system_get_context","arguments":{}}}""",
+            )
             writer.flush()
 
             val initializeResponse = reader.readLine() ?: error("Missing initialize response from dsbuilder-mcp serve.")
             val toolsResponse = reader.readLine() ?: error("Missing tools/list response from dsbuilder-mcp serve.")
             val unknownToolResponse = reader.readLine() ?: error("Missing unknown tool response from dsbuilder-mcp serve.")
+            val explicitContextResponse = reader.readLine() ?: error("Missing explicit context response.")
+            val missingContextResponse = reader.readLine() ?: error("Missing context error response.")
             check(initializeResponse.contains(""""id":1""")) {
                 "Initialize response did not contain id 1: $initializeResponse"
             }
@@ -214,6 +222,12 @@ tasks.register("npmPackMcpNodeSmoke") {
             }
             check(!unknownToolResponse.contains(""""result"""")) {
                 "unknown tool response returned tool result instead of protocol error: $unknownToolResponse"
+            }
+            check(explicitContextResponse.contains("project-headless")) {
+                "Explicit context was not resolved: $explicitContextResponse"
+            }
+            check(missingContextResponse.contains("CONTEXT_REQUIRED")) {
+                "Missing context did not return CONTEXT_REQUIRED: $missingContextResponse"
             }
         }
         if (!serveProcess.waitFor(10, TimeUnit.SECONDS)) {

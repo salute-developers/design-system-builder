@@ -14,6 +14,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.RPCError
 import io.modelcontextprotocol.kotlin.sdk.types.RequestId
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import io.modelcontextprotocol.kotlin.sdk.types.error
 import io.modelcontextprotocol.kotlin.sdk.types.success
 import kotlinx.coroutines.CompletableDeferred
@@ -21,7 +22,10 @@ import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.put
 
 /**
  * Creates the official MCP SDK server from the shared tool registry.
@@ -36,6 +40,27 @@ internal fun DsBuilderMcpServerCore.createSdkServer(): Server {
             addTool(
                 name = tool.name,
                 description = tool.description,
+                inputSchema = ToolSchema(
+                    properties = buildJsonObject {
+                        tool.inputSchema.forEach { (name, definition) ->
+                            put(
+                                name,
+                                buildJsonObject {
+                                    put("type", definition.type)
+                                    definition.description?.let { put("description", it) }
+                                    if (definition.allowedValues.isNotEmpty()) {
+                                        put(
+                                            "enum",
+                                            buildJsonArray {
+                                                definition.allowedValues.forEach { add(JsonPrimitive(it)) }
+                                            },
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    },
+                ),
                 toolAnnotations = ToolAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true),
             ) { request ->
                 val arguments = request.arguments as? JsonObject ?: JsonObject(emptyMap())

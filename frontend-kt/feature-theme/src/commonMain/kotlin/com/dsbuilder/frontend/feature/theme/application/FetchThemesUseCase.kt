@@ -1,11 +1,12 @@
 package com.dsbuilder.frontend.feature.theme.application
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.feature.theme.domain.PaletteItem
@@ -21,7 +22,7 @@ import com.dsbuilder.frontend.feature.theme.domain.TokenValue
  */
 public class FetchThemesUseCase internal constructor(
     private val projectContextReader: ProjectContextReader,
-    private val projectApiKeyProvider: ProjectApiKeyProvider,
+    private val credentialProvider: CredentialProvider,
     private val projectApiUrlProvider: ProjectApiUrlProvider,
     private val remoteThemeDataSource: RemoteThemeDataSource,
     private val writePlanBuilder: ThemeWritePlanBuilder,
@@ -42,7 +43,12 @@ public class FetchThemesUseCase internal constructor(
 
         return when (val result = buildWritePlan(remoteData)) {
             is WritePlanResult.Failed -> FetchThemesResult.Failed(result.message)
-            is WritePlanResult.Built -> writeLocalTheme(runtime, remoteData, result.writePlan)
+            is WritePlanResult.Built -> writeLocalTheme(
+                runtime,
+                remoteData,
+                result.writePlan,
+                command.destinationDirectory,
+            )
         }
     }
 
@@ -63,36 +69,57 @@ public class FetchThemesUseCase internal constructor(
         runtime: ThemeRuntime,
         remoteData: ThemeRemoteData,
         writePlan: ThemeWritePlan,
+        destinationDirectory: String?,
     ): FetchThemesResult =
-        when (val result = localThemeWriter.write(runtime.context, writePlan)) {
+        when (val result = localThemeWriter.write(runtime.context, writePlan, destinationDirectory)) {
             is LocalThemeWriteResult.Failed -> FetchThemesResult.Failed(result.message)
-            LocalThemeWriteResult.Written -> FetchThemesResult.Fetched(
+            is LocalThemeWriteResult.Written -> FetchThemesResult.Fetched(
                 tenantCount = remoteData.tenants.size,
                 fileCount = writePlan.files.size,
-                configPath = runtime.context.configPath,
+                configPath = result.configPath,
             )
         }
 
-    private fun resolveRuntime(command: FetchThemesCommand): RuntimeResolutionResult {
-        val context = when (val result = projectContextReader.requireContext(null)) {
+    @Suppress("ReturnCount")
+    private suspend fun resolveRuntime(command: FetchThemesCommand): RuntimeResolutionResult {
+        val found = when (
+            val result = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+        ) {
             is ProjectContextReadResult.Failed -> return RuntimeResolutionResult.Failed(result.message)
-            is ProjectContextReadResult.Found -> result.context
+            is ProjectContextReadResult.Found -> result
         }
-        val apiKey = when (
-            val result = projectApiKeyProvider.resolve(
-                override = command.apiKeyOverride,
-                credentialEnvName = context.credentialEnvName,
+        val context = found.context
+        if (context.configPath.isBlank() && command.destinationDirectory.isNullOrBlank()) {
+            return RuntimeResolutionResult.Failed(
+                "theme fetch requires --destination <directory> without a local .sdds/config.json.",
+            )
+        }
+        if (context.configPath.isNotBlank() && command.destinationDirectory != null) {
+            return RuntimeResolutionResult.Failed(
+                "--destination is only supported with a design-system link outside local .sdds.",
+            )
+        }
+        val apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride, found.projectEnvironment)
+        val credential = when (
+            val result = credentialProvider.resolve(
+                CredentialRequest(
+                    apiUrl,
+                    command.apiKeyOverride,
+                    context.credentialEnvName,
+                    context.credentialPolicy,
+                    found.projectEnvironment,
+                ),
             )
         ) {
-            is ProjectApiKeyResult.Found -> result.value
-            is ProjectApiKeyResult.Missing -> return RuntimeResolutionResult.Failed(result.message)
+            is CredentialResult.Selected -> result.credential
+            is CredentialResult.Failed -> return RuntimeResolutionResult.Failed(result.message)
         }
 
         return RuntimeResolutionResult.Resolved(
             ThemeRuntime(
                 context = context,
-                apiUrl = projectApiUrlProvider.resolve(command.apiUrlOverride),
-                apiKey = apiKey,
+                apiUrl = apiUrl,
+                credential = credential,
             ),
         )
     }
@@ -101,7 +128,7 @@ public class FetchThemesUseCase internal constructor(
         val remoteCommand = RemoteThemeCommand(
             context = runtime.context,
             apiUrl = runtime.apiUrl,
-            apiKey = runtime.apiKey,
+            credential = runtime.credential,
         )
         return when (val tenantsResult = fetchTenants(remoteCommand)) {
             is TenantsLoadResult.Failed -> RemoteDataLoadResult.Failed(tenantsResult.message)
@@ -187,7 +214,7 @@ public class FetchThemesUseCase internal constructor(
                     RemoteTenantThemeCommand(
                         context = runtime.context,
                         apiUrl = runtime.apiUrl,
-                        apiKey = runtime.apiKey,
+                        credential = runtime.credential,
                         tenantId = tenant.id,
                     ),
                 )
@@ -214,7 +241,7 @@ private sealed interface WritePlanResult {
 private data class ThemeRuntime(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
 )
 
 private data class ThemeRemoteData(
@@ -289,10 +316,16 @@ private sealed interface TenantValuesLoadResult {
  *
  * @property apiKeyOverride runtime override из `--api-key`.
  * @property apiUrlOverride runtime override из `--api-url`.
+ * @property designSystemUri явная ссылка на дизайн-систему.
+ * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property destinationDirectory локальный каталог для загрузки без `.sdds`.
  */
 public data class FetchThemesCommand(
     public val apiKeyOverride: String?,
     public val apiUrlOverride: String?,
+    public val designSystemUri: String? = null,
+    public val projectKeyEnvName: String? = null,
+    public val destinationDirectory: String? = null,
 )
 
 /**

@@ -37,7 +37,7 @@ internal class HttpDocsPublisher(
             return DocsUploadResult.Failed("Publish failed: Cannot read bundle file: $path")
         }
         val response = try {
-            httpClientFactory.create(request.apiUrl.value, request.apiKey.value).postMultipart(
+            httpClientFactory.create(request.apiUrl.value, request.credential).postMultipart(
                 path = "/api/projects/${request.projectId.value}/documentation/bundles",
                 file = MultipartFile("bundle", fileName(path), "application/gzip", bytes),
             )

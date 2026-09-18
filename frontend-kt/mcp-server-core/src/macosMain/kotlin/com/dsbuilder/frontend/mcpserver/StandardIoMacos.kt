@@ -2,12 +2,7 @@
 
 package com.dsbuilder.frontend.mcpserver
 
-import kotlinx.cinterop.IntVar
-import kotlinx.cinterop.UIntVar
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.alloc
-import kotlinx.cinterop.memScoped
-import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import kotlinx.io.Buffer
@@ -17,19 +12,11 @@ import kotlinx.io.RawSource
 import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.io.buffered
-import platform.posix.SIGINT
-import platform.posix.SIGTERM
-import platform.posix.SIG_BLOCK
-import platform.posix.SIG_UNBLOCK
 import platform.posix.STDIN_FILENO
 import platform.posix.STDOUT_FILENO
 import platform.posix.close
 import platform.posix.errno
-import platform.posix.pthread_sigmask
 import platform.posix.read
-import platform.posix.sigaddset
-import platform.posix.sigemptyset
-import platform.posix.sigwait
 import platform.posix.strerror
 import platform.posix.write
 
@@ -39,44 +26,12 @@ internal actual fun standardInputSource(): Source =
 internal actual fun standardOutputSink(): Sink =
     FileDescriptorSink(STDOUT_FILENO).buffered()
 
-internal actual fun installProcessShutdownHandler(onShutdown: () -> Unit): ProcessShutdownRegistration {
-    configureShutdownSignalMask(SIG_BLOCK)
-    processShutdownHandler = onShutdown
-    return object : ProcessShutdownRegistration {
-        override fun close() {
-            processShutdownHandler = null
-            configureShutdownSignalMask(SIG_UNBLOCK)
-        }
+// Native stdio closes on EOF. Leave SIGINT/SIGTERM at their OS defaults so a
+// blocking signal watcher cannot starve MCP request processing.
+internal actual fun installProcessShutdownHandler(onShutdown: () -> Unit): ProcessShutdownRegistration =
+    object : ProcessShutdownRegistration {
+        override fun close() = Unit
     }
-}
-
-private var processShutdownHandler: (() -> Unit)? = null
-
-internal fun waitForProcessShutdownSignal() {
-    val result = memScoped {
-        val signals = allocShutdownSignalSet()
-        val signalNumber = alloc<IntVar>()
-        sigwait(signals.ptr, signalNumber.ptr)
-    }
-    if (result == 0) {
-        processShutdownHandler?.invoke()
-    }
-}
-
-private fun configureShutdownSignalMask(how: Int) {
-    memScoped {
-        val signals = allocShutdownSignalSet()
-        pthread_sigmask(how, signals.ptr, null)
-    }
-}
-
-private fun kotlinx.cinterop.MemScope.allocShutdownSignalSet(): UIntVar {
-    val signals = alloc<UIntVar>()
-    sigemptyset(signals.ptr)
-    sigaddset(signals.ptr, SIGINT)
-    sigaddset(signals.ptr, SIGTERM)
-    return signals
-}
 
 private const val MAX_CHUNK_BYTES = 8 * 1024
 

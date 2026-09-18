@@ -25,6 +25,8 @@ internal class ComponentsPushCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val apiUrl: String? by option("--api-url")
+    private val designSystem: String? by option("--design-system")
+    private val projectKeyEnv: String? by option("--project-key-env")
 
     private val apply: Boolean by option("--apply").flag()
 
@@ -41,6 +43,8 @@ internal class ComponentsPushCliCommand(
                     dryRun = !apply,
                     apiKeyOverride = apiKey,
                     apiUrlOverride = apiUrl,
+                    designSystemUri = designSystem,
+                    projectKeyEnvName = projectKeyEnv,
                 ),
             )
         }

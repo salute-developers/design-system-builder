@@ -173,6 +173,13 @@ DS Builder проектов. Выбор можно сохранить:
 
 #### Авторизация пользователя
 
+Для новых конфигураций `credential.type` допускает `auto`, `user-session` и
+`project-key-env`; существующий `env` читается как совместимый `auto`. В `auto`
+приоритет имеет ключ из env, затем пользовательская сессия. Принудительные режимы
+не переключаются на другой credential при отсутствии выбранного. Явная ссылка без
+`--project-key-env` использует пользовательскую сессию; CLI может выбрать ключ для CI
+через `--project-key-env <имя>` вместе с `--design-system`.
+
 Интерактивные клиенты должны поддерживать пользовательскую авторизацию через существующий gateway:
 
 - desktop;
@@ -224,6 +231,13 @@ API URL для CLI, MCP и auth-команд разрешается общим `
 default. Один base URL используется и для DS Builder API, и для захардкоженных auth endpoint gateway.
 
 ### Разрешение контекста
+
+Реализованный явный контекст передаётся как
+`dsbuilder://projects/{projectId}/design-systems/{designSystemId}?version={version}&platform={platform}`.
+CLI принимает его через `--design-system`, MCP read tools — через аргумент `designSystem` каждого вызова.
+Ссылка имеет приоритет над локальной `.sdds`, не меняет API URL и не содержит credential.
+MCP не хранит mutable active context между вызовами. Если ссылка отсутствует, применяется
+ближайший локальный config; если нет обоих источников, возвращается `CONTEXT_REQUIRED`.
 
 Общий `ContextResolver` должен поддерживать несколько источников контекста.
 
@@ -318,6 +332,11 @@ lock -> reread -> refresh -> atomic save -> unlock
 Access token обновляется заранее перед истечением. После backend `401` пользовательский credential допускает один
 принудительный refresh и один повтор запроса. Повторный `401` или `invalid_grant` удаляет session и возвращает
 `AUTH_REQUIRED`; `403` не вызывает refresh; transport failure не удаляет session.
+
+Общий authenticated HTTP слой передаёт числовой status в результат и выполняет этот повтор для GET, POST и multipart
+POST. Прикладные сценарии не определяют `401` поиском слов в сообщении и не повторяют запрос самостоятельно.
+Ошибка transport или недоступность token endpoint при refresh сохраняет категорию `BACKEND_UNAVAILABLE` при передаче
+из credential provider в прикладной сценарий и MCP; она не подменяется `AUTH_REQUIRED`.
 
 ### Диагностика
 

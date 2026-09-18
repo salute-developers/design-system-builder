@@ -1,7 +1,7 @@
 package com.dsbuilder.frontend.feature.components
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
@@ -220,7 +220,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
             ExportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                apiKey = ProjectApiKey("secret-key"),
+                credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
             ),
@@ -236,7 +236,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory(onCreate, onGet, onPost)).import(
             ImportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                apiKey = ProjectApiKey("secret-key"),
+                credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 packageName = "sdds_sbcom",

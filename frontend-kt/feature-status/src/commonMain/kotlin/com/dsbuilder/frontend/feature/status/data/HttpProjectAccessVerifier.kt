@@ -63,7 +63,7 @@ internal class HttpProjectAccessVerifier(
                 ?: DecodedResult.Failure(parseFailureMessage)
             is AuthenticatedHttpResult.Failure -> DecodedResult.Failure(
                 message = result.message,
-                code = result.message.toStatusErrorCode(credential),
+                code = result.statusCode.toStatusErrorCode(credential),
             )
         }
 
@@ -107,12 +107,11 @@ private sealed interface DecodedResult<out T> {
     ) : DecodedResult<Nothing>
 }
 
-private fun String.toStatusErrorCode(credential: BackendCredential): CheckProjectStatusErrorCode =
+private fun Int?.toStatusErrorCode(credential: BackendCredential): CheckProjectStatusErrorCode =
     when {
-        contains("unauthorized", ignoreCase = true) && credential is BackendCredential.ProjectKey ->
+        this == 401 && credential is BackendCredential.ProjectKey ->
             CheckProjectStatusErrorCode.PROJECT_KEY_INVALID
-        contains("unauthorized", ignoreCase = true) -> CheckProjectStatusErrorCode.AUTH_REQUIRED
-        contains("forbidden", ignoreCase = true) -> CheckProjectStatusErrorCode.FORBIDDEN
-        contains("unreachable", ignoreCase = true) -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE
+        this == 401 -> CheckProjectStatusErrorCode.AUTH_REQUIRED
+        this == 403 -> CheckProjectStatusErrorCode.FORBIDDEN
         else -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE
     }
