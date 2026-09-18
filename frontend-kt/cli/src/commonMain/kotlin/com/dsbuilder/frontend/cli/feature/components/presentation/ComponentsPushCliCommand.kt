@@ -12,6 +12,7 @@ import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
+import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder components push`.
@@ -24,6 +25,8 @@ internal class ComponentsPushCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val apiUrl: String? by option("--api-url")
+    private val designSystem: String? by option("--design-system")
+    private val projectKeyEnv: String? by option("--project-key-env")
 
     private val apply: Boolean by option("--apply").flag()
 
@@ -33,14 +36,18 @@ internal class ComponentsPushCliCommand(
         if (apply && dryRun) {
             throw UsageError("Options --apply and --dry-run cannot be used together.")
         }
-        val result = pushComponentsUseCase.execute(
-            PushComponentsCommand(
-                source = ComponentSource(directory = from),
-                dryRun = !apply,
-                apiKeyOverride = apiKey,
-                apiUrlOverride = apiUrl,
-            ),
-        )
+        val result = runBlocking {
+            pushComponentsUseCase.execute(
+                PushComponentsCommand(
+                    source = ComponentSource(directory = from),
+                    dryRun = !apply,
+                    apiKeyOverride = apiKey,
+                    apiUrlOverride = apiUrl,
+                    designSystemUri = designSystem,
+                    projectKeyEnvName = projectKeyEnv,
+                ),
+            )
+        }
 
         result.target?.let { echo(it.render()) }
 

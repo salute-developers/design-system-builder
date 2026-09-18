@@ -27,7 +27,7 @@ internal class HttpComponentConfigRemoteSource(
         explicitNulls = false
     }
 
-    override fun import(command: ImportComponentsCommand): ImportComponentsResult {
+    override suspend fun import(command: ImportComponentsCommand): ImportComponentsResult {
         val body = json.encodeToString(
             ImportRequest.serializer(),
             ImportRequest(
@@ -45,7 +45,7 @@ internal class HttpComponentConfigRemoteSource(
         )
 
         val path = "/api/projects/${command.projectId.value}/ds/component-config/import"
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> ImportComponentsResult.Failed(response.message)
@@ -53,14 +53,14 @@ internal class HttpComponentConfigRemoteSource(
         }
     }
 
-    override fun export(command: ExportComponentsCommand): ExportComponentsResult {
+    override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         val body = json.encodeToString(
             ExportRequest.serializer(),
             ExportRequest(designSystemId = command.designSystemId.value),
         )
 
         val path = "/api/projects/${command.projectId.value}/ds/component-config/export"
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(response.message)

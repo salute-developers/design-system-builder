@@ -68,7 +68,7 @@ public class DoctorToolchainsUseCase internal constructor(
      * чтобы `doctor` оставался пригоден в свежем checkout.
      */
     private fun resolveWorkspace(): WorkspacePaths =
-        when (val context = projectContextReader.requireContext()) {
+        when (val context = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Found ->
                 WorkspacePaths.fromConfigPath(fileSystem.absolutePath(context.context.configPath))
 

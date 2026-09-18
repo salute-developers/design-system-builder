@@ -6,8 +6,5 @@ import kotlin.system.exitProcess
  * Запускает JVM entrypoint для CLI-приложения `dsbuilder`.
  */
 public fun main(args: Array<String>) {
-    val result = DsBuilderCli().execute(args.toList())
-
-    println(result.output)
-    exitProcess(result.exitCode)
+    exitProcess(DsBuilderCli().executeInteractive(args.toList()))
 }

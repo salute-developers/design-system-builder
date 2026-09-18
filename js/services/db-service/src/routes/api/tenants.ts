@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index";
-import { tenants, tokenValues } from "../../db/schema";
+import { designSystems, tenants, tokenValues } from "../../db/schema";
 import {
   CreateTenantSchema,
   UpdateTenantSchema,
   UuidParamSchema,
 } from "../../validation/schema";
 import { validateBody, validateParams } from "../../validation/middleware";
-import { assertFound, tryCatch } from "./utils";
+import { assertFound, getProjectId, isSystemAdmin, requireScope, tryCatch } from "./utils";
 
 const router = Router();
 
@@ -34,8 +34,21 @@ router.get("/:id", validateParams(UuidParamSchema), (req, res) =>
   }),
 );
 
-router.post("/", validateBody(CreateTenantSchema), (req, res) =>
+router.post("/", requireScope("tenants:write"), validateBody(CreateTenantSchema), (req, res) =>
   tryCatch(res, async () => {
+    const projectId = getProjectId(req);
+    if (projectId && !isSystemAdmin(req)) {
+      const [designSystem] = await db.select({ projectId: designSystems.projectId })
+        .from(designSystems).where(eq(designSystems.id, req.body.designSystemId));
+      if (!designSystem || designSystem.projectId !== projectId) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!["owner", "maintainer", "editor"].includes(String(req.headers["x-project-role"] || ""))) {
+        res.status(403).json({ error: "Insufficient project role" });
+        return;
+      }
+    }
     const [row] = await db.insert(tenants).values(req.body).returning();
     res.status(201).json(row);
   }),

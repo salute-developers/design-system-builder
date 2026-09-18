@@ -20,6 +20,13 @@ internal interface DocsStructureReader {
      * @return распарсенная структура.
      */
     fun readStructure(path: String): Structure
+
+    /**
+     * Парсит опциональную [Structure] либо возвращает `null`, если файл отсутствует.
+     *
+     * Существующий, но некорректный файл должен приводить к ошибке так же, как в [readStructure].
+     */
+    fun readOptionalStructure(path: String): Structure? = readStructure(path)
 }
 
 /** Порт опционального чтения `meta/platform-context.json` от платформенного агрегатора. */
@@ -85,16 +92,17 @@ internal class DocsProjectContextAdapter(
     private val projectContextReader: ProjectContextReader,
 ) : DocsProjectContextReader {
     override fun platforms(): DocsPlatformsRead =
-        when (val result = projectContextReader.requireContext()) {
+        when (val result = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Found -> DocsPlatformsRead.Configured(result.context.platforms)
             is ProjectContextReadResult.Failed -> when (result.reason) {
                 ProjectContextFailure.NOT_INITIALIZED -> DocsPlatformsRead.NotInitialized
                 ProjectContextFailure.INVALID -> DocsPlatformsRead.Invalid(result.message)
+                ProjectContextFailure.INVALID_CONTEXT -> DocsPlatformsRead.Invalid(result.message)
             }
         }
 
     override fun designSystemId(): String {
-        return when (val result = projectContextReader.requireContext()) {
+        return when (val result = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Found -> result.context.designSystemId.value
             is ProjectContextReadResult.Failed -> "unknown"
         }

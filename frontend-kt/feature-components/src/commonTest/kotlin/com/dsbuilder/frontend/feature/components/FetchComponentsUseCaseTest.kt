@@ -1,13 +1,15 @@
 package com.dsbuilder.frontend.feature.components
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
@@ -37,6 +39,7 @@ import com.dsbuilder.frontend.feature.components.domain.codec.CommonTargetProper
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonVariation
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonVariationValue
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,6 +53,36 @@ import kotlin.test.assertTrue
  */
 class FetchComponentsUseCaseTest {
 
+    @Test
+    fun acceptsBearerForExport() = runTest {
+        var selected: BackendCredential? = null
+        var snapshotCredential: BackendCredential? = null
+        val result = execute(
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Selected(BackendCredential.Bearer("access"), BackendCredentialType.USER_SESSION),
+            ),
+            onExport = { selected = it.credential },
+            onSnapshot = { snapshotCredential = it.credential },
+        )
+        assertTrue(result is FetchComponentsResult.Fetched)
+        assertEquals(BackendCredential.Bearer("access"), selected)
+        assertEquals(selected, snapshotCredential)
+    }
+
+    @Test
+    fun headlessDestinationReceivesSnapshot() = runTest {
+        var snapshotRequested = false
+        val result = execute(
+            selectedContext = context.copy(configPath = ""),
+            destination = ComponentDestination("/output"),
+            onSnapshot = { snapshotRequested = true },
+        )
+
+        assertTrue(result is FetchComponentsResult.Fetched)
+        assertEquals("/output/component-configs.json", result.snapshotPath)
+        assertTrue(snapshotRequested)
+    }
+
     private val context = ProjectContext(
         projectId = ProjectId("project-a"),
         designSystemId = DesignSystemId("ds-a"),
@@ -58,7 +91,7 @@ class FetchComponentsUseCaseTest {
     )
 
     @Test
-    fun requestsPackageOnceAndWritesIt() {
+    fun requestsPackageOnceAndWritesIt() = runTest {
         val commands = mutableListOf<ExportComponentsCommand>()
         val result = execute(onExport = { commands += it })
 
@@ -67,7 +100,7 @@ class FetchComponentsUseCaseTest {
         assertEquals(1, commands.size)
         assertEquals("project-a", commands.single().projectId.value)
         assertEquals("ds-a", commands.single().designSystemId.value)
-        assertEquals("secret-key", commands.single().apiKey.value)
+        assertEquals(BackendCredential.ProjectKey("secret-key"), commands.single().credential)
 
         assertEquals("/work/.sdds/components", result.path)
         assertEquals(listOf("avatar_config.json"), result.fileNames)
@@ -77,7 +110,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWholeFetchOnFirstConversionErrorBeforeTouchingFiles() {
+    fun failsWholeFetchOnFirstConversionErrorBeforeTouchingFiles() = runTest {
         var directoryRead = false
         var written = false
 
@@ -125,7 +158,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWhenBackendRefuses() {
+    fun failsWhenBackendRefuses() = runTest {
         var written = false
         val result = execute(
             exportResult = ExportComponentsResult.Failed("Error: backend refused."),
@@ -139,26 +172,31 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun failsWhenPlanBuilderRejects() {
+    fun failsWhenPlanBuilderRejects() = runTest {
         var written = false
         val result = execute(
-            configurations = listOf(exported("chip", "chip"), exported("chip", "chip-embedded")),
+            configurations = listOf(exported("chip", "chip"), exported("badge", "badge")),
             existing = ExistingComponentPackage(
-                entries = listOf(ComponentPackageMetaEntry("chip", "chip", "chip_embedded_config.json")),
+                entries = listOf(
+                    ComponentPackageMetaEntry("chip", "chip", "shared_config.json"),
+                    ComponentPackageMetaEntry("badge", "badge", "shared_config.json"),
+                ),
             ),
             onWrite = { written = true },
         )
 
         val failure = result as? FetchComponentsResult.Failed ?: error("ожидался отказ: $result")
-        assertTrue(failure.message.contains("chip_embedded_config.json"), failure.message)
+        assertTrue(failure.message.contains("shared_config.json"), failure.message)
         assertTrue(!written, "запись выполнена несмотря на отказ построителя плана")
     }
 
     @Test
-    fun failsWhenCredentialsAreMissing() {
+    fun failsWhenCredentialsAreMissing() = runTest {
         var exported = false
         val result = execute(
-            apiKeyProvider = ProjectApiKeyProvider { _, _ -> ProjectApiKeyResult.Missing("Error: no api key.") },
+            credentialProvider = testCredentialProvider(
+                CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: no api key."),
+            ),
             onExport = { exported = true },
         )
 
@@ -168,7 +206,7 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
-    fun carriesUnderivedTypesIntoResult() {
+    fun carriesUnderivedTypesIntoResult() = runTest {
         val result = execute(underivedTypes = listOf("avatar.default.background"))
 
         assertEquals(
@@ -184,17 +222,20 @@ class FetchComponentsUseCaseTest {
     )
 
     @Suppress("LongParameterList")
-    private fun execute(
+    private suspend fun execute(
         configurations: List<ExportedComponentConfig> = listOf(exported("avatar", "avatar")),
         underivedTypes: List<String> = emptyList(),
         existing: ExistingComponentPackage = ExistingComponentPackage(),
         exportResult: ExportComponentsResult? = null,
-        apiKeyProvider: ProjectApiKeyProvider = ProjectApiKeyProvider { _, _ ->
-            ProjectApiKeyResult.Found(ProjectApiKey("secret-key"))
-        },
+        credentialProvider: CredentialProvider = testCredentialProvider(
+            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+        ),
         onExport: (ExportComponentsCommand) -> Unit = {},
+        onSnapshot: (ExportComponentsCommand) -> Unit = {},
         onDirectoryRead: () -> Unit = {},
         onWrite: () -> Unit = {},
+        selectedContext: ProjectContext = context,
+        destination: ComponentDestination = ComponentDestination(),
     ): FetchComponentsResult {
         val result = exportResult ?: ExportComponentsResult.Exported(
             ExportedComponentPackage(
@@ -206,8 +247,11 @@ class FetchComponentsUseCaseTest {
         )
 
         val useCase = FetchComponentsUseCase(
-            projectContextReader = ProjectContextReader { ProjectContextReadResult.Found(context) },
-            projectApiKeyProvider = apiKeyProvider,
+            projectContextReader = object : ProjectContextReader {
+                override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+                    ProjectContextReadResult.Found(selectedContext)
+            },
+            credentialProvider = credentialProvider,
             apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
             remoteSource = FakeRemoteSource(onExport, result),
             directoryReader = ComponentPackageDirectoryReader { _, _ ->
@@ -219,15 +263,19 @@ class FetchComponentsUseCaseTest {
                 ComponentPackageWriteResult.Written("/work/.sdds/components")
             },
             codec = ConfigCodec(),
-            snapshotSource = ComponentConfigsSnapshotSource { _, _ -> ComponentConfigsSnapshotResult.Loaded("[]") },
-            snapshotWriter = ComponentConfigsSnapshotWriter { _, _ ->
-                ComponentPackageWriteResult.Written("/work/.sdds/component-configs.json")
+            snapshotSource = ComponentConfigsSnapshotSource { command, _ ->
+                onSnapshot(command)
+                ComponentConfigsSnapshotResult.Loaded("[]")
+            },
+            snapshotWriter = ComponentConfigsSnapshotWriter { selected, target, _ ->
+                val directory = if (selected.configPath.isBlank()) target.directory else "/work/.sdds"
+                ComponentPackageWriteResult.Written("$directory/component-configs.json")
             },
         )
 
         return useCase.execute(
             FetchComponentsCommand(
-                destination = ComponentDestination(),
+                destination = destination,
                 apiUrlOverride = "http://localhost:8080",
             ),
         )
@@ -241,10 +289,10 @@ private class FakeRemoteSource(
     private val onExport: (ExportComponentsCommand) -> Unit,
     private val result: ExportComponentsResult,
 ) : com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource {
-    override fun import(command: ImportComponentsCommand): ImportComponentsResult =
+    override suspend fun import(command: ImportComponentsCommand): ImportComponentsResult =
         error("fetch не загружает пакет")
 
-    override fun export(command: ExportComponentsCommand): ExportComponentsResult {
+    override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         onExport(command)
         return result
     }

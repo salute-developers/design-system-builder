@@ -8,6 +8,7 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
+import kotlinx.coroutines.runBlocking
 
 /**
  * CLI command для `dsbuilder docs publish`.
@@ -24,15 +25,21 @@ internal class DocsPublishCliCommand(
     private val apiKey: String? by option("--api-key")
 
     private val apiUrl: String? by option("--api-url")
+    private val designSystem: String? by option("--design-system")
+    private val projectKeyEnv: String? by option("--project-key-env")
 
     override fun run() {
-        val result = publishUseCase.execute(
-            DocsPublishCommand(
-                bundlePath = bundle,
-                apiKeyOverride = apiKey,
-                apiUrlOverride = apiUrl,
-            ),
-        )
+        val result = runBlocking {
+            publishUseCase.execute(
+                DocsPublishCommand(
+                    bundlePath = bundle,
+                    apiKeyOverride = apiKey,
+                    apiUrlOverride = apiUrl,
+                    designSystemUri = designSystem,
+                    projectKeyEnvName = projectKeyEnv,
+                ),
+            )
+        }
 
         when (result) {
             is DocsPublishResult.Accepted -> {

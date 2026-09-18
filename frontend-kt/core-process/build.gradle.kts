@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
 }
 
 kotlin {
