@@ -114,10 +114,21 @@ class PlatformCommandsCliTest {
     fun compositionRootRegistersTheIosDelegateForSwiftUiOnly() {
         val registry = cli().platformDelegateRegistry()
 
-        assertEquals(listOf(ToolchainId("ios")), registry.all.map { it.toolchain })
         assertEquals(ToolchainId("ios"), registry.forPlatform(TargetPlatform.SWIFT_UI)?.toolchain)
-        listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW, TargetPlatform.REACT)
-            .forEach { platform -> assertNull(registry.forPlatform(platform)) }
+        assertNull(registry.forPlatform(TargetPlatform.REACT))
+    }
+
+    @Test
+    fun compositionRootRegistersTheAndroidDelegateForComposeAndAndroidView() {
+        val registry = cli().platformDelegateRegistry()
+
+        assertEquals(
+            setOf(ToolchainId("ios"), ToolchainId("android")),
+            registry.all.map { it.toolchain }.toSet(),
+        )
+        assertEquals(ToolchainId("android"), registry.forPlatform(TargetPlatform.COMPOSE)?.toolchain)
+        assertEquals(ToolchainId("android"), registry.forPlatform(TargetPlatform.ANDROID_VIEW)?.toolchain)
+        assertNull(registry.forPlatform(TargetPlatform.REACT))
     }
 
     @Test
@@ -158,10 +169,21 @@ class PlatformCommandsCliTest {
 
     @Test
     fun toolchainDoctorRejectsPlatformWithoutToolchain() {
-        val result = cli().execute(listOf("toolchain", "doctor", "--platform", "compose"))
+        val result = cli().execute(listOf("toolchain", "doctor", "--platform", "react"))
 
         assertEquals(1, result.exitCode)
-        assertTrue(result.output.contains("compose"), result.output)
+        assertTrue(result.output.contains("react"), result.output)
+    }
+
+    @Test
+    fun toolchainDoctorChecksOnlyTheAndroidToolchainForCompose() {
+        val result = cli().execute(listOf("toolchain", "doctor", "--platform", "compose"))
+
+        // Инструмент недоступен в тестовом окружении (нет реального gradlew), но toolchain для
+        // compose теперь зарегистрирован — отказ приходит от doctor'а, а не от отсутствия делегата.
+        assertEquals(1, result.exitCode)
+        assertTrue(result.output.contains("Toolchain: android"), result.output)
+        assertTrue(result.output.contains("Status: missing"), result.output)
     }
 
     private fun cli(

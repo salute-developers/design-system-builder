@@ -165,6 +165,7 @@ export const importComponents = async (
   const interactionStateIds = await loadInteractionStates(tx);
   const stateSetIds = new Map<string, string>();
   const pendingReferences: PendingReference[] = [];
+  const componentIdByName = new Map<string, string | null>();
 
   for (const entry of components) {
     const rejection = validate(entry);
@@ -186,6 +187,7 @@ export const importComponents = async (
       interactionStateIds,
       stateSetIds,
       pendingReferences,
+      componentIdByName,
     });
     if (outcome === "rejected") {
       report.rejected.push({
@@ -214,6 +216,7 @@ export const importComponents = async (
     interactionStateIds,
     stateSetIds,
     pendingReferences,
+    componentIdByName,
   });
 
   report.unresolvedTokens = [...unresolvedTokens].sort();
@@ -321,6 +324,15 @@ interface ImportContext {
    * пакете обрабатывается позже родителя, и его стилей на момент записи ещё не существует.
    */
   pendingReferences: PendingReference[];
+  /**
+   * Кэш `findComponent` в пределах импорта: каноничное имя → id (или `null`, если не найден).
+   *
+   * `findComponent` ищет по функциональному выражению (`lower(regexp_replace(...))`), под которое
+   * нет индекса, — то есть full scan `components` на каждый вызов. За пакет одно и то же имя
+   * запрашивается десятки раз (на каждую конфигурацию компонента и на каждую ссылку
+   * `component_style`), поэтому без кэша один и тот же scan повторяется без необходимости.
+   */
+  componentIdByName: Map<string, string | null>;
 }
 
 /**
@@ -340,7 +352,7 @@ const importOne = async (
   entry: ImportComponent,
   context: ImportContext,
 ): Promise<"created" | "updated" | "unchanged" | "rejected"> => {
-  const componentId = await findComponent(tx, entry.componentName);
+  const componentId = await findComponent(tx, entry.componentName, context);
   if (!componentId) {
     return "rejected";
   }
@@ -452,7 +464,7 @@ const resolveTargetAppearance = async (
   if (cached !== undefined) return cached;
 
   const componentName = context.styleNameToComponentName.get(styleName) ?? styleName;
-  const componentId = await findComponent(tx, componentName);
+  const componentId = await findComponent(tx, componentName, context);
   if (!componentId) {
     cache.set(styleName, null);
     return null;
@@ -619,12 +631,22 @@ const resolveComponentState = (name: string | null, context: ImportContext): str
  * (`AccordionItem`), конфигурации — kebab-case (`accordion-item`). Поиск идёт по каноничной
  * форме, поэтому дубликаты не возникают.
  */
-const findComponent = async (tx: Tx, name: string): Promise<string | null> => {
+const findComponent = async (
+  tx: Tx,
+  name: string,
+  context: ImportContext,
+): Promise<string | null> => {
+  const key = canonical(name);
+  const cached = context.componentIdByName.get(key);
+  if (cached !== undefined) return cached;
+
   const [row] = await tx
     .select({ id: schema.components.id })
     .from(schema.components)
-    .where(eq(sql`lower(regexp_replace(${schema.components.name}, '[^a-zA-Z0-9]', '', 'g'))`, canonical(name)));
-  return row?.id ?? null;
+    .where(eq(sql`lower(regexp_replace(${schema.components.name}, '[^a-zA-Z0-9]', '', 'g'))`, key));
+  const id = row?.id ?? null;
+  context.componentIdByName.set(key, id);
+  return id;
 };
 
 /**
@@ -1448,7 +1470,7 @@ const writeComponentDeps = async (
     // Имя ищется в каноничной форме по той же причине, что и имя самого компонента:
     // глобальный слой назван по коду (`BasicButton`), ссылка — по конфигурации
     // (`basic-button.size-40.mode-accent-grey`).
-    const childId = await findComponent(tx, childName);
+    const childId = await findComponent(tx, childName, context);
     if (!childId) {
       context.unresolvedComponentStyles.add(reference);
       continue;

@@ -13,6 +13,9 @@ internal class FilesystemStructureReader(
     private val json: Json,
 ) : DocsStructureReader {
     override fun readStructure(path: String): Structure {
+        if (!fileSystem.exists(path)) {
+            throw IllegalArgumentException("Structure file not found: $path")
+        }
         return try {
             val content = fileSystem.readText(path)
             json.decodeFromString(Structure.serializer(), content)
