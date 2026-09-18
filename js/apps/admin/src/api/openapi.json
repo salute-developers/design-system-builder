@@ -2184,6 +2184,7 @@
           }
         },
         "required": [
+          "designSystemId",
           "name"
         ]
       },
@@ -2368,7 +2369,12 @@
           "value": {
             "nullable": true
           }
-        }
+        },
+        "required": [
+          "tokenId",
+          "tenantId",
+          "platform"
+        ]
       },
       "UpdateTokenValue": {
         "type": "object",
@@ -7754,6 +7760,36 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Server error",
             "content": {
@@ -7866,8 +7902,28 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not found",
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -7916,8 +7972,28 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not found",
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -8350,6 +8426,36 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Server error",
             "content": {
@@ -8462,8 +8568,28 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not found",
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
             "content": {
               "application/json": {
                 "schema": {
@@ -8512,8 +8638,28 @@
               }
             }
           },
+          "403": {
+            "description": "Project role or scope does not allow token mutation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not found",
+            "description": "Token resource is outside the project or not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Token identity or contextual value already exists",
             "content": {
               "application/json": {
                 "schema": {

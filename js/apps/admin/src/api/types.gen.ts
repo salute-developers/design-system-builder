@@ -4361,6 +4361,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Server error */
                 500: {
                     headers: {
@@ -4449,8 +4476,26 @@ export interface paths {
                         "application/json": components["schemas"]["OkResponse"];
                     };
                 };
-                /** @description Not found */
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4505,8 +4550,26 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Not found */
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4927,6 +4990,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Server error */
                 500: {
                     headers: {
@@ -5015,8 +5105,26 @@ export interface paths {
                         "application/json": components["schemas"]["OkResponse"];
                     };
                 };
-                /** @description Not found */
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -5071,8 +5179,26 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Not found */
+                /** @description Project role or scope does not allow token mutation */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token resource is outside the project or not found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token identity or contextual value already exists */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -9725,7 +9851,7 @@ export interface components {
         };
         CreateToken: {
             /** Format: uuid */
-            designSystemId?: string;
+            designSystemId: string;
             name: string;
             /** @enum {string} */
             type?: "color" | "gradient" | "typography" | "fontFamily" | "spacing" | "shape" | "shadow";
@@ -9778,13 +9904,13 @@ export interface components {
         };
         CreateTokenValue: {
             /** Format: uuid */
-            tokenId?: string;
+            tokenId: string;
             /** Format: uuid */
-            tenantId?: string;
+            tenantId: string;
             /** Format: uuid */
             paletteId?: string;
             /** @enum {string} */
-            platform?: "web" | "android" | "ios";
+            platform: "web" | "android" | "ios";
             /** @enum {string} */
             mode?: "light" | "dark";
             value?: unknown;

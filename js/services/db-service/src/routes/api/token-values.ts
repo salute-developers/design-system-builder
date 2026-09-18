@@ -9,6 +9,10 @@ import {
 } from "../../validation/schema";
 import { validateBody, validateParams } from "../../validation/middleware";
 import { assertFound, tryCatch } from "./utils";
+import {
+  ownsTokenValue, ownsTokenValuePair, paletteExists, rejectMissingResource,
+  requireTokenMutation, tokenActor, tokenMutationError,
+} from "./token-mutation-policy";
 
 const router = Router();
 
@@ -34,19 +38,37 @@ router.get("/:id", validateParams(UuidParamSchema), (req, res) =>
   }),
 );
 
-router.post("/", validateBody(CreateTokenValueSchema), (req, res) =>
-  tryCatch(res, async () => {
+router.post("/", requireTokenMutation("write"), validateBody(CreateTokenValueSchema), async (req, res) => {
+  try {
+    if (!(await ownsTokenValuePair(req.body.tokenId, req.body.tenantId, tokenActor(req).projectId))) {
+      rejectMissingResource(res);
+      return;
+    }
+    if (req.body.paletteId && !(await paletteExists(req.body.paletteId))) {
+      res.status(400).json({ error: "Palette not found" });
+      return;
+    }
     const [row] = await db.insert(tokenValues).values(req.body).returning();
     res.status(201).json(row);
-  }),
+  } catch (error) { tokenMutationError(res, error); }
+},
 );
 
 router.patch(
   "/:id",
+  requireTokenMutation("write"),
   validateParams(UuidParamSchema),
   validateBody(UpdateTokenValueSchema),
-  (req, res) =>
-    tryCatch(res, async () => {
+  async (req, res) => {
+    try {
+      if (!(await ownsTokenValue(req.params.id, tokenActor(req).projectId))) {
+        rejectMissingResource(res);
+        return;
+      }
+      if (req.body.paletteId && !(await paletteExists(req.body.paletteId))) {
+        res.status(400).json({ error: "Palette not found" });
+        return;
+      }
       const [row] = await db
         .update(tokenValues)
         .set(req.body)
@@ -58,11 +80,16 @@ router.patch(
       }
 
       res.json(row);
-    }),
+    } catch (error) { tokenMutationError(res, error); }
+  },
 );
 
-router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
+router.delete("/:id", requireTokenMutation("delete"), validateParams(UuidParamSchema), async (req, res) => {
+  try {
+    if (!(await ownsTokenValue(req.params.id, tokenActor(req).projectId))) {
+      rejectMissingResource(res);
+      return;
+    }
     const [row] = await db
       .delete(tokenValues)
       .where(eq(tokenValues.id, req.params.id))
@@ -73,7 +100,8 @@ router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
     }
 
     res.json({ ok: true });
-  }),
+  } catch (error) { tokenMutationError(res, error); }
+},
 );
 
 export default router;

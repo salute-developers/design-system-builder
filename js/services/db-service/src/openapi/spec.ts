@@ -288,7 +288,13 @@ const registerCrud = (
   responseSchema: z.ZodTypeAny,
   createSchema: z.ZodTypeAny,
   updateSchema?: z.ZodTypeAny,
+  protectedMutation = false,
 ) => {
+  const mutationErrors: Record<string, { description: string; content: ReturnType<typeof json>["content"] }> = protectedMutation ? {
+    403: { description: "Project role or scope does not allow token mutation", ...json(ErrorResponseSchema) },
+    404: { description: "Token resource is outside the project or not found", ...json(ErrorResponseSchema) },
+    409: { description: "Token identity or contextual value already exists", ...json(ErrorResponseSchema) },
+  } : {};
   registry.registerPath({
     method: "get",
     path: basePath,
@@ -303,7 +309,7 @@ const registerCrud = (
     tags: [tag],
     summary: `Create ${tag.toLowerCase().replace(/s$/, "")}`,
     request: { body: { required: true, ...json(createSchema) } },
-    responses: created(responseSchema),
+    responses: { ...created(responseSchema), ...mutationErrors },
   });
 
   registry.registerPath({
@@ -325,7 +331,7 @@ const registerCrud = (
         params: z.object({ id: UuidSchema }),
         body: { required: true, ...json(updateSchema) },
       },
-      responses: updated(responseSchema),
+      responses: { ...updated(responseSchema), ...mutationErrors },
     });
   }
 
@@ -335,7 +341,7 @@ const registerCrud = (
     tags: [tag],
     summary: `Delete ${tag.toLowerCase().replace(/s$/, "")}`,
     request: { params: z.object({ id: UuidSchema }) },
-    responses: deleted(),
+    responses: { ...deleted(), ...mutationErrors },
   });
 };
 
@@ -613,7 +619,7 @@ registry.registerPath({
   responses: list(StyleSchema),
 });
 
-registerCrud(`${DS_PREFIX}/tokens`, "Tokens", TokenSchema, schemas.CreateToken, schemas.UpdateToken);
+registerCrud(`${DS_PREFIX}/tokens`, "Tokens", TokenSchema, schemas.CreateToken, schemas.UpdateToken, true);
 registry.registerPath({
   method: "get",
   path: `${DS_PREFIX}/tokens/{id}/values`,
@@ -633,7 +639,7 @@ registry.registerPath({
   responses: list(TokenValueSchema),
 });
 
-registerCrud(`${DS_PREFIX}/token-values`, "Token Values", TokenValueSchema, schemas.CreateTokenValue, schemas.UpdateTokenValue);
+registerCrud(`${DS_PREFIX}/token-values`, "Token Values", TokenValueSchema, schemas.CreateTokenValue, schemas.UpdateTokenValue, true);
 
 registerCrud(`${DS_PREFIX}/variation-property-values`, "Variation Property Values", VariationPropertyValueSchema, schemas.CreateVariationPropertyValue, schemas.UpdateVariationPropertyValue);
 registry.registerPath({

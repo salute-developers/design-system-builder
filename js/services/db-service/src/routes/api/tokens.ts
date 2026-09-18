@@ -9,6 +9,10 @@ import {
 } from "../../validation/schema";
 import { validateBody, validateParams } from "../../validation/middleware";
 import { assertFound, tryCatch } from "./utils";
+import {
+  ownsToken, ownsTokenDesignSystem, rejectMissingResource, requireTokenMutation,
+  tokenActor, tokenMutationError,
+} from "./token-mutation-policy";
 
 const router = Router();
 
@@ -34,19 +38,29 @@ router.get("/:id", validateParams(UuidParamSchema), (req, res) =>
   }),
 );
 
-router.post("/", validateBody(CreateTokenSchema), (req, res) =>
-  tryCatch(res, async () => {
+router.post("/", requireTokenMutation("write"), validateBody(CreateTokenSchema), async (req, res) => {
+  try {
+    if (!(await ownsTokenDesignSystem(req.body.designSystemId, tokenActor(req).projectId))) {
+      rejectMissingResource(res);
+      return;
+    }
     const [row] = await db.insert(tokens).values(req.body).returning();
     res.status(201).json(row);
-  }),
+  } catch (error) { tokenMutationError(res, error); }
+},
 );
 
 router.patch(
   "/:id",
+  requireTokenMutation("write"),
   validateParams(UuidParamSchema),
   validateBody(UpdateTokenSchema),
-  (req, res) =>
-    tryCatch(res, async () => {
+  async (req, res) => {
+    try {
+      if (!(await ownsToken(req.params.id, tokenActor(req).projectId))) {
+        rejectMissingResource(res);
+        return;
+      }
       const [row] = await db
         .update(tokens)
         .set(req.body)
@@ -58,11 +72,16 @@ router.patch(
       }
 
       res.json(row);
-    }),
+    } catch (error) { tokenMutationError(res, error); }
+  },
 );
 
-router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
+router.delete("/:id", requireTokenMutation("delete"), validateParams(UuidParamSchema), async (req, res) => {
+  try {
+    if (!(await ownsToken(req.params.id, tokenActor(req).projectId))) {
+      rejectMissingResource(res);
+      return;
+    }
     const [row] = await db
       .delete(tokens)
       .where(eq(tokens.id, req.params.id))
@@ -73,7 +92,8 @@ router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
     }
 
     res.json({ ok: true });
-  }),
+  } catch (error) { tokenMutationError(res, error); }
+},
 );
 
 // GET /tokens/:id/values — all token values for a token

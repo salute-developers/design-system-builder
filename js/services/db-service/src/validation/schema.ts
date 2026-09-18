@@ -210,7 +210,7 @@ export const UpdateAppearanceVariationValueSchema = z.object({
 
 // Tokens
 export const CreateTokenSchema = z.object({
-  designSystemId: uuidSchema.optional(),
+  designSystemId: uuidSchema,
   name: z.string().trim().min(1).max(255),
   type: TokenTypeSchema.optional(),
   displayName: z.string().trim().max(255).optional(),
@@ -253,10 +253,10 @@ export const UpdateTenantSchema = z.object({
 
 // Token Values
 export const CreateTokenValueSchema = z.object({
-  tokenId: uuidSchema.optional(),
-  tenantId: uuidSchema.optional(),
+  tokenId: uuidSchema,
+  tenantId: uuidSchema,
   paletteId: uuidSchema.optional(),
-  platform: PlatformSchema.optional(),
+  platform: PlatformSchema,
   mode: ModeSchema.optional(),
   value: z.any().optional(),
 });
