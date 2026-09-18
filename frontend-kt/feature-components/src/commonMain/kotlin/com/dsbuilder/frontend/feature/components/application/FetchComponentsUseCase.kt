@@ -31,6 +31,8 @@ public class FetchComponentsUseCase internal constructor(
     private val directoryReader: ComponentPackageDirectoryReader,
     private val writer: LocalComponentPackageWriter,
     private val codec: ConfigCodec,
+    private val snapshotSource: ComponentConfigsSnapshotSource,
+    private val snapshotWriter: ComponentConfigsSnapshotWriter,
     private val planBuilder: ComponentPackageWritePlanBuilder = ComponentPackageWritePlanBuilder(),
 ) {
     /**
@@ -70,16 +72,13 @@ public class FetchComponentsUseCase internal constructor(
             is CredentialResult.Selected -> selected.credential
         }
 
-        val exported = when (
-            val result = remoteSource.export(
-                ExportComponentsCommand(
-                    apiUrl = ProjectApiUrl(apiUrl.value),
-                    credential = credential,
-                    projectId = context.projectId,
-                    designSystemId = context.designSystemId,
-                ),
-            )
-        ) {
+        val remoteCommand = ExportComponentsCommand(
+            apiUrl = ProjectApiUrl(apiUrl.value),
+            credential = credential,
+            projectId = context.projectId,
+            designSystemId = context.designSystemId,
+        )
+        val exported = when (val result = remoteSource.export(remoteCommand)) {
             is ExportComponentsResult.Failed -> return FetchComponentsResult.Failed(result.message)
             is ExportComponentsResult.Exported -> result.value
         }
@@ -93,7 +92,16 @@ public class FetchComponentsUseCase internal constructor(
             configurationCount = exported.configurations.size,
         )
 
-        return writePackage(exported, source, command, context)
+        val snapshot = when (val result = snapshotSource.fetch(remoteCommand, exported.name)) {
+            is ComponentConfigsSnapshotResult.Failed -> return FetchComponentsResult.Failed(result.message, source)
+            is ComponentConfigsSnapshotResult.Loaded -> result.content
+        }
+        val result = writePackage(exported, source, command, context)
+        if (result !is FetchComponentsResult.Fetched) return result
+        return when (val written = snapshotWriter.write(context, command.destination, snapshot)) {
+            is ComponentPackageWriteResult.Failed -> FetchComponentsResult.Failed(written.message, source)
+            is ComponentPackageWriteResult.Written -> result.copy(snapshotPath = written.path)
+        }
     }
 
     /**
@@ -229,6 +237,7 @@ public sealed interface FetchComponentsResult {
      * @property path директория, в которую записан пакет.
      * @property fileNames имена записанных файлов конфигураций.
      * @property unrelatedFiles файлы, оставшиеся в директории от прежнего состава.
+     * @property snapshotPath путь исходного JSON legacy-конфигов.
      * @property underivedTypes значения, вид заливки которых модель не смогла вывести.
      */
     public data class Fetched(
@@ -237,6 +246,7 @@ public sealed interface FetchComponentsResult {
         public val fileNames: List<String>,
         public val unrelatedFiles: List<String>,
         public val underivedTypes: List<String>,
+        public val snapshotPath: String? = null,
     ) : FetchComponentsResult
 
     /**

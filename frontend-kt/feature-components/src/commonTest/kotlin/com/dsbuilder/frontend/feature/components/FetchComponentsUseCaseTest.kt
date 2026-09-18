@@ -13,6 +13,9 @@ import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotResult
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
+import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.ComponentDirectoryReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
@@ -53,14 +56,31 @@ class FetchComponentsUseCaseTest {
     @Test
     fun acceptsBearerForExport() = runTest {
         var selected: BackendCredential? = null
+        var snapshotCredential: BackendCredential? = null
         val result = execute(
             credentialProvider = testCredentialProvider(
                 CredentialResult.Selected(BackendCredential.Bearer("access"), BackendCredentialType.USER_SESSION),
             ),
             onExport = { selected = it.credential },
+            onSnapshot = { snapshotCredential = it.credential },
         )
         assertTrue(result is FetchComponentsResult.Fetched)
         assertEquals(BackendCredential.Bearer("access"), selected)
+        assertEquals(selected, snapshotCredential)
+    }
+
+    @Test
+    fun headlessDestinationReceivesSnapshot() = runTest {
+        var snapshotRequested = false
+        val result = execute(
+            selectedContext = context.copy(configPath = ""),
+            destination = ComponentDestination("/output"),
+            onSnapshot = { snapshotRequested = true },
+        )
+
+        assertTrue(result is FetchComponentsResult.Fetched)
+        assertEquals("/output/component-configs.json", result.snapshotPath)
+        assertTrue(snapshotRequested)
     }
 
     private val context = ProjectContext(
@@ -211,8 +231,11 @@ class FetchComponentsUseCaseTest {
             CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
         ),
         onExport: (ExportComponentsCommand) -> Unit = {},
+        onSnapshot: (ExportComponentsCommand) -> Unit = {},
         onDirectoryRead: () -> Unit = {},
         onWrite: () -> Unit = {},
+        selectedContext: ProjectContext = context,
+        destination: ComponentDestination = ComponentDestination(),
     ): FetchComponentsResult {
         val result = exportResult ?: ExportComponentsResult.Exported(
             ExportedComponentPackage(
@@ -226,7 +249,7 @@ class FetchComponentsUseCaseTest {
         val useCase = FetchComponentsUseCase(
             projectContextReader = object : ProjectContextReader {
                 override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
-                    ProjectContextReadResult.Found(context)
+                    ProjectContextReadResult.Found(selectedContext)
             },
             credentialProvider = credentialProvider,
             apiUrlResolver = ApiUrlResolver(EnvironmentReader { null }),
@@ -240,11 +263,19 @@ class FetchComponentsUseCaseTest {
                 ComponentPackageWriteResult.Written("/work/.sdds/components")
             },
             codec = ConfigCodec(),
+            snapshotSource = ComponentConfigsSnapshotSource { command, _ ->
+                onSnapshot(command)
+                ComponentConfigsSnapshotResult.Loaded("[]")
+            },
+            snapshotWriter = ComponentConfigsSnapshotWriter { selected, target, _ ->
+                val directory = if (selected.configPath.isBlank()) target.directory else "/work/.sdds"
+                ComponentPackageWriteResult.Written("$directory/component-configs.json")
+            },
         )
 
         return useCase.execute(
             FetchComponentsCommand(
-                destination = ComponentDestination(),
+                destination = destination,
                 apiUrlOverride = "http://localhost:8080",
             ),
         )

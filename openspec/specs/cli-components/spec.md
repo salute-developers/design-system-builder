@@ -354,6 +354,14 @@ and SHALL keep configuration file names stable across runs.
 - **WHEN** a pair of `componentName` and `styleName` is absent from the existing `meta.json`
 - **WHEN** the target directory contains no `meta.json`
 - **THEN** CLI MUST build the file name from `styleName` by replacing every `.` and `-` with `_` and appending `_config.json`
+- **THEN** if this normalized style name occurs on multiple components in the export, new file names MUST use `{componentName}_{styleName}` with the same normalization and suffix
+- **THEN** existing names from `meta.json` MUST remain unchanged; any remaining collision MUST be rejected before writing
+
+#### Scenario: Different components use the default style
+
+- **WHEN** a new package contains `accordion/default`, `badge/default` and `button/default`
+- **THEN** CLI MUST write `accordion_default_config.json`, `badge_default_config.json` and `button_default_config.json`
+- **THEN** `meta.json` MUST reference the corresponding file for each pair
 
 #### Scenario: Коллизия вычисленных имён разрешается полной идентичностью
 
@@ -393,3 +401,36 @@ discovers them.
 - **WHEN** the backend reports such properties or values
 - **THEN** CLI MUST still write the package
 - **THEN** CLI MUST exit with a success status
+
+### Requirement: Components fetch saves legacy snapshot
+
+`components fetch` SHALL load the legacy component configs in `feature-components` using the same
+project context, API URL and credentials as package export.
+`theme fetch` SHALL NOT load or modify this snapshot.
+
+#### Scenario: Snapshot is saved beside project config
+
+- **WHEN** package export succeeds
+- **THEN** CLI MUST take the design-system name from the export metadata
+- **THEN** CLI MUST request `GET /api/projects/{projectId}/ds/legacy/design-systems/{name}/component-configs`, encoding the name as one path segment
+- **THEN** CLI MUST validate the response as a JSON array and save the original response text in `.sdds/component-configs.json` beside the discovered project config
+- **THEN** `--to` MUST affect only the component package directory, not the snapshot path
+- **THEN** a successful repeat fetch MUST replace the snapshot, including with an empty array
+
+#### Scenario: Snapshot cannot be loaded
+
+- **WHEN** the snapshot request fails or its response is not a valid JSON array
+- **THEN** CLI MUST return a nonzero exit code without writing the package or snapshot
+- **THEN** CLI MUST NOT expose response bodies or credentials
+
+#### Scenario: Snapshot cannot be written
+
+- **WHEN** writing the snapshot fails
+- **THEN** CLI MUST report failure with a nonzero exit code
+
+#### Scenario: Explicit link without local config
+
+- **WHEN** `components fetch --design-system <uri> --to <directory>` runs without a local `.sdds/config.json`
+- **THEN** CLI MUST write the component package to the selected directory
+- **THEN** CLI MUST request the legacy snapshot with the same context and credential as package export
+- **THEN** CLI MUST write `component-configs.json` into the selected directory
