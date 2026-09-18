@@ -24,6 +24,9 @@ private const val DEFAULT_DOCS_DIR = ".sdds/temp/docs"
 /** Историческое умолчание `docs generate`: проект без объявленной платформы собирает compose-пакет. */
 private val DEFAULT_DOCUMENTATION_PLATFORM = TargetPlatform.COMPOSE
 
+/** Структура без узлов навигации: используется, когда structure-user.json отсутствует. */
+private val EMPTY_USER_STRUCTURE = Structure(schemaVersion = "1.0", navigation = emptyList())
+
 /**
  * Use case для сборки пакета документации.
  */
@@ -121,7 +124,16 @@ public class DocsGenerateUseCase internal constructor(
         val userStructure: Structure
         try {
             coreStructure = structureReader.readStructure("$docsDir/structure-core.json")
-            userStructure = structureReader.readStructure("$docsDir/structure-user.json")
+            // Пользовательская документация опциональна (см. DocumentationCapability.userDocumentationRoot,
+            // DocumentationAggregateTask.enrichUserDocumentation) — без override-docs/ агрегатор просто не
+            // пишет structure-user.json. Отсутствие файла — не ошибка, а «нет пользовательских правок»;
+            // MergeEngine.merge с пустой user-структурой и так резолвит чистое core-дерево.
+            val userStructurePath = "$docsDir/structure-user.json"
+            userStructure = if (hasFile(userStructurePath)) {
+                structureReader.readStructure(userStructurePath)
+            } else {
+                EMPTY_USER_STRUCTURE
+            }
         } catch (error: IllegalArgumentException) {
             return ResolvedDocsRead.Failure("Failed to read structure files: ${error.message}")
         }

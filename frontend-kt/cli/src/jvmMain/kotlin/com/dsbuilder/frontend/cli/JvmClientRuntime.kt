@@ -2,6 +2,8 @@ package com.dsbuilder.frontend.cli
 
 import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.network.BULK_REQUEST_TIMEOUT_MILLIS
+import com.dsbuilder.frontend.core.network.CONNECT_TIMEOUT_MILLIS
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
@@ -10,6 +12,7 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import okio.BufferedSink
 import okio.buffer
 import okio.sink
@@ -22,7 +25,15 @@ import java.io.IOException
 public actual fun defaultClientRuntime(): ClientRuntime = ClientRuntime(
     fileSystem = JvmWorkspaceFileSystem,
     environmentReader = EnvironmentReader { name -> System.getenv(name) },
-    httpClientFactory = KtorAuthenticatedHttpClientFactory { HttpClient(CIO) },
+    httpClientFactory = KtorAuthenticatedHttpClientFactory {
+        HttpClient(CIO) {
+            install(HttpTimeout) {
+                requestTimeoutMillis = BULK_REQUEST_TIMEOUT_MILLIS
+                socketTimeoutMillis = BULK_REQUEST_TIMEOUT_MILLIS
+                connectTimeoutMillis = CONNECT_TIMEOUT_MILLIS
+            }
+        }
+    },
     processRunner = JvmProcessRunner,
 )
 
