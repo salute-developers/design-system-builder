@@ -48,6 +48,7 @@ kotlin {
             implementation(projects.featureToolchain)
             implementation(projects.platformIos)
             implementation(projects.mcpServerCore)
+            implementation(projects.platformAndroid)
             implementation(libs.clikt)
             implementation(libs.koin.core)
             implementation(libs.kotlinx.coroutines.core)

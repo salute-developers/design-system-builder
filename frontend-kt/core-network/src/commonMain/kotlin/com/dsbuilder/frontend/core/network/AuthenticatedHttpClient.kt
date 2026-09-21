@@ -21,6 +21,23 @@ import io.ktor.http.isSuccess
 private const val TRANSPORT_MESSAGE_LIMIT = 200
 
 /**
+ * Таймаут запроса/сокета для HTTP-клиентов CLI.
+ *
+ * Импорт и выгрузка пакета — одна транзакция на весь пакет (сотни конфигураций), и дефолтный
+ * таймаут движка Ktor (порядка 10-15 секунд) рассчитан на обычные короткие запросы, а не на
+ * bulk-операции над рабочей копией. Без явного значения `components push`/`fetch` на пакете
+ * из полутора сотен конфигураций может ложно падать таймаутом до того, как backend вообще
+ * ответит — независимо от того, валиден пакет или нет.
+ */
+public const val BULK_REQUEST_TIMEOUT_MILLIS: Long = 300_000
+
+/**
+ * Таймаут установления соединения — короче, чем [BULK_REQUEST_TIMEOUT_MILLIS]: если backend
+ * недоступен, это должно быть видно быстро, а не после пяти минут ожидания.
+ */
+public const val CONNECT_TIMEOUT_MILLIS: Long = 15_000
+
+/**
  * Результат authenticated backend request.
  */
 public sealed interface AuthenticatedHttpResult {
@@ -210,10 +227,23 @@ public class KtorAuthenticatedHttpClient(
             status.value,
         )
         else -> AuthenticatedHttpResult.Failure(
-            "Status: failed. Backend returned HTTP ${status.value}.",
+            "Status: failed. Backend returned HTTP ${status.value}: ${errorBodySnippet()}",
             status.value,
         )
     }
+
+    /**
+     * Первая строка тела ответа, усечённая до лимита: backend кладёт причину отказа в JSON-поле
+     * `message`, и без него CLI печатал только код статуса, теряя ровно ту диагностику, ради
+     * которой backend отдаёт тело вообще.
+     */
+    private suspend fun HttpResponse.errorBodySnippet(): String =
+        bodyAsText()
+            .substringBefore('\n')
+            .trim()
+            .takeIf { it.isNotEmpty() }
+            ?.take(TRANSPORT_MESSAGE_LIMIT)
+            ?: "(empty body)"
 
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 

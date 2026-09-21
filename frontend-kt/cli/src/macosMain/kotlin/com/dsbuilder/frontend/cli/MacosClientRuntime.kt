@@ -95,6 +95,15 @@ private const val CREDENTIAL_LOCK_RETRY_MILLIS = 50L
  * В режиме наследования stdio дочерний процесс пишет прямо в терминал; в режиме захвата stdout и
  * stderr направляются в один pipe и читаются до EOF одним потоком — так исключён deadlock
  * на заполненном буфере.
+ *
+ * `standardInput` дочернего процесса в обоих режимах — пустой `NSPipe`, а не унаследованный терминал,
+ * даже когда stdout/stderr наследуются для потокового вывода долгих сборок (Gradle, xcodebuild):
+ * некоторые из этих инструментов всё равно трогают stdin при инициализации консоли. Если оставить им
+ * терминал родителя, а процесс окажется вне foreground process group терминала (реальный сценарий при
+ * запуске из интерактивной оболочки — таймингово нестабильный, отсюда и "иногда" воспроизводится),
+ * ядро присылает `SIGTTIN` и стопит процесс — это выглядит как зависание без единой строчки вывода
+ * (или зависание сразу после последней строчки), хотя на самом деле процесс просто ждёт ввода,
+ * который никогда не придёт.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 private object MacosProcessRunner : ProcessRunner {
@@ -106,6 +115,7 @@ private object MacosProcessRunner : ProcessRunner {
         task.arguments = request.args
         task.currentDirectoryURL = NSURL.fileURLWithPath(request.workingDirectory, isDirectory = true)
         task.environment = mergedEnvironment(request.environment)
+        task.standardInput = NSPipe()
 
         val pipe = if (request.inheritStdio) {
             null
