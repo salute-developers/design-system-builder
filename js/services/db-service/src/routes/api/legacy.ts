@@ -12,6 +12,9 @@ import {
   appearances,
   appearanceVariations,
   appearanceVariationValues,
+  styleCombinations,
+  styleCombinationMembers,
+  componentDeps,
   variations,
   properties,
   propertyPlatformParams,
@@ -138,10 +141,13 @@ router.get("/:name/component-configs", (req, res) =>
     const [variationRows, propertyRows, appearanceRows] = await Promise.all([
       db.select().from(variations).where(inArray(variations.componentId, componentIds)),
       db.select().from(properties).where(inArray(properties.componentId, componentIds)),
+      // Legacy-формат обслуживает веб-клиент и генератор: нативные appearances
+      // того же компонента (platform IS NULL) в выдачу не попадают.
       db.select().from(appearances).where(
         and(
           eq(appearances.designSystemId, dsId),
           inArray(appearances.componentId, componentIds),
+          eq(appearances.platform, "web"),
         ),
       ),
     ]);
@@ -309,12 +315,13 @@ router.get("/:name/component-configs", (req, res) =>
     const appearancesByComponentId = groupBy(appearanceRows, (a) => a.componentId);
     const stylesByVariationId = groupBy(styleRows, (s) => s.variationId);
 
-    // Дефолт оси принадлежит паре (appearance, ось): два стиля одного компонента в одной
-    // ДС могут требовать разного дефолта одной оси, чего флаг `styles.is_default`,
-    // уникальный по (ДС, ось), выразить не мог.
+    // Дефолт вариации принадлежит паре (appearance, вариация): два стиля одного компонента в одной
+    // ДС могут требовать разного дефолта одной вариации, чего флаг `styles.is_default`,
+    // уникальный по (ДС, вариация), выразить не мог.
     const appearanceVariationRows = appearanceRows.length
       ? await db
           .select({
+            id: appearanceVariations.id,
             appearanceId: appearanceVariations.appearanceId,
             variationId: appearanceVariations.variationId,
             defaultStyleId: appearanceVariations.defaultStyleId,
@@ -332,6 +339,54 @@ router.get("/:name/component-configs", (req, res) =>
         .filter((row) => row.defaultStyleId)
         .map((row) => [`${row.appearanceId}:${row.variationId}`, row.defaultStyleId!]),
     );
+
+    // ── Сочетания стилей, зависимости ────────────────────────────────────────────
+    const comboRows = appearanceIds.length
+      ? await db
+          .select()
+          .from(styleCombinations)
+          .where(
+            and(
+              inArray(styleCombinations.appearanceId, appearanceIds),
+              eq(styleCombinations.stateSetId, SENTINEL_STATE_SET_ID),
+            ),
+          )
+      : [];
+    const comboIds = comboRows.map((c) => c.id);
+    const comboMemberRows = comboIds.length
+      ? await db.select().from(styleCombinationMembers).where(inArray(styleCombinationMembers.combinationId, comboIds))
+      : [];
+    const comboTokenIds = [...new Set(comboRows.map((c) => c.tokenId).filter(Boolean))] as string[];
+    const comboTokenNameById = comboTokenIds.length
+      ? new Map(
+          (await db.select({ id: tokens.id, name: tokens.name }).from(tokens).where(inArray(tokens.id, comboTokenIds))).map(
+            (t) => [t.id, t.name],
+          ),
+        )
+      : new Map<string, string>();
+    const membersByCombo = new Map<string, string[]>();
+    for (const m of comboMemberRows) {
+      membersByCombo.set(m.combinationId, [...(membersByCombo.get(m.combinationId) ?? []), m.styleId]);
+    }
+    // combinations: одна запись на набор стилей, внутри — значения свойств под этим набором.
+    const combinationsByAppearance = new Map<string, Map<string, { styleIDs: string[]; props: { id: string; value: string }[] }>>();
+    for (const c of comboRows) {
+      const styleIDs = [...(membersByCombo.get(c.id) ?? [])].sort();
+      const key = styleIDs.join(',');
+      if (!combinationsByAppearance.has(c.appearanceId)) combinationsByAppearance.set(c.appearanceId, new Map());
+      const byKey = combinationsByAppearance.get(c.appearanceId)!;
+      if (!byKey.has(key)) byKey.set(key, { styleIDs, props: [] });
+      const propType = propById.get(c.propertyId)?.type;
+      const raw = c.tokenId ? (comboTokenNameById.get(c.tokenId) ?? c.value) : c.value;
+      const value = raw && propType === "typography" ? stripScreenPrefix(raw) : raw;
+      byKey.get(key)!.props.push({ id: c.propertyId, value: value ?? "" });
+    }
+
+    const depRows = componentIds.length
+      ? await db.select().from(componentDeps).where(inArray(componentDeps.parentId, componentIds))
+      : [];
+    const componentNameById = new Map(componentList.map((c) => [c.id, c.name]));
+    const depsByParent = groupBy(depRows, (d) => d.parentId);
     const ipvByComponentId = groupBy(ipvRows, (ipv) => ipv.componentId);
     const ipvByComponentAppearance = groupBy(
       ipvRows,
@@ -443,8 +498,8 @@ router.get("/:name/component-configs", (req, res) =>
 
       // sources.configs: appearances with config
       const sourcesConfigs = compAppearances.map((appearance) => {
-        // defaultVariations: дефолт принадлежит паре (appearance, ось), поэтому берётся
-        // из её объявления, а не из флага стиля, уникального по (ДС, ось).
+        // defaultVariations: дефолт принадлежит паре (appearance, вариация), поэтому берётся
+        // из её объявления, а не из флага стиля, уникального по (ДС, вариация).
         const defaultVariations = compVariations.flatMap((variation) => {
           const styleId = defaultStyleByAppearanceVariation.get(
             `${appearance.id}:${variation.id}`,
@@ -516,6 +571,7 @@ router.get("/:name/component-configs", (req, res) =>
             defaultVariations,
             invariantProps,
             variations: variationsConfig,
+            combinations: [...(combinationsByAppearance.get(appearance.id)?.values() ?? [])],
           },
         };
       });
@@ -523,9 +579,14 @@ router.get("/:name/component-configs", (req, res) =>
       return {
         name: component.name,
         description: component.description,
+        // Имена экспортов ядра, если не выводятся из имени компонента (tabsTokens, lineSkeletonConfig).
         createdAt: component.createdAt,
         updatedAt: component.updatedAt,
         props: outerProps,
+        // Дочерние компоненты (compose): в сгенерированном пакете лежат в папке родителя.
+        deps: (depsByParent.get(component.id) ?? [])
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((d) => ({ childId: d.childId, childName: componentNameById.get(d.childId) ?? null, type: d.type, order: d.order })),
         sources: {
           api: apiProperties,
           variations: sourcesVariations,
@@ -1011,6 +1072,10 @@ router.post("/create", (req, res) =>
                 variationId: dbVar.id,
                 name: styleCfg.name,
               })
+              .onConflictDoUpdate({
+                target: [styles.designSystemId, styles.variationId, styles.name],
+                set: { name: sql`excluded.name` },
+              })
               .returning();
             jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
           }
@@ -1026,12 +1091,13 @@ router.post("/create", (req, res) =>
             designSystemId: ds.id,
             componentId: component.id,
             name: configEntry.name,
+            platform: "web",
           })
           .returning();
 
         const cfg = configEntry.config;
 
-        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // Объявление вариаций этого appearance: состав, порядок и дефолт. Дефолт берётся
         // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
         // поэтому два appearance одного компонента могут иметь разные дефолты.
         const defaultStyleByVarId = new Map<string, string>();
@@ -1097,6 +1163,38 @@ router.post("/create", (req, res) =>
             toAdjustmentStr(inv.adjustment),
             pppByKey,
           );
+        }
+
+        // Значения под сочетанием стилей разных вариаций
+        for (const combo of cfg.combinations ?? []) {
+          const memberIds = combo.styleIDs
+            .map((id) => jsonStyleToDbStyle.get(id)?.id)
+            .filter((id): id is string => Boolean(id));
+          if (memberIds.length !== combo.styleIDs.length) continue;
+          const combinationKey = [...memberIds].sort().join(",");
+
+          for (const prop of combo.props ?? []) {
+            const info = apiPropById.get(prop.id);
+            if (!info?.dbProp) continue;
+            const valueStr = prop.value !== null && prop.value !== undefined ? String(prop.value) : null;
+            const encoded = encodePropValue(valueStr, tokenIdByName);
+            const [sc] = await db
+              .insert(styleCombinations)
+              .values({
+                propertyId: info.dbProp.id,
+                appearanceId: appearance.id,
+                combinationKey,
+                tokenId: encoded.tokenId,
+                // `value` обязателен: для токена в нём лежит имя токена.
+                value: encoded.value ?? valueStr ?? "",
+                stateSetId: SENTINEL_STATE_SET_ID,
+              })
+              .returning();
+            await db
+              .insert(styleCombinationMembers)
+              .values(memberIds.map((styleId) => ({ combinationId: sc.id, styleId })))
+              .onConflictDoNothing();
+          }
         }
 
         // variation props (vpv)
@@ -1415,8 +1513,9 @@ router.post("/:name/update", (req, res) =>
         if (dbVar) jsonVarToDbVar.set(srcVar.id, dbVar);
       }
 
-      // Delete existing styles, appearances, ipv, vpv for this DS + component
-      // so we can re-create them from the incoming data
+      // Delete existing web appearances, ipv, vpv for this DS + component
+      // so we can re-create them from the incoming data. Нативные appearances
+      // (platform IS NULL) принадлежат импорту theme-converter и не трогаются.
       const existingAppearances = await db
         .select()
         .from(appearances)
@@ -1424,6 +1523,7 @@ router.post("/:name/update", (req, res) =>
           and(
             eq(appearances.designSystemId, ds.id),
             eq(appearances.componentId, component.id),
+            eq(appearances.platform, "web"),
           ),
         );
       const existingAppearanceIds = existingAppearances.map((a) => a.id);
@@ -1484,14 +1584,29 @@ router.post("/:name/update", (req, res) =>
         }
       }
 
-      // Delete existing styles for this DS + component's variations
-      if (compStyleIds.length > 0) {
-        await db.delete(styles).where(inArray(styles.id, compStyleIds));
-      }
-
-      // Delete existing appearances
+      // Delete existing web appearances; their axis declarations, values and
+      // combinations go away by cascade.
       if (existingAppearanceIds.length > 0) {
         await db.delete(appearances).where(inArray(appearances.id, existingAppearanceIds));
+      }
+
+      // Стили общие для платформ: `size.l` один и для веб-, и для нативного appearance.
+      // Удаляем только те, на которые после снятия веб-appearances никто не ссылается;
+      // остальные переиспользуются через upsert ниже.
+      if (compStyleIds.length > 0) {
+        await db.execute(sql`
+          DELETE FROM styles s
+          WHERE s.id IN ${compStyleIds}
+            AND NOT EXISTS (SELECT 1 FROM appearance_variation_values x WHERE x.style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM appearance_variations x WHERE x.default_style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM appearance_variation_root_defaults x
+                            WHERE x.root_style_id = s.id OR x.default_style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM variation_property_values x WHERE x.style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM style_combination_members x WHERE x.style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM appearance_combination_members x WHERE x.style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM component_reuse_configs x WHERE x.style_id = s.id)
+            AND NOT EXISTS (SELECT 1 FROM component_style_reference_styles x WHERE x.style_id = s.id)
+        `);
       }
 
       // Re-create styles from first config
@@ -1514,6 +1629,10 @@ router.post("/:name/update", (req, res) =>
                 variationId: dbVar.id,
                 name: styleCfg.name,
               })
+              .onConflictDoUpdate({
+                target: [styles.designSystemId, styles.variationId, styles.name],
+                set: { name: sql`excluded.name` },
+              })
               .returning();
             jsonStyleToDbStyle.set(styleCfg.id, dbStyle);
           }
@@ -1528,12 +1647,13 @@ router.post("/:name/update", (req, res) =>
             designSystemId: ds.id,
             componentId: component.id,
             name: configEntry.name,
+            platform: "web",
           })
           .returning();
 
         const cfg = configEntry.config;
 
-        // Объявление осей этого appearance: состав, порядок и дефолт. Дефолт берётся
+        // Объявление вариаций этого appearance: состав, порядок и дефолт. Дефолт берётся
         // из `defaultVariations` этой конфигурации, а не из общего для ДС флага стиля,
         // поэтому два appearance одного компонента могут иметь разные дефолты.
         const defaultStyleByVarId = new Map<string, string>();
@@ -1593,6 +1713,38 @@ router.post("/:name/update", (req, res) =>
             .returning();
 
           await insertInvariantAdjustments(ipv.id, info, toAdjustmentStr(inv.adjustment), pppByKey);
+        }
+
+        // Значения под сочетанием стилей разных вариаций
+        for (const combo of cfg.combinations ?? []) {
+          const memberIds = combo.styleIDs
+            .map((id) => jsonStyleToDbStyle.get(id)?.id)
+            .filter((id): id is string => Boolean(id));
+          if (memberIds.length !== combo.styleIDs.length) continue;
+          const combinationKey = [...memberIds].sort().join(",");
+
+          for (const prop of combo.props ?? []) {
+            const info = apiPropById.get(prop.id);
+            if (!info?.dbProp) continue;
+            const valueStr = prop.value !== null && prop.value !== undefined ? String(prop.value) : null;
+            const encoded = encodePropValue(valueStr, tokenIdByName);
+            const [sc] = await db
+              .insert(styleCombinations)
+              .values({
+                propertyId: info.dbProp.id,
+                appearanceId: appearance.id,
+                combinationKey,
+                tokenId: encoded.tokenId,
+                // `value` обязателен: для токена в нём лежит имя токена.
+                value: encoded.value ?? valueStr ?? "",
+                stateSetId: SENTINEL_STATE_SET_ID,
+              })
+              .returning();
+            await db
+              .insert(styleCombinationMembers)
+              .values(memberIds.map((styleId) => ({ combinationId: sc.id, styleId })))
+              .onConflictDoNothing();
+          }
         }
 
         // variation props (vpv)
@@ -1847,6 +1999,7 @@ interface LegacyConfig {
   config: {
     defaultVariations?: { variationID: string; styleID: string }[];
     invariantProps?: { id: string; value: unknown; adjustment?: unknown; states?: unknown }[];
+    combinations?: { styleIDs: string[]; props: { id: string; value: unknown; adjustment?: unknown }[] }[];
     variations?: {
       id: string;
       styles?: {

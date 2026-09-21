@@ -478,6 +478,8 @@ const resolveTargetAppearance = async (
         eq(schema.appearances.designSystemId, designSystemId),
         eq(schema.appearances.componentId, componentId),
         eq(schema.appearances.name, styleName),
+        // Веб-appearances того же имени принадлежат веб-импорту и здесь не видны.
+        isNull(schema.appearances.platform),
       ),
     );
   const id = row?.id ?? null;
@@ -679,6 +681,7 @@ const upsertAppearance = async (
         eq(schema.appearances.designSystemId, designSystemId),
         eq(schema.appearances.componentId, componentId),
         eq(schema.appearances.name, name),
+        isNull(schema.appearances.platform),
       ),
     );
   if (existing) return { appearanceId: existing.id, existed: true };
