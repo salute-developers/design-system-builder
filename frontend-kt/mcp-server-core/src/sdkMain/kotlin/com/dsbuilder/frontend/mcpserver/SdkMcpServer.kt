@@ -56,6 +56,9 @@ internal fun DsBuilderMcpServerCore.createSdkServer(): Server {
                                             },
                                         )
                                     }
+                                    definition.itemType?.let { itemType ->
+                                        put("items", buildJsonObject { put("type", itemType) })
+                                    }
                                 },
                             )
                         }

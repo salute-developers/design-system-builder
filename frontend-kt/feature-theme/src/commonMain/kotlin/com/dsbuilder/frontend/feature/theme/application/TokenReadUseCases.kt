@@ -16,12 +16,11 @@ import kotlinx.serialization.json.JsonElement
 
 public data class TokenListReadCommand(val type: String?, val query: String?)
 
-public data class TokenGetReadCommand(val identifier: String)
+public data class TokenGetReadCommand(val tokenId: String)
 
 public data class TokenValuesReadCommand(
-    val identifier: String,
+    val tokenId: String,
     val tenantId: String?,
-    val themeId: String?,
     val mode: String?,
     val platform: String?,
 )

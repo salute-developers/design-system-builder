@@ -393,45 +393,6 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: `${DS_PREFIX}/design-systems/{id}/tokens/{tokenIdOrName}`,
-  tags: ["Design Systems"],
-  summary: "Get token by id or name in design system",
-  request: {
-    params: z.object({ id: UuidSchema, tokenIdOrName: z.string().min(1) }),
-  },
-  responses: {
-    200: { description: "Token", ...json(TokenSchema) },
-    403: { description: "Project key lacks tokens:read", ...json(ErrorResponseSchema) },
-    404: { description: "Token not found in design system", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
-registry.registerPath({
-  method: "get",
-  path: `${DS_PREFIX}/design-systems/{id}/tokens/{tokenIdOrName}/values`,
-  tags: ["Design Systems"],
-  summary: "Get token values by token id or name in design system",
-  request: {
-    params: z.object({ id: UuidSchema, tokenIdOrName: z.string().min(1) }),
-    query: z.object({
-      tenantId: UuidSchema.optional(),
-      themeId: z.string().optional(),
-      mode: s.ModeSchema.optional(),
-      platform: s.PlatformSchema.optional(),
-    }),
-  },
-  responses: {
-    200: { description: "Token values", ...json(z.array(TokenValueSchema)) },
-    400: { description: "Invalid filter", ...json(ErrorResponseSchema) },
-    403: { description: "Project key lacks tokens:read", ...json(ErrorResponseSchema) },
-    404: { description: "Token not found in design system", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
-registry.registerPath({
-  method: "get",
   path: `${DS_PREFIX}/design-systems/{id}/components`,
   tags: ["Design Systems"],
   summary: "Get components for design system",
@@ -450,46 +411,14 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
-  path: `${DS_PREFIX}/design-systems/{id}/components/{componentIdOrName}`,
-  tags: ["Design Systems"],
-  summary: "Get component by id or name in design system",
-  request: {
-    params: z.object({ id: UuidSchema, componentIdOrName: z.string().min(1) }),
-  },
-  responses: {
-    200: { description: "Component", ...json(ComponentSchema) },
-    403: { description: "Project key lacks components:read", ...json(ErrorResponseSchema) },
-    404: { description: "Component not found in design system", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
-registry.registerPath({
-  method: "get",
-  path: `${DS_PREFIX}/design-systems/{id}/components/{componentIdOrName}/styles`,
+  path: `${DS_PREFIX}/design-systems/{id}/components/{componentId}/styles`,
   tags: ["Design Systems"],
   summary: "Get component styles in design system",
   request: {
-    params: z.object({ id: UuidSchema, componentIdOrName: z.string().min(1) }),
+    params: z.object({ id: UuidSchema, componentId: UuidSchema }),
   },
   responses: {
     200: { description: "Styles", ...json(z.array(StyleSchema)) },
-    403: { description: "Project key lacks components:read", ...json(ErrorResponseSchema) },
-    404: { description: "Component not found in design system", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
-registry.registerPath({
-  method: "get",
-  path: `${DS_PREFIX}/design-systems/{id}/components/{componentIdOrName}/variations`,
-  tags: ["Design Systems"],
-  summary: "Get component variations in design system",
-  request: {
-    params: z.object({ id: UuidSchema, componentIdOrName: z.string().min(1) }),
-  },
-  responses: {
-    200: { description: "Variations", ...json(z.array(VariationSchema)) },
     403: { description: "Project key lacks components:read", ...json(ErrorResponseSchema) },
     404: { description: "Component not found in design system", ...json(ErrorResponseSchema) },
     500: { description: "Server error", ...json(ErrorResponseSchema) },
@@ -743,9 +672,22 @@ registry.registerPath({
   method: "get",
   path: `${DS_PREFIX}/tokens/{id}/values`,
   tags: ["Tokens"],
-  summary: "All token values for a token",
-  request: { params: z.object({ id: UuidSchema }) },
-  responses: list(TokenValueSchema),
+  summary: "Filtered token values for a token",
+  request: {
+    params: z.object({ id: UuidSchema }),
+    query: z.object({
+      tenantId: UuidSchema.optional(),
+      mode: s.ModeSchema.optional(),
+      platform: s.PlatformSchema.optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Token values", ...json(z.array(TokenValueSchema)) },
+    400: { description: "Invalid filter", ...json(ErrorResponseSchema) },
+    403: { description: "Project key lacks tokens:read", ...json(ErrorResponseSchema) },
+    404: { description: "Token not found or unavailable to project", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
 });
 
 registerCrud(`${DS_PREFIX}/tenants`, "Tenants", TenantSchema, schemas.CreateTenant, schemas.UpdateTenant);

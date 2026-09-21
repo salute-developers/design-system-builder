@@ -124,6 +124,8 @@ public data class McpToolInputDefinition(
     public val description: String? = null,
     /** Optional closed set of accepted string values. */
     public val allowedValues: List<String> = emptyList(),
+    /** JSON Schema item type when [type] is `array`. */
+    public val itemType: String? = null,
 )
 
 /**
@@ -200,22 +202,21 @@ public class DsBuilderMcpServerCore(
         tool("documentation_get_navigation", "Read active publication navigation.", "version", "platform"),
         tool("documentation_get_page", "Read one active publication page.", "path", "version", "platform"),
         codeBindingSearchTool(),
-        tool(
-            "code_binding_get",
-            "Read one published code binding.",
-            "bindingId",
-            "publicationId",
-            "version",
-            "platform",
-        ),
+        codeBindingGetTool(),
         tokensListTool(),
-        tool("token_get", "Read one authoritative design-system token.", "tokenId", "name"),
+        tool("token_get", "Read one authoritative design-system token by stable ID.", "tokenId"),
         tokenValuesGetTool(),
-        tool("components_list", "List authoritative design-system components.", "query", "platform", "limit"),
-        tool("component_get", "Read one authoritative design-system component.", "componentId", "name"),
+        componentsListTool(),
+        tool("component_get", "Read one authoritative design-system component by stable ID.", "componentId"),
         componentConfigGetTool(),
-        tool("component_styles_get", "Read authoritative component styles.", "componentId", "name"),
-        tool("component_variations_get", "Read authoritative component variations.", "componentId", "name"),
+        tool("component_styles_get", "Read authoritative component styles by stable component ID.", "componentId"),
+        tool(
+            "component_variations_get",
+            "Read authoritative configuration-model variations by stable component ID. " +
+                "Do not use this tool to list published code variations; " +
+                "use code_binding_search followed by code_binding_get with detail=summary instead.",
+            "componentId",
+        ),
     ).map { definition ->
         definition.copy(
             inputSchema = definition.inputSchema + (
@@ -327,7 +328,7 @@ public class DsBuilderMcpServerCore(
         return useCases.fetch(
             DocumentationFetchCommand(kbUrl),
             runtimeRequest(arguments),
-        ).toMcpResult()
+        ).toMcpResult().let { compactDocumentationFetch(json, it) }
     }
 
     private suspend fun documentationNavigation(arguments: JsonObject): McpToolResult {
@@ -363,8 +364,25 @@ public class DsBuilderMcpServerCore(
         ).toMcpResult().let { compactBindingSearch(json, it) }
     }
 
+    @Suppress("ReturnCount")
     private suspend fun codeBindingGet(arguments: JsonObject): McpToolResult {
         val bindingId = arguments.required("bindingId") ?: return invalidArgument("bindingId is required")
+        val appearanceNames = arguments.optionalStringArray("appearanceNames")
+            ?: return invalidArgument("appearanceNames must be an array of non-empty strings")
+        val variationNames = arguments.optionalStringArray("variationNames")
+            ?: return invalidArgument("variationNames must be an array of non-empty strings")
+        val requestedDetail = arguments.optional("detail")
+        val detail = requestedDetail?.let(CodeBindingDetail::parse)
+            ?: if (requestedDetail != null) {
+                return invalidArgument("detail must be one of: summary, variations, full")
+            } else if (variationNames.isNotEmpty()) {
+                CodeBindingDetail.VARIATIONS
+            } else {
+                CodeBindingDetail.SUMMARY
+            }
+        if (detail == CodeBindingDetail.SUMMARY && variationNames.isNotEmpty()) {
+            return invalidArgument("variationNames requires detail variations or full")
+        }
         val useCases = docsReadUseCases ?: return backendReaderUnavailable()
         return useCases.getBinding(
             CodeBindingGetCommand(
@@ -374,36 +392,40 @@ public class DsBuilderMcpServerCore(
                 platform = arguments.optional("platform"),
             ),
             runtimeRequest(arguments),
-        ).toMcpResult()
+        ).toMcpResult().let {
+            projectComponentBinding(it, json, appearanceNames.toSet(), variationNames.toSet(), detail)
+        }
     }
 
     private suspend fun tokensList(arguments: JsonObject): McpToolResult {
+        val name = arguments.optional("name")
+        val query = arguments.optional("query")
+        if (name != null && query != null) return invalidArgument("name and query are mutually exclusive")
         val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
         return useCases.list(
-            TokenListReadCommand(arguments.optional("type"), arguments.optional("query")),
+            TokenListReadCommand(arguments.optional("type"), name ?: query),
             runtimeRequest(arguments),
-        ).toMcpResult().limitDataArray(arguments.optional("limit")?.toIntOrNull())
+        ).toMcpResult().let {
+            compactTokenList(it, json, name, arguments.optional("limit")?.toIntOrNull())
+        }
     }
 
     private suspend fun tokenGet(arguments: JsonObject): McpToolResult {
-        val identifier = arguments.optional("tokenId") ?: arguments.optional("name")
-            ?: return invalidArgument("tokenId or name is required")
+        val tokenId = arguments.required("tokenId") ?: return invalidArgument("tokenId is required")
         val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
         return useCases.get(
-            TokenGetReadCommand(identifier),
+            TokenGetReadCommand(tokenId),
             runtimeRequest(arguments),
         ).toMcpResult()
     }
 
     private suspend fun tokenValuesGet(arguments: JsonObject): McpToolResult {
-        val identifier = arguments.optional("tokenId") ?: arguments.optional("name")
-            ?: return invalidArgument("tokenId or name is required")
+        val tokenId = arguments.required("tokenId") ?: return invalidArgument("tokenId is required")
         val useCases = tokenReadUseCases ?: return backendReaderUnavailable()
         return useCases.values(
             TokenValuesReadCommand(
-                identifier = identifier,
+                tokenId = tokenId,
                 tenantId = arguments.optional("tenantId"),
-                themeId = arguments.optional("themeId"),
                 mode = arguments.optional("mode"),
                 platform = arguments.optional("platform"),
             ),
@@ -412,11 +434,16 @@ public class DsBuilderMcpServerCore(
     }
 
     private suspend fun componentsList(arguments: JsonObject): McpToolResult {
+        val name = arguments.optional("name")
+        val query = arguments.optional("query")
+        if (name != null && query != null) return invalidArgument("name and query are mutually exclusive")
         val useCases = componentReadUseCases ?: return backendReaderUnavailable()
         return useCases.list(
-            ComponentListReadCommand(arguments.optional("query"), arguments.optional("platform")),
+            ComponentListReadCommand(name ?: query, arguments.optional("platform")),
             runtimeRequest(arguments),
-        ).toMcpResult().limitDataArray(arguments.optional("limit")?.toIntOrNull())
+        ).toMcpResult().let {
+            compactComponentList(it, json, name, arguments.optional("limit")?.toIntOrNull())
+        }
     }
 
     private suspend fun componentGet(arguments: JsonObject): McpToolResult =
@@ -447,9 +474,8 @@ public class DsBuilderMcpServerCore(
         arguments: JsonObject,
         block: suspend (String) -> ComponentReadResult?,
     ): McpToolResult {
-        val identifier = arguments.optional("componentId") ?: arguments.optional("name")
-            ?: return invalidArgument("componentId or name is required")
-        val result = block(identifier) ?: return backendReaderUnavailable()
+        val componentId = arguments.required("componentId") ?: return invalidArgument("componentId is required")
+        val result = block(componentId) ?: return backendReaderUnavailable()
         return result.toMcpResult()
     }
 
@@ -457,8 +483,7 @@ public class DsBuilderMcpServerCore(
     private suspend fun componentConfigGet(arguments: JsonObject): McpToolResult {
         val name = arguments.optional("subject")?.toComponentPackageName()
             ?: arguments.optional("name")
-            ?: arguments.optional("componentId")
-            ?: return invalidArgument("subject, name, or componentId is required")
+            ?: return invalidArgument("subject or name is required")
         val selection = parseVariationSelection(arguments.optional("selection"))
             ?: return invalidArgument("selection must be comma-separated variationId=value pairs without duplicates")
         val projection = arguments.optional("projection") ?: "full"
@@ -534,23 +559,23 @@ public class DsBuilderMcpServerCore(
             is ComponentReadResult.Success -> success(json.encodeToString(value))
         }
 
-    private fun McpToolResult.limitDataArray(limit: Int?): McpToolResult {
-        val limitedBody =
-            limit
-                ?.takeIf { !isError && it > 0 }
-                ?.let { requestedLimit ->
-                    val element = runCatching { json.parseToJsonElement(body) }.getOrNull() as? JsonObject
-                    val array = element?.get("data") as? JsonArray
-                    array?.let { JsonObject(element + ("data" to JsonArray(it.take(requestedLimit)))) }
-                }
-
-        return limitedBody?.let { success(json.encodeToString(it)) } ?: this
-    }
-
     private fun JsonObject.required(name: String): String? = optional(name)?.takeIf(String::isNotBlank)
 
     private fun JsonObject.optional(name: String, default: String? = null): String? =
         (this[name] as? JsonPrimitive)?.contentOrNull?.takeIf(String::isNotBlank) ?: default
+
+    @Suppress("ReturnCount")
+    private fun JsonObject.optionalStringArray(name: String): List<String>? {
+        val value = this[name] ?: return emptyList()
+        val array = value as? JsonArray ?: return null
+        return array.map { element ->
+            (element as? JsonPrimitive)
+                ?.takeIf(JsonPrimitive::isString)
+                ?.contentOrNull
+                ?.takeIf(String::isNotBlank)
+                ?: return null
+        }.distinct()
+    }
 }
 
 private fun tool(name: String, description: String, vararg inputs: String): McpToolDefinition =
@@ -573,7 +598,9 @@ private fun codeBindingSearchTool(): McpToolDefinition = McpToolDefinition(
     name = "code_binding_search",
     description =
     "Search active published code bindings. Returns compact metadata; " +
-        "use code_binding_get for full platformPayload. " +
+        "for questions about available published code variations, start here and then call " +
+        "code_binding_get with detail=summary. " +
+        "Do not call components_list or component_variations_get for that task. " +
         "Use name for a code symbol such as BasicButton. " +
         "Subject and kind are exact filters: a component uses a canonical subject such as " +
         "components.basic-button and kind component-style, not subject BasicButton or kind component.",
@@ -601,6 +628,34 @@ private fun codeBindingSearchTool(): McpToolDefinition = McpToolDefinition(
         "platform" to stringInput(
             "Exact publication platform, for example compose. " +
                 "Omit to use the platform from the resolved DS Builder context.",
+        ),
+    ),
+)
+
+private fun codeBindingGetTool(): McpToolDefinition = McpToolDefinition(
+    name = "code_binding_get",
+    description =
+    "Read one published code binding. Component bindings return a compact variation summary by default. " +
+        "Use this after code_binding_search to answer which published code variations are available; " +
+        "components_list and component_variations_get describe the configuration model instead. " +
+        "Use detail=variations for concrete code references and detail=full only when the complete " +
+        "style API is needed.",
+    inputSchema = mapOf(
+        "bindingId" to stringInput("Exact binding ID returned by code_binding_search."),
+        "publicationId" to stringInput("Exact publication ID. Omit to resolve the active publication."),
+        "version" to stringInput("Exact documentation version. Omit to use the active version."),
+        "platform" to stringInput("Exact publication platform, for example compose."),
+        "appearanceNames" to stringArrayInput(
+            "Optional exact styleName values from platformPayload.styles. Only matching appearances are returned.",
+        ),
+        "variationNames" to stringArrayInput(
+            "Optional exact variation name values. When detail is omitted, this automatically selects " +
+                "variations detail.",
+        ),
+        "detail" to stringInput(
+            "Response detail for component bindings: summary returns axes, defaults and counts; " +
+                "variations also returns concrete code references; full preserves the complete published payload.",
+            allowedValues = listOf("summary", "variations", "full"),
         ),
     ),
 )
@@ -644,13 +699,10 @@ private fun componentConfigGetTool(): McpToolDefinition = McpToolDefinition(
 private fun tokenValuesGetTool(): McpToolDefinition = McpToolDefinition(
     name = "token_values_get",
     description =
-    "Read authoritative light or dark values for a token name found in component config. " +
+    "Read authoritative light or dark values for a token resolved to a stable ID with tokens_list. " +
         "Compose uses the android model platform; omit platform to return all platform rows.",
     inputSchema = mapOf(
-        "tokenId" to stringInput("Stable token model UUID. Use either tokenId or name."),
-        "name" to stringInput(
-            "Exact token name from a component config property, for example surface.default.accent.",
-        ),
+        "tokenId" to stringInput("Stable token model UUID returned by tokens_list."),
         "tenantId" to stringInput("Optional tenant UUID from the resolved design-system context."),
         "mode" to stringInput("Theme mode.", allowedValues = listOf("light", "dark")),
         "platform" to stringInput(
@@ -666,14 +718,36 @@ private fun tokensListTool(): McpToolDefinition = McpToolDefinition(
     description =
     "Search the authoritative token catalog by token metadata. This tool does not search component usage: " +
         "queries such as BasicButton or button may be empty even when the component uses tokens. " +
-        "Read component_config_get first, then look up the exact token names found in its properties.",
+        "Read component_config_get first, then look up the exact token names found in its properties and use the " +
+        "returned stable IDs with token_get or token_values_get.",
     inputSchema = mapOf(
         "type" to stringInput(
             "Optional exact token type.",
             allowedValues = listOf("color", "gradient", "typography", "fontFamily", "spacing", "shape", "shadow"),
         ),
+        "name" to stringInput(
+            "Optional exact token name. It is sent through the existing backend query and checked exactly by MCP. " +
+                "Do not combine with query.",
+        ),
         "query" to stringInput("Substring matched against token metadata, not component-to-token dependencies."),
         "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of tokens to return."),
+    ),
+)
+
+private fun componentsListTool(): McpToolDefinition = McpToolDefinition(
+    name = "components_list",
+    description =
+    "Search authoritative design-system component metadata. Returns compact summaries; use component_get for the " +
+        "full component DTO. Do not use this tool to discover published code variations; " +
+        "use code_binding_search followed by code_binding_get with detail=summary instead.",
+    inputSchema = mapOf(
+        "name" to stringInput(
+            "Optional exact component name. It is sent through the existing backend query and checked exactly by " +
+                "MCP. Do not combine with query.",
+        ),
+        "query" to stringInput("Substring matched against component name and description."),
+        "platform" to stringInput("Optional target platform retained for the component-list contract."),
+        "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of components to return."),
     ),
 )
 
@@ -684,6 +758,9 @@ private fun stringInput(
     description: String? = null,
     allowedValues: List<String> = emptyList(),
 ): McpToolInputDefinition = McpToolInputDefinition(description = description, allowedValues = allowedValues)
+
+private fun stringArrayInput(description: String): McpToolInputDefinition =
+    McpToolInputDefinition(type = "array", description = description, itemType = "string")
 
 /**
  * Serves MCP over the platform standard input and output streams.

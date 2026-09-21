@@ -12,21 +12,21 @@ DS Builder model API SHALL provide project-scoped read endpoints for authoritati
 - **THEN** db-service MUST require `tokens:read` when request uses project access-key scopes
 - **THEN** the response MUST NOT be derived from documentation publications
 
-#### Scenario: Read token by ID or name
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}`
+#### Scenario: Read token by stable ID
+- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/tokens/{tokenId}`
 - **THEN** the API MUST return the authoritative token DTO with identity, type, display metadata and revision metadata when available
-- **THEN** db-service MUST match the token inside the requested design system only
-- **THEN** the API MUST return `404` when the token does not belong to the trusted project and design system
+- **THEN** db-service MUST verify that the token belongs to a design system available to the trusted project
+- **THEN** the API MUST return `404` when the token does not belong to the trusted project
 
 #### Scenario: Read token values with filters
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}/values` with optional tenant, theme, mode or platform filters
+- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/tokens/{tokenId}/values` with optional tenant, mode or platform filters
 - **THEN** the API MUST return authoritative token value DTOs from the system model
 - **THEN** the API MUST preserve raw, reference and resolved value metadata when those concepts are present in the source model
 
 #### Scenario: Existing token routes are stabilized
-- **WHEN** implementation reuses existing `/ds/tokens` or `/ds/token-values` routes internally
-- **THEN** the project-scoped token read API MUST still expose design-system-scoped DTO responses under `/api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens...`
-- **THEN** the external read contract MUST NOT require MCP clients to call unscoped table-level CRUD routes
+- **WHEN** MCP reads one token or its values by stable ID
+- **THEN** the API MUST reuse `/ds/tokens/{tokenId}` and `/ds/tokens/{tokenId}/values`
+- **THEN** those routes MUST enforce project ownership and `tokens:read`
 
 ### Requirement: Project-scoped component read API
 DS Builder model API SHALL provide project-scoped read endpoints for authoritative component, component config, component style and variation data.
@@ -41,10 +41,10 @@ DS Builder model API SHALL provide project-scoped read endpoints for authoritati
 - **THEN** db-service MUST require `components:read` when request uses project access-key scopes
 
 #### Scenario: Read component details
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentIdOrName}`
+- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/components/{componentId}`
 - **THEN** the API MUST return authoritative component metadata and available configuration references
-- **THEN** db-service MUST match the component through membership in the requested design system
-- **THEN** the API MUST return `404` when the component does not belong to the trusted project and design system
+- **THEN** db-service MUST verify component membership in a design system available to the trusted project
+- **THEN** the API MUST return `404` when the component does not belong to the trusted project
 
 #### Scenario: Read component configuration package
 - **WHEN** an authenticated client calls `POST /api/projects/{projectId}/ds/component-config/export` with `designSystemId` and optional `components` or `styles` filters
@@ -58,9 +58,10 @@ DS Builder model API SHALL provide project-scoped read endpoints for authoritati
 - **THEN** the API MUST return canonical common config
 
 #### Scenario: Read component styles and variations
-- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentIdOrName}/styles` or `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentIdOrName}/variations`
+- **WHEN** an authenticated client calls `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentId}/styles` or `GET /api/projects/{projectId}/ds/components/{componentId}/variations`
 - **THEN** the API MUST return authoritative style and variation DTOs from the system model
 - **THEN** the response MUST include stable identifiers that MCP clients can use to correlate model data with code bindings
+- **THEN** only the styles endpoint MUST remain design-system-scoped because it avoids one styles request per variation
 
 ### Requirement: No backend pagination in first read tools version
 Token and component model reads SHALL avoid introducing backend cursor pagination in this change.
@@ -72,8 +73,8 @@ Token and component model reads SHALL avoid introducing backend cursor paginatio
 
 #### Scenario: Existing component routes are stabilized
 - **WHEN** implementation reuses existing `/ds/components`, `/ds/styles`, `/ds/variations` or `/ds/component-config/export` logic internally
-- **THEN** the project-scoped component read API MUST still expose design-system-scoped DTO responses under `/api/projects/{projectId}/ds/design-systems/{designSystemId}/components...`
-- **THEN** the external read contract MUST NOT require MCP clients to join table-level CRUD responses themselves
+- **THEN** ID-based component detail and variation reads MUST reuse existing routes with project/scope checks
+- **THEN** the external read contract MUST provide aggregate component styles without N+1 requests
 
 ### Requirement: Gateway authorization for model read API
 Gateway SHALL expose token and component read API through project-scoped authorization and trusted project context.

@@ -322,6 +322,8 @@ class DsBuilderMcpServerCoreTest {
         val tool = server().tools().single { it.name == "code_binding_search" }
 
         assertTrue(tool.description.contains("compact metadata"))
+        assertTrue(tool.description.contains("code_binding_get with detail=summary"))
+        assertTrue(tool.description.contains("Do not call components_list or component_variations_get"))
         assertTrue(tool.description.contains("Use name for a code symbol such as BasicButton"))
         assertTrue(tool.inputSchema.getValue("subject").description!!.contains("components.basic-button"))
         assertTrue(tool.inputSchema.getValue("name").description!!.contains("BasicButton"))
@@ -333,11 +335,47 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
+    fun codeBindingGetContractExposesOpaqueNameFilters() {
+        val tool = server().tools().single { it.name == "code_binding_get" }
+        val schema = tool.inputSchema
+
+        assertTrue(tool.description.contains("after code_binding_search"))
+        assertTrue(tool.description.contains("configuration model instead"))
+        assertEquals("array", schema.getValue("appearanceNames").type)
+        assertEquals("string", schema.getValue("appearanceNames").itemType)
+        assertEquals("array", schema.getValue("variationNames").type)
+        assertEquals("string", schema.getValue("variationNames").itemType)
+        assertEquals(listOf("summary", "variations", "full"), schema.getValue("detail").allowedValues)
+        assertTrue(schema.getValue("appearanceNames").description!!.contains("styleName"))
+        assertTrue(schema.getValue("variationNames").description!!.contains("exact variation name"))
+    }
+
+    @Test
+    fun codeBindingGetRejectsNonStringFilterValues() = runTest {
+        val result = server().callTool(
+            "code_binding_get",
+            JsonObject(
+                mapOf(
+                    "bindingId" to JsonPrimitive("binding-1"),
+                    "appearanceNames" to JsonArray(listOf(JsonPrimitive(1))),
+                ),
+            ),
+        )
+
+        assertErrorCode("INVALID_ARGUMENT", result)
+    }
+
+    @Test
     fun componentConfigContractExplainsHowToContinueFromCodeBinding() {
         val tools = server().tools()
         val config = tools.single { it.name == "component_config_get" }
         val values = tools.single { it.name == "token_values_get" }
         val tokens = tools.single { it.name == "tokens_list" }
+        val token = tools.single { it.name == "token_get" }
+        val component = tools.single { it.name == "component_get" }
+        val componentStyles = tools.single { it.name == "component_styles_get" }
+        val componentVariations = tools.single { it.name == "component_variations_get" }
+        val components = tools.single { it.name == "components_list" }
 
         assertTrue(config.description.contains("BasicButton.S.Accent"))
         assertTrue(config.inputSchema.getValue("subject").description!!.contains("components.basic-button"))
@@ -348,6 +386,17 @@ class DsBuilderMcpServerCoreTest {
         assertEquals(listOf("web", "android", "ios"), values.inputSchema.getValue("platform").allowedValues)
         assertTrue(values.inputSchema.getValue("platform").description!!.contains("android for Compose"))
         assertTrue(tokens.description.contains("queries such as BasicButton or button may be empty"))
+        assertTrue(components.description.contains("code_binding_get with detail=summary"))
+        assertTrue(componentVariations.description.contains("published code variations"))
+        assertTrue(tokens.inputSchema.containsKey("name"))
+        assertTrue(components.inputSchema.containsKey("name"))
+        assertTrue(components.inputSchema.containsKey("platform"))
+        assertFalse(config.inputSchema.containsKey("componentId"))
+        assertFalse(token.inputSchema.containsKey("name"))
+        assertFalse(values.inputSchema.containsKey("name"))
+        assertFalse(component.inputSchema.containsKey("name"))
+        assertFalse(componentStyles.inputSchema.containsKey("name"))
+        assertFalse(componentVariations.inputSchema.containsKey("name"))
     }
 
     @Test
@@ -505,7 +554,20 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
-    fun tokenListCallsApplicationUseCaseAndAppliesLocalLimit() = runTest {
+    fun listToolsRejectCombiningExactNameAndSubstringQuery() = runTest {
+        val arguments = JsonObject(
+            mapOf(
+                "name" to JsonPrimitive("badge"),
+                "query" to JsonPrimitive("bad"),
+            ),
+        )
+
+        assertErrorCode("INVALID_ARGUMENT", server().callTool("tokens_list", arguments))
+        assertErrorCode("INVALID_ARGUMENT", server().callTool("components_list", arguments))
+    }
+
+    @Test
+    fun tokenListUsesExactNameAsBackendQueryAndReturnsCompactResult() = runTest {
         var called = false
         val server = server(
             tokenReadUseCases = tokenReadUseCases(
@@ -516,15 +578,29 @@ class DsBuilderMcpServerCoreTest {
                     ): TokenReadResult {
                         called = true
                         assertEquals("project-1", runtime.context.projectId.value)
-                        assertEquals("button", command.query)
+                        assertEquals("b", command.query)
                         return TokenReadResult.Success(
                             JsonObject(
                                 mapOf(
                                     "source" to JsonPrimitive("design-system-model-api"),
                                     "data" to JsonArray(
                                         listOf(
-                                            JsonObject(mapOf("name" to JsonPrimitive("a"))),
-                                            JsonObject(mapOf("name" to JsonPrimitive("b"))),
+                                            JsonObject(
+                                                mapOf(
+                                                    "id" to JsonPrimitive("a-id"),
+                                                    "name" to JsonPrimitive("a"),
+                                                    "type" to JsonPrimitive("color"),
+                                                    "createdAt" to JsonPrimitive("now"),
+                                                ),
+                                            ),
+                                            JsonObject(
+                                                mapOf(
+                                                    "id" to JsonPrimitive("b-id"),
+                                                    "name" to JsonPrimitive("b"),
+                                                    "type" to JsonPrimitive("color"),
+                                                    "createdAt" to JsonPrimitive("now"),
+                                                ),
+                                            ),
                                         ),
                                     ),
                                 ),
@@ -545,13 +621,15 @@ class DsBuilderMcpServerCoreTest {
 
         val result = server.callTool(
             "tokens_list",
-            JsonObject(mapOf("query" to JsonPrimitive("button"), "limit" to JsonPrimitive("1"))),
+            JsonObject(mapOf("name" to JsonPrimitive("b"), "limit" to JsonPrimitive("1"))),
         )
         val body = json.parseToJsonElement(result.body).jsonObject
+        val token = (body.getValue("data") as JsonArray).single().jsonObject
 
         assertTrue(called)
         assertFalse(result.isError)
-        assertEquals(1, (body.getValue("data") as JsonArray).size)
+        assertEquals("b", token.getValue("name").jsonPrimitive.content)
+        assertFalse(token.containsKey("createdAt"))
         assertFalse(result.body.contains("secret-value"))
     }
 

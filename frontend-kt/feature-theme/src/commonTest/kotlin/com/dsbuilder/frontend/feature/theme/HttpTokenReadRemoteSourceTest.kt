@@ -9,10 +9,12 @@ import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.feature.theme.application.TokenGetReadCommand
 import com.dsbuilder.frontend.feature.theme.application.TokenListReadCommand
 import com.dsbuilder.frontend.feature.theme.application.TokenReadErrorCode
 import com.dsbuilder.frontend.feature.theme.application.TokenReadResult
 import com.dsbuilder.frontend.feature.theme.application.TokenReadRuntime
+import com.dsbuilder.frontend.feature.theme.application.TokenValuesReadCommand
 import com.dsbuilder.frontend.feature.theme.data.HttpTokenReadRemoteSource
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -61,6 +63,37 @@ class HttpTokenReadRemoteSourceTest {
         val result = source.list(runtime(), TokenListReadCommand(type = null, query = null))
 
         assertEquals(TokenReadErrorCode.FORBIDDEN, assertIs<TokenReadResult.Failed>(result).code)
+    }
+
+    @Test
+    fun detailReadsReuseProjectScopedIdRoutes() = runTest {
+        val requestedPaths = mutableListOf<String>()
+        val source = HttpTokenReadRemoteSource(
+            httpClientFactory = FakeHttpClientFactory { path ->
+                requestedPaths += path
+                AuthenticatedHttpResult.Success("{}")
+            },
+            json = Json,
+        )
+
+        source.get(runtime(), TokenGetReadCommand("token-1"))
+        source.values(
+            runtime(),
+            TokenValuesReadCommand(
+                tokenId = "token-1",
+                tenantId = "tenant-1",
+                mode = "dark",
+                platform = "web",
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                "/api/projects/project-1/ds/tokens/token-1",
+                "/api/projects/project-1/ds/tokens/token-1/values?tenantId=tenant-1&mode=dark&platform=web",
+            ),
+            requestedPaths,
+        )
     }
 
     private fun runtime(): TokenReadRuntime = TokenReadRuntime(

@@ -29,7 +29,7 @@ public class HttpComponentReadRemoteSource(
         runtime.get(runtime.designSystemModelPath("components") + queryString("query" to command.query))
 
     override suspend fun get(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("components/${encodePath(command.identifier)}"))
+        runtime.get(runtime.projectModelPath("components/${encodePath(command.componentId)}"))
 
     override suspend fun config(
         runtime: ComponentReadRuntime,
@@ -47,13 +47,13 @@ public class HttpComponentReadRemoteSource(
     }
 
     override suspend fun styles(runtime: ComponentReadRuntime, command: ComponentGetReadCommand): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("components/${encodePath(command.identifier)}/styles"))
+        runtime.get(runtime.designSystemModelPath("components/${encodePath(command.componentId)}/styles"))
 
     override suspend fun variations(
         runtime: ComponentReadRuntime,
         command: ComponentGetReadCommand,
     ): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("components/${encodePath(command.identifier)}/variations"))
+        runtime.get(runtime.projectModelPath("components/${encodePath(command.componentId)}/variations"))
 
     override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
         runtime.get(runtime.designSystemModelPath("tokens"))
@@ -120,3 +120,6 @@ private fun encode(value: String): String = buildString {
 
 private fun ComponentReadRuntime.designSystemModelPath(path: String): String =
     "/api/projects/${context.projectId.value}/ds/design-systems/${context.designSystemId.value}/$path"
+
+private fun ComponentReadRuntime.projectModelPath(path: String): String =
+    "/api/projects/${context.projectId.value}/ds/$path"

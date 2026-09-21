@@ -20,7 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 public data class ComponentListReadCommand(val query: String?, val platform: String?)
 
-public data class ComponentGetReadCommand(val identifier: String)
+public data class ComponentGetReadCommand(val componentId: String)
 
 public data class ComponentConfigReadCommand(val identifier: String, val style: String?)
 

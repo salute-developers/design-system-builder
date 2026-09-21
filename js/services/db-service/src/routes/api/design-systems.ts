@@ -7,7 +7,6 @@ import {
   designSystemComponents,
   styles,
   tokens,
-  tokenValues,
   tenants,
   appearances,
   designSystemChanges,
@@ -15,8 +14,7 @@ import {
 } from "../../db/schema";
 import {
   CreateDesignSystemSchema,
-  PlatformSchema,
-  ModeSchema,
+  DesignSystemComponentParamSchema,
   TokenTypeSchema,
   UpdateDesignSystemSchema,
   UuidParamSchema,
@@ -34,12 +32,9 @@ import {
 const router = Router();
 const TOKEN_READ_SCOPE = "tokens:read";
 const COMPONENT_READ_SCOPE = "components:read";
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const stringQuery = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
-
-const isUuid = (value: string): boolean => UUID_PATTERN.test(value);
 
 const queryLike = <T extends { name: unknown; displayName?: unknown; description?: unknown }>(
   table: T,
@@ -193,88 +188,15 @@ router.get("/:id/tokens", requireScope(TOKEN_READ_SCOPE), validateParams(UuidPar
   }),
 );
 
-// GET /design-systems/:id/tokens/:tokenIdOrName
-router.get("/:id/tokens/:tokenIdOrName", requireScope(TOKEN_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
+// GET /design-systems/:id/components/:componentId/styles
+router.get(
+  "/:id/components/:componentId/styles",
+  requireScope(COMPONENT_READ_SCOPE),
+  validateParams(DesignSystemComponentParamSchema),
+  (req, res) => tryCatch(res, async () => {
     if (!(await requireDesignSystemAccess(req, res))) return;
 
-    const identifier = req.params.tokenIdOrName;
-    const [row] = await db
-      .select()
-      .from(tokens)
-      .where(
-        andOptional(
-          eq(tokens.designSystemId, req.params.id),
-          isUuid(identifier) ? or(eq(tokens.id, identifier), eq(tokens.name, identifier)) : eq(tokens.name, identifier),
-        ),
-      );
-
-    if (!assertFound(row, res)) return;
-    res.json(row);
-  }),
-);
-
-// GET /design-systems/:id/tokens/:tokenIdOrName/values
-router.get("/:id/tokens/:tokenIdOrName/values", requireScope(TOKEN_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
-    if (!(await requireDesignSystemAccess(req, res))) return;
-
-    const identifier = req.params.tokenIdOrName;
-    const [token] = await db
-      .select({ id: tokens.id })
-      .from(tokens)
-      .where(
-        andOptional(
-          eq(tokens.designSystemId, req.params.id),
-          isUuid(identifier) ? or(eq(tokens.id, identifier), eq(tokens.name, identifier)) : eq(tokens.name, identifier),
-        ),
-      );
-
-    if (!assertFound(token, res)) return;
-
-    const platform = stringQuery(req.query.platform);
-    if (platform && !PlatformSchema.safeParse(platform).success) {
-      res.status(400).json({ error: `Invalid platform '${platform}'` });
-      return;
-    }
-    const mode = stringQuery(req.query.mode);
-    if (mode && !ModeSchema.safeParse(mode).success) {
-      res.status(400).json({ error: `Invalid mode '${mode}'` });
-      return;
-    }
-
-    const rows = await db
-      .select()
-      .from(tokenValues)
-      .where(
-        andOptional(
-          eq(tokenValues.tokenId, token.id),
-          stringQuery(req.query.tenantId) ? eq(tokenValues.tenantId, stringQuery(req.query.tenantId)!) : undefined,
-          platform ? eq(tokenValues.platform, platform as never) : undefined,
-          mode ? eq(tokenValues.mode, mode as never) : undefined,
-        ),
-      );
-    res.json(rows);
-  }),
-);
-
-// GET /design-systems/:id/components/:componentIdOrName
-router.get("/:id/components/:componentIdOrName", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
-    if (!(await requireDesignSystemAccess(req, res))) return;
-
-    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
-    if (!assertFound(component, res)) return;
-    res.json(component);
-  }),
-);
-
-// GET /design-systems/:id/components/:componentIdOrName/styles
-router.get("/:id/components/:componentIdOrName/styles", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
-    if (!(await requireDesignSystemAccess(req, res))) return;
-
-    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
+    const component = await findDesignSystemComponent(req.params.id, req.params.componentId);
     if (!assertFound(component, res)) return;
 
     const componentVariations = await db
@@ -291,22 +213,6 @@ router.get("/:id/components/:componentIdOrName/styles", requireScope(COMPONENT_R
       .select()
       .from(styles)
       .where(and(eq(styles.designSystemId, req.params.id), inArray(styles.variationId, variationIds)));
-    res.json(rows);
-  }),
-);
-
-// GET /design-systems/:id/components/:componentIdOrName/variations
-router.get("/:id/components/:componentIdOrName/variations", requireScope(COMPONENT_READ_SCOPE), validateParams(UuidParamSchema), (req, res) =>
-  tryCatch(res, async () => {
-    if (!(await requireDesignSystemAccess(req, res))) return;
-
-    const component = await findDesignSystemComponent(req.params.id, req.params.componentIdOrName);
-    if (!assertFound(component, res)) return;
-
-    const rows = await db
-      .select()
-      .from(variations)
-      .where(eq(variations.componentId, component.id));
     res.json(rows);
   }),
 );
@@ -347,7 +253,7 @@ router.get("/:id/changes", validateParams(UuidParamSchema), (req, res) =>
   }),
 );
 
-const findDesignSystemComponent = async (designSystemId: string, identifier: string) => {
+const findDesignSystemComponent = async (designSystemId: string, componentId: string) => {
   const [row] = await db
     .select({
       id: components.id,
@@ -361,7 +267,7 @@ const findDesignSystemComponent = async (designSystemId: string, identifier: str
     .where(
       and(
         eq(designSystemComponents.designSystemId, designSystemId),
-        isUuid(identifier) ? or(eq(components.id, identifier), eq(components.name, identifier)) : eq(components.name, identifier),
+        eq(components.id, componentId),
       ),
     );
   return row;

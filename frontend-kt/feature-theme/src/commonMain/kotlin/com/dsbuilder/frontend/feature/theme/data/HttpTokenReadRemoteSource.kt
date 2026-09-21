@@ -25,14 +25,13 @@ public class HttpTokenReadRemoteSource(
         )
 
     override suspend fun get(runtime: TokenReadRuntime, command: TokenGetReadCommand): TokenReadResult =
-        runtime.get(runtime.designSystemModelPath("tokens/${encodePath(command.identifier)}"))
+        runtime.get(runtime.projectModelPath("tokens/${encodePath(command.tokenId)}"))
 
     override suspend fun values(runtime: TokenReadRuntime, command: TokenValuesReadCommand): TokenReadResult =
         runtime.get(
-            runtime.designSystemModelPath("tokens/${encodePath(command.identifier)}/values") +
+            runtime.projectModelPath("tokens/${encodePath(command.tokenId)}/values") +
                 queryString(
                     "tenantId" to command.tenantId,
-                    "themeId" to command.themeId,
                     "mode" to command.mode,
                     "platform" to command.platform,
                 ),
@@ -94,3 +93,6 @@ private fun encode(value: String): String = buildString {
 
 private fun TokenReadRuntime.designSystemModelPath(path: String): String =
     "/api/projects/${context.projectId.value}/ds/design-systems/${context.designSystemId.value}/$path"
+
+private fun TokenReadRuntime.projectModelPath(path: String): String =
+    "/api/projects/${context.projectId.value}/ds/$path"

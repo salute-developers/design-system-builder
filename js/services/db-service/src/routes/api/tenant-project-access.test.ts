@@ -4,7 +4,16 @@ import type { Server } from "node:http";
 import { once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { designSystems, tenants } from "../../db/schema";
+import {
+  components,
+  designSystemComponents,
+  designSystems,
+  styles,
+  tenants,
+  tokens,
+  tokenValues,
+  variations,
+} from "../../db/schema";
 import { testDb } from "../../test/database";
 import router from "../index";
 
@@ -14,6 +23,8 @@ let server: Server;
 let baseUrl: string;
 let designSystemA: string;
 let designSystemB: string;
+let componentId: string;
+let tokenId: string;
 
 const request = async (path: string, projectId: string, options: { method?: string; role?: string; body?: object } = {}) => {
   const response = await fetch(`${baseUrl}/api/ds${path}`, {
@@ -38,12 +49,22 @@ beforeAll(async () => {
   ]).returning();
   designSystemA = a.id;
   designSystemB = b.id;
-  await testDb.insert(tenants).values({ designSystemId: designSystemA, name: "Existing theme", colorConfig: {} });
+  const [tenant] = await testDb.insert(tenants).values({ designSystemId: designSystemA, name: "Existing theme", colorConfig: {} }).returning();
+  const [token] = await testDb.insert(tokens).values({ designSystemId: designSystemA, name: `accent-${randomUUID()}`, type: "color" }).returning();
+  tokenId = token.id;
+  await testDb.insert(tokenValues).values({ tokenId, tenantId: tenant.id, platform: "web", mode: "dark", value: "#000000" });
+
+  const [component] = await testDb.insert(components).values({ name: `button-${randomUUID()}` }).returning();
+  componentId = component.id;
+  await testDb.insert(designSystemComponents).values({ designSystemId: designSystemA, componentId });
+  const [variation] = await testDb.insert(variations).values({ componentId, name: "size" }).returning();
+  await testDb.insert(styles).values({ designSystemId: designSystemA, variationId: variation.id, name: "small" });
 });
 
 afterAll(async () => {
   if (designSystemA) await testDb.delete(designSystems).where(eq(designSystems.id, designSystemA));
   if (designSystemB) await testDb.delete(designSystems).where(eq(designSystems.id, designSystemB));
+  if (componentId) await testDb.delete(components).where(eq(components.id, componentId));
   if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -64,5 +85,27 @@ describe("tenant project ownership", () => {
     const created = await request("/tenants", projectB, { method: "POST", body });
     expect(created.status).toBe(201);
     expect(created.body).toMatchObject({ designSystemId: designSystemB, name: "New backend theme" });
+  });
+
+  it("reuses project-scoped ID routes for token details and values", async () => {
+    expect((await request(`/tokens/${tokenId}`, projectA)).status).toBe(200);
+    expect((await request(`/tokens/${tokenId}`, projectB)).status).toBe(404);
+
+    const values = await request(`/tokens/${tokenId}/values?platform=web&mode=dark`, projectA);
+    expect(values.status).toBe(200);
+    expect(values.body).toEqual([expect.objectContaining({ tokenId, platform: "web", mode: "dark" })]);
+    expect((await request(`/tokens/${tokenId}/values`, projectB)).status).toBe(404);
+  });
+
+  it("reuses component ID routes and keeps only styles aggregated by design system", async () => {
+    expect((await request(`/components/${componentId}`, projectA)).status).toBe(200);
+    expect((await request(`/components/${componentId}`, projectB)).status).toBe(404);
+    expect((await request(`/components/${componentId}/variations`, projectA)).status).toBe(200);
+    expect((await request(`/components/${componentId}/variations`, projectB)).status).toBe(404);
+
+    const componentStyles = await request(`/design-systems/${designSystemA}/components/${componentId}/styles`, projectA);
+    expect(componentStyles.status).toBe(200);
+    expect(componentStyles.body).toEqual([expect.objectContaining({ name: "small" })]);
+    expect((await request(`/design-systems/${designSystemA}/components/${componentId}/styles`, projectB)).status).toBe(404);
   });
 });

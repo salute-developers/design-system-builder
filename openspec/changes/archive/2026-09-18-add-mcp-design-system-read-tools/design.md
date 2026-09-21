@@ -44,6 +44,24 @@ MCP tools делятся на три смысловые группы:
 - `feature-components`: component list/get/config/styles/variations read scenarios.
 
 `mcp-server-core` выполняет только input validation, вызов use case и mapping результата в MCP DTO.
+Для больших component bindings он также локально проецирует полный backend response по запрошенному уровню
+`detail`: компактный `summary` используется по умолчанию, `variations` возвращает конкретные code references без
+style API metadata, а `full` сохраняет полный опубликованный payload. Точные `appearanceNames`
+(`styles[].styleName`) и `variationNames` (`styles[].variations[].name`) дополнительно сужают результат; переданные
+`variationNames` автоматически выбирают `variations`, если `detail` не указан. Эти значения остаются непрозрачными
+пользовательскими именами: MCP не вводит фиксированные оси вроде `size` или `view`, а backend contract и сохраненный
+publication payload не меняются.
+
+Для model-visible ответов MCP также применяет компактные presentation projections без изменения backend API:
+
+- `tokens_list` возвращает только `id`, `name`, `type`, `displayName`, `description`, а `components_list` — только
+  `id`, `name`, `description`;
+- optional `name` переиспользует существующий backend `query`, после чего MCP проверяет точное case-sensitive
+  совпадение; `name` и substring-`query` взаимоисключающие;
+- явный `limit` применяется локально, но при отсутствии `limit` MCP не вводит неявное ограничение;
+- `documentation_fetch` исключает производный `searchText`, сохраняя published `markdown` и source metadata;
+- `component_config_get` адресует export только через canonical `subject` или exact component `name`, потому что
+  backend export фильтрует `componentName`, а не UUID `componentId`.
 
 Альтернатива: реализовать HTTP calls прямо в `mcp-server-core`. Она отклонена, потому что нарушает ADR-0004 и не даст переиспользовать логику в CLI, desktop и IDE plugins.
 
@@ -56,17 +74,17 @@ MCP tools делятся на три смысловые группы:
 Минимальный backend contract для этого change использует существующий gateway route `/api/projects/{projectId}/ds/...`, который переписывается в db-service `/api/ds/...` и добавляет trusted headers `X-Project-Id`, `X-Project-Scopes`, `X-System-Admin`:
 
 - `GET /ds/design-systems/{designSystemId}/tokens`: существующий subresource route остается основой, но должен проверять доступность design system через trusted project context, требовать `tokens:read` для project key, поддерживать `type` и `query` без изменения array response shape.
-- `GET /ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}`: новый точечный lookup по ID или canonical name внутри design system с теми же project/scope checks.
-- `GET /ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}/values`: новый read route для token values с фильтрами `tenantId`, `themeId`, `mode`, `platform`.
+- `GET /ds/tokens/{tokenId}`: существующий ID-based lookup получает project/scope checks и используется MCP без дублирующего design-system lookup route.
+- `GET /ds/tokens/{tokenId}/values`: существующий ID-based route получает project/scope checks и фильтры `tenantId`, `mode`, `platform`.
 - `GET /ds/design-systems/{designSystemId}/components`: существующий subresource route остается основой, но должен проверять доступность design system через trusted project context, требовать `components:read` для project key, поддерживать `query` без изменения array response shape.
-- `GET /ds/design-systems/{designSystemId}/components/{componentIdOrName}`: новый точечный lookup по ID или canonical name внутри design system.
+- `GET /ds/components/{componentId}`: существующий ID-based lookup получает project/scope checks и используется MCP без дублирующего design-system lookup route.
 - `POST /ds/component-config/export`: существующий endpoint остается package-level read contract для authoritative canonical common component config и расширяется optional-фильтрами `components` и `styles`, чтобы MCP мог читать один component/style без выгрузки всего пакета.
-- `GET /ds/design-systems/{designSystemId}/components/{componentIdOrName}/styles`: новый read route для styles компонента в design system.
-- `GET /ds/design-systems/{designSystemId}/components/{componentIdOrName}/variations`: новый read route для variations компонента с model identifiers.
+- `GET /ds/design-systems/{designSystemId}/components/{componentId}/styles`: новый агрегирующий read route для styles всех variations компонента в design system; он избегает N+1 запросов.
+- `GET /ds/components/{componentId}/variations`: существующий ID-based route получает project/scope checks и используется MCP.
 
 Gateway route добавлять не нужно, если существующий `/api/projects/{projectId}/ds/...` покрывает эти paths. db-service должен применять `designSystemScopeFilter`/`designSystemBelongsToScope` или эквивалентную проверку во всех design-system subresource handlers, чтобы одного знания `designSystemId` было недостаточно для чтения данных чужого проекта.
 
-Существующие generic CRUD routes `/ds/tokens`, `/ds/token-values`, `/ds/components`, `/ds/styles` не считаются достаточным MCP contract сами по себе. Существующие `/ds/design-systems/{id}/tokens` и `/ds/design-systems/{id}/components` ближе к нужному контракту, но требуют project/scope checks, фильтрации и DTO boundary.
+Существующие ID-based routes `/ds/tokens/{id}` и `/ds/components/{id}` являются MCP contract после добавления project/scope checks. Design-system subresource routes сохраняются для списков и единственного агрегирующего component styles чтения.
 
 Для `js/apps/client` change должен быть backward-compatible: нельзя ломать существующие legacy/UI endpoints и response shapes, используемые web-клиентом. Для `frontend-kt/cli` допустима синхронная адаптация к новым DTO/use cases, потому что CLI и MCP развиваются поверх одного `frontend-kt` application layer.
 
@@ -83,6 +101,9 @@ Write tools будут проектироваться отдельным change 
 - [Risk] Read tools могут вернуть расходящиеся данные из documentation publication и system model. → Mitigation: в MCP contract явно разделить `documentation_*`/`code_binding_*` и `tokens_*`/`component_*`, а ответы снабжать `source`, `version`, `platform` и `publicationId` там, где применимо.
 - [Risk] Существующие db-service endpoints могут быть нестабильными или слишком связанными с UI. → Mitigation: зафиксировать отдельный `design-system-model-api` contract и добавить DTO mapping на API boundary.
 - [Risk] Расширение MCP увеличит число backend-dependent tools и вариантов ошибок. → Mitigation: использовать общий error envelope с существующими кодами `AUTH_REQUIRED`, `FORBIDDEN`, `NOT_FOUND`, `BACKEND_UNAVAILABLE`, `CONTEXT_NOT_FOUND` и добавить предметные `INVALID_QUERY`, `PUBLICATION_NOT_FOUND`.
+- [Risk] Локальный `limit` без backend pagination может скрыть подходящие элементы. → Mitigation: MCP не задаёт
+  default limit; exact `name` и substring `query` сначала сужают backend array, а ограничение применяется только по
+  явному запросу caller.
 - [Risk] В `frontend-kt` появится дублирование с CLI fetch-сценариями. → Mitigation: read use cases должны возвращать model DTO без записи в `.sdds`; fetch use cases остаются отдельными сценариями локальной синхронизации.
 
 ## Migration Plan

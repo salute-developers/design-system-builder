@@ -3,14 +3,14 @@
 - [x] 1.1 Inspect existing `js/services/db-service/src/routes/api/` token, token value, component, style, variation and `component-config/export` routes and map each required MCP read tool to an existing handler or a narrowly scoped handler addition.
 - [x] 1.2 Add trusted project checks and `tokens:read` scope checks to design-system token subresources used by MCP.
 - [x] 1.3 Add `type` and `query` support to `GET /ds/design-systems/{designSystemId}/tokens` while preserving the existing array response shape.
-- [x] 1.4 Add token lookup/value handlers for `GET /ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}` and `GET /ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}/values` with design-system-local matching and filters.
+- [x] 1.4 Stabilize existing `GET /ds/tokens/{tokenId}` and `GET /ds/tokens/{tokenId}/values` handlers with project/scope checks and token-value filters.
 - [x] 1.5 Add trusted project checks and `components:read` scope checks to design-system component subresources used by MCP.
 - [x] 1.6 Add `query` support to `GET /ds/design-systems/{designSystemId}/components` while preserving the existing array response shape.
-- [x] 1.7 Add component lookup/style/variation handlers for `GET /ds/design-systems/{designSystemId}/components/{componentIdOrName}`, `/styles` and `/variations` with design-system-local matching.
+- [x] 1.7 Stabilize existing ID-based component lookup/variation handlers and add only the aggregate `GET /ds/design-systems/{designSystemId}/components/{componentId}/styles` handler.
 - [x] 1.8 Extend `POST /ds/component-config/export` request with optional `components` and `styles` filters and apply them before returning the package.
 - [x] 1.9 Update `js/services/db-service/src/openapi/spec.ts` for stabilized token/component subresource DTOs and filtered `component-config/export`.
 - [x] 1.10 If db-service route tests are added, stand up the local test runner explicitly; otherwise document the manual verification route for this change.
-  - Manual route verification: exercise `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens?type=color&query=accent`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens/{tokenIdOrName}/values?tenantId={tenantId}&platform=web&mode=light`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components?query=button`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentIdOrName}/styles`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentIdOrName}/variations`, and `POST /api/projects/{projectId}/ds/component-config/export` with `components`/`styles` filters through the gateway using project credentials.
+  - Manual route verification: exercise `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/tokens?type=color&query=accent`, `GET /api/projects/{projectId}/ds/tokens/{tokenId}/values?tenantId={tenantId}&platform=web&mode=light`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components?query=button`, `GET /api/projects/{projectId}/ds/design-systems/{designSystemId}/components/{componentId}/styles`, `GET /api/projects/{projectId}/ds/components/{componentId}/variations`, and `POST /api/projects/{projectId}/ds/component-config/export` with `components`/`styles` filters through the gateway using project credentials.
 - [x] 1.11 Verify existing `js/apps/client` routes and response shapes remain backward-compatible after API changes.
 
 ## 2. Gateway and authorization
@@ -35,6 +35,10 @@
 - [x] 4.3 Map application results to stable JSON-compatible MCP result DTOs without leaking credentials or stack traces.
 - [x] 4.4 Map validation and backend failures to `INVALID_ARGUMENT`, `INVALID_QUERY`, `AUTH_REQUIRED`, `FORBIDDEN`, `NOT_FOUND`, `PUBLICATION_NOT_FOUND`, `BACKEND_UNAVAILABLE` and `CONTEXT_NOT_FOUND`.
 - [x] 4.5 Add MCP contract tests for `tools/list`, successful `tools/call`, invalid arguments, backend errors and read-only tool surface.
+- [x] 4.6 Add MCP-local `summary`, `variations` and `full` detail projections plus exact `appearanceNames` and
+  `variationNames` filters for large component bindings without changing backend publication payloads.
+- [x] 4.7 Add MCP-local compact projections and exact `name` filters for token/component lists, omit derived
+  `searchText` from documentation fetches, and remove unsupported `componentId` from `component_config_get`.
 
 ## 5. Documentation and verification
 
@@ -43,3 +47,4 @@
 - [x] 5.3 Run the relevant backend/gateway checks for changed Kotlin services, including build, detekt, spotlessCheck and tests.
 - [x] 5.4 Run `cd js && npm run build` after db-service API/OpenAPI changes.
 - [x] 5.5 Validate the OpenSpec change with `openspec validate --changes add-mcp-design-system-read-tools`.
+- [x] 5.6 Validate the merged canonical OpenSpec specs after the change is archived.

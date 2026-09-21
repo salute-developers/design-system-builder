@@ -7,6 +7,9 @@
 - Добавить read-only MCP tools для поиска и чтения опубликованной документации.
 - Добавить read-only MCP tools для поиска и чтения code bindings из опубликованных documentation artifacts.
 - Добавить read-only MCP tools для чтения системных токенов, token values, компонентов, component config, component styles и variations.
+- Сократить model-visible ответы MCP локальными presentation projections: компактными списками токенов и компонентов,
+  удалением производного documentation `searchText` и уровнями детализации component code binding
+  `summary` / `variations` / `full` с точными фильтрами appearance/variation names.
 - Зафиксировать, что `documentation_*` и `code_binding_*` не являются source of truth для системной модели.
 - Зафиксировать предметный read API для токенов и компонентов через существующий gateway route `/api/projects/{projectId}/ds/...`: доработать db-service read handlers так, чтобы они учитывали trusted project headers, поддерживали фильтрацию без backend pagination в первой версии и возвращали стабильные DTO.
 - Не добавлять write tools в этом change: изменение токенов и компонентов требует отдельного архитектурного решения по validation, concurrency, audit и idempotency.
