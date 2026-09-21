@@ -8,9 +8,10 @@ export async function seedProperties(
 ) {
   const { button, text, link, textField, cell, cellLabel, cellTitle } = ctx.components;
 
+  // Dev-сиды описывают веб-компоненты: платформа `web`.
   const rows = await db
     .insert(schema.properties)
-    .values([
+    .values(([
       // ── Button ──────────────────────────────────────────────────────────────
       { componentId: button.id, name: 'backgroundColor', type: 'color' as const, defaultValue: '', description: 'Цвет фона кнопки' },
       { componentId: button.id, name: 'labelColor', type: 'color' as const, defaultValue: '', description: 'Цвет основного текста' },
@@ -44,7 +45,7 @@ export async function seedProperties(
       // ── CellTitle ─────────────────────────────────────────────────────────
       { componentId: cellTitle.id, name: 'color', type: 'color' as const, defaultValue: '', description: 'Цвет текста заголовка' },
       { componentId: cellTitle.id, name: 'fontStyle', type: 'typography' as const, defaultValue: '', description: 'Стиль шрифта заголовка' },
-    ])
+    ]).map((p) => ({ ...p, platform: 'web' as const })))
     .returning();
 
   const find = (compId: string, name: string) =>

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../../db/index";
 import { deriveValueType, placeValue, restoreJsonType } from "../../db/export/valueType";
 import {
@@ -115,6 +115,8 @@ router.get("/", (req, res) =>
           eq(appearances.designSystemId, ds.id),
           eq(appearances.componentId, component.id),
           eq(appearances.name, appearanceName),
+          // Общий формат отдаёт нативные конфиги; веб-appearance того же имени не наш.
+          isNull(appearances.platform),
         ),
       );
 

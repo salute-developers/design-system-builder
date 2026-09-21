@@ -39,6 +39,14 @@ Enum platform {
   ios
 }
 
+// Платформа компонента: веб-импорт из plasma против нативного из theme-converter.
+// NULL — строка не размечена (нативные данные до появления колонки) или свойство общее.
+Enum component_platform {
+  web
+  compose
+  ios
+}
+
 Enum property_platform {
   xml
   compose
@@ -145,6 +153,7 @@ Table properties {
   type property_type [not null]
   default_value text
   description text
+  platform component_platform [note: 'NULL — общее для платформ']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
@@ -284,12 +293,13 @@ Table appearances {
   design_system_id  uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
   component_id      uuid [not null, ref: > components.id, note: 'on delete cascade']
   name              text [default: 'default', note: 'например outline']
+  platform          component_platform [note: 'web — импорт из plasma; NULL — нативная строка без разметки']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (design_system_id, component_id, name) [unique]
+    (design_system_id, component_id, name, platform) [unique, note: 'NULLS NOT DISTINCT']
   }
 }
 
