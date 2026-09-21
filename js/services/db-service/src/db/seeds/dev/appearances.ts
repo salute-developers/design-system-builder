@@ -21,9 +21,10 @@ export async function seedAppearances(
   const { sdds, plasma } = ctx.designSystems;
   const { button, text, link, textField, cell, cellLabel, cellTitle } = ctx.components;
 
+  // Dev-сиды описывают веб-компоненты: платформа `web`.
   const rows = await db
     .insert(schema.appearances)
-    .values([
+    .values(([
       // SDDS Button
       { designSystemId: sdds.id, componentId: button.id, name: 'default' },
       { designSystemId: sdds.id, componentId: button.id, name: 'outline' },
@@ -46,7 +47,7 @@ export async function seedAppearances(
       { designSystemId: plasma.id, componentId: text.id, name: 'default' },
       // PLASMA Link
       { designSystemId: plasma.id, componentId: link.id, name: 'default' },
-    ])
+    ]).map((a) => ({ ...a, platform: 'web' as const })))
     .returning();
 
   const find = (dsId: string, compId: string, name: string) =>

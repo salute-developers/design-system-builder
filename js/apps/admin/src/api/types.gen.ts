@@ -9026,6 +9026,8 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue: string | null;
             description: string | null;
+            /** @enum {string|null} */
+            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9122,6 +9124,8 @@ export interface components {
             /** Format: uuid */
             componentId: string;
             name: string | null;
+            /** @enum {string|null} */
+            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9620,6 +9624,8 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
+            /** @enum {string|null} */
+            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateProperty: {
             name?: string;
@@ -9627,6 +9633,8 @@ export interface components {
             type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
+            /** @enum {string|null} */
+            platform?: "web" | "compose" | "ios" | null;
         };
         CreatePropertyPlatformParam: {
             /** Format: uuid */
@@ -9677,9 +9685,13 @@ export interface components {
             componentId: string;
             /** @default default */
             name: string;
+            /** @enum {string|null} */
+            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateAppearance: {
             name?: string;
+            /** @enum {string|null} */
+            platform?: "web" | "compose" | "ios" | null;
         };
         CreateStyle: {
             /** Format: uuid */

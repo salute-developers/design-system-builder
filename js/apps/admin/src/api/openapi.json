@@ -306,6 +306,16 @@
             "type": "string",
             "nullable": true
           },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -324,6 +334,7 @@
           "type",
           "defaultValue",
           "description",
+          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -512,6 +523,16 @@
             "type": "string",
             "nullable": true
           },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -528,6 +549,7 @@
           "designSystemId",
           "componentId",
           "name",
+          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -1807,6 +1829,16 @@
           "description": {
             "type": "string",
             "maxLength": 1000
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
           }
         },
         "required": [
@@ -1844,6 +1876,16 @@
           "description": {
             "type": "string",
             "maxLength": 1000
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
           }
         }
       },
@@ -1994,6 +2036,16 @@
             "type": "string",
             "maxLength": 255,
             "default": "default"
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
           }
         },
         "required": [
@@ -2008,6 +2060,16 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "web",
+              "compose",
+              "ios",
+              null
+            ]
           }
         }
       },
