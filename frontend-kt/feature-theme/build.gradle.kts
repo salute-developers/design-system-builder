@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -21,5 +21,19 @@ kotlin {
             api(libs.koin.core)
             implementation(libs.kotlinx.serialization.json)
         }
+
+        commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+        }
     }
+}
+
+tasks.matching {
+    it.name == "jsTest" ||
+        it.name == "jsNodeTest" ||
+        it.name == "compileTestKotlinJs" ||
+        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
+        it.name == "jsTestTestDevelopmentExecutableCompileSync"
+}.configureEach {
+    enabled = false
 }

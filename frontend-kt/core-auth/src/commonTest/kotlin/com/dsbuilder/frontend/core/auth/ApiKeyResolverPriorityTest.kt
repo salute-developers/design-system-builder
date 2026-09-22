@@ -14,6 +14,30 @@ class ApiKeyResolverPriorityTest {
     private val configuredEnvName = "DSBUILDER_PROJECT_A_API_KEY"
 
     @Test
+    fun processValueWinsForConfiguredNameButProjectNameWinsOverDefaultName() {
+        val project = EnvironmentReader { name ->
+            if (name == configuredEnvName) "project-configured" else null
+        }
+        val process = ApiKeyResolver(
+            EnvironmentReader { name ->
+                when (name) {
+                    configuredEnvName -> "process-configured"
+                    DEFAULT_API_KEY_ENV -> "process-default"
+                    else -> null
+                }
+            },
+        )
+        assertEquals("process-configured", process.resolve(null, configuredEnvName, project).value)
+
+        val defaultOnly = ApiKeyResolver(
+            EnvironmentReader { name ->
+                if (name == DEFAULT_API_KEY_ENV) "process-default" else null
+            },
+        )
+        assertEquals("project-configured", defaultOnly.resolve(null, configuredEnvName, project).value)
+    }
+
+    @Test
     fun apiKeyArgumentHasPriorityOverEnvironment() {
         val resolver = ApiKeyResolver(
             EnvironmentReader { name ->

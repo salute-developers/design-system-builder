@@ -93,11 +93,15 @@ public sealed interface DocsGenerateResult {
  * @property bundlePath путь к tar.gz-архиву пакета.
  * @property apiKeyOverride runtime override из `--api-key`.
  * @property apiUrlOverride runtime override из `--api-url`.
+ * @property designSystemUri явная ссылка на дизайн-систему.
+ * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  */
 public data class DocsPublishCommand(
     public val bundlePath: String,
     public val apiKeyOverride: String?,
     public val apiUrlOverride: String?,
+    public val designSystemUri: String? = null,
+    public val projectKeyEnvName: String? = null,
 )
 
 /**

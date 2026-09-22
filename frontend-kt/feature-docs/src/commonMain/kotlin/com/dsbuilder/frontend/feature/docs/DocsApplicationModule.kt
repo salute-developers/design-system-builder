@@ -13,12 +13,15 @@ import com.dsbuilder.frontend.feature.docs.application.DocsPlatformContextReader
 import com.dsbuilder.frontend.feature.docs.application.DocsProjectContextAdapter
 import com.dsbuilder.frontend.feature.docs.application.DocsProjectContextReader
 import com.dsbuilder.frontend.feature.docs.application.DocsPublishUseCase
+import com.dsbuilder.frontend.feature.docs.application.DocsReadRemoteSource
+import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import com.dsbuilder.frontend.feature.docs.application.DocsStructureReader
 import com.dsbuilder.frontend.feature.docs.data.FilesystemPlatformContextReader
 import com.dsbuilder.frontend.feature.docs.data.FilesystemStructureReader
 import com.dsbuilder.frontend.feature.docs.data.FilesystemValidationEngine
 import com.dsbuilder.frontend.feature.docs.data.GzipDocsFileSystem
 import com.dsbuilder.frontend.feature.docs.data.HttpDocsPublisher
+import com.dsbuilder.frontend.feature.docs.data.HttpDocsReadRemoteSource
 import com.dsbuilder.frontend.feature.docs.data.JsonDocsCodec
 import com.dsbuilder.frontend.feature.docs.data.PlatformDelegateDocsAggregator
 import com.dsbuilder.frontend.feature.docs.domain.DocsValidationEngine
@@ -52,6 +55,7 @@ public fun docsApplicationModule(): Module = module {
             platformCapabilityRunner = get<PlatformCapabilityRunner>(),
         )
     }
+    single<DocsReadRemoteSource> { HttpDocsReadRemoteSource(get(), get()) }
 
     // Application layer — ports
     single<DocsProjectContextReader> { DocsProjectContextAdapter(get()) }
@@ -70,4 +74,5 @@ public fun docsApplicationModule(): Module = module {
     }
     single { DocsInitUseCase(get(), get()) }
     single { DocsPublishUseCase(get(), get(), get(), get()) }
+    single { DocsReadUseCases(get(), get(), get(), get()) }
 }

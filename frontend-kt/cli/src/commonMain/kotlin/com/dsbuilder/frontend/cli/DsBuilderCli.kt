@@ -2,9 +2,11 @@ package com.dsbuilder.frontend.cli
 
 import com.dsbuilder.frontend.cli.di.cliModule
 import com.dsbuilder.frontend.cli.di.platformDelegatesModule
+import com.dsbuilder.frontend.cli.feature.auth.di.authCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.mcp.di.mcpCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.theme.di.themeCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.toolchain.di.toolchainCliPresentationModule
@@ -14,6 +16,7 @@ import com.dsbuilder.frontend.core.application.coreApplicationModule
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
 import com.dsbuilder.frontend.core.platform.corePlatformModule
+import com.dsbuilder.frontend.feature.auth.authApplicationModule
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
 import com.dsbuilder.frontend.feature.init.initApplicationModule
@@ -56,6 +59,28 @@ public class DsBuilderCli(
      * @return результат обработки вызова.
      */
     public fun execute(args: List<String>): CliResult {
+        rejectPasswordArgument(args)?.let { message ->
+            return CliResult(exitCode = 1, output = message)
+        }
+
+        return rootCommand().executeForResult(args)
+    }
+
+    /**
+     * Executes the CLI against the real process terminal.
+     *
+     * This path is used by installed entrypoints so Clikt prompts can read real stdin.
+     */
+    public fun executeInteractive(args: List<String>): Int {
+        rejectPasswordArgument(args)?.let { message ->
+            println(message)
+            return 1
+        }
+
+        return rootCommand().executeDirectly(args)
+    }
+
+    private fun rootCommand(): RootCliCommand {
         val koin = koinApplication {
             modules(
                 coreApplicationModule(runtime),
@@ -63,10 +88,13 @@ public class DsBuilderCli(
                 iosPlatformModule(),
                 androidPlatformModule(),
                 platformDelegatesModule(),
+                authApplicationModule(),
+                authCliPresentationModule(),
                 docsApplicationModule(),
                 docsCliPresentationModule(),
                 initApplicationModule(),
                 initCliPresentationModule(),
+                mcpCliPresentationModule(),
                 statusApplicationModule(),
                 statusCliPresentationModule(),
                 themeApplicationModule(),
@@ -79,7 +107,7 @@ public class DsBuilderCli(
             )
         }.koin
 
-        return koin.get<RootCliCommand>().executeForResult(args)
+        return koin.get()
     }
 
     /**
@@ -112,6 +140,19 @@ public class DsBuilderCli(
         }.koin.get()
 }
 
+private fun rejectPasswordArgument(args: List<String>): String? {
+    val loginIndex = args.indexOfFirst { it == "login" }
+    val isAuthLogin = loginIndex > 0 && args.take(loginIndex).contains("auth")
+    if (!isAuthLogin) return null
+
+    val hasPasswordArg = args.any { it == "--password" || it.startsWith("--password=") }
+    return if (hasPasswordArg) {
+        "Error: password must be entered interactively and cannot be passed as a command-line argument."
+    } else {
+        null
+    }
+}
+
 private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
     var exitCode = 0
     val recorder = TerminalRecorder(AnsiLevel.NONE)
@@ -135,4 +176,15 @@ private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
         exitCode = exitCode,
         output = recorder.output().trimEnd(),
     )
+}
+
+private fun RootCliCommand.executeDirectly(args: List<String>): Int {
+    var exitCode = 0
+    try {
+        parse(args)
+    } catch (error: CliktError) {
+        echoFormattedHelp(error)
+        exitCode = error.statusCode
+    }
+    return exitCode
 }

@@ -1,11 +1,13 @@
 [versions]
 koin = "4.1.1"
-kotlin = "2.2.0"
+kotlin = "2.2.21"
 ktor = "3.3.0"
 logback = "1.4.14"
 clikt = "5.0.3"
 kotlinx-coroutines = "1.10.2"
 kotlin_serialization = "1.9.0"
+kotlin-logging = "7.0.14"
+mcp-kotlin = "0.10.0"
 okio = "3.10.2"
 jvmTarget = "1.8"
 commons-compress = "1.27.1"
@@ -67,7 +69,10 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlin_serialization" }
+kotlin-logging = { module = "io.github.oshai:kotlin-logging", version.ref = "kotlin-logging" }
+kotlin-sdk-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp-kotlin" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
@@ -80,6 +85,7 @@ commonmark-gfm-tables = { module = "org.commonmark:commonmark-ext-gfm-tables", v
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }

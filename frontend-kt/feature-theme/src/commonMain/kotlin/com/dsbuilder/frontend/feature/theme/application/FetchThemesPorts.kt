@@ -1,6 +1,6 @@
 package com.dsbuilder.frontend.feature.theme.application
 
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.feature.theme.domain.PaletteItem
@@ -10,32 +10,33 @@ import com.dsbuilder.frontend.feature.theme.domain.Token
 import com.dsbuilder.frontend.feature.theme.domain.TokenValue
 
 internal interface RemoteThemeDataSource {
-    fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>>
+    suspend fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>>
 
-    fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>>
+    suspend fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>>
 
-    fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>>
+    suspend fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>>
 
-    fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>>
+    suspend fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>>
 }
 
 internal fun interface LocalThemeWriter {
     fun write(
         context: ProjectContext,
         writePlan: ThemeWritePlan,
+        destinationDirectory: String?,
     ): LocalThemeWriteResult
 }
 
 internal data class RemoteThemeCommand(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
 )
 
 internal data class RemoteTenantThemeCommand(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
-    val apiKey: ProjectApiKey,
+    val credential: BackendCredential,
     val tenantId: String,
 )
 
@@ -50,7 +51,7 @@ internal sealed interface RemoteThemeResult<out T> {
 }
 
 internal sealed interface LocalThemeWriteResult {
-    data object Written : LocalThemeWriteResult
+    data class Written(val configPath: String) : LocalThemeWriteResult
 
     data class Failed(
         val message: String,

@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.core.network
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import io.ktor.client.HttpClient
 import io.ktor.client.request.forms.MultiPartFormDataContent
 import io.ktor.client.request.forms.formData
@@ -16,7 +17,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.runBlocking
 
 private const val TRANSPORT_MESSAGE_LIMIT = 200
 
@@ -54,9 +54,11 @@ public sealed interface AuthenticatedHttpResult {
      * Backend вернул user-facing failure без raw secret.
      *
      * @property message deterministic сообщение для CLI output.
+     * @property statusCode numeric HTTP status, or null for a transport failure.
      */
     public data class Failure(
         public val message: String,
+        public val statusCode: Int? = null,
     ) : AuthenticatedHttpResult
 }
 
@@ -93,7 +95,7 @@ public interface AuthenticatedHttpClient {
     /**
      * Выполняет GET request относительно resolved API URL и добавляет `Authorization: ProjectKey <apiKey>`.
      */
-    public fun get(path: String): AuthenticatedHttpResult
+    public suspend fun get(path: String): AuthenticatedHttpResult
 
     /**
      * Выполняет POST request с JSON-телом относительно resolved API URL и добавляет
@@ -101,24 +103,36 @@ public interface AuthenticatedHttpClient {
      *
      * Ошибки backend отображаются так же, как у чтения.
      */
-    public fun post(path: String, body: String): AuthenticatedHttpResult
+    public suspend fun post(path: String, body: String): AuthenticatedHttpResult
 
     /** Выполняет multipart POST с project API key. */
-    public fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
+    public suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse =
         error("Multipart POST is not supported by this client.")
 }
 
 /**
  * Factory для authenticated HTTP client.
  */
-public fun interface AuthenticatedHttpClientFactory {
+public interface AuthenticatedHttpClientFactory {
     /**
-     * Создает authenticated client для runtime API URL и API key.
+     * Создает authenticated client для runtime API URL и legacy project API key call sites.
      */
     public fun create(
         apiUrl: String,
         apiKey: String,
     ): AuthenticatedHttpClient
+
+    /**
+     * Создает authenticated client для runtime API URL и выбранного credential.
+     */
+    public fun create(
+        apiUrl: String,
+        credential: BackendCredential,
+    ): AuthenticatedHttpClient =
+        when (credential) {
+            is BackendCredential.ProjectKey -> create(apiUrl, credential.value)
+            is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
+        }
 }
 
 /**
@@ -127,29 +141,27 @@ public fun interface AuthenticatedHttpClientFactory {
 public class KtorAuthenticatedHttpClient(
     private val httpClient: HttpClient,
     private val apiUrl: String,
-    private val apiKey: String,
+    private val credential: BackendCredential,
 ) : AuthenticatedHttpClient {
-    override fun get(path: String): AuthenticatedHttpResult = runBlocking {
+    override suspend fun get(path: String): AuthenticatedHttpResult =
         execute {
             httpClient.get(url(path)) {
-                header(HttpHeaders.Authorization, "ProjectKey $apiKey")
+                authorizationHeader()
             }
         }
-    }
 
-    override fun post(path: String, body: String): AuthenticatedHttpResult = runBlocking {
+    override suspend fun post(path: String, body: String): AuthenticatedHttpResult =
         execute {
             httpClient.post(url(path)) {
-                header(HttpHeaders.Authorization, "ProjectKey $apiKey")
+                authorizationHeader()
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
         }
-    }
 
-    override fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse = runBlocking {
+    override suspend fun postMultipart(path: String, file: MultipartFile): AuthenticatedHttpResponse {
         val response = httpClient.post(url(path)) {
-            header(HttpHeaders.Authorization, "ProjectKey $apiKey")
+            authorizationHeader()
             setBody(
                 MultiPartFormDataContent(
                     formData {
@@ -171,7 +183,7 @@ public class KtorAuthenticatedHttpClient(
                 ),
             )
         }
-        AuthenticatedHttpResponse(response.status.value, response.bodyAsText())
+        return AuthenticatedHttpResponse(response.status.value, response.bodyAsText())
     }
 
     /**
@@ -203,16 +215,20 @@ public class KtorAuthenticatedHttpClient(
     private suspend fun HttpResponse.toResult(): AuthenticatedHttpResult = when {
         status.isSuccess() -> AuthenticatedHttpResult.Success(bodyAsText())
         status == HttpStatusCode.Unauthorized -> AuthenticatedHttpResult.Failure(
-            "Status: unauthorized. API key is missing or invalid.",
+            "Status: unauthorized. Credential is missing or invalid.",
+            status.value,
         )
         status == HttpStatusCode.Forbidden -> AuthenticatedHttpResult.Failure(
-            "Status: forbidden. API key has no access to this project.",
+            "Status: forbidden. Credential has no access to this project.",
+            status.value,
         )
         status == HttpStatusCode.NotFound -> AuthenticatedHttpResult.Failure(
             "Status: not found. Project or resource was not found.",
+            status.value,
         )
         else -> AuthenticatedHttpResult.Failure(
             "Status: failed. Backend returned HTTP ${status.value}: ${errorBodySnippet()}",
+            status.value,
         )
     }
 
@@ -230,6 +246,14 @@ public class KtorAuthenticatedHttpClient(
             ?: "(empty body)"
 
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
+
+    private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
+        val value = when (credential) {
+            is BackendCredential.Bearer -> "Bearer ${credential.accessToken}"
+            is BackendCredential.ProjectKey -> "ProjectKey ${credential.value}"
+        }
+        header(HttpHeaders.Authorization, value)
+    }
 }
 
 /**
@@ -241,9 +265,14 @@ public class KtorAuthenticatedHttpClientFactory(
     override fun create(
         apiUrl: String,
         apiKey: String,
+    ): AuthenticatedHttpClient = create(apiUrl, BackendCredential.ProjectKey(apiKey))
+
+    override fun create(
+        apiUrl: String,
+        credential: BackendCredential,
     ): AuthenticatedHttpClient = KtorAuthenticatedHttpClient(
         httpClient = httpClientProvider(),
         apiUrl = apiUrl,
-        apiKey = apiKey,
+        credential = credential,
     )
 }

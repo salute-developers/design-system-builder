@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
 }
 
 kotlin {
@@ -20,6 +20,10 @@ kotlin {
             api(projects.coreWorkspace)
             // coreApplicationModule(): Module is a public factory returning a Koin type.
             api(libs.koin.core)
+        }
+
+        commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

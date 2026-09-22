@@ -35,6 +35,18 @@ dsbuilder --help
 dsbuilder --version
 ```
 
+## User auth
+
+Для сценариев без project API key можно сохранить локальную user session:
+
+```bash
+dsbuilder auth login --username alice --api-url https://your-gateway
+dsbuilder auth status --api-url https://your-gateway
+dsbuilder auth logout --api-url https://your-gateway
+```
+
+Пароль вводится только интерактивно. `auth status` не печатает access token или refresh token.
+
 ## Инициализация дизайн-системы
 
 Команда `init` создает локальный конфиг проекта в текущей директории. Запускайте
@@ -76,6 +88,21 @@ dsbuilder init \
 export DSB_DEV_API_KEY="dev-token"
 ```
 
+Также можно положить локальный `.env` в корень проекта рядом с `.sdds/`:
+
+```dotenv
+# .env.example — замените значение в локальном .env
+DSB_DEV_API_KEY=example-project-key
+DSBUILDER_API_URL=https://api.example.test
+```
+
+CLI и MCP читают этот файл после обнаружения ближайшего `.sdds/config.json`, в том числе при запуске из вложенной
+директории. Поддерживаются `NAME=VALUE`, необязательный `export`, одинарные/двойные кавычки и комментарии;
+shell-команды и интерполяция не выполняются. Приоритет: аргумент команды → env процесса → `.env` проекта →
+умолчание. Значение в `credential.name` ищется раньше общего `DSBUILDER_API_KEY`. `.env` исключён из Git;
+на локальной машине ограничьте доступ к нему правами владельца. Команды `auth` и `init`, а также вызовы с явным
+`--design-system` не читают проектный `.env`.
+
 Проверить доступ к проекту можно командой:
 
 ```bash
@@ -87,6 +114,32 @@ dsbuilder status
 ```bash
 dsbuilder status --api-key dev-token
 ```
+
+Если project API key отсутствует, `status` использует сохранённую user session. После `401` для user session
+CLI делает один refresh/retry; для rejected project key fallback на user session не выполняется.
+
+## MCP server
+
+CLI может запустить локальный MCP server поверх тех же shared use cases:
+
+```bash
+dsbuilder mcp serve --workspace /path/to/project --api-url https://your-gateway
+```
+
+Команда работает по stdio. Stdout зарезервирован под JSON-RPC protocol messages; диагностический вывод не должен
+смешиваться с MCP protocol stream.
+
+Read-only tools:
+
+- `design_system_get_context`, `project_get_status`
+- `documentation_search`, `documentation_fetch`, `documentation_get_navigation`, `documentation_get_page`
+- `code_binding_search`, `code_binding_get`
+- `tokens_list`, `token_get`, `token_values_get`
+- `components_list`, `component_get`, `component_config_get`, `component_styles_get`, `component_variations_get`
+
+`documentation_*` and `code_binding_*` read published documentation artifacts. Token and component tools read the
+authoritative DS Builder model API through `/api/projects/{projectId}/ds/...`; they do not reconstruct model state from
+published documentation.
 
 ## Загрузка темы
 
@@ -241,6 +294,9 @@ dsbuilder components fetch
 Повторный запуск обновляет файл, включая пустой массив `[]`. Ошибка запроса или
 некорректный JSON останавливает загрузку до записи файлов.
 Команда `theme fetch` этот файл не загружает и не изменяет.
+При вызове `components fetch --design-system <uri> --to <directory>` без локальной `.sdds`
+snapshot сохраняется как `<directory>/component-configs.json`; оба backend-запроса используют
+выбранный контекст и credential.
 
 ## Генерация кода дизайн-системы
 

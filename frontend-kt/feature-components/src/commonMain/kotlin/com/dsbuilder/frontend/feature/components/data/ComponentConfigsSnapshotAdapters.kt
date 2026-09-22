@@ -8,6 +8,7 @@ import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotResult
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
+import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageWriteResult
 import com.dsbuilder.frontend.feature.components.application.ExportComponentsCommand
 import io.ktor.http.encodeURLPathPart
@@ -18,11 +19,14 @@ import kotlinx.serialization.json.JsonArray
 internal class HttpComponentConfigsSnapshotSource(
     private val httpClientFactory: AuthenticatedHttpClientFactory,
 ) : ComponentConfigsSnapshotSource {
-    override fun fetch(command: ExportComponentsCommand, designSystemName: String): ComponentConfigsSnapshotResult {
+    override suspend fun fetch(
+        command: ExportComponentsCommand,
+        designSystemName: String,
+    ): ComponentConfigsSnapshotResult {
         if (designSystemName.isBlank()) {
             return ComponentConfigsSnapshotResult.Failed("Error: component package has an empty design system name.")
         }
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val path = "/api/projects/${command.projectId.value}/ds/legacy/design-systems/" +
             "${designSystemName.encodeURLPathPart()}/component-configs"
         return when (val result = client.get(path)) {
@@ -46,13 +50,21 @@ internal class HttpComponentConfigsSnapshotSource(
     )
 }
 
-/** Сохраняет исходный ответ в `.sdds/component-configs.json`. */
+/** Сохраняет исходный ответ рядом с локальным конфигом или в явно выбранной директории. */
 internal class LocalComponentConfigsSnapshotWriter(
     private val fileSystem: WorkspaceFileSystem,
 ) : ComponentConfigsSnapshotWriter {
-    override fun write(context: ProjectContext, content: String): ComponentPackageWriteResult = try {
-        val directory = fileSystem.parent(context.configPath)
-            ?: throw ProjectConfigException("Cannot resolve .sdds directory from ${context.configPath}.")
+    override fun write(
+        context: ProjectContext,
+        destination: ComponentDestination,
+        content: String,
+    ): ComponentPackageWriteResult = try {
+        val directory = if (context.configPath.isNotBlank()) {
+            fileSystem.parent(context.configPath)
+                ?: throw ProjectConfigException("Cannot resolve .sdds directory from ${context.configPath}.")
+        } else {
+            destination.directory ?: throw ProjectConfigException("--to is required without local project config.")
+        }
         val path = fileSystem.resolve(directory, "component-configs.json")
         fileSystem.createDirectories(directory)
         fileSystem.writeText(path, content)

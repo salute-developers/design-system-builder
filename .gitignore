@@ -156,3 +156,4 @@ frontend-kt/cli/.sdds/
 .DS_Store
 local.properties
 .gigaide
+**/.sdds/**/

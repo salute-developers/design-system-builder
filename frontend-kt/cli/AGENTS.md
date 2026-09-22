@@ -12,6 +12,8 @@ CLI должен быть пригоден для локального запу�
 - сборка артефактов дизайн-системы;
 - публикация артефактов в backend DS Builder, package registry или другое внешнее хранилище;
 - работа с проектными настройками, access keys и локальным контекстом;
+- управление локальной user session через `auth login|status|logout`;
+- запуск MCP stdio server через `mcp serve` для локальных MCP-клиентов;
 - запуск repeatable workflow без интерактивной desktop UI.
 
 CLI не является production microservice: он не открывает HTTP-порт, не имеет Docker runtime как обязательной части запуска и не должен требовать backend services, credentials или приватные URL для baseline-команд вроде help/version/smoke output.
@@ -43,6 +45,8 @@ cli/
 
 Ни один файл в `:cli` не должен содержать use case, domain-модель или data-адаптер для фичи — это сигнал, что код положен не в тот модуль.
 
+Исключение по форме, но не по смыслу: `feature/mcp/presentation` содержит только Clikt-команду `dsbuilder mcp serve` и wiring к `:mcp-server-core`. Сами MCP tools, DTO и SDK bridge живут в `:mcp-server-core`; Node/npm launcher живёт в `:mcp-node`.
+
 ## Presentation-слой
 
 Пакет `feature/<name>/presentation` содержит CLI boundary фичи:
@@ -58,6 +62,8 @@ Presentation вызывает use case'ы, полученные из Koin-гра
 
 CLI output должен быть предсказуемым и тестируемым.
 
+`auth login` никогда не принимает пароль через argv; пароль вводится только интерактивно и не должен попадать в output, ошибки или тестовые fixtures. `auth status` не печатает access/refresh token. `mcp serve` держит stdout только под JSON-RPC protocol messages; process logs и diagnostic text должны идти в stderr либо отсутствовать.
+
 ## Entrypoint и Composition Root
 
 `jvmMain`/`macosMain` содержат минимальный entrypoint (`Main.kt`):
@@ -68,6 +74,7 @@ CLI output должен быть предсказуемым и тестируе�
 - завершиться с корректным exit code.
 
 `actual fun defaultClientRuntime()` в `Jvm/MacosClientRuntime.kt` — единственное место в `:cli`, где допустимо писать платформенный код (JVM `java.io.File`, macOS POSIX cinterop): здесь создаются конкретные `WorkspaceFileSystem`, `EnvironmentReader` и `AuthenticatedHttpClientFactory` для текущей платформы. Будущие `:mcp`/`:desktop` реализуют свой аналог этого файла, а не переиспользуют `:cli`'s.
+`ClientRuntime.close` должен закрывать общий HTTP client при завершении долгоживущих команд, включая `mcp serve`.
 
 `DsBuilderCli.kt` — composition root: собирает `coreApplicationModule` и Koin-модули всех фич (`*ApplicationModule` + `*CliPresentationModule`) в один граф и резолвит `RootCliCommand`. Бизнес-логика фичей не должна жить в composition root.
 
@@ -114,3 +121,4 @@ CLI output должен быть предсказуемым и тестируе�
 - Тест, который проходит через `DsBuilderCli.execute()` целиком — то есть проверяет собранный composition root, а не одну фичу изолированно, — остаётся в `:cli` (`DsBuilderCliTest.kt`, `ComponentsCliCommandTest.kt`), даже если он косвенно покрывает код из `feature-*`.
 - Тест use case'а, domain-модели или adapter'а фичи в изоляции живёт в `commonTest` соответствующего `feature-<name>` модуля, а не здесь — см. [`../AGENTS.md`](../AGENTS.md).
 - baseline CLI behavior (help/version/error handling) должен оставаться deterministic и не требовать backend services, Docker, credentials или private URLs.
+- Launcher contract test для `dsbuilder mcp serve` живёт в platform test source set и проверяет `initialize`/`tools/list`, отсутствие help text на stdout и отсутствие secrets.

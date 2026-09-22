@@ -1,43 +1,52 @@
 package com.dsbuilder.frontend.core.application
 
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
-import com.dsbuilder.frontend.core.domain.TargetPlatform
-import com.dsbuilder.frontend.core.workspace.ProjectConfigException
+import com.dsbuilder.frontend.core.workspace.CredentialReferenceType
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
-import com.dsbuilder.frontend.core.workspace.ProjectNotInitializedException
+import com.dsbuilder.frontend.core.workspace.ProjectContext as WorkspaceProjectContext
 
 /**
  * Adapter чтения project context из nearest-parent `.sdds/config.json`.
  */
 internal class LocalProjectContextReader(
-    private val projectConfigStore: ProjectConfigStore,
+    private val contextResolver: ContextResolver,
 ) : ProjectContextReader {
-    override fun requireContext(): ProjectContextReadResult =
-        try {
-            val context = projectConfigStore.requireNearestContext()
-            val platforms = context.config.platforms.map { value ->
-                TargetPlatform.fromCliValue(value)
-                    ?: return ProjectContextReadResult.Failed(unknownPlatformMessage(value, context.configPath))
-            }
-            ProjectContextReadResult.Found(
-                ProjectContext(
-                    projectId = ProjectId(context.config.projectId),
-                    designSystemId = DesignSystemId(context.config.designSystemId),
-                    credentialEnvName = CredentialEnvName(context.config.credential.name),
-                    configPath = context.configPath,
-                    platforms = platforms,
-                ),
-            )
-        } catch (exception: ProjectNotInitializedException) {
-            ProjectContextReadResult.Failed("Error: ${exception.message}", ProjectContextFailure.NOT_INITIALIZED)
-        } catch (exception: ProjectConfigException) {
-            ProjectContextReadResult.Failed("Error: ${exception.message}", ProjectContextFailure.INVALID)
-        }
+    constructor(projectConfigStore: ProjectConfigStore) : this(
+        ContextResolver(listOf(NearestProjectConfigContextSource(projectConfigStore))),
+    )
 
-    private fun unknownPlatformMessage(value: String, configPath: String): String =
-        "Error: unknown platform '$value' in $configPath. " +
-            "Supported platforms: ${TargetPlatform.cliValues.joinToString()}."
+    override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+        contextResolver.resolve(startingDirectory)
+
+    override fun requireContext(request: ContextRequest): ProjectContextReadResult =
+        contextResolver.resolve(request.startingDirectory, request.designSystemUri, request.projectKeyEnvName)
 }
+
+internal fun WorkspaceProjectContext.toProjectContext(): ProjectContext =
+    ProjectContext(
+        projectId = ProjectId(config.projectId),
+        designSystemId = DesignSystemId(config.designSystemId),
+        credentialEnvName = CredentialEnvName(config.credential.name),
+        configPath = configPath,
+        credentialPolicy = when (config.credential.type) {
+            CredentialReferenceType.ENV, CredentialReferenceType.AUTO -> CredentialPolicy.AUTO
+            CredentialReferenceType.USER_SESSION -> CredentialPolicy.USER_SESSION
+            CredentialReferenceType.PROJECT_KEY_ENV -> CredentialPolicy.PROJECT_KEY_ENV
+        },
+        platforms = config.platforms.map { value ->
+            com.dsbuilder.frontend.core.domain.TargetPlatform.fromCliValue(value)
+                ?: throw UnknownTargetPlatformException(value, configPath)
+        },
+    )
+
+internal class UnknownTargetPlatformException(
+    value: String,
+    configPath: String,
+) : IllegalArgumentException(
+    "unknown platform '$value' in $configPath. Supported platforms: " +
+        com.dsbuilder.frontend.core.domain.TargetPlatform.cliValues.joinToString() + ".",
+)

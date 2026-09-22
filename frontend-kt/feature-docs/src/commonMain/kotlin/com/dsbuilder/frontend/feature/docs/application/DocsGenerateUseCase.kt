@@ -14,18 +14,12 @@ import com.dsbuilder.frontend.feature.docs.domain.MergeEngine
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
 import com.dsbuilder.frontend.feature.docs.domain.Structure
 import com.dsbuilder.frontend.feature.docs.domain.toDocumentationPlatform
-import okio.FileSystem
-import okio.Path.Companion.toPath
-import okio.SYSTEM
 
 /** Дерево документации по умолчанию, если платформенного шага не было и `--docs-dir` не задан. */
 private const val DEFAULT_DOCS_DIR = ".sdds/temp/docs"
 
 /** Историческое умолчание `docs generate`: проект без объявленной платформы собирает compose-пакет. */
 private val DEFAULT_DOCUMENTATION_PLATFORM = TargetPlatform.COMPOSE
-
-/** Структура без узлов навигации: используется, когда structure-user.json отсутствует. */
-private val EMPTY_USER_STRUCTURE = Structure(schemaVersion = "1.0", navigation = emptyList())
 
 /**
  * Use case для сборки пакета документации.
@@ -37,7 +31,6 @@ public class DocsGenerateUseCase internal constructor(
     private val codec: DocsCodec,
     private val fileSystem: DocsFileSystem,
     private val validationEngine: DocsValidationEngine,
-    private val ioFileSystem: FileSystem = FileSystem.SYSTEM,
     private val platformAggregator: DocsPlatformAggregator = DocsPlatformAggregator { _, _ ->
         DocsAggregationResult.Skipped
     },
@@ -124,16 +117,8 @@ public class DocsGenerateUseCase internal constructor(
         val userStructure: Structure
         try {
             coreStructure = structureReader.readStructure("$docsDir/structure-core.json")
-            // Пользовательская документация опциональна (см. DocumentationCapability.userDocumentationRoot,
-            // DocumentationAggregateTask.enrichUserDocumentation) — без override-docs/ агрегатор просто не
-            // пишет structure-user.json. Отсутствие файла — не ошибка, а «нет пользовательских правок»;
-            // MergeEngine.merge с пустой user-структурой и так резолвит чистое core-дерево.
-            val userStructurePath = "$docsDir/structure-user.json"
-            userStructure = if (hasFile(userStructurePath)) {
-                structureReader.readStructure(userStructurePath)
-            } else {
-                EMPTY_USER_STRUCTURE
-            }
+            userStructure = structureReader.readOptionalStructure("$docsDir/structure-user.json")
+                ?: Structure(schemaVersion = coreStructure.schemaVersion, navigation = emptyList())
         } catch (error: IllegalArgumentException) {
             return ResolvedDocsRead.Failure("Failed to read structure files: ${error.message}")
         }
@@ -281,19 +266,11 @@ public class DocsGenerateUseCase internal constructor(
     }
 
     private fun hasDirectory(path: String): Boolean {
-        return try {
-            ioFileSystem.metadata(path.toPath()).isDirectory
-        } catch (_: Exception) {
-            false
-        }
+        return DocsLocalFileMetadata.hasDirectory(path)
     }
 
     private fun hasFile(path: String): Boolean {
-        return try {
-            !ioFileSystem.metadata(path.toPath()).isDirectory
-        } catch (_: Exception) {
-            false
-        }
+        return DocsLocalFileMetadata.hasFile(path)
     }
 
     private fun createTarGzArchive(docsDir: String, tarGzPath: String): String {

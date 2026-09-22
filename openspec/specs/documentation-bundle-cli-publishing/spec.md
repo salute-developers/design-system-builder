@@ -5,42 +5,48 @@ TBD - created by archiving change connect-cli-documentation-bundle-upload. Updat
 ## Requirements
 ### Requirement: Project-scoped публикация documentation bundle
 
-CLI SHALL публиковать documentation bundle через authenticated gateway endpoint configured project и MUST NOT обращаться напрямую к internal endpoint `documentation-service` или формировать trusted actor/project headers.
+CLI SHALL публиковать documentation bundle через authenticated gateway endpoint выбранного проекта и MUST NOT обращаться напрямую к internal endpoint `documentation-service` или формировать trusted actor/project headers.
 
 #### Scenario: Bundle отправлен через gateway
 
-- **WHEN** пользователь запускает `dsbuilder docs publish` в директории configured project с валидным project API key
+- **WHEN** пользователь запускает `dsbuilder docs publish` с выбранным project key
 - **THEN** CLI SHALL отправить `POST /api/projects/{projectId}/documentation/bundles` относительно resolved API URL
-- **AND** request SHALL содержать `Authorization: ProjectKey <apiKey>`
-- **AND** CLI MUST NOT добавлять `X-Actor-*` или `X-Project-*` headers
+- **THEN** request SHALL содержать `Authorization: ProjectKey <apiKey>`
+- **THEN** CLI MUST NOT добавлять `X-Actor-*` или `X-Project-*` headers
+
+#### Scenario: Bundle отправлен через gateway с user session
+
+- **WHEN** выбранная policy указывает user session и backend разрешает публикацию пользователю
+- **THEN** CLI SHALL отправить тот же project-scoped request с `Authorization: Bearer <token>`
+- **THEN** CLI MUST NOT требовать project key или формировать trusted actor/project headers
 
 #### Scenario: Project context отсутствует
 
-- **WHEN** CLI не может найти или прочитать `.sdds/config.json` для текущей директории
+- **WHEN** CLI не может получить контекст ни из явной ссылки, ни из `.sdds/config.json`
 - **THEN** команда MUST завершиться с exit code `1`
-- **AND** CLI MUST NOT выполнять upload request
+- **THEN** CLI MUST NOT выполнять upload request
 
 ### Requirement: Runtime resolution API key и API URL
 
-Команда `docs publish` SHALL использовать общий project credential и API URL resolution CLI и SHALL поддерживать explicit runtime overrides без сохранения secrets.
+Команда `docs publish` SHALL использовать общий credential policy и API URL resolution CLI и SHALL поддерживать явные runtime inputs без сохранения secrets.
 
 #### Scenario: Используются configured runtime sources
 
 - **WHEN** `--api-key` и `--api-url` не переданы
-- **THEN** CLI SHALL разрешить API key через credential reference configured project и fallback `DSBUILDER_API_KEY`
-- **AND** CLI SHALL разрешить API URL через `DSBUILDER_API_URL` и code default
+- **THEN** CLI SHALL разрешить credential согласно `.sdds` policy или headless policy
+- **THEN** CLI SHALL разрешить API URL через `DSBUILDER_API_URL` и code default
 
 #### Scenario: Runtime overrides имеют приоритет
 
-- **WHEN** пользователь передаёт `--api-key` и `--api-url`
-- **THEN** CLI SHALL использовать переданные значения вместо environment и default sources
-- **AND** CLI MUST NOT сохранять API key в `.sdds/config.json`
+- **WHEN** выбран key mode и пользователь передаёт `--api-key` и `--api-url`
+- **THEN** CLI SHALL использовать переданный key и API URL вместо environment и default sources
+- **THEN** CLI MUST NOT сохранять API key в `.sdds/config.json`
 
 #### Scenario: API key отсутствует
 
-- **WHEN** API key отсутствует во всех supported runtime sources
-- **THEN** команда MUST завершиться с exit code `1` и сообщением о способах настройки credential
-- **AND** CLI MUST NOT выполнять upload request
+- **WHEN** выбранная policy не может разрешить credential из допустимых runtime sources
+- **THEN** команда MUST завершиться с exit code `1` и сообщением о настройке выбранного способа авторизации
+- **THEN** CLI MUST NOT выполнять upload request
 
 ### Requirement: Multipart contract документационного archive
 
