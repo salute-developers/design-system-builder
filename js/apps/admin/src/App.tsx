@@ -79,6 +79,10 @@ const AppContent = () => {
   );
 };
 
+// Админка собирается под подпутём (`BASE_URL=/design-system-builder/admin/`), и без
+// basename абсолютные `to="/settings"` уводят в корень сайта, затирая базовый путь.
+const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || "/";
+
 const App = () => (
   <BrowserRouter basename={getBaseName()}>
     <AppContent />

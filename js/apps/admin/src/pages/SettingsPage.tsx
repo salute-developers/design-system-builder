@@ -17,6 +17,25 @@ type DesignSystemComponent = components['schemas']['DesignSystemComponent'];
 type Section = 'design-systems' | 'components';
 type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations' | 'design-systems';
 
+// Платформа компонента. У самой таблицы components колонки platform нет, она есть у
+// properties.platform и appearances.platform, поэтому платформы компонента выводятся из его данных.
+// `none` — строки без разметки: на проде это нативные компоненты из theme-converter, они остаются NULL.
+type ComponentPlatform = NonNullable<Property['platform']>;
+type PlatformTab = ComponentPlatform | 'none';
+const PLATFORM_TABS: { id: PlatformTab; label: string }[] = [
+  { id: 'web', label: 'Web' },
+  { id: 'compose', label: 'Compose' },
+  { id: 'ios', label: 'iOS' },
+  { id: 'none', label: 'No platform' },
+];
+
+function platformOf(p: { platform: ComponentPlatform | null }): PlatformTab {
+  return p.platform ?? 'none';
+}
+function platformValue(tab: PlatformTab): ComponentPlatform | null {
+  return tab === 'none' ? null : tab;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function ErrMsg({ msg }: { msg: string | null }) {
@@ -225,7 +244,13 @@ async function syncPlatformParams(
   }
 }
 
-function PropertiesTab({ componentId, componentName }: { componentId: string; componentName: string }) {
+function PropertiesTab({ componentId, componentName, platform, onChanged }: {
+  componentId: string;
+  componentName: string;
+  platform: PlatformTab;
+  onChanged: () => void;
+}) {
+  // Все свойства компонента: имя уникально в рамках компонента, поэтому проверки дублей идут по полному списку.
   const [props, setProps] = useState<Property[]>([]);
   const [pppRows, setPppRows] = useState<PlatformParamRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,7 +279,8 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
     if (propsRes.data) setProps(propsRes.data);
     if (pppRes.data) setPppRows(pppRes.data as PlatformParamRow[]);
     setLoading(false);
-  }, [componentId]);
+    onChanged();
+  }, [componentId, onChanged]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -268,6 +294,7 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
         name: pName,
         type: pType,
         defaultValue: pDefault || undefined,
+        platform: platformValue(platform),
       },
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
@@ -296,7 +323,7 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
 
       for (const prop of toCreate) {
         const { data, error } = await api.POST('/ds/properties', {
-          body: { componentId, name: prop.name, type: prop.type },
+          body: { componentId, name: prop.name, type: prop.type, platform: 'web' },
         });
 
         if (error || !data) {
@@ -397,20 +424,25 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
 
   if (loading) return <p className="page-hint">Loading…</p>;
 
+  const visibleProps = props.filter((p) => platformOf(p) === platform);
+
   return (
     <div>
       <div className="adm-card">
         <div className="adm-card-title-row">
           <h3 className="adm-card-title">Add property</h3>
-          <button
-            type="button"
-            className="adm-btn adm-btn--sm"
-            onClick={importFromTokens}
-            disabled={importing}
-            title={`Импорт web-токенов из plasma (${componentName}.tokens.ts)`}
-          >
-            {importing ? 'Импорт…' : 'Импорт из plasma'}
-          </button>
+          {/* Импорт из plasma тянет web-токены, поэтому доступен только на вкладке Web. */}
+          {platform === 'web' && (
+            <button
+              type="button"
+              className="adm-btn adm-btn--sm"
+              onClick={importFromTokens}
+              disabled={importing}
+              title={`Импорт web-токенов из plasma (${componentName}.tokens.ts)`}
+            >
+              {importing ? 'Импорт…' : 'Импорт из plasma'}
+            </button>
+          )}
         </div>
         {importMsg && <p className="adm-muted" style={{ marginTop: 0 }}>{importMsg}</p>}
         <ErrMsg msg={importErr} />
@@ -443,8 +475,8 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
       </div>
 
       <div className="adm-card">
-        <h3 className="adm-card-title">Properties ({props.length})</h3>
-        {props.length === 0 ? (
+        <h3 className="adm-card-title">Properties ({visibleProps.length})</h3>
+        {visibleProps.length === 0 ? (
           <p className="page-hint">No properties</p>
         ) : (
           <table className="adm-table">
@@ -452,7 +484,7 @@ function PropertiesTab({ componentId, componentName }: { componentId: string; co
               <tr><th>Name</th><th>Type</th><th>Platform aliases</th><th>Default</th><th></th></tr>
             </thead>
             <tbody>
-              {props.map((p) => {
+              {visibleProps.map((p) => {
                 const ed = editing[p.id];
                 if (ed) {
                   return (
@@ -782,9 +814,9 @@ function VariationsTab({ componentId }: { componentId: string }) {
 
 // ─── Property-Variations Tab ──────────────────────────────────────────────────
 
-function PropVariationsTab({ componentId }: { componentId: string }) {
+function PropVariationsTab({ componentId, platform }: { componentId: string; platform: PlatformTab }) {
   const [pvList, setPvList] = useState<PropertyVariation[]>([]);
-  const [props, setProps] = useState<Property[]>([]);
+  const [allProps, setAllProps] = useState<Property[]>([]);
   const [variations, setVariations] = useState<Variation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -800,7 +832,7 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
       api.GET('/ds/components/{id}/variations', { params: { path: { id: componentId } } }),
     ]);
     if (pvRes.data) setPvList(pvRes.data);
-    if (prRes.data) setProps(prRes.data);
+    if (prRes.data) setAllProps(prRes.data);
     if (varRes.data) setVariations(varRes.data);
     setLoading(false);
   }, [componentId]);
@@ -828,7 +860,8 @@ function PropVariationsTab({ componentId }: { componentId: string }) {
 
   if (loading) return <p className="page-hint">Loading…</p>;
 
-  // filter to only this component's props/variations
+  // filter to only this component's props (of the selected platform) and variations
+  const props = allProps.filter((p) => platformOf(p) === platform);
   const compPropIds = new Set(props.map((p) => p.id));
   const compVarIds = new Set(variations.map((v) => v.id));
   const filtered = pvList.filter((pv) => compPropIds.has(pv.propertyId) && compVarIds.has(pv.variationId));
@@ -1245,7 +1278,12 @@ function DesignSystemsTab({ componentId }: { componentId: string }) {
 
 // ─── Component Detail ─────────────────────────────────────────────────────────
 
-function ComponentDetail({ component, allComponents }: { component: Comp; allComponents: Comp[] }) {
+function ComponentDetail({ component, allComponents, platform, onChanged }: {
+  component: Comp;
+  allComponents: Comp[];
+  platform: PlatformTab;
+  onChanged: () => void;
+}) {
   const [tab, setTab] = useState<ComponentTab>('properties');
 
   const tabs: { id: ComponentTab; label: string }[] = [
@@ -1270,10 +1308,12 @@ function ComponentDetail({ component, allComponents }: { component: Comp; allCom
         ))}
       </div>
       <div className="adm-tab-content">
-        {tab === 'properties' && <PropertiesTab key={component.id} componentId={component.id} componentName={component.name} />}
+        {tab === 'properties' && (
+          <PropertiesTab key={component.id} componentId={component.id} componentName={component.name} platform={platform} onChanged={onChanged} />
+        )}
         {tab === 'deps' && <DepsTab key={component.id} componentId={component.id} allComponents={allComponents} />}
         {tab === 'variations' && <VariationsTab key={component.id} componentId={component.id} />}
-        {tab === 'prop-variations' && <PropVariationsTab key={component.id} componentId={component.id} />}
+        {tab === 'prop-variations' && <PropVariationsTab key={component.id} componentId={component.id} platform={platform} />}
         {tab === 'design-systems' && <DesignSystemsTab key={component.id} componentId={component.id} />}
       </div>
     </div>
@@ -1284,21 +1324,54 @@ function ComponentDetail({ component, allComponents }: { component: Comp; allCom
 
 function ComponentsSection() {
   const [components, setComponents] = useState<Comp[]>([]);
+  const [platformsByComponent, setPlatformsByComponent] = useState<Record<string, Set<PlatformTab>>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<PlatformTab>('web');
 
   const [cName, setCName] = useState('');
   const [cDesc, setCDesc] = useState('');
   const [addErr, setAddErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  const load = useCallback(async () => {
-    const { data } = await api.GET('/ds/components');
-    if (data) setComponents(data);
-    setLoading(false);
+  // Платформы компонента выводим из его свойств и appearances (см. комментарий у PlatformTab).
+  const loadPlatforms = useCallback(async () => {
+    const [propsRes, appRes] = await Promise.all([
+      api.GET('/ds/properties'),
+      api.GET('/ds/appearances'),
+    ]);
+    const map: Record<string, Set<PlatformTab>> = {};
+    const mark = (componentId: string | null, p: PlatformTab) => {
+      if (!componentId) return;
+      (map[componentId] ??= new Set()).add(p);
+    };
+    for (const p of propsRes.data ?? []) mark(p.componentId, platformOf(p));
+    for (const a of appRes.data ?? []) mark(a.componentId, platformOf(a));
+    setPlatformsByComponent(map);
   }, []);
 
+  const load = useCallback(async () => {
+    const [{ data }] = await Promise.all([api.GET('/ds/components'), loadPlatforms()]);
+    if (data) setComponents(data);
+    setLoading(false);
+  }, [loadPlatforms]);
+
   useEffect(() => { load(); }, [load]);
+
+  // Компонент виден на вкладке платформы, если у него есть данные этой платформы.
+  // Компонент без данных вообще (только что созданный) виден на всех вкладках.
+  const isOnPlatform = (c: Comp, p: PlatformTab) => {
+    const set = platformsByComponent[c.id];
+    return !set || set.size === 0 || set.has(p);
+  };
+  const visibleComponents = components.filter((c) => isOnPlatform(c, platform));
+  const countOn = (p: PlatformTab) => components.filter((c) => isOnPlatform(c, p)).length;
+
+  function switchPlatform(p: PlatformTab) {
+    setPlatform(p);
+    const sel = components.find((c) => c.id === selected);
+    if (sel && !isOnPlatform(sel, p)) setSelected(null);
+  }
 
   async function addComp(e: React.FormEvent) {
     e.preventDefault();
@@ -1348,6 +1421,20 @@ function ComponentsSection() {
     <div className="adm-section">
       <h2 className="adm-section-title">Components</h2>
 
+      {/* Platform tabs */}
+      <div className="adm-tabs adm-tabs--platform">
+        {PLATFORM_TABS.map((p) => (
+          <button
+            key={p.id}
+            className={`adm-tab${platform === p.id ? ' adm-tab--active' : ''}`}
+            onClick={() => switchPlatform(p.id)}
+          >
+            {p.label}
+            <span className="adm-tab-count">{countOn(p.id)}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Add component */}
       <div className="adm-card">
         <h3 className="adm-card-title">Add component</h3>
@@ -1364,8 +1451,8 @@ function ComponentsSection() {
       <div className="adm-components-layout">
         {/* Component list */}
         <div className="adm-comp-list">
-          <p className="adm-comp-list-hint">Components ({components.length})</p>
-          {components.map((c) => (
+          <p className="adm-comp-list-hint">Components ({visibleComponents.length})</p>
+          {visibleComponents.map((c) => (
             <div
               key={c.id}
               className={`adm-comp-item${selected === c.id ? ' adm-comp-item--active' : ''}`}
@@ -1379,7 +1466,7 @@ function ComponentsSection() {
               >×</button>
             </div>
           ))}
-          {components.length === 0 && <p className="page-hint">No components</p>}
+          {visibleComponents.length === 0 && <p className="page-hint">No components on this platform</p>}
         </div>
 
         {/* Component detail */}
@@ -1390,7 +1477,7 @@ function ComponentsSection() {
                 <span className="adm-comp-detail-name">{selectedComp.name}</span>
                 {selectedComp.description && <span className="adm-muted"> — {selectedComp.description}</span>}
               </div>
-              <ComponentDetail component={selectedComp} allComponents={components} />
+              <ComponentDetail component={selectedComp} allComponents={components} platform={platform} onChanged={loadPlatforms} />
             </>
           ) : (
             <p className="page-hint">Select a component to manage its properties, dependencies, variations and more.</p>
