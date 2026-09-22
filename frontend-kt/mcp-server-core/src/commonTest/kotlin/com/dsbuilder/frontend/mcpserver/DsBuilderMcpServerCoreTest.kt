@@ -674,7 +674,15 @@ class DsBuilderMcpServerCoreTest {
             ),
         )
 
-        val result = server.callTool("documentation_search", JsonObject(mapOf("query" to JsonPrimitive("button"))))
+        val result = server.callTool(
+            "documentation_search",
+            JsonObject(
+                mapOf(
+                    "query" to JsonPrimitive("button"),
+                    "version" to JsonPrimitive("1.0.0"),
+                ),
+            ),
+        )
 
         assertErrorCode("PUBLICATION_NOT_FOUND", result)
         assertFalse(result.body.contains("Exception"))

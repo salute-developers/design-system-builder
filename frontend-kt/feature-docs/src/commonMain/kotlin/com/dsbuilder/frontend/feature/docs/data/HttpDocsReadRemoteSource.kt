@@ -30,8 +30,8 @@ public class HttpDocsReadRemoteSource(
             runtime.documentationPath("search") +
                 queryString(
                     "designSystemId" to runtime.context.designSystemId.value,
-                    "version" to (command.version ?: "0.0.0"),
-                    "platform" to (command.platform ?: "web"),
+                    "version" to command.version,
+                    "platform" to command.platform,
                     "query" to command.query,
                     "cursor" to command.cursor,
                     "limit" to command.limit,
@@ -108,8 +108,8 @@ public class HttpDocsReadRemoteSource(
             runtime.documentationPath("publications/active") +
                 queryString(
                     "designSystemId" to runtime.context.designSystemId.value,
-                    "version" to (command.version ?: "0.0.0"),
-                    "platform" to (command.platform ?: "web"),
+                    "version" to command.version,
+                    "platform" to command.platform,
                 ),
             notFoundCode = DocsReadErrorCode.PUBLICATION_NOT_FOUND,
         )

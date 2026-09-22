@@ -9,6 +9,11 @@ MCP server SHALL expose read-only documentation tools that use the shared fronte
 - **THEN** MCP server MUST return deterministic JSON-compatible results with markdown hits, code-binding hits, snippets, subjects, `kbUrl` values and optional `nextCursor`
 - **THEN** MCP server MUST NOT require the client to call shell commands or parse CLI output
 
+#### Scenario: Documentation read requires an exact version selection
+- **WHEN** a documentation or code-binding read tool omits `version` and the resolved design-system context does not select one
+- **THEN** MCP server MUST return `AMBIGUOUS_CONTEXT` before calling the documentation backend
+- **THEN** MCP server MUST NOT substitute a synthetic version such as `0.0.0`
+
 #### Scenario: Documentation fetch reads knowledge chunk
 - **WHEN** MCP client calls `documentation_fetch` with a `kbUrl` returned by `documentation_search`
 - **THEN** MCP server MUST call the shared documentation fetch use case
@@ -17,7 +22,7 @@ MCP server SHALL expose read-only documentation tools that use the shared fronte
 
 #### Scenario: Documentation navigation and pages read active publication
 - **WHEN** MCP client calls `documentation_get_navigation` or `documentation_get_page`
-- **THEN** MCP server MUST resolve the active publication for the requested or default version and platform
+- **THEN** MCP server MUST resolve the active publication for the requested or context-selected version and platform
 - **THEN** MCP server MUST return navigation or page DTOs from the documentation service
 - **THEN** MCP server MUST return `PUBLICATION_NOT_FOUND` when no active publication exists
 

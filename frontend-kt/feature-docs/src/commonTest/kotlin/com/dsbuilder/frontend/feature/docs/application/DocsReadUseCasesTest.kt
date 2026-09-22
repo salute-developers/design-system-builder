@@ -34,6 +34,7 @@ class DocsReadUseCasesTest {
         useCases.getBinding(CodeBindingGetCommand("binding", null, null, null))
 
         assertEquals(List<String?>(5) { "compose" }, remote.platforms)
+        assertEquals(List<String?>(5) { "1.0.0" }, remote.versions)
     }
 
     @Test
@@ -60,6 +61,30 @@ class DocsReadUseCasesTest {
     }
 
     @Test
+    fun missingVersionRequiresExplicitSelectionBeforeRemoteCall() = runTest {
+        val remote = RecordingDocsReadRemoteSource()
+        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = null)
+
+        val result = useCases.search(DocumentationSearchCommand("Button", null, null, null, null, null))
+
+        val failure = assertIs<DocsReadResult.Failed>(result)
+        assertEquals(DocsReadErrorCode.AMBIGUOUS_CONTEXT, failure.code)
+        assertTrue(failure.message.contains("version"), failure.message)
+        assertTrue(remote.versions.isEmpty())
+    }
+
+    @Test
+    fun explicitVersionOverridesContextSelection() = runTest {
+        val remote = RecordingDocsReadRemoteSource()
+        val useCases = useCases(listOf(TargetPlatform.COMPOSE), remote, selectedVersion = "1.0.0")
+
+        val result = useCases.search(DocumentationSearchCommand("Button", "2.0.0", null, null, null, null))
+
+        assertIs<DocsReadResult.Success>(result)
+        assertEquals(listOf<String?>("2.0.0"), remote.versions)
+    }
+
+    @Test
     fun bindingWithPublicationIdDoesNotRequirePlatform() = runTest {
         val remote = RecordingDocsReadRemoteSource()
         val useCases = useCases(emptyList(), remote)
@@ -73,6 +98,7 @@ class DocsReadUseCasesTest {
     private fun useCases(
         platforms: List<TargetPlatform>,
         remote: DocsReadRemoteSource,
+        selectedVersion: String? = "1.0.0",
     ): DocsReadUseCases {
         val context = ProjectContext(
             projectId = ProjectId("project"),
@@ -80,6 +106,7 @@ class DocsReadUseCasesTest {
             credentialEnvName = CredentialEnvName("PROJECT_KEY"),
             configPath = "/workspace/.sdds/config.json",
             platforms = platforms,
+            selectedVersion = selectedVersion,
         )
         return DocsReadUseCases(
             contextResolver = ContextResolver(listOf(ContextSource { ContextSourceResult.Found(context) })),
@@ -101,39 +128,41 @@ class DocsReadUseCasesTest {
 
 private class RecordingDocsReadRemoteSource : DocsReadRemoteSource {
     val platforms = mutableListOf<String?>()
+    val versions = mutableListOf<String?>()
 
     override suspend fun search(
         runtime: DocsReadRuntime,
         command: DocumentationSearchCommand,
-    ): DocsReadResult = success(command.platform)
+    ): DocsReadResult = success(command.platform, command.version)
 
     override suspend fun fetch(
         runtime: DocsReadRuntime,
         command: DocumentationFetchCommand,
-    ): DocsReadResult = success(null)
+    ): DocsReadResult = success(null, null)
 
     override suspend fun navigation(
         runtime: DocsReadRuntime,
         command: DocumentationPublicationCommand,
-    ): DocsReadResult = success(command.platform)
+    ): DocsReadResult = success(command.platform, command.version)
 
     override suspend fun page(
         runtime: DocsReadRuntime,
         command: DocumentationPageCommand,
-    ): DocsReadResult = success(command.platform)
+    ): DocsReadResult = success(command.platform, command.version)
 
     override suspend fun searchBindings(
         runtime: DocsReadRuntime,
         command: CodeBindingSearchCommand,
-    ): DocsReadResult = success(command.platform)
+    ): DocsReadResult = success(command.platform, command.version)
 
     override suspend fun getBinding(
         runtime: DocsReadRuntime,
         command: CodeBindingGetCommand,
-    ): DocsReadResult = success(command.platform)
+    ): DocsReadResult = success(command.platform, command.version)
 
-    private fun success(platform: String?): DocsReadResult.Success {
+    private fun success(platform: String?, version: String?): DocsReadResult.Success {
         platforms += platform
+        versions += version
         return DocsReadResult.Success(JsonObject(emptyMap()))
     }
 }

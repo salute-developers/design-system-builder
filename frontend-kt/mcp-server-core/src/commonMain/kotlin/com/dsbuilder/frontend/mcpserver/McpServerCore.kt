@@ -589,7 +589,9 @@ private fun documentationSearchTool(): McpToolDefinition = McpToolDefinition(
         "subject" to stringInput("Optional canonical subject filter, for example components.basic-button."),
         "limit" to McpToolInputDefinition(type = "integer", description = "Maximum number of results."),
         "cursor" to stringInput("Opaque cursor from a previous search page."),
-        "version" to stringInput("Exact documentation version."),
+        "version" to stringInput(
+            "Exact documentation version. Omit only when the resolved design-system context selects a version.",
+        ),
         "platform" to stringInput("Exact publication platform, for example compose."),
     ),
 )
@@ -624,7 +626,9 @@ private fun codeBindingSearchTool(): McpToolDefinition = McpToolDefinition(
             description = "Maximum number of bindings to return.",
         ),
         "cursor" to stringInput("Opaque cursor returned by a previous search page."),
-        "version" to stringInput("Exact documentation version. Omit to use the active publication."),
+        "version" to stringInput(
+            "Exact documentation version. Omit only when the resolved design-system context selects a version.",
+        ),
         "platform" to stringInput(
             "Exact publication platform, for example compose. " +
                 "Omit to use the platform from the resolved DS Builder context.",
@@ -643,7 +647,9 @@ private fun codeBindingGetTool(): McpToolDefinition = McpToolDefinition(
     inputSchema = mapOf(
         "bindingId" to stringInput("Exact binding ID returned by code_binding_search."),
         "publicationId" to stringInput("Exact publication ID. Omit to resolve the active publication."),
-        "version" to stringInput("Exact documentation version. Omit to use the active version."),
+        "version" to stringInput(
+            "Exact documentation version. Omit only when the resolved design-system context selects a version.",
+        ),
         "platform" to stringInput("Exact publication platform, for example compose."),
         "appearanceNames" to stringArrayInput(
             "Optional exact styleName values from platformPayload.styles. Only matching appearances are returned.",

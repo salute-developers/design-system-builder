@@ -100,10 +100,10 @@ public class DocsReadUseCases(
         command: DocumentationSearchCommand,
         request: RuntimeRequest = RuntimeRequest(),
     ): DocsReadResult =
-        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
             remoteSource.search(
                 runtime,
-                command.copy(platform = platform, version = command.version ?: runtime.context.selectedVersion),
+                command.copy(platform = platform, version = version),
             )
         }
 
@@ -117,10 +117,10 @@ public class DocsReadUseCases(
         command: DocumentationPublicationCommand,
         request: RuntimeRequest = RuntimeRequest(),
     ): DocsReadResult =
-        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
             remoteSource.navigation(
                 runtime,
-                command.copy(platform = platform, version = command.version ?: runtime.context.selectedVersion),
+                command.copy(platform = platform, version = version),
             )
         }
 
@@ -128,10 +128,10 @@ public class DocsReadUseCases(
         command: DocumentationPageCommand,
         request: RuntimeRequest = RuntimeRequest(),
     ): DocsReadResult =
-        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
             remoteSource.page(
                 runtime,
-                command.copy(platform = platform, version = command.version ?: runtime.context.selectedVersion),
+                command.copy(platform = platform, version = version),
             )
         }
 
@@ -139,10 +139,10 @@ public class DocsReadUseCases(
         command: CodeBindingSearchCommand,
         request: RuntimeRequest = RuntimeRequest(),
     ): DocsReadResult =
-        withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+        withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
             remoteSource.searchBindings(
                 runtime,
-                command.copy(platform = platform, version = command.version ?: runtime.context.selectedVersion),
+                command.copy(platform = platform, version = version),
             )
         }
 
@@ -153,13 +153,34 @@ public class DocsReadUseCases(
         if (command.publicationId != null) {
             withRuntime(request) { remoteSource.getBinding(it, command) }
         } else {
-            withRuntimeAndPlatform(command.platform, request) { runtime, platform ->
+            withRuntimeAndPublication(command.version, command.platform, request) { runtime, version, platform ->
                 remoteSource.getBinding(
                     runtime,
-                    command.copy(platform = platform, version = command.version ?: runtime.context.selectedVersion),
+                    command.copy(platform = platform, version = version),
                 )
             }
         }
+
+    private suspend fun withRuntimeAndPublication(
+        explicitVersion: String?,
+        explicitPlatform: String?,
+        request: RuntimeRequest,
+        block: suspend (DocsReadRuntime, String, String) -> DocsReadResult,
+    ): DocsReadResult = withRuntimeAndPlatform(explicitPlatform, request) { runtime, platform ->
+        val version = explicitVersion ?: runtime.context.selectedVersion
+        when {
+            version == null -> DocsReadResult.Failed(
+                DocsReadErrorCode.AMBIGUOUS_CONTEXT,
+                "Documentation version is not set. Pass version explicitly or use a design-system link " +
+                    "with ?version=<version>&platform=<platform>.",
+            )
+            version.isBlank() -> DocsReadResult.Failed(
+                DocsReadErrorCode.INVALID_QUERY,
+                "Documentation version must not be blank.",
+            )
+            else -> block(runtime, version, platform)
+        }
+    }
 
     private suspend fun withRuntimeAndPlatform(
         explicitPlatform: String?,
