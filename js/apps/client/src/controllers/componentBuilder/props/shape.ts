@@ -1,5 +1,4 @@
-import type { Theme } from '../../themeBuilder';
-import { DEFAULT_FONT_SIZE, type PlatformTokens, type PropConfig } from '../type';
+import { DEFAULT_FONT_SIZE, type PlatformTokens, type PropConfig, type ThemeValues } from '../type';
 import { Prop } from './prop';
 
 export class ShapeProp extends Prop {
@@ -15,7 +14,7 @@ export class ShapeProp extends Prop {
         return `var(--border-radius-${size})`;
     }
 
-    public getWebTokenValue(componentName?: string, theme?: Theme) {
+    public getWebTokenValue(theme?: ThemeValues) {
         if (typeof this.value === 'number' || !this.value) {
             return;
         }
@@ -27,7 +26,7 @@ export class ShapeProp extends Prop {
             : `${token}`;
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
         };
     }
 }

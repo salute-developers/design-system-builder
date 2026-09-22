@@ -8,13 +8,13 @@ export class FloatProp extends Prop {
         super(name, data, platformTokens);
     }
 
-    public getWebTokenValue(componentName?: string) {
+    public getWebTokenValue() {
         if (this.value === undefined) {
             return;
         }
 
         return {
-            ...this.createWebToken(this.value, componentName),
+            ...this.createWebToken(this.value),
         };
     }
 }

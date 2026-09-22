@@ -2,14 +2,19 @@ import { useMemo, useState } from 'react';
 
 import { useComponentData, useStory } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
-import { SegmentButtonItem, TextField, BasicButton } from '../../../../components';
-import { importComponentConfigFromPlasma } from '../../../../utils';
+import { SegmentButtonItem, TextField } from '../../../../components';
 import { ComponentEditorPreview } from '../ComponentEditorPreview';
 import { ComponentEditorProperties } from '../ComponentEditorProperties';
 import { ComponentEditorSetup } from '../ComponentEditorSetup';
 
 import { Root, StyledSetup, StyledHeader, StyledWrapper } from './ComponentEditor.styles';
-import { createThemeVars, createComponentVars, modeList } from './ComponentEditor.utils';
+import {
+    createThemeVars,
+    createComponentVars,
+    createRelatedComponentVars,
+    createRelatedComponents,
+    modeList,
+} from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
     designSystem: DesignSystem;
@@ -36,29 +41,8 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     ] = useComponentData(config, storyArgs);
 
     const [themeMode, setThemeMode] = useState<SegmentButtonItem>(modeList[0]);
-    const [isImporting, setIsImporting] = useState(false);
-
-    const onImportFromPlasma = async () => {
-        if (!config || isImporting) {
-            return;
-        }
-
-        setIsImporting(true);
-
-        try {
-            const { api, variations } = designSystem.getComponentDataByName(config.getName()).sources;
-
-            const result = await importComponentConfigFromPlasma(config, api, variations, theme);
-            console.log('[import plasma] applied:', result.applied, result);
-            console.table(result.debug.hits);
-            console.table(result.debug.misses);
-            onConfigUpdate();
-        } catch (error) {
-            console.error('Не удалось импортировать конфиг из plasma', error);
-        } finally {
-            setIsImporting(false);
-        }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const relatedConfigs = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
 
     const onVariationChange = (value: string) => {
         if (!config) {
@@ -99,6 +83,14 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         if (name === 'size' || name === 'view' || name === 'shape') {
             delete componentProps[name];
         }
+
+        // INFO: Выключенный флаг (`pilled`) — отсутствие аргумента, а не значение.
+        if (value === undefined) {
+            const { [name]: _removed, ...rest } = componentProps;
+            setComponentProps(rest);
+            return;
+        }
+
         setComponentProps({ ...componentProps, [name]: value as string });
     };
 
@@ -108,7 +100,17 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         return null;
     }
 
-    const componentVars = createComponentVars(config, theme, componentProps, themeMode.value);
+    const relatedVars = createRelatedComponentVars(
+        designSystem,
+        config,
+        componentProps,
+        theme,
+        themeMode.value,
+        relatedConfigs,
+    );
+    const componentVars = { ...relatedVars, ...createComponentVars(config, theme, componentProps, themeMode.value) };
+
+    const relatedComponents = createRelatedComponents(designSystem, config, theme, themeMode.value, relatedConfigs);
 
     return (
         <Root>
@@ -116,10 +118,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 <StyledHeader>
                     <TextField readOnly value={config?.getName()} />
                     <TextField readOnly stretched value={config?.getDescription()} />
-                    <BasicButton
-                        text={isImporting ? 'Импорт…' : 'Импорт из plasma'}
-                        onClick={onImportFromPlasma}
-                    />
                 </StyledHeader>
                 <StyledWrapper>
                     <ComponentEditorSetup
@@ -147,6 +145,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 config={config}
                 args={componentProps}
                 storyArgs={storyArgs}
+                relatedComponents={relatedComponents}
                 storyItems={storyItems}
                 selectedStory={selectedStory}
                 Story={Story}

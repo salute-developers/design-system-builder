@@ -1,5 +1,4 @@
-import type { Theme } from '../../themeBuilder';
-import type { PlatformTokens, PropConfig } from '../type';
+import type { PlatformTokens, PropConfig, ThemeValues } from '../type';
 import { Prop } from './prop';
 
 export class ShadowProp extends Prop {
@@ -13,7 +12,7 @@ export class ShadowProp extends Prop {
         return `var(--shadow-${value.toString().replace(/\./g, '-')})`;
     }
 
-    public getWebTokenValue(componentName?: string, theme?: Theme) {
+    public getWebTokenValue(theme?: ThemeValues) {
         if (typeof this.value === 'number' || !this.value) {
             return;
         }
@@ -22,7 +21,7 @@ export class ShadowProp extends Prop {
         const value = themeValue ? [themeValue].flat().join(', ') : this.getCSSVar(this.value);
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
         };
     }
 }

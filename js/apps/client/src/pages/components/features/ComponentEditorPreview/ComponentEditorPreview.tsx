@@ -19,6 +19,7 @@ import {
     StyledComponentControls,
     StyledDivider,
     StyledStorySelector,
+    StyledStoryScope,
 } from './ComponentEditorPreview.styles';
 import { backgroundList } from './ComponentEditorPreview.utils';
 
@@ -27,6 +28,8 @@ interface ComponentEditorPreviewProps {
     theme: Theme;
     args: Record<string, string | boolean>;
     storyArgs: Record<string, any>[];
+    /** Связанные компоненты, собранные с темой ДС: `{ Button, ButtonConfig }`. */
+    relatedComponents?: Record<string, any>;
     storyItems: SelectButtonItem[];
     selectedStory: SelectButtonItem;
     Story?: (props: any) => JSX.Element;
@@ -45,6 +48,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         theme,
         args,
         storyArgs,
+        relatedComponents,
         storyItems,
         selectedStory,
         onStorySelect,
@@ -71,12 +75,16 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         [variations],
     );
 
+    const toStoryArg = (styleName: string) => (styleName === 'true' ? true : styleName);
+
     const storyArgsValue = useMemo(
         () =>
             Object.fromEntries(
                 Object.entries(args).map(([name, value]) => [
                     name,
-                    typeof value === 'string' && styleNameByID.has(value) ? styleNameByID.get(value)! : value,
+                    typeof value === 'string' && styleNameByID.has(value)
+                        ? toStoryArg(styleNameByID.get(value)!)
+                        : value,
                 ]),
             ),
         [args, styleNameByID],
@@ -103,12 +111,32 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         [theme, themeMode],
     );
 
+    const previewFontFamily = useMemo(
+        () => (theme.getTokenValue('body', 'fontFamily', 'web') as { name?: string } | undefined)?.name,
+        [theme],
+    );
+
     const onBackgroundSelect = (item: SelectButtonItem) => {
         setBackground(item);
     };
 
     const renderDynamicProps = (item: Variation) => {
         const name = item.getName();
+
+        if (item.isFlag()) {
+            const flagStyleID = item.getStyles()?.[0]?.getID();
+
+            return (
+                <Switch
+                    key={`dynamic:${name}`}
+                    label={upperFirstLetter(name)}
+                    checked={args[name] === flagStyleID}
+                    backgroundColor={switchBackground}
+                    onToggle={(value) => onChange(name, value ? flagStyleID : undefined)}
+                />
+            );
+        }
+
         const list = item
             .getStyles()
             ?.map((style) => ({
@@ -192,7 +220,11 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
-                    {isResolved && Story && <Story {...storyArgsValue} />}
+                    {isResolved && Story && (
+                        <StyledStoryScope data-preview style={{ fontFamily: previewFontFamily }}>
+                            <Story {...storyArgsValue} relatedComponents={relatedComponents} />
+                        </StyledStoryScope>
+                    )}
                     {storyItems.length > 1 && (
                         <StyledStorySelector>
                             <SegmentButton

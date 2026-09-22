@@ -1,8 +1,4 @@
-import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
-import * as plasmaCore from '@salutejs/plasma-new-hope/styled-components';
-
-import { camelToKebab } from '../../../utils';
-import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
+import type { PlatformTokens, PropConfig, PropType, State, WebToken, WebTokenValues } from '../type';
 
 export abstract class Prop {
     protected name = '';
@@ -113,37 +109,7 @@ export abstract class Prop {
         return this.webTokens;
     }
 
-    protected getFormattedTokenName(tokenName: string, componentName?: string) {
-        return upperFirstLetter(tokenName).startsWith(componentName || '')
-            ? upperFirstLetter(tokenName)
-            : `${componentName}${upperFirstLetter(tokenName)}`;
-    }
-
-    /**
-     * Имя CSS-переменной для web-параметра. Сначала ищем её в объекте токенов ядра
-     * (`textFieldTokens.backgroundColor` → `--plasma-textfield-bg-color`): у части компонентов
-     * имена переменных не выводятся из ключа. Если ядро объекта не экспортирует или ключа в нём
-     * нет — строим имя по прежней схеме `--plasma-<component>-<param>`.
-     */
-    protected getCSSVariableName(tokenName: string, componentName?: string) {
-        if (componentName) {
-            const tokensKey = `${componentName.charAt(0).toLowerCase()}${componentName.slice(1)}Tokens`;
-            const coreTokens = (plasmaCore as Record<string, unknown>)[tokensKey] as Record<string, string> | undefined;
-            const cssVariable = coreTokens?.[tokenName];
-
-            if (typeof cssVariable === 'string' && cssVariable.trim().startsWith('--')) {
-                return cssVariable.trim();
-            }
-        }
-
-        return camelToKebab(`--plasma${this.getFormattedTokenName(tokenName, componentName)}`);
-    }
-
-    protected getAdditionalTokens(
-        token: string,
-        getValue: (state: State) => string | number | undefined,
-        componentName?: string,
-    ) {
+    protected getAdditionalTokens(token: string, getValue: (state: State) => string | number | undefined) {
         if (!this.states?.length) {
             return null;
         }
@@ -153,7 +119,7 @@ export abstract class Prop {
             pressed: 'Active',
         };
 
-        return this.states.reduce((acc, item) => {
+        return this.states.reduce<WebTokenValues>((acc, item) => {
             const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
 
             const value = getValue(item);
@@ -162,16 +128,14 @@ export abstract class Prop {
                 return acc;
             }
 
-            const tokenName = this.getCSSVariableName(`${token}${statesMap[state]}`, componentName);
-
             return {
                 ...acc,
-                [tokenName]: value,
+                [`${token}${statesMap[state]}`]: value.toString(),
             };
         }, {});
     }
 
-    public createWebToken(value: string | number, componentName?: string) {
+    public createWebToken(value: string | number): WebTokenValues | null {
         if (!this.webTokens || !this.webTokens.length || !value) {
             return null;
         }
@@ -182,16 +146,14 @@ export abstract class Prop {
             });
         };
 
-        return this.webTokens.reduce((acc, { name, adjustment }) => {
-            const tokenName = this.getCSSVariableName(name, componentName);
-
+        return this.webTokens.reduce<WebTokenValues>((acc, { name, adjustment }) => {
             const newValue = adjustment
                 ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
                 : value.toString();
 
             return {
                 ...acc,
-                [tokenName]: newValue,
+                [name]: newValue,
             };
         }, {});
     }

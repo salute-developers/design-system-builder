@@ -37,22 +37,15 @@ export const variationMap: Record<string, string> = {
     invariants: 'Состояния',
 };
 
-export const styleMenuList = [
-    {
-        label: 'Установить по умолчанию',
-        value: 'set_style_default',
-        disabled: false,
-    },
-    {
-        label: 'Сбросить',
-        value: 'reset_style',
-        disabled: true,
-    },
-    {
-        label: 'Удалить',
-        value: 'delete_style',
-        disabled: false,
-    },
-] as const;
+export type StyleMenuItem = {
+    label: string;
+    value: 'set_style_default' | 'unset_style_default' | 'delete_style';
+    disabled: boolean;
+};
 
-export type StyleMenuItem = (typeof styleMenuList)[number];
+export const getStyleMenuList = (isDefault: boolean): StyleMenuItem[] => [
+    isDefault
+        ? { label: 'Снять по умолчанию', value: 'unset_style_default', disabled: false }
+        : { label: 'Установить по умолчанию', value: 'set_style_default', disabled: false },
+    { label: 'Удалить', value: 'delete_style', disabled: false },
+];

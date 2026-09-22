@@ -1,5 +1,4 @@
-import type { Theme } from '../../themeBuilder';
-import type { PlatformTokens, PropConfig } from '../type';
+import type { PlatformTokens, PropConfig, ThemeValues, WebTokenValues } from '../type';
 import { Prop } from './prop';
 
 export class TypographyProp extends Prop {
@@ -42,7 +41,7 @@ export class TypographyProp extends Prop {
         };
     }
 
-    private getThemeValue(theme: Theme) {
+    private getThemeValue(theme: ThemeValues) {
         // TODO: Возможно сделать динамическим размер экрана screen-s
         const token = theme.getTokenValue(`screen-s.${this.value}`, 'typography', 'web');
 
@@ -61,14 +60,12 @@ export class TypographyProp extends Prop {
         };
     }
 
-    public createWebToken(value?: string | number | Record<string, any>, componentName?: string) {
+    public createWebToken(value?: string | number | Record<string, any>): WebTokenValues | null {
         if (!this.webTokens || !this.webTokens.length || !value || typeof value !== 'object') {
             return null;
         }
 
-        return this.webTokens?.reduce((acc, { name }) => {
-            const tokenName = this.getCSSVariableName(name, componentName);
-
+        return this.webTokens.reduce<WebTokenValues>((acc, { name }) => {
             const tokenKey = Object.keys(value).find((key) =>
                 name.toLocaleLowerCase().includes(key.toLocaleLowerCase()),
             );
@@ -79,24 +76,24 @@ export class TypographyProp extends Prop {
 
             return {
                 ...acc,
-                [tokenName]: value[tokenKey],
+                [name]: value[tokenKey],
             };
         }, {});
     }
 
-    public getWebTokenValue(componentName?: string, theme?: Theme) {
+    public getWebTokenValue(theme?: ThemeValues) {
         if (this.value === undefined || typeof this.value === 'number' || !this.value) {
             return;
         }
 
         const value = theme ? this.getThemeValue(theme) : this.getCSSVar(this.value);
-        
+
         if (!this.webTokens || !this.webTokens.length) {
             return;
         }
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
         };
     }
 }

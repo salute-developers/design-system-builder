@@ -16,7 +16,7 @@ import {
     ListItemContentRight,
     StyledDropdown,
 } from './ComponentEditorSetup.styles';
-import { getVariations, variationMap, styleMenuList, StyleMenuItem } from './ComponentEditorSetup.utils';
+import { getVariations, variationMap, getStyleMenuList, StyleMenuItem } from './ComponentEditorSetup.utils';
 
 interface ComponentEditorSetupProps {
     config: Config;
@@ -41,6 +41,10 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
     const onStyleMenuSelect = (item: StyleMenuItem, styleID: string) => {
         if (item.value === 'set_style_default' && variationID) {
             config.updateDefaults(variationID, styleID);
+        }
+
+        if (item.value === 'unset_style_default' && variationID) {
+            config.removeDefault(variationID);
         }
 
         if (item.value === 'delete_style') {
@@ -131,7 +135,7 @@ export const ComponentEditorSetup = (props: ComponentEditorSetupProps) => {
                             {styleIDWithDropdown === selectedStyle && (
                                 <StyledDropdown
                                     autoAlign={false}
-                                    items={styleMenuList}
+                                    items={getStyleMenuList(isDefault)}
                                     onItemSelect={(value) => onStyleMenuSelect(value as StyleMenuItem, selectedStyle)}
                                     onClose={onStyleMenuClose}
                                 />
