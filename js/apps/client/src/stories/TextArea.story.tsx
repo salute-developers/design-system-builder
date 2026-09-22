@@ -1,8 +1,8 @@
-import { IconPlasma, IconShazam } from '@salutejs/plasma-icons';
-import { component, textFieldConfig, mergeConfig } from '@salutejs/plasma-new-hope/styled-components';
+import { IconShazam } from '@salutejs/plasma-icons';
+import { component, textAreaConfig, mergeConfig } from '@salutejs/plasma-new-hope/styled-components';
 import { useState } from 'react';
 
-const TextField = component(mergeConfig(textFieldConfig as any, {}));
+const TextArea = component(mergeConfig(textAreaConfig as any, {}));
 
 const hintPlacements = [
     'top',
@@ -22,44 +22,45 @@ const hintPlacements = [
 
 const toItems = (values: string[]) => values.map((value) => ({ value, label: value }));
 
-const TextFieldDefault = {
+const TextAreaDefault = {
     name: 'Default',
     args: [
         {
             name: 'label',
-            value: 'Label',
+            value: 'Лейбл',
+        },
+        {
+            name: 'labelPlacement',
+            value: 'outer',
+            items: toItems(['inner', 'outer']),
         },
         {
             name: 'placeholder',
-            value: 'Placeholder',
+            value: 'Заполните многострочное поле',
         },
         {
             name: 'titleCaption',
-            value: '',
+            value: 'Подпись к полю',
         },
         {
             name: 'leftHelper',
-            value: 'Helper text',
+            value: 'Подсказка к полю слева',
         },
         {
             name: 'rightHelper',
-            value: '',
+            value: 'Подсказка к полю справа',
         },
         {
-            name: 'textBefore',
-            value: '',
-        },
-        {
-            name: 'textAfter',
-            value: '',
-        },
-        {
-            name: 'keepPlaceholder',
+            name: 'hasDivider',
             value: false,
         },
         {
-            name: 'maxLength',
-            value: '',
+            name: 'enableContentRight',
+            value: true,
+        },
+        {
+            name: 'enableHeader',
+            value: false,
         },
         {
             name: 'disabled',
@@ -70,12 +71,16 @@ const TextFieldDefault = {
             value: false,
         },
         {
-            name: 'enableContentLeft',
-            value: true,
+            name: 'autoResize',
+            value: false,
         },
         {
-            name: 'enableContentRight',
-            value: false,
+            name: 'minAuto',
+            value: 0,
+        },
+        {
+            name: 'maxAuto',
+            value: 0,
         },
         {
             name: 'required',
@@ -100,7 +105,7 @@ const TextFieldDefault = {
         },
         {
             name: 'hasHint',
-            value: false,
+            value: true,
         },
         {
             name: 'hintText',
@@ -110,11 +115,6 @@ const TextFieldDefault = {
             name: 'hintTrigger',
             value: 'hover',
             items: toItems(['hover', 'click']),
-        },
-        {
-            name: 'hintTargetPlacement',
-            value: 'outer',
-            items: toItems(['outer', 'inner']),
         },
         {
             name: 'hintPlacement',
@@ -133,54 +133,44 @@ const TextFieldDefault = {
     render: function Story(args: any) {
         const [value, setValue] = useState('');
         const {
-            enableContentLeft,
             enableContentRight,
+            enableHeader,
             hasHint,
             hintText,
             hintTrigger,
-            hintTargetPlacement,
             hintPlacement,
             hintWidth,
             hintHasArrow,
             titleCaption,
             leftHelper,
             rightHelper,
-            textBefore,
-            textAfter,
             optionalText,
-            maxLength,
+            minAuto,
+            maxAuto,
             ...rest
         } = args;
 
         const hintProps = hasHint
-            ? {
-                  hintText,
-                  hintTrigger,
-                  hintTargetPlacement,
-                  hintPlacement,
-                  hintWidth: hintWidth || undefined,
-                  hintHasArrow,
-              }
+            ? { hintText, hintTrigger, hintPlacement, hintWidth: hintWidth || undefined, hintHasArrow }
             : {};
 
         return (
-            <TextField
+            <TextArea
                 {...rest}
                 {...hintProps}
                 value={value}
-                onChange={(event: React.ChangeEvent<HTMLInputElement>) => setValue(event.target.value)}
+                onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setValue(event.target.value)}
                 titleCaption={titleCaption || undefined}
                 leftHelper={leftHelper || undefined}
                 rightHelper={rightHelper || undefined}
-                textBefore={textBefore || undefined}
-                textAfter={textAfter || undefined}
                 optionalText={optionalText || undefined}
-                maxLength={maxLength ? Number(maxLength) : undefined}
-                contentLeft={enableContentLeft ? <IconPlasma color="inherit" /> : undefined}
+                minAuto={minAuto ? Number(minAuto) : undefined}
+                maxAuto={maxAuto ? Number(maxAuto) : undefined}
                 contentRight={enableContentRight ? <IconShazam color="inherit" /> : undefined}
+                headerSlot={enableHeader ? <span>Header</span> : undefined}
             />
         );
     },
 };
 
-export const TextFieldStories = [TextFieldDefault];
+export const TextAreaStories = [TextAreaDefault];
