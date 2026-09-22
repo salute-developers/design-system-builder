@@ -12,6 +12,7 @@ application {
 }
 
 dependencies {
+    implementation("com.dsbuilder.authorization:authorization-core")
     implementation(project(":core"))
     implementation(project(":feature-projects"))
 

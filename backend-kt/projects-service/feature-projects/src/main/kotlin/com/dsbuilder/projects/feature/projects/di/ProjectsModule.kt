@@ -1,5 +1,7 @@
 package com.dsbuilder.projects.feature.projects.di
 
+import com.dsbuilder.authorization.AuthorizationPolicyLoader
+import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.projects.feature.projects.application.port.AccessKeySecretManager
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUserLookup
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
@@ -39,9 +41,15 @@ object ProjectsModule {
     /** Регистрирует Koin bindings для use case'ов проектов, участников и access-check. */
     val beans = module {
         single<Clock> { Clock.systemUTC() }
-        single { ProjectAccessPolicy() }
+        single {
+            AuthorizationPolicyLoader.load(
+                get<ApplicationConfig>().propertyOrNull("authorization.policyPath")?.getString(),
+            )
+        }
+        single { PolicyEvaluator(get()) }
+        single { ProjectAccessPolicy(get()) }
         single { get<ApplicationConfig>().keycloakIdentityLookupConfiguration() }
-        single { get<ApplicationConfig>().accessKeyConfiguration() }
+        single { get<ApplicationConfig>().accessKeyConfiguration(get()) }
         single<IdentityUserLookup> { KeycloakIdentityUserLookup(get()) }
         single<AccessKeySecretManager> { Pbkdf2AccessKeySecretManager(get()) }
         single<ProjectRepository> { ExposedProjectRepository() }

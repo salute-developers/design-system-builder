@@ -10,6 +10,7 @@ import com.dsbuilder.documentation.publication.application.IngestionJobStatusDto
 import com.dsbuilder.documentation.publication.application.NavigationNodeDto
 import com.dsbuilder.documentation.publication.application.ProgressDto
 import com.dsbuilder.documentation.publication.application.PublicationReadRepository
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsBytes
@@ -35,11 +36,50 @@ class PublicationReadRoutesTest {
             routing { publicationReadRoutes(repository()) }
         }
 
-        val owned = client.get("/documentation/ingestion-jobs/job-1") { header("X-Project-Id", "project-1") }
-        val hidden = client.get("/documentation/ingestion-jobs/job-1") { header("X-Project-Id", "project-2") }
+        val owned = client.get("/documentation/ingestion-jobs/job-1") { viewer("project-1") }
+        val hidden = client.get("/documentation/ingestion-jobs/job-1") { viewer("project-2") }
 
         assertEquals(HttpStatusCode.OK, owned.status)
         assertEquals(HttpStatusCode.NotFound, hidden.status)
+    }
+
+    @Test
+    fun distinguishesMissingPermissionFromForeignResource() = testApplication {
+        application {
+            install(ContentNegotiation) { json(Json) }
+            routing { publicationReadRoutes(repository()) }
+        }
+
+        val forbidden = client.get("/documentation/ingestion-jobs/job-1") {
+            header("X-Actor-Type", "project_key")
+            header("X-Project-Key-Id", "key")
+            header("X-Project-Id", "project-1")
+        }
+        val allowedKey = client.get("/documentation/ingestion-jobs/job-1") {
+            header("X-Actor-Type", "project_key")
+            header("X-User-Id", "key")
+            header("X-Project-Key-Id", "key")
+            header("X-Project-Id", "project-1")
+            header("X-Project-Scopes", "documentation:read")
+            header("X-System-Admin", "false")
+        }
+        val foreign = client.get("/documentation/ingestion-jobs/job-1") { viewer("project-2") }
+        val invalid = client.get("/documentation/ingestion-jobs/job-1") {
+            header("X-Project-Id", "project-1")
+        }
+        val contradictory = client.get("/documentation/ingestion-jobs/job-1") {
+            header("X-Actor-Type", "project_key")
+            header("X-Project-Key-Id", "key")
+            header("X-User-Id", "forged-user")
+            header("X-Project-Id", "project-1")
+            header("X-Project-Scopes", "documentation:read")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, forbidden.status)
+        assertEquals(HttpStatusCode.OK, allowedKey.status)
+        assertEquals(HttpStatusCode.NotFound, foreign.status)
+        assertEquals(HttpStatusCode.BadRequest, invalid.status)
+        assertEquals(HttpStatusCode.BadRequest, contradictory.status)
     }
 
     @Test
@@ -52,7 +92,7 @@ class PublicationReadRoutesTest {
 
         assertEquals(
             HttpStatusCode.OK,
-            client.get("/documentation/publications/active$query") { header("X-Project-Id", "project-1") }.status,
+            client.get("/documentation/publications/active$query") { viewer("project-1") }.status,
         )
         assertEquals(HttpStatusCode.BadRequest, client.get("/documentation/publications/active$query").status)
     }
@@ -68,10 +108,10 @@ class PublicationReadRoutesTest {
         }
 
         val owned = client.get("/documentation/publications/publication-1/assets/asset-1") {
-            header("X-Project-Id", "project-1")
+            viewer("project-1")
         }
         val hidden = client.get("/documentation/publications/publication-1/assets/asset-1") {
-            header("X-Project-Id", "project-2")
+            viewer("project-2")
         }
 
         assertEquals(HttpStatusCode.OK, owned.status)
@@ -92,7 +132,7 @@ class PublicationReadRoutesTest {
         }
 
         val response = client.get("/documentation/publications/publication-1/assets/asset-svg") {
-            header("X-Project-Id", "project-1")
+            viewer("project-1")
         }
 
         assertEquals(HttpStatusCode.OK, response.status)
@@ -110,13 +150,13 @@ class PublicationReadRoutesTest {
         }
         val candidate = client.get(
             "/documentation/publications/active?designSystemId=ds-1&version=1.0.0&platform=candidate",
-        ) { header("X-Project-Id", "project-1") }
+        ) { viewer("project-1") }
         val owned = client.get(
             "/documentation/publications/publication-1/bindings" +
                 "?subject=components.avatar&kind=component-style&limit=200",
-        ) { header("X-Project-Id", "project-1") }
+        ) { viewer("project-1") }
         val hidden = client.get("/documentation/publications/publication-1/bindings/binding-1") {
-            header("X-Project-Id", "project-2")
+            viewer("project-2")
         }
 
         assertEquals(HttpStatusCode.NotFound, candidate.status)
@@ -198,4 +238,11 @@ class PublicationReadRoutesTest {
         "compose",
         buildJsonObject {},
     )
+
+    private fun HttpRequestBuilder.viewer(projectId: String) {
+        header("X-Actor-Type", "user")
+        header("X-User-Id", "viewer")
+        header("X-Project-Id", projectId)
+        header("X-Project-Role", "viewer")
+    }
 }

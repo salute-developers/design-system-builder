@@ -4,6 +4,8 @@ ktor:
       - com.dsbuilder.documentation.app.ApplicationKt.module
   deployment:
     port: "$DOCUMENTATION_SERVICE_PORT:8084"
+authorization:
+  policyPath: "$PROJECT_AUTHORIZATION_POLICY_PATH:"
 documentation:
   database:
     url: "$DOCUMENTATION_DATABASE_URL:jdbc:postgresql://localhost:5434/documentation_service"

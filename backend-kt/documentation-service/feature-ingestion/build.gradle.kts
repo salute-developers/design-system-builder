@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation("com.dsbuilder.authorization:authorization-core")
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.commons.compress)

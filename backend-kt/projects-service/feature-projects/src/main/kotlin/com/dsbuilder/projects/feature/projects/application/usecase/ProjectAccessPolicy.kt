@@ -1,5 +1,9 @@
 package com.dsbuilder.projects.feature.projects.application.usecase
 
+import com.dsbuilder.authorization.AuthorizationPolicyLoader
+import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.authorization.ProjectActorType
+import com.dsbuilder.authorization.ProjectPrincipal
 import com.dsbuilder.projects.feature.projects.application.ForbiddenProjectActionException
 import com.dsbuilder.projects.feature.projects.application.InvalidProjectRequestException
 import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyAction
@@ -14,7 +18,9 @@ import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
 import java.time.Instant
 
-internal class ProjectAccessPolicy {
+internal class ProjectAccessPolicy(
+    private val evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
+) {
     fun resolveRole(
         actor: AuthenticatedActor,
         project: Project,
@@ -40,7 +46,7 @@ internal class ProjectAccessPolicy {
             ?: throw ForbiddenProjectActionException("Project access denied")
 
     fun requireMetadataUpdate(role: ProjectRole) {
-        if (role != ProjectRole.OWNER && role != ProjectRole.MAINTAINER) {
+        if (!role.isAllowed(PROJECT_UPDATE_METADATA)) {
             throw ForbiddenProjectActionException("Only owner or maintainer can update project metadata")
         }
     }
@@ -52,7 +58,7 @@ internal class ProjectAccessPolicy {
     }
 
     fun requireArchive(role: ProjectRole) {
-        if (role != ProjectRole.OWNER) {
+        if (!role.isAllowed(PROJECT_ARCHIVE)) {
             throw ForbiddenProjectActionException("Only owner can archive or restore project")
         }
     }
@@ -66,7 +72,7 @@ internal class ProjectAccessPolicy {
         val failureMessage = when {
             actor?.type == ActorType.PROJECT_KEY -> "Project keys cannot manage project members"
             targetUserId == project.ownerUserId -> "Owner cannot be managed through project members"
-            actorRole != ProjectRole.OWNER && actorRole != ProjectRole.MAINTAINER ->
+            !actorRole.isAllowed(MEMBERS_CHANGE_ROLE) ->
                 "Only owner or maintainer can manage project members"
             else -> null
         }
@@ -85,7 +91,7 @@ internal class ProjectAccessPolicy {
         if (actor.type == ActorType.PROJECT_KEY) {
             throw ForbiddenProjectActionException("Project keys cannot manage access keys")
         }
-        if (role != ProjectRole.OWNER && role != ProjectRole.MAINTAINER && !actor.isSystemAdmin) {
+        if (!actor.isSystemAdmin && !role.isAllowed(ACCESS_KEYS_CREATE)) {
             throw ForbiddenProjectActionException("Only owner or maintainer can manage access keys")
         }
     }
@@ -142,7 +148,8 @@ internal class ProjectAccessPolicy {
         entity: ProjectEntity,
         action: AccessKeyAction,
     ) {
-        if (actor.type == ActorType.PROJECT_KEY && !actor.hasScope(entity, action)) {
+        val permission = "${entity.configValue}:${action.name.lowercase()}"
+        if (actor.type == ActorType.PROJECT_KEY && !actor.isAllowed(permission)) {
             throw ForbiddenProjectActionException(
                 "Project key does not have ${entity.configValue}:${action.name.lowercase()} scope",
             )
@@ -151,4 +158,33 @@ internal class ProjectAccessPolicy {
 
     private fun AuthenticatedActor.hasScope(entity: ProjectEntity, action: AccessKeyAction): Boolean =
         scopes.contains(AccessKeyScope(entity, action))
+
+    private fun ProjectRole.isAllowed(permission: String): Boolean = evaluator.isAllowed(
+        ProjectPrincipal(
+            type = ProjectActorType.USER,
+            actorId = "project-policy",
+            projectId = "project-policy",
+            projectRole = name.lowercase(),
+        ),
+        permission,
+    )
+
+    private fun AuthenticatedActor.isAllowed(permission: String): Boolean = evaluator.isAllowed(
+        ProjectPrincipal(
+            type = if (type == ActorType.USER) ProjectActorType.USER else ProjectActorType.PROJECT_KEY,
+            actorId = userId,
+            projectId = projectId.orEmpty(),
+            projectRole = if (type == ActorType.USER) ProjectRole.VIEWER.name.lowercase() else null,
+            projectScopes = scopes.map(AccessKeyScope::value).toSet(),
+            systemAdmin = isSystemAdmin,
+        ),
+        permission,
+    )
+
+    private companion object {
+        const val PROJECT_UPDATE_METADATA = "project:update_metadata"
+        const val PROJECT_ARCHIVE = "project:archive"
+        const val MEMBERS_CHANGE_ROLE = "members:change_role"
+        const val ACCESS_KEYS_CREATE = "access_keys:create"
+    }
 }
