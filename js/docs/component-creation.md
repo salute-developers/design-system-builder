@@ -137,7 +137,25 @@ $ cd services/db-service
 $ npm run db:seed-generate:prod -- --component="<component_name>"
 ```
 
+Команда переписывает папку `src/db/seeds/prod/components/<имя>/` по состоянию базы: свойства, вариации со стилями, значения. Сиды лежат по компонентам, общего реестра нет — папка подхватывается сама.
+
 После чего, изменения нужно будет закоммитить и создать пул-реквест на влитие.
+
+## Импорт из plasma (быстрый путь)
+
+Шаги II–V и VIII–IX можно заменить инструментом, который читает конфиг компонента из `sdds-serv` и API из `plasma-new-hope` и пишет prod-сид компонента:
+
+```
+$ cd services/db-service
+$ npm run component:import -- --component=TextArea            # отчёт, файлы не трогает
+$ npm run component:import -- --component=TextArea --apply    # пишет папку seeds/prod/components/textArea/
+$ docker exec db-service-dev npm run db:seed:prod -- --component=TextArea
+$ npm run component:import -- --component=TextArea --remove --apply   # удалить папку перед повторным импортом
+```
+
+Клон plasma ожидается в `~/Documents/work/plasma` (`--plasma=` или `PLASMA_DIR`). Отчёт делит находки на «требует решения», «приближения» и «пропущено»; спорные места инструмент в сиды не пишет. Правила, по которым он работает, описаны в `.claude/skills/add-component/SKILL.md`; там же порядок проверок. Компонент заводится только в базовой ДС: в пользовательские дизайн-системы его не копируют.
+
+Шаги VI (включение в меню) и VII (стори) остаются ручными.
 
 ## X / Добавление компонента в прод
 
