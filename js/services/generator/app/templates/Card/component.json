@@ -1,0 +1,11 @@
+{
+    "reexports": {
+        "runtime": [
+            "CardContent",
+            "CardInnerContent"
+        ],
+        "types": [
+            "CardProps"
+        ]
+    }
+}

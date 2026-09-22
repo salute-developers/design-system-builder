@@ -8,7 +8,7 @@ export class DimensionProp extends Prop {
         super(name, data, platformTokens);
     }
 
-    public getWebTokenValue(componentName?: string) {
+    public getWebTokenValue() {
         if (this.value === undefined) {
             return;
         }
@@ -16,7 +16,7 @@ export class DimensionProp extends Prop {
         const value = `${Number(this.value) / DEFAULT_FONT_SIZE}rem`;
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
         };
     }
 }

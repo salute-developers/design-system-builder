@@ -1,0 +1,16 @@
+{
+    "siblings": [
+        {
+            "name": "ToolbarDivider",
+            "coreConfigExport": "toolbarDividerConfig"
+        }
+    ],
+    "reexports": {
+        "runtime": [
+            "toolbarTokens"
+        ],
+        "types": [
+            "ToolbarProps"
+        ]
+    }
+}

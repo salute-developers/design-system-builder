@@ -1,8 +1,5 @@
-import { camelToKebab } from '../../utils';
-import type { PlatformTokens, PropConfig } from '../type';
+import type { PlatformTokens, PropConfig, ThemeValues, WebTokenValues } from '../type';
 import { Prop } from './prop';
-
-type Theme = any;
 
 export class TypographyProp extends Prop {
     protected readonly type = 'typography';
@@ -44,7 +41,7 @@ export class TypographyProp extends Prop {
         };
     }
 
-    private getThemeValue(theme: Theme) {
+    private getThemeValue(theme: ThemeValues) {
         // TODO: Возможно сделать динамическим размер экрана screen-s
         const token = theme.getTokenValue(`screen-s.${this.value}`, 'typography', 'web');
 
@@ -63,15 +60,12 @@ export class TypographyProp extends Prop {
         };
     }
 
-    public createWebToken(value?: string | number | Record<string, any>, componentName?: string) {
+    public createWebToken(value?: string | number | Record<string, any>): WebTokenValues | null {
         if (!this.webTokens || !this.webTokens.length || !value || typeof value !== 'object') {
             return null;
         }
 
-        return this.webTokens?.reduce((acc, { name }) => {
-            const formattedTokenName = this.getFormattedTokenName(name, componentName);
-            const tokenName = `--plasma${formattedTokenName}`;
-
+        return this.webTokens.reduce<WebTokenValues>((acc, { name }) => {
             const tokenKey = Object.keys(value).find((key) =>
                 name.toLocaleLowerCase().includes(key.toLocaleLowerCase()),
             );
@@ -82,12 +76,12 @@ export class TypographyProp extends Prop {
 
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: value[tokenKey],
+                [name]: value[tokenKey],
             };
         }, {});
     }
 
-    public getWebTokenValue(componentName?: string, theme?: Theme) {
+    public getWebTokenValue(theme?: ThemeValues) {
         if (this.value === undefined || typeof this.value === 'number' || !this.value) {
             return;
         }
@@ -99,7 +93,7 @@ export class TypographyProp extends Prop {
         }
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
         };
     }
 }

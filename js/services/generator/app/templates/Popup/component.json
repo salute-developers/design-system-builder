@@ -1,0 +1,15 @@
+{
+    "castToProps": "PopupProps",
+    "reexports": {
+        "runtime": [
+            "usePopupContext",
+            "PopupProvider",
+            "popupClasses"
+        ],
+        "types": [
+            "PopupPlacement",
+            "PopupInfo",
+            "PopupProps"
+        ]
+    }
+}

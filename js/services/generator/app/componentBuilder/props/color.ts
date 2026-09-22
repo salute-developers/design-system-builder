@@ -1,16 +1,15 @@
 import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
-import type { PlatformTokens, PropConfig, PropState, State } from '../type';
+import type { PlatformTokens, PropConfig, PropState, State, ThemeValues, WebTokenValues } from '../type';
 import { Prop } from './prop';
-
-// TODO: импоритровать из пакета
-type Theme = any;
 
 // Суффиксы производных токенов темы для состояний (тема генерирует `<base>-hover` / `<base>-active`).
 const stateSuffixMap: Record<PropState, string> = {
     hovered: '-hover',
     pressed: '-active',
 };
+
+const isTokenName = (value: string | number) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(value.toString());
 
 export class ColorProp extends Prop {
     protected readonly type = 'color';
@@ -24,7 +23,8 @@ export class ColorProp extends Prop {
             return;
         }
 
-        if (value === 'transparent' || value === 'inherit') {
+        // Литерал цвета (`transparent`, `#F3A912`, `rgba(...)`) — не имя токена, уходит в CSS как есть.
+        if (!isTokenName(value)) {
             return value;
         }
 
@@ -34,9 +34,13 @@ export class ColorProp extends Prop {
         return `var(${tokenValue})`;
     }
 
-    private getThemeValue(tokenName?: string, theme?: Theme, themeMode?: ThemeMode) {
+    private getThemeValue(tokenName?: string, theme?: ThemeValues, themeMode?: ThemeMode) {
         if (!tokenName) {
             return undefined;
+        }
+
+        if (!isTokenName(tokenName)) {
+            return tokenName;
         }
 
         const token = theme?.getTokenValue(`${themeMode}.${tokenName}`, 'color', 'web');
@@ -48,7 +52,7 @@ export class ColorProp extends Prop {
         return getRestoredColorFromPalette(token, -1);
     }
 
-    public getWebTokenValue(componentName?: string, theme?: Theme, themeMode?: ThemeMode) {
+    public getWebTokenValue(theme?: ThemeValues, themeMode?: ThemeMode): WebTokenValues | undefined {
         if (!this.webTokens || !this.webTokens.length) {
             return;
         }
@@ -64,7 +68,7 @@ export class ColorProp extends Prop {
             return;
         }
 
-        const additionalValues = this.webTokens.reduce((acc, { name }) => {
+        const additionalValues = this.webTokens.reduce<WebTokenValues>((acc, { name }) => {
             const getValue = (state: State) => {
                 const stateName = state.state[0];
                 const stateTokenName = state.value ?? `${this.value}${stateSuffixMap[stateName]}`;
@@ -76,12 +80,12 @@ export class ColorProp extends Prop {
 
             return {
                 ...acc,
-                ...this.getAdditionalTokens(name, getValue, componentName),
+                ...this.getAdditionalTokens(name, getValue),
             };
         }, {});
 
         return {
-            ...this.createWebToken(value, componentName),
+            ...this.createWebToken(value),
             ...additionalValues,
         };
     }

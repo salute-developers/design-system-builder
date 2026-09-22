@@ -1,0 +1,14 @@
+{
+    "reexports": {
+        "runtime": [
+            "useSegment",
+            "SegmentProvider"
+        ],
+        "types": [
+            "SegmentItemProps",
+            "SegmentGroupProps",
+            "SegmentProviderProps"
+        ]
+    },
+    "coreTokensExport": "segmentTokens"
+}

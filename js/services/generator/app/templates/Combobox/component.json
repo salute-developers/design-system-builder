@@ -1,0 +1,15 @@
+{
+    "generic": {
+        "propsType": "ComboboxProps",
+        "itemType": "ComboboxItemOption",
+        "refElement": "HTMLInputElement"
+    },
+    "reexports": {
+        "localTypes": [
+            "ComboboxProps"
+        ],
+        "coreTypes": [
+            "ComboboxItemOption"
+        ]
+    }
+}

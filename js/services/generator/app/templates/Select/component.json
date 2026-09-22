@@ -1,0 +1,15 @@
+{
+    "generic": {
+        "propsType": "SelectProps",
+        "itemType": "SelectItemOption",
+        "refElement": "HTMLButtonElement"
+    },
+    "reexports": {
+        "localTypes": [
+            "SelectProps"
+        ],
+        "coreTypes": [
+            "SelectItemOption"
+        ]
+    }
+}

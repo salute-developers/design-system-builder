@@ -1,6 +1,4 @@
-import { capitalize } from '../utils';
-import type { PlatformTokens, PropConfig, PropType, State, WebToken } from '../type';
-import { camelToKebab } from '../../utils';
+import type { PlatformTokens, PropConfig, PropType, State, WebToken, WebTokenValues } from '../type';
 
 export abstract class Prop {
     protected name = '';
@@ -111,17 +109,7 @@ export abstract class Prop {
         return this.webTokens;
     }
 
-    protected getFormattedTokenName(tokenName: string, componentName?: string) {
-        return capitalize(tokenName).startsWith(componentName || '')
-            ? capitalize(tokenName)
-            : `${componentName}${capitalize(tokenName)}`;
-    }
-
-    protected getAdditionalTokens(
-        token: string,
-        getValue: (state: State) => string | number | undefined,
-        componentName?: string,
-    ) {
+    protected getAdditionalTokens(token: string, getValue: (state: State) => string | number | undefined) {
         if (!this.states?.length) {
             return null;
         }
@@ -131,7 +119,7 @@ export abstract class Prop {
             pressed: 'Active',
         };
 
-        return this.states.reduce((acc, item) => {
+        return this.states.reduce<WebTokenValues>((acc, item) => {
             const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
 
             const value = getValue(item);
@@ -140,17 +128,14 @@ export abstract class Prop {
                 return acc;
             }
 
-            const formattedTokenName = this.getFormattedTokenName(token, componentName);
-            const tokenName = `--plasma${formattedTokenName}${statesMap[state]}`;
-
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: value,
+                [`${token}${statesMap[state]}`]: value.toString(),
             };
         }, {});
     }
 
-    public createWebToken(value: string | number, componentName?: string) {
+    public createWebToken(value: string | number): WebTokenValues | null {
         if (!this.webTokens || !this.webTokens.length || !value) {
             return null;
         }
@@ -161,17 +146,14 @@ export abstract class Prop {
             });
         };
 
-        return this.webTokens.reduce((acc, { name, adjustment }) => {
-            const formattedTokenName = this.getFormattedTokenName(name, componentName);
-            const tokenName = `--plasma${formattedTokenName}`;
-
+        return this.webTokens.reduce<WebTokenValues>((acc, { name, adjustment }) => {
             const newValue = adjustment
                 ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
                 : value.toString();
 
             return {
                 ...acc,
-                [camelToKebab(tokenName)]: newValue,
+                [name]: newValue,
             };
         }, {});
     }

@@ -1,0 +1,7 @@
+{
+    "coreTokensExport": "tabsTokens",
+    "appearances": {
+        "prop": "orientation",
+        "default": "horizontal"
+    }
+}

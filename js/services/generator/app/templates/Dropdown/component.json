@@ -1,0 +1,15 @@
+{
+    "generic": {
+        "propsType": "DropdownProps",
+        "itemType": "DropdownItemOption",
+        "refElement": "HTMLButtonElement"
+    },
+    "reexports": {
+        "localTypes": [
+            "DropdownProps"
+        ],
+        "coreTypes": [
+            "DropdownItemOption"
+        ]
+    }
+}

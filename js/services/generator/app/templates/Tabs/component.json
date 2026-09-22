@@ -1,0 +1,17 @@
+{
+    "coreTokensExport": "tabsTokens",
+    "reexports": {
+        "runtime": [
+            "TabItemRefs",
+            "TabsContext"
+        ],
+        "types": [
+            "TabsProps",
+            "TabsControllerProps"
+        ]
+    },
+    "appearances": {
+        "prop": "orientation",
+        "default": "horizontal"
+    }
+}

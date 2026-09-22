@@ -1,5 +1,3 @@
-import { randomUUID } from 'crypto';
-
 import type { ComponentAPI, VariationConfig } from './type';
 import { Style } from './style';
 
@@ -38,14 +36,30 @@ export class Variation {
     public addStyle(name: string, api: ComponentAPI[]) {
         const styleValues = {
             name,
-            id: randomUUID(),
+            id: globalThis.crypto.randomUUID(),
             intersections: null,
             props: null,
         };
 
         const style = new Style(styleValues, api);
 
+        const props = style.getProps();
+        api.filter((item) => item.variations?.includes(this.id)).forEach((item) => {
+            props.addProp(item.id, undefined as never, api);
+
+            // Для цветовых пропсов сразу заводим состояния hover/active (как у Button),
+            // чтобы они применялись в компоненте без ручного добавления.
+            if (item.type === 'color') {
+                const prop = props.getProp(item.id);
+
+                prop?.addState({ state: ['hovered'], value: undefined });
+                prop?.addState({ state: ['pressed'], value: undefined });
+            }
+        });
+
         this.styles?.push(style);
+
+        return style;
     }
 
     public removeStyle(id: string) {
@@ -62,5 +76,14 @@ export class Variation {
 
     public getStyles() {
         return this.styles;
+    }
+
+    /**
+     * TODO: Временное решение для поддержки текущего ядра plasma-new-hope
+     * Флаг (`pilled`, `stretch`): единственный стиль `true`, как у ядра. Выключенное состояние —
+     * отсутствие дефолта и выбранного стиля, отдельным стилем оно не хранится.
+     */
+    public isFlag() {
+        return this.styles?.length === 1 && this.styles[0].getName() === 'true';
     }
 }

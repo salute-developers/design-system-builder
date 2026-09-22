@@ -1,0 +1,17 @@
+{
+    "reexports": {
+        "runtime": [
+            "addNotification",
+            "closeNotification",
+            "useNotifications"
+        ],
+        "types": [
+            "NotificationProps",
+            "NotificationLayout",
+            "NotificationIconPlacement"
+        ],
+        "local": [
+            "NotificationsProvider"
+        ]
+    }
+}

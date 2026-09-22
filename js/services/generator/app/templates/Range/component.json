@@ -1,0 +1,13 @@
+{
+    "reexports": {
+        "runtime": [
+            "rangeTokens"
+        ],
+        "types": [
+            "RangeProps"
+        ]
+    },
+    "appearances": {
+        "conditional": true
+    }
+}

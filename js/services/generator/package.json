@@ -8,7 +8,7 @@
     "plasma-ds-generate": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc && cp -r ./app/constants  ./dist",
+    "build": "tsc && cp -r ./app/constants ./dist && cp -r ./app/templates ./dist",
     "dev": "nodemon",
     "start": "tsx ./app/index.ts",
     "lint": "eslint"
@@ -49,7 +49,7 @@
     "@salutejs/plasma-new-hope": "latest",
     "@salutejs/plasma-tokens-utils": "latest",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^18.16.1",
+    "@types/node": "^22.0.0",
     "@types/pacote": "^11.1.8",
     "@types/react": "18.0.28",
     "babel-plugin-annotate-pure-calls": "^0.4.0",

@@ -1,0 +1,9 @@
+{
+    "reexports": {
+        "types": [
+            "PopoverProps",
+            "PopoverPlacement",
+            "PopoverTrigger"
+        ]
+    }
+}
