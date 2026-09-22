@@ -1,0 +1,10 @@
+{
+    "reexports": {
+        "runtime": [
+            "dividerTokens"
+        ],
+        "types": [
+            "DividerProps"
+        ]
+    }
+}

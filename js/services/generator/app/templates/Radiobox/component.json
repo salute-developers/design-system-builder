@@ -1,0 +1,10 @@
+{
+    "reexports": {
+        "runtime": [
+            "RadioGroup"
+        ],
+        "localTypes": [
+            "RadioboxProps"
+        ]
+    }
+}

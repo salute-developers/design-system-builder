@@ -74,3 +74,9 @@ export function getThemeData(themeData: ThemeSource) {
         variations: variationsByPlatform,
     };
 }
+
+export const getPlasmaConfigName = (componentName: string, coreConfigExport?: string | null) =>
+    coreConfigExport || `${lowerFirstLetter(componentName)}Config`;
+
+export const getPlasmaTokensName = (componentName: string, coreTokensExport?: string | null) =>
+    coreTokensExport || `${lowerFirstLetter(componentName)}Tokens`;

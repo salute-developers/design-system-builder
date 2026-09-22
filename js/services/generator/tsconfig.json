@@ -36,5 +36,5 @@
       "rootDir": "./app",
   },
   "include": ["./app"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "app/templates"]
 }

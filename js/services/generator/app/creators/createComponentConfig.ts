@@ -1,20 +1,15 @@
 import { Config } from '../componentBuilder';
-import { indentedLine, kebabToCamel, lowerFirstLetter } from '../utils';
+import { getPlasmaTokensName, indentedLine } from '../utils';
 
-const keyFormat = (key: string, componentName: string) => {
-    const value = lowerFirstLetter(kebabToCamel(key.replace('--plasma', '')));
+// Ключ значения — ключ объекта токенов ядра, в конфиге он становится `${buttonTokens.buttonHeight}`.
+const keyFormat = (key: string, tokensName: string) => `$\{${tokensName}.${key}}`;
 
-    return `$\{${lowerFirstLetter(componentName)}Tokens.${value}}`;
-};
-
+// Флаг без дефолта (`pilled`) в `defaults` не попадает: как в ядре, выключенное состояние —
+// отсутствие ключа, а у самой вариации один стиль `true`, чтобы `PropsType` ядра дал `boolean`.
 const getDefaults = (config: Config): Record<string, string> => {
-    return config.getDefaults().reduce(
-        (acc, item) => ({
-            ...acc,
-            [item.getVariation()]: item.getStyle(),
-        }),
-        {},
-    );
+    return config
+        .getDefaults()
+        .reduce((acc, item) => ({ ...acc, [item.getVariation()]: item.getStyle() }), {});
 };
 
 const getVariations = (config: Config): Record<string, any> => {
@@ -69,14 +64,14 @@ const formatDefaults = (defaults: Record<string, any>) => {
         .join('\n');
 };
 
-const formatVariations = (variations: Record<string, any>, componentName: string) => {
+const formatVariations = (variations: Record<string, any>, tokensName: string) => {
     return Object.entries(variations)
         .map(([variationKey, variationValue]) => {
             const formattedContentInner = Object.entries(variationValue)
                 .map(([styleKey, styleValue]) => {
                     const cssContent = Object.entries(styleValue as any)
                         .map(([propKey, propValue]) =>
-                            indentedLine(`${keyFormat(propKey, componentName)}: ${propValue};`, 4),
+                            indentedLine(`${keyFormat(propKey, tokensName)}: ${propValue};`, 4),
                         )
                         .join('\n');
 
@@ -103,13 +98,14 @@ const formatVariations = (variations: Record<string, any>, componentName: string
         .join('\n');
 };
 
-const formatInvariants = (invariants: Record<string, any>, componentName: string) => {
+const formatInvariants = (invariants: Record<string, any>, tokensName: string) => {
     return Object.entries(invariants)
-        .map(([key, value]) => indentedLine(`${keyFormat(key, componentName)}: ${value};`, 2))
+        .map(([key, value]) => indentedLine(`${keyFormat(key, tokensName)}: ${value};`, 2))
         .join('\n');
 };
 
-export const createComponentConfig = (componentName: string, config: Config) => {
+export const createComponentConfig = (componentName: string, config: Config, coreTokensExport?: string | null) => {
+    const tokensName = getPlasmaTokensName(componentName, coreTokensExport);
     const defaults = getDefaults(config);
     const variations = getVariations(config);
     const invariants = getInvariants(config);
@@ -119,14 +115,14 @@ export const createComponentConfig = (componentName: string, config: Config) => 
         formatDefaults(defaults),
         indentedLine('},', 1),
         indentedLine('variations: {', 1),
-        formatVariations(variations, componentName),
+        formatVariations(variations, tokensName),
         indentedLine('},', 1),
         indentedLine('invariants: css`', 1),
-        formatInvariants(invariants, componentName),
+        formatInvariants(invariants, tokensName),
         indentedLine('`', 1),
     ].join('\n');
 
-    return `import { css, ${lowerFirstLetter(componentName)}Tokens } from '@salutejs/plasma-new-hope/styled-components';
+    return `import { css, ${tokensName} } from '@salutejs/plasma-new-hope/styled-components';
 
 export const config = {
 ${configContent},

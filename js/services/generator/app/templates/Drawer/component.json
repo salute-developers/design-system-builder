@@ -1,0 +1,25 @@
+{
+    "siblings": [
+        {
+            "name": "DrawerContent",
+            "coreConfigExport": "drawerContentConfig"
+        },
+        {
+            "name": "DrawerHeader",
+            "coreConfigExport": "drawerHeaderConfig"
+        },
+        {
+            "name": "DrawerFooter",
+            "coreConfigExport": "drawerFooterConfig"
+        }
+    ],
+    "reexports": {
+        "types": [
+            "DrawerProps",
+            "DrawerContentProps",
+            "DrawerHeaderProps",
+            "DrawerFooterProps",
+            "ClosePlacementType"
+        ]
+    }
+}

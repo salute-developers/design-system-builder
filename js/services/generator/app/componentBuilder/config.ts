@@ -14,7 +14,7 @@ export class Config {
 
     private invariants: Props;
 
-    constructor(meta: Meta, configInfo: { id: string; name: string }) {
+    constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
 
         this.name = name;
@@ -22,12 +22,13 @@ export class Config {
 
         const { api, configs, variations } = sources;
 
-        const config = configs.find((item) => item.id === configInfo.id)?.config;
+        const config = (configID ? configs.find((item) => item.id === configID) : configs[0])?.config;
 
         if (!config) {
+            this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
             this.defaults = [];
-            this.variations = [];
-            this.invariants = {} as any;
+            this.invariants = new Props(null, api);
+
             return;
         }
 
@@ -99,7 +100,19 @@ export class Config {
         const defaultItem = this.defaults.find((item) => item.getVariationID() === variationID);
         const style = this.getStyleName(variationID, newStyledID);
 
-        defaultItem?.setStyle(style, newStyledID);
+        if (defaultItem) {
+            defaultItem.setStyle(style, newStyledID);
+
+            return;
+        }
+
+        const variation = this.variations.find((v) => v.getID() === variationID);
+        const newDefault = new Default(variation?.getName() || '', variationID, style, newStyledID);
+        this.defaults.push(newDefault);
+    }
+
+    public removeDefault(variationID: string) {
+        this.defaults = this.defaults.filter((item) => item.getVariationID() !== variationID);
     }
 
     public updateToken(tokenID: string, value: string | number, variationID?: string, styleID?: string) {
@@ -131,10 +144,10 @@ export class Config {
         item?.getProps().removeProp(id);
     }
 
-    public addVariationStyle(api: ComponentAPI[], variationID: string, styleID: string) {
+    public addVariationStyle(api: ComponentAPI[], variationID: string, styleName: string) {
         const item = this.variations.find((item) => item.getID() === variationID);
 
-        item?.addStyle(styleID, api);
+        item?.addStyle(styleName, api);
     }
 
     public removeVariationStyle(variationID?: string, styleID?: string) {
