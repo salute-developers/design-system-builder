@@ -23,4 +23,6 @@ export const Content = styled.div`
 
     width: 100%;
     height: 100vh;
+    flex: 1;
+    min-width: 0;
 `;

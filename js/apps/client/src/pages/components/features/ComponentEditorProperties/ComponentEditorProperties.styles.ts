@@ -95,6 +95,10 @@ export const ListItemTypographyPreview = styled.div`
     color: ${textTertiary};
 
     ${bodyXXS as CSSObject};
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 `;
 
 export const ListItemShapePreview = styled.div`

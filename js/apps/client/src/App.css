@@ -3,9 +3,13 @@ body {
     overflow: hidden;
 }
 
-* {
+/* Оболочка билдера всегда в Inter. Исключение — превью (data-preview): там компонент рендерится
+   шрифтами самой дизайн-системы (SB Sans и т.п.). */
+*:not([data-preview], [data-preview] *) {
     font-family: 'Inter', Helvetica, Arial, sans-serif !important;
+}
 
+* {
     --border-radius-s: 0.5rem;
     --border-radius-xxxs: 0.03125rem;
 
