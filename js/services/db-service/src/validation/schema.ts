@@ -39,6 +39,10 @@ export const PaletteTypeSchema = z.enum(["general", "additional"]);
 
 // Common param schemas
 export const UuidParamSchema = z.object({ id: uuidSchema });
+export const DesignSystemComponentParamSchema = z.object({
+  id: uuidSchema,
+  componentId: uuidSchema,
+});
 export const PaginationQuerySchema = z
   .object({
     page: z.string().regex(/^\d+$/).transform(Number).optional(),

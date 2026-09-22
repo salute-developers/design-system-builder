@@ -95,6 +95,9 @@ public data class ProjectConfigDraft(
  * @property credentialEnvName имя env-переменной с project API key.
  * @property configPath путь найденного project config.
  * @property platforms целевые платформы проекта; пустой список означает, что платформа не объявлена.
+ * @property credentialPolicy правило выбора credential.
+ * @property provenance источник выбора контекста.
+ * @property selectedVersion версия из явной ссылки, если она есть.
  */
 public data class ProjectContext(
     public val projectId: ProjectId,
@@ -102,6 +105,9 @@ public data class ProjectContext(
     public val credentialEnvName: CredentialEnvName,
     public val configPath: String,
     public val platforms: List<TargetPlatform> = emptyList(),
+    public val credentialPolicy: CredentialPolicy = CredentialPolicy.AUTO,
+    public val provenance: ContextProvenance = ContextProvenance.LOCAL_CONFIG,
+    public val selectedVersion: String? = null,
 )
 
 /**

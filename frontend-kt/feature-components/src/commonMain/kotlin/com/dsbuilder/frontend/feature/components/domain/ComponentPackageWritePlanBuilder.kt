@@ -30,24 +30,8 @@ internal class ComponentPackageWritePlanBuilder(
             compareBy({ it.componentName }, { it.styleName }),
         )
 
-        val sharedStyleNames = ordered.groupBy { fileNameOf(it.styleName) }
-            .filterValues { group -> group.map { it.componentName }.distinct().size > 1 }
-            .keys
         val reusable = existing.entries.associate { (it.componentName to it.styleName) to it.config }
-        val fileNames = ordered.map { configuration ->
-            // Имя файла — факт рабочей копии, а не дизайн-системы, и правилом выводится
-            // не полностью: `check-box` в корпусе лежит как `checkbox_config.json`, а
-            // `check-box-group` — как `checkbox_group_config.json`. Поэтому имя, уже
-            // выбранное существующим пакетом, сохраняется, а правило применяется только
-            // к парам, которых в нём не было: на существующем пакете это даёт нулевой
-            // дифф по именам, на пустой директории — предсказуемый результат.
-            reusable[configuration.componentName to configuration.styleName]
-                ?: if (fileNameOf(configuration.styleName) in sharedStyleNames) {
-                    fileNameOf("${configuration.componentName}_${configuration.styleName}")
-                } else {
-                    fileNameOf(configuration.styleName)
-                }
-        }
+        val fileNames = resolveFileNames(ordered, reusable)
 
         duplicateOf(fileNames)?.let { duplicate ->
             val pairs = ordered
@@ -101,13 +85,48 @@ internal class ComponentPackageWritePlanBuilder(
     /**
      * Правило имени файла для пары, которой не было в существующем пакете.
      *
-     * Имя строится из стиля; если нормализованное имя стиля встречается у разных компонентов,
-     * добавляется имя компонента. Имена существующего пакета сохраняются.
-     * Разделители приводятся к `_`.
+     * Короткое имя строится из `styleName`. Если оно совпало у нескольких компонентов,
+     * [resolveFileNames] добавляет `componentName`. Разделители приводятся к `_`.
      */
     private fun fileNameOf(styleName: String): String =
-        styleName.map { character -> if (character == '-' || character == '.') '_' else character }
-            .joinToString(separator = "") + CONFIG_SUFFIX
+        fileStemOf(styleName) + CONFIG_SUFFIX
+
+    /**
+     * Сохраняет имена существующего пакета и уточняет новые коллизии полной парой идентичности.
+     */
+    private fun resolveFileNames(
+        configurations: List<RenderedComponentConfig>,
+        reusable: Map<Pair<String, String>, String>,
+    ): List<String> {
+        val reused = configurations.map { reusable[it.componentName to it.styleName] }
+        val resolved = configurations.mapIndexed { index, configuration ->
+            // Имя файла — факт рабочей копии, а не дизайн-системы, и правилом выводится
+            // не полностью: существующий пакет остаётся авторитетным для известной пары.
+            reused[index] ?: fileNameOf(configuration.styleName)
+        }.toMutableList()
+
+        // Appearance уникален только внутри компонента: несколько компонентов законно имеют
+        // styleName `default`. Уточняются только новые имена; унаследованные не переименовываются.
+        resolved.withIndex()
+            .groupBy({ it.value }, { it.index })
+            .values
+            .filter { it.size > 1 }
+            .flatten()
+            .filter { reused[it] == null }
+            .forEach { index ->
+                val configuration = configurations[index]
+                resolved[index] = fileNameOf(configuration.componentName, configuration.styleName)
+            }
+        return resolved
+    }
+
+    /** Разрешает коллизию styleName именем, построенным из полной пары идентичности. */
+    private fun fileNameOf(componentName: String, styleName: String): String =
+        "${fileStemOf(componentName)}_${fileStemOf(styleName)}$CONFIG_SUFFIX"
+
+    private fun fileStemOf(value: String): String =
+        value.map { character -> if (character == '-' || character == '.') '_' else character }
+            .joinToString(separator = "")
 
     private fun duplicateOf(fileNames: List<String>): String? =
         fileNames.groupBy { it }.entries.firstOrNull { it.value.size > 1 }?.key

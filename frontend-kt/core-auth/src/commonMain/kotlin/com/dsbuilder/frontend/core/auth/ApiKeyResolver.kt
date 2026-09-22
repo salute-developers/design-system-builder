@@ -28,18 +28,25 @@ public class ApiKeyResolver(
     public fun resolve(
         override: String?,
         configuredEnvName: String?,
+        projectEnvironment: EnvironmentReader? = null,
     ): ResolvedApiKey {
         if (!override.isNullOrBlank()) {
             return ResolvedApiKey(value = override, source = "--api-key")
         }
 
         if (!configuredEnvName.isNullOrBlank()) {
-            environmentReader.get(configuredEnvName)?.takeIf { it.isNotBlank() }?.let {
+            (
+                environmentReader.get(configuredEnvName)?.takeIf { it.isNotBlank() }
+                    ?: projectEnvironment?.get(configuredEnvName)?.takeIf { it.isNotBlank() }
+                )?.let {
                 return ResolvedApiKey(value = it, source = configuredEnvName)
             }
         }
 
-        environmentReader.get(DEFAULT_API_KEY_ENV)?.takeIf { it.isNotBlank() }?.let {
+        (
+            environmentReader.get(DEFAULT_API_KEY_ENV)?.takeIf { it.isNotBlank() }
+                ?: projectEnvironment?.get(DEFAULT_API_KEY_ENV)?.takeIf { it.isNotBlank() }
+            )?.let {
             return ResolvedApiKey(value = it, source = DEFAULT_API_KEY_ENV)
         }
 

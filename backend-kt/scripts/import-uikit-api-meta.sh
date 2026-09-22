@@ -10,6 +10,11 @@ strict=false
 link_design_systems=false
 include_types=""
 type_map='{}'
+api_key="${DSBUILDER_API_KEY:-}"
+bearer_token="${DSBUILDER_BEARER_TOKEN:-}"
+authorization_header="${DSBUILDER_AUTHORIZATION:-}"
+request_delay_ms="${DSBUILDER_REQUEST_DELAY_MS:-0}"
+request_timeout_seconds="${DSBUILDER_REQUEST_TIMEOUT_SECONDS:-30}"
 
 usage() {
     cat <<'USAGE'
@@ -17,10 +22,15 @@ Usage: scripts/import-uikit-api-meta.sh [options]
 
 Options:
   --input <path>             Path to uikit-api-meta.json
-  --api-base <url>           DB Service DS API base URL
+  --api-base <url>           DB Service DS API base URL or Gateway project DS API base URL
   --platform <name>          xml|compose|ios|web (default: compose)
   --include-types <list>     Comma-separated source/resolved type allow-list
   --map-type <from:to>       Map a source type; may be repeated
+  --api-key <token>          Project access key for Gateway auth
+  --bearer-token <token>     User access token for Gateway auth
+  --authorization-header <v> Raw Authorization header value
+  --request-delay-ms <ms>    Delay after each API request; useful for Gateway rate limits
+  --request-timeout <sec>    Max time for each API request (default: 30)
   --link-design-systems      Link imported components to every design system
   --apply                    Write changes (default is dry-run)
   --strict                   Fail when unsupported property types are present
@@ -28,6 +38,12 @@ Options:
 
 Environment:
   PLASMA_ANDROID_ROOT        Root of plasma-android used by the default input path
+  DSBUILDER_API_KEY          Project access key, sent as "Authorization: ProjectKey <token>"
+  DSBUILDER_BEARER_TOKEN     User access token, sent as "Authorization: Bearer <token>"
+  DSBUILDER_AUTHORIZATION    Raw Authorization header value; overrides other auth env/args
+  DSBUILDER_REQUEST_DELAY_MS Delay after each API request in milliseconds
+  DSBUILDER_REQUEST_TIMEOUT_SECONDS
+                            Max time for each API request
 USAGE
 }
 
@@ -44,6 +60,11 @@ while [[ $# -gt 0 ]]; do
         --api-base) require_value "$@"; api_base="${2%/}"; shift 2 ;;
         --platform) require_value "$@"; platform="$2"; shift 2 ;;
         --include-types) require_value "$@"; include_types="$2"; shift 2 ;;
+        --api-key) require_value "$@"; api_key="$2"; shift 2 ;;
+        --bearer-token) require_value "$@"; bearer_token="$2"; shift 2 ;;
+        --authorization-header) require_value "$@"; authorization_header="$2"; shift 2 ;;
+        --request-delay-ms) require_value "$@"; request_delay_ms="$2"; shift 2 ;;
+        --request-timeout) require_value "$@"; request_timeout_seconds="$2"; shift 2 ;;
         --map-type)
             require_value "$@"
             from="${2%%:*}"
@@ -79,6 +100,15 @@ esac
     echo "Input file does not exist: $input" >&2
     exit 1
 }
+
+if ! [[ "$request_delay_ms" =~ ^[0-9]+$ ]]; then
+    echo "--request-delay-ms expects a non-negative integer" >&2
+    exit 2
+fi
+if ! [[ "$request_timeout_seconds" =~ ^[0-9]+$ ]] || [[ "$request_timeout_seconds" -eq 0 ]]; then
+    echo "--request-timeout expects a positive integer" >&2
+    exit 2
+fi
 
 # Значения property_type в схеме db-service. Расширены миграцией 0004: конфигурации
 # theme-converter используют одиннадцать типов, шесть исходных покрывали 81% свойств.
@@ -179,12 +209,81 @@ api() {
     method="$1"
     route="$2"
     body="${3:-}"
-    if [[ -n "$body" ]]; then
-        curl --fail-with-body --silent --show-error \
-            -X "$method" -H 'Content-Type: application/json' -d "$body" "$api_base$route"
-    else
-        curl --fail-with-body --silent --show-error -X "$method" "$api_base$route"
+    url="$api_base$route"
+    curl_error="$work_dir/curl-error.txt"
+    curl_headers="$work_dir/curl-headers.txt"
+
+    if [[ -z "$authorization_header" ]]; then
+        if [[ -n "$api_key" ]]; then
+            authorization_header="ProjectKey $api_key"
+        elif [[ -n "$bearer_token" ]]; then
+            authorization_header="Bearer $bearer_token"
+        fi
     fi
+
+    set +e
+    if [[ -n "$body" ]]; then
+        if [[ -n "$authorization_header" ]]; then
+            response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
+                --connect-timeout 10 --max-time "$request_timeout_seconds" \
+                --write-out $'\n%{http_code}' --output - \
+                -X "$method" -H 'Content-Type: application/json' -H "Authorization: $authorization_header" \
+                -d "$body" "$url" 2>"$curl_error")"
+        else
+            response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
+                --connect-timeout 10 --max-time "$request_timeout_seconds" \
+                --write-out $'\n%{http_code}' --output - \
+                -X "$method" -H 'Content-Type: application/json' -d "$body" "$url" 2>"$curl_error")"
+        fi
+    else
+        if [[ -n "$authorization_header" ]]; then
+            response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
+                --connect-timeout 10 --max-time "$request_timeout_seconds" \
+                --write-out $'\n%{http_code}' --output - \
+                -X "$method" -H "Authorization: $authorization_header" "$url" 2>"$curl_error")"
+        else
+            response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
+                --connect-timeout 10 --max-time "$request_timeout_seconds" \
+                --write-out $'\n%{http_code}' --output - -X "$method" "$url" 2>"$curl_error")"
+        fi
+    fi
+    curl_status=$?
+    http_status="${response##*$'\n'}"
+    response="${response%$'\n'$http_status}"
+    set -e
+
+    if [[ "$curl_status" -ne 0 ]]; then
+        echo "Request failed: $method $url (HTTP $http_status)" >&2
+        if [[ -s "$curl_error" ]]; then
+            cat "$curl_error" >&2
+        fi
+        if [[ -n "$response" ]]; then
+            printf '%.1000s\n' "$response" >&2
+        fi
+        exit 1
+    fi
+
+    if [[ "$http_status" =~ ^3[0-9][0-9]$ ]]; then
+        location="$(awk 'tolower(substr($0, 1, 9)) == "location:" { sub(/\r$/, ""); sub(/^[^:]*: */, ""); print; exit }' "$curl_headers")"
+        echo "Request was redirected: $method $url (HTTP $http_status)" >&2
+        if [[ -n "$location" ]]; then
+            echo "Location: $location" >&2
+            echo "Use the redirected URL in --api-base, for example switch http:// to https://." >&2
+        fi
+        exit 1
+    fi
+
+    if ! jq -e . >/dev/null 2>&1 <<<"$response"; then
+        echo "Request returned non-JSON response: $method $url (HTTP $http_status)" >&2
+        printf '%.1000s\n' "$response" >&2
+        exit 1
+    fi
+
+    if [[ "$request_delay_ms" -gt 0 ]]; then
+        sleep "$(awk -v ms="$request_delay_ms" 'BEGIN { printf "%.3f", ms / 1000 }')"
+    fi
+
+    printf '%s\n' "$response"
 }
 
 components_json="$(api GET /components)"
@@ -207,8 +306,17 @@ created_properties=0
 updated_properties=0
 created_aliases=0
 created_links=0
+processed_properties=0
+
+components_list="$work_dir/import-components.txt"
+jq -r '[.[] | select(.included) | .component] | unique[]' "$manifest" >"$components_list"
+component_total="$(wc -l <"$components_list" | tr -d ' ')"
+component_index=0
 
 while IFS= read -r component_name; do
+    ((component_index += 1))
+    echo "Importing component $component_index/$component_total: $component_name" >&2
+
     component="$(jq -c --arg name "$component_name" '.[] | select(.name == $name)' <<<"$components_json" | head -n1)"
     if [[ -z "$component" ]]; then
         component="$(api POST /components "$(jq -cn --arg name "$component_name" \
@@ -219,6 +327,8 @@ while IFS= read -r component_name; do
     component_id="$(jq -r '.id' <<<"$component")"
 
     if $link_design_systems; then
+        design_system_ids="$work_dir/design-system-ids.txt"
+        jq -r '.[].id' <<<"$design_systems_json" >"$design_system_ids"
         while IFS= read -r design_system_id; do
             if ! jq -e --arg ds "$design_system_id" --arg component "$component_id" \
                 '.[] | select(.designSystemId == $ds and .componentId == $component)' <<<"$links_json" >/dev/null; then
@@ -228,9 +338,12 @@ while IFS= read -r component_name; do
                 links_json="$(jq -c --argjson item "$link" '. + [$item]' <<<"$links_json")"
                 ((created_links += 1))
             fi
-        done < <(jq -r '.[].id' <<<"$design_systems_json")
+        done <"$design_system_ids"
     fi
 
+    component_states="$work_dir/component-states.txt"
+    jq -r --arg component "$component_name" '[.[] | select(.component == $component) | .name] | .[]' \
+        "$states_manifest" >"$component_states"
     while IFS= read -r state_name; do
         [[ -z "$state_name" ]] && continue
         if ! jq -e --arg component "$component_id" --arg name "$state_name" \
@@ -241,9 +354,15 @@ while IFS= read -r component_name; do
             states_json="$(jq -c --argjson item "$state" '. + [$item]' <<<"$states_json")"
             ((created_states += 1))
         fi
-    done < <(jq -r --arg component "$component_name" '[.[] | select(.component == $component) | .name] | .[]' "$states_manifest")
+    done <"$component_states"
 
     existing_properties="$(api GET "/components/$component_id/properties")"
+    component_properties="$work_dir/component-properties.tsv"
+    jq -r --arg component "$component_name" '
+        [.[] | select(.included and .component == $component)]
+        | unique_by(.name)
+        | .[]
+        | [.name, .type, .description] | @tsv' "$manifest" >"$component_properties"
     while IFS=$'\t' read -r property_name property_type description; do
         property="$(jq -c --arg name "$property_name" '.[] | select(.name == $name)' <<<"$existing_properties" | head -n1)"
         body="$(jq -cn --arg componentId "$component_id" --arg name "$property_name" \
@@ -268,14 +387,12 @@ while IFS= read -r component_name; do
             aliases_json="$(jq -c --argjson item "$alias" '. + [$item]' <<<"$aliases_json")"
             ((created_aliases += 1))
         fi
-    done < <(
-        jq -r --arg component "$component_name" '
-            [.[] | select(.included and .component == $component)]
-            | unique_by(.name)
-            | .[]
-            | [.name, .type, .description] | @tsv' "$manifest"
-    )
-done < <(jq -r '[.[] | select(.included) | .component] | unique[]' "$manifest")
+        ((processed_properties += 1))
+        if [[ $((processed_properties % 100)) -eq 0 ]]; then
+            echo "Processed properties: $processed_properties/$properties" >&2
+        fi
+    done <"$component_properties"
+done <"$work_dir/import-components.txt"
 
 jq -n \
     --argjson createdComponents "$created_components" \

@@ -1,6 +1,6 @@
 package com.dsbuilder.frontend.feature.components
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
+import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
@@ -11,6 +11,8 @@ import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSna
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageLoader
+import com.dsbuilder.frontend.feature.components.application.ComponentReadRemoteSource
+import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCases
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
@@ -18,6 +20,7 @@ import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCa
 import com.dsbuilder.frontend.feature.components.data.DefaultComponentPackageLoader
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigsSnapshotSource
+import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
 import com.dsbuilder.frontend.feature.components.data.LocalComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
@@ -37,10 +40,12 @@ public fun componentsApplicationModule(): Module = module {
     single<ComponentConfigRemoteSource> {
         HttpComponentConfigRemoteSource(httpClientFactory = get<AuthenticatedHttpClientFactory>())
     }
+    single<ComponentReadRemoteSource> { HttpComponentReadRemoteSource(get(), get()) }
+    single { ComponentReadUseCases(get(), get(), get(), get()) }
     single {
         PushComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),
-            projectApiKeyProvider = get<ProjectApiKeyProvider>(),
+            credentialProvider = get<CredentialProvider>(),
             apiUrlResolver = get<ApiUrlResolver>(),
             componentPackageLoader = get<ComponentPackageLoader>(),
             remoteSource = get<ComponentConfigRemoteSource>(),
@@ -59,7 +64,7 @@ public fun componentsApplicationModule(): Module = module {
     single {
         FetchComponentsUseCase(
             projectContextReader = get<ProjectContextReader>(),
-            projectApiKeyProvider = get<ProjectApiKeyProvider>(),
+            credentialProvider = get<CredentialProvider>(),
             apiUrlResolver = get<ApiUrlResolver>(),
             remoteSource = get<ComponentConfigRemoteSource>(),
             directoryReader = get<ComponentPackageDirectoryReader>(),

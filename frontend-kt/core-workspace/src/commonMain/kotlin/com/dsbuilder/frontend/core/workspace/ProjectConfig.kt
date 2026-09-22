@@ -57,14 +57,31 @@ public data class ProjectConfigTenant(
 @Serializable
 public data class CredentialReference(
     public val type: CredentialReferenceType,
-    public val name: String,
-)
+    public val name: String = "DSBUILDER_API_KEY",
+) {
+    init {
+        if (type == CredentialReferenceType.PROJECT_KEY_ENV) {
+            require(name.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+                "Project key env name is invalid."
+            }
+        }
+    }
+}
 
 /**
  * Поддерживаемые типы credential reference в `.sdds/config.json`.
  */
 @Serializable
 public enum class CredentialReferenceType {
+    @SerialName("auto")
+    AUTO,
+
+    @SerialName("user-session")
+    USER_SESSION,
+
+    @SerialName("project-key-env")
+    PROJECT_KEY_ENV,
+
     /**
      * API key читается из env-переменной.
      */

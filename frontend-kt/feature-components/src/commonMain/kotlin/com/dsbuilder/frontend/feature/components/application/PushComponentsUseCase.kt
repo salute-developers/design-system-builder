@@ -1,7 +1,8 @@
 package com.dsbuilder.frontend.feature.components.application
 
-import com.dsbuilder.frontend.core.application.ProjectApiKeyProvider
-import com.dsbuilder.frontend.core.application.ProjectApiKeyResult
+import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -24,7 +25,7 @@ import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
  */
 public class PushComponentsUseCase internal constructor(
     private val projectContextReader: ProjectContextReader,
-    private val projectApiKeyProvider: ProjectApiKeyProvider,
+    private val credentialProvider: CredentialProvider,
     private val apiUrlResolver: ApiUrlResolver,
     private val componentPackageLoader: ComponentPackageLoader,
     private val remoteSource: ComponentConfigRemoteSource,
@@ -37,21 +38,38 @@ public class PushComponentsUseCase internal constructor(
      * credentials, чтение пакета, преобразование. Каждый отказывает со своей диагностикой и, что
      * важнее, до отправки запроса.
      */
-    @Suppress("ReturnCount")
-    public fun execute(command: PushComponentsCommand): PushComponentsResult {
-        val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "LongMethod")
+    public suspend fun execute(command: PushComponentsCommand): PushComponentsResult {
+        val found = when (
+            val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
+        ) {
+            is ProjectContextReadResult.Failed -> return PushComponentsResult.Failed(read.message)
+            is ProjectContextReadResult.Found -> read
+        }
+        val context = found.context
+        if (context.configPath.isBlank() && command.source.directory == null) {
+            return PushComponentsResult.Failed("--from is required with --design-system.")
+        }
+        val apiUrl = when (
+            val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride, found.projectEnvironment)
+        ) {
             is WriteApiUrlResult.Rejected -> return PushComponentsResult.Failed(resolved.message)
             is WriteApiUrlResult.Resolved -> resolved.url
         }
 
-        val context = when (val read = projectContextReader.requireContext()) {
-            is ProjectContextReadResult.Failed -> return PushComponentsResult.Failed(read.message)
-            is ProjectContextReadResult.Found -> read.context
-        }
-
-        val apiKey = when (val key = projectApiKeyProvider.resolve(command.apiKeyOverride, context.credentialEnvName)) {
-            is ProjectApiKeyResult.Missing -> return PushComponentsResult.Failed(key.message)
-            is ProjectApiKeyResult.Found -> key.value
+        val credential = when (
+            val selected = credentialProvider.resolve(
+                CredentialRequest(
+                    ProjectApiUrl(apiUrl.value),
+                    command.apiKeyOverride,
+                    context.credentialEnvName,
+                    context.credentialPolicy,
+                    found.projectEnvironment,
+                ),
+            )
+        ) {
+            is CredentialResult.Failed -> return PushComponentsResult.Failed(selected.message)
+            is CredentialResult.Selected -> selected.credential
         }
 
         val componentPackage = when (val loaded = componentPackageLoader.load(command.source, context)) {
@@ -76,7 +94,7 @@ public class PushComponentsUseCase internal constructor(
         val imported = remoteSource.import(
             ImportComponentsCommand(
                 apiUrl = ProjectApiUrl(apiUrl.value),
-                apiKey = apiKey,
+                credential = credential,
                 projectId = context.projectId,
                 designSystemId = context.designSystemId,
                 packageName = componentPackage.name,
@@ -138,12 +156,16 @@ private sealed interface ConversionResult {
  * @property dryRun выполнять ли импорт без сохранения изменений.
  * @property apiKeyOverride API key, переданный аргументом.
  * @property apiUrlOverride backend API URL, переданный аргументом.
+ * @property designSystemUri явная ссылка на дизайн-систему.
+ * @property projectKeyEnvName env-переменная ключа для явной ссылки.
  */
 public data class PushComponentsCommand(
     public val source: ComponentSource,
     public val dryRun: Boolean,
     public val apiKeyOverride: String? = null,
     public val apiUrlOverride: String? = null,
+    public val designSystemUri: String? = null,
+    public val projectKeyEnvName: String? = null,
 )
 
 /**

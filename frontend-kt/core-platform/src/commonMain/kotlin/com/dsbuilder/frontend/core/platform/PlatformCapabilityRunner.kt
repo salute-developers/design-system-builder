@@ -29,7 +29,7 @@ public class PlatformCapabilityRunner internal constructor(
         command: PlatformRunCommand,
         onPlan: (PlatformRunPlan) -> Unit = {},
     ): PlatformRunResult {
-        val context = when (val result = projectContextReader.requireContext()) {
+        val context = when (val result = projectContextReader.requireContext(null)) {
             is ProjectContextReadResult.Found -> result.context
             is ProjectContextReadResult.Failed -> return PlatformRunResult.Failed(result.message)
         }

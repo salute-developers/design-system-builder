@@ -45,8 +45,26 @@ router.post("/export", requireScope(READ_SCOPE), validateBody(ExportRequestSchem
       return;
     }
 
-    res.json(result.package);
+    const componentFilter = normalizedFilter(request.components);
+    const styleFilter = normalizedFilter(request.styles);
+
+    res.json({
+      ...result.package,
+      components: result.package.components.filter(
+        (component) =>
+          matchesFilter(component.componentName, componentFilter) &&
+          matchesFilter(component.styleName, styleFilter),
+      ),
+    });
   }),
 );
+
+const normalizedFilter = (values: string[] | undefined): Set<string> | null => {
+  if (!values || values.length === 0) return null;
+  return new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean));
+};
+
+const matchesFilter = (value: string, filter: Set<string> | null): boolean =>
+  filter === null || filter.has(value.toLowerCase());
 
 export default router;

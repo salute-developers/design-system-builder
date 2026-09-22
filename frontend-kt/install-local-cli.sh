@@ -26,13 +26,15 @@ INSTALL_DIR="$INSTALL_ROOT/$TARGET_NAME"
 BINARY_PATH="$SCRIPT_DIR/cli/build/bin/$TARGET_NAME/releaseExecutable/dsbuilder.kexe"
 INSTALLED_BINARY="$INSTALL_DIR/dsbuilder"
 COMMAND_PATH="$BIN_DIR/dsbuilder"
+TEMP_BINARY="$INSTALL_DIR/dsbuilder.tmp.$$"
 
 cd "$SCRIPT_DIR"
 ./gradlew ":cli:$TASK_NAME"
 
 mkdir -p "$INSTALL_DIR" "$BIN_DIR"
-cp "$BINARY_PATH" "$INSTALLED_BINARY"
-chmod 755 "$INSTALLED_BINARY"
+cp "$BINARY_PATH" "$TEMP_BINARY"
+chmod 755 "$TEMP_BINARY"
+mv -f "$TEMP_BINARY" "$INSTALLED_BINARY"
 ln -sf "$INSTALLED_BINARY" "$COMMAND_PATH"
 
 echo "Installed dsbuilder to $INSTALLED_BINARY"

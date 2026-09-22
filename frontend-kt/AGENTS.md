@@ -21,13 +21,19 @@ core-domain, core-network, core-auth, core-workspace, core-process
                           ▼
                     core-platform ─────────────┐
                           │                    │
-    ┌─────────┬───────────┼──────────┬─────────┤
-feature-init feature-status feature-theme feature-docs feature-components feature-toolchain
+    ┌─────────┬───────────┼──────────┬─────────┬────────────┐
+feature-init feature-auth feature-status feature-theme feature-docs feature-components feature-toolchain
     │         │            │              │            │                   │
     └─────────┴─────┬──────┴──────────────┴────────────┴───────────────────┘
                     │                    platform-ios (адаптер платформы)
                     └────────────┬───────────────┘
                     :cli (presentation + composition root)
+                     │
+                     ▼
+           :mcp-server-core (shared MCP tools)
+                     ▲
+                     │
+            :mcp-node (Node.js presentation + package)
 ```
 
 Состав слоёв:
@@ -39,15 +45,17 @@ feature-init feature-status feature-theme feature-docs feature-components featur
 - `core-process` — порт запуска внешних процессов (`ProcessRunner`, `ProcessRequest`, `ProcessResult`). Без зависимостей на другие `core-*`: платформенные реализации живут в composition root клиента и приезжают через `ClientRuntime`.
 - `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `ProjectApiKeyProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
 - `core-platform` — делегирование платформам: порт `PlatformDelegate`, реестр `PlatformDelegateRegistry`, выбор платформы `PlatformResolver`, общий сценарий запуска `PlatformCapabilityRunner` и порт установки инструментов `ToolchainInstaller` с реестром `ToolchainInstallerRegistry`. Зависит от `core-domain` и `core-application`. Адаптеры конкретных платформ живут в отдельных модулях `platform-<toolchain>` и в `core-platform` не попадают.
-- `feature-init`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain` — по одному модулю на CLI-команду верхнего уровня. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
+- `feature-init`, `feature-auth`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain` — по одному модулю на пользовательскую возможность. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
 - `platform-ios` — адаптер платформы iOS: переводит capability в вызовы `dsbuilder-ios` и ищет этот инструмент на машине. Зависит от `core-platform` и `core-process`; ни один `feature-*` от него не зависит.
-- `:cli` — тонкая presentation-обёртка и composition root. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
+- `mcp-server-core` — shared MCP tool registry и protocol/domain DTO поверх `core-application`, `feature-status` и общего `ContextResolver`; JVM/macOS source sets содержат bridge к официальному MCP SDK, а common API не протаскивает SDK-типы в `core-*`/`feature-*`.
+- `:cli` — тонкая presentation-обёртка и composition root для команды `dsbuilder`, включая launcher `dsbuilder mcp serve`. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
+- `:mcp-node` — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`; это отдельный presentation/composition root для MCP и auth-команд, а не библиотека бизнес-логики.
 
 ## Правило направления зависимостей
 
 - `core-*` не зависят от `feature-*` и никогда не будут — это было бы инверсией направления.
 - `feature-*` не зависят друг от друга. Если двум фичам понадобится общая логика, она выносится в `core-*`, а не импортируется напрямую между фичами.
-- Клиентские приложения (`:cli`, будущие `:mcp`, `:desktop`, IDE-плагины) зависят от `feature-*` и `core-application`. Ни один `core-*` или `feature-*` модуль не зависит от клиентского приложения.
+- Клиентские приложения (`:cli`, `:mcp-node`, будущие `:desktop`, IDE-плагины) зависят от `feature-*` и `core-application`. Ни один `core-*` или `feature-*` модуль не зависит от клиентского приложения.
 - Composition root клиентского приложения может дополнительно зависеть напрямую от `core-network`/`core-auth`/`core-workspace`, если именно он реализует платформенный адаптер порта из этого модуля (например, `:cli`'s `Jvm/MacosClientRuntime` реализует `WorkspaceFileSystem` и создаёт `KtorAuthenticatedHttpClientFactory` для конкретной платформы). Это не транзитивный шум, а осознанная зависимость — добавляй её только тогда, когда клиент действительно предоставляет такую реализацию.
 - Перед тем как добавить зависимость нового `feature-*` на `core-*`, из которого реально нужен только один тип, проверь: возможно, этот тип должен переехать в модуль, который фича уже использует, а не тянуть за собой целый слой.
 
@@ -83,10 +91,16 @@ Kotlin-видимость (`public`/`internal`) — не единственна�
 - `<Feature>ApplicationModule.kt` — живёт в `feature-<name>`, wire-ит use case'ы и data-адаптеры фичи.
 - `<Feature>CliPresentationModule.kt` — живёт в `:cli`, wire-ит `*CliCommand` как `CliktCommand` поверх уже собранных use case'ов.
 
-Будущий `:mcp` получит свой аналог `<Feature>McpToolsModule.kt`, wire-ящий те же use case'ы из `<Feature>ApplicationModule.kt` в MCP-инструменты вместо `CliktCommand` — именно это разделение и делает use case'ы переиспользуемыми между клиентами.
+MCP-интерфейс собирается через `:mcp-server-core`: он wire-ит те же use case'ы из `<Feature>ApplicationModule.kt` в MCP tools вместо `CliktCommand`. CLI launcher (`dsbuilder mcp serve`) и Node launcher (`dsbuilder-mcp serve`) запускают один и тот же набор tools через разные platform adapters.
 
 ## Тесты
 
 Тест, который проверяет чистую логику фичи или core-слоя (use case, domain, adapter в изоляции), живёт в `commonTest` соответствующего модуля.
 
 Тест, который проходит через `DsBuilderCli.execute()` целиком — то есть проверяет собранный composition root, а не одну фичу, — остаётся в `:cli` (`DsBuilderCliTest.kt`, `ComponentsCliCommandTest.kt`), даже если он косвенно покрывает код из `feature-*`. Такой тест физически не может переехать в `feature-*`: он опирается на `:cli`'s Koin-граф целиком.
+
+Node launcher проверяется в `:mcp-node` через package smoke: tarball собирается, устанавливается вне Gradle build directory и запускает установленный `dsbuilder-mcp`. Shared MCP graph проверяется root-задачей:
+
+```bash
+./gradlew compileSharedMcpDependencyGraph
+```

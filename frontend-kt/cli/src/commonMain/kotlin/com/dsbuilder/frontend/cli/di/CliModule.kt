@@ -1,8 +1,10 @@
 package com.dsbuilder.frontend.cli.di
 
+import com.dsbuilder.frontend.cli.feature.auth.presentation.AuthCliCommand
 import com.dsbuilder.frontend.cli.feature.components.presentation.ComponentsCliCommand
 import com.dsbuilder.frontend.cli.feature.docs.presentation.DocsCliCommand
 import com.dsbuilder.frontend.cli.feature.init.presentation.InitCliCommand
+import com.dsbuilder.frontend.cli.feature.mcp.presentation.McpCliCommand
 import com.dsbuilder.frontend.cli.feature.status.presentation.StatusCliCommand
 import com.dsbuilder.frontend.cli.feature.theme.presentation.ThemeCliCommand
 import com.dsbuilder.frontend.cli.feature.toolchain.presentation.ToolchainCliCommand
@@ -16,20 +18,24 @@ import org.koin.dsl.module
 public fun cliModule(): Module = module {
     single {
         val initCommand = get<InitCliCommand>()
+        val authCommand = get<AuthCliCommand>()
         val statusCommand = get<StatusCliCommand>()
         val themeCommand = get<ThemeCliCommand>()
         val componentsCommand = get<ComponentsCliCommand>()
         val docsCommand = get<DocsCliCommand>()
         val toolchainCommand = get<ToolchainCliCommand>()
+        val mcpCommand = get<McpCliCommand>()
 
         RootCliCommand(
             cliktSubcommands = listOf(
                 initCommand,
+                authCommand,
                 statusCommand,
                 themeCommand,
                 componentsCommand,
                 docsCommand,
                 toolchainCommand,
+                mcpCommand,
             ),
         )
     }

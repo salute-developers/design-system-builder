@@ -4,6 +4,7 @@ import com.dsbuilder.frontend.feature.docs.domain.DocsValidationEngine
 import com.dsbuilder.frontend.feature.docs.domain.DocumentationArtifactContext
 import com.dsbuilder.frontend.feature.docs.domain.DocumentationPlatformContext
 import com.dsbuilder.frontend.feature.docs.domain.Manifest
+import com.dsbuilder.frontend.feature.docs.domain.NavigationNode
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
 import com.dsbuilder.frontend.feature.docs.domain.Structure
 import com.dsbuilder.frontend.feature.docs.domain.ValidationError
@@ -74,6 +75,44 @@ class DocsGenerateUseCaseTest {
     }
 
     @Test
+    fun `missing user structure generates core only bundle`() {
+        val fileSystem = RecordingDocsFileSystem()
+        val codec = RecordingDocsCodec()
+        val coreStructure = Structure(
+            schemaVersion = "1.0",
+            navigation = listOf(NavigationNode(title = "Button", path = "components/Button.md")),
+        )
+        val useCase = DocsGenerateUseCase(
+            structureReader = object : DocsStructureReader {
+                override fun readStructure(path: String) = coreStructure
+
+                override fun readOptionalStructure(path: String): Structure? = null
+            },
+            platformContextReader = DocsPlatformContextReader { null },
+            projectContextReader = object : DocsProjectContextReader {
+                override fun designSystemId() = "design-system"
+
+                override fun designSystemVersion() = "0.0.0"
+            },
+            codec = codec,
+            fileSystem = fileSystem,
+            validationEngine = object : DocsValidationEngine {
+                override fun validate(
+                    resolvedDocs: ResolvedDocs,
+                    manifest: Manifest,
+                    docsDir: String,
+                ) = emptyList<ValidationError>()
+            },
+        )
+
+        val result = useCase.execute(DocsGenerateCommand("/docs", "/output/docs.tar.gz", "compose"))
+
+        assertIs<DocsGenerateResult.Success>(result)
+        assertEquals("Button", codec.docs?.navigation?.single()?.title)
+        assertTrue(fileSystem.archiveCreated)
+    }
+
+    @Test
     fun `platform mismatch fails generation without creating archive`() {
         val fileSystem = RecordingDocsFileSystem()
         val result = useCase(
@@ -122,9 +161,13 @@ class DocsGenerateUseCaseTest {
     )
 
     private class RecordingDocsCodec : DocsCodec {
+        var docs: ResolvedDocs? = null
         var manifest: Manifest? = null
 
-        override fun serializeResolvedDocs(docs: ResolvedDocs) = "{}"
+        override fun serializeResolvedDocs(docs: ResolvedDocs): String {
+            this.docs = docs
+            return "{}"
+        }
 
         override fun serializeManifest(manifest: Manifest): String {
             this.manifest = manifest

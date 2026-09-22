@@ -1,6 +1,10 @@
 package com.dsbuilder.frontend.feature.theme.data
 
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectContext
+import com.dsbuilder.frontend.core.workspace.CredentialReference
+import com.dsbuilder.frontend.core.workspace.CredentialReferenceType
+import com.dsbuilder.frontend.core.workspace.ProjectConfig
 import com.dsbuilder.frontend.core.workspace.ProjectConfigException
 import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
@@ -27,14 +31,16 @@ internal class LocalThemeFileWriter(
     override fun write(
         context: ProjectContext,
         writePlan: ThemeWritePlan,
+        destinationDirectory: String?,
     ): LocalThemeWriteResult =
         try {
-            val sddsDirectory = fileSystem.parent(context.configPath)
-                ?: throw ProjectConfigException("Cannot resolve .sdds directory from ${context.configPath}.")
+            val configPath = resolveConfigPath(context, destinationDirectory)
+            val sddsDirectory = fileSystem.parent(configPath)
+                ?: throw ProjectConfigException("Cannot resolve .sdds directory from $configPath.")
 
             deleteKnownGeneratedFiles(
                 sddsDirectory = sddsDirectory,
-                tenantDirectories = knownTenantDirectories(context.configPath, writePlan),
+                tenantDirectories = knownTenantDirectories(configPath, writePlan),
             )
             fileSystem.deleteFile(fileSystem.resolve(sddsDirectory, PALETTE_PATH_WITHOUT_CONFIG_DIRECTORY))
 
@@ -51,7 +57,7 @@ internal class LocalThemeFileWriter(
             fileSystem.writeText(palettePath, json.encodeToString<JsonObject>(writePlan.palette.content))
 
             projectConfigStore.updateTenantsPreservingAliases(
-                configPath = context.configPath,
+                configPath = configPath,
                 tenants = writePlan.tenantDirectories.map {
                     val tenant = it.tenant
                     ProjectConfigTenant(
@@ -66,12 +72,33 @@ internal class LocalThemeFileWriter(
                 },
                 palettePath = PALETTE_PATH,
             )
-            LocalThemeWriteResult.Written
+            LocalThemeWriteResult.Written(configPath)
         } catch (exception: ProjectConfigException) {
             LocalThemeWriteResult.Failed("Error: ${exception.message}")
         } catch (exception: IllegalStateException) {
             LocalThemeWriteResult.Failed("Error: Cannot write theme files: ${exception.message}")
         }
+
+    private fun resolveConfigPath(context: ProjectContext, destinationDirectory: String?): String {
+        if (destinationDirectory == null) return context.configPath
+        val directory = fileSystem.absolutePath(destinationDirectory)
+        return projectConfigStore.createConfig(
+            directory,
+            ProjectConfig(
+                projectId = context.projectId.value,
+                designSystemId = context.designSystemId.value,
+                credential = CredentialReference(
+                    type = when (context.credentialPolicy) {
+                        CredentialPolicy.AUTO -> CredentialReferenceType.AUTO
+                        CredentialPolicy.USER_SESSION -> CredentialReferenceType.USER_SESSION
+                        CredentialPolicy.PROJECT_KEY_ENV -> CredentialReferenceType.PROJECT_KEY_ENV
+                    },
+                    name = context.credentialEnvName.value,
+                ),
+                platforms = context.platforms.map { it.cliValue },
+            ),
+        )
+    }
 
     private fun knownTenantDirectories(
         configPath: String,

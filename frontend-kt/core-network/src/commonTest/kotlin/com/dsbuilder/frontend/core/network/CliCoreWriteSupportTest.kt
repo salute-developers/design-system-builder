@@ -9,6 +9,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.test.runTest
 import kotlinx.io.readString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -73,7 +74,7 @@ class CliCoreWriteSupportTest {
     }
 
     @Test
-    fun postSendsJsonBodyWithProjectKeyAuthorization() {
+    fun postSendsJsonBodyWithProjectKeyAuthorization() = runTest {
         var captured: HttpRequestData? = null
         var capturedBody = ""
         val client = client { request ->
@@ -93,7 +94,7 @@ class CliCoreWriteSupportTest {
     }
 
     @Test
-    fun postJoinsBaseUrlAndPath() {
+    fun postJoinsBaseUrlAndPath() = runTest {
         var url = ""
         val client = client(apiUrl = "http://localhost:8080/") { request ->
             url = request.url.toString()
@@ -106,7 +107,7 @@ class CliCoreWriteSupportTest {
     }
 
     @Test
-    fun postMapsBackendErrorsLikeReads() {
+    fun postMapsBackendErrorsLikeReads() = runTest {
         val cases = mapOf(
             HttpStatusCode.Unauthorized to "unauthorized",
             HttpStatusCode.Forbidden to "forbidden",
@@ -125,7 +126,7 @@ class CliCoreWriteSupportTest {
     }
 
     @Test
-    fun postAndGetShareErrorMapping() {
+    fun postAndGetShareErrorMapping() = runTest {
         val client = client { respond(content = "", status = HttpStatusCode.Forbidden) }
 
         assertEquals(client.get("/api/x"), client.post("/api/x", "{}"))
@@ -154,7 +155,7 @@ private suspend fun io.ktor.http.content.OutgoingContent.toByteArray(): ByteArra
  */
 class UnreachableBackendTest {
     @Test
-    fun postReportsTransportFailureInsteadOfThrowing() {
+    fun postReportsTransportFailureInsteadOfThrowing() = runTest {
         val client = unreachableClient()
 
         val result = client.post("/api/projects/p/ds/x", "{}")
@@ -166,7 +167,7 @@ class UnreachableBackendTest {
     }
 
     @Test
-    fun getReportsTransportFailureInsteadOfThrowing() {
+    fun getReportsTransportFailureInsteadOfThrowing() = runTest {
         val client = unreachableClient()
 
         val result = client.get("/api/projects/p")

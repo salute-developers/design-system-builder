@@ -1,5 +1,6 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 kotlin {
@@ -14,9 +15,11 @@ kotlin {
             api(projects.coreAuth)
             api(libs.ktor.client.core)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
         }
 
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
     }

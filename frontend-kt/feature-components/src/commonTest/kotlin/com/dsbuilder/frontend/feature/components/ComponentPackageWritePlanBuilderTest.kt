@@ -156,23 +156,63 @@ class ComponentPackageWritePlanBuilderTest {
     @Test
     fun rejectsCollisionOfFileNames() {
         val existing = ExistingComponentPackage(
-            entries = listOf(ComponentPackageMetaEntry("chip", "chip", "chip_embedded_config.json")),
+            entries = listOf(
+                ComponentPackageMetaEntry("chip", "chip", "shared_config.json"),
+                ComponentPackageMetaEntry("badge", "badge", "shared_config.json"),
+            ),
         )
 
         val result = builder.build(
             "sdds_serv",
             "0.6.0-rc",
-            listOf(config("chip", "chip"), config("chip", "chip-embedded")),
+            listOf(config("chip", "chip"), config("badge", "badge")),
             existing,
         )
 
-        // Унаследованное имя совпало с тем, что правило даёт другой паре: писать по плану
-        // нельзя, потому что вторая запись затёрла бы первую.
+        // Два авторитетных унаследованных имени менять нельзя: это повреждённый meta.json,
+        // а запись затёрла бы одну конфигурацию другой.
         val failure = result as? ComponentPackageWritePlanResult.Failed
             ?: fail("коллизия имён должна отклоняться")
-        assertTrue(failure.message.contains("chip_embedded_config.json"))
+        assertTrue(failure.message.contains("shared_config.json"))
         assertTrue(failure.message.contains("chip/chip"))
-        assertTrue(failure.message.contains("chip/chip-embedded"))
+        assertTrue(failure.message.contains("badge/badge"))
+    }
+
+    @Test
+    fun disambiguatesRepeatedStyleNamesWithComponentName() {
+        val plan = planOf(
+            listOf(
+                config("button", "default"),
+                config("accordion", "default"),
+                config("badge", "default"),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                "accordion_default_config.json",
+                "badge_default_config.json",
+                "button_default_config.json",
+            ),
+            plan.configFiles.map { it.fileName },
+        )
+    }
+
+    @Test
+    fun keepsReusableNameAndDisambiguatesOnlyNewCollisionParticipant() {
+        val existing = ExistingComponentPackage(
+            entries = listOf(ComponentPackageMetaEntry("accordion", "default", "default_config.json")),
+        )
+
+        val plan = planOf(
+            listOf(config("accordion", "default"), config("badge", "default")),
+            existing,
+        )
+
+        assertEquals(
+            listOf("default_config.json", "badge_default_config.json"),
+            plan.configFiles.map { it.fileName },
+        )
     }
 
     @Test

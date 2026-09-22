@@ -85,6 +85,8 @@ export const ExportRequestSchema = z.object({
   // Дизайн-система адресуется телом так же, как у `/import`: путь остаётся без параметров,
   // а идентификатор проверяется на uuid вместе с остальным телом.
   designSystemId: z.string().uuid(),
+  components: z.array(z.string().min(1)).optional(),
+  styles: z.array(z.string().min(1)).optional(),
 });
 
 export type PropertyValue = z.infer<typeof PropertyValueSchema>;

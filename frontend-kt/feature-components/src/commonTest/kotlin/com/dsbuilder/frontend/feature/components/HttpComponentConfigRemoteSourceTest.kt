@@ -1,7 +1,7 @@
 package com.dsbuilder.frontend.feature.components
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectApiKey
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
@@ -16,6 +16,7 @@ import com.dsbuilder.frontend.feature.components.domain.ConvertedComponentConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -27,7 +28,7 @@ import kotlin.test.assertTrue
 
 class HttpComponentConfigRemoteSourceTest {
     @Test
-    fun sendsSinglePostWithWholePackage() {
+    fun sendsSinglePostWithWholePackage() = runTest {
         val requests = mutableListOf<Pair<String, String>>()
         val paths = mutableListOf<String>()
         val result = import(
@@ -52,7 +53,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun bodyCarriesCommonFormatWithPropertiesKey() {
+    fun bodyCarriesCommonFormatWithPropertiesKey() = runTest {
         var body = ""
         import(
             onPost = { _, requestBody ->
@@ -74,7 +75,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun dryRunIsMarkedInRequest() {
+    fun dryRunIsMarkedInRequest() = runTest {
         var body = ""
         import(
             dryRun = true,
@@ -89,7 +90,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun applyIsMarkedInRequest() {
+    fun applyIsMarkedInRequest() = runTest {
         var body = ""
         import(
             dryRun = false,
@@ -104,7 +105,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun parsesImportReport() {
+    fun parsesImportReport() = runTest {
         val result = import(onPost = { _, _ -> AuthenticatedHttpResult.Success(REPORT) })
 
         val report = assertNotNull(result as? ImportComponentsResult.Imported).report
@@ -118,7 +119,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun parsesDivergenceSectionsOfReport() {
+    fun parsesDivergenceSectionsOfReport() = runTest {
         val result = import(onPost = { _, _ -> AuthenticatedHttpResult.Success(REPORT_WITH_DIVERGENCES) })
 
         val report = assertNotNull(result as? ImportComponentsResult.Imported).report
@@ -128,7 +129,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun unreadableSuccessBodyIsRejected() {
+    fun unreadableSuccessBodyIsRejected() = runTest {
         val result = import(onPost = { _, _ -> AuthenticatedHttpResult.Success("not a report") })
 
         val failed = assertNotNull(result as? ImportComponentsResult.Failed)
@@ -136,7 +137,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun backendFailureKeepsCoreMessage() {
+    fun backendFailureKeepsCoreMessage() = runTest {
         val result = import(
             onPost = { _, _ ->
                 AuthenticatedHttpResult.Failure("Status: forbidden. API key has no access to this project.")
@@ -148,7 +149,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun usesResolvedApiUrlAndApiKey() {
+    fun usesResolvedApiUrlAndApiKey() = runTest {
         var seenApiUrl = ""
         var seenApiKey = ""
         import(
@@ -164,7 +165,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun exportSendsSinglePostAddressedByIdentifier() {
+    fun exportSendsSinglePostAddressedByIdentifier() = runTest {
         val requests = mutableListOf<Pair<String, String>>()
         val result = export(
             onPost = { path, body ->
@@ -184,7 +185,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun exportParsesPackageIntoDomainModel() {
+    fun exportParsesPackageIntoDomainModel() = runTest {
         val exported = export(onPost = { _, _ -> AuthenticatedHttpResult.Success(PACKAGE) })
             as ExportComponentsResult.Exported
 
@@ -198,7 +199,7 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun exportRefusesUnreadableBodyOfSuccessfulResponse() {
+    fun exportRefusesUnreadableBodyOfSuccessfulResponse() = runTest {
         val result = export(onPost = { _, _ -> AuthenticatedHttpResult.Success("{ not json") })
 
         // Частичный пакет ввёл бы в заблуждение сильнее, чем отказ.
@@ -207,25 +208,25 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
-    fun exportPropagatesTransportFailure() {
+    fun exportPropagatesTransportFailure() = runTest {
         val result = export(onPost = { _, _ -> AuthenticatedHttpResult.Failure("Error: 403 Forbidden.") })
 
         assertEquals("Error: 403 Forbidden.", (result as ExportComponentsResult.Failed).message)
     }
 
-    private fun export(
+    private suspend fun export(
         onPost: (String, String) -> AuthenticatedHttpResult,
     ): ExportComponentsResult =
         HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
             ExportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                apiKey = ProjectApiKey("secret-key"),
+                credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
             ),
         )
 
-    private fun import(
+    private suspend fun import(
         dryRun: Boolean = true,
         components: List<ConvertedComponentConfig> = defaultComponents,
         onCreate: (String, String) -> Unit = { _, _ -> },
@@ -235,7 +236,7 @@ class HttpComponentConfigRemoteSourceTest {
         HttpComponentConfigRemoteSource(FakeHttpClientFactory(onCreate, onGet, onPost)).import(
             ImportComponentsCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
-                apiKey = ProjectApiKey("secret-key"),
+                credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 packageName = "sdds_sbcom",
@@ -295,12 +296,12 @@ private class FakeHttpClientFactory(
     override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient {
         onCreate(apiUrl, apiKey)
         return object : AuthenticatedHttpClient {
-            override fun get(path: String): AuthenticatedHttpResult {
+            override suspend fun get(path: String): AuthenticatedHttpResult {
                 onGet(path)
                 return AuthenticatedHttpResult.Failure("Status: not found. Project or resource was not found.")
             }
 
-            override fun post(path: String, body: String): AuthenticatedHttpResult = onPost(path, body)
+            override suspend fun post(path: String, body: String): AuthenticatedHttpResult = onPost(path, body)
         }
     }
 }

@@ -355,8 +355,6 @@ registry.registerPath({
 
 registerCrud(`${DS_PREFIX}/design-systems`, "Design Systems", DesignSystemSchema, schemas.CreateDesignSystem, schemas.UpdateDesignSystem);
 for (const [sub, schema, tag] of [
-  ["components", ComponentSchema, "Design Systems"],
-  ["tokens", TokenSchema, "Design Systems"],
   ["tenants", TenantSchema, "Design Systems"],
   ["appearances", AppearanceSchema, "Design Systems"],
   ["changes", DesignSystemChangeSchema, "Design Systems"],
@@ -370,6 +368,62 @@ for (const [sub, schema, tag] of [
     responses: list(schema as z.ZodTypeAny),
   });
 }
+
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/design-systems/{id}/tokens`,
+  tags: ["Design Systems"],
+  summary: "Get tokens for design system",
+  description: "Project-scoped authoritative token list. Preserves array response shape and supports optional type/query filters.",
+  request: {
+    params: z.object({ id: UuidSchema }),
+    query: z.object({
+      type: s.TokenTypeSchema.optional(),
+      query: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Token list", ...json(z.array(TokenSchema)) },
+    400: { description: "Invalid filter", ...json(ErrorResponseSchema) },
+    403: { description: "Project key lacks tokens:read", ...json(ErrorResponseSchema) },
+    404: { description: "Design system not found or unavailable to project", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/design-systems/{id}/components`,
+  tags: ["Design Systems"],
+  summary: "Get components for design system",
+  description: "Project-scoped authoritative component list. Preserves array response shape and supports optional textual query.",
+  request: {
+    params: z.object({ id: UuidSchema }),
+    query: z.object({ query: z.string().optional() }),
+  },
+  responses: {
+    200: { description: "Component list", ...json(z.array(ComponentSchema)) },
+    403: { description: "Project key lacks components:read", ...json(ErrorResponseSchema) },
+    404: { description: "Design system not found or unavailable to project", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: `${DS_PREFIX}/design-systems/{id}/components/{componentId}/styles`,
+  tags: ["Design Systems"],
+  summary: "Get component styles in design system",
+  request: {
+    params: z.object({ id: UuidSchema, componentId: UuidSchema }),
+  },
+  responses: {
+    200: { description: "Styles", ...json(z.array(StyleSchema)) },
+    403: { description: "Project key lacks components:read", ...json(ErrorResponseSchema) },
+    404: { description: "Component not found in design system", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
 
 registry.registerPath({
   method: "get",
@@ -618,9 +672,22 @@ registry.registerPath({
   method: "get",
   path: `${DS_PREFIX}/tokens/{id}/values`,
   tags: ["Tokens"],
-  summary: "All token values for a token",
-  request: { params: z.object({ id: UuidSchema }) },
-  responses: list(TokenValueSchema),
+  summary: "Filtered token values for a token",
+  request: {
+    params: z.object({ id: UuidSchema }),
+    query: z.object({
+      tenantId: UuidSchema.optional(),
+      mode: s.ModeSchema.optional(),
+      platform: s.PlatformSchema.optional(),
+    }),
+  },
+  responses: {
+    200: { description: "Token values", ...json(z.array(TokenValueSchema)) },
+    400: { description: "Invalid filter", ...json(ErrorResponseSchema) },
+    403: { description: "Project key lacks tokens:read", ...json(ErrorResponseSchema) },
+    404: { description: "Token not found or unavailable to project", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
 });
 
 registerCrud(`${DS_PREFIX}/tenants`, "Tenants", TenantSchema, schemas.CreateTenant, schemas.UpdateTenant);
@@ -995,6 +1062,12 @@ const ExportRequestSchema = registry.register(
   z
     .object({
       designSystemId: z.string().uuid().openapi({ description: "Дизайн-система, конфигурации которой выгружаются" }),
+      components: z.array(z.string().min(1)).optional().openapi({
+        description: "Optional component names to include in the returned package",
+      }),
+      styles: z.array(z.string().min(1)).optional().openapi({
+        description: "Optional style names to include in the returned package",
+      }),
     })
     .openapi("ComponentExportRequest"),
 );

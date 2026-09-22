@@ -28,8 +28,8 @@ internal class HttpRemoteThemeDataSource(
         ignoreUnknownKeys = true
     }
 
-    override fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>> {
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+    override suspend fun fetchTenants(command: RemoteThemeCommand): RemoteThemeResult<List<Tenant>> {
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/ds/design-systems/" +
@@ -40,8 +40,8 @@ internal class HttpRemoteThemeDataSource(
         )
     }
 
-    override fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>> {
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+    override suspend fun fetchTokens(command: RemoteThemeCommand): RemoteThemeResult<List<Token>> {
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/ds/design-systems/" +
@@ -52,8 +52,8 @@ internal class HttpRemoteThemeDataSource(
         )
     }
 
-    override fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>> {
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+    override suspend fun fetchPalette(command: RemoteThemeCommand): RemoteThemeResult<List<PaletteItem>> {
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/ds/palette",
@@ -63,8 +63,8 @@ internal class HttpRemoteThemeDataSource(
         )
     }
 
-    override fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>> {
-        val client = httpClientFactory.create(command.apiUrl.value, command.apiKey.value)
+    override suspend fun fetchTokenValues(command: RemoteTenantThemeCommand): RemoteThemeResult<List<TokenValue>> {
+        val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values",
@@ -74,7 +74,7 @@ internal class HttpRemoteThemeDataSource(
         )
     }
 
-    private fun <T> getDecoded(
+    private suspend fun <T> getDecoded(
         result: AuthenticatedHttpResult,
         decode: (String) -> T?,
         parseFailureMessage: String,

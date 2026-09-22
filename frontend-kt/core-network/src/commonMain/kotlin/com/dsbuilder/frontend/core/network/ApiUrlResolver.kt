@@ -68,12 +68,15 @@ public class ApiUrlResolver(
     /**
      * Возвращает API URL в порядке `--api-url`, `DSBUILDER_API_URL`, code default.
      */
-    public fun resolve(override: String?): ResolvedApiUrl {
+    public fun resolve(override: String?, projectEnvironment: EnvironmentReader? = null): ResolvedApiUrl {
         if (!override.isNullOrBlank()) {
             return ResolvedApiUrl(value = override, source = ApiUrlSource.ARGUMENT)
         }
 
-        environmentReader.get(API_URL_ENV)?.takeIf { it.isNotBlank() }?.let {
+        (
+            environmentReader.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
+                ?: projectEnvironment?.get(API_URL_ENV)?.takeIf { it.isNotBlank() }
+            )?.let {
             return ResolvedApiUrl(value = it, source = ApiUrlSource.ENVIRONMENT)
         }
 
@@ -85,8 +88,8 @@ public class ApiUrlResolver(
      *
      * Умолчание указывает на общую установку backend, поэтому запись по нему запрещена.
      */
-    public fun resolveForWrite(override: String?): WriteApiUrlResult {
-        val resolved = resolve(override)
+    public fun resolveForWrite(override: String?, projectEnvironment: EnvironmentReader? = null): WriteApiUrlResult {
+        val resolved = resolve(override, projectEnvironment)
         return if (resolved.isCodeDefault) {
             WriteApiUrlResult.Rejected(
                 "Error: writing commands require an explicit backend API URL. " +

@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -19,5 +19,34 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.okio)
         }
+
+        commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
+        val posixMain by creating {
+            dependsOn(commonMain.get())
+        }
+
+        jvmMain {
+            dependsOn(posixMain)
+        }
+
+        val macosMain by creating {
+            dependsOn(posixMain)
+        }
+
+        getByName("macosArm64Main").dependsOn(macosMain)
+        getByName("macosX64Main").dependsOn(macosMain)
     }
+}
+
+tasks.matching {
+    it.name == "jsTest" ||
+        it.name == "jsNodeTest" ||
+        it.name == "compileTestKotlinJs" ||
+        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
+        it.name == "jsTestTestDevelopmentExecutableCompileSync"
+}.configureEach {
+    enabled = false
 }

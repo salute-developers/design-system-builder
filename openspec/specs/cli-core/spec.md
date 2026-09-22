@@ -99,38 +99,36 @@ CLI core SHALL treat `tenants[].alias` as local non-secret tenant metadata store
 
 ### Requirement: API key credential resolution
 
-CLI core SHALL resolve project API key from runtime sources in a deterministic priority order.
+CLI core SHALL разрешать project API key из runtime sources в детерминированном порядке только тогда, когда выбранная credential policy допускает project key; forced `user-session` SHALL обходить key sources. Для имени из `credential.name` и fallback имени `DSBUILDER_API_KEY` CLI core SHALL сначала проверять env процесса, затем `.env` найденного локального проекта. Приоритет имени из `credential.name` над fallback именем сохраняется.
 
 #### Scenario: CLI argument имеет высший приоритет
 
-- **WHEN** command receives `--api-key <value>`
-- **THEN** CLI MUST use that value as the API key
-- **THEN** CLI MUST NOT read env variables for the API key
+- **WHEN** выбран key mode и команда получает `--api-key <value>`
+- **THEN** CLI MUST использовать это значение как API key
+- **THEN** CLI MUST NOT читать env-переменные для API key
 
 #### Scenario: Project-specific env variable используется из config
 
-- **WHEN** `--api-key` is absent
-- **WHEN** `.sdds/config.json` defines JSON object `credential` with `type = "env"` and `name = "DSBUILDER_PROJECT_A_API_KEY"`
-- **WHEN** environment contains `DSBUILDER_PROJECT_A_API_KEY`
-- **THEN** CLI MUST use that env value as the API key
+- **WHEN** `--api-key` отсутствует
+- **WHEN** `.sdds/config.json` содержит `credential.name = "DSBUILDER_PROJECT_A_API_KEY"` и policy допускает key
+- **WHEN** env процесса или проектный `.env` содержит `DSBUILDER_PROJECT_A_API_KEY`
+- **THEN** CLI MUST использовать значение этого имени как API key с приоритетом env процесса
 
 #### Scenario: Fallback env используется последним
 
-- **WHEN** `--api-key` is absent
-- **WHEN** project-specific env variable is absent
-- **WHEN** environment contains `DSBUILDER_API_KEY`
-- **THEN** CLI MUST use `DSBUILDER_API_KEY` as the API key
+- **WHEN** `--api-key` и project-specific env отсутствуют в допускающем key mode
+- **WHEN** env процесса или проектный `.env` содержит `DSBUILDER_API_KEY`
+- **THEN** CLI MUST использовать `DSBUILDER_API_KEY` как API key с приоритетом env процесса
 
 #### Scenario: API key отсутствует
 
-- **WHEN** no supported runtime source contains an API key
-- **THEN** CLI MUST return a deterministic credential error
-- **THEN** the error MUST mention the configured env variable name when available
-- **THEN** CLI MUST NOT attempt backend requests
+- **WHEN** выбран forced key mode и ни один поддерживаемый runtime source не содержит API key
+- **THEN** CLI MUST вернуть детерминированную credential error с именем configured env, если оно известно
+- **THEN** CLI MUST NOT выполнять backend request или переключаться на user session
 
 ### Requirement: API URL resolution
 
-CLI core SHALL resolve backend API URL from runtime sources and code defaults without reading it from `.sdds/config.json`, and SHALL report which source produced the value so that writing commands can reject the code default.
+CLI core SHALL resolve backend API URL from runtime sources and code defaults without reading it from `.sdds/config.json`, and SHALL report which source produced the value so that writing commands can reject the code default. Для локального проекта `.env` SHALL предоставлять fallback для `DSBUILDER_API_URL` после env процесса.
 
 #### Scenario: CLI argument имеет высший приоритет
 
@@ -141,13 +139,20 @@ CLI core SHALL resolve backend API URL from runtime sources and code defaults wi
 #### Scenario: Env API URL используется после CLI argument
 
 - **WHEN** `--api-url` is absent
-- **WHEN** environment contains `DSBUILDER_API_URL`
-- **THEN** CLI MUST use `DSBUILDER_API_URL` as the backend API URL
+- **WHEN** env процесса contains `DSBUILDER_API_URL`
+- **THEN** CLI MUST use that value as the backend API URL даже при наличии другого значения в проектном `.env`
+
+#### Scenario: Проектный API URL используется после env процесса
+
+- **WHEN** `--api-url` и `DSBUILDER_API_URL` в env процесса отсутствуют
+- **WHEN** `.env` найденного локального проекта содержит `DSBUILDER_API_URL`
+- **THEN** CLI MUST использовать значение `.env` как явно настроенный backend API URL
+- **THEN** writing command MUST NOT считать его code default
 
 #### Scenario: Default API URL используется последним
 
 - **WHEN** `--api-url` is absent
-- **WHEN** environment does not contain `DSBUILDER_API_URL`
+- **WHEN** env процесса и проектный `.env` не содержат `DSBUILDER_API_URL`
 - **THEN** CLI MUST use the default API URL defined in code
 
 #### Scenario: Project config не задает API URL
@@ -218,3 +223,41 @@ CLI core SHALL provide a way for writing commands to require an explicitly provi
 - **WHEN** a writing command is about to send data to the backend
 - **THEN** CLI MUST print the resolved backend API URL and its source
 - **THEN** CLI MUST NOT print the raw API key
+
+### Requirement: Credential policy в локальном project config
+
+CLI core SHALL поддерживать `credential.type = "auto"`, `"user-session"` и `"project-key-env"` в `.sdds/config.json` без raw secrets и SHALL читать существующий `"env"` как совместимый `auto` с указанным именем env-переменной.
+
+#### Scenario: Существующий env config
+
+- **WHEN** config содержит `credential.type = "env"` и `credential.name = "PROJECT_KEY"`
+- **THEN** CLI MUST продолжить читать этот config без миграции файла
+- **THEN** CLI MUST использовать доступный key из разрешённых runtime sources, а при его отсутствии — user session
+
+#### Scenario: Принудительная user session
+
+- **WHEN** config содержит `credential.type = "user-session"`
+- **THEN** CLI MUST использовать только session для resolved API URL
+- **THEN** CLI MUST NOT читать project key из env или `--api-key`
+
+#### Scenario: Принудительный project key
+
+- **WHEN** config содержит `credential.type = "project-key-env"` и имя env-переменной
+- **THEN** CLI MUST использовать только project key из выбранных key sources
+- **THEN** отсутствие key MUST вернуть credential error без fallback на user session
+
+### Requirement: Headless credential selection
+
+CLI core SHALL отделять явный `--design-system` от локальной credential policy. Без локального контекста пользовательская session SHALL быть интерактивным умолчанием; project key SHALL выбираться явным указанием имени env-переменной для конкретного вызова.
+
+#### Scenario: Явная ссылка из чужой рабочей директории
+
+- **WHEN** `--design-system` выбирает дизайн-систему A, а текущая `.sdds` относится к B
+- **THEN** CLI MUST NOT применять credential policy B к A
+- **THEN** CLI MUST использовать явную headless policy или user session
+
+#### Scenario: CI выбирает project key
+
+- **WHEN** headless-команда явно указывает env-переменную с project key
+- **THEN** CLI MUST прочитать значение из env, не из URI
+- **THEN** CLI MUST NOT сохранять key в `.sdds` или выводить его в diagnostics

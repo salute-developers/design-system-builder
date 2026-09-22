@@ -22,7 +22,7 @@ internal class HttpDocsPublisher(
 ) : DocsHttpClient {
 
     @Suppress("ReturnCount")
-    override fun uploadBundle(request: DocsUploadRequest): DocsUploadResult {
+    override suspend fun uploadBundle(request: DocsUploadRequest): DocsUploadResult {
         val path = fileSystem.absolutePath(request.bundlePath)
         if (!fileSystem.exists(path)) return DocsUploadResult.Failed("Publish failed: Bundle file was not found: $path")
         if (fileSystem.isDirectory(
@@ -37,7 +37,7 @@ internal class HttpDocsPublisher(
             return DocsUploadResult.Failed("Publish failed: Cannot read bundle file: $path")
         }
         val response = try {
-            httpClientFactory.create(request.apiUrl.value, request.apiKey.value).postMultipart(
+            httpClientFactory.create(request.apiUrl.value, request.credential).postMultipart(
                 path = "/api/projects/${request.projectId.value}/documentation/bundles",
                 file = MultipartFile("bundle", fileName(path), "application/gzip", bytes),
             )

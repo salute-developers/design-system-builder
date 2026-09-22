@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.core.application
 
+import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 
@@ -11,5 +12,9 @@ internal class RuntimeProjectApiUrlProvider(
 ) : ProjectApiUrlProvider {
     override fun resolve(override: String?): ProjectApiUrl = ProjectApiUrl(
         value = apiUrlResolver.resolve(override).value,
+    )
+
+    override fun resolve(override: String?, projectEnvironment: EnvironmentReader?): ProjectApiUrl = ProjectApiUrl(
+        value = apiUrlResolver.resolve(override, projectEnvironment).value,
     )
 }

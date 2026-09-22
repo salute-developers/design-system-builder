@@ -13,6 +13,28 @@ import kotlin.test.assertTrue
  */
 class ProjectConfigStoreAndCodecTest {
     @Test
+    fun credentialModesRoundTripWithoutSecrets() {
+        val codec = ProjectConfigCodec()
+        listOf(
+            CredentialReference(CredentialReferenceType.AUTO, "PROJECT_KEY"),
+            CredentialReference(CredentialReferenceType.USER_SESSION),
+            CredentialReference(CredentialReferenceType.PROJECT_KEY_ENV, "PROJECT_KEY"),
+        ).forEach { reference ->
+            val encoded = codec.encode(projectConfig().copy(credential = reference))
+            assertEquals(reference, codec.decode(encoded).credential)
+            assertFalse(encoded.contains("secret-value"))
+        }
+    }
+
+    @Test
+    fun legacyEnvModeRetainsItsSerializedType() {
+        val codec = ProjectConfigCodec()
+        val encoded = codec.encode(projectConfig())
+        assertTrue(encoded.contains("\"type\": \"env\""))
+        assertEquals(CredentialReferenceType.ENV, codec.decode(encoded).credential.type)
+    }
+
+    @Test
     fun configCodecSerializesProjectAndCredentialReferenceOnly() {
         val codec = ProjectConfigCodec()
 
