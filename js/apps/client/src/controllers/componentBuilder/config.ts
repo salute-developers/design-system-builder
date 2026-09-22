@@ -14,7 +14,7 @@ export class Config {
 
     private invariants: Props;
 
-    constructor(meta: Meta) {
+    constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
 
         this.name = name;
@@ -22,7 +22,7 @@ export class Config {
 
         const { api, configs, variations } = sources;
 
-        const config = configs[0]?.config;
+        const config = (configID ? configs.find((item) => item.id === configID) : configs[0])?.config;
 
         if (!config) {
             this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
@@ -109,6 +109,10 @@ export class Config {
         const variation = this.variations.find((v) => v.getID() === variationID);
         const newDefault = new Default(variation?.getName() || '', variationID, style, newStyledID);
         this.defaults.push(newDefault);
+    }
+
+    public removeDefault(variationID: string) {
+        this.defaults = this.defaults.filter((item) => item.getVariationID() !== variationID);
     }
 
     public updateToken(tokenID: string, value: string | number, variationID?: string, styleID?: string) {

@@ -65,7 +65,7 @@ export const useComponentData = (config?: Config, storyArgs: Record<string, any>
         }
 
         const defaults = getDefaultProps(config);
-        setComponentProps({ ...defaults, ...getStoryDefaults(storyArgs) });
+        setComponentProps({ ...getStoryDefaults(storyArgs), ...defaults });
 
         const newDefaults = getDefaults(config, defaults);
         setSelectedVariation(newDefaults.variationID);

@@ -36,7 +36,7 @@ export class Variation {
     public addStyle(name: string, api: ComponentAPI[]) {
         const styleValues = {
             name,
-            id: window.crypto.randomUUID(),
+            id: globalThis.crypto.randomUUID(),
             intersections: null,
             props: null,
         };
@@ -76,5 +76,14 @@ export class Variation {
 
     public getStyles() {
         return this.styles;
+    }
+
+    /**
+     * TODO: Временное решение для поддержки текущего ядра plasma-new-hope
+     * Флаг (`pilled`, `stretch`): единственный стиль `true`, как у ядра. Выключенное состояние —
+     * отсутствие дефолта и выбранного стиля, отдельным стилем оно не хранится.
+     */
+    public isFlag() {
+        return this.styles?.length === 1 && this.styles[0].getName() === 'true';
     }
 }

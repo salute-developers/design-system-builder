@@ -5,6 +5,7 @@ import { FloatProp } from './float';
 import { ShadowProp } from './shadow';
 import { ShapeProp } from './shape';
 import { TypographyProp } from './typography';
+import { ValueProp } from './value';
 
 export class Props {
     private list: PropUnion[] = [];
@@ -102,6 +103,10 @@ export class Props {
 
         if (type === 'typography') {
             return new TypographyProp(name, item, platformMappings);
+        }
+
+        if (type === 'value') {
+            return new ValueProp(name, item, platformMappings);
         }
 
         return null;
