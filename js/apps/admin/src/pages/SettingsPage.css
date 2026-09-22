@@ -532,6 +532,24 @@
   margin-bottom: -1px;
 }
 
+.adm-tabs--platform {
+  margin-bottom: 16px;
+}
+
+.adm-tab-count {
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #888;
+}
+
+.adm-tab--active .adm-tab-count {
+  background: #1e2f47;
+  color: #5b9cf0;
+}
+
 .adm-tab:hover {
   color: #ccc;
 }
