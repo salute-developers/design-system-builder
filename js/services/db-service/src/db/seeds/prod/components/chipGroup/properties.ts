@@ -1,0 +1,27 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'chipClearContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['chipClearContentMarginRight'] } },
+    { name: 'chipCloseIconSize', type: 'dimension', variations: ['size'], params: { web: ['chipCloseIconSize'] } },
+    { name: 'chipGroupItemsGap', type: 'dimension', variations: ['gap'], params: { web: ['chipGroupItemsGap'] } },
+    { name: 'chipBorderRadius', type: 'dimension', variations: ['size'], params: { web: ['chipBorderRadius'] } },
+    { name: 'chipDefaultRadius', type: 'dimension', variations: ['size'], params: { web: ['chipDefaultRadius'] } },
+    { name: 'chipSegmentedRadius', type: 'dimension', variations: ['size'], params: { web: ['chipSegmentedRadius'] } },
+    { name: 'chipSideRadius', type: 'dimension', variations: ['size'], params: { web: ['chipSideRadius'] } },
+    { name: 'chipPadding', type: 'dimension', variations: ['size'], params: { web: ['chipPadding'] } },
+    { name: 'chipLeftContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['chipLeftContentMarginRight'] } },
+    { name: 'chipRightContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['chipRightContentMarginLeft'] } },
+    { name: 'chipRightContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['chipRightContentMarginRight'] } },
+    { name: 'chipClearContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['chipClearContentMarginLeft'] } },
+    { name: 'chipFocusColor', type: 'color', variations: ['view'], params: { web: ['chipFocusColor'] } },
+    { name: 'chipColor', type: 'color', variations: ['view'], params: { web: ['chipColor'] } },
+    { name: 'chipBackground', type: 'color', variations: ['view'], params: { web: ['chipBackground'] } },
+    { name: 'chipColorHover', type: 'color', variations: ['view'], params: { web: ['chipColorHover'] } },
+    { name: 'chipBackgroundHover', type: 'color', variations: ['view'], params: { web: ['chipBackgroundHover'] } },
+    { name: 'chipColorActive', type: 'color', variations: ['view'], params: { web: ['chipColorActive'] } },
+    { name: 'chipBackgroundActive', type: 'color', variations: ['view'], params: { web: ['chipBackgroundActive'] } },
+    { name: 'chipWidth', type: 'value', variations: ['size'], params: { web: ['chipWidth'] } },
+    { name: 'chipStyle', type: 'typography', variations: ['size'], params: { web: ['chipFontFamily', 'chipFontSize', 'chipFontStyle', 'chipFontWeight', 'chipLetterSpacing', 'chipLineHeight'] } },
+    { name: 'chipHeight', type: 'dimension', variations: ['size'], params: { web: ['chipHeight'] } },
+    { name: 'chipLeftContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['chipLeftContentMarginLeft'] } },
+];

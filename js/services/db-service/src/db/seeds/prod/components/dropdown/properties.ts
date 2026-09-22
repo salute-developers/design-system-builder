@@ -1,0 +1,28 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'itemFontWeightBold', type: 'value', variations: ['size'], params: { web: ['itemFontWeightBold'] } },
+    { name: 'cellTitleStyle', type: 'typography', variations: ['size'], params: { web: ['cellTitleFontFamily', 'cellTitleFontSize', 'cellTitleFontStyle', 'cellTitleFontWeight', 'cellTitleLetterSpacing', 'cellTitleLineHeight'] } },
+    { name: 'itemBackgroundHover', type: 'color', variations: ['view'], params: { web: ['itemBackgroundHover'] } },
+    { name: 'dividerColor', type: 'color', variations: ['view'], params: { web: ['dividerColor'] } },
+    { name: 'itemStyle', type: 'typography', variations: ['size'], params: { web: ['itemFontFamily', 'itemFontSize', 'itemFontStyle', 'itemFontLetterSpacing', 'itemFontLineHeight'] } },
+    { name: 'itemPadding', type: 'value', variations: ['size'], params: { web: ['itemPadding'] } },
+    { name: 'width', type: 'dimension', variations: ['size'], params: { web: ['width'] } },
+    { name: 'itemHeight', type: 'dimension', variations: ['size'], params: { web: ['itemHeight'] } },
+    { name: 'dividerMarginTop', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginTop'] } },
+    { name: 'dividerMarginRight', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginRight'] } },
+    { name: 'dividerMarginBottom', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginBottom'] } },
+    { name: 'dividerMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginLeft'] } },
+    { name: 'dividerMarginTopTight', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginTopTight'] } },
+    { name: 'dividerMarginBottomTight', type: 'dimension', variations: ['size'], params: { web: ['dividerMarginBottomTight'] } },
+    { name: 'itemBorderRadius', type: 'dimension', variations: ['size'], params: { web: ['itemBorderRadius'] } },
+    { name: 'itemPaddingTight', type: 'dimension', variations: ['size'], params: { web: ['itemPaddingTight'] } },
+    { name: 'padding', type: 'dimension', variations: ['size'], params: { web: ['padding'] } },
+    { name: 'cellPadding', type: 'dimension', variations: ['size'], params: { web: ['cellPadding'] } },
+    { name: 'cellPaddingLeftContent', type: 'dimension', variations: ['size'], params: { web: ['cellPaddingLeftContent'] } },
+    { name: 'cellPaddingContent', type: 'dimension', variations: ['size'], params: { web: ['cellPaddingContent'] } },
+    { name: 'cellPaddingRightContent', type: 'dimension', variations: ['size'], params: { web: ['cellPaddingRightContent'] } },
+    { name: 'cellTextboxGap', type: 'dimension', variations: ['size'], params: { web: ['cellTextboxGap'] } },
+    { name: 'cellGap', type: 'dimension', variations: ['size'], params: { web: ['cellGap'] } },
+    { name: 'borderRadius', type: 'dimension', variations: ['size'], params: { web: ['borderRadius'] } },
+];

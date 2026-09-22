@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import * as schema from '../schema';
 
-/** Объявление стиля в сиде: строка `styles` плюс отметка «значение оси по умолчанию». */
+/** Объявление стиля в сиде: строка `styles` плюс отметка «значение вариации по умолчанию». */
 export interface DeclaredStyle {
     designSystemId: string;
     variationId: string;
@@ -10,13 +10,13 @@ export interface DeclaredStyle {
 }
 
 /**
- * Заполняет объявление осей вариаций по объявлениям стилей сида.
+ * Заполняет объявление вариаций appearance по объявлениям стилей сида.
  *
- * Объявление оси принадлежит appearance, а не дизайн-системе: одна и та же ось у двух стилей
- * одного компонента может иметь разный порядок, состав и дефолт. Поэтому ось объявляется на
+ * Объявление вариации принадлежит appearance, а не дизайн-системе: одна и та же вариация у двух стилей
+ * одного компонента может иметь разный порядок, состав и дефолт. Поэтому вариация объявляется на
  * каждом appearance той дизайн-системы, к которой относится стиль.
  *
- * Порядок берётся из порядка объявления, а не из имён: у оси `size` значения `xs, s, m, l`
+ * Порядок берётся из порядка объявления, а не из имён: у вариации `size` значения `xs, s, m, l`
  * упорядочены по величине, и сортировка по алфавиту переставила бы их. Реальный порядок
  * приходит с `components push`; здесь он лишь детерминирован.
  */
@@ -43,32 +43,32 @@ export async function seedAppearanceVariations(
         appearancesByKey.set(key, [...(appearancesByKey.get(key) ?? []), appearance]);
     }
 
-    const axesByAppearance = new Map<string, string[]>();
-    const valuesByAxis = new Map<string, string[]>();
+    const variationsByAppearance = new Map<string, string[]>();
+    const stylesByVariation = new Map<string, string[]>();
     for (const row of declared) {
         const componentId = componentIdByVariation.get(row.variationId);
         if (!componentId) continue;
 
         for (const appearance of appearancesByKey.get(`${row.designSystemId}:${componentId}`) ?? []) {
-            const axes = axesByAppearance.get(appearance.id) ?? [];
-            if (!axes.includes(row.variationId)) axes.push(row.variationId);
-            axesByAppearance.set(appearance.id, axes);
+            const list = variationsByAppearance.get(appearance.id) ?? [];
+            if (!list.includes(row.variationId)) list.push(row.variationId);
+            variationsByAppearance.set(appearance.id, list);
 
             const key = `${appearance.id}:${row.variationId}`;
-            valuesByAxis.set(key, [...(valuesByAxis.get(key) ?? []), row.name]);
+            stylesByVariation.set(key, [...(stylesByVariation.get(key) ?? []), row.name]);
         }
     }
 
-    let axisCount = 0;
+    let variationCount = 0;
     let valueCount = 0;
-    for (const [appearanceId, axes] of axesByAppearance) {
-        for (const [position, variationId] of axes.entries()) {
-            const names = valuesByAxis.get(`${appearanceId}:${variationId}`) ?? [];
+    for (const [appearanceId, variationIds] of variationsByAppearance) {
+        for (const [position, variationId] of variationIds.entries()) {
+            const names = stylesByVariation.get(`${appearanceId}:${variationId}`) ?? [];
             const defaultName = declared.find(
                 (row) => row.variationId === variationId && row.isDefault && names.includes(row.name),
             )?.name;
 
-            const [axis] = await db
+            const [declaredVariation] = await db
                 .insert(schema.appearanceVariations)
                 .values({
                     appearanceId,
@@ -84,13 +84,13 @@ export async function seedAppearanceVariations(
                     },
                 })
                 .returning();
-            axisCount += 1;
+            variationCount += 1;
 
             for (const [valuePosition, name] of names.entries()) {
                 await db
                     .insert(schema.appearanceVariationValues)
                     .values({
-                        appearanceVariationId: axis.id,
+                        appearanceVariationId: declaredVariation.id,
                         styleId: styleId(variationId, name),
                         position: valuePosition,
                     })
@@ -106,5 +106,5 @@ export async function seedAppearanceVariations(
         }
     }
 
-    console.log(`  appearance_variations: ${axisCount} axes, ${valueCount} values`);
+    console.log(`  appearance_variations: ${variationCount} variations, ${valueCount} values`);
 }

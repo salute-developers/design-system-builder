@@ -1,0 +1,62 @@
+import type { ValuesSeed } from '../../component-seed';
+
+export const values: ValuesSeed = {
+    size: {
+        l: [
+            { prop: 'cellLabelStyle', value: 'body.m.normal' },
+            { prop: 'cellPaddingContent', value: '0' },
+            { prop: 'cellPaddingRightContent', value: '0' },
+            { prop: 'cellTextboxGap', value: '2' },
+            { prop: 'cellWidth', value: '240' },
+            { prop: 'cellGap', value: '6' },
+            { prop: 'cellPadding', value: '0' },
+            { prop: 'cellPaddingLeftContent', value: '0' },
+            { prop: 'cellSubtitleStyle', value: 'body.m.normal' },
+            { prop: 'cellTitleStyle', value: 'body.l.normal' },
+        ],
+        xs: [
+            { prop: 'cellLabelStyle', value: 'body.xs.normal' },
+            { prop: 'cellGap', value: '6' },
+            { prop: 'cellPadding', value: '0' },
+            { prop: 'cellPaddingLeftContent', value: '0' },
+            { prop: 'cellSubtitleStyle', value: 'body.xs.normal' },
+            { prop: 'cellTitleStyle', value: 'body.xs.normal' },
+            { prop: 'cellPaddingContent', value: '0' },
+            { prop: 'cellPaddingRightContent', value: '0' },
+            { prop: 'cellTextboxGap', value: '2' },
+            { prop: 'cellWidth', value: '240' },
+        ],
+        m: [
+            { prop: 'cellLabelStyle', value: 'body.s.normal' },
+            { prop: 'cellPaddingContent', value: '0' },
+            { prop: 'cellPaddingRightContent', value: '0' },
+            { prop: 'cellTextboxGap', value: '2' },
+            { prop: 'cellWidth', value: '240' },
+            { prop: 'cellGap', value: '8' },
+            { prop: 'cellPadding', value: '0' },
+            { prop: 'cellPaddingLeftContent', value: '0' },
+            { prop: 'cellSubtitleStyle', value: 'body.s.normal' },
+            { prop: 'cellTitleStyle', value: 'body.m.normal' },
+        ],
+        s: [
+            { prop: 'cellLabelStyle', value: 'body.xs.normal' },
+            { prop: 'cellPaddingContent', value: '0' },
+            { prop: 'cellPaddingRightContent', value: '0' },
+            { prop: 'cellTextboxGap', value: '2' },
+            { prop: 'cellWidth', value: '240' },
+            { prop: 'cellGap', value: '6' },
+            { prop: 'cellPadding', value: '0' },
+            { prop: 'cellPaddingLeftContent', value: '0' },
+            { prop: 'cellSubtitleStyle', value: 'body.xs.normal' },
+            { prop: 'cellTitleStyle', value: 'body.s.normal' },
+        ],
+    },
+    view: {
+        default: [
+            { prop: 'cellLabelColor', token: 'text.default.secondary' },
+            { prop: 'cellTitleColor', token: 'text.default.primary' },
+            { prop: 'cellColor', token: 'text.default.primary' },
+            { prop: 'cellSubtitleColor', token: 'text.default.secondary' },
+        ],
+    },
+};

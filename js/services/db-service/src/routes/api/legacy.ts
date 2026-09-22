@@ -325,6 +325,7 @@ router.get("/:name/component-configs", (req, res) =>
             appearanceId: appearanceVariations.appearanceId,
             variationId: appearanceVariations.variationId,
             defaultStyleId: appearanceVariations.defaultStyleId,
+            position: appearanceVariations.position,
           })
           .from(appearanceVariations)
           .where(
@@ -498,9 +499,19 @@ router.get("/:name/component-configs", (req, res) =>
 
       // sources.configs: appearances with config
       const sourcesConfigs = compAppearances.map((appearance) => {
+        // Состав и порядок вариаций принадлежат appearance: у вертикальных Tabs нет `pilled`.
+        // Appearance без объявлений (данные до `appearance_variations`) получает все вариации компонента.
+        const declaredIds = appearanceVariationRows
+          .filter((row) => row.appearanceId === appearance.id)
+          .sort((a, b) => a.position - b.position)
+          .map((row) => row.variationId);
+        const appearanceVariationsList = declaredIds.length
+          ? declaredIds.flatMap((id) => compVariations.filter((variation) => variation.id === id))
+          : compVariations;
+
         // defaultVariations: дефолт принадлежит паре (appearance, вариация), поэтому берётся
         // из её объявления, а не из флага стиля, уникального по (ДС, вариация).
-        const defaultVariations = compVariations.flatMap((variation) => {
+        const defaultVariations = appearanceVariationsList.flatMap((variation) => {
           const styleId = defaultStyleByAppearanceVariation.get(
             `${appearance.id}:${variation.id}`,
           );
@@ -519,7 +530,7 @@ router.get("/:name/component-configs", (req, res) =>
         }));
 
         // variations: each variation with its styles and vpvs
-        const variationsConfig = compVariations.map((variation) => {
+        const variationsConfig = appearanceVariationsList.map((variation) => {
           const varStyles = stylesByVariationId.get(variation.id) ?? [];
 
           const stylesConfig = varStyles.map((style) => {
