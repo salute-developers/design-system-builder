@@ -11,7 +11,8 @@ export const StyledSetup = styled.div`
     box-sizing: border-box;
     padding: 0.75rem 1.25rem;
 
-    min-width: 33.75rem;
+    width: 33.75rem;
+    flex: none;
     height: 100%;
     min-height: 0;
 

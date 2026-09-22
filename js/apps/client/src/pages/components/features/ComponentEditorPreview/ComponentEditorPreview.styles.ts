@@ -6,6 +6,8 @@ export const Root = styled.div<{ background?: string }>`
 
     width: 100%;
     height: 100%;
+    flex: 1;
+    min-width: 0;
     background: ${backgroundSecondary};
 `;
 
@@ -35,20 +37,27 @@ export const StyledComponentWrapper = styled.div<{ background: string }>`
     position: relative;
 
     background: ${({ background }) => background};
+    color: var(--text-primary);
     border-radius: 1.25rem;
 
     flex: none;
     height: 30rem;
     width: 100%;
+    box-sizing: border-box;
+    padding: 6px;
     display: flex;
     justify-content: center;
     align-items: center;
 `;
 
+export const StyledStoryScope = styled.div`
+    display: contents;
+`;
+
 export const StyledStorySelector = styled.div`
     position: absolute;
     left: 0.75rem;
-    bottom: 0.75rem;
+    top: 0.75rem;
 `;
 
 export const StyledComponentControls = styled.div`
