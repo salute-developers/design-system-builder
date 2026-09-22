@@ -1,0 +1,7 @@
+{
+    "reexports": {
+        "types": [
+            "ProgressProps"
+        ]
+    }
+}

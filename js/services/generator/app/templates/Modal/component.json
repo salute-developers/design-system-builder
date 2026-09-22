@@ -1,0 +1,11 @@
+{
+    "castToProps": "ModalProps",
+    "reexports": {
+        "runtime": [
+            "modalClasses"
+        ],
+        "types": [
+            "ModalProps"
+        ]
+    }
+}

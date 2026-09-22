@@ -1,0 +1,8 @@
+{
+    "coreTokensExport": "stepsTokens",
+    "reexports": {
+        "types": [
+            "StepItemProps"
+        ]
+    }
+}

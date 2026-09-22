@@ -1,0 +1,8 @@
+{
+    "castToProps": "TooltipProps",
+    "reexports": {
+        "types": [
+            "TooltipProps"
+        ]
+    }
+}

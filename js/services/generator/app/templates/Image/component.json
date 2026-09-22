@@ -1,0 +1,8 @@
+{
+    "reexports": {
+        "types": [
+            "ImageProps",
+            "Ratio"
+        ]
+    }
+}
