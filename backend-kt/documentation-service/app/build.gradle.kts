@@ -15,6 +15,7 @@ tasks.shadowJar {
 }
 
 dependencies {
+    implementation(project(":runtime"))
     implementation(project(":feature-ingestion"))
     implementation(project(":feature-publication"))
     implementation(project(":feature-processing"))
@@ -23,6 +24,7 @@ dependencies {
     implementation(libs.ktor.server.netty)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.default.headers)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.config.yaml)
     implementation(libs.koin.ktor)

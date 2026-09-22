@@ -72,6 +72,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - image: backend-monolith
+            context: .
+            file: Dockerfile.monolith
           - image: keycloak
             context: backend-kt
             file: backend-kt/identity-gateway/keycloak/Dockerfile

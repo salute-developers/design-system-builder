@@ -1,9 +1,9 @@
 package com.dsbuilder.identity.auth.data
 
+import com.dsbuilder.identity.auth.application.port.ProjectActorContext
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
-import com.dsbuilder.identity.auth.domain.model.AuthenticatedActor
-import com.dsbuilder.identity.auth.domain.model.ProjectContext
+import com.dsbuilder.identity.auth.application.port.ResolvedProjectContext
 import com.dsbuilder.identity.auth.domain.model.ProjectRole
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -19,11 +19,11 @@ import kotlinx.serialization.Serializable
 internal class AllowAuthenticatedProjectContextResolver(
     private val projectRole: ProjectRole,
 ) : ProjectContextResolver {
-    override suspend fun resolve(actor: AuthenticatedActor, projectId: String): ProjectContextResolution =
+    override suspend fun resolve(actor: ProjectActorContext, projectId: String): ProjectContextResolution =
         ProjectContextResolution.Allowed(
-            ProjectContext(
+            ResolvedProjectContext(
                 projectId = projectId,
-                projectRole = projectRole,
+                projectRole = projectRole.headerValue,
             ),
         )
 }
@@ -32,7 +32,7 @@ internal class HttpProjectContextResolver(
     private val configuration: ProjectAccessConfiguration.Http,
     private val client: HttpClient = defaultHttpClient(configuration),
 ) : ProjectContextResolver {
-    override suspend fun resolve(actor: AuthenticatedActor, projectId: String): ProjectContextResolution =
+    override suspend fun resolve(actor: ProjectActorContext, projectId: String): ProjectContextResolution =
         runCatching {
             val response = client.get("${configuration.baseUrl}/internal/projects/$projectId/access-check") {
                 header("X-User-Id", actor.userId)
@@ -42,9 +42,9 @@ internal class HttpProjectContextResolver(
 
             when (response.status) {
                 HttpStatusCode.OK -> ProjectContextResolution.Allowed(
-                    ProjectContext(
+                    ResolvedProjectContext(
                         projectId = projectId,
-                        projectRole = response.body<ProjectAccessResponse>().projectRole.toProjectRole(),
+                        projectRole = response.body<ProjectAccessResponse>().projectRole,
                     ),
                 )
                 HttpStatusCode.Unauthorized,
@@ -55,9 +55,6 @@ internal class HttpProjectContextResolver(
         }.getOrElse {
             ProjectContextResolution.Unavailable
         }
-
-    private fun String.toProjectRole(): ProjectRole =
-        ProjectRole.valueOf(uppercase())
 }
 
 @Serializable

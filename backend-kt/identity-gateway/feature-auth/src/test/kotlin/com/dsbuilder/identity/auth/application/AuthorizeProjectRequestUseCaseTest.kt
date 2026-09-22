@@ -5,8 +5,10 @@ import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
+import com.dsbuilder.identity.auth.application.port.ProjectActorContext
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
+import com.dsbuilder.identity.auth.application.port.ResolvedProjectContext
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeProjectRequestUseCase
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeUserRequestUseCase
 import com.dsbuilder.identity.auth.application.usecase.GatewayAuthDecision
@@ -14,8 +16,6 @@ import com.dsbuilder.identity.auth.application.usecase.GatewayAuthInput
 import com.dsbuilder.identity.auth.domain.model.ActorType
 import com.dsbuilder.identity.auth.domain.model.AuthenticatedActor
 import com.dsbuilder.identity.auth.domain.model.GlobalRole
-import com.dsbuilder.identity.auth.domain.model.ProjectContext
-import com.dsbuilder.identity.auth.domain.model.ProjectRole
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -30,7 +30,7 @@ class AuthorizeProjectRequestUseCaseTest {
                 ),
             ),
             projectContextResolver = FixedProjectContextResolver(
-                ProjectContextResolution.Allowed(ProjectContext("project-1", ProjectRole.EDITOR)),
+                ProjectContextResolution.Allowed(ResolvedProjectContext("project-1", "EDITOR")),
             ),
             projectAccessKeyVerifier = FixedProjectAccessKeyVerifier(ProjectAccessKeyVerificationResult.Invalid),
         )
@@ -152,7 +152,7 @@ private class FixedProjectContextResolver(
     private val result: ProjectContextResolution,
 ) : ProjectContextResolver {
     override suspend fun resolve(
-        actor: AuthenticatedActor,
+        actor: ProjectActorContext,
         projectId: String,
     ): ProjectContextResolution = result
 }

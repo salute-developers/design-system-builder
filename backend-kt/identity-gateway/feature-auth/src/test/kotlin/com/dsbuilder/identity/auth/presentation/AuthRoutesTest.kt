@@ -4,15 +4,15 @@ import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
+import com.dsbuilder.identity.auth.application.port.ProjectActorContext
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
+import com.dsbuilder.identity.auth.application.port.ResolvedProjectContext
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeProjectRequestUseCase
 import com.dsbuilder.identity.auth.application.usecase.AuthorizeUserRequestUseCase
 import com.dsbuilder.identity.auth.domain.model.ActorType
 import com.dsbuilder.identity.auth.domain.model.AuthenticatedActor
 import com.dsbuilder.identity.auth.domain.model.GlobalRole
-import com.dsbuilder.identity.auth.domain.model.ProjectContext
-import com.dsbuilder.identity.auth.domain.model.ProjectRole
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
@@ -20,6 +20,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import org.koin.dsl.module
 import org.koin.ktor.plugin.Koin
@@ -43,6 +44,17 @@ class AuthRoutesTest {
     }
 
     @Test
+    fun `feature routes do not own global health endpoint`() = testApplication {
+        application {
+            install(ContentNegotiation) { json() }
+            install(Koin) { modules(authModule()) }
+            routing { authHelperRoutes() }
+        }
+
+        assertEquals(HttpStatusCode.NotFound, client.get("/health").status)
+    }
+
+    @Test
     fun `internal auth endpoint returns trusted headers on allow`() = testApplication {
         application {
             install(ContentNegotiation) {
@@ -51,7 +63,7 @@ class AuthRoutesTest {
             install(Koin) {
                 modules(authModule())
             }
-            authHelperRoutes()
+            routing { authHelperRoutes() }
         }
 
         val response = client.get("/internal/auth/projects/project-1") {
@@ -75,7 +87,7 @@ class AuthRoutesTest {
             install(Koin) {
                 modules(authModule())
             }
-            authHelperRoutes()
+            routing { authHelperRoutes() }
         }
 
         val response = client.get("/internal/auth/projects/project-1")
@@ -92,7 +104,7 @@ class AuthRoutesTest {
             install(Koin) {
                 modules(authModule())
             }
-            authHelperRoutes()
+            routing { authHelperRoutes() }
         }
 
         val response = client.get("/internal/auth/user") {
@@ -129,8 +141,8 @@ private object RouteJwtVerifier : JwtVerifier {
 
 private object RouteProjectContextResolver : ProjectContextResolver {
     override suspend fun resolve(
-        actor: AuthenticatedActor,
+        actor: ProjectActorContext,
         projectId: String,
     ): ProjectContextResolution =
-        ProjectContextResolution.Allowed(ProjectContext(projectId, ProjectRole.VIEWER))
+        ProjectContextResolution.Allowed(ResolvedProjectContext(projectId, "VIEWER"))
 }

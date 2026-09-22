@@ -1,0 +1,194 @@
+name: dsbuilder-monolith
+
+x-monolith-environment: &monolith-environment
+  MONOLITH_HOST: 127.0.0.1
+  MONOLITH_INTERNAL_PORT: 8081
+  DB_SERVICE_HOST: 127.0.0.1
+  PORT: 3008
+  DATABASE_URL: postgresql://${DB_SERVICE_POSTGRES_USER:-db_service}:${DB_SERVICE_POSTGRES_PASSWORD:-db_service}@db-service-db:5432/${DB_SERVICE_POSTGRES_DB:-db_service}
+  PROJECTS_DATABASE_URL: jdbc:postgresql://projects-db:5432/${PROJECTS_POSTGRES_DB:-projects_service}
+  PROJECTS_POSTGRES_USER: ${PROJECTS_POSTGRES_USER:-projects}
+  PROJECTS_POSTGRES_PASSWORD: ${PROJECTS_POSTGRES_PASSWORD:-projects}
+  DOCUMENTATION_DATABASE_URL: jdbc:postgresql://documentation-db:5432/${DOCUMENTATION_POSTGRES_DB:-documentation_service}
+  DOCUMENTATION_POSTGRES_USER: ${DOCUMENTATION_POSTGRES_USER:-documentation}
+  DOCUMENTATION_POSTGRES_PASSWORD: ${DOCUMENTATION_POSTGRES_PASSWORD:-documentation}
+  KEYCLOAK_ISSUER: http://localhost:${MONOLITH_PUBLIC_PORT:-8080}/realms/${KEYCLOAK_REALM:-dsbuilder}
+  KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-dsbuilder-api}
+  KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-dsbuilder}/protocol/openid-connect/certs
+  KEYCLOAK_UPSTREAM_HOST: keycloak
+  KEYCLOAK_UPSTREAM_PORT: 8080
+  KEYCLOAK_UPSTREAM_SCHEME: http
+  KEYCLOAK_REALM: ${KEYCLOAK_REALM:-dsbuilder}
+  PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: http://keycloak:8080
+  PROJECTS_IDENTITY_KEYCLOAK_REALM: ${KEYCLOAK_REALM:-dsbuilder}
+  PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}
+  PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}
+  DB_SERVICE_BASE_URL: http://127.0.0.1:3008
+  DOCUMENTATION_S3_ENDPOINT: http://minio:9000
+  DOCUMENTATION_S3_REGION: ${DOCUMENTATION_S3_REGION:-us-east-1}
+  DOCUMENTATION_S3_BUCKET: ${DOCUMENTATION_S3_BUCKET:-documentation-bundles}
+  DOCUMENTATION_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
+  DOCUMENTATION_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
+  DOCUMENTATION_S3_PATH_STYLE_ACCESS: "true"
+  DOCUMENTATION_S3_PREFIX: ${DOCUMENTATION_S3_PREFIX:-raw}
+  DOCUMENTATION_WORKER_ENABLED: ${DOCUMENTATION_WORKER_ENABLED:-true}
+  OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:-http://localhost:5173}
+  GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
+  DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
+  JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx768m -XX:MaxRAMPercentage=70}
+  NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=384}
+
+services:
+  db-service-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_SERVICE_POSTGRES_DB:-db_service}
+      POSTGRES_USER: ${DB_SERVICE_POSTGRES_USER:-db_service}
+      POSTGRES_PASSWORD: ${DB_SERVICE_POSTGRES_PASSWORD:-db_service}
+    volumes:
+      - db-service-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_SERVICE_POSTGRES_USER:-db_service} -d ${DB_SERVICE_POSTGRES_DB:-db_service}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  projects-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PROJECTS_POSTGRES_DB:-projects_service}
+      POSTGRES_USER: ${PROJECTS_POSTGRES_USER:-projects}
+      POSTGRES_PASSWORD: ${PROJECTS_POSTGRES_PASSWORD:-projects}
+    volumes:
+      - projects-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROJECTS_POSTGRES_USER:-projects} -d ${PROJECTS_POSTGRES_DB:-projects_service}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  documentation-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DOCUMENTATION_POSTGRES_DB:-documentation_service}
+      POSTGRES_USER: ${DOCUMENTATION_POSTGRES_USER:-documentation}
+      POSTGRES_PASSWORD: ${DOCUMENTATION_POSTGRES_PASSWORD:-documentation}
+    volumes:
+      - documentation-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOCUMENTATION_POSTGRES_USER:-documentation} -d ${DOCUMENTATION_POSTGRES_DB:-documentation_service}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  db-service-migrate:
+    image: ${MONOLITH_IMAGE:-dsbuilder-backend-monolith:dev}
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith
+    environment:
+      DATABASE_URL: postgresql://${DB_SERVICE_POSTGRES_USER:-db_service}:${DB_SERVICE_POSTGRES_PASSWORD:-db_service}@db-service-db:5432/${DB_SERVICE_POSTGRES_DB:-db_service}
+    entrypoint: ["npx", "drizzle-kit", "migrate"]
+    working_dir: /opt/monolith/db-service
+    depends_on:
+      db-service-db:
+        condition: service_healthy
+    restart: "no"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: http://localhost:${MONOLITH_PUBLIC_PORT:-8080}
+    volumes:
+      - ./backend-kt/identity-gateway/keycloak/dsbuilder-realm.json:/opt/keycloak/data/import/dsbuilder-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q '200' <&3"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 20
+
+  keycloak-bootstrap:
+    build:
+      context: backend-kt
+      dockerfile: identity-gateway/keycloak/Dockerfile.bootstrap
+    environment:
+      KEYCLOAK_BOOTSTRAP_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-dsbuilder}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-dsbuilder-web}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:5173/*}
+      OIDC_WEB_ORIGIN: ${OIDC_WEB_ORIGIN:-http://localhost:5173}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}
+      PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    restart: "no"
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/$$DOCUMENTATION_S3_BUCKET"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio123}
+      DOCUMENTATION_S3_BUCKET: ${DOCUMENTATION_S3_BUCKET:-documentation-bundles}
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  backend-monolith:
+    image: ${MONOLITH_IMAGE:-dsbuilder-backend-monolith:dev}
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith
+    environment:
+      <<: *monolith-environment
+    ports:
+      - "${MONOLITH_PUBLIC_PORT:-8080}:8080"
+    mem_limit: ${MONOLITH_MEMORY_LIMIT:-2g}
+    cpus: ${MONOLITH_CPU_LIMIT:-2.0}
+    pids_limit: ${MONOLITH_PIDS_LIMIT:-512}
+    depends_on:
+      db-service-migrate:
+        condition: service_completed_successfully
+      projects-db:
+        condition: service_healthy
+      documentation-db:
+        condition: service_healthy
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+
+volumes:
+  db-service-data:
+  projects-data:
+  documentation-data:
+  minio-data:

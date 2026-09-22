@@ -10,6 +10,7 @@ rootProject.name = "documentation-service"
 includeBuild("../build-system")
 include(
     ":app",
+    ":runtime",
     ":feature-ingestion",
     ":feature-processing",
     ":feature-publication",

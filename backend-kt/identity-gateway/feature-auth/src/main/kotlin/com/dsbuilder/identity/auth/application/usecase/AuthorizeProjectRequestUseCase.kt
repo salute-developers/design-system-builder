@@ -4,6 +4,7 @@ import com.dsbuilder.identity.auth.application.port.JwtVerificationResult
 import com.dsbuilder.identity.auth.application.port.JwtVerifier
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerificationResult
 import com.dsbuilder.identity.auth.application.port.ProjectAccessKeyVerifier
+import com.dsbuilder.identity.auth.application.port.ProjectActorContext
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolution
 import com.dsbuilder.identity.auth.application.port.ProjectContextResolver
 import com.dsbuilder.identity.auth.domain.model.ActorType
@@ -38,8 +39,16 @@ internal class AuthorizeProjectRequestUseCase(
         val context = if (actor.isSystemAdmin) {
             ProjectContext(projectId = projectId, projectRole = ProjectRole.OWNER)
         } else {
-            when (val resolution = projectContextResolver.resolve(actor, projectId)) {
-                is ProjectContextResolution.Allowed -> resolution.context
+            when (
+                val resolution = projectContextResolver.resolve(
+                    ProjectActorContext(actor.userId, actor.isSystemAdmin),
+                    projectId,
+                )
+            ) {
+                is ProjectContextResolution.Allowed -> ProjectContext(
+                    projectId = resolution.context.projectId,
+                    projectRole = ProjectRole.valueOf(resolution.context.projectRole.uppercase()),
+                )
                 ProjectContextResolution.Denied -> return GatewayAuthDecision.Forbidden("Project access denied")
                 ProjectContextResolution.Unavailable -> return GatewayAuthDecision.Forbidden(
                     "Project access unavailable",

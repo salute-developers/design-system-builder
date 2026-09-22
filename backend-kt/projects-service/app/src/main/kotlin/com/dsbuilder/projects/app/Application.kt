@@ -4,6 +4,7 @@ import com.dsbuilder.projects.core.DatabaseProvider
 import com.dsbuilder.projects.core.DatabaseProviderImpl
 import com.dsbuilder.projects.feature.projects.di.ProjectsModule
 import com.dsbuilder.projects.feature.projects.presentation.projectsRoutes
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -11,6 +12,9 @@ import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.defaultheaders.DefaultHeaders
+import io.ktor.server.response.respond
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.koin.dsl.module
@@ -48,9 +52,14 @@ fun Application.module() {
 
     configureApiDocs()
     initDatabase()
-    projectsRoutes(
-        internalApiKey = environment.config.propertyOrNull("projects.internal.apiKey")?.getString(),
-    )
+    routing {
+        get("/health") {
+            call.respond(HttpStatusCode.OK)
+        }
+        projectsRoutes(
+            internalApiKey = environment.config.propertyOrNull("projects.internal.apiKey")?.getString(),
+        )
+    }
 }
 
 private fun Application.initDatabase() {

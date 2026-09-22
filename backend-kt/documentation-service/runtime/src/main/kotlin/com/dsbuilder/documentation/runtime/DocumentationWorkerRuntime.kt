@@ -1,4 +1,4 @@
-package com.dsbuilder.documentation.app
+package com.dsbuilder.documentation.runtime
 
 import com.dsbuilder.documentation.processing.application.ProcessDocumentationJobUseCase
 import com.dsbuilder.documentation.processing.application.ProcessingRunResult

@@ -1,4 +1,4 @@
-package com.dsbuilder.documentation.app
+package com.dsbuilder.documentation.runtime
 
 import java.time.Instant
 import kotlin.test.Test

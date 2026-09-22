@@ -25,7 +25,6 @@ import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProject
 import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.Application
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -34,11 +33,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
-import io.ktor.server.routing.routing
 import org.koin.ktor.ext.inject
 
 /** Регистрирует публичные endpoints проектов и internal endpoint для access-check. */
-fun Application.projectsRoutes(internalApiKey: String?) {
+fun Route.projectsRoutes(internalApiKey: String?) {
     val createProject by inject<CreateProjectUseCase>()
     val listProjects by inject<ListProjectsUseCase>()
     val getProject by inject<GetProjectUseCase>()
@@ -55,16 +53,10 @@ fun Application.projectsRoutes(internalApiKey: String?) {
     val verifyProjectAccessKey by inject<VerifyProjectAccessKeyUseCase>()
     val getEffectiveProjectRole by inject<GetEffectiveProjectRoleUseCase>()
 
-    routing {
-        get("/health") {
-            call.respond(HttpStatusCode.OK)
-        }
-
-        projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
-        projectMemberRoutes(listProjectMembers, addProjectMember, updateProjectMemberRole, removeProjectMember)
-        projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
-        internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
-    }
+    projectCrudRoutes(listProjects, createProject, getProject, updateProject, archiveProject, restoreProject)
+    projectMemberRoutes(listProjectMembers, addProjectMember, updateProjectMemberRole, removeProjectMember)
+    projectAccessKeyRoutes(createProjectAccessKey, listProjectAccessKeys, revokeProjectAccessKey)
+    internalProjectRoutes(getEffectiveProjectRole, verifyProjectAccessKey, internalApiKey)
 }
 
 private fun Route.projectCrudRoutes(

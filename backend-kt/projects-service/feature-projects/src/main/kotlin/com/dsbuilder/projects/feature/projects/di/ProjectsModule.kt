@@ -1,5 +1,7 @@
 package com.dsbuilder.projects.feature.projects.di
 
+import com.dsbuilder.projects.feature.projects.application.DefaultProjectAuthorizationService
+import com.dsbuilder.projects.feature.projects.application.ProjectAuthorizationService
 import com.dsbuilder.projects.feature.projects.application.port.AccessKeySecretManager
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUserLookup
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
@@ -61,6 +63,7 @@ object ProjectsModule {
         single { RevokeProjectAccessKeyUseCase(get(), get(), get(), get()) }
         single { VerifyProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }
         single { GetEffectiveProjectRoleUseCase(get(), get(), get()) }
+        single<ProjectAuthorizationService> { DefaultProjectAuthorizationService(get(), get()) }
     }
 
     /** Создает или обновляет схему базы данных, необходимую для feature Projects. */

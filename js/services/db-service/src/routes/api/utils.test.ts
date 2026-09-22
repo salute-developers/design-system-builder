@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
-import { requireScope } from "./utils";
+import { designSystemBelongsToScope, requireScope } from "./utils";
 
 /**
  * Проверка project-scope на границе ручки.
@@ -51,5 +51,21 @@ describe("requireScope", () => {
   it("пропускает системного администратора без scope", () => {
     const { next } = run({ "x-project-scopes": "tokens:read", "x-system-admin": "true" });
     expect(next).toHaveBeenCalled();
+  });
+});
+
+describe("designSystemBelongsToScope", () => {
+  const request = (headers: Record<string, string>) => ({ headers }) as unknown as Request;
+
+  it("limits project context to matching or shared design systems", () => {
+    const scoped = request({ "x-project-id": "project-1" });
+    expect(designSystemBelongsToScope({ projectId: "project-1" }, scoped)).toBe(true);
+    expect(designSystemBelongsToScope({ projectId: null }, scoped)).toBe(true);
+    expect(designSystemBelongsToScope({ projectId: "project-2" }, scoped)).toBe(false);
+  });
+
+  it("allows system admin to cross project boundary", () => {
+    const admin = request({ "x-project-id": "project-1", "x-system-admin": "true" });
+    expect(designSystemBelongsToScope({ projectId: "project-2" }, admin)).toBe(true);
   });
 });

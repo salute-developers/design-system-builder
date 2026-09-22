@@ -44,6 +44,7 @@ import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.routing.routing
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
@@ -58,6 +59,13 @@ import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.days
 
 class ProjectRoutesTest {
+    @Test
+    fun `feature routes do not own global health endpoint`() = testApplication {
+        installTestModule(routeRepository(), RouteIdentityUserLookup())
+
+        assertEquals(HttpStatusCode.NotFound, client.get("/health").status)
+    }
+
     private val clock = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC)
 
     @Test
@@ -377,7 +385,7 @@ class ProjectRoutesTest {
                     },
                 )
             }
-            projectsRoutes(internalApiKey = null)
+            routing { projectsRoutes(internalApiKey = null) }
         }
     }
 }

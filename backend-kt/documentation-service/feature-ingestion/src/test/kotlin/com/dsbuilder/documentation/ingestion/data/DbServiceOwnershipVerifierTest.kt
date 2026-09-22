@@ -18,13 +18,37 @@ import kotlin.test.assertNull
 class DbServiceOwnershipVerifierTest {
     @Test fun `request uses internal URL and trusted headers without authorization`() = runBlocking {
         val engine = MockEngine { request ->
-            assertEquals("http://db:3008/api/ds/design-systems/ds-1", request.url.toString())
+            assertEquals("http://127.0.0.1:3008/api/ds/design-systems/ds-1", request.url.toString())
             assertEquals("project-1", request.headers["X-Project-Id"])
             assertEquals("user-1", request.headers["X-User-Id"])
             assertNull(request.headers["Authorization"])
             respond("{}", HttpStatusCode.OK, headersOf("Content-Type", "application/json"))
         }
         assertEquals(OwnershipResult.OWNED, verifier(engine).verify("ds-1", user()))
+    }
+
+    @Test fun `project key context is forwarded without authorization`() = runBlocking {
+        val engine = MockEngine { request ->
+            assertEquals("project_key", request.headers["X-Actor-Type"])
+            assertEquals("key-1", request.headers["X-Project-Key-Id"])
+            assertEquals("design-systems:read,tokens:read", request.headers["X-Project-Scopes"])
+            assertNull(request.headers["Authorization"])
+            respond("{}", HttpStatusCode.OK)
+        }
+        val actor = ActorContext(
+            type = ActorType.PROJECT_KEY,
+            actorId = "key-1",
+            projectId = "project-1",
+            projectScopes = linkedSetOf("design-systems:read", "tokens:read"),
+        )
+
+        assertEquals(OwnershipResult.OWNED, verifier(engine).verify("ds-1", actor))
+    }
+
+    @Test fun `connection timeout maps to unavailable`() = runBlocking {
+        val engine = MockEngine { throw java.net.SocketTimeoutException("timed out") }
+
+        assertEquals(OwnershipResult.UNAVAILABLE, verifier(engine).verify("ds-1", user()))
     }
 
     @Test fun `404 maps to not found`() = assertMapping(HttpStatusCode.NotFound, OwnershipResult.NOT_FOUND)
@@ -55,7 +79,7 @@ class DbServiceOwnershipVerifierTest {
         HttpClient(engine) {
             followRedirects = false
         },
-        "http://db:3008/",
+        "http://127.0.0.1:3008/",
     )
     private fun user() = ActorContext(ActorType.USER, "user-1", "project-1", "editor")
 }

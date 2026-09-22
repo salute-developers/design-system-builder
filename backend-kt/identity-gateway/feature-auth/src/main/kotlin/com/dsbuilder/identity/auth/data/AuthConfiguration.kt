@@ -37,7 +37,9 @@ internal fun ApplicationConfig.authConfiguration(): AuthConfiguration {
                     .milliseconds,
                 internalApiKey = property("auth.projectAccess.internalApiKey").getString(),
             )
-            PROJECT_ACCESS_MODE_ALLOW -> ProjectAccessConfiguration.AllowAuthenticated(
+            PROJECT_ACCESS_MODE_ALLOW,
+            PROJECT_ACCESS_MODE_IN_PROCESS,
+            -> ProjectAccessConfiguration.AllowAuthenticated(
                 role = propertyOrNull("auth.projectAccess.defaultRole")
                     ?.getString()
                     ?.let { ProjectRole.valueOf(it.uppercase()) }
@@ -50,3 +52,4 @@ internal fun ApplicationConfig.authConfiguration(): AuthConfiguration {
 
 private const val PROJECT_ACCESS_MODE_HTTP = "http"
 private const val PROJECT_ACCESS_MODE_ALLOW = "allow-authenticated"
+private const val PROJECT_ACCESS_MODE_IN_PROCESS = "in-process"
