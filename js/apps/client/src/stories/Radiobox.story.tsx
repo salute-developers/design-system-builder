@@ -76,7 +76,10 @@ const RadioboxLive = {
 
         return (
             <RadioGroup aria-labelledby="radiogroup-title-id">
-                <div id="radiogroup-title-id" style={{ margin: '1rem 0', fontWeight: 600, color: 'var(--text-primary)' }}>
+                <div
+                    id="radiogroup-title-id"
+                    style={{ margin: '1rem 0', fontWeight: 600, color: 'var(--text-primary)' }}
+                >
                     Выберите язык программирования для изучения.
                 </div>
                 {items.map((item) => (
