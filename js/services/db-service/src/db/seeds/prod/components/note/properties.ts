@@ -1,0 +1,26 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'closeIconColor', type: 'color', variations: ['size'], params: { web: ['closeIconColor'] } },
+    { name: 'closeIconColorOnHover', type: 'color', variations: ['size'], params: { web: ['closeIconColorOnHover'] } },
+    { name: 'textStyle', type: 'typography', variations: ['size'], params: { web: ['textFontFamily', 'textFontSize', 'textFontStyle', 'textFontWeight', 'textLetterSpacing', 'textLineHeight'] } },
+    { name: 'fixedContentBeforePadding', type: 'value', variations: ['size'], params: { web: ['fixedContentBeforePadding'] } },
+    { name: 'gap', type: 'dimension', variations: ['size'], params: { web: ['gap'] } },
+    { name: 'fixedContentBeforeWidth', type: 'dimension', variations: ['size'], params: { web: ['fixedContentBeforeWidth'] } },
+    { name: 'fixedContentBeforeHeight', type: 'dimension', variations: ['size'], params: { web: ['fixedContentBeforeHeight'] } },
+    { name: 'titlePaddingRight', type: 'dimension', variations: ['size'], params: { web: ['titlePaddingRight'] } },
+    { name: 'closeIconButtonSize', type: 'dimension', variations: ['size'], params: { web: ['closeIconButtonSize'] } },
+    { name: 'borderRadius', type: 'dimension', variations: ['size'], params: { web: ['borderRadius'] } },
+    { name: 'color', type: 'color', variations: ['view'], params: { web: ['color'] } },
+    { name: 'background', type: 'color', variations: ['view'], params: { web: ['background'] } },
+    { name: 'contentBeforeColor', type: 'color', variations: ['view'], params: { web: ['contentBeforeColor'] } },
+    { name: 'titleStyle', type: 'typography', variations: ['size'], params: { web: ['titleFontFamily', 'titleFontSize', 'titleFontStyle', 'titleFontWeight', 'titleLetterSpacing', 'titleLineHeight'] } },
+    { name: 'paddingScalable', type: 'value', variations: ['size'], params: { web: ['paddingScalable'] } },
+    { name: 'gapScalable', type: 'dimension', variations: ['size'], params: { web: ['gapScalable'] } },
+    { name: 'contentGap', type: 'dimension', variations: ['size'], params: { web: ['contentGap'] } },
+    { name: 'paddingBottomWithActionContent', type: 'dimension', variations: ['size'], params: { web: ['paddingBottomWithActionContent'] } },
+    { name: 'closeIconTop', type: 'dimension', variations: ['size'], params: { web: ['closeIconTop'] } },
+    { name: 'closeIconRight', type: 'dimension', variations: ['size'], params: { web: ['closeIconRight'] } },
+    { name: 'closeIconSize', type: 'dimension', variations: ['size'], params: { web: ['closeIconSize'] } },
+    { name: 'padding', type: 'dimension', variations: ['size'], params: { web: ['padding'] } },
+];

@@ -1,0 +1,92 @@
+import type { ValuesSeed } from '../../component-seed';
+
+export const values: ValuesSeed = {
+    view: {
+        negative: [
+            { prop: 'background', token: 'surface.default.negative' },
+            { prop: 'color', token: 'text.on-dark.primary' },
+            { prop: 'colorTransparent', token: 'text.default.negative' },
+            { prop: 'backgroundTransparent', token: 'surface.default.transparent-negative' },
+            { prop: 'colorClear', token: 'text.default.negative' },
+        ],
+        Default: [
+            { prop: 'background', token: 'surface.default.solid-default' },
+            { prop: 'color', token: 'text.inverse.primary' },
+            { prop: 'colorTransparent', token: 'text.default.primary' },
+            { prop: 'backgroundTransparent', token: 'surface.default.transparent-secondary' },
+            { prop: 'colorClear', token: 'text.default.primary' },
+        ],
+        Accent: [
+            { prop: 'backgroundTransparent', token: 'surface.default.transparent-accent' },
+            { prop: 'colorClear', token: 'text.default.accent' },
+            { prop: 'background', token: 'surface.default.accent' },
+            { prop: 'color', token: 'text.on-dark.primary' },
+            { prop: 'colorTransparent', token: 'text.default.accent' },
+        ],
+        positive: [
+            { prop: 'backgroundTransparent', token: 'surface.default.transparent-positive' },
+            { prop: 'colorClear', token: 'text.default.positive' },
+            { prop: 'background', token: 'surface.default.positive' },
+            { prop: 'color', token: 'text.on-dark.primary' },
+            { prop: 'colorTransparent', token: 'text.default.positive' },
+        ],
+        warning: [
+            { prop: 'backgroundTransparent', token: 'surface.default.transparent-warning' },
+            { prop: 'colorClear', token: 'text.default.warning' },
+            { prop: 'background', token: 'surface.default.warning' },
+            { prop: 'color', token: 'text.on-dark.primary' },
+            { prop: 'colorTransparent', token: 'text.default.warning' },
+        ],
+    },
+    size: {
+        L: [
+            { prop: 'height', value: '28' },
+            { prop: 'leftContentMarginRight', value: '4' },
+            { prop: 'paddingIconOnly', value: '6' },
+            { prop: 'rightContentMarginRight', value: '-1' },
+            { prop: 'textStyle', value: 'body.s.normal' },
+            { prop: 'leftContentMarginLeft', value: '-1' },
+            { prop: 'padding', value: '11' },
+            { prop: 'rightContentMarginLeft', value: '4' },
+            { prop: 'shape', token: 'round.s' },
+        ],
+        S: [
+            { prop: 'height', value: '20' },
+            { prop: 'leftContentMarginRight', value: '2' },
+            { prop: 'paddingIconOnly', value: '4' },
+            { prop: 'rightContentMarginRight', value: '-1' },
+            { prop: 'textStyle', value: 'body.xxs.normal' },
+            { prop: 'leftContentMarginLeft', value: '-1' },
+            { prop: 'padding', value: '7' },
+            { prop: 'rightContentMarginLeft', value: '2' },
+            { prop: 'shape', token: 'round.xs' },
+        ],
+        XS: [
+            { prop: 'leftContentMarginLeft', value: '-1' },
+            { prop: 'padding', value: '4' },
+            { prop: 'rightContentMarginLeft', value: '2' },
+            { prop: 'shape', token: 'round.xxs' },
+            { prop: 'height', value: '16' },
+            { prop: 'leftContentMarginRight', value: '2' },
+            { prop: 'paddingIconOnly', value: '3' },
+            { prop: 'rightContentMarginRight', value: '-1' },
+            { prop: 'textStyle', value: 'body.xxs.normal' },
+        ],
+        M: [
+            { prop: 'leftContentMarginLeft', value: '-1' },
+            { prop: 'padding', value: '9' },
+            { prop: 'rightContentMarginLeft', value: '3' },
+            { prop: 'shape', token: 'round.xs' },
+            { prop: 'height', value: '24' },
+            { prop: 'leftContentMarginRight', value: '3' },
+            { prop: 'paddingIconOnly', value: '6' },
+            { prop: 'rightContentMarginRight', value: '-1' },
+            { prop: 'textStyle', value: 'body.xs.normal' },
+        ],
+    },
+    shape: {
+        Pilled: [
+            { prop: 'shape', token: 'round.circle' },
+        ],
+    },
+};

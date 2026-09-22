@@ -14,6 +14,7 @@
     "db:seed:dev": "tsx src/db/seed-dev.ts",
     "db:seed:prod": "tsx src/db/seed-prod.ts",
     "db:seed-generate:prod": "tsx src/db/seed-generate-prod.ts",
+    "component:import": "npx --yes tsx src/db/import-plasma-component.ts",
     "db:studio": "drizzle-kit studio",
     "openapi:gen": "tsx src/openapi/generate.ts"
   },
