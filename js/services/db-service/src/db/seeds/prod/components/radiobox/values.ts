@@ -1,0 +1,76 @@
+import type { ValueSeed, ValuesSeed } from '../../component-seed';
+
+export const values: ValuesSeed = {
+    view: {
+        negative: [
+            { prop: 'descriptionColor', token: 'text.default.secondary' },
+            { prop: 'labelColor', token: 'text.default.primary' },
+            { prop: 'toggleBorderColor', token: 'text.default.negative' },
+            { prop: 'toggleCheckedBorderColor', token: 'text.default.negative' },
+            { prop: 'ellipseColor', token: 'text.on-dark.primary' },
+            { prop: 'toggleBackgroundColor', value: 'transparent' },
+            { prop: 'toggleCheckedBackgroundColor', token: 'text.default.negative' },
+        ],
+        accent: [
+            { prop: 'ellipseColor', token: 'text.on-dark.primary' },
+            { prop: 'toggleBackgroundColor', value: 'transparent' },
+            { prop: 'toggleCheckedBackgroundColor', token: 'text.default.accent' },
+            { prop: 'descriptionColor', token: 'text.default.secondary' },
+            { prop: 'labelColor', token: 'text.default.primary' },
+            { prop: 'toggleBorderColor', token: 'text.default.secondary' },
+            { prop: 'toggleCheckedBorderColor', token: 'text.default.accent' },
+        ],
+    },
+    size: {
+        m: [
+            { prop: 'descriptionPadding', value: '2' },
+            { prop: 'ellipseHeight', value: '10' },
+            { prop: 'descriptionStyle', value: 'body.s.normal' },
+            { prop: 'ellipseWidth', value: '10' },
+            { prop: 'labelStyle', value: 'body.m.normal' },
+            { prop: 'toggleBorderWidth', value: '2' },
+            { prop: 'togglePadding', value: '1' },
+            { prop: 'toggleWidth', value: '22' },
+            { prop: 'horizontalPadding', value: '12' },
+            { prop: 'margin', value: '0' },
+            { prop: 'toggleHeight', value: '22' },
+            { prop: 'toggleShape', token: 'round.xl' },
+            { prop: 'verticalPadding', value: '1' },
+        ],
+        s: [
+            { prop: 'descriptionStyle', value: 'body.xs.normal' },
+            { prop: 'ellipseWidth', value: '8' },
+            { prop: 'labelStyle', value: 'body.s.normal' },
+            { prop: 'toggleBorderWidth', value: '1' },
+            { prop: 'togglePadding', value: '1' },
+            { prop: 'toggleWidth', value: '16' },
+            { prop: 'descriptionPadding', value: '2' },
+            { prop: 'ellipseHeight', value: '8' },
+            { prop: 'horizontalPadding', value: '8' },
+            { prop: 'margin', value: '0' },
+            { prop: 'toggleHeight', value: '16' },
+            { prop: 'toggleShape', token: 'round.xl' },
+            { prop: 'verticalPadding', value: '0' },
+        ],
+        l: [
+            { prop: 'descriptionPadding', value: '2' },
+            { prop: 'ellipseHeight', value: '10' },
+            { prop: 'horizontalPadding', value: '12' },
+            { prop: 'margin', value: '0' },
+            { prop: 'toggleHeight', value: '22' },
+            { prop: 'toggleShape', token: 'round.xl' },
+            { prop: 'verticalPadding', value: '1' },
+            { prop: 'descriptionStyle', value: 'body.m.normal' },
+            { prop: 'ellipseWidth', value: '10' },
+            { prop: 'labelStyle', value: 'body.l.normal' },
+            { prop: 'toggleBorderWidth', value: '2' },
+            { prop: 'togglePadding', value: '1' },
+            { prop: 'toggleWidth', value: '22' },
+        ],
+    },
+};
+
+export const invariants: ValueSeed[] = [
+    { prop: 'disableAlpha', value: '0.4' },
+    { prop: 'focusColor', token: 'text.default.accent' },
+];

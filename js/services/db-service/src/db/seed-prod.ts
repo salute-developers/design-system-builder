@@ -4,43 +4,11 @@ import { eq, and, inArray } from 'drizzle-orm';
 
 import { seedDesignSystems } from './seeds/prod/design_systems';
 import { seedTenants } from './seeds/prod/tenants';
-import {
-    seedIconButtonComponent,
-    seedButtonComponent,
-    seedLinkComponent,
-    seedCheckboxComponent,
-    seedRadioboxComponent,
-    seedCounterComponent,
-    seedIndicatorComponent,
-    seedBadgeComponent,
-    seedSpinnerComponent,
-    seedChipComponent,
-    seedSwitchComponent,
-    seedSkeletonComponent,
-    seedListComponent,
-    seedLinkButtonComponent,
-    seedEmbedIconButtonComponent,
-    seedCellComponent,
-    seedDividerComponent,
-    seedEmptyStateComponent,
-    seedAccordionComponent,
-    seedSliderComponent,
-    seedNoteComponent,
-    seedTextFieldComponent,
-} from './seeds/prod/components';
-import { seedDesignSystemComponents } from './seeds/prod/design_system_components';
-import { seedAppearances } from './seeds/prod/appearances';
-import { seedVariations } from './seeds/prod/variations';
-import { seedProperties } from './seeds/prod/properties';
-import { seedPropertyVariations } from './seeds/prod/property_variations';
-import { seedStyles } from './seeds/prod/styles';
-import { seedVariationPropertyValues } from './seeds/prod/variation_property_values';
-import { seedInvariantPropertyValues } from './seeds/prod/invariant_property_values';
 import { seedPalette } from './seeds/prod/palette';
 import { seedTokens } from './seeds/prod/tokens';
 import { seedTokenValues } from './seeds/prod/token_values/index';
-import { seedVariationPlatformParamAdjustments } from './seeds/prod/variation_platform_param_adjustments';
-import { seedInvariantPlatformParamAdjustments } from './seeds/prod/invariant_platform_param_adjustments';
+import { seedComponentDeps } from './seeds/prod/component_deps';
+import { loadComponentSeeds, seedComponents } from './seeds/prod/component-seed';
 
 // ─── CLI ─────────────────────────────────────────────────────────────────────
 
@@ -156,14 +124,18 @@ async function clearComponentData(componentIds: string[], designSystemId: string
 
 async function seed() {
     const targetComponent = getComponentArg();
+    const allSeeds = loadComponentSeeds();
+    const seeds = targetComponent ? allSeeds.filter((item) => item.name === targetComponent) : allSeeds;
 
-    if (targetComponent) {
-        console.log(`Seeding component: ${targetComponent}\n`);
-    } else {
-        console.log('Seeding all (full prod seed)\n');
+    if (targetComponent && seeds.length === 0) {
+        console.error(
+            `Unknown component: "${targetComponent}". Available: ${allSeeds.map((item) => item.name).join(', ')}`,
+        );
+        process.exit(1);
     }
+    console.log(targetComponent ? `Seeding component: ${targetComponent}\n` : 'Seeding all (full prod seed)\n');
 
-    // ── 1. Upsert global data ────────────────────────────────────────────────
+    // ── 1. Глобальные данные ─────────────────────────────────────────────────
 
     const designSystems = await seedDesignSystems(db);
     const tenants = await seedTenants(db, { designSystems });
@@ -171,97 +143,26 @@ async function seed() {
     const tokenMap = await seedTokens(db, { designSystems });
     await seedTokenValues(db, { tokenMap, tenant: tenants.baseDefaultTenant });
 
-    console.log('  Global data done.\n');
+    // ── 2. Данные дизайн-системы у пересеваемых компонентов чистятся ─────────
 
-    // ── 2. Upsert components (insert or update by name) ──────────────────────
+    const existing = await db
+        .select({ id: schema.components.id })
+        .from(schema.components)
+        .where(
+            inArray(
+                schema.components.name,
+                seeds.map((item) => item.name),
+            ),
+        );
+    await clearComponentData(
+        existing.map((row) => row.id),
+        designSystems.base.id,
+    );
 
-    const components = {
-        iconButton: await seedIconButtonComponent(db),
-        button: await seedButtonComponent(db),
-        link: await seedLinkComponent(db),
-        checkbox: await seedCheckboxComponent(db),
-        radiobox: await seedRadioboxComponent(db),
-        counter: await seedCounterComponent(db),
-        indicator: await seedIndicatorComponent(db),
-        badge: await seedBadgeComponent(db),
-        spinner: await seedSpinnerComponent(db),
-        chip: await seedChipComponent(db),
-        switchComponent: await seedSwitchComponent(db),
-        skeleton: await seedSkeletonComponent(db),
-        list: await seedListComponent(db),
-        linkButton: await seedLinkButtonComponent(db),
-        embedIconButton: await seedEmbedIconButtonComponent(db),
-        cell: await seedCellComponent(db),
-        divider: await seedDividerComponent(db),
-        emptyState: await seedEmptyStateComponent(db),
-        accordion: await seedAccordionComponent(db),
-        slider: await seedSliderComponent(db),
-        note: await seedNoteComponent(db),
-        textField: await seedTextFieldComponent(db),
-    };
+    // ── 3. Компоненты: каждая папка seeds/prod/components/<имя> ──────────────
 
-    // ── 3. Determine which components to re-seed ─────────────────────────────
-
-    const keyMap: Record<string, keyof typeof components> = {
-        IconButton: 'iconButton',
-        Button: 'button',
-        Link: 'link',
-        Checkbox: 'checkbox',
-        Radiobox: 'radiobox',
-        Counter: 'counter',
-        Indicator: 'indicator',
-        Badge: 'badge',
-        Spinner: 'spinner',
-        Chip: 'chip',
-        Switch: 'switchComponent',
-        Skeleton: 'skeleton',
-        List: 'list',
-        LinkButton: 'linkButton',
-        EmbedIconButton: 'embedIconButton',
-        Cell: 'cell',
-        Divider: 'divider',
-        EmptyState: 'emptyState',
-        Accordion: 'accordion',
-        Slider: 'slider',
-        Note: 'note',
-        TextField: 'textField',
-    };
-
-    let componentIdsToReseed: string[];
-
-    if (targetComponent) {
-        const key = keyMap[targetComponent];
-        if (!key) {
-            console.error(`Unknown component: "${targetComponent}". Available: ${Object.keys(keyMap).join(', ')}`);
-            process.exit(1);
-        }
-        componentIdsToReseed = [components[key].id];
-    } else {
-        componentIdsToReseed = Object.values(components).map((c: any) => c.id);
-    }
-
-    // ── 4. Clear DS-scoped data for target components ────────────────────────
-
-    await clearComponentData(componentIdsToReseed, designSystems.base.id);
-
-    // ── 5. Re-insert component-scoped data ───────────────────────────────────
-
-    await seedDesignSystemComponents(db, { designSystems, components });
-    const appearances = await seedAppearances(db, { designSystems, components });
-    const variations = await seedVariations(db, { components });
-    const properties = await seedProperties(db, { components });
-    await seedPropertyVariations(db, { properties, variations });
-    const styles = await seedStyles(db, { designSystems, variations, appearances });
-    const vpvRows = await seedVariationPropertyValues(db, { appearances, properties, styles, tokenMap });
-    const ipvRows = await seedInvariantPropertyValues(db, {
-        designSystems,
-        components,
-        appearances,
-        properties,
-        tokenMap,
-    });
-    await seedVariationPlatformParamAdjustments(db, { vpvRows, properties, styles });
-    await seedInvariantPlatformParamAdjustments(db, { ipvRows, properties });
+    await seedComponents(db, { designSystem: designSystems.base, tokenMap }, seeds);
+    await seedComponentDeps(db);
 
     console.log('\nProd seed completed successfully!');
 }

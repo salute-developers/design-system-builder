@@ -1,763 +1,260 @@
 /**
- * Generates prod seed additions for a component from the current database state.
+ * Выгрузка компонентов из базы в сиды: `seeds/prod/components/<имя>/`.
  *
- * Usage:
- *   npx tsx src/db/seed-generate-prod.ts --component="Counter"
+ *   npm run db:seed-generate:prod                       — все компоненты дизайн-системы base
+ *   npm run db:seed-generate:prod -- --component=Select — один компонент
+ *   npm run db:seed-generate:prod -- --ds=test          — из другой дизайн-системы
  *
- * The script:
- * 1. Creates a component seed file (seeds/prod/components/<name>.ts) with onConflictDoUpdate
- * 2. Updates components/index.ts with the export
- * 3. Patches all shared seed files (variations.ts, properties.ts, etc.)
- * 4. Patches seed-prod.ts with the import, components object, and keyMap
+ * Папка компонента переписывается целиком. Нужна, когда компонент собран или поправлен в
+ * интерфейсе билдера и его состояние надо закрепить в сидах.
  */
+import path from 'path';
+import { client } from './index';
+import {
+    componentDirName,
+    type AdjustSeed,
+    type AppearanceSeed,
+    type CombinationSeed,
+    type ComponentSeed,
+    type State,
+    type ValueSeed,
+} from './seeds/prod/component-seed';
+import { writeComponentSeed } from './seeds/prod/component-seed-writer';
 
-import { db, client } from './index';
-import * as schema from './schema';
-import { eq, and, inArray, sql } from 'drizzle-orm';
-import { SENTINEL_STATE_SET_ID } from './seeds/state-sets';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+const arg = (name: string) =>
+    process.argv
+        .find((a) => a.startsWith(`--${name}=`))
+        ?.split('=')[1]
+        .replace(/["']/g, '');
 
-// ─── CLI args ────────────────────────────────────────────────────────────────
+const componentsDir = path.join(__dirname, 'seeds', 'prod', 'components');
 
-function getComponentName(): string {
-    const arg = process.argv.find((a) => a.startsWith('--component='));
+type Row = Record<string, any>;
+const q = (text: string, params: any[] = []) => client.unsafe(text, params) as unknown as Promise<Row[]>;
 
-    if (!arg) {
-        console.error('Usage: npx tsx src/db/seed-generate-prod.ts --component="Counter"');
-        process.exit(1);
+const toAdjust = (rows: Row[]): AdjustSeed[] =>
+    rows.map((a) => ({
+        platform: a.platform,
+        param: a.param,
+        ...(a.value !== null ? { value: a.value } : {}),
+        ...(a.template !== null ? { template: a.template } : {}),
+    }));
+
+/** Значение из строки базы: токен, строка, состояние, поправки. */
+const toValue = (row: Row, adjust: Row[]): ValueSeed => {
+    const states: State[] = row.states ?? [];
+    return {
+        prop: row.prop,
+        ...(row.token ? { token: row.token } : {}),
+        // У сочетаний в `value` дублируется имя токена — это восстановит сидер, в файле оно лишнее.
+        ...(row.value !== null && row.value !== row.token ? { value: row.value } : {}),
+        ...(states.length === 1 ? { state: states[0] } : states.length > 1 ? { state: states } : {}),
+        ...(adjust.length ? { adjust: toAdjust(adjust) } : {}),
+    };
+};
+
+async function exportAppearance(component: Row, dsId: string, appearance: Row, allVariations: Row[]): Promise<AppearanceSeed> {
+    const variations = await q(
+        `select v.id, v.name, av.position, ds.name as default_style
+         from appearance_variations av join variations v on v.id = av.variation_id
+         left join styles ds on ds.id = av.default_style_id
+         where av.appearance_id = $1 order by av.position`,
+        [appearance.id],
+    );
+    const styles = await q(
+        `select s.variation_id, s.name from styles s join variations v on v.id = s.variation_id
+         where v.component_id = $1 and s.design_system_id = $2 order by s.ctid`,
+        [component.id, dsId],
+    );
+    const statesOf = `(select coalesce(array_agg(st.name order by st.name), '{}') from states st where st.id = any(ss.state_ids))`;
+    const values = await q(
+        `select x.id, p.name as prop, s.variation_id, s.name as style, t.name as token, x.value, ${statesOf} as states
+         from variation_property_values x join styles s on s.id = x.style_id join properties p on p.id = x.property_id
+         left join tokens t on t.id = x.token_id join state_sets ss on ss.id = x.state_set_id
+         where x.appearance_id = $1 order by x.ctid`,
+        [appearance.id],
+    );
+    const valueAdjust = await q(
+        `select x.vpv_id as owner, pp.platform, pp.name as param, x.value, x.template
+         from variation_platform_param_adjustments x join variation_property_values v on v.id = x.vpv_id
+         join property_platform_params pp on pp.id = x.platform_param_id where v.appearance_id = $1 order by x.ctid`,
+        [appearance.id],
+    );
+    const invariants = await q(
+        `select x.id, p.name as prop, t.name as token, x.value, ${statesOf} as states
+         from invariant_property_values x join properties p on p.id = x.property_id
+         left join tokens t on t.id = x.token_id join state_sets ss on ss.id = x.state_set_id
+         where x.appearance_id = $1 order by x.ctid`,
+        [appearance.id],
+    );
+    const invariantAdjust = await q(
+        `select x.ipv_id as owner, pp.platform, pp.name as param, x.value, x.template
+         from invariant_platform_param_adjustments x join invariant_property_values v on v.id = x.ipv_id
+         join property_platform_params pp on pp.id = x.platform_param_id where v.appearance_id = $1 order by x.ctid`,
+        [appearance.id],
+    );
+    const combinations = await q(
+        `select x.id, p.name as prop, t.name as token, x.value, ${statesOf} as states
+         from style_combinations x join properties p on p.id = x.property_id
+         left join tokens t on t.id = x.token_id join state_sets ss on ss.id = x.state_set_id
+         where x.appearance_id = $1 order by x.ctid`,
+        [appearance.id],
+    );
+    const combinationMembers = await q(
+        `select m.combination_id as owner, v.name as variation, s.name as style
+         from style_combination_members m join style_combinations c on c.id = m.combination_id
+         join styles s on s.id = m.style_id join variations v on v.id = s.variation_id
+         left join appearance_variations av on av.variation_id = v.id and av.appearance_id = c.appearance_id
+         where c.appearance_id = $1 order by av.position nulls last, v.name`,
+        [appearance.id],
+    );
+    const adjustOf = (rows: Row[], owner: string) => rows.filter((r) => r.owner === owner);
+
+    const declaredNames = variations.map((v) => v.name);
+    const sameAsAll = declaredNames.join(',') === allVariations.map((v) => v.name).join(',');
+    const defaults = Object.fromEntries(variations.filter((v) => v.default_style).map((v) => [v.name, v.default_style]));
+
+    return {
+        name: appearance.name ?? 'default',
+        ...(sameAsAll ? {} : { variations: declaredNames }),
+        ...(Object.keys(defaults).length ? { defaults } : {}),
+        values: Object.fromEntries(
+            variations.map((v) => [
+                v.name,
+                Object.fromEntries(
+                    styles
+                        .filter((r) => r.variation_id === v.id)
+                        .map((s) => [
+                            s.name,
+                            values
+                                .filter((r) => r.variation_id === v.id && r.style === s.name)
+                                .map((r) => toValue(r, adjustOf(valueAdjust, r.id))),
+                        ]),
+                ),
+            ]),
+        ),
+        ...(invariants.length ? { invariants: invariants.map((r) => toValue(r, adjustOf(invariantAdjust, r.id))) } : {}),
+        ...(combinations.length
+            ? {
+                  combinations: combinations.map(
+                      (r): CombinationSeed => ({
+                          ...toValue(r, []),
+                          styles: Object.fromEntries(
+                              combinationMembers.filter((m) => m.owner === r.id).map((m) => [m.variation, m.style]),
+                          ),
+                      }),
+                  ),
+              }
+            : {}),
+    };
+}
+
+async function exportComponent(component: Row, dsId: string) {
+    const appearances = await q(
+        `select id, name from appearances where design_system_id = $1 and component_id = $2 and platform = 'web' order by ctid`,
+        [dsId, component.id],
+    );
+    if (!appearances.length) {
+        console.log(`  ${component.name}: нет appearance в этой дизайн-системе, пропущен`);
+        return false;
     }
 
-    return arg.split('=')[1].replace(/["']/g, '');
+    const properties = await q(
+        `select p.id, p.name, p.type, p.description, p.default_value from properties p where p.component_id = $1 order by p.ctid`,
+        [component.id],
+    );
+    const params = await q(
+        `select pp.id, pp.property_id, pp.platform, pp.name from property_platform_params pp
+         join properties p on p.id = pp.property_id where p.component_id = $1 order by pp.ctid`,
+        [component.id],
+    );
+    // Порядок вариаций компонента — порядок в первом appearance, остальные вариации следом.
+    const variations = await q(
+        `select v.id, v.name, v.description, av.position
+         from variations v
+         left join appearance_variations av on av.variation_id = v.id and av.appearance_id = $2
+         where v.component_id = $1 order by av.position nulls last, v.ctid`,
+        [component.id, appearances[0].id],
+    );
+    const propertyVariations = await q(
+        `select pv.property_id, v.name from property_variations pv join variations v on v.id = pv.variation_id
+         where v.component_id = $1 order by pv.ctid`,
+        [component.id],
+    );
+    const styles = await q(
+        `select s.id, s.variation_id, s.name, s.description, avv.position
+         from styles s join variations v on v.id = s.variation_id
+         left join appearance_variations av on av.variation_id = v.id and av.appearance_id = $3
+         left join appearance_variation_values avv on avv.appearance_variation_id = av.id and avv.style_id = s.id
+         where v.component_id = $1 and s.design_system_id = $2 order by avv.position nulls last, s.ctid`,
+        [component.id, dsId, appearances[0].id],
+    );
+
+    const appearanceSeeds: AppearanceSeed[] = [];
+    for (const appearance of appearances) appearanceSeeds.push(await exportAppearance(component, dsId, appearance, variations));
+
+    const seed: ComponentSeed = {
+        name: component.name,
+        ...(component.description ? { description: component.description } : {}),
+        properties: properties.map((p) => {
+            const inVariations = propertyVariations.filter((pv) => pv.property_id === p.id).map((pv) => pv.name);
+            const byPlatform: Record<string, string[]> = {};
+            for (const pp of params.filter((r) => r.property_id === p.id)) {
+                byPlatform[pp.platform] = [...(byPlatform[pp.platform] ?? []), pp.name];
+            }
+            return {
+                name: p.name,
+                type: p.type,
+                ...(p.description ? { description: p.description } : {}),
+                ...(p.default_value ? { defaultValue: p.default_value } : {}),
+                ...(inVariations.length ? { variations: inVariations } : {}),
+                ...(Object.keys(byPlatform).length ? { params: byPlatform } : {}),
+            };
+        }),
+        variations: variations.map((v) => ({
+            name: v.name,
+            ...(v.description ? { description: v.description } : {}),
+            styles: styles
+                .filter((r) => r.variation_id === v.id)
+                .map((s) => ({ name: s.name, ...(s.description ? { description: s.description } : {}) })),
+        })),
+        appearances: appearanceSeeds,
+    };
+
+    writeComponentSeed(path.join(componentsDir, componentDirName(component.name)), seed);
+
+    const count = (pick: (a: AppearanceSeed) => number) => appearanceSeeds.reduce((sum, a) => sum + pick(a), 0);
+    console.log(
+        `  ${component.name}: ${properties.length} свойств, ${styles.length} стилей, ${appearanceSeeds.length} appearance, ` +
+            `${count((a) => Object.values(a.values).flatMap((s) => Object.values(s)).flat().length)} значений, ` +
+            `${count((a) => a.invariants?.length ?? 0)} инвариантов, ${count((a) => a.combinations?.length ?? 0)} сочетаний`,
+    );
+    return true;
 }
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// Зарезервированные слова JS, которые нельзя использовать как имя переменной
-// (а varName используется и как идентификатор в деструктуризации). Имена-кейворды
-// получают суффикс `Component`, чтобы код оставался валидным.
-const JS_RESERVED = new Set([
-    'switch',
-    'default',
-    'case',
-    'const',
-    'let',
-    'var',
-    'function',
-    'class',
-    'return',
-    'if',
-    'else',
-    'for',
-    'while',
-    'do',
-    'new',
-    'delete',
-    'typeof',
-    'void',
-    'in',
-    'of',
-    'this',
-    'super',
-    'export',
-    'import',
-    'enum',
-    'extends',
-    'yield',
-    'await',
-    'try',
-    'catch',
-    'finally',
-    'throw',
-    'break',
-    'continue',
-    'with',
-    'instanceof',
-]);
-
-function toVarName(name: string): string {
-    const camel = name.charAt(0).toLowerCase() + name.slice(1);
-    return JS_RESERVED.has(camel) ? `${camel}Component` : camel;
-}
-
-function toPropPrefix(name: string): string {
-    // Префикс берём от чистого имени, а не от экранированного varName, чтобы
-    // суффикс `Component` не влиял на ключи (swi_*, а не swiC_*).
-    return (name.charAt(0).toLowerCase() + name.slice(1)).slice(0, 3);
-}
-
-function toVarKey(compVar: string, variationName: string): string {
-    return compVar + variationName.charAt(0).toUpperCase() + variationName.slice(1);
-}
-
-function esc(s: string | null | undefined): string {
-    if (s === null || s === undefined) return "''";
-    return `'${s.replace(/'/g, "\\'")}'`;
-}
-
-/**
- * Insert `addition` before the first match of `regex` in `content`.
- * Throws if no match found.
- */
-function insertBeforeRegex(content: string, regex: RegExp, addition: string, label: string): string {
-    const match = regex.exec(content);
-    if (!match) throw new Error(`Anchor not found for: ${label}`);
-    return content.slice(0, match.index) + addition + content.slice(match.index);
-}
-
-/**
- * Add a member to the `components: { ... }` type literal of a seed function.
- *
- * The member goes on its own line with the indentation of the last existing member,
- * so the result is well-formed without prettier. Falls back to the single-line form
- * (`{ a: any; b: any }`) when the literal has no line breaks.
- */
-function addComponentType(content: string, varName: string): string {
-    return content.replace(/(components: \{)([^}]*?)(\s*})/, (_m, open, body, close) => {
-        const trimmed = body.replace(/\s+$/, '');
-        const lastLine = trimmed.split('\n').pop() ?? '';
-        const indent = lastLine.match(/^\s*/)?.[0] ?? '';
-        const multiline = trimmed.includes('\n');
-        if (multiline) {
-            const sep = trimmed.endsWith(';') ? '' : ';';
-            return `${open}${trimmed}${sep}\n${indent}${varName}: any;${close}`;
-        }
-        const sep = trimmed.endsWith(';') || trimmed.endsWith(',') ? '' : ';';
-        return `${open}${trimmed}${sep} ${varName}: any${close}`;
-    });
-}
-
-/**
- * Add a destructured member to `const { ... } = ctx.components`, one per line when the
- * destructuring is already multi-line.
- */
-function addComponentDestructure(content: string, varName: string): string {
-    return content.replace(/(const \{)([^}]*?)(\s*}\s*=\s*ctx\.components)/, (_m, open, body, close) => {
-        const trimmed = body.replace(/\s+$/, '');
-        const lastLine = trimmed.split('\n').pop() ?? '';
-        const indent = lastLine.match(/^\s*/)?.[0] ?? '';
-        const multiline = trimmed.includes('\n');
-        if (multiline) {
-            const sep = trimmed.endsWith(',') ? '' : ',';
-            return `${open}${trimmed}${sep}\n${indent}${varName},${close}`;
-        }
-        const sep = trimmed.endsWith(',') ? '' : ',';
-        return `${open}${trimmed}${sep} ${varName}${close}`;
-    });
-}
-
-const changedFiles: string[] = [];
-
-function patchFile(filePath: string, patcher: (content: string) => string) {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const patched = patcher(content);
-    if (patched !== content) {
-        fs.writeFileSync(filePath, patched);
-        changedFiles.push(filePath);
-        console.log(`  Patched: ${path.basename(filePath)}`);
-    } else {
-        console.log(`  Skipped (already patched): ${path.basename(filePath)}`);
-    }
-}
-
-function formatFiles(files: string[]) {
-    if (files.length === 0) return;
-    console.log('\nFormatting with prettier...');
-    const fileList = files.map((f) => `"${f}"`).join(' ');
-    execSync(`npx prettier --write ${fileList}`, {
-        cwd: path.resolve(__dirname, '..', '..'),
-        stdio: 'inherit',
-    });
-}
-
-// ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const componentName = getComponentName();
-    const varName = toVarName(componentName);
-    const prefix = toPropPrefix(componentName);
-    const dsPrefix = 'base';
+    const dsName = arg('ds') ?? 'base';
+    const only = arg('component');
+    const [ds] = await q(`select id from design_systems where name = $1`, [dsName]);
+    if (!ds) throw new Error(`Дизайн-система ${dsName} не найдена`);
 
-    console.log(`Generating prod seed for: ${componentName}\n`);
-
-    // ── Load data from DB ──────────────────────────────────────────────────────
-
-    const [component] = await db.select().from(schema.components).where(eq(schema.components.name, componentName));
-    if (!component) {
-        console.error(`Component "${componentName}" not found.`);
-        process.exit(1);
-    }
-    console.log(`  Component: ${component.name} (${component.id})`);
-
-    // The base design system is the single source for prod seeds. Everything
-    // scoped to a design system (appearances, styles, invariant values, and —
-    // transitively — variation property values) must be filtered by its exact
-    // id, otherwise data belonging to other design systems leaks into the seeds.
-    const [baseDs] = await db
-        .select()
-        .from(schema.designSystems)
-        .where(eq(schema.designSystems.name, 'base'));
-    if (!baseDs) {
-        console.error(`Base design system (name = 'base') not found.`);
-        process.exit(1);
-    }
-    console.log(`  Base design system: ${baseDs.name} (${baseDs.id})`);
-
-    const variations = await db.select().from(schema.variations).where(eq(schema.variations.componentId, component.id));
-    console.log(`  Variations: ${variations.length}`);
-
-    const properties = await db.select().from(schema.properties).where(eq(schema.properties.componentId, component.id));
-    console.log(`  Properties: ${properties.length}`);
-
-    const propertyIds = properties.map((p) => p.id);
-    const variationIds = variations.map((v) => v.id);
-
-    let platformParams: any[] = [];
-    if (propertyIds.length > 0) {
-        platformParams = await db
-            .select()
-            .from(schema.propertyPlatformParams)
-            .where(inArray(schema.propertyPlatformParams.propertyId, propertyIds));
-    }
-
-    let propertyVariations: any[] = [];
-    if (variationIds.length > 0 && propertyIds.length > 0) {
-        propertyVariations = await db
-            .select()
-            .from(schema.propertyVariations)
-            .where(inArray(schema.propertyVariations.variationId, variationIds));
-    }
-
-    const appearances = await db
-        .select()
-        .from(schema.appearances)
-        .where(
-            and(
-                eq(schema.appearances.componentId, component.id),
-                eq(schema.appearances.designSystemId, baseDs.id),
-            ),
-        );
-
-    let styles: any[] = [];
-    if (variationIds.length > 0) {
-        styles = await db
-            .select()
-            .from(schema.styles)
-            .where(
-                and(
-                    inArray(schema.styles.variationId, variationIds),
-                    eq(schema.styles.designSystemId, baseDs.id),
-                ),
-            );
-    }
-
-    const styleIds = styles.map((s) => s.id);
-    const appearanceIds = appearances.map((a) => a.id);
-
-    // Дефолт оси и порядок её значений принадлежат паре (appearance, ось), а не стилю:
-    // `styles.is_default` давно нет, флаг живёт в `appearance_variations.default_style_id`,
-    // порядок — в `appearance_variation_values.position`. Берём их с первого appearance
-    // базовой ДС: сид объявляет одну ось на все appearance компонента.
-    const defaultStyleIds = new Set<string>();
-    const stylePosition = new Map<string, number>();
-    if (appearanceIds.length > 0) {
-        const axes = await db
-            .select()
-            .from(schema.appearanceVariations)
-            .where(inArray(schema.appearanceVariations.appearanceId, appearanceIds));
-        for (const axis of axes) {
-            if (axis.defaultStyleId) defaultStyleIds.add(axis.defaultStyleId);
-        }
-        const axisIds = axes.map((a) => a.id);
-        if (axisIds.length > 0) {
-            const values = await db
-                .select()
-                .from(schema.appearanceVariationValues)
-                .where(inArray(schema.appearanceVariationValues.appearanceVariationId, axisIds));
-            for (const v of values) {
-                if (!stylePosition.has(v.styleId)) stylePosition.set(v.styleId, v.position);
-            }
-        }
-    }
-    const variationOrder = new Map(variations.map((v, i) => [v.id, i]));
-    styles.sort((a, b) => {
-        const byVariation = (variationOrder.get(a.variationId) ?? 0) - (variationOrder.get(b.variationId) ?? 0);
-        if (byVariation !== 0) return byVariation;
-        return (stylePosition.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (stylePosition.get(b.id) ?? Number.MAX_SAFE_INTEGER);
-    });
-    let vpvRows: any[] = [];
-    if (styleIds.length > 0 && appearanceIds.length > 0) {
-        // styleId is already base-only (styles are filtered above); also pin the
-        // appearance to base so rows can't reference another DS's appearance.
-        vpvRows = await db
-            .select()
-            .from(schema.variationPropertyValues)
-            .where(
-                and(
-                    inArray(schema.variationPropertyValues.styleId, styleIds),
-                    inArray(schema.variationPropertyValues.appearanceId, appearanceIds),
-                ),
-            );
-    }
-
-    let ipvRows: any[] = [];
-    if (propertyIds.length > 0) {
-        ipvRows = await db
-            .select()
-            .from(schema.invariantPropertyValues)
-            .where(
-                and(
-                    eq(schema.invariantPropertyValues.componentId, component.id),
-                    eq(schema.invariantPropertyValues.designSystemId, baseDs.id),
-                    inArray(schema.invariantPropertyValues.propertyId, propertyIds),
-                    eq(schema.invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
-                ),
-            );
-    }
-
-    const tokenIdSet = new Set<string>();
-    for (const row of [...vpvRows, ...ipvRows]) {
-        if (row.tokenId) tokenIdSet.add(row.tokenId);
-    }
-    let tokens: any[] = [];
-    if (tokenIdSet.size > 0) {
-        tokens = await db
-            .select()
-            .from(schema.tokens)
-            .where(inArray(schema.tokens.id, [...tokenIdSet]));
-    }
-    const tokenById = new Map(tokens.map((t) => [t.id, t]));
-
-    // Состояние значения хранится ссылкой на набор (`state_set_id`), а сид ждёт имя.
-    // Сид умеет только одно состояние взаимодействия на значение: набор из нескольких
-    // состояний или состояние компонента выгрузить нельзя — такие строки пропускаются
-    // с предупреждением, чтобы не превратиться молча в базовые значения.
-    const stateNameBySetId = new Map<string, string | null>([[SENTINEL_STATE_SET_ID, null]]);
-    const setIds = [...new Set(vpvRows.map((r) => r.stateSetId as string))].filter((id) => id !== SENTINEL_STATE_SET_ID);
-    if (setIds.length > 0) {
-        const stateRows = await db
-            .select({ setId: schema.stateSets.id, name: schema.states.name, componentId: schema.states.componentId })
-            .from(schema.stateSets)
-            .innerJoin(schema.states, sql`${schema.states.id} = ANY(${schema.stateSets.stateIds})`)
-            .where(inArray(schema.stateSets.id, setIds));
-        const namesBySet = new Map<string, { name: string; componentId: string | null }[]>();
-        for (const row of stateRows) {
-            namesBySet.set(row.setId, [...(namesBySet.get(row.setId) ?? []), row]);
-        }
-        for (const [setId, names] of namesBySet) {
-            if (names.length === 1 && names[0].componentId === null) {
-                stateNameBySetId.set(setId, names[0].name);
-            } else {
-                console.warn(`  Warning: state set ${setId} (${names.map((n) => n.name).join('+')}) is not expressible in seeds; its values are skipped.`);
-            }
-        }
-    }
-    const stateOf = (row: { stateSetId: string }): string | null | undefined => stateNameBySetId.get(row.stateSetId);
-
-    // ── Lookup maps ──
-    const propById = new Map(properties.map((p) => [p.id, p]));
-    const variationById = new Map(variations.map((v) => [v.id, v]));
-    const styleById = new Map(styles.map((s) => [s.id, s]));
-    const appearanceById = new Map(appearances.map((a) => [a.id, a]));
-
-    const seedsDir = path.join(__dirname, 'seeds', 'prod');
-
-    console.log('\nPatching seed files...\n');
-
-    // ── 1. Create component seed file (with onConflictDoUpdate) ───────────────
-
-    const componentFilePath = path.join(seedsDir, 'components', `${varName}.ts`);
-    fs.writeFileSync(
-        componentFilePath,
-        `import { sql } from 'drizzle-orm';
-import * as schema from '../../../schema';
-
-export async function seed${componentName}Component(db: any) {
-  const [${varName}] = await db
-    .insert(schema.components)
-    .values([
-      { name: ${esc(component.name)}, description: ${esc(component.description)} },
-    ])
-    .onConflictDoUpdate({
-      target: schema.components.name,
-      set: { description: sql\`excluded.description\` },
-    })
-    .returning();
-
-  console.log(\`  components: ${componentName}(\${${varName}.id})\`);
-  return ${varName};
-}
-`,
+    const components = await q(
+        `select c.id, c.name, c.description from components c
+         join design_system_components x on x.component_id = c.id and x.design_system_id = $1
+         where $2::text is null or c.name = $2 order by c.name`,
+        [ds.id, only ?? null],
     );
-    changedFiles.push(componentFilePath);
-    console.log(`  Created: components/${varName}.ts`);
+    if (!components.length) throw new Error(only ? `Компонент ${only} не найден в ${dsName}` : `В ${dsName} нет компонентов`);
 
-    // ── 2. Patch components/index.ts ───────────────────────────────────────────
-
-    const exportLine = `export { seed${componentName}Component } from './${varName}';\n`;
-    patchFile(path.join(seedsDir, 'components', 'index.ts'), (c) =>
-        c.includes(`seed${componentName}Component`) ? c : c.trimEnd() + '\n' + exportLine,
-    );
-
-    // ── 3. Patch seed-prod.ts ──────────────────────────────────────────────────
-
-    patchFile(path.join(__dirname, 'seed-prod.ts'), (c) => {
-        if (c.includes(`seed${componentName}Component`)) return c;
-
-        // Add to the components import (handles both single-line and multi-line)
-        c = c.replace(
-            /(\n)(} from '\.\/seeds\/prod\/components')/,
-            `\n    seed${componentName}Component,\n$2`,
-        );
-
-        // Add to components object (before closing brace + "// ── 3. Determine")
-        c = c.replace(
-            /(\n\s*};\n\n\s*\/\/ ── 3\. Determine)/,
-            `\n        ${varName}: await seed${componentName}Component(db),$1`,
-        );
-
-        // Add to keyMap (before closing brace + "let componentIdsToReseed")
-        c = c.replace(
-            /(\n\s*};\n\n\s*let componentIdsToReseed)/,
-            `\n        ${componentName}: '${varName}',$1`,
-        );
-
-        return c;
-    });
-
-    // ── 4. Patch design_system_components.ts ───────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'design_system_components.ts'), (c) => {
-        if (c.includes(`${varName}.id`)) return c;
-
-        c = addComponentType(c, varName);
-        c = addComponentDestructure(c, varName);
-
-        // Add before ]).onConflictDoNothing (indent-agnostic)
-        c = insertBeforeRegex(
-            c,
-            /\n\s*\]\)\n\s*\.onConflictDoNothing\(\)/,
-            `\n      { designSystemId: base.id, componentId: ${varName}.id },`,
-            'design_system_components values',
-        );
-
-        return c;
-    });
-
-    // ── 5. Patch appearances.ts ────────────────────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'appearances.ts'), (c) => {
-        if (c.includes(`${varName}.id`)) return c;
-
-        c = addComponentType(c, varName);
-        c = addComponentDestructure(c, varName);
-
-        // Add to values array (before closing ];)
-        const appValues = appearances
-            .map((a) => `        { designSystemId: base.id, componentId: ${varName}.id, name: ${esc(a.name)} },`)
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*\];\n\s*\n\s*await db\.insert\(schema\.appearances\)/,
-            `\n${appValues}`,
-            'appearances values',
-        );
-
-        // Add componentId before the closing bracket of the componentIds array,
-        // reusing the trailing comma prettier left on the last element.
-        c = c.replace(/(const componentIds = \[[\s\S]*?\.id),?(\s*\];)/, `$1, ${varName}.id$2`);
-
-        // Add to return object (before closing }; + console.log appearances)
-        const appEntries = appearances
-            .map((a) => `        ${dsPrefix}_${prefix}_${a.name}: findByComp(${varName}.id),`)
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*};\n\s*\n\s*console\.log\(`\s*appearances/,
-            `\n${appEntries}`,
-            'appearances return object',
-        );
-
-        return c;
-    });
-
-    // ── 6. Patch variations.ts ─────────────────────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'variations.ts'), (c) => {
-        if (c.includes(`${varName}.id`)) return c;
-
-        c = addComponentType(c, varName);
-        c = addComponentDestructure(c, varName);
-
-        // Add to values array (before ]).onConflictDoUpdate)
-        const varLines = variations
-            .map(
-                (v) =>
-                    `            { componentId: ${varName}.id, name: ${esc(v.name)}, description: ${esc(v.description)} },`,
-            )
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*\]\)\n\s*\.onConflictDoUpdate\(/,
-            `\n            // ${componentName}\n${varLines}`,
-            'variations values',
-        );
-
-        // Add to return object
-        const varEntries = variations
-            .map((v) => `        ${toVarKey(varName, v.name)}: find(${varName}.id, ${esc(v.name)}),`)
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*};\n\s*\n\s*console\.log\(`\s*variations/,
-            `\n        // ${componentName}\n${varEntries}`,
-            'variations return object',
-        );
-
-        return c;
-    });
-
-    // ── 7. Patch properties.ts ─────────────────────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'properties.ts'), (c) => {
-        if (c.includes(`find${componentName}`)) return c;
-
-        c = addComponentType(c, varName);
-        c = addComponentDestructure(c, varName);
-
-        // Add properties to values array (before ]).onConflictDoUpdate)
-        const propLines = properties
-            .map(
-                (p) =>
-                    `      { componentId: ${varName}.id, name: ${esc(p.name)}, type: ${esc(p.type)} as const, defaultValue: ${esc(p.defaultValue)}, description: ${esc(p.description)} },`,
-            )
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*\]\)\n\s*\.onConflictDoUpdate\(\{\s*\n\s*target: \[schema\.properties/,
-            `\n\n      // ── ${componentName} ──────────────────────────────────────────────────────────\n${propLines}`,
-            'properties values',
-        );
-
-        // Add find function and platform params
-        const platformParamsByPropId = new Map<string, any[]>();
-        for (const pp of platformParams) {
-            if (!platformParamsByPropId.has(pp.propertyId)) platformParamsByPropId.set(pp.propertyId, []);
-            platformParamsByPropId.get(pp.propertyId)!.push(pp);
-        }
-
-        const ppLines: string[] = [
-            `\n  // ${componentName}`,
-            `  const find${componentName} = (name: string) => rows.find((r: any) => r.componentId === ${varName}.id && r.name === name)!;`,
-        ];
-        for (const prop of properties) {
-            const params = platformParamsByPropId.get(prop.id) || [];
-            if (params.length === 0) continue;
-            const grouped: Record<string, string[]> = {};
-            for (const pp of params) {
-                if (!grouped[pp.platform]) grouped[pp.platform] = [];
-                grouped[pp.platform].push(pp.name);
-            }
-            const obj = Object.entries(grouped)
-                .map(([plat, names]) => `${plat}: [${names.map(esc).join(', ')}]`)
-                .join(', ');
-            ppLines.push(`  addPlatformParams(find${componentName}(${esc(prop.name)}).id, { ${obj} });`);
-        }
-
-        c = insertBeforeRegex(c, /\n\s*let platformParams/, ppLines.join('\n'), 'properties platform params');
-
-        // Add to return object
-        const propEntries = properties
-            .map((p) => `    ${prefix}_${p.name}: find${componentName}(${esc(p.name)}),`)
-            .join('\n');
-        c = insertBeforeRegex(
-            c,
-            /\n\s*};\n\s*\n\s*console\.log\(`\s*properties/,
-            `\n    // ${componentName}\n${propEntries}`,
-            'properties return object',
-        );
-
-        return c;
-    });
-
-    // ── 8. Patch property_variations.ts ────────────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'property_variations.ts'), (c) => {
-        if (c.includes(`// ── ${componentName}`)) return c;
-
-        const pvLines = propertyVariations
-            .map((pv) => {
-                const prop = propById.get(pv.propertyId);
-                const variation = variationById.get(pv.variationId);
-                if (!prop || !variation) return null;
-                return `      { propertyId: p.${prefix}_${prop.name}.id, variationId: v.${toVarKey(varName, variation.name)}.id },`;
-            })
-            .filter(Boolean)
-            .join('\n');
-
-        c = insertBeforeRegex(
-            c,
-            /\n\s*\]\)\n\s*\.onConflictDoNothing\(\)/,
-            `\n\n      // ── ${componentName} ──────────────────────────────────────────────────────────\n${pvLines}`,
-            'property_variations values',
-        );
-
-        return c;
-    });
-
-    // ── 9. Patch styles.ts ─────────────────────────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'styles.ts'), (c) => {
-        if (c.includes(`// ── ${componentName}`)) return c;
-
-        // Add to values array (before ]).onConflictDoUpdate)
-        const styleLines = styles
-            .map((s) => {
-                const variation = variationById.get(s.variationId);
-                if (!variation) return null;
-                return `      { designSystemId: base.id, variationId: v.${toVarKey(varName, variation.name)}.id, name: ${esc(s.name)}, description: ${esc(s.description)}, isDefault: ${defaultStyleIds.has(s.id)} },`;
-            })
-            .filter(Boolean)
-            .join('\n');
-
-        c = insertBeforeRegex(
-            c,
-            // Массив объявлений закрывается `];`, а вставка идёт отдельным выражением:
-            // `isDefault` в него не попадает, но остаётся в объявлении — из него заполняются
-            // `appearance_variations`.
-            /\n\s*\];\n\n\s*const rows = await db/,
-            `\n\n      // ── ${componentName} ──────────────────────────────────────────────────────────\n${styleLines}`,
-            'styles values',
-        );
-
-        // Add to return object
-        const styleEntries = styles
-            .map((s) => {
-                const variation = variationById.get(s.variationId);
-                if (!variation) return null;
-                return `    ${dsPrefix}_${prefix}_${variation.name}_${s.name}: find(v.${toVarKey(varName, variation.name)}.id, ${esc(s.name)}),`;
-            })
-            .filter(Boolean)
-            .join('\n');
-
-        c = insertBeforeRegex(
-            c,
-            /\n\s*};\n\s*\n\s*console\.log\(`\s*styles/,
-            `\n    // ${componentName}\n${styleEntries}`,
-            'styles return object',
-        );
-
-        return c;
-    });
-
-    // ── 10. Patch variation_property_values.ts ─────────────────────────────────
-
-    patchFile(path.join(seedsDir, 'variation_property_values.ts'), (c) => {
-        if (c.includes(`// ${componentName}`) && c.includes(`${prefix}App`)) return c;
-
-        // Add appearance variable
-        const appVarName = `${prefix}App`;
-        if (appearances.length > 0 && !c.includes(`const ${appVarName}`)) {
-            const appKey = `${dsPrefix}_${prefix}_${appearances[0].name}`;
-            c = c.replace(
-                'const rows: VpvRow[] = [',
-                `const ${appVarName} = a.${appKey}.id;\n\n  const rows: VpvRow[] = [`,
-            );
-        }
-
-        // Add VPV rows
-        const vpvLines = vpvRows
-            .map((row) => {
-                const prop = propById.get(row.propertyId);
-                const style = styleById.get(row.styleId);
-                if (!prop || !style) return null;
-                const variation = variationById.get(style.variationId);
-                if (!variation) return null;
-
-                const styleKey = `${dsPrefix}_${prefix}_${variation.name}_${style.name}`;
-                const propKey = `${prefix}_${prop.name}`;
-                let tokenRef: string;
-                if (row.tokenId) {
-                    const token = tokenById.get(row.tokenId);
-                    tokenRef = token ? `tokenMap[${esc(token.name)}].id` : 'null';
-                } else {
-                    tokenRef = 'null';
-                }
-                const state = stateOf(row);
-                if (state === undefined) return null;
-                const valueStr = row.value != null ? `, value: ${esc(row.value)}` : '';
-                const stateStr = state ? `'${state}'` : 'null';
-
-                return `    { propertyId: p.${propKey}.id, styleId: s.${styleKey}.id, appearanceId: ${appVarName}, tokenId: ${tokenRef}${valueStr}, state: ${stateStr} },`;
-            })
-            .filter(Boolean)
-            .join('\n');
-
-        c = insertBeforeRegex(
-            c,
-            // Между `];` и вставкой в сиде стоит резолв наборов состояний (комментарий и цикл),
-            // поэтому якорь допускает комментарии и принимает и `const resolveStateSet`, и сам insert.
-            /\n\s*\];\n\s*\n\s*(?:\/\/[^\n]*\n\s*)*(?:const resolveStateSet|await db\s*\.insert\(schema\.variationPropertyValues\))/,
-            `\n\n    // ══════════════════════════════════════════════════════════════════════════\n    // ${componentName}\n    // ══════════════════════════════════════════════════════════════════════════\n\n${vpvLines}`,
-            'variation_property_values rows',
-        );
-
-        return c;
-    });
-
-    // ── 11. Patch invariant_property_values.ts ─────────────────────────────────
-
-    if (ipvRows.length > 0) {
-        patchFile(path.join(seedsDir, 'invariant_property_values.ts'), (c) => {
-            if (c.includes(`// ${componentName}`) && c.includes(`${prefix}_`)) return c;
-
-            if (!c.includes(`${varName}: any`)) {
-                c = addComponentType(c, varName);
-                c = addComponentDestructure(c, varName);
-            }
-
-            const ipvLines = ipvRows
-                .map((row) => {
-                    const prop = propById.get(row.propertyId);
-                    if (!prop) return null;
-                    const appearance = appearanceById.get(row.appearanceId);
-                    if (!appearance) return null;
-                    const appKey = `${dsPrefix}_${prefix}_${appearance.name}`;
-                    const propKey = `${prefix}_${prop.name}`;
-                    let tokenPart = '';
-                    if (row.tokenId) {
-                        const token = tokenById.get(row.tokenId);
-                        if (token) tokenPart = `tokenId: t[${esc(token.name)}].id, `;
-                    }
-                    const valuePart = row.value != null ? `value: ${esc(row.value)}` : '';
-                    const fields = `${tokenPart}${valuePart}`.replace(/, $/, '');
-                    return `      { propertyId: p.${propKey}.id, designSystemId: base.id, componentId: ${varName}.id, appearanceId: a.${appKey}.id, ${fields} },`;
-                })
-                .filter(Boolean)
-                .join('\n');
-
-            c = insertBeforeRegex(
-                c,
-                // Массив инвариантов закрывается `].map(...)`, который подмешивает сентинел набора состояний.
-                /\n\s*\](?:\.map\([^\n]*\))?,?\s*\)\s*\.onConflictDoNothing\(\)/,
-                `\n      // ${componentName}\n${ipvLines}`,
-                'invariant_property_values values',
-            );
-
-            return c;
-        });
-    }
-
-    formatFiles(changedFiles);
-
-    console.log('\nDone! New seed data for', componentName, 'has been added to all prod seed files.');
-    console.log(`Run 'npm run db:seed:prod' to apply.`);
+    console.log(`Выгрузка из ${dsName}: ${components.length} компонентов\n`);
+    let written = 0;
+    for (const component of components) written += (await exportComponent(component, ds.id)) ? 1 : 0;
+    console.log(`\nЗаписано папок: ${written} в ${path.relative(process.cwd(), componentsDir)}`);
 }
 
 main()
     .catch((err) => {
-        console.error('Generation failed:', err);
+        console.error('Export failed:', err);
         process.exit(1);
     })
     .finally(() => client.end());

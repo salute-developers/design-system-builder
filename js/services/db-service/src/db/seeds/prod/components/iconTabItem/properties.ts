@@ -1,0 +1,28 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'itemColor', type: 'color', variations: ['view'], params: { web: ['itemColor'] } },
+    { name: 'itemBackgroundColor', type: 'color', variations: ['view'], params: { web: ['itemBackgroundColor'] } },
+    { name: 'itemColorHover', type: 'color', variations: ['view'], params: { web: ['itemColorHover'] } },
+    { name: 'itemColorActive', type: 'color', variations: ['view'], params: { web: ['itemColorActive'] } },
+    { name: 'itemBackgroundColorHover', type: 'color', variations: ['view'], params: { web: ['itemBackgroundColorHover'] } },
+    { name: 'itemSelectedColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedColor'] } },
+    { name: 'itemSelectedBackgroundColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedBackgroundColor'] } },
+    { name: 'itemSelectedColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedColorHover'] } },
+    { name: 'itemSelectedBackgroundColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedBackgroundColorHover'] } },
+    { name: 'itemBackgroundTransition', type: 'value', variations: ['view'], params: { web: ['itemBackgroundTransition'] } },
+    { name: 'outlineFocusColor', type: 'color', variations: ['view'], params: { web: ['outlineFocusColor'] } },
+    { name: 'itemCursor', type: 'value', variations: ['view'], params: { web: ['itemCursor'] } },
+    { name: 'itemSelectedDividerColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedDividerColor'] } },
+    { name: 'itemSelectedDividerColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedDividerColorHover'] } },
+    { name: 'itemPadding', type: 'value', variations: ['size'], params: { web: ['itemPadding'] } },
+    { name: 'itemSelectedDividerHeight', type: 'dimension', variations: ['view'], params: { web: ['itemSelectedDividerHeight'] } },
+    { name: 'itemMarginLeftFilled', type: 'dimension', variations: ['view'], params: { web: ['itemMarginLeftFilled'] } },
+    { name: 'itemContentGap', type: 'dimension', variations: ['size'], params: { web: ['itemContentGap'] } },
+    { name: 'actionContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['actionContentMarginLeft'] } },
+    { name: 'disabledOpacity', type: 'float', params: { web: ['disabledOpacity'] } },
+    { name: 'itemBorderRadius', type: 'dimension', variations: ['size'], params: { web: ['itemBorderRadius'] } },
+    { name: 'itemSelectedDividerWidth', type: 'dimension', variations: ['view'], params: { web: ['itemSelectedDividerWidth'] } },
+    { name: 'itemContentPadding', type: 'dimension', variations: ['size'], params: { web: ['itemContentPadding'] } },
+    { name: 'itemPaddingOrientationVertical', type: 'dimension', variations: ['size'], params: { web: ['itemPaddingOrientationVertical'] } },
+];

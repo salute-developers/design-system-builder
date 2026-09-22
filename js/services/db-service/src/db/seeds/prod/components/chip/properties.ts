@@ -1,0 +1,26 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'background', type: 'color', variations: ['view'], params: { web: ['background'] } },
+    { name: 'color', type: 'color', variations: ['view'], params: { web: ['color'] } },
+    { name: 'colorReadOnly', type: 'color', variations: ['view'], params: { web: ['colorReadOnly'] } },
+    { name: 'closeIconColorReadonly', type: 'color', params: { web: ['closeIconColorReadonly'] } },
+    { name: 'shape', type: 'shape', variations: ['size', 'shape'], params: { web: ['borderRadius'] } },
+    { name: 'outlineSize', type: 'dimension', variations: ['size'], params: { web: ['outlineSize'] } },
+    { name: 'width', type: 'dimension', variations: ['size'], params: { web: ['width'] } },
+    { name: 'padding', type: 'dimension', variations: ['size'], params: { web: ['padding'] } },
+    { name: 'leftContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['leftContentMarginRight'] } },
+    { name: 'rightContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['rightContentMarginRight'] } },
+    { name: 'clearContentMarginRight', type: 'dimension', variations: ['size'], params: { web: ['clearContentMarginRight'] } },
+    { name: 'disableAlpha', type: 'float', params: { web: ['disabledOpacity'] } },
+    { name: 'backgroundReadOnly', type: 'color', variations: ['view'], params: { web: ['backgroundReadOnly'] } },
+    { name: 'height', type: 'dimension', variations: ['size'], params: { web: ['height'] } },
+    { name: 'focusColor', type: 'color', params: { web: ['focusColor'] } },
+    { name: 'closeIconColor', type: 'color', variations: ['view'], params: { web: ['closeIconColor'] } },
+    { name: 'leftContentColor', type: 'color', variations: ['view'], params: { web: ['leftContentColor'] } },
+    { name: 'closeIconSize', type: 'dimension', variations: ['size'], params: { web: ['closeIconSize'] } },
+    { name: 'leftContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['leftContentMarginLeft'] } },
+    { name: 'rightContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['rightContentMarginLeft'] } },
+    { name: 'clearContentMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['clearContentMarginLeft'] } },
+    { name: 'textStyle', type: 'typography', variations: ['size'], params: { web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'] } },
+];

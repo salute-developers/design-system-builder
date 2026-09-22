@@ -1,0 +1,25 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'listItemBorderWidth', type: 'dimension', variations: ['size'], params: { web: ['listItemBorderWidth'] } },
+    { name: 'listBackground', type: 'color', variations: ['view'], params: { web: ['listBackground'] } },
+    { name: 'listPadding', type: 'dimension', variations: ['size'], params: { web: ['listPadding'] } },
+    { name: 'listItemBorderRadius', type: 'shape', variations: ['size'], params: { web: ['listItemBorderRadius'] } },
+    { name: 'listItemPaddingRight', type: 'dimension', variations: ['size'], params: { web: ['listItemPaddingRight'] } },
+    { name: 'listItemPaddingBottom', type: 'dimension', variations: ['size'], params: { web: ['listItemPaddingBottom'] } },
+    { name: 'listItemBorderColor', type: 'color', variations: ['view'], params: { web: ['listItemBorderColor'] } },
+    { name: 'listItemGap', type: 'dimension', variations: ['size'], params: { web: ['listItemGap'] } },
+    { name: 'listItemColor', type: 'color', variations: ['view'], params: { web: ['listItemColor'] } },
+    { name: 'listItemDividerColor', type: 'color', variations: ['view'], params: { web: ['listItemDividerColor'] } },
+    { name: 'listDisabledOpacity', type: 'float', params: { web: ['listDisabledOpacity'] } },
+    { name: 'listBorderRadius', type: 'shape', variations: ['size'], params: { web: ['listBorderRadius'] } },
+    { name: 'listItemBackground', type: 'color', variations: ['view'], params: { web: ['listItemBackground'] } },
+    { name: 'listItemPaddingLeft', type: 'dimension', variations: ['size'], params: { web: ['listItemPaddingLeft'] } },
+    { name: 'listItemContentPadding', type: 'dimension', variations: ['size'], params: { web: ['listItemContentPadding'] } },
+    { name: 'listGap', type: 'dimension', variations: ['size'], params: { web: ['listGap'] } },
+    { name: 'listItemFocusColor', type: 'color', params: { web: ['listItemFocusColor'] } },
+    { name: 'listItemDividerWidth', type: 'dimension', variations: ['size'], params: { web: ['listItemDividerWidth'] } },
+    { name: 'listItemTightDifference', type: 'dimension', variations: ['size'], params: { web: ['listItemTightDifference'] } },
+    { name: 'listItemStyle', type: 'typography', variations: ['size'], params: { web: ['listItemFontFamily', 'listItemFontSize', 'listItemFontStyle', 'listItemFontWeight', 'listItemLetterSpacing', 'listItemLineHeight'] } },
+    { name: 'listItemPaddingTop', type: 'dimension', variations: ['size'], params: { web: ['listItemPaddingTop'] } },
+];

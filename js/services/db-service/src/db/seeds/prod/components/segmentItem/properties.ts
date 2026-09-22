@@ -1,0 +1,28 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'itemPilledPadding', type: 'value', variations: ['size'], params: { web: ['itemPilledPadding'] } },
+    { name: 'itemMarginLeft', type: 'dimension', variations: ['size'], params: { web: ['itemMarginLeft'] } },
+    { name: 'disabledOpacity', type: 'float', params: { web: ['disabledOpacity'] } },
+    { name: 'itemBorderRadius', type: 'dimension', variations: ['size'], params: { web: ['itemBorderRadius'] } },
+    { name: 'itemPilledBorderRadius', type: 'shape', variations: ['pilled'], params: { web: ['itemPilledBorderRadius'] } },
+    { name: 'itemPadding', type: 'dimension', variations: ['size'], params: { web: ['itemPadding'] } },
+    { name: 'itemSelectedAdditionalColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedAdditionalColorHover'] } },
+    { name: 'itemWidth', type: 'value', variations: ['size'], params: { web: ['itemWidth'] } },
+    { name: 'textStyle', type: 'typography', variations: ['size'], params: { web: ['fontFamily', 'fontSize', 'fontStyle', 'fontWeight', 'letterSpacing', 'lineHeight'] } },
+    { name: 'itemHeight', type: 'dimension', variations: ['size'], params: { web: ['itemHeight'] } },
+    { name: 'itemIconMargin', type: 'dimension', variations: ['size'], params: { web: ['itemIconMargin'] } },
+    { name: 'itemContentPadding', type: 'value', variations: ['size'], params: { web: ['itemContentPadding'] } },
+    { name: 'itemBackgroundColorHover', type: 'color', variations: ['view'], params: { web: ['itemBackgroundColorHover'] } },
+    { name: 'itemAdditionalColor', type: 'color', variations: ['view'], params: { web: ['itemAdditionalColor'] } },
+    { name: 'itemAdditionalColorHover', type: 'color', variations: ['view'], params: { web: ['itemAdditionalColorHover'] } },
+    { name: 'itemSelectedColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedColor'] } },
+    { name: 'itemSelectedBackgroundColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedBackgroundColor'] } },
+    { name: 'itemSelectedColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedColorHover'] } },
+    { name: 'itemSelectedBackgroundColorHover', type: 'color', variations: ['view'], params: { web: ['itemSelectedBackgroundColorHover'] } },
+    { name: 'itemSelectedAdditionalColor', type: 'color', variations: ['view'], params: { web: ['itemSelectedAdditionalColor'] } },
+    { name: 'outlineFocusColor', type: 'color', variations: ['view'], params: { web: ['outlineFocusColor'] } },
+    { name: 'itemColor', type: 'color', variations: ['view'], params: { web: ['itemColor'] } },
+    { name: 'itemBackgroundColor', type: 'color', variations: ['view'], params: { web: ['itemBackgroundColor'] } },
+    { name: 'itemColorHover', type: 'color', variations: ['view'], params: { web: ['itemColorHover'] } },
+];

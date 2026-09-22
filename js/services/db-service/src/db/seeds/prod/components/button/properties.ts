@@ -1,0 +1,25 @@
+import type { PropertySeed } from '../../component-seed';
+
+export const properties: PropertySeed[] = [
+    { name: 'shape', type: 'shape', description: 'Форма кнопки', variations: ['size', 'shape'], params: { xml: ['sd_shapeAppearance'], compose: ['shape'], ios: ['cornerRadius'], web: ['buttonRadius'] } },
+    { name: 'iconColor', type: 'color', description: 'Цвет иконки', variations: ['view'], params: { xml: ['sd_iconTint'], compose: ['iconColor'], ios: ['iconColor'] } },
+    { name: 'spinnerColor', type: 'color', description: 'Цвет индикатора загрузки', variations: ['view'], params: { xml: ['sd_spinnerTint'], compose: ['spinnerColor'], ios: ['spinnerColor'], web: ['buttonSpinnerColor'] } },
+    { name: 'valueColor', type: 'color', description: 'Цвет дополнительного текста', variations: ['view'], params: { xml: ['sd_valueTextColor'], compose: ['valueColor'], ios: ['subtitleColor'], web: ['buttonValueColor'] } },
+    { name: 'focusColor', type: 'color', description: 'Цвет обводки компонента', params: { web: ['buttonFocusColor'] } },
+    { name: 'loadingAlpha', type: 'float', description: 'Значение прозрачности в режиме загрузки', params: { xml: ['loadingAlpha'], compose: ['loadingAlpha'], ios: ['loadingAlpha'] } },
+    { name: 'disableAlpha', type: 'float', description: 'Значение прозрачности в отключенном варианте', params: { xml: ['disableAlpha'], compose: ['disableAlpha'], ios: ['disableAlpha'], web: ['buttonDisabledOpacity'] } },
+    { name: 'height', type: 'dimension', description: 'Высота кнопки', variations: ['size'], params: { xml: ['android:minHeight'], compose: ['height'], ios: ['height'], web: ['buttonHeight'] } },
+    { name: 'paddingStart', type: 'dimension', description: 'Отступ от начала до контента', variations: ['size'], params: { xml: ['android:paddingStart'], compose: ['paddings'], ios: ['paddings'] } },
+    { name: 'paddingEnd', type: 'dimension', description: 'Отступ от контента до конца', variations: ['size'], params: { xml: ['paddingEnd'], compose: ['paddings'], ios: ['paddings'], web: ['buttonPadding'] } },
+    { name: 'minWidth', type: 'dimension', description: 'Минимальная ширина кнопки', variations: ['size'], params: { xml: ['android:minWidth'], compose: ['minWidth'], web: ['buttonWidth'] } },
+    { name: 'iconSize', type: 'dimension', description: 'Размер иконки', variations: ['size'], params: { xml: ['sd_iconSize'], compose: ['iconSize'], ios: ['iconSize'] } },
+    { name: 'spinnerSize', type: 'dimension', description: 'Размер индикатора загрузки', variations: ['size'], params: { xml: ['sd_spinnerSize'], compose: ['spinnerSize'], ios: ['spinnerSize'], web: ['buttonSpinnerSize'] } },
+    { name: 'spinnerStrokeWidth', type: 'dimension', description: 'Толщина индикатора загрузки', variations: ['size'], params: { xml: ['sd_spinnerStrokeWidth'], compose: ['spinnerStrokeWidth'], ios: ['spinnerStrokeWidth'] } },
+    { name: 'iconMargin', type: 'dimension', description: 'Отступ от иконки до текста', variations: ['size'], params: { xml: ['sd_iconPadding'], compose: ['iconMargin'], ios: ['iconHorizontalGap'], web: ['buttonLeftContentMargin', 'buttonRightContentMargin'] } },
+    { name: 'valueMargin', type: 'dimension', description: 'Отступ от label до value', variations: ['size'], params: { xml: ['sd_valuePadding'], compose: ['valueMargin'], ios: ['titleHorizontalGap'], web: ['buttonValueMargin'] } },
+    { name: 'labelStyle', type: 'typography', description: 'Стиль основного текста', variations: ['size'], params: { xml: ['android:textAppearance'], compose: ['labelStyle'], ios: ['titleTypography'], web: ['buttonFontFamily', 'buttonFontSize', 'buttonFontStyle', 'buttonFontWeight', 'buttonLetterSpacing', 'buttonLineHeight'] } },
+    { name: 'valueStyle', type: 'typography', description: 'Стиль дополнительного текста', variations: ['size'], params: { compose: ['valueStyle'], ios: ['subtitleTypography'] } },
+    { name: 'backgroundColor', type: 'color', description: 'Цвет фона кнопки', variations: ['view'], params: { xml: ['backgroundTint'], compose: ['backgroundColor'], ios: ['backgroundColor'], web: ['buttonBackgroundColor'] } },
+    { name: 'loadingBackgroundColor', type: 'color', description: 'Цвет фона кнопки при загрузки', variations: ['view'], params: { web: ['buttonLoadingBackgroundColor'] } },
+    { name: 'labelColor', type: 'color', description: 'Цвет основного текста', variations: ['view'], params: { xml: ['android:textColor'], compose: ['labelColor'], ios: ['titleColor'], web: ['buttonColor'] } },
+];
