@@ -54,6 +54,7 @@ const PreviewItem = (props: PreviewItemProps) => {
     return (
         <StyledPreviewItem>
             <StyledExample
+                data-preview
                 contentEditable
                 suppressContentEditableWarning
                 color={color.value}
@@ -127,6 +128,7 @@ export const TokenTypographyPreview = (props: TokenTypographyPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledMainExample
+                    data-preview
                     contentEditable
                     suppressContentEditableWarning
                     color={color.value}

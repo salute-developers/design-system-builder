@@ -34,4 +34,8 @@ export class Style {
     public getProps() {
         return this.props;
     }
+
+    public setProps(props: Props) {
+        this.props = props;
+    }
 }
