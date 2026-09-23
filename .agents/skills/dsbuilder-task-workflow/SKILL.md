@@ -35,12 +35,21 @@ checkout or an exact path supplied by the user.
 
 Use OpenSpec Explore (`/opsx:explore`) to investigate the repository, current
 behavior, requirements, edge cases, and scope. Then use the OpenSpec propose
-workflow when the user asks to create the Change. When the Change needs a
+workflow when the user asks to create the Change. Write human-readable prose and
+headings in Russian and do not mix English words into Russian sentences except
+for syntax, identifiers, official names, and established technical abbreviations
+allowed by `openspec/config.yaml`. When the Change needs a
 `design.md`, read `openspec/DESIGN_GUIDE.md` and select only the additional
 sections relevant to its decisions. Keep local changes compact; do not create
 empty sections to imitate the guide. Treat a request for an expanded design as
 a request to consider every dimension in the guide, while still omitting
-dimensions that have no material decision, risk, or trade-off. Do not start TAKT
+dimensions that have no material decision, risk, or trade-off. Include a focused
+Mermaid diagram in the relevant section when architecture, interaction order,
+state transitions, or data flow are materially easier to review visually. Do
+not add decorative diagrams or use them instead of rationale. For a non-trivial
+change, consider the optional `Программное проектирование` section and show the
+essential interfaces, classes, method signatures, dependencies, and interactions
+without method bodies or implementation details. Do not start TAKT
 until the user says the OpenSpec artifacts have been reviewed and approved.
 
 ### Create a branch or worktree
@@ -58,7 +67,11 @@ tools/task create <branch-name> --worktree [--base <base-ref>]
 ```
 
 Report the resulting branch and directory. Do not invent a base ref when the user
-names one; otherwise allow the helper to detect it.
+names one. When the user does not name a base ref, do not pass `--base`: the
+helper must use the branch currently checked out in the invoking checkout. New
+linked worktrees live under that checkout's `.worktrees/` directory by default,
+which keeps them inside the agent workspace; report an explicitly configured
+external directory when `DSBUILDER_WORKTREE_DIR` overrides it.
 
 ### Run the approved implementation
 
@@ -92,14 +105,43 @@ when the approved OpenSpec Change explicitly includes them.
 
 ### Recover an interrupted run
 
-For the latest failed or aborted TAKT run in the same checkout, run:
+Do not stream the complete TAKT output into the coordinating agent context.
+Inspect or wait for compact state first:
 
 ```bash
-tools/task resume
+tools/task status <change-name> --json
+tools/task wait <change-name> --json --timeout 300
 ```
 
-Use `resume` only for an unfinished run. A completed run with new human feedback
-uses `follow-up`.
+Open a bounded log tail only when the compact failure reason and report are not
+enough:
+
+```bash
+tools/task logs <change-name> --lines 80
+```
+
+When the run needs developer clarification, ask through the current Codex or
+Claude Code conversation. When it needs a sandbox-restricted check, obtain any
+required approval in that outer tool and perform only the specific approved
+action in the same Git worktree. Do not claim that this expands TAKT's sandbox.
+
+Write the answer or external result as a concise standalone handoff file, then
+resume the same direct run:
+
+```bash
+tools/task resume <change-name> --instruction-file <path>
+```
+
+The helper exposes the handoff to every workflow persona, selects TAKT's Requeue
+path non-interactively, and preserves the existing diff, reports, resume point,
+and reusable provider sessions. Use resume only for an unfinished run. A
+completed run with new human feedback uses `follow-up`.
+
+When the user asks to stop a running cycle, run:
+
+```bash
+tools/task abort <change-name>
+```
 
 ### Apply human review feedback
 

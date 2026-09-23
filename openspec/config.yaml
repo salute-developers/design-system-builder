@@ -121,44 +121,61 @@ context: |
 
 rules:
   proposal:
-    - Write all OpenSpec artifacts in Russian.
-    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
-      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
-    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
-      keys, and identifiers in English.
+    - Write all human-readable prose and headings in Russian. Do not mix standalone English words
+      into Russian sentences when a clear Russian equivalent exists.
+    - English is allowed only for code and identifiers, commands, package and module names, file and
+      endpoint paths, configuration keys, official product/library/protocol names, established
+      abbreviations such as API, REST, DTO, JSON, JWT, and OAuth, and OpenSpec structural syntax.
+    - If an uncommon foreign term has no established Russian equivalent, explain it in Russian on
+      first use.
     - Keep proposals concise and product-oriented. Explain why the change matters for DS Builder.
     - List new or modified capabilities explicitly, using kebab-case capability names.
     - "Call out affected services, modules, APIs, persistence, configuration, and dependencies
       in every part the change touches: backend-kt, frontend-kt and js."
   design:
-    - Write all OpenSpec artifacts in Russian.
-    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
-      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
-    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
-      keys, and identifiers in English.
+    - Write all human-readable prose and headings in Russian. Do not mix standalone English words
+      into Russian sentences when a clear Russian equivalent exists.
+    - English is allowed only for code and identifiers, commands, package and module names, file and
+      endpoint paths, configuration keys, official product/library/protocol names, established
+      abbreviations such as API, REST, DTO, JSON, JWT, and OAuth, and OpenSpec structural syntax.
+    - If an uncommon foreign term has no established Russian equivalent, explain it in Russian on
+      first use.
     - Describe architecture and trade-offs, not line-by-line implementation.
     - Before creating design.md, read openspec/DESIGN_GUIDE.md and use its additional sections as
       an adaptive menu. Include a section only when it records a material decision, flow, contract,
       risk, or trade-off; do not add empty or ceremonial sections.
+    - Add a focused Mermaid diagram inside the relevant design section when relationships,
+      interaction order, state transitions, or data flow are materially clearer visually. Keep the
+      diagram consistent with the text and omit it when prose is clearer.
+    - For a non-trivial change, prefer an optional "Программное проектирование" section that shows
+      significant interfaces, classes, public methods, dependencies, and interactions as
+      target-language signatures without method bodies or implementation details. Omit it when no
+      program contracts change.
     - When the change affects Kotlin layer boundaries, describe the relevant decisions for
       presentation, application, domain, data, and di; omit unaffected layers.
     - Mention alternatives considered when introducing a new service, module, dependency, persistence
       model, or security-sensitive behavior.
   specs:
-    - Write all OpenSpec artifacts in Russian.
-    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
-      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
-    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
-      keys, and identifiers in English.
-    - Requirements must be testable and written with SHALL/MUST language.
-    - Each requirement must include at least one four-hash Scenario section.
+    - Write all human-readable prose and headings in Russian. Do not mix standalone English words
+      into Russian sentences when a clear Russian equivalent exists.
+    - English is allowed only for code and identifiers, commands, package and module names, file and
+      endpoint paths, configuration keys, official product/library/protocol names, established
+      abbreviations such as API, REST, DTO, JSON, JWT, and OAuth, and OpenSpec structural syntax.
+    - If an uncommon foreign term has no established Russian equivalent, explain it in Russian on
+      first use.
+    - Requirements must be testable and use the OpenSpec normative keywords MUST or SHALL without
+      translating them into Russian. Write the surrounding requirement text in Russian.
+    - Each requirement must include at least one `#### Scenario:` section required by OpenSpec; write
+      the scenario title and body in Russian.
     - Specify API boundary behavior through DTO/request/response contracts, not domain entities.
   tasks:
-    - Write all OpenSpec artifacts in Russian.
-    - Keep established technical terms in English, for example API, REST, GraphQL, DTO, JSON,
-      WebSocket, Gradle, Ktor, Koin, Exposed, Docker, JWT, and OAuth.
-    - Keep code examples, commands, package names, module names, file paths, endpoint paths, config
-      keys, and identifiers in English.
+    - Write all human-readable prose and headings in Russian. Do not mix standalone English words
+      into Russian sentences when a clear Russian equivalent exists.
+    - English is allowed only for code and identifiers, commands, package and module names, file and
+      endpoint paths, configuration keys, official product/library/protocol names, established
+      abbreviations such as API, REST, DTO, JSON, JWT, and OAuth, and OpenSpec structural syntax.
+    - If an uncommon foreign term has no established Russian equivalent, explain it in Russian on
+      first use.
     - 'Use parseable checkbox tasks only: "- [ ] X.Y Task description".'
     - Order tasks by implementation dependency, from scaffold/configuration through domain,
       application, data, presentation, tests, and verification.

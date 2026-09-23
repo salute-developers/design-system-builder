@@ -8,6 +8,7 @@
 .takt/runs/
 .takt/events/
 .takt/worktrees/
+.worktrees/
 .idea
 logs
 *.log

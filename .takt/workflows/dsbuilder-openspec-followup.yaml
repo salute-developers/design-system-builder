@@ -24,6 +24,13 @@ steps:
       successful TAKT cycle. Work with that current state. If the feedback requires
       a material change to the approved design, stop and request a new or revised
       OpenSpec decision instead of inventing one. Do not commit or push.
+
+      Before acting, check for
+      `.takt/orchestration/<change-name>/resume.md`, where `<change-name>` is the
+      archived OpenSpec Change named in the task. If present, treat it as the
+      latest developer-approved handoff from the coordinating agent. It may
+      contain a clarification or external check result and does not grant
+      additional sandbox permissions.
     quality_gates:
       - type: command
         name: fast-verification
@@ -50,6 +57,10 @@ steps:
       Treat an unauthorized architecture-test change as a conformance finding.
       For an authorized change, verify that it preserves or strengthens the
       intended architecture rules rather than masking an implementation problem.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists. Use it
+      only as a developer-approved clarification or external verification result.
+      If work remains blocked, return the exact question or external action needed.
     rules:
       - condition: Feedback resolved and implementation conforms to OpenSpec
         next: full_verification
@@ -70,6 +81,11 @@ steps:
       Do not change architecture tests unless the archived OpenSpec Change or the
       task explicitly authorizes it. Fix the implementation instead of weakening
       an architecture test.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists and apply
+      its latest developer-approved clarification or external check result. The
+      handoff does not expand sandbox permissions. If still blocked, return the
+      exact question or external action needed.
     quality_gates:
       - type: command
         name: fast-verification
@@ -95,6 +111,12 @@ steps:
       failures that fit the approved design to fix. Stop when a material design
       decision is required or when command output proves an environmental or
       pre-existing blocker.
+
+      Before verification, read
+      `.takt/orchestration/<change-name>/resume.md` when it exists. A reported
+      external check result is evidence to inspect, not permission to perform
+      additional privileged actions. If verification remains blocked, return
+      the exact command, question, or external action needed.
     quality_gates:
       - type: command
         name: full-verification

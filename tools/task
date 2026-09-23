@@ -4,6 +4,9 @@ set -euo pipefail
 PROGRAM_NAME="${0##*/}"
 CURRENT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 RUN_CONTEXT_FILE="${CURRENT_ROOT:+$CURRENT_ROOT/.takt/task-run-context}"
+ORCHESTRATION_ROOT="${CURRENT_ROOT:+$CURRENT_ROOT/.takt/orchestration}"
+ACTIVE_TAKT_PID=""
+ACTIVE_TAKT_CHANGE=""
 
 usage() {
   cat <<'USAGE'
@@ -11,7 +14,11 @@ Usage:
   tools/task create <branch> [--worktree] [--base <ref>]
   tools/task run <openspec-change-name> [--allow-architecture-tests] [--dry-run]
   tools/task follow-up <openspec-change-name> <review-feedback...> [--allow-architecture-tests] [--dry-run]
-  tools/task resume
+  tools/task status [openspec-change-name] [--json]
+  tools/task wait [openspec-change-name] [--json] [--timeout <seconds>]
+  tools/task resume [openspec-change-name] [--instruction-file <path>]
+  tools/task abort [openspec-change-name]
+  tools/task logs [openspec-change-name] [--lines <count>]
   tools/task list
   tools/task cleanup <branch>
 
@@ -21,23 +28,33 @@ Commands:
   run      Run dsbuilder-openspec in the current checkout without Git automation.
   follow-up
            Run another TAKT cycle for human review feedback after OpenSpec archive.
+  status   Show compact orchestration state for this checkout.
+  wait     Wait for a meaningful state change without streaming the full log.
   resume   Resume the latest failed or aborted TAKT run in the current checkout.
+           An instruction file is exposed to the resumed workflow as a handoff.
+  abort    Request graceful termination of the active TAKT process.
+  logs     Show a bounded tail of the current or latest TAKT log.
   list     List linked worktrees, their branches, and working-tree status.
   cleanup  Remove a clean linked worktree and try to delete its local branch.
 
 Options:
   --worktree       Create a linked worktree in DSBUILDER_WORKTREE_DIR.
-  --base REF       Override the detected base ref (normally origin/dev).
+  --base REF       Override the create base ref (normally the current branch).
   --allow-architecture-tests
                    Allow TAKT to change architecture tests. Pass this only after
                    an explicit developer request; OpenSpec authorization is
                    detected automatically.
   --dry-run        Print the TAKT command without running it.
+  --json           Emit compact machine-readable state.
+  --timeout SEC    Maximum wait time. Default: 300 seconds.
+  --instruction-file PATH
+                   Additional instruction or external check result for resume.
+  --lines COUNT    Number of log lines to show. Default: 80.
   --help           Show this help.
 
 Environment:
-  DSBUILDER_WORKTREE_DIR  Directory for linked worktrees. Default: a sibling
-                          directory named dsbuilder-worktrees.
+  DSBUILDER_WORKTREE_DIR  Directory for linked worktrees. Default: .worktrees
+                          inside the current checkout, so agent tools can access it.
   DSBUILDER_BASE_BRANCH  Default base ref for create and TAKT safety checks.
 USAGE
 }
@@ -65,6 +82,299 @@ require_repository() {
   [[ -n "$CURRENT_ROOT" ]] || fail "Run this command inside a Git repository"
 }
 
+validate_change_name() {
+  local change_name="$1"
+  [[ -n "$change_name" && "$change_name" != */* && "$change_name" != "." && "$change_name" != ".." ]] || \
+    fail "OpenSpec change name must be a single directory name"
+}
+
+orchestration_dir() {
+  printf '%s/%s\n' "$ORCHESTRATION_ROOT" "$1"
+}
+
+orchestration_state_file() {
+  printf '%s/state.json\n' "$(orchestration_dir "$1")"
+}
+
+orchestration_request_file() {
+  printf '%s/request.json\n' "$(orchestration_dir "$1")"
+}
+
+orchestration_resume_file() {
+  printf '%s/resume.md\n' "$(orchestration_dir "$1")"
+}
+
+iso_now() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+run_id_now() {
+  date -u '+%Y%m%dT%H%M%SZ'
+}
+
+initialize_orchestration_state() {
+  local change_name="$1"
+  local mode="$2"
+  local log_file="$3"
+  local state_file
+  state_file="$(orchestration_state_file "$change_name")"
+  mkdir -p "$(dirname "$state_file")"
+  rm -f "$(orchestration_request_file "$change_name")"
+
+  local temporary="$state_file.tmp.$$"
+  jq -n \
+    --arg change "$change_name" \
+    --arg mode "$mode" \
+    --arg status "running" \
+    --arg startedAt "$(iso_now)" \
+    --arg updatedAt "$(iso_now)" \
+    --arg log "$log_file" \
+    '{change: $change, mode: $mode, status: $status, runSlug: null, step: null,
+      iteration: null, reason: null, question: null, requestedAction: null,
+      report: null, summary: null, changedFiles: null, pid: null,
+      exitCode: null, startedAt: $startedAt, updatedAt: $updatedAt, log: $log}' \
+    > "$temporary"
+  mv "$temporary" "$state_file"
+}
+
+patch_orchestration_state() {
+  local change_name="$1"
+  local patch_json="$2"
+  local state_file
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+
+  local temporary="$state_file.tmp.$$"
+  jq --argjson patch "$patch_json" --arg updatedAt "$(iso_now)" \
+    '. + $patch + {updatedAt: $updatedAt}' "$state_file" > "$temporary"
+  mv "$temporary" "$state_file"
+}
+
+latest_run_meta_for_state() {
+  local state_file="$1"
+  local started_at
+  started_at="$(jq -r '.startedAt // ""' "$state_file")"
+  local selected=""
+  local selected_time=""
+  local meta meta_time meta_start
+
+  [[ -d "$CURRENT_ROOT/.takt/runs" ]] || return 1
+  while IFS= read -r -d '' meta; do
+    jq -e 'type == "object" and (.runSlug | type == "string")' "$meta" >/dev/null 2>&1 || continue
+    meta_start="$(jq -r '.startTime // ""' "$meta")"
+    [[ -z "$started_at" || "$meta_start" > "$started_at" || "$meta_start" == "$started_at" || \
+      "${meta_start:0:19}" == "${started_at:0:19}" ]] || continue
+    meta_time="$(jq -r '.updatedAt // .endTime // .startTime // ""' "$meta")"
+    if [[ -z "$selected" || "$meta_time" > "$selected_time" ]]; then
+      selected="$meta"
+      selected_time="$meta_time"
+    fi
+  done < <(find "$CURRENT_ROOT/.takt/runs" -mindepth 2 -maxdepth 2 -type f -name meta.json -print0 2>/dev/null)
+
+  [[ -n "$selected" ]] || return 1
+  printf '%s\n' "$selected"
+}
+
+refresh_orchestration_state() {
+  local change_name="$1"
+  local state_file
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || return 1
+
+  local meta_file=""
+  meta_file="$(latest_run_meta_for_state "$state_file" || true)"
+  if [[ -n "$meta_file" ]]; then
+    local run_patch
+    run_patch="$(jq -c --arg report "${meta_file%/meta.json}/trace.md" '
+      {
+        runSlug: (.runSlug // null),
+        step: (.currentStep // null),
+        iteration: (.currentIteration // null),
+        taktStatus: (.status // null),
+        reason: (.failure.error // .reason // null),
+        report: $report
+      }' "$meta_file")"
+    local current_projection next_projection
+    current_projection="$(jq -c '{runSlug, step, iteration, taktStatus, reason, report}' "$state_file")"
+    next_projection="$(jq -cn --argjson current "$current_projection" --argjson patch "$run_patch" '$current + $patch')"
+    if [[ "$current_projection" != "$next_projection" ]]; then
+      patch_orchestration_state "$change_name" "$run_patch"
+    fi
+  fi
+
+  local request_file
+  request_file="$(orchestration_request_file "$change_name")"
+  if [[ -f "$request_file" ]] && jq -e 'type == "object"' "$request_file" >/dev/null 2>&1; then
+    local request_patch
+    request_patch="$(jq -c '{
+      question: (.question // null),
+      requestedAction: (.requestedAction // null)
+    }' "$request_file")"
+    patch_orchestration_state "$change_name" "$request_patch"
+  fi
+
+  local status pid takt_status
+  status="$(jq -r '.status // "unknown"' "$state_file")"
+  pid="$(jq -r '.pid // empty' "$state_file")"
+  takt_status="$(jq -r '.taktStatus // empty' "$state_file")"
+  if [[ "$status" == "running" && -n "$pid" && ( -z "$takt_status" || "$takt_status" == "running" ) ]] && \
+    ! kill -0 "$pid" 2>/dev/null; then
+    patch_orchestration_state "$change_name" \
+      '{"status":"failed","reason":"TAKT process is no longer running","pid":null}'
+  fi
+}
+
+resolve_orchestration_change() {
+  local requested="${1:-}"
+  if [[ -n "$requested" ]]; then
+    validate_change_name "$requested"
+    printf '%s\n' "$requested"
+    return
+  fi
+  if [[ -f "$RUN_CONTEXT_FILE" ]]; then
+    sed -n '2p' "$RUN_CONTEXT_FILE"
+    return
+  fi
+  local latest_state=""
+  if [[ -d "$ORCHESTRATION_ROOT" ]]; then
+    local candidate candidate_mtime latest_mtime="0"
+    while IFS= read -r -d '' candidate; do
+      candidate_mtime="$(stat -f '%m' "$candidate" 2>/dev/null || stat -c '%Y' "$candidate" 2>/dev/null || echo 0)"
+      if (( candidate_mtime > latest_mtime )); then
+        latest_state="$candidate"
+        latest_mtime="$candidate_mtime"
+      fi
+    done < <(find "$ORCHESTRATION_ROOT" -mindepth 2 -maxdepth 2 -type f -name state.json -print0 2>/dev/null)
+  fi
+  [[ -n "$latest_state" ]] || fail "No task orchestration state found in this checkout"
+  basename "$(dirname "$latest_state")"
+}
+
+orchestration_status_json() {
+  local change_name="$1"
+  local state_file
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+  refresh_orchestration_state "$change_name"
+  jq -c 'del(.pid, .log, .taktStatus)' "$state_file"
+}
+
+state_fingerprint() {
+  jq -c '{status, runSlug, step, iteration, reason, question, requestedAction, report, summary, changedFiles}'
+}
+
+classify_failed_status() {
+  local reason="$1"
+  if printf '%s' "$reason" | grep -Eiq 'blocked|user input|required|permission|sandbox|denied|approval'; then
+    printf 'blocked\n'
+  else
+    printf 'failed\n'
+  fi
+}
+
+handle_active_takt_signal() {
+  if [[ -n "$ACTIVE_TAKT_CHANGE" ]]; then
+    mkdir -p "$(orchestration_dir "$ACTIVE_TAKT_CHANGE")"
+    : > "$(orchestration_dir "$ACTIVE_TAKT_CHANGE")/abort.requested"
+  fi
+  if [[ -n "$ACTIVE_TAKT_PID" ]]; then
+    kill -TERM "$ACTIVE_TAKT_PID" 2>/dev/null || true
+  fi
+}
+
+execute_logged_takt() {
+  local change_name="$1"
+  local mode="$2"
+  shift 2
+
+  require jq
+  local directory log_directory log_file
+  directory="$(orchestration_dir "$change_name")"
+  log_directory="$directory/logs"
+  mkdir -p "$log_directory"
+  log_file="$log_directory/$(run_id_now)-$$.log"
+  initialize_orchestration_state "$change_name" "$mode" "$log_file"
+  rm -f "$directory/abort.requested"
+
+  {
+    printf '[task] Started: %s\n' "$(iso_now)"
+    printf '[task] Checkout: %s\n' "$CURRENT_ROOT"
+    printf '[task] Change: %s\n' "$change_name"
+    printf '[task] Command:'
+    printf ' %q' "$@"
+    printf '\n'
+  } | tee -a "$log_file"
+
+  "$@" >> "$log_file" 2>&1 &
+  ACTIVE_TAKT_PID=$!
+  ACTIVE_TAKT_CHANGE="$change_name"
+  patch_orchestration_state "$change_name" "$(jq -cn --argjson pid "$ACTIVE_TAKT_PID" '{pid: $pid}')"
+  trap handle_active_takt_signal INT TERM HUP
+
+  local command_status=0
+  if wait "$ACTIVE_TAKT_PID"; then
+    command_status=0
+  else
+    command_status=$?
+  fi
+  ACTIVE_TAKT_PID=""
+  ACTIVE_TAKT_CHANGE=""
+  trap - INT TERM HUP
+
+  refresh_orchestration_state "$change_name" || true
+  local reason
+  reason="$(jq -r '.reason // empty' "$(orchestration_state_file "$change_name")")"
+  if [[ -f "$directory/abort.requested" ]]; then
+    patch_orchestration_state "$change_name" \
+      "$(jq -cn --argjson exitCode "$command_status" '{status:"aborted", pid:null, exitCode:$exitCode, reason:"TAKT run was aborted"}')"
+    return 130
+  fi
+  if [[ "$command_status" -ne 0 ]]; then
+    local failed_status
+    failed_status="$(classify_failed_status "$reason")"
+    local question=""
+    [[ "$failed_status" == "blocked" ]] && question="${reason:-TAKT requires developer input}"
+    patch_orchestration_state "$change_name" \
+      "$(jq -cn --arg status "$failed_status" --argjson exitCode "$command_status" --arg reason "${reason:-TAKT command failed}" --arg question "$question" \
+        '{status:$status, pid:null, exitCode:$exitCode, reason:$reason,
+          question:(if $question == "" then null else $question end)}')"
+    return "$command_status"
+  fi
+
+  patch_orchestration_state "$change_name" '{"status":"finalizing","pid":null,"exitCode":0}'
+  log "TAKT output: $log_file"
+  return 0
+}
+
+run_postcheck_with_log() {
+  local change_name="$1"
+  shift
+  local log_file
+  log_file="$(jq -r '.log' "$(orchestration_state_file "$change_name")")"
+  set +e
+  ("$@") 2>&1 | tee -a "$log_file"
+  local postcheck_status=${PIPESTATUS[0]}
+  set -e
+  return "$postcheck_status"
+}
+
+finish_orchestration_success() {
+  local change_name="$1"
+  local summary="$2"
+  local changed_files
+  changed_files="$(git -C "$CURRENT_ROOT" status --porcelain --untracked-files=all | wc -l | tr -d ' ')"
+  patch_orchestration_state "$change_name" \
+    "$(jq -cn --arg summary "$summary" --argjson changedFiles "$changed_files" \
+      '{status:"completed", reason:null, question:null, requestedAction:null,
+        summary:$summary, changedFiles:$changedFiles, pid:null, exitCode:0}')"
+}
+
+finish_orchestration_postcheck_failure() {
+  local change_name="$1"
+  patch_orchestration_state "$change_name" \
+    '{"status":"failed","reason":"TAKT completed, but repository post-checks failed","pid":null,"exitCode":1}'
+}
+
 primary_root() {
   git worktree list --porcelain | sed -n 's/^worktree //p' | head -n 1
 }
@@ -89,6 +399,17 @@ default_base_ref() {
     echo "origin/master"
   elif git show-ref --verify --quiet refs/heads/master; then
     echo "master"
+  else
+    echo "HEAD"
+  fi
+}
+
+default_create_base_ref() {
+  local branch
+  if [[ -n "${DSBUILDER_BASE_BRANCH:-}" ]]; then
+    echo "$DSBUILDER_BASE_BRANCH"
+  elif branch="$(current_branch "$CURRENT_ROOT")" && [[ -n "$branch" ]]; then
+    echo "$branch"
   else
     echo "HEAD"
   fi
@@ -178,7 +499,7 @@ command_create() {
   require_repository
   require git
 
-  [[ -n "$base" ]] || base="$(default_base_ref)"
+  [[ -n "$base" ]] || base="$(default_create_base_ref)"
   validate_branch "$branch"
   git rev-parse --verify --quiet "$base^{commit}" >/dev/null || fail "Base ref does not exist: $base"
 
@@ -200,7 +521,7 @@ command_create() {
   [[ -n "$root" ]] || fail "Cannot determine the primary worktree"
 
   local worktree_base
-  worktree_base="${DSBUILDER_WORKTREE_DIR:-$(dirname "$root")/dsbuilder-worktrees}"
+  worktree_base="${DSBUILDER_WORKTREE_DIR:-$CURRENT_ROOT/.worktrees}"
   local directory_name
   directory_name="$(printf '%s' "$branch" | tr '/[:space:]' '--')"
   [[ -n "$directory_name" ]] || fail "Cannot derive a worktree directory from branch name"
@@ -271,8 +592,7 @@ command_run() {
     fail "Refusing to run TAKT on base branch: $branch"
   fi
 
-  [[ "$change_name" != */* && "$change_name" != "." && "$change_name" != ".." ]] || \
-    fail "OpenSpec change name must be a single directory name"
+  validate_change_name "$change_name"
 
   local change_dir="$CURRENT_ROOT/openspec/changes/$change_name"
   [[ -d "$change_dir" ]] || fail "OpenSpec change not found: openspec/changes/$change_name"
@@ -319,12 +639,18 @@ command_run() {
   protected_paths_start="$(protected_paths_snapshot)"
   write_run_context main "$change_name" "$start_head" "$explicit_permissions" "$protected_paths_start"
   log "Running TAKT for $change_name in $CURRENT_ROOT"
-  if "${command[@]}"; then
-    postcheck_main_run "$change_name" "$start_head"
+  if execute_logged_takt "$change_name" main "${command[@]}"; then
+    if run_postcheck_with_log "$change_name" postcheck_main_run "$change_name" "$start_head"; then
+      finish_orchestration_success "$change_name" "Implementation, verification, and OpenSpec archive completed"
+    else
+      finish_orchestration_postcheck_failure "$change_name"
+      return 1
+    fi
     clear_run_context
   else
     local status=$?
-    log "TAKT did not complete; use 'tools/task resume' after resolving the blocker"
+    log "TAKT did not complete; inspect 'tools/task status $change_name --json'"
+    log "Resume with 'tools/task resume $change_name --instruction-file <path>' after resolving the blocker"
     return "$status"
   fi
 }
@@ -466,8 +792,7 @@ command_follow_up() {
     fail "Refusing to run TAKT on base branch: $branch"
   fi
 
-  [[ "$change_name" != */* && "$change_name" != "." && "$change_name" != ".." ]] || \
-    fail "OpenSpec change name must be a single directory name"
+  validate_change_name "$change_name"
 
   local archived_change
   archived_change="$(find_archived_change "$change_name" || true)"
@@ -495,21 +820,52 @@ command_follow_up() {
   protected_paths_start="$(protected_paths_snapshot)"
   write_run_context follow-up "$change_name" "$start_head" "$explicit_permissions" "$protected_paths_start"
   log "Running TAKT follow-up for $change_name in $CURRENT_ROOT"
-  if "${command[@]}"; then
-    postcheck_follow_up "$change_name" "$start_head"
+  if execute_logged_takt "$change_name" follow-up "${command[@]}"; then
+    if run_postcheck_with_log "$change_name" postcheck_follow_up "$change_name" "$start_head"; then
+      finish_orchestration_success "$change_name" "Human review feedback applied and verified"
+    else
+      finish_orchestration_postcheck_failure "$change_name"
+      return 1
+    fi
     clear_run_context
   else
     local status=$?
-    log "TAKT follow-up did not complete; use 'tools/task resume' after resolving the blocker"
+    log "TAKT follow-up did not complete; inspect 'tools/task status $change_name --json'"
+    log "Resume with 'tools/task resume $change_name --instruction-file <path>' after resolving the blocker"
     return "$status"
   fi
 }
 
 command_resume() {
+  local requested_change=""
+  local instruction_file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --instruction-file)
+        require_value "$1" "${2:-}"
+        instruction_file="$2"
+        shift 2
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      --*)
+        fail "Unknown resume option: $1"
+        ;;
+      *)
+        [[ -z "$requested_change" ]] || fail "resume accepts at most one OpenSpec change name"
+        requested_change="$1"
+        shift
+        ;;
+    esac
+  done
+
   require_repository
   require git
   require takt
   require openspec
+  require jq
   require_clean_index
 
   [[ -f "$RUN_CONTEXT_FILE" ]] || \
@@ -535,20 +891,222 @@ command_resume() {
   [[ "$mode" == "main" || "$mode" == "follow-up" ]] || fail "Invalid TAKT run context mode: $mode"
   [[ -n "$change_name" && -n "$start_head" && -n "$explicit_permissions" && -n "$protected_paths_start" ]] || \
     fail "Incomplete TAKT run context"
+  validate_change_name "$change_name"
+  if [[ -n "$requested_change" ]]; then
+    validate_change_name "$requested_change"
+    [[ "$requested_change" == "$change_name" ]] || \
+      fail "Run context belongs to '$change_name', not '$requested_change'"
+  fi
+
+  local resume_file=""
+  if [[ -n "$instruction_file" ]]; then
+    [[ -f "$instruction_file" ]] || fail "Instruction file not found: $instruction_file"
+    [[ -s "$instruction_file" ]] || fail "Instruction file is empty: $instruction_file"
+    resume_file="$(orchestration_resume_file "$change_name")"
+    mkdir -p "$(dirname "$resume_file")"
+    cat "$instruction_file" > "$resume_file.tmp.$$"
+    mv "$resume_file.tmp.$$" "$resume_file"
+  fi
 
   log "Resuming the latest TAKT run in $CURRENT_ROOT"
-  if takt resume; then
+  local resume_command=(takt resume)
+  if [[ -n "$instruction_file" ]]; then
+    resume_command=(env TAKT_NO_TTY=1 takt resume)
+  fi
+
+  local resume_status=0
+  if execute_logged_takt "$change_name" "$mode-resume" "${resume_command[@]}"; then
+    resume_status=0
+  else
+    resume_status=$?
+  fi
+
+  if [[ -n "$resume_file" && -f "$resume_file" ]]; then
+    local handoff_directory
+    handoff_directory="$(orchestration_dir "$change_name")/handoffs"
+    mkdir -p "$handoff_directory"
+    mv "$resume_file" "$handoff_directory/$(run_id_now)-$$.md"
+  fi
+
+  if [[ "$resume_status" -eq 0 ]]; then
     if [[ "$mode" == "main" ]]; then
-      postcheck_main_run "$change_name" "$start_head"
+      if ! run_postcheck_with_log "$change_name" postcheck_main_run "$change_name" "$start_head"; then
+        finish_orchestration_postcheck_failure "$change_name"
+        return 1
+      fi
     else
-      postcheck_follow_up "$change_name" "$start_head"
+      if ! run_postcheck_with_log "$change_name" postcheck_follow_up "$change_name" "$start_head"; then
+        finish_orchestration_postcheck_failure "$change_name"
+        return 1
+      fi
     fi
+    finish_orchestration_success "$change_name" "Resumed TAKT workflow completed successfully"
     clear_run_context
   else
-    local status=$?
     log "TAKT resume did not complete; the run context was preserved"
-    return "$status"
+    return "$resume_status"
   fi
+}
+
+command_status() {
+  local requested_change=""
+  local json_output="false"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --json)
+        json_output="true"
+        shift
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      --*)
+        fail "Unknown status option: $1"
+        ;;
+      *)
+        [[ -z "$requested_change" ]] || fail "status accepts at most one OpenSpec change name"
+        requested_change="$1"
+        shift
+        ;;
+    esac
+  done
+
+  require_repository
+  require jq
+  local change_name state_json
+  change_name="$(resolve_orchestration_change "$requested_change")"
+  state_json="$(orchestration_status_json "$change_name")"
+  if [[ "$json_output" == "true" ]]; then
+    printf '%s\n' "$state_json"
+    return
+  fi
+  printf '%-18s %s\n' "CHANGE" "$(printf '%s' "$state_json" | jq -r '.change')"
+  printf '%-18s %s\n' "STATUS" "$(printf '%s' "$state_json" | jq -r '.status')"
+  printf '%-18s %s\n' "STEP" "$(printf '%s' "$state_json" | jq -r '.step // "-"')"
+  printf '%-18s %s\n' "RUN" "$(printf '%s' "$state_json" | jq -r '.runSlug // "-"')"
+  printf '%-18s %s\n' "REASON" "$(printf '%s' "$state_json" | jq -r '.reason // "-"')"
+  printf '%-18s %s\n' "QUESTION" "$(printf '%s' "$state_json" | jq -r '.question // "-"')"
+  printf '%-18s %s\n' "REPORT" "$(printf '%s' "$state_json" | jq -r '.report // "-"')"
+}
+
+command_wait() {
+  local requested_change=""
+  local json_output="false"
+  local timeout_seconds=300
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --json)
+        json_output="true"
+        shift
+        ;;
+      --timeout)
+        require_value "$1" "${2:-}"
+        [[ "$2" =~ ^[0-9]+$ ]] || fail "--timeout must be a non-negative integer"
+        timeout_seconds="$2"
+        shift 2
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      --*)
+        fail "Unknown wait option: $1"
+        ;;
+      *)
+        [[ -z "$requested_change" ]] || fail "wait accepts at most one OpenSpec change name"
+        requested_change="$1"
+        shift
+        ;;
+    esac
+  done
+
+  require_repository
+  require jq
+  local change_name initial_json initial_status initial_fingerprint
+  change_name="$(resolve_orchestration_change "$requested_change")"
+  initial_json="$(orchestration_status_json "$change_name")"
+  initial_status="$(printf '%s' "$initial_json" | jq -r '.status')"
+  case "$initial_status" in
+    completed|failed|blocked|aborted)
+      if [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$initial_json"
+      else
+        command_status "$change_name"
+      fi
+      return
+      ;;
+  esac
+  initial_fingerprint="$(printf '%s' "$initial_json" | state_fingerprint)"
+
+  local started_at=$SECONDS current_json current_fingerprint
+  while (( SECONDS - started_at < timeout_seconds )); do
+    sleep 2
+    current_json="$(orchestration_status_json "$change_name")"
+    current_fingerprint="$(printf '%s' "$current_json" | state_fingerprint)"
+    if [[ "$current_fingerprint" != "$initial_fingerprint" ]]; then
+      if [[ "$json_output" == "true" ]]; then
+        printf '%s\n' "$current_json"
+      else
+        command_status "$change_name"
+      fi
+      return
+    fi
+  done
+  return 124
+}
+
+command_abort() {
+  [[ $# -le 1 ]] || fail "abort accepts at most one OpenSpec change name"
+  require_repository
+  require jq
+  local change_name state_file pid
+  change_name="$(resolve_orchestration_change "${1:-}")"
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+  pid="$(jq -r '.pid // empty' "$state_file")"
+  [[ "$pid" =~ ^[0-9]+$ ]] || fail "No active TAKT process recorded for OpenSpec change: $change_name"
+  kill -0 "$pid" 2>/dev/null || fail "Recorded TAKT process is no longer running: $pid"
+  : > "$(orchestration_dir "$change_name")/abort.requested"
+  kill -TERM "$pid"
+  log "Requested TAKT termination for $change_name (pid $pid)"
+}
+
+command_logs() {
+  local requested_change=""
+  local line_count=80
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines)
+        require_value "$1" "${2:-}"
+        [[ "$2" =~ ^[1-9][0-9]*$ ]] || fail "--lines must be a positive integer"
+        line_count="$2"
+        shift 2
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      --*)
+        fail "Unknown logs option: $1"
+        ;;
+      *)
+        [[ -z "$requested_change" ]] || fail "logs accepts at most one OpenSpec change name"
+        requested_change="$1"
+        shift
+        ;;
+    esac
+  done
+
+  require_repository
+  require jq
+  local change_name state_file log_file
+  change_name="$(resolve_orchestration_change "$requested_change")"
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+  log_file="$(jq -r '.log // empty' "$state_file")"
+  [[ -n "$log_file" && -f "$log_file" ]] || fail "TAKT log not found for OpenSpec change: $change_name"
+  tail -n "$line_count" "$log_file"
 }
 
 print_worktree() {
@@ -671,10 +1229,25 @@ main() {
       shift
       command_follow_up "$@"
       ;;
+    status)
+      shift
+      command_status "$@"
+      ;;
+    wait)
+      shift
+      command_wait "$@"
+      ;;
     resume)
       shift
-      [[ $# -eq 0 ]] || fail "resume does not accept arguments"
-      command_resume
+      command_resume "$@"
+      ;;
+    abort)
+      shift
+      command_abort "$@"
+      ;;
+    logs)
+      shift
+      command_logs "$@"
       ;;
     list)
       shift

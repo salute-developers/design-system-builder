@@ -18,7 +18,11 @@ apply → FAST → conformance_review → FULL → archive
 tools/task create <branch-name> [--worktree]
 tools/task run <change-name>
 tools/task follow-up <change-name> '<human-review-feedback>'
-tools/task resume
+tools/task status [change-name] --json
+tools/task wait [change-name] --json
+tools/task resume [change-name] --instruction-file <path>
+tools/task abort [change-name]
+tools/task logs [change-name] --lines 80
 tools/task list
 tools/task cleanup <branch-name>
 tools/verify fast
@@ -37,7 +41,7 @@ tools/verify audit --all
 Тот же процесс доступен через репозиторный skill:
 
 ```text
-$dsbuilder-task-workflow создай worktree для feature/PLASMA-123 от dev
+$dsbuilder-task-workflow создай worktree для feature/PLASMA-123 от текущей ветки
 $dsbuilder-task-workflow запусти согласованный Change add-theme-inheritance
 $dsbuilder-task-workflow примени замечания review к add-theme-inheritance
 ```
@@ -51,3 +55,8 @@ TAKT запускается в checkout разработчика с `--skip-git`
 Strictacode-метрики изменённых контуров с версионированным baseline. `audit`
 создаёт подробные локальные отчёты без изменения baseline. Полный процесс,
 guardrails, параллельные задачи и cleanup описаны в [PROCESS.md](./PROCESS.md).
+
+Полный вывод каждого TAKT запуска сохраняется в `.takt/orchestration`, а
+координирующий Codex или Claude Code использует компактные `status` и `wait`.
+После остановки он может выполнить отдельно разрешённую разработчиком проверку,
+записать результат в handoff-файл и продолжить тот же direct run через `resume`.

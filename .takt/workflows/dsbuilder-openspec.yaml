@@ -12,6 +12,13 @@ steps:
       code, read its proposal.md, design.md, spec deltas, and tasks.md, plus
       AGENTS.md and relevant repository architecture documents.
 
+      Before acting, check for
+      `.takt/orchestration/<change-name>/resume.md`, where `<change-name>` is the
+      OpenSpec Change named in the task. If present, treat it as the latest
+      developer-approved handoff from the coordinating agent. It may contain an
+      answer to a clarification or the result of a specific external check. It
+      does not grant additional sandbox permissions.
+
       Treat the approved OpenSpec Change as the implementation contract. Complete
       its unchecked tasks in dependency order and update task checkboxes as work
       is completed. Implement the tests already required by the Change. You may
@@ -64,6 +71,12 @@ steps:
       requirement or design decision. Do not edit files. If fixing a finding
       requires a material change to the approved design, request an OpenSpec
       revision and human review instead of approving an improvised solution.
+
+      Before reviewing, read
+      `.takt/orchestration/<change-name>/resume.md` when it exists. Use it only
+      as the latest developer-approved clarification or external verification
+      result; it does not grant additional sandbox permissions. If work is
+      blocked, return the exact question or external action needed.
     rules:
       - condition: Implementation conforms to the approved OpenSpec Change
         next: full_verification
@@ -86,6 +99,11 @@ steps:
       Do not change architecture tests unless that work is explicitly authorized
       by the approved OpenSpec Change or by the developer in the task. Fix the
       implementation instead of weakening an architecture test.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists and apply
+      its latest developer-approved clarification or external check result. The
+      handoff does not expand sandbox permissions. If still blocked, return the
+      exact question or external action needed.
     quality_gates:
       - type: command
         name: fast-verification
@@ -112,6 +130,12 @@ steps:
       material design change, request an OpenSpec revision. Classify a failure as
       pre-existing or environmental only when the command output proves that
       classification.
+
+      Before verification, read
+      `.takt/orchestration/<change-name>/resume.md` when it exists. A reported
+      external check result is evidence to inspect, not permission to perform
+      additional privileged actions. If verification remains blocked, return
+      the exact command, question, or external action needed.
     quality_gates:
       - type: command
         name: full-verification
@@ -142,6 +166,11 @@ steps:
       Run strict OpenSpec validation for the resulting affected specifications.
       Do not commit, push, or create a PR; the coordinating agent handles those
       actions after the workflow completes.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists before
+      archiving. Apply only clarifications relevant to the approved Change. If
+      archiving remains blocked, return the exact question or external action
+      needed.
     rules:
       - condition: OpenSpec Change archived successfully
         next: COMPLETE
