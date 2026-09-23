@@ -1,0 +1,86 @@
+name: dsbuilder-openspec
+description: Implement an approved OpenSpec change and archive it after conformance review.
+max_steps: 12
+initial_step: apply
+steps:
+  - name: apply
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Implement the approved OpenSpec change named in the task. Before editing
+      code, read its proposal.md, design.md, spec deltas, and tasks.md, plus
+      AGENTS.md and relevant repository architecture documents.
+
+      Treat the approved OpenSpec Change as the implementation contract. Complete
+      its unchecked tasks in dependency order and update task checkboxes as work
+      is completed. Implement the tests already required by the Change. You may
+      decide local implementation details, but do not silently change product
+      behavior, architecture boundaries, public contracts, data flow, state
+      transitions, or other approved design decisions.
+
+      If a material design assumption is invalid or the Change is incomplete or
+      contradictory, do not invent a replacement design. Stop and explain exactly
+      what must be updated in OpenSpec and reviewed by a human. Do not commit,
+      push, archive the Change, or create a PR.
+    rules:
+      - condition: All OpenSpec implementation tasks completed
+        next: conformance_review
+      - condition: OpenSpec requires a material design decision or revision
+        next: ABORT
+      - condition: OpenSpec artifacts are missing or contradictory
+        next: ABORT
+
+  - name: conformance_review
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Review the implementation only for conformance with the approved OpenSpec
+      Change named in the task. Read proposal.md, design.md, spec deltas, and
+      tasks.md. Check that required behavior and tasks are implemented, the code
+      follows approved component boundaries and contracts, and no unapproved
+      product or architecture decisions were introduced.
+
+      Return concrete findings with file locations and the violated OpenSpec
+      requirement or design decision. Do not edit files. If fixing a finding
+      requires a material change to the approved design, request an OpenSpec
+      revision and human review instead of approving an improvised solution.
+    rules:
+      - condition: Implementation conforms to the approved OpenSpec Change
+        next: archive
+      - condition: Implementation has fixable conformance findings
+        next: fix
+      - condition: A material OpenSpec revision is required
+        next: ABORT
+
+  - name: fix
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Fix the conformance review findings within the approved OpenSpec scope.
+      Update task checkboxes when their work is actually complete. Do not expand
+      or rewrite the approved design. If a finding cannot be fixed without a
+      material OpenSpec change, stop and request OpenSpec revision and human
+      review. Do not commit, push, archive the Change, or create a PR.
+    rules:
+      - condition: Conformance findings fixed within approved design
+        next: conformance_review
+      - condition: A material OpenSpec revision is required
+        next: ABORT
+
+  - name: archive
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Archive only the implemented OpenSpec change named in the task using the
+      repository's OpenSpec CLI. Confirm that all tasks are complete and inspect
+      the resulting main-spec changes for consistency with the approved Change.
+      Do not commit, push, or create a PR; the coordinating agent handles those
+      actions after the workflow completes.
+    rules:
+      - condition: OpenSpec Change archived successfully
+        next: COMPLETE
+      - condition: Change cannot be archived consistently
+        next: ABORT

@@ -1,0 +1,56 @@
+name: dsbuilder-openspec-followup
+description: Apply human review feedback after an OpenSpec change has been archived.
+max_steps: 8
+initial_step: apply_feedback
+steps:
+  - name: apply_feedback
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Apply the human review feedback from the task to the current implementation.
+      Find and read the archived OpenSpec Change named in the task under
+      openspec/changes/archive/*-<change-name>, plus AGENTS.md and relevant
+      architecture documents. Preserve the approved product behavior, public
+      contracts, component boundaries, data flow, and state transitions.
+
+      The checkout may intentionally contain uncommitted output from an earlier
+      successful TAKT cycle. Work with that current state. If the feedback requires
+      a material change to the approved design, stop and request a new or revised
+      OpenSpec decision instead of inventing one. Do not commit or push.
+    rules:
+      - condition: Review feedback implemented within approved design
+        next: conformance_review
+      - condition: A material OpenSpec decision is required
+        next: ABORT
+
+  - name: conformance_review
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Review whether the human feedback in the task has been resolved and the
+      resulting implementation still conforms to the archived OpenSpec Change.
+      Return concrete findings with file locations. Do not edit files. If a fix
+      requires a material design change, request a new or revised OpenSpec
+      decision instead of approving an improvised solution.
+    rules:
+      - condition: Feedback resolved and implementation conforms to OpenSpec
+        next: COMPLETE
+      - condition: Fixable findings remain within approved design
+        next: fix
+      - condition: A material OpenSpec decision is required
+        next: ABORT
+
+  - name: fix
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Resolve the conformance review findings within the archived OpenSpec design
+      and the human feedback from the task. Do not commit or push. Stop if a
+      material product or architecture decision is required.
+    rules:
+      - condition: Findings fixed within approved design
+        next: conformance_review
+      - condition: A material OpenSpec decision is required
+        next: ABORT

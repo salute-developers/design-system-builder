@@ -1,0 +1,494 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM_NAME="${0##*/}"
+CURRENT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/task create <branch> [--worktree] [--base <ref>]
+  tools/task run <openspec-change-name> [--dry-run]
+  tools/task follow-up <openspec-change-name> <review-feedback...> [--dry-run]
+  tools/task resume
+  tools/task list
+  tools/task cleanup <branch>
+
+Commands:
+  create   Create the explicitly named branch in the current checkout, or in a
+           linked Git worktree when --worktree is passed.
+  run      Run dsbuilder-openspec in the current checkout without Git automation.
+  follow-up
+           Run another TAKT cycle for human review feedback after OpenSpec archive.
+  resume   Resume the latest failed or aborted TAKT run in the current checkout.
+  list     List linked worktrees, their branches, and working-tree status.
+  cleanup  Remove a clean linked worktree and try to delete its local branch.
+
+Options:
+  --worktree       Create a linked worktree in DSBUILDER_WORKTREE_DIR.
+  --base REF       Override the detected base ref (normally origin/main).
+  --dry-run        Print the TAKT command without running it.
+  --help           Show this help.
+
+Environment:
+  DSBUILDER_WORKTREE_DIR  Directory for linked worktrees. Default: a sibling
+                          directory named dsbuilder-worktrees.
+  DSBUILDER_BASE_BRANCH  Default base ref for create and TAKT safety checks.
+USAGE
+}
+
+log() {
+  echo "[task] $*"
+}
+
+fail() {
+  echo "[task] $*" >&2
+  exit 1
+}
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || fail "Required command '$1' not found"
+}
+
+require_value() {
+  local option="$1"
+  local value="${2:-}"
+  [[ -n "$value" ]] || fail "Option $option requires a value"
+}
+
+require_repository() {
+  [[ -n "$CURRENT_ROOT" ]] || fail "Run this command inside a Git repository"
+}
+
+primary_root() {
+  git worktree list --porcelain | sed -n 's/^worktree //p' | head -n 1
+}
+
+default_base_ref() {
+  if [[ -n "${DSBUILDER_BASE_BRANCH:-}" ]]; then
+    echo "$DSBUILDER_BASE_BRANCH"
+  elif git show-ref --verify --quiet refs/remotes/origin/main; then
+    echo "origin/main"
+  elif git show-ref --verify --quiet refs/heads/main; then
+    echo "main"
+  elif git show-ref --verify --quiet refs/remotes/origin/master; then
+    echo "origin/master"
+  elif git show-ref --verify --quiet refs/heads/master; then
+    echo "master"
+  else
+    echo "HEAD"
+  fi
+}
+
+require_clean_checkout() {
+  local root="$1"
+  if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
+    fail "Checkout has uncommitted changes: $root"
+  fi
+}
+
+current_branch() {
+  git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null || true
+}
+
+validate_branch() {
+  git check-ref-format --branch "$1" >/dev/null 2>&1 || fail "Invalid branch name: $1"
+}
+
+worktree_path_for_branch() {
+  local branch="$1"
+  local ref="refs/heads/$branch"
+  git worktree list --porcelain | awk -v target="$ref" '
+    /^worktree / { path = substr($0, 10) }
+    /^branch / && substr($0, 8) == target { print path; exit }
+  '
+}
+
+command_create() {
+  [[ $# -gt 0 ]] || fail "create requires <branch>"
+
+  local branch="$1"
+  shift
+  local use_worktree="false"
+  local base=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --worktree)
+        use_worktree="true"
+        shift
+        ;;
+      --base)
+        require_value "$1" "${2:-}"
+        base="$2"
+        shift 2
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      *)
+        fail "Unknown create option: $1"
+        ;;
+    esac
+  done
+
+  require_repository
+  require git
+
+  [[ -n "$base" ]] || base="$(default_base_ref)"
+  validate_branch "$branch"
+  git rev-parse --verify --quiet "$base^{commit}" >/dev/null || fail "Base ref does not exist: $base"
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    fail "Local branch already exists: $branch"
+  fi
+
+  if [[ "$use_worktree" == "false" ]]; then
+    require_clean_checkout "$CURRENT_ROOT"
+    git switch -c "$branch" "$base"
+    log "Created $branch in $CURRENT_ROOT"
+    exit 0
+  fi
+
+  local root
+  root="$(primary_root)"
+  [[ -n "$root" ]] || fail "Cannot determine the primary worktree"
+
+  local worktree_base
+  worktree_base="${DSBUILDER_WORKTREE_DIR:-$(dirname "$root")/dsbuilder-worktrees}"
+  local directory_name
+  directory_name="$(printf '%s' "$branch" | tr '/[:space:]' '--')"
+  [[ -n "$directory_name" ]] || fail "Cannot derive a worktree directory from branch name"
+  local path="$worktree_base/$directory_name"
+
+  [[ ! -e "$path" ]] || fail "Worktree path already exists: $path"
+  mkdir -p "$worktree_base"
+  git -C "$root" worktree add "$path" -b "$branch" "$base"
+
+  log "Created $branch"
+  log "Worktree: $path"
+  if command -v idea >/dev/null 2>&1; then
+    log "Open in IDEA: idea '$path'"
+  fi
+  if command -v code >/dev/null 2>&1; then
+    log "Open in VS Code: code '$path'"
+  fi
+}
+
+command_run() {
+  [[ $# -gt 0 ]] || fail "run requires <openspec-change-name>"
+
+  local change_name="$1"
+  shift
+  local dry_run="false"
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run="true"
+        shift
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      *)
+        fail "Unknown run option: $1"
+        ;;
+    esac
+  done
+
+  require_repository
+  require git
+  require takt
+  require_clean_checkout "$CURRENT_ROOT"
+
+  local branch
+  branch="$(current_branch "$CURRENT_ROOT")"
+  [[ -n "$branch" ]] || fail "TAKT cannot run from a detached HEAD"
+
+  local base
+  base="$(default_base_ref)"
+  local base_branch="${base#origin/}"
+  if [[ "$branch" == "$base_branch" || "$branch" == "main" || "$branch" == "master" ]]; then
+    fail "Refusing to run TAKT on base branch: $branch"
+  fi
+
+  [[ "$change_name" != */* && "$change_name" != "." && "$change_name" != ".." ]] || \
+    fail "OpenSpec change name must be a single directory name"
+
+  local change_dir="$CURRENT_ROOT/openspec/changes/$change_name"
+  [[ -d "$change_dir" ]] || fail "OpenSpec change not found: openspec/changes/$change_name"
+
+  local artifact
+  for artifact in proposal.md design.md tasks.md; do
+    [[ -f "$change_dir/$artifact" ]] || fail "Missing OpenSpec artifact: openspec/changes/$change_name/$artifact"
+  done
+
+  if [[ ! -d "$change_dir/specs" ]] || \
+    [[ -z "$(find "$change_dir/specs" -type f -name spec.md -print -quit 2>/dev/null)" ]]; then
+    fail "No spec delta found under openspec/changes/$change_name/specs"
+  fi
+
+  local task_text="Implement approved OpenSpec change $change_name"
+  local command=(takt --pipeline --skip-git -w dsbuilder-openspec --task "$task_text")
+
+  if [[ "$dry_run" == "true" ]]; then
+    printf '[task] Command:'
+    printf ' %q' "${command[@]}"
+    printf '\n'
+    exit 0
+  fi
+
+  log "Running TAKT for $change_name in $CURRENT_ROOT"
+  exec "${command[@]}"
+}
+
+find_archived_change() {
+  local change_name="$1"
+  local archive_root="$CURRENT_ROOT/openspec/changes/archive"
+  [[ -d "$archive_root" ]] || return 1
+
+  local found=""
+  local candidate
+  while IFS= read -r candidate; do
+    if [[ -n "$found" ]]; then
+      fail "More than one archived OpenSpec Change matches '$change_name'"
+    fi
+    found="$candidate"
+  done < <(find "$archive_root" -mindepth 1 -maxdepth 1 -type d -name "*-$change_name" -print)
+
+  [[ -n "$found" ]] || return 1
+  echo "$found"
+}
+
+command_follow_up() {
+  [[ $# -gt 1 ]] || fail "follow-up requires <openspec-change-name> and review feedback"
+
+  local change_name="$1"
+  shift
+  local dry_run="false"
+  local feedback_parts=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        dry_run="true"
+        shift
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      *)
+        feedback_parts+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  [[ ${#feedback_parts[@]} -gt 0 ]] || fail "follow-up requires review feedback"
+  require_repository
+  require git
+  require takt
+
+  local branch
+  branch="$(current_branch "$CURRENT_ROOT")"
+  [[ -n "$branch" ]] || fail "TAKT cannot run from a detached HEAD"
+
+  local base
+  base="$(default_base_ref)"
+  local base_branch="${base#origin/}"
+  if [[ "$branch" == "$base_branch" || "$branch" == "main" || "$branch" == "master" ]]; then
+    fail "Refusing to run TAKT on base branch: $branch"
+  fi
+
+  [[ "$change_name" != */* && "$change_name" != "." && "$change_name" != ".." ]] || \
+    fail "OpenSpec change name must be a single directory name"
+
+  local archived_change
+  archived_change="$(find_archived_change "$change_name" || true)"
+  [[ -n "$archived_change" ]] || fail "Archived OpenSpec change not found: $change_name"
+
+  local feedback="${feedback_parts[*]}"
+  local task_text="Apply human review feedback to archived OpenSpec change $change_name: $feedback"
+  local command=(takt --pipeline --skip-git -w dsbuilder-openspec-followup --task "$task_text")
+
+  if [[ "$dry_run" == "true" ]]; then
+    printf '[task] Command:'
+    printf ' %q' "${command[@]}"
+    printf '\n'
+    exit 0
+  fi
+
+  log "Running TAKT follow-up for $change_name in $CURRENT_ROOT"
+  exec "${command[@]}"
+}
+
+command_resume() {
+  require_repository
+  require git
+  require takt
+
+  local branch
+  branch="$(current_branch "$CURRENT_ROOT")"
+  [[ -n "$branch" ]] || fail "TAKT cannot resume from a detached HEAD"
+
+  local base
+  base="$(default_base_ref)"
+  local base_branch="${base#origin/}"
+  if [[ "$branch" == "$base_branch" || "$branch" == "main" || "$branch" == "master" ]]; then
+    fail "Refusing to resume TAKT on base branch: $branch"
+  fi
+
+  log "Resuming the latest TAKT run in $CURRENT_ROOT"
+  exec takt resume
+}
+
+print_worktree() {
+  local path="$1"
+  local branch="$2"
+  local git_state="$3"
+  local state="clean"
+
+  if [[ ! -d "$path" ]]; then
+    state="missing"
+  elif [[ -n "$(git -C "$path" status --porcelain --untracked-files=all 2>/dev/null || true)" ]]; then
+    state="changes"
+  fi
+
+  if [[ -n "$git_state" ]]; then
+    state="$state,$git_state"
+  fi
+
+  printf '%-76s %-36s %s\n' "$path" "$branch" "$state"
+}
+
+command_list() {
+  require_repository
+  require git
+
+  printf '%-76s %-36s %s\n' "WORKTREE" "BRANCH" "STATE"
+
+  local path=""
+  local branch="(detached)"
+  local git_state=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      worktree\ *)
+        if [[ -n "$path" ]]; then
+          print_worktree "$path" "$branch" "$git_state"
+        fi
+        path="${line#worktree }"
+        branch="(detached)"
+        git_state=""
+        ;;
+      branch\ refs/heads/*)
+        branch="${line#branch refs/heads/}"
+        ;;
+      locked*)
+        git_state="locked"
+        ;;
+      prunable*)
+        git_state="prunable"
+        ;;
+      "")
+        if [[ -n "$path" ]]; then
+          print_worktree "$path" "$branch" "$git_state"
+          path=""
+          branch="(detached)"
+          git_state=""
+        fi
+        ;;
+    esac
+  done < <(git worktree list --porcelain)
+
+  if [[ -n "$path" ]]; then
+    print_worktree "$path" "$branch" "$git_state"
+  fi
+}
+
+command_cleanup() {
+  [[ $# -gt 0 ]] || fail "cleanup requires <branch>"
+
+  local branch="$1"
+  shift
+  [[ $# -eq 0 ]] || fail "cleanup does not accept additional arguments"
+
+  require_repository
+  require git
+
+  validate_branch "$branch"
+
+  local path
+  path="$(worktree_path_for_branch "$branch")"
+  [[ -n "$path" ]] || fail "No linked worktree found for branch: $branch"
+
+  local root
+  root="$(primary_root)"
+  [[ "$path" != "$root" ]] || fail "Refusing to remove the primary worktree"
+  require_clean_checkout "$path"
+
+  local physical_pwd
+  physical_pwd="$(pwd -P)"
+  case "$physical_pwd/" in
+    "$path/"*) fail "Run cleanup outside the worktree being removed: $path" ;;
+  esac
+
+  git -C "$root" worktree remove "$path"
+  log "Removed worktree: $path"
+
+  if git -C "$root" branch -d "$branch" >/dev/null 2>&1; then
+    log "Deleted local branch: $branch"
+  else
+    log "Local branch was kept because Git does not consider it merged: $branch"
+    log "After checking the branch, delete it explicitly with: git branch -D '$branch'"
+  fi
+
+  if git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    log "Remote branch still exists: origin/$branch"
+  fi
+}
+
+main() {
+  local command="${1:-}"
+  case "$command" in
+    create)
+      shift
+      command_create "$@"
+      ;;
+    run)
+      shift
+      command_run "$@"
+      ;;
+    follow-up)
+      shift
+      command_follow_up "$@"
+      ;;
+    resume)
+      shift
+      [[ $# -eq 0 ]] || fail "resume does not accept arguments"
+      command_resume
+      ;;
+    list)
+      shift
+      [[ $# -eq 0 ]] || fail "list does not accept arguments"
+      command_list
+      ;;
+    cleanup)
+      shift
+      command_cleanup "$@"
+      ;;
+    --help|-h|help|"")
+      usage
+      ;;
+    *)
+      echo "[$PROGRAM_NAME] Unknown command: $command" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
