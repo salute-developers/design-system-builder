@@ -6,6 +6,7 @@ dependencyResolutionManagement {
     }
 }
 includeBuild("build-system")
+includeBuild("authorization-core")
 includeBuild("project-publisher")
 includeBuild("identity-gateway")
 includeBuild("projects-service")

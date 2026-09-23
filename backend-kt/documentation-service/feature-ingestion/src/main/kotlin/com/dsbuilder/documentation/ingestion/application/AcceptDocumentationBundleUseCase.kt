@@ -17,6 +17,7 @@ class AcceptDocumentationBundleUseCase(
     private val transactions: TransactionManager,
     private val clock: Clock,
     private val ids: IdGenerator,
+    private val publishPolicy: DocumentationPublishPolicy = DocumentationPublishPolicy(),
 ) {
     /** Принимает один предварительно ограниченный temporary bundle. */
     suspend fun execute(source: BundleSource, actor: ActorContext): AcceptanceResult =
@@ -43,7 +44,7 @@ class AcceptDocumentationBundleUseCase(
     }
 
     private fun authorize(actor: ActorContext): AcceptanceResult.Rejected? =
-        if (DocumentationPublishPolicy.allows(actor)) {
+        if (publishPolicy.allows(actor)) {
             null
         } else {
             rejected(AcceptanceFailure.FORBIDDEN, PUBLISH_FORBIDDEN)

@@ -1,6 +1,9 @@
 package com.dsbuilder.documentation.app
 
+import com.dsbuilder.authorization.AuthorizationPolicyLoader
+import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.documentation.ingestion.application.AcceptDocumentationBundleUseCase
+import com.dsbuilder.documentation.ingestion.application.DocumentationPublishPolicy
 import com.dsbuilder.documentation.ingestion.data.ArchiveLimits
 import com.dsbuilder.documentation.ingestion.data.BoundedBundleUpload
 import com.dsbuilder.documentation.ingestion.data.DbServiceOwnershipVerifier
@@ -79,13 +82,15 @@ fun main(args: Array<String>) = EngineMain.main(args)
 
 /** Настраивает HTTP runtime и маршруты сервиса. */
 fun Application.module() {
+    val environment = EnvironmentConfiguration()
+    val evaluator = loadAuthorizationPolicy(environment)
     install(Koin) {
         slf4jLogger()
-        modules(module { })
+        modules(module { single { evaluator } })
     }
     install(CallLogging)
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = false }) }
-    val runtime = ingestionRuntime()
+    val runtime = ingestionRuntime(environment, evaluator)
     val workerJob = launchDocumentationWorker(
         runtime.worker.enabled,
         runtime.worker.pollingMs,
@@ -120,18 +125,30 @@ fun Application.module() {
             val snapshot = runtime.worker.health.snapshot()
             if (snapshot.healthy) call.respond(snapshot) else call.respond(HttpStatusCode.ServiceUnavailable, snapshot)
         }
-        documentationBundleRoutes(runtime.useCase, runtime.uploader)
+        documentationBundleRoutes(runtime.useCase, runtime.uploader, runtime.evaluator)
         publicationReadRoutes(
             ExposedPublicationReadRepository(runtime.database),
             S3AssetContentReader(runtime.s3Client, runtime.publicationBucket),
+            runtime.evaluator,
         )
         val searchRepository = ExposedDocumentationSearchRepository(runtime.database)
         documentationSearchRoutes(
             SearchDocumentationUseCase(searchRepository, searchRepository, runtime.searchProfile),
             FetchKnowledgeChunkUseCase(searchRepository),
             runtime.searchLimits,
+            runtime.evaluator,
         )
     }
+}
+
+private fun Application.loadAuthorizationPolicy(configuration: EnvironmentConfiguration): PolicyEvaluator {
+    val evaluator = PolicyEvaluator(AuthorizationPolicyLoader.load(configuration.optional(AUTHORIZATION_POLICY_PATH)))
+    environment.log.info(
+        "Loaded authorization policy version={} sha256={}",
+        evaluator.diagnostics.policyVersion,
+        evaluator.diagnostics.contentSha256,
+    )
+    return evaluator
 }
 
 private data class IngestionRuntime(
@@ -143,6 +160,7 @@ private data class IngestionRuntime(
     val publicationBucket: String,
     val searchLimits: DocumentationSearchLimits,
     val searchProfile: LexicalRankingProfile,
+    val evaluator: PolicyEvaluator,
     val worker: WorkerRuntime,
 )
 
@@ -154,13 +172,12 @@ private data class WorkerRuntime(
     val health: DocumentationWorkerHealth,
 )
 
-private fun ingestionRuntime(): IngestionRuntime {
-    val environment = EnvironmentConfiguration()
+private fun ingestionRuntime(environment: EnvironmentConfiguration, evaluator: PolicyEvaluator): IngestionRuntime {
     val database = createDatabase(environment)
     val s3Client = createS3Client(environment)
     val bucket = environment.value(S3_BUCKET, DEFAULT_S3_BUCKET)
     val storage = createStorage(environment, s3Client, bucket)
-    val useCase = createUseCase(environment, database, storage)
+    val useCase = createUseCase(environment, database, storage, evaluator)
     val worker = createWorkerRuntime(environment, database, s3Client, bucket)
     return IngestionRuntime(
         useCase = useCase,
@@ -194,6 +211,7 @@ private fun ingestionRuntime(): IngestionRuntime {
             snippetLength = environment.int(SEARCH_SNIPPET_LENGTH, DEFAULT_SEARCH_SNIPPET_LENGTH),
             snippetContext = environment.int(SEARCH_SNIPPET_CONTEXT, DEFAULT_SEARCH_SNIPPET_CONTEXT),
         ),
+        evaluator = evaluator,
         worker = worker,
     )
 }
@@ -278,6 +296,7 @@ private fun createUseCase(
     environment: EnvironmentConfiguration,
     database: Database,
     storage: S3RawBundleStorage,
+    evaluator: PolicyEvaluator,
 ): AcceptDocumentationBundleUseCase {
     val httpClient = createDbServiceClient(environment)
     return AcceptDocumentationBundleUseCase(
@@ -292,6 +311,7 @@ private fun createUseCase(
         transactions = JdbcTransactionManager(database),
         clock = { Instant.now() },
         ids = { UUID.randomUUID().toString() },
+        publishPolicy = DocumentationPublishPolicy(evaluator),
     )
 }
 
@@ -366,6 +386,7 @@ private class EnvironmentConfiguration {
 }
 
 private const val DATABASE_URL = "DOCUMENTATION_DATABASE_URL"
+private const val AUTHORIZATION_POLICY_PATH = "PROJECT_AUTHORIZATION_POLICY_PATH"
 private const val DATABASE_USER = "DOCUMENTATION_POSTGRES_USER"
 private const val DATABASE_PASSWORD = "DOCUMENTATION_POSTGRES_PASSWORD"
 private const val TEMP_DIRECTORY = "DOCUMENTATION_TEMP_DIRECTORY"

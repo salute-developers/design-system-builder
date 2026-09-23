@@ -1,11 +1,16 @@
 package com.dsbuilder.projects.feature.projects.application
 
+import com.dsbuilder.authorization.AuthorizationPolicyLoader
+import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.projects.feature.projects.application.usecase.AccessKeyManagementPermission
+import com.dsbuilder.projects.feature.projects.application.usecase.MemberManagementPermission
 import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccessPolicy
 import com.dsbuilder.projects.feature.projects.domain.model.ActorType
 import com.dsbuilder.projects.feature.projects.domain.model.AuthenticatedActor
 import com.dsbuilder.projects.feature.projects.domain.model.Project
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectRole
 import com.dsbuilder.projects.feature.projects.domain.model.ProjectStatus
+import java.nio.file.Files
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -52,6 +57,7 @@ class ProjectAccessPolicyTest {
                 actorRole = ProjectRole.MAINTAINER,
                 targetUserId = "owner-1",
                 project = project,
+                permission = MemberManagementPermission.CHANGE_ROLE,
             )
         }
     }
@@ -64,9 +70,65 @@ class ProjectAccessPolicyTest {
     }
 
     @Test
+    fun `member management checks operation-specific permission`() {
+        val policyWithoutAdd = policyWithoutMaintainerGrant("members:add")
+
+        assertFailsWith<ForbiddenProjectActionException> {
+            policyWithoutAdd.requireMemberManagement(
+                actorRole = ProjectRole.MAINTAINER,
+                targetUserId = "viewer-1",
+                project = project,
+                permission = MemberManagementPermission.ADD,
+            )
+        }
+        policyWithoutAdd.requireMemberManagement(
+            actorRole = ProjectRole.MAINTAINER,
+            targetUserId = "viewer-1",
+            project = project,
+            permission = MemberManagementPermission.CHANGE_ROLE,
+        )
+    }
+
+    @Test
+    fun `access key management checks operation-specific permission`() {
+        val policyWithoutRead = policyWithoutMaintainerGrant("access_keys:read")
+        val maintainer = AuthenticatedActor(ActorType.USER, "maintainer-1", isSystemAdmin = false)
+
+        assertFailsWith<ForbiddenProjectActionException> {
+            policyWithoutRead.requireAccessKeyManagement(
+                maintainer,
+                ProjectRole.MAINTAINER,
+                AccessKeyManagementPermission.READ,
+            )
+        }
+        policyWithoutRead.requireAccessKeyManagement(
+            maintainer,
+            ProjectRole.MAINTAINER,
+            AccessKeyManagementPermission.CREATE,
+        )
+    }
+
+    @Test
     fun `archived project blocks mutation`() {
         assertFailsWith<ForbiddenProjectActionException> {
             policy.requireMutableProject(project.copy(status = ProjectStatus.ARCHIVED))
+        }
+    }
+
+    private fun policyWithoutMaintainerGrant(permission: String): ProjectAccessPolicy {
+        val canonical = requireNotNull(javaClass.getResource("/authorization/policy.json")).readText()
+        val maintainerOffset = canonical.indexOf("\"maintainer\": {")
+        require(maintainerOffset >= 0)
+        val grant = "        \"$permission\",\n"
+        val modified = canonical.substring(0, maintainerOffset) +
+            canonical.substring(maintainerOffset).replaceFirst(grant, "")
+        require(modified != canonical)
+        val file = Files.createTempFile("authorization-policy", ".json")
+        return try {
+            Files.writeString(file, modified)
+            ProjectAccessPolicy(PolicyEvaluator(AuthorizationPolicyLoader.load(file)))
+        } finally {
+            Files.deleteIfExists(file)
         }
     }
 }

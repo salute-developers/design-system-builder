@@ -107,6 +107,44 @@ class DocumentationBundleRoutesTest {
         assertEquals(HttpStatusCode.Forbidden, response.status)
     }
 
+    @Test fun `project key without write scope is rejected before multipart is read`() = routeTestWithTemp { client, temp ->
+        val response = client.post("/documentation/bundles") {
+            header("X-Actor-Type", "project_key")
+            header("X-User-Id", "key")
+            header("X-Project-Key-Id", "key")
+            header("X-Project-Id", "project")
+            header("X-Project-Scopes", "documentation:read")
+            header("X-System-Admin", "false")
+            setBody(bundleMultipart("archive"))
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals(0, Files.list(temp).use { it.count() })
+    }
+
+    @Test fun `project key with write scope and system admin may upload`() = routeTest { client ->
+        val keyResponse = client.post("/documentation/bundles") {
+            header("X-Actor-Type", "project_key")
+            header("X-User-Id", "key")
+            header("X-Project-Key-Id", "key")
+            header("X-Project-Id", "project")
+            header("X-Project-Scopes", "documentation:write")
+            header("X-System-Admin", "false")
+            setBody(bundleMultipart("archive"))
+        }
+        val adminResponse = client.post("/documentation/bundles") {
+            header("X-Actor-Type", "user")
+            header("X-User-Id", "admin")
+            header("X-Project-Id", "project")
+            header("X-Project-Role", "owner")
+            header("X-System-Admin", "true")
+            setBody(bundleMultipart("archive"))
+        }
+
+        assertEquals(HttpStatusCode.Accepted, keyResponse.status)
+        assertEquals(HttpStatusCode.Accepted, adminResponse.status)
+    }
+
     @Test fun `multiple bundle parts return 400 and remove temporary files`() = routeTestWithTemp { client, temp ->
         val response = client.post("/documentation/bundles") {
             trusted()

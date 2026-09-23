@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsbuilder.local/schemas/project-authorization-policy-v1.json",
+  "title": "DS Builder project authorization policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "policyVersion", "permissions", "roles", "projectKeyScopes", "overrides"],
+  "properties": {
+    "schemaVersion": { "const": "1" },
+    "policyVersion": { "type": "string", "minLength": 1 },
+    "permissions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/name" }
+    },
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/role" }
+    },
+    "projectKeyScopes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/name" }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["systemAdmin"],
+      "properties": {
+        "systemAdmin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["allowAll"],
+          "properties": { "allowAll": { "const": true } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)+$" },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inherits", "grants"],
+      "properties": {
+        "inherits": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "grants": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation("com.dsbuilder.authorization:authorization-core")
     implementation(project(":feature-publication"))
     implementation(libs.exposed.json)
     testImplementation(libs.ktor.server.test.host)
