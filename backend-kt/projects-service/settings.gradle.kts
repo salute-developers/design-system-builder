@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "projects-service"
 
 includeBuild("../build-system")
+includeBuild("../authorization-core")
 include(":app")
 include(":core")
 include(":feature-projects")

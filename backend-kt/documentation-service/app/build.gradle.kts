@@ -15,6 +15,7 @@ tasks.shadowJar {
 }
 
 dependencies {
+    implementation("com.dsbuilder.authorization:authorization-core")
     implementation(project(":feature-ingestion"))
     implementation(project(":feature-publication"))
     implementation(project(":feature-processing"))

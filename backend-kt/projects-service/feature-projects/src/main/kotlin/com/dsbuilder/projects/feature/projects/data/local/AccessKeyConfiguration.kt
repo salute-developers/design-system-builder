@@ -1,5 +1,6 @@
 package com.dsbuilder.projects.feature.projects.data.local
 
+import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.projects.feature.projects.application.InvalidProjectRequestException
 import com.dsbuilder.projects.feature.projects.domain.model.AccessKeyScope
 import io.ktor.server.config.ApplicationConfig
@@ -21,13 +22,10 @@ internal data class AccessKeyHashingConfiguration(
     val saltByteLength: Int,
 )
 
-internal fun ApplicationConfig.accessKeyConfiguration(): AccessKeyConfiguration {
-    val scopes = property("projects.accessKeys.availableScopes")
-        .getList()
-        .mapNotNull { AccessKeyScope.parse(it) }
-        .toSet()
+internal fun ApplicationConfig.accessKeyConfiguration(evaluator: PolicyEvaluator): AccessKeyConfiguration {
+    val scopes = evaluator.projectKeyScopes().mapNotNull(AccessKeyScope::parse).toSet()
     if (scopes.isEmpty()) {
-        throw InvalidProjectRequestException("projects.accessKeys.availableScopes must not be empty")
+        throw InvalidProjectRequestException("Canonical project-key scope catalog must not be empty")
     }
 
     return AccessKeyConfiguration(

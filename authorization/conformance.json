@@ -1,0 +1,14 @@
+{
+  "policyVersion": "2026-09-22.2",
+  "cases": [
+    { "name": "viewer reads documentation", "principal": { "type": "user", "actorId": "u1", "projectId": "p1", "projectRole": "viewer" }, "permission": "documentation:read", "allowed": true },
+    { "name": "viewer cannot write documentation", "principal": { "type": "user", "actorId": "u1", "projectId": "p1", "projectRole": "viewer" }, "permission": "documentation:write", "allowed": false },
+    { "name": "editor writes documentation", "principal": { "type": "user", "actorId": "u2", "projectId": "p1", "projectRole": "editor" }, "permission": "documentation:write", "allowed": true },
+    { "name": "maintainer manages members", "principal": { "type": "user", "actorId": "u3", "projectId": "p1", "projectRole": "maintainer" }, "permission": "members:add", "allowed": true },
+    { "name": "owner archives project", "principal": { "type": "user", "actorId": "u4", "projectId": "p1", "projectRole": "owner" }, "permission": "project:archive", "allowed": true },
+    { "name": "system admin overrides role", "principal": { "type": "user", "actorId": "admin", "projectId": "p1", "systemAdmin": true }, "permission": "documentation:write", "allowed": true },
+    { "name": "project key exact read scope", "principal": { "type": "project_key", "actorId": "k1", "projectId": "p1", "projectScopes": ["documentation:read"] }, "permission": "documentation:read", "allowed": true },
+    { "name": "project key read scope is not write", "principal": { "type": "project_key", "actorId": "k1", "projectId": "p1", "projectScopes": ["documentation:read"] }, "permission": "documentation:write", "allowed": false },
+    { "name": "project key full documentation scopes", "principal": { "type": "project_key", "actorId": "k2", "projectId": "p1", "projectScopes": ["documentation:read", "documentation:write"] }, "permission": "documentation:write", "allowed": true }
+  ]
+}

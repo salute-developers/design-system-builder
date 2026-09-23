@@ -56,7 +56,7 @@ Internal API:
 
 - User authorization остается role-based: `owner`, `maintainer`, `editor`, `viewer`.
 - Project access key authorization использует scope-based модель.
-- Допустимые scope задаются через `projects.accessKeys.availableScopes` в application config.
+- Допустимые scope читаются из canonical `authorization/policy.json`.
 - Сейчас для самой сущности `projects` доступен только `projects:read`.
 - Machine actor не может изменять metadata проекта, архивировать/восстанавливать проект и не может управлять участниками проекта.
 
@@ -100,7 +100,8 @@ Internal API:
 | `PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET` | `projects-service-secret` | Secret confidential client для lookup |
 | `PROJECTS_IDENTITY_KEYCLOAK_TIMEOUT_MS` | `1500` | Timeout запросов к Keycloak Admin API |
 
-Список допустимых scope задается в [application.yaml](./app/src/main/resources/application.yaml) через `projects.accessKeys.availableScopes`.
+Список допустимых scope задается canonical policy. Внешний read-only файл можно выбрать через
+`PROJECT_AUTHORIZATION_POLICY_PATH`; без override используется policy, встроенная в service artifact.
 
 ## Локальный запуск
 

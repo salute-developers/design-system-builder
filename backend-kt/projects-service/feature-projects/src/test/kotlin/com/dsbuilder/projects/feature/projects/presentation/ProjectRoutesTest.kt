@@ -55,6 +55,8 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.days
 
 class ProjectRoutesTest {
@@ -302,6 +304,40 @@ class ProjectRoutesTest {
     }
 
     @Test
+    fun `documentation scopes are independent and unknown scopes are rejected`() = testApplication {
+        val repository = routeRepository().apply {
+            seedProject(
+                Project(
+                    id = "project-1",
+                    name = "Workspace",
+                    description = null,
+                    status = ProjectStatus.ACTIVE,
+                    ownerUserId = "owner-1",
+                    createdAt = Instant.now(clock),
+                    updatedAt = Instant.now(clock),
+                ),
+            )
+        }
+        installTestModule(repository, RouteIdentityUserLookup())
+
+        val readOnly = client.post("/projects/project-1/access-keys") {
+            header("X-User-Id", "owner-1")
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Docs reader","scopes":["documentation:read"],"ttlSeconds":3600}""")
+        }
+        val unknown = client.post("/projects/project-1/access-keys") {
+            header("X-User-Id", "owner-1")
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"Invalid","scopes":["documentation:publish"],"ttlSeconds":3600}""")
+        }
+
+        assertEquals(HttpStatusCode.Created, readOnly.status)
+        assertTrue(readOnly.bodyAsText().contains("documentation:read"))
+        assertFalse(readOnly.bodyAsText().contains("documentation:write"))
+        assertEquals(HttpStatusCode.BadRequest, unknown.status)
+    }
+
+    @Test
     fun `internal access check returns owner for system admin`() = testApplication {
         val repository = routeRepository().apply {
             seedProject(
@@ -351,6 +387,8 @@ class ProjectRoutesTest {
                                 availableScopes = setOf(
                                     AccessKeyScope.parse("projects:read")!!,
                                     AccessKeyScope.parse("members:read")!!,
+                                    AccessKeyScope.parse("documentation:read")!!,
+                                    AccessKeyScope.parse("documentation:write")!!,
                                 ),
                                 hashing = AccessKeyHashingConfiguration(
                                     iterations = 1,

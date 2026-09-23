@@ -1,5 +1,6 @@
 package com.dsbuilder.projects.app
 
+import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.projects.core.DatabaseProvider
 import com.dsbuilder.projects.core.DatabaseProviderImpl
 import com.dsbuilder.projects.feature.projects.di.ProjectsModule
@@ -47,9 +48,19 @@ fun Application.module() {
     }
 
     configureApiDocs()
+    logAuthorizationPolicy()
     initDatabase()
     projectsRoutes(
         internalApiKey = environment.config.propertyOrNull("projects.internal.apiKey")?.getString(),
+    )
+}
+
+private fun Application.logAuthorizationPolicy() {
+    val evaluator by inject<PolicyEvaluator>()
+    environment.log.info(
+        "Loaded authorization policy version={} sha256={}",
+        evaluator.diagnostics.policyVersion,
+        evaluator.diagnostics.contentSha256,
     )
 }
 

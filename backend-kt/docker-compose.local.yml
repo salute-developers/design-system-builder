@@ -100,12 +100,15 @@ services:
       PROJECTS_POSTGRES_USER: projects
       PROJECTS_POSTGRES_PASSWORD: projects
       PROJECTS_INTERNAL_API_KEY: ${PROJECTS_INTERNAL_API_KEY:-local-projects-internal-key}
+      PROJECT_AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
       PROJECTS_IDENTITY_KEYCLOAK_BASE_URL: ${PROJECTS_IDENTITY_KEYCLOAK_BASE_URL:-http://keycloak:8080}
       PROJECTS_IDENTITY_KEYCLOAK_REALM: ${PROJECTS_IDENTITY_KEYCLOAK_REALM:-dsbuilder}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:-projects-service}
       PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET: ${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:-projects-service-secret}
     expose:
       - "8082"
+    volumes:
+      - ../authorization/policy.json:/app/authorization/policy.json:ro
     depends_on:
       projects-db:
         condition: service_healthy
@@ -156,6 +159,7 @@ services:
       dockerfile: Dockerfile.local
     environment:
       DOCUMENTATION_SERVICE_PORT: 8084
+      PROJECT_AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
       DOCUMENTATION_DATABASE_URL: jdbc:postgresql://documentation-db:5432/documentation_service
       DOCUMENTATION_POSTGRES_USER: documentation
       DOCUMENTATION_POSTGRES_PASSWORD: documentation
@@ -193,6 +197,8 @@ services:
       DOCUMENTATION_SEARCH_MAX_SUBJECTS: 50
     expose:
       - "8084"
+    volumes:
+      - ../authorization/policy.json:/app/authorization/policy.json:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

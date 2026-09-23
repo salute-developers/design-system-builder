@@ -71,28 +71,15 @@ internal enum class ProjectEntity(val configValue: String) {
     }
 }
 
-internal data class AccessKeyScope(
-    val entity: ProjectEntity,
-    val action: AccessKeyAction,
-) {
-    val value: String = "${entity.configValue}:${action.name.lowercase()}"
+internal data class AccessKeyScope(val value: String) {
+    constructor(entity: ProjectEntity, action: AccessKeyAction) :
+        this("${entity.configValue}:${action.name.lowercase()}")
 
     companion object {
         fun parse(rawValue: String): AccessKeyScope? =
-            rawValue.trim()
-                .split(':')
-                .takeIf { it.size >= 2 }
-                ?.let { parts ->
-                    val action = AccessKeyAction.entries.firstOrNull {
-                        it.name.equals(parts.last(), ignoreCase = true)
-                    }
-                    val entity = ProjectEntity.fromConfigValue(parts.dropLast(1).joinToString(":"))
-                    if (action != null && entity != null) {
-                        AccessKeyScope(entity = entity, action = action)
-                    } else {
-                        null
-                    }
-                }
+            rawValue.trim().lowercase().takeIf { it.matches(SCOPE_PATTERN) }?.let(::AccessKeyScope)
+
+        private val SCOPE_PATTERN = Regex("^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)+$")
     }
 }
 

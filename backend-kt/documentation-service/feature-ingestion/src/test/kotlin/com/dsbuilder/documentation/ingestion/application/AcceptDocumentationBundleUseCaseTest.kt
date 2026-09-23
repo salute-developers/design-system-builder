@@ -33,7 +33,12 @@ class AcceptDocumentationBundleUseCaseTest {
             actor("owner"),
             actor("maintainer"),
             actor("editor"),
-            ActorContext(ActorType.PROJECT_KEY, "key", "project"),
+            ActorContext(
+                ActorType.PROJECT_KEY,
+                "key",
+                "project",
+                projectScopes = setOf("documentation:write"),
+            ),
         ).forEach {
             assertIs<AcceptanceResult.Accepted>(Fixture().useCase().execute(source(), it))
         }

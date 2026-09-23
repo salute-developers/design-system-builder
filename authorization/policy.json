@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1",
+  "policyVersion": "2026-09-22.2",
+  "permissions": [
+    "project:read",
+    "project:update_metadata",
+    "project:archive",
+    "project:restore",
+    "members:read",
+    "members:add",
+    "members:remove",
+    "members:change_role",
+    "access_keys:read",
+    "access_keys:create",
+    "access_keys:revoke",
+    "projects:read",
+    "design-systems:read",
+    "design-systems:write",
+    "design-systems:delete",
+    "tenants:read",
+    "tenants:write",
+    "tenants:delete",
+    "tenants:subthemes:read",
+    "tenants:subthemes:write",
+    "tenants:subthemes:delete",
+    "tokens:read",
+    "tokens:write",
+    "tokens:delete",
+    "tokens:group:read",
+    "tokens:group:write",
+    "tokens:group:delete",
+    "tokens:subgroup:read",
+    "tokens:subgroup:write",
+    "tokens:subgroup:delete",
+    "components:read",
+    "components:write",
+    "components:delete",
+    "components:variations:read",
+    "components:variations:write",
+    "components:variations:delete",
+    "documentation:read",
+    "documentation:write"
+  ],
+  "roles": {
+    "viewer": {
+      "inherits": [],
+      "grants": [
+        "project:read",
+        "members:read",
+        "projects:read",
+        "design-systems:read",
+        "tenants:read",
+        "tenants:subthemes:read",
+        "tokens:read",
+        "tokens:group:read",
+        "tokens:subgroup:read",
+        "components:read",
+        "components:variations:read",
+        "documentation:read"
+      ]
+    },
+    "editor": {
+      "inherits": ["viewer"],
+      "grants": [
+        "tenants:write",
+        "tenants:subthemes:write",
+        "tokens:write",
+        "tokens:group:write",
+        "tokens:subgroup:write",
+        "components:write",
+        "components:variations:write",
+        "documentation:write"
+      ]
+    },
+    "maintainer": {
+      "inherits": ["editor"],
+      "grants": [
+        "project:update_metadata",
+        "members:add",
+        "members:remove",
+        "members:change_role",
+        "access_keys:read",
+        "access_keys:create",
+        "access_keys:revoke",
+        "design-systems:write",
+        "design-systems:delete",
+        "tenants:delete",
+        "tenants:subthemes:delete",
+        "tokens:delete",
+        "tokens:group:delete",
+        "tokens:subgroup:delete",
+        "components:delete",
+        "components:variations:delete"
+      ]
+    },
+    "owner": {
+      "inherits": ["maintainer"],
+      "grants": [
+        "project:archive",
+        "project:restore"
+      ]
+    }
+  },
+  "projectKeyScopes": [
+    "projects:read",
+    "members:read",
+    "design-systems:read",
+    "design-systems:write",
+    "design-systems:delete",
+    "tenants:read",
+    "tenants:write",
+    "tenants:delete",
+    "tenants:subthemes:read",
+    "tenants:subthemes:write",
+    "tenants:subthemes:delete",
+    "tokens:read",
+    "tokens:write",
+    "tokens:delete",
+    "tokens:group:read",
+    "tokens:group:write",
+    "tokens:group:delete",
+    "tokens:subgroup:read",
+    "tokens:subgroup:write",
+    "tokens:subgroup:delete",
+    "components:read",
+    "components:write",
+    "components:delete",
+    "components:variations:read",
+    "components:variations:write",
+    "components:variations:delete",
+    "documentation:read",
+    "documentation:write"
+  ],
+  "overrides": {
+    "systemAdmin": {
+      "allowAll": true
+    }
+  }
+}

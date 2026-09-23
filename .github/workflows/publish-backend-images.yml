@@ -85,10 +85,10 @@ jobs:
             context: backend-kt
             file: backend-kt/identity-gateway/app/Dockerfile
           - image: projects-service
-            context: backend-kt
+            context: .
             file: backend-kt/projects-service/app/Dockerfile
           - image: documentation-service
-            context: backend-kt
+            context: .
             file: backend-kt/documentation-service/app/Dockerfile
           - image: db-service
             context: js/services/db-service

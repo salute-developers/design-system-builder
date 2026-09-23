@@ -8,6 +8,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "documentation-service"
 includeBuild("../build-system")
+includeBuild("../authorization-core")
 include(
     ":app",
     ":feature-ingestion",

@@ -1,5 +1,7 @@
 package com.dsbuilder.documentation.ingestion.presentation
 
+import com.dsbuilder.authorization.AuthorizationPolicyLoader
+import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.documentation.ingestion.application.AcceptDocumentationBundleUseCase
 import com.dsbuilder.documentation.ingestion.application.AcceptanceFailure
 import com.dsbuilder.documentation.ingestion.application.AcceptanceResult
@@ -27,27 +29,33 @@ import java.nio.file.Path
 fun Route.documentationBundleRoutes(
     useCase: AcceptDocumentationBundleUseCase? = null,
     uploader: BoundedBundleUpload? = null,
+    evaluator: PolicyEvaluator = PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded()),
 ) {
     val log = LoggerFactory.getLogger("DocumentationBundleAcceptance")
     post("/documentation/bundles") {
-        call.acceptBundle(useCase, uploader, log)
+        call.acceptBundle(useCase, uploader, evaluator, log)
     }
 }
 
+@Suppress("ReturnCount")
 private suspend fun ApplicationCall.acceptBundle(
     useCase: AcceptDocumentationBundleUseCase?,
     uploader: BoundedBundleUpload?,
+    evaluator: PolicyEvaluator,
     log: Logger,
 ) {
     if (useCase == null || uploader == null) {
         return safeError(HttpStatusCode.ServiceUnavailable, "SERVICE_NOT_CONFIGURED", "Сервис приемки не настроен.")
     }
-    val actor = TrustedActorContextMapper.map(request.headers)
+    val actor = TrustedActorContextMapper.map(request.headers, evaluator.policy)
         ?: return safeError(
             HttpStatusCode.BadRequest,
             "INVALID_TRUSTED_CONTEXT",
             "Обязательный trusted context отсутствует.",
         )
+    if (!evaluator.isAllowed(actor, DOCUMENTATION_WRITE)) {
+        return safeError(HttpStatusCode.Forbidden, "PUBLISH_FORBIDDEN", "Недостаточно прав для публикации.")
+    }
     var source: BundleSource? = null
     try {
         source = receiveBundle(uploader)
@@ -129,6 +137,7 @@ private suspend fun ApplicationCall.respondTo(result: AcceptanceResult, actor: A
 }
 
 private const val BUNDLE_PART_NAME = "bundle"
+private const val DOCUMENTATION_WRITE = "documentation:write"
 private const val REQUEST_ID_HEADER = "X-Request-Id"
 private const val ACCEPTED_LOG = "acceptance_result=accepted request_id={} project_id={} bundle_id={} job_id={}"
 private const val REJECTED_LOG = "acceptance_result=rejected request_id={} project_id={} error_code={}"

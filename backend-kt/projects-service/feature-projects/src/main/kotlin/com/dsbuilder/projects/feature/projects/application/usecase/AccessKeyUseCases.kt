@@ -52,7 +52,7 @@ internal class CreateProjectAccessKeyUseCase(
             val project = repository.getProject(input.projectId) ?: throw ProjectNotFoundException(input.projectId)
             val member = repository.getMember(input.projectId, input.actor.userId)
             val role = policy.requireProjectAccess(input.actor, project, member)
-            policy.requireAccessKeyManagement(input.actor, role)
+            policy.requireAccessKeyManagement(input.actor, role, AccessKeyManagementPermission.CREATE)
             policy.validateAccessKeyName(input.name)
             policy.validateAccessKeyScopes(input.scopes, accessKeyConfiguration.availableScopes)
 
@@ -95,7 +95,7 @@ internal class ListProjectAccessKeysUseCase(
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
             val role = policy.requireProjectAccess(actor, project, member)
-            policy.requireAccessKeyManagement(actor, role)
+            policy.requireAccessKeyManagement(actor, role, AccessKeyManagementPermission.READ)
             repository.listAccessKeys(projectId)
         }
 }
@@ -111,7 +111,7 @@ internal class RevokeProjectAccessKeyUseCase(
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
             val role = policy.requireProjectAccess(actor, project, member)
-            policy.requireAccessKeyManagement(actor, role)
+            policy.requireAccessKeyManagement(actor, role, AccessKeyManagementPermission.REVOKE)
             repository.updateAccessKeyStatus(
                 projectId = projectId,
                 keyId = keyId,
