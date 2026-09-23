@@ -58,9 +58,6 @@ public class HttpComponentReadRemoteSource(
     override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
         runtime.get(runtime.designSystemModelPath("tokens"))
 
-    override suspend fun tokens(runtime: ComponentReadRuntime): ComponentReadResult =
-        runtime.get(runtime.designSystemModelPath("tokens"))
-
     private suspend fun ComponentReadRuntime.get(path: String): ComponentReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
             is AuthenticatedHttpResult.Success -> parseSuccess(response.body)

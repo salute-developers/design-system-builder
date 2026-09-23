@@ -1,6 +1,6 @@
 name: dsbuilder-openspec-followup
 description: Apply human review feedback after an OpenSpec change has been archived.
-max_steps: 8
+max_steps: 14
 initial_step: apply_feedback
 steps:
   - name: apply_feedback
@@ -14,15 +14,28 @@ steps:
       architecture documents. Preserve the approved product behavior, public
       contracts, component boundaries, data flow, and state transitions.
 
+      Do not modify files under backend-kt/architecture-tests or
+      frontend-kt/architecture-tests unless the archived OpenSpec Change covers
+      architecture tests or the task explicitly states that the developer
+      authorized those changes. Never weaken an architecture rule to make the
+      implementation pass.
+
       The checkout may intentionally contain uncommitted output from an earlier
       successful TAKT cycle. Work with that current state. If the feedback requires
       a material change to the approved design, stop and request a new or revised
       OpenSpec decision instead of inventing one. Do not commit or push.
+    quality_gates:
+      - type: command
+        name: fast-verification
+        command: "./tools/verify fast"
+        cwd: "."
+        timeout_ms: 1200000
     rules:
       - condition: Review feedback implemented within approved design
         next: conformance_review
       - condition: A material OpenSpec decision is required
         next: ABORT
+        command_gates: skip
 
   - name: conformance_review
     persona: coding-reviewer
@@ -33,9 +46,13 @@ steps:
       Return concrete findings with file locations. Do not edit files. If a fix
       requires a material design change, request a new or revised OpenSpec
       decision instead of approving an improvised solution.
+
+      Treat an unauthorized architecture-test change as a conformance finding.
+      For an authorized change, verify that it preserves or strengthens the
+      intended architecture rules rather than masking an implementation problem.
     rules:
       - condition: Feedback resolved and implementation conforms to OpenSpec
-        next: COMPLETE
+        next: full_verification
       - condition: Fixable findings remain within approved design
         next: fix
       - condition: A material OpenSpec decision is required
@@ -49,8 +66,50 @@ steps:
       Resolve the conformance review findings within the archived OpenSpec design
       and the human feedback from the task. Do not commit or push. Stop if a
       material product or architecture decision is required.
+
+      Do not change architecture tests unless the archived OpenSpec Change or the
+      task explicitly authorizes it. Fix the implementation instead of weakening
+      an architecture test.
+    quality_gates:
+      - type: command
+        name: fast-verification
+        command: "./tools/verify fast"
+        cwd: "."
+        timeout_ms: 1200000
     rules:
       - condition: Findings fixed within approved design
         next: conformance_review
       - condition: A material OpenSpec decision is required
         next: ABORT
+        command_gates: skip
+
+  - name: full_verification
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Run `./tools/verify full` and inspect its complete output. Confirm that the
+      current implementation resolves the human feedback, still conforms to the
+      archived OpenSpec Change, and passes the deterministic FULL gate, including
+      a detailed Strictacode audit and compare against the versioned baseline. Do
+      not edit files or update the Strictacode baseline. Route implementation
+      failures that fit the approved design to fix. Stop when a material design
+      decision is required or when command output proves an environmental or
+      pre-existing blocker.
+    quality_gates:
+      - type: command
+        name: full-verification
+        command: "./tools/verify full"
+        cwd: "."
+        timeout_ms: 1800000
+    rules:
+      - condition: FULL verification passes and feedback remains resolved
+        next: COMPLETE
+      - condition: FULL verification has implementation failures fixable within approved design
+        next: fix
+        command_gates: skip
+      - condition: FULL verification requires a material OpenSpec decision
+        next: ABORT
+        command_gates: skip
+      - condition: FULL verification is blocked by a proven environment or pre-existing failure
+        next: ABORT
+        command_gates: skip

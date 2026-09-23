@@ -8,6 +8,9 @@
 !config.yaml
 !README.md
 !PROCESS.md
+!verification.conf
+!strictacode-baseline/
+!strictacode-baseline/**
 
 # Facets and workflows (version-controlled)
 !workflows/

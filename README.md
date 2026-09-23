@@ -9,7 +9,53 @@
 - `js/` — существующие React-приложения и Node.js-сервисы.
 - `openspec/` — архитектурные ADR, спецификации и история изменений.
 
-Agent skills и команды OpenSpec находятся в корневых `.claude/`, `.cursor/` и `.gigacode/`.
+Agent skills и команды OpenSpec находятся в корневых `.agents/`, `.claude/`, `.cursor/` и `.gigacode/`.
+
+## Инструменты агентской разработки
+
+Процесс разработки использует TAKT, OpenSpec и Strictacode. Репозиторий проверен со следующими
+версиями:
+
+- TAKT `0.66.0`;
+- OpenSpec `1.6.0`;
+- Strictacode `0.0.12`.
+
+Для TAKT нужен Node.js `22.22.0` или новее. Установите TAKT и OpenSpec глобально через npm:
+
+```bash
+npm install --global takt@0.66.0 @fission-ai/openspec@1.6.0
+```
+
+Strictacode устанавливается изолированно через [pipx](https://pipx.pypa.io/). На macOS можно
+подготовить `pipx` и установить зафиксированную для репозитория версию так:
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install strictacode==0.0.12
+```
+
+Версия Strictacode также записана в `tools/strictacode-requirements.txt`.
+
+Проверьте установку:
+
+```bash
+takt --version
+openspec --version
+strictacode --help
+```
+
+При первом обращении к workflow TAKT предложит выбрать язык и agent provider. Выберите подходящий
+установленный и авторизованный provider, например `Codex`. Репозиторий не хранит персональную
+конфигурацию provider. После настройки проверьте оба workflow:
+
+```bash
+takt --pipeline workflow doctor dsbuilder-openspec dsbuilder-openspec-followup
+openspec validate --all --strict --no-interactive
+```
+
+Рабочий процесс, команды для веток и worktree, TAKT-цикл и проверки описаны в
+[`.takt/PROCESS.md`](./.takt/PROCESS.md).
 
 ## Основные команды
 

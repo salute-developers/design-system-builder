@@ -31,6 +31,16 @@ val spotlessApplyAll = tasks.register("spotlessApplyAll") {
     dependsOn(includedTasks)
 }
 
+val testAll = tasks.register("testAll") {
+    group = "verification"
+    description = "Runs every test task in this build."
+}
+
+val buildAll = tasks.register("buildAll") {
+    group = "build"
+    description = "Builds every project in this build."
+}
+
 subprojects.forEach { subproject ->
     subproject.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
         detektAll.configure {
@@ -44,6 +54,17 @@ subprojects.forEach { subproject ->
         spotlessApplyAll.configure {
             dependsOn("${subproject.path}:spotlessApply")
         }
+    }
+}
+
+allprojects.forEach { project ->
+    project.tasks.matching { it.name == "test" || it.name == "allTests" }.configureEach {
+        val testTask = this
+        testAll.configure { dependsOn(testTask) }
+    }
+    project.tasks.matching { it.name == "build" }.configureEach {
+        val buildTask = this
+        buildAll.configure { dependsOn(buildTask) }
     }
 }
 

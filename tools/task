@@ -3,13 +3,14 @@ set -euo pipefail
 
 PROGRAM_NAME="${0##*/}"
 CURRENT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+RUN_CONTEXT_FILE="${CURRENT_ROOT:+$CURRENT_ROOT/.takt/task-run-context}"
 
 usage() {
   cat <<'USAGE'
 Usage:
   tools/task create <branch> [--worktree] [--base <ref>]
-  tools/task run <openspec-change-name> [--dry-run]
-  tools/task follow-up <openspec-change-name> <review-feedback...> [--dry-run]
+  tools/task run <openspec-change-name> [--allow-architecture-tests] [--dry-run]
+  tools/task follow-up <openspec-change-name> <review-feedback...> [--allow-architecture-tests] [--dry-run]
   tools/task resume
   tools/task list
   tools/task cleanup <branch>
@@ -26,7 +27,11 @@ Commands:
 
 Options:
   --worktree       Create a linked worktree in DSBUILDER_WORKTREE_DIR.
-  --base REF       Override the detected base ref (normally origin/main).
+  --base REF       Override the detected base ref (normally origin/dev).
+  --allow-architecture-tests
+                   Allow TAKT to change architecture tests. Pass this only after
+                   an explicit developer request; OpenSpec authorization is
+                   detected automatically.
   --dry-run        Print the TAKT command without running it.
   --help           Show this help.
 
@@ -65,8 +70,17 @@ primary_root() {
 }
 
 default_base_ref() {
+  local branch configured
   if [[ -n "${DSBUILDER_BASE_BRANCH:-}" ]]; then
     echo "$DSBUILDER_BASE_BRANCH"
+  elif branch="$(current_branch "$CURRENT_ROOT")" && [[ -n "$branch" ]] && \
+    configured="$(git -C "$CURRENT_ROOT" config --get "branch.$branch.dsbuilderBase" 2>/dev/null || true)" && \
+    [[ -n "$configured" ]]; then
+    echo "$configured"
+  elif git show-ref --verify --quiet refs/remotes/origin/dev; then
+    echo "origin/dev"
+  elif git show-ref --verify --quiet refs/heads/dev; then
+    echo "dev"
   elif git show-ref --verify --quiet refs/remotes/origin/main; then
     echo "origin/main"
   elif git show-ref --verify --quiet refs/heads/main; then
@@ -85,6 +99,34 @@ require_clean_checkout() {
   if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
     fail "Checkout has uncommitted changes: $root"
   fi
+}
+
+require_no_run_context() {
+  [[ ! -f "$RUN_CONTEXT_FILE" ]] || \
+    fail "An unfinished TAKT run context exists; use 'tools/task resume'"
+}
+
+protected_paths_snapshot() {
+  "$CURRENT_ROOT/tools/verify" snapshot
+}
+
+write_run_context() {
+  local mode="$1"
+  local change_name="$2"
+  local start_head="$3"
+  local explicit_permissions="$4"
+  local protected_paths_start="$5"
+  mkdir -p "$(dirname "$RUN_CONTEXT_FILE")"
+  printf '%s\n%s\n%s\n%s\n%s\n' \
+    "$mode" \
+    "$change_name" \
+    "$start_head" \
+    "$explicit_permissions" \
+    "$protected_paths_start" > "$RUN_CONTEXT_FILE"
+}
+
+clear_run_context() {
+  rm -f "$RUN_CONTEXT_FILE"
 }
 
 current_branch() {
@@ -147,7 +189,9 @@ command_create() {
   if [[ "$use_worktree" == "false" ]]; then
     require_clean_checkout "$CURRENT_ROOT"
     git switch -c "$branch" "$base"
+    git config "branch.$branch.dsbuilderBase" "$base"
     log "Created $branch in $CURRENT_ROOT"
+    log "Base ref: $base"
     exit 0
   fi
 
@@ -165,8 +209,10 @@ command_create() {
   [[ ! -e "$path" ]] || fail "Worktree path already exists: $path"
   mkdir -p "$worktree_base"
   git -C "$root" worktree add "$path" -b "$branch" "$base"
+  git -C "$root" config "branch.$branch.dsbuilderBase" "$base"
 
   log "Created $branch"
+  log "Base ref: $base"
   log "Worktree: $path"
   if command -v idea >/dev/null 2>&1; then
     log "Open in IDEA: idea '$path'"
@@ -182,11 +228,16 @@ command_run() {
   local change_name="$1"
   shift
   local dry_run="false"
+  local allow_architecture_tests="false"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dry-run)
         dry_run="true"
+        shift
+        ;;
+      --allow-architecture-tests)
+        allow_architecture_tests="true"
         shift
         ;;
       --help)
@@ -202,7 +253,12 @@ command_run() {
   require_repository
   require git
   require takt
+  require openspec
   require_clean_checkout "$CURRENT_ROOT"
+  if [[ -f "$RUN_CONTEXT_FILE" ]]; then
+    log "Replacing stale TAKT run context because this checkout is clean"
+    clear_run_context
+  fi
 
   local branch
   branch="$(current_branch "$CURRENT_ROOT")"
@@ -231,7 +287,21 @@ command_run() {
     fail "No spec delta found under openspec/changes/$change_name/specs"
   fi
 
+  if [[ -n "$(find_archived_change "$change_name" || true)" ]]; then
+    fail "OpenSpec change is already archived: $change_name"
+  fi
+
+  log "Validating OpenSpec change: $change_name"
+  openspec validate "$change_name" --type change --strict --no-interactive
+  local status_json
+  status_json="$(openspec status --change "$change_name" --json)"
+  printf '%s\n' "$status_json" | grep -Eq '"isComplete"[[:space:]]*:[[:space:]]*true' || \
+    fail "OpenSpec artifacts are incomplete: $change_name"
+
   local task_text="Implement approved OpenSpec change $change_name"
+  if [[ "$allow_architecture_tests" == "true" ]]; then
+    task_text+=". The developer explicitly authorizes changes to architecture tests"
+  fi
   local command=(takt --pipeline --skip-git -w dsbuilder-openspec --task "$task_text")
 
   if [[ "$dry_run" == "true" ]]; then
@@ -241,8 +311,22 @@ command_run() {
     exit 0
   fi
 
+  local start_head
+  start_head="$(git rev-parse HEAD)"
+  local explicit_permissions="-"
+  [[ "$allow_architecture_tests" == "true" ]] && explicit_permissions="architecture-tests"
+  local protected_paths_start
+  protected_paths_start="$(protected_paths_snapshot)"
+  write_run_context main "$change_name" "$start_head" "$explicit_permissions" "$protected_paths_start"
   log "Running TAKT for $change_name in $CURRENT_ROOT"
-  exec "${command[@]}"
+  if "${command[@]}"; then
+    postcheck_main_run "$change_name" "$start_head"
+    clear_run_context
+  else
+    local status=$?
+    log "TAKT did not complete; use 'tools/task resume' after resolving the blocker"
+    return "$status"
+  fi
 }
 
 find_archived_change() {
@@ -263,18 +347,93 @@ find_archived_change() {
   echo "$found"
 }
 
+require_clean_index() {
+  if ! git -C "$CURRENT_ROOT" diff --cached --quiet; then
+    fail "Staged changes are not allowed while TAKT owns the checkout"
+  fi
+}
+
+check_result_paths() {
+  local line path
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    path="${line:3}"
+    path="${path##* -> }"
+    case "/$path/" in
+      */node_modules/*|*/build/*|*/.gradle/*|*/.kotlin/*|*/.sdds/*|*/.env/*|*/.env.*/*)
+        fail "TAKT produced a forbidden generated or local path: $path"
+        ;;
+    esac
+  done < <(git -C "$CURRENT_ROOT" status --porcelain --untracked-files=all)
+}
+
+postcheck_common() {
+  local start_head="$1"
+  local current_head
+  current_head="$(git -C "$CURRENT_ROOT" rev-parse HEAD)"
+  [[ "$current_head" == "$start_head" ]] || \
+    fail "TAKT created or switched commits: expected HEAD $start_head, got $current_head"
+  require_clean_index
+  check_result_paths
+  "$CURRENT_ROOT/tools/verify" policy
+  [[ -n "$(git -C "$CURRENT_ROOT" status --porcelain --untracked-files=all)" ]] || \
+    fail "TAKT completed without an uncommitted result"
+}
+
+postcheck_main_run() {
+  local change_name="$1"
+  local start_head="$2"
+  local active_change="$CURRENT_ROOT/openspec/changes/$change_name"
+  [[ ! -d "$active_change" ]] || fail "OpenSpec change was not archived: $change_name"
+
+  local archived_change
+  archived_change="$(find_archived_change "$change_name" || true)"
+  [[ -n "$archived_change" ]] || fail "Archived OpenSpec change not found after TAKT: $change_name"
+  [[ -f "$archived_change/tasks.md" ]] || fail "Archived tasks.md not found: $archived_change"
+  if grep -Eq '^[[:space:]]*- \[ \]' "$archived_change/tasks.md"; then
+    fail "Archived OpenSpec change still has incomplete tasks: $change_name"
+  fi
+
+  postcheck_common "$start_head"
+  openspec validate --specs --strict --no-interactive
+  log "OpenSpec conformance: PASS"
+  log "FAST verification: PASS"
+  log "FULL verification: PASS"
+  log "Archived change: ${archived_change#$CURRENT_ROOT/}"
+  log "Commits created by TAKT: 0"
+  log "Result: uncommitted changes are ready for human review"
+}
+
+postcheck_follow_up() {
+  local change_name="$1"
+  local start_head="$2"
+  [[ -n "$(find_archived_change "$change_name" || true)" ]] || \
+    fail "Archived OpenSpec change disappeared during follow-up: $change_name"
+  postcheck_common "$start_head"
+  log "OpenSpec conformance: PASS"
+  log "FAST verification: PASS"
+  log "FULL verification: PASS"
+  log "Commits created by TAKT: 0"
+  log "Result: uncommitted follow-up changes are ready for human review"
+}
+
 command_follow_up() {
   [[ $# -gt 1 ]] || fail "follow-up requires <openspec-change-name> and review feedback"
 
   local change_name="$1"
   shift
   local dry_run="false"
+  local allow_architecture_tests="false"
   local feedback_parts=()
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dry-run)
         dry_run="true"
+        shift
+        ;;
+      --allow-architecture-tests)
+        allow_architecture_tests="true"
         shift
         ;;
       --help)
@@ -292,6 +451,9 @@ command_follow_up() {
   require_repository
   require git
   require takt
+  require openspec
+  require_clean_index
+  require_no_run_context
 
   local branch
   branch="$(current_branch "$CURRENT_ROOT")"
@@ -313,6 +475,9 @@ command_follow_up() {
 
   local feedback="${feedback_parts[*]}"
   local task_text="Apply human review feedback to archived OpenSpec change $change_name: $feedback"
+  if [[ "$allow_architecture_tests" == "true" ]]; then
+    task_text+=". The developer explicitly authorizes changes to architecture tests"
+  fi
   local command=(takt --pipeline --skip-git -w dsbuilder-openspec-followup --task "$task_text")
 
   if [[ "$dry_run" == "true" ]]; then
@@ -322,14 +487,33 @@ command_follow_up() {
     exit 0
   fi
 
+  local start_head
+  start_head="$(git rev-parse HEAD)"
+  local explicit_permissions="-"
+  [[ "$allow_architecture_tests" == "true" ]] && explicit_permissions="architecture-tests"
+  local protected_paths_start
+  protected_paths_start="$(protected_paths_snapshot)"
+  write_run_context follow-up "$change_name" "$start_head" "$explicit_permissions" "$protected_paths_start"
   log "Running TAKT follow-up for $change_name in $CURRENT_ROOT"
-  exec "${command[@]}"
+  if "${command[@]}"; then
+    postcheck_follow_up "$change_name" "$start_head"
+    clear_run_context
+  else
+    local status=$?
+    log "TAKT follow-up did not complete; use 'tools/task resume' after resolving the blocker"
+    return "$status"
+  fi
 }
 
 command_resume() {
   require_repository
   require git
   require takt
+  require openspec
+  require_clean_index
+
+  [[ -f "$RUN_CONTEXT_FILE" ]] || \
+    fail "No task run context found; start with 'tools/task run' or 'tools/task follow-up'"
 
   local branch
   branch="$(current_branch "$CURRENT_ROOT")"
@@ -342,8 +526,29 @@ command_resume() {
     fail "Refusing to resume TAKT on base branch: $branch"
   fi
 
+  local mode change_name start_head explicit_permissions protected_paths_start
+  mode="$(sed -n '1p' "$RUN_CONTEXT_FILE")"
+  change_name="$(sed -n '2p' "$RUN_CONTEXT_FILE")"
+  start_head="$(sed -n '3p' "$RUN_CONTEXT_FILE")"
+  explicit_permissions="$(sed -n '4p' "$RUN_CONTEXT_FILE")"
+  protected_paths_start="$(sed -n '5p' "$RUN_CONTEXT_FILE")"
+  [[ "$mode" == "main" || "$mode" == "follow-up" ]] || fail "Invalid TAKT run context mode: $mode"
+  [[ -n "$change_name" && -n "$start_head" && -n "$explicit_permissions" && -n "$protected_paths_start" ]] || \
+    fail "Incomplete TAKT run context"
+
   log "Resuming the latest TAKT run in $CURRENT_ROOT"
-  exec takt resume
+  if takt resume; then
+    if [[ "$mode" == "main" ]]; then
+      postcheck_main_run "$change_name" "$start_head"
+    else
+      postcheck_follow_up "$change_name" "$start_head"
+    fi
+    clear_run_context
+  else
+    local status=$?
+    log "TAKT resume did not complete; the run context was preserved"
+    return "$status"
+  fi
 }
 
 print_worktree() {

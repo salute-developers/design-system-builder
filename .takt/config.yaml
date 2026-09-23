@@ -1,2 +1,3 @@
-provider: codex
 concurrency: 2
+workflow_command_gates:
+  custom_scripts: true

@@ -39,3 +39,17 @@ tasks.register("compileSharedMcpDependencyGraph") {
 tasks.named("check") {
     dependsOn("compileSharedMcpDependencyGraph")
 }
+
+tasks.register("verifyFast") {
+    group = "verification"
+    description = "Runs frontend architecture, formatting, static analysis, and tests."
+    dependsOn(":architecture-tests:test")
+    dependsOn("detektAll", "spotlessCheckAll", "test")
+}
+
+tasks.register("verifyFull") {
+    group = "verification"
+    description = "Runs FAST verification and builds every frontend module."
+    dependsOn("verifyFast")
+    dependsOn(subprojects.map { "${it.path}:build" })
+}
