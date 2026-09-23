@@ -42,15 +42,18 @@ class AuthorizationPolicyTest {
             )
         assertTrue(evaluator.isAllowed(key, "documentation:read"))
         assertFalse(evaluator.isAllowed(key, "documentation:write"))
-        assertTrue(
-            evaluator.isAllowed(
-                ProjectPrincipal(ProjectActorType.USER, "admin", "project", systemAdmin = true),
-                "documentation:write",
-            ),
+        val gatewayAdmin = ProjectPrincipal(
+            ProjectActorType.USER,
+            "admin",
+            "project",
+            projectRole = "owner",
+            systemAdmin = true,
         )
+        assertTrue(gatewayAdmin.isValid(loaded.policy))
+        assertTrue(evaluator.isAllowed(gatewayAdmin, "documentation:write"))
         assertFalse(
             evaluator.isAllowed(
-                ProjectPrincipal(ProjectActorType.USER, "admin", "project", systemAdmin = true),
+                gatewayAdmin,
                 "unknown:permission",
             ),
         )

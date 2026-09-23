@@ -215,7 +215,13 @@ internal class AddProjectMemberUseCase(
             policy.requireProjectKeyScope(input.actor, ProjectEntity.MEMBERS, AccessKeyAction.WRITE)
             val identityUser = identityUserLookup.findRegisteredUserByEmail(normalizedEmail)
                 ?: throw RegisteredIdentityUserNotFoundException(normalizedEmail)
-            policy.requireMemberManagement(actorRole, identityUser.userId, project, input.actor)
+            policy.requireMemberManagement(
+                actorRole,
+                identityUser.userId,
+                project,
+                MemberManagementPermission.ADD,
+                input.actor,
+            )
 
             val existing = repository.getMember(input.projectId, identityUser.userId)
             val now = Instant.now(clock)
@@ -246,7 +252,13 @@ internal class UpdateProjectMemberRoleUseCase(
             val actorRole = policy.requireProjectAccess(input.actor, project, actorMembership)
             policy.requireMutableProject(project)
             policy.requireProjectKeyScope(input.actor, ProjectEntity.MEMBERS, AccessKeyAction.WRITE)
-            policy.requireMemberManagement(actorRole, input.userId, project, input.actor)
+            policy.requireMemberManagement(
+                actorRole,
+                input.userId,
+                project,
+                MemberManagementPermission.CHANGE_ROLE,
+                input.actor,
+            )
 
             val existing = repository.getMember(input.projectId, input.userId)
                 ?: throw ProjectNotFoundException("member:${input.userId}")
@@ -268,7 +280,13 @@ internal class RemoveProjectMemberUseCase(
             val actorRole = policy.requireProjectAccess(actor, project, actorMembership)
             policy.requireMutableProject(project)
             policy.requireProjectKeyScope(actor, ProjectEntity.MEMBERS, AccessKeyAction.DELETE)
-            policy.requireMemberManagement(actorRole, userId, project, actor)
+            policy.requireMemberManagement(
+                actorRole,
+                userId,
+                project,
+                MemberManagementPermission.REMOVE,
+                actor,
+            )
 
             if (!repository.removeMember(projectId, userId)) {
                 throw ProjectNotFoundException("member:$userId")

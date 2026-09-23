@@ -67,12 +67,13 @@ internal class ProjectAccessPolicy(
         actorRole: ProjectRole,
         targetUserId: String,
         project: Project,
+        permission: MemberManagementPermission,
         actor: AuthenticatedActor? = null,
     ) {
         val failureMessage = when {
             actor?.type == ActorType.PROJECT_KEY -> "Project keys cannot manage project members"
             targetUserId == project.ownerUserId -> "Owner cannot be managed through project members"
-            !actorRole.isAllowed(MEMBERS_CHANGE_ROLE) ->
+            !actorRole.isAllowed(permission.value, actor?.isSystemAdmin == true) ->
                 "Only owner or maintainer can manage project members"
             else -> null
         }
@@ -87,11 +88,15 @@ internal class ProjectAccessPolicy(
         }
     }
 
-    fun requireAccessKeyManagement(actor: AuthenticatedActor, role: ProjectRole) {
+    fun requireAccessKeyManagement(
+        actor: AuthenticatedActor,
+        role: ProjectRole,
+        permission: AccessKeyManagementPermission,
+    ) {
         if (actor.type == ActorType.PROJECT_KEY) {
             throw ForbiddenProjectActionException("Project keys cannot manage access keys")
         }
-        if (!actor.isSystemAdmin && !role.isAllowed(ACCESS_KEYS_CREATE)) {
+        if (!role.isAllowed(permission.value, actor.isSystemAdmin)) {
             throw ForbiddenProjectActionException("Only owner or maintainer can manage access keys")
         }
     }
@@ -159,12 +164,13 @@ internal class ProjectAccessPolicy(
     private fun AuthenticatedActor.hasScope(entity: ProjectEntity, action: AccessKeyAction): Boolean =
         scopes.contains(AccessKeyScope(entity, action))
 
-    private fun ProjectRole.isAllowed(permission: String): Boolean = evaluator.isAllowed(
+    private fun ProjectRole.isAllowed(permission: String, systemAdmin: Boolean = false): Boolean = evaluator.isAllowed(
         ProjectPrincipal(
             type = ProjectActorType.USER,
             actorId = "project-policy",
             projectId = "project-policy",
             projectRole = name.lowercase(),
+            systemAdmin = systemAdmin,
         ),
         permission,
     )
@@ -184,7 +190,17 @@ internal class ProjectAccessPolicy(
     private companion object {
         const val PROJECT_UPDATE_METADATA = "project:update_metadata"
         const val PROJECT_ARCHIVE = "project:archive"
-        const val MEMBERS_CHANGE_ROLE = "members:change_role"
-        const val ACCESS_KEYS_CREATE = "access_keys:create"
     }
+}
+
+internal enum class MemberManagementPermission(val value: String) {
+    ADD("members:add"),
+    CHANGE_ROLE("members:change_role"),
+    REMOVE("members:remove"),
+}
+
+internal enum class AccessKeyManagementPermission(val value: String) {
+    READ("access_keys:read"),
+    CREATE("access_keys:create"),
+    REVOKE("access_keys:revoke"),
 }

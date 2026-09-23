@@ -136,6 +136,7 @@ class DocumentationBundleRoutesTest {
             header("X-Actor-Type", "user")
             header("X-User-Id", "admin")
             header("X-Project-Id", "project")
+            header("X-Project-Role", "owner")
             header("X-System-Admin", "true")
             setBody(bundleMultipart("archive"))
         }
