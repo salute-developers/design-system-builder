@@ -37,7 +37,7 @@ public fun LoginScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "DS Builder",
+            text = "SDDS Tokens",
             color = SddsServTheme.colors.textDefaultPrimary,
             style = SddsServTheme.typography.displayMBold,
             textAlign = TextAlign.Center,
