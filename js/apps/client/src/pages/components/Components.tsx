@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import { getOldMenuItems } from '../../utils';
 import { DesignSystem, Theme, Config } from '../../controllers';
@@ -84,6 +84,10 @@ export const Components = () => {
 
     if (!data || !designSystem || !theme || !components) {
         return null;
+    }
+
+    if (components.length === 0) {
+        return <Navigate to="../colors" replace />;
     }
 
     return (

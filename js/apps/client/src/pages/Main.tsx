@@ -62,6 +62,8 @@ export const Main = () => {
 
     // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
     const isEditingDesignSystem = Boolean(designSystemName && designSystemVersion);
+    // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
+    const hasComponents = Boolean(components?.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isPopupOpen && !isEditingDesignSystem;
 
@@ -213,12 +215,14 @@ export const Main = () => {
                                 >
                                     <IconShapeOutline size="xs" color="inherit" />
                                 </StyledIconButton>
-                                <StyledIconButton
-                                    selected={currentPath.includes('components')}
-                                    onClick={() => onClickPanelButton('components')}
-                                >
-                                    <IconGroupOutline size="xs" color="inherit" />
-                                </StyledIconButton>
+                                {hasComponents && (
+                                    <StyledIconButton
+                                        selected={currentPath.includes('components')}
+                                        onClick={() => onClickPanelButton('components')}
+                                    >
+                                        <IconGroupOutline size="xs" color="inherit" />
+                                    </StyledIconButton>
+                                )}
                                 <Separator />
                                 <StyledIconButton
                                     selected={currentPath.includes('overview')}

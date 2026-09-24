@@ -33,6 +33,7 @@ export interface BaseFileStructure {
     packageName: string;
     packageVersion: string;
     coreVersion: string;
+    hasComponents: boolean;
 }
 
 export interface ComponentsFiles {

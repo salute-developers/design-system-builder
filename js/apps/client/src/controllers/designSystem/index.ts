@@ -11,7 +11,6 @@ import {
 import { Config, type Meta } from '../componentBuilder';
 import {
     kebabToCamel,
-    loadBaseComponentsData,
     loadDesignSystem,
     saveDesignSystem,
     updateDesignSystem,
@@ -56,13 +55,9 @@ export class DesignSystem {
     }: DesignSystemProps): Promise<DesignSystem> {
         const instance = new DesignSystem({ name, version, parameters });
 
-        const [themeData, componentsData] = await Promise.all([
-            Promise.resolve(instance.generateThemeData(parameters)),
-            loadBaseComponentsData({ parameters }),
-        ]);
-
-        instance.themeData = externalThemeData ?? themeData;
-        instance.componentsData = componentsData;
+        // TOD: Временно новая дизайн-система создаётся только с темой: компоненты из `base` в неё не копируются.
+        instance.themeData = externalThemeData ?? instance.generateThemeData(parameters);
+        instance.componentsData = [];
 
         if (name && version) {
             await saveDesignSystem({

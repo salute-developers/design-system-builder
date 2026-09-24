@@ -3,8 +3,5 @@ export const createRootIndex = (components: string[]) => {
         .map((componentName) => `export * from './components/${componentName}';`)
         .join('\n');
 
-    return `${componentsName}
-    
-export * from './theme'
-`;
+    return `${componentsName ? `${componentsName}\n\n` : ''}export * from './theme';\n`;
 };
