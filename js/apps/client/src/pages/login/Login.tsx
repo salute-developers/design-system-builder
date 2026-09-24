@@ -1,122 +1,88 @@
-import { useNavigate } from 'react-router-dom';
-import { KeyboardEvent, useState } from 'react';
+import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { Root } from '../Main.styles.ts';
-import { Wrapper, StyledIconButton } from './Login.styles.ts';
+import { StyledFormColumn, StyledPreviewColumn, Wrapper } from './Login.styles.ts';
 
-import { HeroTextField } from '../../features';
-import { IconButton, TextField } from '../../components';
-import { authService } from '../../api';
+import { ActionButton } from '../../components';
+import { AuthState, BrandPreview, LoginForm } from '../../features';
+import { authService, REQUEST_ACCESS_URL } from '../../api';
 import { fetchOwnerProjectId } from '../../hooks';
 
-type Step = 'login' | 'password';
-
-const StepLogin = ({
-    step,
-    setStep,
-    login,
-    setLogin,
-}: {
-    step: Step;
-    login: string;
-    setStep: (value: Step) => void;
-    setLogin: (value: string) => void;
-}) => {
-    const handleNext = () => setStep('password');
-
-    const handleCommit = (e: string) => {
-        setLogin(e);
-    };
-
-    const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter') {
-            handleNext();
-        }
-    };
-
-    if (step === 'login') {
-        return (
-            <HeroTextField
-                value={login}
-                placeholder="Введите логин"
-                dynamicContentRight={
-                    <IconButton onClick={handleNext}>
-                        <StyledIconButton size="s" color="inherit" />
-                    </IconButton>
-                }
-                onChange={(e) => setLogin(e.target.value)}
-                onKeyDown={onKeyDown}
-                compensativeWidth={0}
-            />
-        );
-    }
-
-    return <TextField label="Логин" value={login} onCommit={handleCommit} />;
-};
-
-const StepPassword = ({
-    password,
-    setPassword,
-    handleSubmit,
-}: {
-    password: string;
-    setPassword: (value: string) => void;
-    handleSubmit: () => void;
-}) => {
-    const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter') {
-            handleSubmit();
-        }
-    };
-
-    return (
-        <HeroTextField
-            type="password"
-            value={password}
-            placeholder="Введите пароль"
-            dynamicContentRight={
-                <IconButton onClick={handleSubmit}>
-                    <StyledIconButton size="s" color="inherit" />
-                </IconButton>
-            }
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={onKeyDown}
-            compensativeWidth={0}
-        />
-    );
-};
+export type LoginReason = 'expired';
 
 const Login = () => {
-    const [step, setStep] = useState<Step>('login');
-    const [login, setLogin] = useState('');
-    const [password, setPassword] = useState('');
+    const [error, setError] = useState<string>();
+    const [loading, setLoading] = useState(false);
 
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
 
-    const onSubmit = async () => {
+    const reason = searchParams.get('reason') as LoginReason | null;
+
+    const onSubmit = async ({ login, password }: { login: string; password: string }) => {
+        setError(undefined);
+        setLoading(true);
+
         try {
             await authService.login(login, password);
+        } catch {
+            setError('Неверный логин или пароль');
+            setLoading(false);
+            return;
+        }
 
+        try {
             const ownerProjectId = await fetchOwnerProjectId();
 
             if (!ownerProjectId) {
-                alert('У пользователя нет проектов');
+                setError('У пользователя нет проектов');
                 return;
             }
 
             navigate(`/${ownerProjectId}`);
         } catch {
-            alert('Ошибка авторизации');
+            setError('Не удалось загрузить проекты');
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const onRequestAccess = () => {
+        window.open(REQUEST_ACCESS_URL, '_blank', 'noopener,noreferrer');
+    };
+
+    const onResetReason = () => {
+        setSearchParams({}, { replace: true });
+    };
+
+    const renderContent = () => {
+        if (reason === 'expired') {
+            return (
+                <AuthState
+                    eyebrow="Безопасность"
+                    title="Сессия завершена"
+                    description="Время сессии истекло. Войдите снова, чтобы вернуться в Builder."
+                    actions={
+                        <>
+                            <ActionButton text="Войти снова" view="primary" stretched onClick={onResetReason} />
+                            <ActionButton text="Сменить аккаунт" view="secondary" stretched onClick={onResetReason} />
+                        </>
+                    }
+                />
+            );
+        }
+
+        return <LoginForm error={error} loading={loading} onSubmit={onSubmit} onRequestAccess={onRequestAccess} />;
     };
 
     return (
         <Root grayTone="warmGray" themeMode="dark">
             <Wrapper>
-                <StepLogin step={step} setStep={setStep} login={login} setLogin={setLogin} />
-                {step === 'password' && (
-                    <StepPassword password={password} setPassword={setPassword} handleSubmit={onSubmit} />
-                )}
+                <StyledPreviewColumn>
+                    <BrandPreview />
+                </StyledPreviewColumn>
+                <StyledFormColumn>{renderContent()}</StyledFormColumn>
             </Wrapper>
         </Root>
     );

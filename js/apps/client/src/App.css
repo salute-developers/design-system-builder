@@ -20,6 +20,7 @@ body {
     --outline-transparent-secondary: rgba(242, 244, 246, 0.1);
     --inverse-outline-solid-general-secondary: rgba(174, 178, 194, 1);
     --outline-accent-primary: rgba(43, 140, 237, 1);
+    --surface-accent-primary: #166dc4;
 
     --inverse-outline-transparent-primary: rgba(247, 248, 251, 0.12);
 
