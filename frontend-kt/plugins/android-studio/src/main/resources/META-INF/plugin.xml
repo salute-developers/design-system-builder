@@ -8,6 +8,8 @@
 
     <depends>com.intellij.modules.platform</depends>
 
+    <resource-bundle>messages.SddsBundle</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="SDDS"
                     anchor="right"
