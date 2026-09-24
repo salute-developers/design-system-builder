@@ -45,6 +45,7 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.ShadowLayerValue
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenType
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
+import com.intellij.util.ui.UIUtil
 import com.sdds.compose.uikit.Divider
 import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.ListItem
@@ -146,15 +147,36 @@ public fun TokenList(
             // Ленивый список: в дизайн-системе сотни цветов, композировать их все сразу — фризы при прокрутке.
             // Divider приходит с тем же стилем, что и раньше, — дорогой `style()` считается один раз, а не на строку.
             val dividerStyle = DividerStyles.DividerDefault.style()
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(items = visibleTokens, key = { it.token.id }) { item ->
-                    TokenRow(item, resolveCodeReference)
-                    Divider(style = dividerStyle)
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(items = visibleTokens, key = { it.token.id }) { item ->
+                        TokenRow(item, resolveCodeReference)
+                        Divider(style = dividerStyle)
+                    }
                 }
+                BottomFade(Modifier.align(Alignment.BottomCenter))
             }
         }
     }
 }
+
+/**
+ * Затухание низа списка: список плавно уходит в фон панели IDE. Оверлей без обработчиков ввода —
+ * клики и прокрутка проходят сквозь него к строкам.
+ */
+@Composable
+private fun BottomFade(modifier: Modifier = Modifier) {
+    val panel = UIUtil.getPanelBackground()
+    val background = Color(panel.red, panel.green, panel.blue)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(BOTTOM_FADE_HEIGHT)
+            .background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background))),
+    )
+}
+
+private val BOTTOM_FADE_HEIGHT = 48.dp
 
 /**
  * Значение токена зависит от режима темы только у цветов и градиентов; у остальных типов
