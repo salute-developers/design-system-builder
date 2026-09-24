@@ -69,7 +69,7 @@ export const LoginForm = (props: LoginFormProps) => {
             </StyledFields>
             <StyledActions>
                 <ActionButton type="submit" text="Войти" view="primary" stretched disabled={loading} />
-                <Divider>Нет учётной записи или нужен доступ к проекту?</Divider>
+                <Divider>Нет учётной записи или нужен доступ к дизайн-системе?</Divider>
                 <ActionButton text="Запросить доступ" view="secondary" stretched onClick={onRequestAccess} />
             </StyledActions>
         </Root>
