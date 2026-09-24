@@ -54,6 +54,36 @@ takt --pipeline workflow doctor dsbuilder-openspec dsbuilder-openspec-followup
 openspec validate --all --strict --no-interactive
 ```
 
+### Gradle в sandbox Codex
+
+Gradle записывает wrapper distributions, зависимости, metadata и lock-файлы в
+`GRADLE_USER_HOME`. Sandbox Codex не разрешает запись в стандартный `~/.gradle`,
+поэтому для Codex и TAKT используется отдельный общий cache. Один каталог можно
+использовать во всех checkout и worktree:
+
+```bash
+mkdir -p "$HOME/.cache/codex-gradle"
+```
+
+Добавьте абсолютный путь к каталогу в пользовательский `~/.codex/config.toml`.
+TOML не подставляет `$HOME` или `~`, поэтому замените `<username>` своим именем
+пользователя:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = ["/Users/<username>/.cache/codex-gradle"]
+
+[shell_environment_policy]
+set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
+```
+
+Перезапустите Codex и новые TAKT-сессии после изменения конфигурации. Сам каталог
+не находится в Git: в нём хранится одна скачанная Gradle distribution на версию
+и общий cache зависимостей для всех worktree. Проектные `.gradle` и `build`
+остаются отдельными в каждом worktree.
+
 Рабочий процесс, команды для веток и worktree, TAKT-цикл и проверки описаны в
 [`.takt/PROCESS.md`](./.takt/PROCESS.md).
 

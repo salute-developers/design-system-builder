@@ -420,13 +420,17 @@ execute_logged_takt() {
       "$(jq -cn --argjson exitCode "$command_status" '{status:"aborted", pid:null, exitCode:$exitCode, reason:"TAKT run was aborted"}')"
     return 130
   fi
+
+  local current_step
+  current_step="$(jq -r '.step // empty' "$(orchestration_state_file "$change_name")")"
+  if [[ "$current_step" == "await_external_verification" ]]; then
+    create_external_request "$change_name" "$reason" "$command_status"
+    # A waiting run must not enter repository post-checks even when TAKT reports
+    # a successful process exit for the semantic ABORT transition.
+    return 75
+  fi
+
   if [[ "$command_status" -ne 0 ]]; then
-    local failed_step
-    failed_step="$(jq -r '.step // empty' "$(orchestration_state_file "$change_name")")"
-    if [[ "$failed_step" == "await_external_verification" ]]; then
-      create_external_request "$change_name" "$reason" "$command_status"
-      return "$command_status"
-    fi
     local failed_status
     failed_status="$(classify_failed_status "$reason")"
     local question=""
