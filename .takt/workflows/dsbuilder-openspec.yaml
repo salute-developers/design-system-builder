@@ -13,6 +13,8 @@ steps:
       and its proposal.md, design.md, spec deltas, and tasks.md provide enough
       information to begin implementation. Identify local automated checks,
       external pre-archive checks, and post-deployment observations separately.
+      When `.takt/orchestration/<change-name>/resume.md` exists, read it before
+      deciding whether the current working tree is ready to continue.
 
       Do not edit files or implement the Change. If provider startup, model
       access, repository access, or the approved artifacts prevent safe work,

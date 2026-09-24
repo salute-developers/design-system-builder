@@ -34,6 +34,8 @@ Commands:
   external-result
            Validate an external verification result and resume the waiting run.
   resume   Resume the latest failed or aborted TAKT run in the current checkout.
+           Uses native TAKT resume when the saved workflow and HEAD still match.
+           Otherwise starts the current workflow over the existing working tree.
            An instruction file is exposed to the resumed workflow as a handoff.
   abort    Request graceful termination of the active TAKT process.
   logs     Show a bounded tail of the current or latest TAKT log.
@@ -127,7 +129,7 @@ initialize_orchestration_state() {
   state_file="$(orchestration_state_file "$change_name")"
   mkdir -p "$(dirname "$state_file")"
   rm -f "$(orchestration_request_file "$change_name")"
-  if [[ "$mode" != *-resume ]]; then
+  if [[ "$mode" != *-resume && "$mode" != *-continue ]]; then
     rm -f "$(orchestration_external_result_file "$change_name")" \
       "$(orchestration_resume_file "$change_name")"
   fi
@@ -146,6 +148,23 @@ initialize_orchestration_state() {
       exitCode: null, startedAt: $startedAt, updatedAt: $updatedAt, log: $log}' \
     > "$temporary"
   mv "$temporary" "$state_file"
+}
+
+archive_orchestration_attempt() {
+  local change_name="$1"
+  local directory state_file history_directory timestamp
+  directory="$(orchestration_dir "$change_name")"
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || return 0
+
+  history_directory="$directory/attempts"
+  mkdir -p "$history_directory"
+  timestamp="$(run_id_now)-$$"
+  cp "$state_file" "$history_directory/$timestamp-state.json"
+  if [[ -f "$(orchestration_request_file "$change_name")" ]]; then
+    cp "$(orchestration_request_file "$change_name")" \
+      "$history_directory/$timestamp-request.json"
+  fi
 }
 
 archive_external_handoff() {
@@ -509,19 +528,40 @@ protected_paths_snapshot() {
   "$CURRENT_ROOT/tools/verify" snapshot
 }
 
+workflow_name_for_mode() {
+  case "$1" in
+    main) printf 'dsbuilder-openspec\n' ;;
+    follow-up) printf 'dsbuilder-openspec-followup\n' ;;
+    *) fail "Cannot select workflow for run context mode: $1" ;;
+  esac
+}
+
+workflow_fingerprint() {
+  local workflow_name="$1"
+  local workflow_file="$CURRENT_ROOT/.takt/workflows/$workflow_name.yaml"
+  [[ -f "$workflow_file" ]] || fail "Workflow file not found: $workflow_file"
+  git -C "$CURRENT_ROOT" hash-object "$workflow_file"
+}
+
 write_run_context() {
   local mode="$1"
   local change_name="$2"
   local start_head="$3"
   local explicit_permissions="$4"
   local protected_paths_start="$5"
+  local workflow_name
+  workflow_name="$(workflow_name_for_mode "$mode")"
+  local workflow_fingerprint_value
+  workflow_fingerprint_value="$(workflow_fingerprint "$workflow_name")"
   mkdir -p "$(dirname "$RUN_CONTEXT_FILE")"
-  printf '%s\n%s\n%s\n%s\n%s\n' \
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' \
     "$mode" \
     "$change_name" \
     "$start_head" \
     "$explicit_permissions" \
-    "$protected_paths_start" > "$RUN_CONTEXT_FILE"
+    "$protected_paths_start" \
+    "$workflow_name" \
+    "$workflow_fingerprint_value" > "$RUN_CONTEXT_FILE"
 }
 
 clear_run_context() {
@@ -961,11 +1001,14 @@ command_resume() {
   fi
 
   local mode change_name start_head explicit_permissions protected_paths_start
+  local stored_workflow_name stored_workflow_fingerprint
   mode="$(sed -n '1p' "$RUN_CONTEXT_FILE")"
   change_name="$(sed -n '2p' "$RUN_CONTEXT_FILE")"
   start_head="$(sed -n '3p' "$RUN_CONTEXT_FILE")"
   explicit_permissions="$(sed -n '4p' "$RUN_CONTEXT_FILE")"
   protected_paths_start="$(sed -n '5p' "$RUN_CONTEXT_FILE")"
+  stored_workflow_name="$(sed -n '6p' "$RUN_CONTEXT_FILE")"
+  stored_workflow_fingerprint="$(sed -n '7p' "$RUN_CONTEXT_FILE")"
   [[ "$mode" == "main" || "$mode" == "follow-up" ]] || fail "Invalid TAKT run context mode: $mode"
   [[ -n "$change_name" && -n "$start_head" && -n "$explicit_permissions" && -n "$protected_paths_start" ]] || \
     fail "Incomplete TAKT run context"
@@ -974,6 +1017,15 @@ command_resume() {
     validate_change_name "$requested_change"
     [[ "$requested_change" == "$change_name" ]] || \
       fail "Run context belongs to '$change_name', not '$requested_change'"
+  fi
+
+  local state_file current_status current_pid
+  state_file="$(orchestration_state_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+  current_status="$(jq -r '.status // empty' "$state_file")"
+  current_pid="$(jq -r '.pid // empty' "$state_file")"
+  if [[ "$current_status" == "running" && "$current_pid" =~ ^[0-9]+$ ]] && kill -0 "$current_pid" 2>/dev/null; then
+    fail "TAKT is still running for OpenSpec change: $change_name"
   fi
 
   local resume_file=""
@@ -986,7 +1038,124 @@ command_resume() {
     mv "$resume_file.tmp.$$" "$resume_file"
   fi
 
-  log "Resuming the latest TAKT run in $CURRENT_ROOT"
+  local workflow_name current_workflow_fingerprint current_head saved_run_slug saved_meta_file
+  workflow_name="$(workflow_name_for_mode "$mode")"
+  current_workflow_fingerprint="$(workflow_fingerprint "$workflow_name")"
+  current_head="$(git -C "$CURRENT_ROOT" rev-parse HEAD)"
+  saved_run_slug="$(jq -r '.runSlug // empty' "$state_file")"
+  saved_meta_file="$CURRENT_ROOT/.takt/runs/$saved_run_slug/meta.json"
+
+  local resume_strategy="native"
+  local incompatibility_reasons=()
+  if [[ "$stored_workflow_name" != "$workflow_name" || \
+        "$stored_workflow_fingerprint" != "$current_workflow_fingerprint" ]]; then
+    resume_strategy="continue"
+    incompatibility_reasons+=("workflow changed")
+  fi
+  if [[ "$start_head" != "$current_head" ]]; then
+    resume_strategy="continue"
+    incompatibility_reasons+=("HEAD changed from $start_head to $current_head")
+  fi
+  if [[ -z "$saved_run_slug" || ! -f "$saved_meta_file" ]]; then
+    resume_strategy="continue"
+    incompatibility_reasons+=("saved TAKT run is unavailable")
+  fi
+
+  if [[ "$resume_strategy" == "continue" ]]; then
+    local previous_step previous_reason previous_report reasons_text existing_handoff
+    previous_step="$(jq -r '.step // "unknown"' "$state_file")"
+    previous_reason="$(jq -r '.reason // "not recorded"' "$state_file")"
+    previous_report="$(jq -r '.report // "not recorded"' "$state_file")"
+    reasons_text="$(IFS='; '; printf '%s' "${incompatibility_reasons[*]}")"
+    existing_handoff=""
+    if [[ -n "$resume_file" && -f "$resume_file" ]]; then
+      existing_handoff="$(cat "$resume_file")"
+    elif [[ -f "$(orchestration_resume_file "$change_name")" ]]; then
+      resume_file="$(orchestration_resume_file "$change_name")"
+      existing_handoff="$(cat "$resume_file")"
+    else
+      resume_file="$(orchestration_resume_file "$change_name")"
+    fi
+
+    archive_orchestration_attempt "$change_name"
+    mkdir -p "$(dirname "$resume_file")"
+    cat > "$resume_file.tmp.$$" <<EOF
+Continue the unfinished OpenSpec change from the existing working tree.
+
+The coordinating helper selected a new TAKT run because native resume is not
+compatible with the current checkout: $reasons_text.
+
+Previous run: ${saved_run_slug:-unknown}
+Previous step: $previous_step
+Previous reason: $previous_reason
+Previous report: $previous_report
+
+Inspect and preserve the existing tracked and untracked implementation. Treat
+the previous report and the additional handoff below as context, then use the
+current workflow to continue from the appropriate stage. Do not discard or
+rewrite valid work merely because this is a new TAKT run.
+EOF
+    if [[ -n "$existing_handoff" ]]; then
+      {
+        printf '\nAdditional handoff:\n\n'
+        printf '%s\n' "$existing_handoff"
+      } >> "$resume_file.tmp.$$"
+    fi
+    mv "$resume_file.tmp.$$" "$resume_file"
+
+    write_run_context "$mode" "$change_name" "$current_head" \
+      "$explicit_permissions" "$protected_paths_start"
+
+    local continuation_task
+    if [[ "$mode" == "main" ]]; then
+      [[ -d "$CURRENT_ROOT/openspec/changes/$change_name" ]] || \
+        fail "Active OpenSpec change not found for continued run: $change_name"
+      continuation_task="Continue approved OpenSpec change $change_name from the existing uncommitted implementation. Read .takt/orchestration/$change_name/resume.md before deciding what remains"
+    else
+      [[ -n "$(find_archived_change "$change_name" || true)" ]] || \
+        fail "Archived OpenSpec change not found for continued follow-up: $change_name"
+      continuation_task="Continue human review follow-up for archived OpenSpec change $change_name from the existing uncommitted implementation. Read .takt/orchestration/$change_name/resume.md before deciding what remains"
+    fi
+    local continuation_command=(takt --pipeline --skip-git -w "$workflow_name" --task "$continuation_task")
+    log "Saved TAKT run cannot be resumed natively: $reasons_text"
+    log "Starting the current workflow over the existing working tree"
+
+    local continuation_status=0
+    if execute_logged_takt "$change_name" "$mode-continue" "${continuation_command[@]}"; then
+      continuation_status=0
+    else
+      continuation_status=$?
+    fi
+
+    if [[ -f "$resume_file" ]]; then
+      local continuation_handoff_directory
+      continuation_handoff_directory="$(orchestration_dir "$change_name")/handoffs"
+      mkdir -p "$continuation_handoff_directory"
+      mv "$resume_file" "$continuation_handoff_directory/$(run_id_now)-$$-continuation.md"
+    fi
+
+    if [[ "$continuation_status" -eq 0 ]]; then
+      if [[ "$mode" == "main" ]]; then
+        if ! run_postcheck_with_log "$change_name" postcheck_main_run "$change_name" "$current_head"; then
+          finish_orchestration_postcheck_failure "$change_name"
+          return 1
+        fi
+      else
+        if ! run_postcheck_with_log "$change_name" postcheck_follow_up "$change_name" "$current_head"; then
+          finish_orchestration_postcheck_failure "$change_name"
+          return 1
+        fi
+      fi
+      finish_orchestration_success "$change_name" "TAKT workflow continued on the current checkout and completed successfully"
+      clear_run_context
+      return 0
+    fi
+
+    log "Continued TAKT workflow did not complete; the new run context was preserved"
+    return "$continuation_status"
+  fi
+
+  log "Resuming the compatible TAKT run in $CURRENT_ROOT"
   local resume_command=(takt resume)
   if [[ -n "$instruction_file" ]]; then
     resume_command=(env TAKT_NO_TTY=1 takt resume)

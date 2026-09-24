@@ -145,10 +145,14 @@ standalone handoff file and resume the same direct run:
 tools/task resume <change-name> --instruction-file <path>
 ```
 
-The helper exposes the handoff to every workflow persona, selects TAKT's Requeue
-path non-interactively, and preserves the existing diff, reports, resume point,
-and reusable provider sessions. Use resume only for an unfinished run. A
-completed run with new human feedback uses `follow-up`.
+The helper exposes the handoff to every workflow persona. When the saved
+workflow fingerprint and HEAD still match, it selects TAKT's Requeue path
+non-interactively and preserves its resume point and reusable provider sessions.
+After a rebase, workflow change, or missing saved run, the same command archives
+the old orchestration state and starts the current workflow over the existing
+tracked and untracked implementation with a generated handoff. Do not discard
+or commit the working tree merely to make resume possible. Use resume only for
+an unfinished run. A completed run with new human feedback uses `follow-up`.
 
 When the user asks to stop a running cycle, run:
 

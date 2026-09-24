@@ -11,7 +11,10 @@ steps:
       Confirm that the configured provider and model can run, the archived
       OpenSpec Change named in the task is readable, and the human feedback is
       precise enough to apply. Identify any external checks that must be repeated
-      after the feedback is implemented. Do not edit files.
+      after the feedback is implemented. When
+      `.takt/orchestration/<change-name>/resume.md` exists, read it before
+      deciding whether the current working tree is ready to continue. Do not edit
+      files.
     rules:
       - condition: Provider, checkout, archived Change, and feedback are ready
         next: apply_feedback
