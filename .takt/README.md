@@ -7,9 +7,13 @@ TAKT.
 Основной workflow:
 
 ```text
-apply → FAST → conformance_review → FULL → archive
-  ↑                    │             │
-  └────── fix ─────────┴─────────────┘
+preflight → apply → FAST → conformance_review → FULL_LOCAL
+                ↑                    │              │
+                └────── fix ─────────┴──────────────┤
+                                                    ↓
+                                      external_verification
+                                         ├─ PASS → archive
+                                         └─ FAIL → fix
 ```
 
 Репозиторный helper разделяет имя Git branch и имя OpenSpec Change:
@@ -20,6 +24,7 @@ tools/task run <change-name>
 tools/task follow-up <change-name> '<human-review-feedback>'
 tools/task status [change-name] --json
 tools/task wait [change-name] --json
+tools/task external-result <change-name> <result-json-file>
 tools/task resume [change-name] --instruction-file <path>
 tools/task abort [change-name]
 tools/task logs [change-name] --lines 80
@@ -58,5 +63,8 @@ guardrails, параллельные задачи и cleanup описаны в [
 
 Полный вывод каждого TAKT запуска сохраняется в `.takt/orchestration`, а
 координирующий Codex или Claude Code использует компактные `status` и `wait`.
-После остановки он может выполнить отдельно разрешённую разработчиком проверку,
-записать результат в handoff-файл и продолжить тот же direct run через `resume`.
+Если обязательной проверке нужны Docker, реальная база данных, журналы сервисов
+или другие внешние возможности, workflow останавливается в состоянии
+`waiting_external`. Координирующий агент выполняет отдельно разрешённую проверку
+и возвращает структурированный результат через `external-result`. Исправимый
+дефект направляется в `fix`; успешное доказательство разрешает архивирование.

@@ -182,3 +182,11 @@ rules:
     - Include focused tests for use cases, mappers, repositories/local sources, Ktor routes and
       Express routers when those areas are touched. Where the touched part has no test runner yet,
       make standing it up an explicit task instead of assuming it exists.
+    - Separate verification work into local automated checks, external checks required before
+      archive, and observations that can happen only after deployment. Prefix external pre-archive
+      checkbox tasks with `[внешняя проверка]` so the TAKT workflow can request evidence explicitly.
+    - Do not add post-deployment observations as blocking checkbox tasks in tasks.md. Record them in
+      the design rollout plan or the team's deployment checklist instead.
+    - A required test that silently returns or reports success when its database, container,
+      credential, or other prerequisite is missing is invalid. Make the missing prerequisite fail
+      the local gate or create an explicit `[внешняя проверка]` task with measurable success criteria.

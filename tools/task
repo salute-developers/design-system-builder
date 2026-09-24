@@ -16,6 +16,7 @@ Usage:
   tools/task follow-up <openspec-change-name> <review-feedback...> [--allow-architecture-tests] [--dry-run]
   tools/task status [openspec-change-name] [--json]
   tools/task wait [openspec-change-name] [--json] [--timeout <seconds>]
+  tools/task external-result <openspec-change-name> <result-json-file>
   tools/task resume [openspec-change-name] [--instruction-file <path>]
   tools/task abort [openspec-change-name]
   tools/task logs [openspec-change-name] [--lines <count>]
@@ -30,6 +31,8 @@ Commands:
            Run another TAKT cycle for human review feedback after OpenSpec archive.
   status   Show compact orchestration state for this checkout.
   wait     Wait for a meaningful state change without streaming the full log.
+  external-result
+           Validate an external verification result and resume the waiting run.
   resume   Resume the latest failed or aborted TAKT run in the current checkout.
            An instruction file is exposed to the resumed workflow as a handoff.
   abort    Request graceful termination of the active TAKT process.
@@ -104,6 +107,10 @@ orchestration_resume_file() {
   printf '%s/resume.md\n' "$(orchestration_dir "$1")"
 }
 
+orchestration_external_result_file() {
+  printf '%s/external-result.json\n' "$(orchestration_dir "$1")"
+}
+
 iso_now() {
   date -u '+%Y-%m-%dT%H:%M:%SZ'
 }
@@ -120,6 +127,10 @@ initialize_orchestration_state() {
   state_file="$(orchestration_state_file "$change_name")"
   mkdir -p "$(dirname "$state_file")"
   rm -f "$(orchestration_request_file "$change_name")"
+  if [[ "$mode" != *-resume ]]; then
+    rm -f "$(orchestration_external_result_file "$change_name")" \
+      "$(orchestration_resume_file "$change_name")"
+  fi
 
   local temporary="$state_file.tmp.$$"
   jq -n \
@@ -135,6 +146,67 @@ initialize_orchestration_state() {
       exitCode: null, startedAt: $startedAt, updatedAt: $updatedAt, log: $log}' \
     > "$temporary"
   mv "$temporary" "$state_file"
+}
+
+archive_external_handoff() {
+  local change_name="$1"
+  local result_file resume_file history_directory timestamp
+  result_file="$(orchestration_external_result_file "$change_name")"
+  resume_file="$(orchestration_resume_file "$change_name")"
+  [[ -f "$result_file" || -f "$resume_file" ]] || return 0
+
+  history_directory="$(orchestration_dir "$change_name")/handoffs"
+  mkdir -p "$history_directory"
+  timestamp="$(run_id_now)-$$"
+  [[ ! -f "$result_file" ]] || mv "$result_file" "$history_directory/$timestamp-external-result.json"
+  [[ ! -f "$resume_file" ]] || mv "$resume_file" "$history_directory/$timestamp-external-result.md"
+}
+
+create_external_request() {
+  local change_name="$1"
+  local reason="$2"
+  local exit_code="$3"
+  local state_file request_file request_id run_slug iteration temporary
+  state_file="$(orchestration_state_file "$change_name")"
+  request_file="$(orchestration_request_file "$change_name")"
+  run_slug="$(jq -r '.runSlug // "run"' "$state_file")"
+  iteration="$(jq -r '.iteration // 0' "$state_file")"
+  request_id="$run_slug-external-$iteration-$(date -u '+%s')"
+  temporary="$request_file.tmp.$$"
+
+  jq -n \
+    --arg requestId "$request_id" \
+    --arg change "$change_name" \
+    --arg question "${reason:-External verification evidence is required before archive}" \
+    --arg createdAt "$(iso_now)" \
+    '{
+      version: 1,
+      requestId: $requestId,
+      change: $change,
+      step: "await_external_verification",
+      status: "pending",
+      question: $question,
+      requestedAction: {
+        type: "external_verification",
+        instructions: $question,
+        resultCommand: ("tools/task external-result " + $change + " <result-json-file>"),
+        resultContract: {
+          version: 1,
+          requestId: $requestId,
+          status: "passed | failed | blocked",
+          summary: "non-empty string",
+          evidence: [{command: "string", exitCode: 0, artifact: "optional path"}],
+          findings: [{summary: "string", location: "optional file:line"}]
+        }
+      },
+      createdAt: $createdAt
+    }' > "$temporary"
+  mv "$temporary" "$request_file"
+
+  patch_orchestration_state "$change_name" \
+    "$(jq -c --argjson exitCode "$exit_code" \
+      '{status:"waiting_external", reason:.question, question:.question,
+        requestedAction:.requestedAction, pid:null, exitCode:$exitCode}' "$request_file")"
 }
 
 patch_orchestration_state() {
@@ -330,6 +402,12 @@ execute_logged_takt() {
     return 130
   fi
   if [[ "$command_status" -ne 0 ]]; then
+    local failed_step
+    failed_step="$(jq -r '.step // empty' "$(orchestration_state_file "$change_name")")"
+    if [[ "$failed_step" == "await_external_verification" ]]; then
+      create_external_request "$change_name" "$reason" "$command_status"
+      return "$command_status"
+    fi
     local failed_status
     failed_status="$(classify_failed_status "$reason")"
     local question=""
@@ -948,6 +1026,95 @@ command_resume() {
   fi
 }
 
+validate_external_result() {
+  local result_file="$1"
+  jq -e '
+    type == "object" and
+    .version == 1 and
+    (.requestId | type == "string" and length > 0) and
+    (.status == "passed" or .status == "failed" or .status == "blocked") and
+    (.summary | type == "string" and length > 0) and
+    (.evidence | type == "array") and
+    (.findings | type == "array") and
+    (all(.evidence[];
+      type == "object" and
+      (.command | type == "string" and length > 0) and
+      (.exitCode | type == "number") and
+      ((.artifact == null) or (.artifact | type == "string")))) and
+    (all(.findings[];
+      type == "object" and
+      (.summary | type == "string" and length > 0) and
+      ((.location == null) or (.location | type == "string")))) and
+    ((.status == "blocked") or (.evidence | length > 0))
+  ' "$result_file" >/dev/null
+}
+
+command_external_result() {
+  [[ $# -eq 2 ]] || fail "external-result requires <openspec-change-name> <result-json-file>"
+  require_repository
+  require jq
+
+  local change_name="$1"
+  local supplied_result="$2"
+  validate_change_name "$change_name"
+  [[ -f "$supplied_result" ]] || fail "External result file not found: $supplied_result"
+  validate_external_result "$supplied_result" || \
+    fail "External result does not match the version 1 result contract"
+
+  local state_file request_file expected_request_id actual_request_id current_status current_step
+  state_file="$(orchestration_state_file "$change_name")"
+  request_file="$(orchestration_request_file "$change_name")"
+  [[ -f "$state_file" ]] || fail "No orchestration state found for OpenSpec change: $change_name"
+  [[ -f "$request_file" ]] || fail "No pending external verification request found for: $change_name"
+  current_status="$(jq -r '.status // empty' "$state_file")"
+  current_step="$(jq -r '.step // empty' "$state_file")"
+  [[ "$current_status" == "waiting_external" && "$current_step" == "await_external_verification" ]] || \
+    fail "TAKT is not waiting for external verification: $change_name"
+
+  expected_request_id="$(jq -r '.requestId // empty' "$request_file")"
+  actual_request_id="$(jq -r '.requestId // empty' "$supplied_result")"
+  [[ -n "$expected_request_id" && "$actual_request_id" == "$expected_request_id" ]] || \
+    fail "External result requestId does not match the pending request"
+
+  local result_file resume_file temporary
+  result_file="$(orchestration_external_result_file "$change_name")"
+  resume_file="$(orchestration_resume_file "$change_name")"
+  mkdir -p "$(dirname "$result_file")"
+  temporary="$result_file.tmp.$$"
+  jq -S '.' "$supplied_result" > "$temporary"
+  mv "$temporary" "$result_file"
+  cat > "$resume_file.tmp.$$" <<EOF
+The external orchestrator completed request \`$expected_request_id\`.
+
+Read the structured result from:
+\`.takt/orchestration/$change_name/external-result.json\`.
+
+Treat a passed result as evidence only for the commands it records. Route a
+fixable failed result to the implementation fix step. A blocked result requires
+another external action. Do not archive while required evidence is missing.
+EOF
+  mv "$resume_file.tmp.$$" "$resume_file"
+
+  local resume_status=0
+  if command_resume "$change_name" --instruction-file "$resume_file"; then
+    resume_status=0
+  else
+    resume_status=$?
+  fi
+  archive_external_handoff "$change_name"
+  return "$resume_status"
+}
+
+command_consume_external_result() {
+  [[ $# -eq 0 ]] || fail "consume-external-result does not accept arguments"
+  require_repository
+  [[ -f "$RUN_CONTEXT_FILE" ]] || exit 0
+  local change_name
+  change_name="$(sed -n '2p' "$RUN_CONTEXT_FILE")"
+  [[ -n "$change_name" ]] || exit 0
+  archive_external_handoff "$change_name"
+}
+
 command_status() {
   local requested_change=""
   local json_output="false"
@@ -987,6 +1154,7 @@ command_status() {
   printf '%-18s %s\n' "RUN" "$(printf '%s' "$state_json" | jq -r '.runSlug // "-"')"
   printf '%-18s %s\n' "REASON" "$(printf '%s' "$state_json" | jq -r '.reason // "-"')"
   printf '%-18s %s\n' "QUESTION" "$(printf '%s' "$state_json" | jq -r '.question // "-"')"
+  printf '%-18s %s\n' "REQUESTED ACTION" "$(printf '%s' "$state_json" | jq -c '.requestedAction // "-"')"
   printf '%-18s %s\n' "REPORT" "$(printf '%s' "$state_json" | jq -r '.report // "-"')"
 }
 
@@ -1028,7 +1196,7 @@ command_wait() {
   initial_json="$(orchestration_status_json "$change_name")"
   initial_status="$(printf '%s' "$initial_json" | jq -r '.status')"
   case "$initial_status" in
-    completed|failed|blocked|aborted)
+    completed|failed|blocked|waiting_external|aborted)
       if [[ "$json_output" == "true" ]]; then
         printf '%s\n' "$initial_json"
       else
@@ -1237,6 +1405,10 @@ main() {
       shift
       command_wait "$@"
       ;;
+    external-result)
+      shift
+      command_external_result "$@"
+      ;;
     resume)
       shift
       command_resume "$@"
@@ -1248,6 +1420,10 @@ main() {
     logs)
       shift
       command_logs "$@"
+      ;;
+    consume-external-result)
+      shift
+      command_consume_external_result "$@"
       ;;
     list)
       shift

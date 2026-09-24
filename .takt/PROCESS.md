@@ -103,6 +103,13 @@ Mermaid-диаграмма. Для простого локального изм�
 Тела методов и внутренние детали реализации в этот раздел не включаются. Если
 новые или изменяемые программные контракты отсутствуют, раздел можно опустить.
 
+Проверки в `tasks.md` разделяются по моменту и среде выполнения. Локальные
+автоматические проверки выполняет TAKT. Проверки, которым до архивирования нужны
+Docker, реальная база данных, хранилище или журналы сервисов, помечаются как
+`[внешняя проверка]` и содержат измеримый критерий успеха. Наблюдения, возможные
+только после слияния или развёртывания, описываются в плане выпуска и не являются
+блокирующими флажками `tasks.md`.
+
 Артефакты OpenSpec коммитятся в ветку Git и отправляются в удалённый репозиторий.
 Для проверки проектного решения создаётся черновик PR. Замечания исправляются
 дополнительными коммитами до согласования изменения.
@@ -134,14 +141,19 @@ tools/task run add-theme-inheritance --allow-architecture-tests
 Workflow выполняет:
 
 ```text
-apply → FAST → conformance_review → FULL → archive
-  ↑                    │             │
-  └────── fix ─────────┴─────────────┘
+preflight → apply → FAST → conformance_review → FULL_LOCAL
+                ↑                    │              │
+                └────── fix ─────────┴──────────────┤
+                                                    ↓
+                                      external_verification
+                                         ├─ PASS → archive
+                                         └─ FAIL → fix
 ```
 
 Перед запуском helper проверяет полный набор OpenSpec artifacts, выполняет strict
 validation, проверяет завершённость artifact graph и отсутствие уже
-архивированного Change.
+архивированного Change. Первый read-only шаг проверяет доступность выбранного
+provider, модели, checkout и согласованных artifacts до изменения файлов.
 
 Если исправление укладывается в согласованный design, `fix` возвращает результат
 на повторный review. Если требуется изменить product behavior, public contract
@@ -158,38 +170,59 @@ tools/task logs add-theme-inheritance --lines 80
 ```
 
 `status` возвращает состояние, `runSlug`, текущий шаг, итерацию, причину
-остановки и путь к отчёту. `tools/task wait` ждёт изменения шага или terminal
-status и возвращает только одно компактное событие:
+остановки, запрошенное действие и путь к отчёту. `tools/task wait` ждёт изменения
+шага или конечного либо ожидающего состояния и возвращает одно компактное событие:
 
 ```bash
 tools/task wait add-theme-inheritance --json --timeout 300
 ```
 
-Если TAKT требуется уточнение или действие, недоступное в его sandbox,
-координирующий агент задаёт вопрос разработчику через привычный интерфейс. После
-ответа агент выполняет только явно разрешённое внешнее действие и записывает
-короткий handoff, например:
+Если перед архивированием требуется Docker, реальная база данных, объектное
+хранилище, журналы сервисов или другое действие вне sandbox, workflow
+останавливается перед оценкой результата на техническом шаге
+`await_external_verification` со статусом `waiting_external`.
+Координирующий агент получает контракт результата через `status --json`, при
+необходимости спрашивает разрешение разработчика и выполняет только явно
+разрешённую проверку в той же worktree.
 
-```markdown
-Предыдущий запуск остановился на шаге `full_verification`.
+Результат сохраняется в JSON:
 
-Разработчик разрешил прочитать журнал контейнера `dsbuilder-backend`.
-Результат: backend запущен, запрос завершился с кодом 500; релевантная ошибка
-сохранена в `.takt/orchestration/add-theme-inheritance/backend.log`.
+```json
+{
+  "version": 1,
+  "requestId": "значение из status.requestedAction.resultContract.requestId",
+  "status": "failed",
+  "summary": "5 из 15 сценариев завершились ошибкой PostgreSQL",
+  "evidence": [
+    {
+      "command": "./gradlew postgresIntegrationTest",
+      "exitCode": 1,
+      "artifact": ".takt/orchestration/add-theme-inheritance/postgres.log"
+    }
+  ],
+  "findings": [
+    {
+      "summary": "PostgreSQL отклонил нулевой символ в text",
+      "location": "backend-kt/service/Store.kt:220"
+    }
+  ]
+}
 ```
 
-Последний незавершённый запуск в этом checkout продолжается с сохранённой точки:
+Проверенный результат возвращается в тот же запуск:
 
 ```bash
-tools/task resume add-theme-inheritance \
-  --instruction-file .takt/orchestration/add-theme-inheritance/resume-input.md
+tools/task external-result add-theme-inheritance /tmp/external-result.json
 ```
 
-Helper временно публикует handoff как
-`.takt/orchestration/<change-name>/resume.md`, запускает штатный `takt resume` в
-режиме `Requeue`, а затем переносит использованную инструкцию в локальную историю
-handoff. TAKT получает существующий diff, отчёты, resume point и сохранённые
-сессии агентов. Разрешение внешнему агенту не расширяет sandbox TAKT.
+Helper проверяет схему и `requestId`, публикует результат локально и запускает
+штатный `takt resume` в режиме `Requeue`. Успешный результат ведёт к archive,
+исправимый дефект — к `fix`, а заблокированная проверка создаёт новый запрос.
+После исправления цикл снова проходит review, FULL и внешнюю проверку. Результаты
+и handoff сохраняются в локальной истории и не попадают в Git.
+
+Обычное уточнение, не являющееся ответом на внешний gate, по-прежнему передаётся
+через `tools/task resume <change> --instruction-file <path>`.
 
 Запущенный процесс можно аккуратно остановить из другого терминала:
 
@@ -216,10 +249,10 @@ tools/task follow-up add-theme-inheritance \
 себе такого разрешения не даёт.
 
 Follow-up workflow читает архивированный OpenSpec Change, применяет замечания и
-запускает собственный цикл
-`apply_feedback → FAST → conformance_review → FULL ↔ fix`. Он не архивирует
-Change повторно и также оставляет результат незакоммиченным. Follow-up можно
-запускать несколько раз.
+повторяет локальные и затронутые внешние проверки:
+`preflight → apply_feedback → FAST → conformance_review → FULL_LOCAL → external_verification ↔ fix`.
+Он не архивирует Change повторно и оставляет результат незакоммиченным. Follow-up
+можно запускать несколько раз.
 
 Если замечание меняет согласованное поведение, public contract или архитектуру,
 нужно принять новое OpenSpec решение, а не исправлять design внутри follow-up.

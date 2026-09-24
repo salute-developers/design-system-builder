@@ -113,6 +113,19 @@ tools/task status <change-name> --json
 tools/task wait <change-name> --json --timeout 300
 ```
 
+When status is `waiting_external`, read `requestedAction` and perform only the
+requested check after obtaining any approval required by the outer tool. Keep
+production-code edits inside TAKT. Write the result using the exact version 1
+contract and requestId returned by status, then run:
+
+```bash
+tools/task external-result <change-name> <result-json-file>
+```
+
+The same run resumes at `external_verification`. Passed evidence proceeds to
+archive or completion; a fixable failure returns to `fix`, repeats review and
+local FULL verification, and requests fresh external evidence.
+
 Open a bounded log tail only when the compact failure reason and report are not
 enough:
 
@@ -125,8 +138,8 @@ Claude Code conversation. When it needs a sandbox-restricted check, obtain any
 required approval in that outer tool and perform only the specific approved
 action in the same Git worktree. Do not claim that this expands TAKT's sandbox.
 
-Write the answer or external result as a concise standalone handoff file, then
-resume the same direct run:
+For a clarification that is not an external-verification result, write a concise
+standalone handoff file and resume the same direct run:
 
 ```bash
 tools/task resume <change-name> --instruction-file <path>
