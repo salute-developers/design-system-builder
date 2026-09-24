@@ -5,10 +5,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.DesignToken
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GradientLayer
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ShadowLayerValue
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenType
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.sdds.compose.uikit.graphics.Gradients
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -214,5 +216,35 @@ class TokenListFormattingTest {
         listOf(TokenType.TYPOGRAPHY, TokenType.SPACING, TokenType.SHAPE, TokenType.SHADOW, null).forEach {
             assertFalse(it.isThemeDependent(), "$it")
         }
+    }
+}
+
+class SearchTokensTest {
+    private fun token(id: String, name: String, displayName: String? = null) = TokenWithValue(
+        DesignToken(id, null, name, TokenType.TYPOGRAPHY, displayName),
+        null,
+    )
+
+    private val tokens = listOf(
+        token("1", "screen-s.display.l", "screenSDisplayL"),
+        token("3", "screen-s.header.body", "screenSHeaderBody"),
+        token("2", "screen-s.body.l", "screenSBodyL"),
+    )
+
+    @Test
+    fun blankQueryKeepsOrder() {
+        assertEquals(tokens, searchTokens(tokens, "  "))
+    }
+
+    @Test
+    fun prefixMatchesComeFirst() {
+        // «bodyL» начинается с запроса, «headerBody» лишь содержит его — хотя в исходном порядке он раньше.
+        assertEquals(listOf("2", "3"), searchTokens(tokens, "body").map { it.token.id })
+    }
+
+    @Test
+    fun matchesVisibleTitleNotScreenClass() {
+        assertTrue(searchTokens(tokens, "screen").isEmpty())
+        assertEquals(listOf("1"), searchTokens(tokens, "DISPLAY").map { it.token.id })
     }
 }
