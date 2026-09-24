@@ -15,11 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -111,8 +113,8 @@ public fun TokenList(
         visibleTypeTokens
             .asSequence()
             .filter { it.token.type == selectedType }
-            .filter { item -> query.isBlank() || item.matchesQuery(query) }
             .toList()
+            .let { typeTokens -> searchTokens(typeTokens, query) }
     }
 
     Column(modifier.fillMaxSize()) {
@@ -166,7 +168,10 @@ public fun TokenList(
                 val accordionBase = AccordionStyles.AccordionClearActionEndM.style().accordionItemStyle
                 val edgePadding = SddsServTheme.spacing.spacing4x
                 val accordionStyle = remember(accordionBase, edgePadding) { accordionBase.withHorizontalPadding(edgePadding) }
-                LazyColumn(Modifier.fillMaxSize()) {
+                // Лучшее совпадение стоит первым (см. searchTokens) — при новом запросе прокручиваем к началу.
+                val listState = rememberLazyListState()
+                LaunchedEffect(query) { if (query.isNotBlank()) listState.scrollToItem(0) }
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     groups.forEach { (screenClass, groupTokens) ->
                         if (screenClass == null) {
                             items(items = groupTokens, key = { it.token.id }) { item ->
@@ -185,7 +190,7 @@ public fun TokenList(
                                 ) {
                                     Column(Modifier.fillMaxWidth()) {
                                         groupTokens.forEach { item ->
-                                            TokenRow(item, resolveCodeReference, screenClass)
+                                            TokenRow(item, resolveCodeReference)
                                             Divider(style = dividerStyle)
                                         }
                                     }
@@ -295,8 +300,23 @@ internal fun formatHexAarrggbb(hex: String): String {
 private const val RGB_DIGITS = 6
 private const val RGBA_DIGITS = 8
 
-private fun TokenWithValue.matchesQuery(query: String): Boolean =
-    token.name.contains(query, ignoreCase = true) || token.displayName?.contains(query, ignoreCase = true) == true
+/** Название токена так, как оно показано в строке списка (без префикса класса экрана). */
+internal fun TokenWithValue.visibleTitle(): String =
+    (token.displayName ?: token.name).withoutScreenClass(screenClass())
+
+/**
+ * Поиск по видимому названию: остаются токены, содержащие [query] (без учёта регистра), а начинающиеся
+ * с него идут первыми — «лучшее совпадение» оказывается вверху. Порядок внутри каждой группы сохраняется.
+ * Пустой запрос возвращает список как есть.
+ */
+internal fun searchTokens(tokens: List<TokenWithValue>, query: String): List<TokenWithValue> {
+    val needle = query.trim()
+    if (needle.isEmpty()) return tokens
+    val (prefixMatches, others) = tokens
+        .filter { it.visibleTitle().contains(needle, ignoreCase = true) }
+        .partition { it.visibleTitle().startsWith(needle, ignoreCase = true) }
+    return prefixMatches + others
+}
 
 private fun TypeFilter.label(): String = when (this) {
     TokenType.COLOR -> "Цвета"
@@ -396,7 +416,6 @@ private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 16f
 private fun TokenRow(
     item: TokenWithValue,
     resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)?,
-    screenClass: String? = null,
 ) {
     val payload = item.payload
     val preview = previewContent(payload)
@@ -404,7 +423,7 @@ private fun TokenRow(
     ListItem(
         modifier = Modifier.fillMaxWidth(),
         style = ListItemStyles.ListItemNormalM.style(),
-        text = (item.token.displayName ?: item.token.name).withoutScreenClass(screenClass),
+        text = item.visibleTitle(),
         subtitle = describeValue(payload, item.value?.rawValue),
         startContent = preview,
         endContent = resolveCodeReference?.let { resolve -> { CopyCodeReferenceAction(item, resolve) } },
