@@ -7,6 +7,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlin.math.roundToInt
+
+private const val MAX_ALPHA = 255
+private const val RGB_HEX_LENGTH = 7
+private const val HEX_RADIX = 16
 
 @Serializable
 internal data class DesignSystemDto(
@@ -28,9 +33,17 @@ internal data class TokenDto(
 internal data class TokenValueDto(
     val id: String,
     val tokenId: String? = null,
+    val tenantId: String? = null,
+    val paletteId: String? = null,
     val platform: String? = null,
     val mode: String? = null,
     val value: JsonElement? = null,
+)
+
+@Serializable
+internal data class PaletteDto(
+    val id: String,
+    val value: String,
 )
 
 /**
@@ -60,17 +73,26 @@ public class HttpDesignSystemDataClient(
 
     override suspend fun listTokenValues(projectId: String): List<TokenValue> {
         val dtos = getList<TokenValueDto>("/api/projects/$projectId/ds/token-values")
+        // Цвет может быть ссылкой на палитру (`[general.green.600]`): тогда value пустое (или содержит
+        // только непрозрачность), а сам цвет лежит в палитре — без её разрешения такие токены
+        // (большинство цветов темы) показывались бы без значения.
+        val palette = if (dtos.any { it.paletteId != null }) loadPalette(projectId) else emptyMap()
         return dtos.map {
+            val paletteColor = it.paletteId?.let(palette::get)?.let { hex -> applyOpacity(hex, it.value) }
             TokenValue(
                 id = it.id,
                 tokenId = it.tokenId,
+                tenantId = it.tenantId,
                 platform = TokenPlatform.fromWireValue(it.platform),
                 mode = TokenMode.fromWireValue(it.mode),
-                rawValue = extractDisplayValue(it.value),
-                wireValue = it.value,
+                rawValue = paletteColor ?: extractDisplayValue(it.value),
+                wireValue = paletteColor?.let { hex -> JsonArray(listOf(JsonPrimitive(hex))) } ?: it.value,
             )
         }
     }
+
+    private suspend fun loadPalette(projectId: String): Map<String, String> =
+        getList<PaletteDto>("/api/projects/$projectId/ds/palette").associate { it.id to it.value }
 
     @Suppress("TooGenericExceptionCaught")
     private suspend inline fun <reified T> getList(path: String): List<T> {
@@ -80,6 +102,17 @@ public class HttpDesignSystemDataClient(
         } catch (exception: Exception) {
             throw ApiRequestException("Не удалось разобрать ответ backend'а.")
         }
+    }
+
+    /**
+     * Непрозрачность ссылки на палитру хранится в `value` как `["0.56"]`; итоговый цвет — в формате
+     * `#RRGGBBAA`, как и остальные 8-значные цвета темы.
+     */
+    private fun applyOpacity(hex: String, value: JsonElement?): String {
+        val opacity = ((value as? JsonArray)?.singleOrNull() as? JsonPrimitive)?.content?.toDoubleOrNull()
+            ?: return hex
+        val alpha = (opacity * MAX_ALPHA).roundToInt().coerceIn(0, MAX_ALPHA)
+        return hex.take(RGB_HEX_LENGTH) + alpha.toString(HEX_RADIX).uppercase().padStart(2, '0')
     }
 
     /**

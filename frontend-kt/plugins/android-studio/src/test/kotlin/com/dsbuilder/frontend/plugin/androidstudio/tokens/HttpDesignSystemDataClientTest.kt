@@ -5,8 +5,8 @@ import com.dsbuilder.frontend.core.auth.TokenExchangeClient
 import com.dsbuilder.frontend.core.auth.TokenExchangeResult
 import com.dsbuilder.frontend.core.auth.UserOAuthTokens
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
+import com.dsbuilder.frontend.feature.auth.application.RefreshUserSessionUseCase
 import com.dsbuilder.frontend.plugin.androidstudio.api.AuthenticatedApiClient
-import com.dsbuilder.frontend.plugin.androidstudio.auth.SessionRefresher
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -42,7 +42,11 @@ private fun clientFor(engine: MockEngine): AuthenticatedApiClient {
         httpClient = HttpClient(engine),
         apiUrl = "https://gateway.example.com",
         sessionResolver = sessionResolver,
-        sessionRefresher = SessionRefresher(UnusedTokenExchangeClient(), sessionResolver),
+        refreshUserSession = RefreshUserSessionUseCase(
+            UnusedTokenExchangeClient(),
+            sessionResolver,
+            clientId = "dsbuilder-studio-plugin",
+        ),
     )
 }
 
@@ -79,7 +83,10 @@ class HttpDesignSystemDataClientTest {
         // Реальный backend оборачивает одиночный примитив в массив: ["#FF0000"], а не "#FF0000".
         val engine = MockEngine {
             respond(
-                content = """[{"id":"v1","tokenId":"t1","platform":"android","mode":"dark","value":["#FF0000"]}]""",
+                content = """
+                    [{"id":"v1","tokenId":"t1","tenantId":"tenant-a","platform":"android","mode":"dark",
+                    "value":["#FF0000"]}]
+                """.trimIndent(),
             )
         }
 
@@ -89,6 +96,7 @@ class HttpDesignSystemDataClientTest {
         val value = values.single()
         assertEquals("v1", value.id)
         assertEquals("t1", value.tokenId)
+        assertEquals("tenant-a", value.tenantId)
         assertEquals(TokenPlatform.ANDROID, value.platform)
         assertEquals(TokenMode.DARK, value.mode)
         assertEquals("#FF0000", value.rawValue)
@@ -107,5 +115,29 @@ class HttpDesignSystemDataClientTest {
         val value = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a").single()
 
         assertEquals("[\"a\",\"b\"]", value.rawValue)
+    }
+
+    @Test
+    fun resolvesPaletteReferenceToHexAndAppliesOpacity() = runBlocking<Unit> {
+        val engine = MockEngine { request ->
+            when (request.url.encodedPath) {
+                "/api/projects/project-a/ds/palette" ->
+                    respond("""[{"id":"pal-1","value":"#108E26"},{"id":"pal-2","value":"#28D247"}]""")
+                else -> respond(
+                    """
+                    [{"id":"v1","tokenId":"t1","tenantId":"tn","paletteId":"pal-1","platform":"android",
+                    "mode":"light","value":null},
+                    {"id":"v2","tokenId":"t2","tenantId":"tn","paletteId":"pal-2","platform":"android",
+                    "mode":"light","value":["0.56"]}]
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        val values = HttpDesignSystemDataClient(clientFor(engine)).listTokenValues("project-a")
+
+        assertEquals("#108E26", values[0].rawValue)
+        assertEquals("#28D2478F", values[1].rawValue)
+        assertEquals(kotlinx.serialization.json.Json.parseToJsonElement("""["#28D2478F"]"""), values[1].wireValue)
     }
 }

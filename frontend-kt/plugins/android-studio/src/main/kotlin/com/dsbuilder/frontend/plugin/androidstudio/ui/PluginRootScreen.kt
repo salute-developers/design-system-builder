@@ -8,13 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.dsbuilder.frontend.feature.auth.application.OAuthLoginResult
 import com.dsbuilder.frontend.plugin.androidstudio.PluginServices
 import com.dsbuilder.frontend.plugin.androidstudio.auth.LoginScreen
 import com.dsbuilder.frontend.plugin.androidstudio.auth.LoginUiState
@@ -26,18 +26,17 @@ import kotlinx.coroutines.launch
 
 /**
  * Корневой экран плагина: экран логина, пока нет активной сессии, иначе [MainScreen].
- * "Есть сессия" пересчитывается при каждом изменении [PluginServices.loginController]
- * состояния — `applyTokens` в [com.dsbuilder.frontend.plugin.androidstudio.auth.LoginController]
- * выполняется синхронно до перехода состояния в `Idle`, так что порядок гарантирован.
+ * `feature-auth`'s `OAuthLoginUseCase`/`OAuthLogoutUseCase` — простые suspend-функции без
+ * собственного состояния, поэтому [LoginUiState] здесь держит сам экран, а не use case.
  *
  * Access token живёт только в памяти процесса, поэтому при каждом новом запуске IDE его нет —
  * но refresh token может быть жив в `PasswordSafe` с прошлого раза. Экран сначала молча пробует
  * восстановить сессию через него и только при неудаче показывает кнопку "Войти".
  */
 @Composable
-public fun PluginRootScreen(isBrightIde: Boolean) {
+public fun PluginRootScreen(mainState: MainScreenState) {
     val scope = rememberCoroutineScope()
-    val loginState by PluginServices.loginController.state.collectAsState()
+    var loginState by remember { mutableStateOf<LoginUiState>(LoginUiState.Idle) }
     var isLoggedIn by remember { mutableStateOf(PluginServices.sessionResolver.currentAccessToken() != null) }
     var isRestoringSession by remember {
         mutableStateOf(!isLoggedIn && PluginServices.sessionResolver.storedRefreshToken() != null)
@@ -45,13 +44,22 @@ public fun PluginRootScreen(isBrightIde: Boolean) {
 
     LaunchedEffect(Unit) {
         if (isRestoringSession) {
-            isLoggedIn = PluginServices.sessionRefresher.refresh()
+            isLoggedIn = PluginServices.refreshUserSession.execute()
             isRestoringSession = false
         }
     }
 
-    LaunchedEffect(loginState) {
-        isLoggedIn = PluginServices.sessionResolver.currentAccessToken() != null
+    fun login() {
+        scope.launch {
+            loginState = LoginUiState.Loading
+            when (val result = PluginServices.oauthLogin.execute()) {
+                OAuthLoginResult.LoggedIn -> {
+                    loginState = LoginUiState.Idle
+                    isLoggedIn = true
+                }
+                is OAuthLoginResult.Failed -> loginState = LoginUiState.Error(result.message)
+            }
+        }
     }
 
     when {
@@ -73,7 +81,9 @@ public fun PluginRootScreen(isBrightIde: Boolean) {
                         label = "Выйти",
                         onClick = {
                             scope.launch {
-                                PluginServices.loginController.logout()
+                                PluginServices.oauthLogout.execute()
+                                mainState.reset()
+                                loginState = LoginUiState.Idle
                                 isLoggedIn = false
                             }
                         },
@@ -81,19 +91,21 @@ public fun PluginRootScreen(isBrightIde: Boolean) {
                     )
                 }
                 MainScreen(
-                    listProjects = PluginServices.listProjects,
+                    state = mainState,
+                    listProjects = PluginServices::listProjects,
                     listDesignSystems = PluginServices.listDesignSystems,
+                    listTenants = PluginServices::listTenants,
+                    getTokenCodeReference = PluginServices::tokenCodeReference,
                     getDesignSystemTokens = PluginServices.getDesignSystemTokens,
-                    isBrightIde = isBrightIde,
-                    onSessionExpired = { isLoggedIn = false },
+                    onSessionExpired = {
+                        mainState.reset()
+                        isLoggedIn = false
+                    },
                     modifier = Modifier.weight(1f),
                 )
             }
 
         else ->
-            LoginScreen(
-                state = loginState,
-                onLoginClick = { scope.launch { PluginServices.loginController.login() } },
-            )
+            LoginScreen(state = loginState, onLoginClick = ::login)
     }
 }

@@ -4,13 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,18 +31,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.dsbuilder.frontend.feature.theme.application.TokenCodeReferenceResult
+import com.dsbuilder.frontend.plugin.androidstudio.codereference.ClipboardCopier
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GradientLayer
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ShadowLayerValue
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenType
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.sdds.compose.uikit.Divider
+import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.ListItem
 import com.sdds.compose.uikit.TabItem
 import com.sdds.compose.uikit.Tabs
@@ -47,8 +56,12 @@ import com.sdds.compose.uikit.graphics.Gradients
 import com.sdds.compose.uikit.shadow.ShadowAppearance
 import com.sdds.compose.uikit.shadow.ShadowLayer
 import com.sdds.compose.uikit.shadow.shadow
+import com.sdds.icons.compose.CopyOutline24
+import com.sdds.icons.compose.SddsIcons
 import com.sdds.serv.styles.divider.DividerStyles
 import com.sdds.serv.styles.divider.style
+import com.sdds.serv.styles.iconbutton.IconButtonStyles
+import com.sdds.serv.styles.iconbutton.style
 import com.sdds.serv.styles.listitem.ListItemStyles
 import com.sdds.serv.styles.listitem.style
 import com.sdds.serv.styles.tabitem.TabItemStyles
@@ -58,6 +71,7 @@ import com.sdds.serv.styles.tabs.style
 import com.sdds.serv.styles.textfield.TextFieldStyles
 import com.sdds.serv.styles.textfield.style
 import com.sdds.serv.theme.SddsServTheme
+import kotlinx.coroutines.launch
 
 /** Общий размер превью для `color`/`gradient`/`shadow` — одинаковый, чтобы список не «прыгал». */
 private val TYPE_SWATCH_SIZE = 64.dp
@@ -72,13 +86,22 @@ private typealias TypeFilter = TokenType?
  * как и остальной UI плагина. Read-only — ничего не пишет ни в проект пользователя.
  */
 @Composable
-public fun TokenList(tokens: List<TokenWithValue>, modifier: Modifier = Modifier) {
+public fun TokenList(
+    tokens: List<TokenWithValue>,
+    selectedTabIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)? = null,
+) {
     // FONT_FAMILY нечего показывать пользователю осмысленно — значение это просто имя шрифта,
     // отдельная вкладка под него не нужна.
     val visibleTypeTokens = remember(tokens) { tokens.filter { it.token.type != TokenType.FONT_FAMILY } }
-    val types = remember(visibleTypeTokens) { visibleTypeTokens.map { it.token.type }.distinct() }
-    var selectedIndex by remember(tokens) { mutableStateOf(0) }
-    var query by remember(tokens) { mutableStateOf("") }
+    val types = remember(visibleTypeTokens) { orderedTokenTypes(visibleTypeTokens.map { it.token.type }) }
+    // Вкладка и поиск хранятся снаружи (MainScreenState) и переживают сворачивание панели;
+    // если типов стало меньше, индекс подрезается до допустимого.
+    val selectedIndex = selectedTabIndex.coerceIn(0, (types.size - 1).coerceAtLeast(0))
     val selectedType = types.getOrNull(selectedIndex)
 
     val visibleTokens = remember(visibleTypeTokens, selectedType, query) {
@@ -91,22 +114,57 @@ public fun TokenList(tokens: List<TokenWithValue>, modifier: Modifier = Modifier
 
     Column(modifier.fillMaxSize()) {
         if (types.size > 1) {
-            TokenTypeTabs(types = types, selectedIndex = selectedIndex, onSelect = { selectedIndex = it })
+            TokenTypeTabs(types = types, selectedIndex = selectedIndex, onSelect = onTabSelected)
         }
-        TokenSearchField(query = query, onQueryChange = { query = it })
+        TokenSearchField(query = query, onQueryChange = onQueryChange)
 
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            if (visibleTokens.isEmpty()) {
-                NoMatchesText()
-            } else {
-                visibleTokens.forEach { item ->
-                    TokenRow(item)
-                    Divider(style = DividerStyles.DividerDefault.style())
+        if (visibleTokens.isEmpty()) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { NoMatchesText() }
+        } else {
+            // Ленивый список: в дизайн-системе сотни цветов, композировать их все сразу — фризы при прокрутке.
+            // Divider приходит с тем же стилем, что и раньше, — дорогой `style()` считается один раз, а не на строку.
+            val dividerStyle = DividerStyles.DividerDefault.style()
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(items = visibleTokens, key = { it.token.id }) { item ->
+                    TokenRow(item, resolveCodeReference)
+                    Divider(style = dividerStyle)
                 }
             }
         }
     }
 }
+
+/** Фиксированный порядок вкладок — не зависит от того, в каком порядке типы пришли в конкретной дизайн-системе. */
+private val TAB_TYPE_ORDER = listOf(
+    TokenType.COLOR,
+    TokenType.GRADIENT,
+    TokenType.TYPOGRAPHY,
+    TokenType.SHADOW,
+    TokenType.SHAPE,
+    TokenType.SPACING,
+)
+
+/** Уникальные типы в порядке [TAB_TYPE_ORDER]; неизвестный тип (`null`, вкладка «Другое») — последним. */
+internal fun orderedTokenTypes(types: List<TokenType?>): List<TokenType?> =
+    types.distinct().sortedBy { type -> TAB_TYPE_ORDER.indexOf(type).takeIf { it >= 0 } ?: Int.MAX_VALUE }
+
+/**
+ * Показывает цвет в Android-порядке `#AARRGGBB` (как `Color(0xAARRGGBB)` в Compose). Источник хранит
+ * `#RRGGBBAA` (прозрачность в конце) или шестизначный `#RRGGBB`: в первом случае альфа переносится
+ * в начало, второй получает `FF` (непрозрачный). Регистр — верхний, не hex остаётся как есть.
+ */
+internal fun formatHexAarrggbb(hex: String): String {
+    val digits = hex.trim().removePrefix("#").uppercase()
+    if (digits.any { !it.isDigit() && it !in 'A'..'F' }) return hex
+    return when (digits.length) {
+        RGB_DIGITS -> "#FF$digits"
+        RGBA_DIGITS -> "#${digits.substring(RGB_DIGITS)}${digits.substring(0, RGB_DIGITS)}"
+        else -> hex
+    }
+}
+
+private const val RGB_DIGITS = 6
+private const val RGBA_DIGITS = 8
 
 private fun TokenWithValue.matchesQuery(query: String): Boolean =
     token.name.contains(query, ignoreCase = true) || token.displayName?.contains(query, ignoreCase = true) == true
@@ -245,7 +303,10 @@ private const val MAX_SHADOW_BLUR_PREVIEW_DP = 16f
 private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 14f
 
 @Composable
-private fun TokenRow(item: TokenWithValue) {
+private fun TokenRow(
+    item: TokenWithValue,
+    resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)?,
+) {
     val payload = item.payload
     val preview = previewContent(payload)
 
@@ -255,7 +316,74 @@ private fun TokenRow(item: TokenWithValue) {
         text = item.token.displayName ?: item.token.name,
         subtitle = describeValue(payload, item.value?.rawValue),
         startContent = preview,
+        endContent = resolveCodeReference?.let { resolve -> { CopyCodeReferenceAction(item, resolve) } },
     )
+}
+
+private enum class CopyStatus(val label: String, val style: IconButtonStyles) {
+    IDLE("Копировать код", IconButtonStyles.IconButtonSSecondary),
+    LOADING("Загрузка…", IconButtonStyles.IconButtonSSecondary),
+    COPIED("Скопировано", IconButtonStyles.IconButtonSPositive),
+    UNAVAILABLE("Нет ссылки", IconButtonStyles.IconButtonSNegative),
+    FAILED("Ошибка", IconButtonStyles.IconButtonSNegative),
+}
+
+/**
+ * Иконка-кнопка копирования: клик запрашивает code-ссылку токена и копирует её в буфер обмена.
+ * Результат виден по цвету кнопки и короткой подписи слева от неё (в состоянии покоя подписи нет).
+ */
+@Composable
+private fun CopyCodeReferenceAction(
+    item: TokenWithValue,
+    resolve: suspend (TokenWithValue) -> TokenCodeReferenceResult,
+) {
+    val scope = rememberCoroutineScope()
+    var status by remember(item) { mutableStateOf(CopyStatus.IDLE) }
+    val isError = status == CopyStatus.UNAVAILABLE || status == CopyStatus.FAILED
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (status != CopyStatus.IDLE) {
+            Text(
+                text = status.label,
+                color = if (isError) {
+                    SddsServTheme.colors.textDefaultNegative
+                } else {
+                    SddsServTheme.colors.textDefaultSecondary
+                },
+                style = SddsServTheme.typography.bodyXsNormal,
+            )
+            Spacer(Modifier.width(SddsServTheme.spacing.spacing2x))
+        }
+        IconButton(
+            icon = rememberVectorPainter(SddsIcons.CopyOutline24),
+            onClick = {
+                scope.launch {
+                    status = CopyStatus.LOADING
+                    status = copyCodeReference(item, resolve)
+                }
+            },
+            style = status.style.style(),
+            enabled = status != CopyStatus.LOADING,
+            iconContentDescription = CopyStatus.IDLE.label,
+        )
+    }
+}
+
+@Suppress("TooGenericExceptionCaught")
+private suspend fun copyCodeReference(
+    item: TokenWithValue,
+    resolve: suspend (TokenWithValue) -> TokenCodeReferenceResult,
+): CopyStatus = try {
+    when (val result = resolve(item)) {
+        is TokenCodeReferenceResult.Found -> {
+            ClipboardCopier.copy(result.reference)
+            CopyStatus.COPIED
+        }
+        TokenCodeReferenceResult.NotAvailable -> CopyStatus.UNAVAILABLE
+        is TokenCodeReferenceResult.Failed -> CopyStatus.FAILED
+    }
+} catch (exception: Exception) {
+    CopyStatus.FAILED
 }
 
 /** Превью значения по типу — квадрат/полоска/текст-сэмпл вместо сырого JSON, где это возможно. */
@@ -389,7 +517,7 @@ internal fun typographyTextStyle(value: TokenValuePayload.TypographyValue): Text
 
 /** Компактный человекочитаемый текст вместо сырого JSON; [TokenValuePayload.Unsupported] — фолбэк на [rawValue]. */
 internal fun describeValue(payload: TokenValuePayload, rawValue: String?): String = when (payload) {
-    is TokenValuePayload.ColorValue -> payload.hex
+    is TokenValuePayload.ColorValue -> formatHexAarrggbb(payload.hex)
     is TokenValuePayload.ShapeValue -> when {
         payload.cornerRadiusDp >= SHAPE_CIRCLE_THRESHOLD_DP -> "circle"
         else -> "${payload.cornerRadiusDp.formatCompact()}dp"
@@ -408,7 +536,7 @@ private fun GradientLayer.describe(): String = when (this) {
     is GradientLayer.Linear -> "linear, ${angle.formatCompact()}°"
     is GradientLayer.Radial -> "radial"
     is GradientLayer.Angular -> "angular"
-    is GradientLayer.Solid -> hex
+    is GradientLayer.Solid -> formatHexAarrggbb(hex)
 }
 
 private fun describeShadow(layers: List<ShadowLayerValue>): String {
@@ -421,7 +549,7 @@ private fun describeShadow(layers: List<ShadowLayerValue>): String {
 private fun Float.formatCompact(): String =
     if (this == this.toInt().toFloat()) this.toInt().toString() else this.toString()
 
-/** Разбирает `#RRGGBB`/`#AARRGGBB` из raw JSON-текста значения. `null`, если это не hex-цвет. */
+/** Разбирает `#RRGGBB`/`#RRGGBBAA` (прозрачность в конце, как во всей теме) из raw JSON-текста значения. `null`, если это не hex-цвет. */
 internal fun parseHexColor(rawValue: String?): Color? {
     val hex = rawValue?.trim()?.trim('"')?.removePrefix("#") ?: return null
 
@@ -433,10 +561,10 @@ internal fun parseHexColor(rawValue: String?): Color? {
                 blue = hex.substring(4, 6).toInt(16),
             )
             8 -> Color(
-                alpha = hex.substring(0, 2).toInt(16),
-                red = hex.substring(2, 4).toInt(16),
-                green = hex.substring(4, 6).toInt(16),
-                blue = hex.substring(6, 8).toInt(16),
+                red = hex.substring(0, 2).toInt(16),
+                green = hex.substring(2, 4).toInt(16),
+                blue = hex.substring(4, 6).toInt(16),
+                alpha = hex.substring(6, 8).toInt(16),
             )
             else -> null
         }

@@ -16,19 +16,22 @@ public class GetDesignSystemTokensUseCase(
     private val client: DesignSystemDataClient,
 ) {
     /**
-     * Выполняет сценарий: токены [designSystemId], со значением для [platform] и [mode], если
-     * оно есть. Токен может не зависеть от темы (значение с `mode == null`) — такое значение
-     * берём, только если нет отдельного значения именно под [mode].
+     * Выполняет сценарий: токены [designSystemId], со значением для [platform], [mode] и
+     * [tenantId], если оно есть. Токен может не зависеть от темы (значение с `mode == null`) —
+     * такое значение берём, только если нет отдельного значения именно под [mode]. Фильтрация по
+     * [tenantId] обязательна: дизайн-система может иметь несколько tenant с независимо
+     * опубликованными значениями одного токена, и без неё выбор между ними был бы недетерминирован.
      */
     public suspend fun execute(
         projectId: String,
         designSystemId: String,
         platform: TokenPlatform,
         mode: TokenMode,
+        tenantId: String,
     ): List<TokenWithValue> {
         val tokens = client.listTokens(projectId).filter { it.designSystemId == designSystemId }
         val values = client.listTokenValues(projectId)
-            .filter { it.platform == platform && (it.mode == null || it.mode == mode) }
+            .filter { it.tenantId == tenantId && it.platform == platform && (it.mode == null || it.mode == mode) }
             .groupBy { it.tokenId }
             .mapValues { (_, valuesForToken) ->
                 valuesForToken.firstOrNull { it.mode == mode } ?: valuesForToken.first()

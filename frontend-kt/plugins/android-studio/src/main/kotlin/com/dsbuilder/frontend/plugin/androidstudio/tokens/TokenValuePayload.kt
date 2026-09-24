@@ -16,7 +16,7 @@ public sealed interface TokenValuePayload {
     /**
      * `color`: цвет как hex-строка, как есть из значения токена.
      *
-     * @property hex `#RRGGBB`/`#AARRGGBB`.
+     * @property hex `#RRGGBB`/`#RRGGBBAA`.
      */
     public data class ColorValue(
         public val hex: String,

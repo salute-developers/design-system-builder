@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GradientLayer
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ShadowLayerValue
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenType
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
 import com.sdds.compose.uikit.graphics.Gradients
 import kotlin.test.Test
@@ -20,11 +21,15 @@ class ParseHexColorTest {
     }
 
     @Test
-    fun parsesEightDigitHexAsAlphaRgb() {
-        // Реальные значения из backend'а приходят в этой форме (после unwrap из ["#F5F5F5F5"]).
+    fun parsesEightDigitHexAsRgbAlpha() {
+        // Тема хранит цвета как #RRGGBBAA (прозрачность в конце): #14B32EFF — непрозрачный зелёный.
         assertEquals(
-            Color(alpha = 0xF5, red = 0xF5, green = 0xF5, blue = 0xF5),
-            parseHexColor("#F5F5F5F5"),
+            Color(red = 0x14, green = 0xB3, blue = 0x2E, alpha = 0xFF),
+            parseHexColor("#14B32EFF"),
+        )
+        assertEquals(
+            Color(red = 0x17, green = 0x17, blue = 0x17, alpha = 0xF5),
+            parseHexColor("#171717F5"),
         )
     }
 
@@ -160,5 +165,43 @@ class DescribeValueTest {
     fun unsupportedFallsBackToRawValue() {
         assertEquals("some-raw-text", describeValue(TokenValuePayload.Unsupported, "some-raw-text"))
         assertEquals("—", describeValue(TokenValuePayload.Unsupported, null))
+    }
+}
+
+class TokenListFormattingTest {
+    @Test
+    fun tabsFollowFixedOrderRegardlessOfInputOrder() {
+        val shuffled = listOf(
+            TokenType.SPACING,
+            null,
+            TokenType.SHAPE,
+            TokenType.COLOR,
+            TokenType.SHADOW,
+            TokenType.TYPOGRAPHY,
+            TokenType.GRADIENT,
+            TokenType.COLOR,
+        )
+
+        assertEquals(
+            listOf(
+                TokenType.COLOR,
+                TokenType.GRADIENT,
+                TokenType.TYPOGRAPHY,
+                TokenType.SHADOW,
+                TokenType.SHAPE,
+                TokenType.SPACING,
+                null,
+            ),
+            orderedTokenTypes(shuffled),
+        )
+    }
+
+    @Test
+    fun formatsHexAsAndroidAarrggbb() {
+        assertEquals("#FF108E26", formatHexAarrggbb("#108E26"))
+        assertEquals("#FF14B32E", formatHexAarrggbb("#14b32eff"))
+        assertEquals("#8F28D247", formatHexAarrggbb("28D2478F"))
+        assertEquals("#F5171717", formatHexAarrggbb("#171717F5"))
+        assertEquals("not-a-color", formatHexAarrggbb("not-a-color"))
     }
 }

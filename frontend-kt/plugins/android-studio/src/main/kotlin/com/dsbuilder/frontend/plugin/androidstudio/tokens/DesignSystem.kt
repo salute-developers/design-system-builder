@@ -97,6 +97,9 @@ public data class DesignToken(
  *
  * @property id идентификатор значения.
  * @property tokenId токен, которому принадлежит значение.
+ * @property tenantId tenant, для которого опубликовано значение, если задан. Дизайн-система может
+ *   иметь несколько tenant с независимыми значениями одного токена — без фильтрации по tenant
+ *   значение для показа выбиралось бы недетерминированно (см. [GetDesignSystemTokensUseCase]).
  * @property platform платформа, если распознана.
  * @property mode режим (светлая/тёмная тема), если значение зависит от темы; `null` — значение
  *   одно для обеих тем (например spacing).
@@ -110,6 +113,7 @@ public data class DesignToken(
 public data class TokenValue(
     public val id: String,
     public val tokenId: String?,
+    public val tenantId: String?,
     public val platform: TokenPlatform?,
     public val mode: TokenMode?,
     public val rawValue: String,
