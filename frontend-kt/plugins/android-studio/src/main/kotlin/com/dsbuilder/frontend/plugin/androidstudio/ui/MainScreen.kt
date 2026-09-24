@@ -16,16 +16,23 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dsbuilder.frontend.feature.projects.application.Project
+import com.dsbuilder.frontend.feature.projects.application.ProjectsReadErrorCode
+import com.dsbuilder.frontend.feature.projects.application.ProjectsReadResult
+import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenant
+import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenantsErrorCode
+import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenantsResult
+import com.dsbuilder.frontend.feature.theme.application.TokenCodeReferenceResult
 import com.dsbuilder.frontend.plugin.androidstudio.api.SessionExpiredException
-import com.dsbuilder.frontend.plugin.androidstudio.projects.ListProjectsUseCase
-import com.dsbuilder.frontend.plugin.androidstudio.projects.Project
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.DesignSystem
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.GetDesignSystemTokensUseCase
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.ListDesignSystemsUseCase
@@ -44,21 +51,64 @@ import com.sdds.serv.styles.tabs.style
 import com.sdds.serv.theme.SddsServTheme
 
 /**
- * Шаг просмотра: проект → дизайн-система → платформа → список токенов. Локальное состояние —
- * приложение маленькое, отдельный слой ViewModel/StateFlow на каждый шаг не оправдан.
+ * Шаг просмотра: проект → дизайн-система → tenant → платформа → список токенов. Шаг выбора
+ * tenant авто-пропускается при единственном варианте, как и остальные (см. [goTo] ниже).
+ * Локальное состояние — приложение маленькое, отдельный слой ViewModel/StateFlow не оправдан.
  */
-private sealed interface Step {
+internal sealed interface Step {
     data object PickProject : Step
     data class PickDesignSystem(val project: Project) : Step
-    data class PickPlatform(val project: Project, val designSystem: DesignSystem) : Step
-    data class ShowTokens(val project: Project, val designSystem: DesignSystem, val platform: TokenPlatform) : Step
+    data class PickTenant(val project: Project, val designSystem: DesignSystem) : Step
+    data class PickPlatform(val project: Project, val designSystem: DesignSystem, val tenant: DesignSystemTenant) : Step
+    data class ShowTokens(
+        val project: Project,
+        val designSystem: DesignSystem,
+        val tenant: DesignSystemTenant,
+        val platform: TokenPlatform,
+    ) : Step
 }
 
-private fun Step.label(): String = when (this) {
-    is Step.PickProject -> "Проекты"
-    is Step.PickDesignSystem -> project.name
-    is Step.PickPlatform -> designSystem.name
-    is Step.ShowTokens -> platform.name
+/**
+ * Полный путь выбора для крошек: подпись выбранного элемента и шаг, на который он возвращает
+ * (тот, где этот элемент выбирался). Авто-выбранные шаги в путь попадают, но не в историю.
+ */
+private fun Step.path(): List<Pair<String, Step>> = when (this) {
+    is Step.PickProject -> emptyList()
+    is Step.PickDesignSystem -> listOf(project.name to Step.PickProject)
+    is Step.PickTenant -> listOf(project.name to Step.PickProject, designSystem.name to Step.PickDesignSystem(project))
+    is Step.PickPlatform -> listOf(
+        project.name to Step.PickProject,
+        designSystem.name to Step.PickDesignSystem(project),
+        tenant.name to Step.PickTenant(project, designSystem),
+    )
+    is Step.ShowTokens -> listOf(
+        project.name to Step.PickProject,
+        designSystem.name to Step.PickDesignSystem(project),
+        tenant.name to Step.PickTenant(project, designSystem),
+        platform.name to Step.PickPlatform(project, designSystem, tenant),
+    )
+}
+
+/**
+ * Состояние навигации главного экрана. Живёт вне композиции — у tool window, а не у `remember`:
+ * при сворачивании панели `ComposePanel` сбрасывает композицию, и без этого пользователь
+ * возвращался бы на первый шаг вместо экрана, на котором ушёл (например списка токенов).
+ */
+public class MainScreenState {
+    internal var step: Step by mutableStateOf(Step.PickProject)
+    internal val history: SnapshotStateList<Step> = mutableStateListOf()
+    internal var tokenMode: TokenMode by mutableStateOf(TokenMode.LIGHT)
+    internal var tokenTabIndex: Int by mutableIntStateOf(0)
+    internal var tokenQuery: String by mutableStateOf("")
+
+    /** Возвращает навигацию к выбору проекта (после выхода или истёкшей сессии). */
+    public fun reset() {
+        step = Step.PickProject
+        history.clear()
+        tokenMode = TokenMode.LIGHT
+        tokenTabIndex = 0
+        tokenQuery = ""
+    }
 }
 
 private sealed interface LoadState<out T> {
@@ -73,35 +123,43 @@ private sealed interface LoadState<out T> {
  */
 @Composable
 public fun MainScreen(
-    listProjects: ListProjectsUseCase,
+    state: MainScreenState,
+    listProjects: suspend () -> ProjectsReadResult,
     listDesignSystems: ListDesignSystemsUseCase,
+    listTenants: suspend (projectId: String, designSystemId: String) -> DesignSystemTenantsResult,
+    getTokenCodeReference: suspend (projectId: String, designSystemId: String, tokenName: String, mode: String) ->
+    TokenCodeReferenceResult,
     getDesignSystemTokens: GetDesignSystemTokensUseCase,
-    isBrightIde: Boolean,
     onSessionExpired: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var step by remember { mutableStateOf<Step>(Step.PickProject) }
-    val history = remember { mutableStateListOf<Step>() }
+    val history = state.history
 
     // Пропускаем шаг в историю (`replaceCurrent`), когда переход выбран автоматически —
     // единственный доступный вариант не должен оставлять в хлебных крошках шаг, который
     // пользователь на самом деле не выбирал (см. авто-переход при единственном проекте ниже).
     fun goTo(next: Step, replaceCurrent: Boolean = false) {
-        if (!replaceCurrent) history.add(step)
-        step = next
+        if (!replaceCurrent) history.add(state.step)
+        // Стартовый режим всегда светлый, независимо от темы IDE; дальше переключается явно.
+        if (next is Step.ShowTokens) {
+            state.tokenMode = TokenMode.LIGHT
+            state.tokenTabIndex = 0
+            state.tokenQuery = ""
+        }
+        state.step = next
     }
 
-    fun goToBreadcrumb(index: Int) {
-        step = (history + step)[index]
+    fun goToBreadcrumb(target: Step) {
+        val index = history.indexOf(target)
+        if (index < 0) return
+        state.step = target
         while (history.size > index) history.removeAt(history.lastIndex)
     }
 
     Column(modifier.fillMaxSize()) {
-        if (history.isNotEmpty()) {
-            Breadcrumbs(path = history + step, onSelect = ::goToBreadcrumb)
-        }
+        Breadcrumbs(path = state.step.path(), history = history, onSelect = ::goToBreadcrumb)
 
-        when (val currentStep = step) {
+        when (val currentStep = state.step) {
             is Step.PickProject ->
                 ProjectStep(listProjects, onSessionExpired) { project, autoSelected ->
                     goTo(Step.PickDesignSystem(project), replaceCurrent = autoSelected)
@@ -113,25 +171,38 @@ public fun MainScreen(
                     currentStep.project,
                     onSessionExpired,
                 ) { designSystem, autoSelected ->
-                    goTo(Step.PickPlatform(currentStep.project, designSystem), replaceCurrent = autoSelected)
+                    goTo(Step.PickTenant(currentStep.project, designSystem), replaceCurrent = autoSelected)
+                }
+
+            is Step.PickTenant ->
+                TenantStep(
+                    listTenants,
+                    currentStep.project,
+                    currentStep.designSystem,
+                    onSessionExpired,
+                ) { tenant, autoSelected ->
+                    goTo(
+                        Step.PickPlatform(currentStep.project, currentStep.designSystem, tenant),
+                        replaceCurrent = autoSelected,
+                    )
                 }
 
             is Step.PickPlatform ->
                 PlatformStep { platform ->
-                    goTo(Step.ShowTokens(currentStep.project, currentStep.designSystem, platform))
+                    goTo(
+                        Step.ShowTokens(currentStep.project, currentStep.designSystem, currentStep.tenant, platform),
+                    )
                 }
 
             is Step.ShowTokens -> {
-                // Тема IDE — только подсказка для стартового значения переключателя: у многих
-                // студия всегда тёмная независимо от того, какую тему дизайн-системы им нужно
-                // смотреть, поэтому режим должен переключаться явно, а не только автоматически.
-                val initialMode = if (isBrightIde) TokenMode.LIGHT else TokenMode.DARK
                 TokensStep(
                     getDesignSystemTokens,
                     currentStep.project,
                     currentStep.designSystem,
+                    currentStep.tenant,
                     currentStep.platform,
-                    initialMode,
+                    state,
+                    getTokenCodeReference,
                     onSessionExpired,
                 )
             }
@@ -140,23 +211,29 @@ public fun MainScreen(
 }
 
 @Composable
-private fun Breadcrumbs(path: List<Step>, onSelect: (Int) -> Unit) {
+private fun Breadcrumbs(path: List<Pair<String, Step>>, history: List<Step>, onSelect: (Step) -> Unit) {
+    if (path.isEmpty()) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = SddsServTheme.spacing.spacing4x, vertical = SddsServTheme.spacing.spacing2x),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        path.forEachIndexed { index, item ->
+        path.forEachIndexed { index, (label, target) ->
             val isLast = index == path.lastIndex
-            if (isLast) {
-                Text(
-                    text = item.label(),
+            when {
+                isLast -> Text(
+                    text = label,
                     color = SddsServTheme.colors.textDefaultPrimary,
                     style = SddsServTheme.typography.bodySBold,
                 )
-            } else {
-                BreadcrumbItem(label = item.label(), onClick = { onSelect(index) })
+                // Авто-выбранный шаг в историю не попадает — вернуться на него нельзя (выбор повторился бы сам).
+                target in history -> BreadcrumbItem(label = label, onClick = { onSelect(target) })
+                else -> Text(
+                    text = label,
+                    color = SddsServTheme.colors.textDefaultSecondary,
+                    style = SddsServTheme.typography.bodySNormal,
+                )
             }
             if (!isLast) {
                 Text(
@@ -191,14 +268,20 @@ private fun BreadcrumbItem(label: String, onClick: () -> Unit) {
 
 @Composable
 private fun ProjectStep(
-    listProjects: ListProjectsUseCase,
+    listProjects: suspend () -> ProjectsReadResult,
     onSessionExpired: () -> Unit,
     onSelect: (Project, autoSelected: Boolean) -> Unit,
 ) {
     var state by remember { mutableStateOf<LoadState<List<Project>>>(LoadState.Loading) }
 
     LaunchedEffect(Unit) {
-        state = runCatchingLoad { listProjects.execute() }
+        state = when (val result = listProjects()) {
+            is ProjectsReadResult.Success -> LoadState.Loaded(result.projects)
+            is ProjectsReadResult.Failed -> LoadState.Failed(
+                result.message,
+                isSessionExpired = result.code == ProjectsReadErrorCode.AUTH_REQUIRED,
+            )
+        }
     }
 
     val current = state
@@ -255,6 +338,52 @@ private fun DesignSystemStep(
 }
 
 @Composable
+private fun TenantStep(
+    listTenants: suspend (projectId: String, designSystemId: String) -> DesignSystemTenantsResult,
+    project: Project,
+    designSystem: DesignSystem,
+    onSessionExpired: () -> Unit,
+    onSelect: (DesignSystemTenant, autoSelected: Boolean) -> Unit,
+) {
+    var state by remember(
+        project,
+        designSystem,
+    ) { mutableStateOf<LoadState<List<DesignSystemTenant>>>(LoadState.Loading) }
+
+    LaunchedEffect(project, designSystem) {
+        state = when (val result = listTenants(project.id, designSystem.id)) {
+            is DesignSystemTenantsResult.Success -> LoadState.Loaded(result.tenants)
+            is DesignSystemTenantsResult.Failed -> LoadState.Failed(
+                result.message,
+                isSessionExpired = result.code == DesignSystemTenantsErrorCode.AUTH_REQUIRED,
+            )
+        }
+    }
+
+    val current = state
+    if (current is LoadState.Loaded && current.value.size == 1) {
+        // Единственный tenant — дефолт: пикер не показываем, как и для единственного проекта/ДС.
+        LaunchedEffect(current.value) { onSelect(current.value.single(), true) }
+    }
+
+    when (current) {
+        is LoadState.Loading -> LoadingText("Загружаем tenant…")
+        is LoadState.Failed ->
+            ErrorText(current.message, onLoginClick = if (current.isSessionExpired) onSessionExpired else null)
+        is LoadState.Loaded -> when {
+            current.value.isEmpty() -> ErrorText("У дизайн-системы нет доступных tenant.")
+            current.value.size == 1 -> LoadingText("Загружаем tenant…")
+            else -> PickerList(
+                items = current.value,
+                label = { it.name },
+                sublabel = { it.description },
+                onSelect = { onSelect(it, false) },
+            )
+        }
+    }
+}
+
+@Composable
 private fun PlatformStep(onSelect: (TokenPlatform) -> Unit) {
     // Android Studio может подсказать платформу, но не должна угадывать за пользователя —
     // ANDROID просто идёт первым в списке.
@@ -267,26 +396,49 @@ private fun TokensStep(
     getDesignSystemTokens: GetDesignSystemTokensUseCase,
     project: Project,
     designSystem: DesignSystem,
+    tenant: DesignSystemTenant,
     platform: TokenPlatform,
-    initialMode: TokenMode,
+    state: MainScreenState,
+    getTokenCodeReference: suspend (projectId: String, designSystemId: String, tokenName: String, mode: String) ->
+    TokenCodeReferenceResult,
     onSessionExpired: () -> Unit,
 ) {
-    var mode by remember(project, designSystem, platform) { mutableStateOf(initialMode) }
-    var state by remember(project, designSystem, platform, mode) {
+    val mode = state.tokenMode
+    var loadState by remember(project, designSystem, tenant, platform, mode) {
         mutableStateOf<LoadState<List<TokenWithValue>>>(LoadState.Loading)
     }
 
-    LaunchedEffect(project, designSystem, platform, mode) {
-        state = runCatchingLoad { getDesignSystemTokens.execute(project.id, designSystem.id, platform, mode) }
+    LaunchedEffect(project, designSystem, tenant, platform, mode) {
+        loadState = runCatchingLoad {
+            getDesignSystemTokens.execute(project.id, designSystem.id, platform, mode, tenant.id)
+        }
     }
 
+    // Code-ссылка запрашивается по клику на конкретный токен (CodeBinding опубликованной документации);
+    // публикация есть только для Compose/Android, для остальных платформ действие не показывается.
+    val resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)? =
+        if (platform == TokenPlatform.ANDROID) {
+            { item -> getTokenCodeReference(project.id, designSystem.id, item.token.name, mode.name.lowercase()) }
+        } else {
+            null
+        }
+
     Column(Modifier.fillMaxSize()) {
-        ModeSwitch(mode = mode, onModeChange = { mode = it })
-        when (val current = state) {
+        ModeSwitch(mode = mode, onModeChange = { state.tokenMode = it })
+        when (val current = loadState) {
             is LoadState.Loading -> LoadingText("Загружаем токены…")
             is LoadState.Failed ->
                 ErrorText(current.message, onLoginClick = if (current.isSessionExpired) onSessionExpired else null)
-            is LoadState.Loaded -> TokenList(current.value, modifier = Modifier.weight(1f))
+            is LoadState.Loaded ->
+                TokenList(
+                    tokens = current.value,
+                    selectedTabIndex = state.tokenTabIndex,
+                    onTabSelected = { state.tokenTabIndex = it },
+                    query = state.tokenQuery,
+                    onQueryChange = { state.tokenQuery = it },
+                    modifier = Modifier.weight(1f),
+                    resolveCodeReference = resolveCodeReference,
+                )
         }
     }
 }

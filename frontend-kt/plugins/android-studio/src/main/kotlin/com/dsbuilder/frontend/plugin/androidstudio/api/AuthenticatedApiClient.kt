@@ -1,10 +1,10 @@
 package com.dsbuilder.frontend.plugin.androidstudio.api
 
-import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
 import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.network.KtorAuthenticatedHttpClient
-import com.dsbuilder.frontend.plugin.androidstudio.auth.SessionRefresher
+import com.dsbuilder.frontend.feature.auth.application.RefreshUserSessionUseCase
 import io.ktor.client.HttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,20 +29,21 @@ public class SessionExpiredException(
 ) : RuntimeException(message)
 
 /**
- * Authenticated GET-запросы от имени пользовательской OAuth-сессии — общая точка для всех
- * read-only клиентов плагина (проекты, дизайн-системы, токены). При `401` один раз тихо
- * обновляет сессию через [SessionRefresher] и повторяет запрос, прежде чем сдаться.
+ * Authenticated GET-запросы от имени пользовательской OAuth-сессии — общая точка для клиентов
+ * дизайн-систем/токенов плагина (bulk-доступ, см. design.md решение 3 — не переносится на
+ * `feature-theme`). При `401` один раз тихо обновляет сессию через [RefreshUserSessionUseCase]
+ * из `feature-auth` и повторяет запрос, прежде чем сдаться.
  */
 public class AuthenticatedApiClient(
     private val httpClient: HttpClient,
     private val apiUrl: String,
     private val sessionResolver: UserSessionCredentialResolver,
-    private val sessionRefresher: SessionRefresher,
+    private val refreshUserSession: RefreshUserSessionUseCase,
 ) {
     /** Выполняет GET [path] и возвращает тело ответа. Бросает [ApiRequestException] при отказе. */
     public suspend fun get(path: String): String = withContext(Dispatchers.IO) {
         executeGet(path) ?: run {
-            if (!sessionRefresher.refresh()) {
+            if (!refreshUserSession.execute()) {
                 throw SessionExpiredException("Сессия истекла. Войдите заново.")
             }
             executeGet(path) ?: throw SessionExpiredException("Не удалось выполнить запрос после обновления сессии.")

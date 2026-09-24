@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.plugin.androidstudio.auth
 
+import com.dsbuilder.frontend.feature.auth.application.BrowserLauncher
 import com.intellij.ide.BrowserUtil
 
 /**

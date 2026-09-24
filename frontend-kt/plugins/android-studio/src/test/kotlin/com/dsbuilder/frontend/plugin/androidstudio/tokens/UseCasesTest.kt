@@ -5,6 +5,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
+private const val TENANT_A = "tenant-a"
+
 private class FakeDesignSystemDataClient(
     private val designSystems: List<DesignSystem> = emptyList(),
     private val tokens: List<DesignToken> = emptyList(),
@@ -40,16 +42,22 @@ class GetDesignSystemTokensUseCaseTest {
             )
         val otherDsToken =
             DesignToken(id = "t2", designSystemId = "ds2", name = "other", type = TokenType.COLOR, displayName = null)
-        val webValue =
-            TokenValue(id = "v1", tokenId = "t1", platform = TokenPlatform.WEB, mode = null, rawValue = "\"#FF0000\"")
-        val androidValue =
-            TokenValue(
-                id = "v2",
-                tokenId = "t1",
-                platform = TokenPlatform.ANDROID,
-                mode = null,
-                rawValue = "\"#00FF00\"",
-            )
+        val webValue = TokenValue(
+            id = "v1",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.WEB,
+            mode = null,
+            rawValue = "\"#FF0000\"",
+        )
+        val androidValue = TokenValue(
+            id = "v2",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = null,
+            rawValue = "\"#00FF00\"",
+        )
 
         val useCase = GetDesignSystemTokensUseCase(
             FakeDesignSystemDataClient(
@@ -63,6 +71,7 @@ class GetDesignSystemTokensUseCaseTest {
             designSystemId = "ds1",
             platform = TokenPlatform.WEB,
             mode = TokenMode.LIGHT,
+            tenantId = TENANT_A,
         )
 
         assertEquals(1, result.size)
@@ -88,6 +97,7 @@ class GetDesignSystemTokensUseCaseTest {
             designSystemId = "ds1",
             platform = TokenPlatform.IOS,
             mode = TokenMode.LIGHT,
+            tenantId = TENANT_A,
         )
 
         assertEquals(1, result.size)
@@ -104,22 +114,22 @@ class GetDesignSystemTokensUseCaseTest {
                 type = TokenType.COLOR,
                 displayName = null,
             )
-        val agnosticValue =
-            TokenValue(
-                id = "v1",
-                tokenId = "t1",
-                platform = TokenPlatform.ANDROID,
-                mode = null,
-                rawValue = "\"#000000\"",
-            )
-        val darkValue =
-            TokenValue(
-                id = "v2",
-                tokenId = "t1",
-                platform = TokenPlatform.ANDROID,
-                mode = TokenMode.DARK,
-                rawValue = "\"#FFFFFF\"",
-            )
+        val agnosticValue = TokenValue(
+            id = "v1",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = null,
+            rawValue = "\"#000000\"",
+        )
+        val darkValue = TokenValue(
+            id = "v2",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = TokenMode.DARK,
+            rawValue = "\"#FFFFFF\"",
+        )
 
         val useCase = GetDesignSystemTokensUseCase(
             FakeDesignSystemDataClient(tokens = listOf(token), tokenValues = listOf(agnosticValue, darkValue)),
@@ -130,6 +140,7 @@ class GetDesignSystemTokensUseCaseTest {
             designSystemId = "ds1",
             platform = TokenPlatform.ANDROID,
             mode = TokenMode.DARK,
+            tenantId = TENANT_A,
         )
 
         assertEquals(darkValue, result.single().value)
@@ -145,8 +156,14 @@ class GetDesignSystemTokensUseCaseTest {
                 type = TokenType.SPACING,
                 displayName = null,
             )
-        val agnosticValue =
-            TokenValue(id = "v1", tokenId = "t1", platform = TokenPlatform.ANDROID, mode = null, rawValue = "8")
+        val agnosticValue = TokenValue(
+            id = "v1",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = null,
+            rawValue = "8",
+        )
 
         val useCase = GetDesignSystemTokensUseCase(
             FakeDesignSystemDataClient(tokens = listOf(token), tokenValues = listOf(agnosticValue)),
@@ -157,6 +174,7 @@ class GetDesignSystemTokensUseCaseTest {
             designSystemId = "ds1",
             platform = TokenPlatform.ANDROID,
             mode = TokenMode.LIGHT,
+            tenantId = TENANT_A,
         )
 
         assertEquals(agnosticValue, result.single().value)
@@ -172,14 +190,14 @@ class GetDesignSystemTokensUseCaseTest {
                 type = TokenType.COLOR,
                 displayName = null,
             )
-        val lightValue =
-            TokenValue(
-                id = "v1",
-                tokenId = "t1",
-                platform = TokenPlatform.ANDROID,
-                mode = TokenMode.LIGHT,
-                rawValue = "\"#FFFFFF\"",
-            )
+        val lightValue = TokenValue(
+            id = "v1",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = TokenMode.LIGHT,
+            rawValue = "\"#FFFFFF\"",
+        )
 
         val useCase = GetDesignSystemTokensUseCase(
             FakeDesignSystemDataClient(tokens = listOf(token), tokenValues = listOf(lightValue)),
@@ -190,8 +208,54 @@ class GetDesignSystemTokensUseCaseTest {
             designSystemId = "ds1",
             platform = TokenPlatform.ANDROID,
             mode = TokenMode.DARK,
+            tenantId = TENANT_A,
         )
 
         assertNull(result.single().value)
+    }
+
+    @Test
+    fun excludesValueForAnotherTenant() = runBlocking<Unit> {
+        val token =
+            DesignToken(
+                id = "t1",
+                designSystemId = "ds1",
+                name = "surface.default",
+                type = TokenType.COLOR,
+                displayName = null,
+            )
+        val otherTenantValue = TokenValue(
+            id = "v1",
+            tokenId = "t1",
+            tenantId = "tenant-b",
+            platform = TokenPlatform.ANDROID,
+            mode = null,
+            rawValue = "\"#000000\"",
+        )
+        val requestedTenantValue = TokenValue(
+            id = "v2",
+            tokenId = "t1",
+            tenantId = TENANT_A,
+            platform = TokenPlatform.ANDROID,
+            mode = null,
+            rawValue = "\"#FFFFFF\"",
+        )
+
+        val useCase = GetDesignSystemTokensUseCase(
+            FakeDesignSystemDataClient(
+                tokens = listOf(token),
+                tokenValues = listOf(otherTenantValue, requestedTenantValue),
+            ),
+        )
+
+        val result = useCase.execute(
+            projectId = "project-a",
+            designSystemId = "ds1",
+            platform = TokenPlatform.ANDROID,
+            mode = TokenMode.LIGHT,
+            tenantId = TENANT_A,
+        )
+
+        assertEquals(requestedTenantValue, result.single().value)
     }
 }
