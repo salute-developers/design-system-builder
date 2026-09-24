@@ -286,9 +286,10 @@ private const val SHAPE_CIRCLE_THRESHOLD_DP = 999f
  */
 private val SHADOW_PREVIEW_BACKDROP = Color.White
 private val SHADOW_PREVIEW_SURFACE = Color(0xFF2C2C2C)
-private val SHADOW_PREVIEW_SURFACE_SIZE = 12.dp
-private const val MAX_SHADOW_BLUR_PREVIEW_DP = 16f
-private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 14f
+private val SHADOW_PREVIEW_BACKDROP_SIZE = 128.dp
+private val SHADOW_PREVIEW_SURFACE_SIZE = 48.dp
+private const val MAX_SHADOW_BLUR_PREVIEW_DP = 24f
+private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 16f
 
 @Composable
 private fun TokenRow(
@@ -464,7 +465,7 @@ private fun ShadowSwatch(value: TokenValuePayload.ShadowValue) {
     // токена всё равно клэмпятся под этот запас, а не рисуются в реальную величину.
     Box(
         modifier = Modifier
-            .size(TYPE_SWATCH_SIZE)
+            .size(SHADOW_PREVIEW_BACKDROP_SIZE)
             .clip(SWATCH_SHAPE)
             .background(SHADOW_PREVIEW_BACKDROP, SWATCH_SHAPE),
         contentAlignment = Alignment.Center,
