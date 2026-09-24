@@ -42,7 +42,7 @@ export const CreateFirstName = (props: CreateFirstNameProps) => {
         <Root>
             <HeroTextField
                 value={value}
-                placeholder="Начните с имени проекта"
+                placeholder="Начните с имени дизайн-системы"
                 dynamicContentRight={
                     <IconButton onClick={onClick}>
                         <StyledIconButton size="s" color="inherit" />

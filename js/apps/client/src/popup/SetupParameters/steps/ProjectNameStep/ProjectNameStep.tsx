@@ -44,7 +44,7 @@ export const ProjectNameStep = (props: ProjectNameStepProps) => {
     return editMode ? (
         <StyledHeroTextField
             value={projectName}
-            placeholder="Начните с имени проекта"
+            placeholder="Начните с имени дизайн-системы"
             dynamicContentRight={
                 <IconButton onClick={() => onSubmitProjectName(projectName)}>
                     <StyledIconButton size="s" color="inherit" />
@@ -57,7 +57,7 @@ export const ProjectNameStep = (props: ProjectNameStepProps) => {
     ) : (
         <TextField
             value={projectName}
-            label="Название проекта"
+            label="Название дизайн-системы"
             onClick={() => onChangeEditStep(popupSetupSteps.PROJECT_NAME)}
         />
     );

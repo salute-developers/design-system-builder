@@ -261,7 +261,7 @@ export const SetupParameters = (props: SetupParametersProps) => {
 
             <StyledReadyBlock isReady={isReady}>
                 <StyledHeader>
-                    Приблизительно так будет выглядеть цветовая схема проекта{' '}
+                    Приблизительно так будет выглядеть цветовая схема дизайн-системы{' '}
                     <StyledThemeModeSwitcher
                         color={general[accentColor]?.[themeModeSwitcher.saturation]}
                         onClick={handleThemeModeSwitch}

@@ -1,6 +1,10 @@
 body {
     margin: 0;
     overflow: hidden;
+
+    --background-secondary: rgba(30, 34, 40, 1);
+    --surface-transparent-primary: rgba(242, 244, 246, 0.1);
+    --surface-transparent-secondary: rgba(242, 244, 246, 0.15);
 }
 
 /* Оболочка билдера всегда в Inter. Исключение — превью (data-preview): там компонент рендерится
@@ -24,14 +28,11 @@ body {
 
     --inverse-outline-transparent-primary: rgba(247, 248, 251, 0.12);
 
-    --background-secondary: rgba(30, 34, 40, 1);
     --text-general-secondary: #d6dae0;
     --text-general-primary: #e8eaee;
     --text-general-tertiary: #b8bec6;
 
     --surface-general-card: #2f353d;
-    --surface-transparent-primary: rgba(242, 244, 246, 0.1);
-    --surface-transparent-secondary: rgba(242, 244, 246, 0.15);
 }
 
 * svg {

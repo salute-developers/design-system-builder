@@ -80,7 +80,7 @@ export const Projects = () => {
                     <ContentHeader>Пока ничего не создано</ContentHeader>
                     <StyledStartWrapper onClick={onDesignSystemCreate}>
                         <StyledStartButton>
-                            {projectName ? 'Продолжить создание' : 'Начните с имени проекта'}
+                            {projectName ? 'Продолжить создание' : 'Начните с имени дизайн-системы'}
                         </StyledStartButton>
                         {projectName && <StyledProjectName>{projectName}</StyledProjectName>}
                     </StyledStartWrapper>
