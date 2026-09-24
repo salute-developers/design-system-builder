@@ -73,7 +73,7 @@ export type DataItems = Record<
                 {
                     enabled: boolean;
                     value: any;
-                    item: Token | Config;
+                    item?: Token | Config;
                 }
             >
         >

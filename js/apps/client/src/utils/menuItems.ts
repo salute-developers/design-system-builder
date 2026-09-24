@@ -2,6 +2,7 @@ import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-
 
 import {
     Config,
+    Token,
     ColorToken,
     GradientToken,
     ShadowToken,
@@ -135,7 +136,8 @@ const generateComponentMap = (componentConfigs: Config[]) => {
 
             component.components.forEach((component) => {
                 const name = component.name;
-                const enabled = !component.disabled;
+                const item = componentConfigs.find((config) => config.getName() === name);
+                const enabled = !component.disabled && Boolean(item);
 
                 if (!data[tab]) {
                     data[tab] = {};
@@ -148,8 +150,6 @@ const generateComponentMap = (componentConfigs: Config[]) => {
                 if (!data[tab][group][name]) {
                     data[tab][group][name] = {};
                 }
-
-                const item = componentConfigs.find((config) => config.getName() === name)!;
 
                 data[tab][group][name][mode] = {
                     enabled,
@@ -348,7 +348,9 @@ const createDataItems = (dataItems: DataItems, tokenType: MenuType, tabsName?: s
                             .map(([name, modes]) => {
                                 const disabled = !Object.values(modes)[0].enabled;
                                 const previewValues = Object.values(modes).map(({ value }) => value);
-                                const data = Object.values(modes).map(({ item: token }) => token);
+                                const data = Object.values(modes)
+                                    .map(({ item: token }) => token)
+                                    .filter((token): token is Token | Config => Boolean(token));
 
                                 return {
                                     name,

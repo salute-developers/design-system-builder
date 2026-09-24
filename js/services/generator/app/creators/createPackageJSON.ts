@@ -2,12 +2,29 @@ export const createPackageJSON = ({
     packageName,
     packageVersion,
     coreVersion,
+    hasComponents = true,
 }: {
     packageName: string;
     packageVersion: string;
     coreVersion: string;
-}) =>
-    JSON.stringify(
+    hasComponents?: boolean;
+}) => {
+    // Без компонентов нет `src/components`, и babel на нём падает — собираем только тему через rollup.
+    const buildSteps = [
+        'CSS_BUILD_PATH=css npm run copy-css-files',
+        'npm run lint -- --fix',
+        ...(hasComponents ? ['npm run build:styled-components'] : []),
+        'npm run build:css',
+    ];
+    const styledComponentsScripts = hasComponents
+        ? {
+              'build:styled-components': 'npm run build:styled-components:esm && npm run build:styled-components:cjs',
+              'build:styled-components:cjs': `BABEL_ENV=cjs SC_NAMESPACE=${packageName} babel ./src/components --out-dir ./styled-components/cjs --extensions .ts,.tsx`,
+              'build:styled-components:esm': `BABEL_ENV=esm SC_NAMESPACE=${packageName} babel ./src/components --out-dir ./styled-components/es --extensions .ts,.tsx`,
+          }
+        : {};
+
+    return JSON.stringify(
         {
             name: `@salutejs-ds/${packageName}`,
             version: packageVersion,
@@ -86,11 +103,9 @@ export const createPackageJSON = ({
                 prepare: 'npm run build',
                 prebuild: 'rm -rf ./components ./es ./tokens ./theme ./css ./index.*',
                 'prebuild:css': 'rm -rf src-css && ./scripts/copy-linaria-components.sh',
-                build: 'CSS_BUILD_PATH=css npm run copy-css-files && npm run lint -- --fix && npm run build:styled-components && npm run build:css',
+                build: buildSteps.join(' && '),
                 postbuild: 'npm run generate:typings',
-                'build:styled-components': 'npm run build:styled-components:esm && npm run build:styled-components:cjs',
-                'build:styled-components:cjs': `BABEL_ENV=cjs SC_NAMESPACE=${packageName} babel ./src/components --out-dir ./styled-components/cjs --extensions .ts,.tsx`,
-                'build:styled-components:esm': `BABEL_ENV=esm SC_NAMESPACE=${packageName} babel ./src/components --out-dir ./styled-components/es --extensions .ts,.tsx`,
+                ...styledComponentsScripts,
                 'build:css': `BABEL_ENV=esm SC_NAMESPACE=${packageName} rollup -c`,
                 'postbuild:css': 'rm -rf src-css',
                 'pregenerate:typings': 'rm -rf components/**/*.d.ts && rm -f index.d.ts',
@@ -103,3 +118,4 @@ export const createPackageJSON = ({
         null,
         4,
     );
+};

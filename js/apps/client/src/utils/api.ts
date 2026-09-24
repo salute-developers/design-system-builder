@@ -112,21 +112,22 @@ export const loadDesignSystem = async (data: {
     }
 };
 
-export const loadBaseComponentsData = async (data: { parameters?: Partial<Parameters> }): Promise<Meta[]> => {
-    try {
-        const componentsData = (
-            await http.get(
-                `${PROJECTS_URL}/${data.parameters?.projectId}/ds/legacy/design-systems/base/component-configs`,
-            )
-        ).data as unknown as Meta[];
+// TODO: Временно отключаем функциональность загрузки компонентов из базовой дизайн-системы
+// export const loadBaseComponentsData = async (data: { parameters?: Partial<Parameters> }): Promise<Meta[]> => {
+//     try {
+//         const componentsData = (
+//             await http.get(
+//                 `${PROJECTS_URL}/${data.parameters?.projectId}/ds/legacy/design-systems/base/component-configs`,
+//             )
+//         ).data as unknown as Meta[];
 
-        return componentsData;
-    } catch (error) {
-        logApiError('loadBaseComponentsData', error);
+//         return componentsData;
+//     } catch (error) {
+//         logApiError('loadBaseComponentsData', error);
 
-        throw error;
-    }
-};
+//         throw error;
+//     }
+// };
 
 export const loadAllDesignSystems = async (projectId: string): Promise<BackendDesignSystem[] | undefined> => {
     try {
