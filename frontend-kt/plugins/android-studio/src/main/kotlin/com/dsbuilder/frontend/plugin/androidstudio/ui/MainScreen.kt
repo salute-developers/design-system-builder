@@ -51,21 +51,15 @@ import com.sdds.serv.styles.tabs.style
 import com.sdds.serv.theme.SddsServTheme
 
 /**
- * Шаг просмотра: проект → дизайн-система → tenant → платформа → список токенов. Шаг выбора
- * tenant авто-пропускается при единственном варианте, как и остальные (см. [goTo] ниже).
+ * Шаг просмотра: проект → дизайн-система → tenant → список токенов. Платформы нет — плагин только
+ * для Android, см. [TOKENS_PLATFORM]. Шаг выбора tenant авто-пропускается при единственном варианте, как и остальные (см. [goTo] ниже).
  * Локальное состояние — приложение маленькое, отдельный слой ViewModel/StateFlow не оправдан.
  */
 internal sealed interface Step {
     data object PickProject : Step
     data class PickDesignSystem(val project: Project) : Step
     data class PickTenant(val project: Project, val designSystem: DesignSystem) : Step
-    data class PickPlatform(val project: Project, val designSystem: DesignSystem, val tenant: DesignSystemTenant) : Step
-    data class ShowTokens(
-        val project: Project,
-        val designSystem: DesignSystem,
-        val tenant: DesignSystemTenant,
-        val platform: TokenPlatform,
-    ) : Step
+    data class ShowTokens(val project: Project, val designSystem: DesignSystem, val tenant: DesignSystemTenant) : Step
 }
 
 /**
@@ -76,16 +70,10 @@ private fun Step.path(): List<Pair<String, Step>> = when (this) {
     is Step.PickProject -> emptyList()
     is Step.PickDesignSystem -> listOf(project.name to Step.PickProject)
     is Step.PickTenant -> listOf(project.name to Step.PickProject, designSystem.name to Step.PickDesignSystem(project))
-    is Step.PickPlatform -> listOf(
-        project.name to Step.PickProject,
-        designSystem.name to Step.PickDesignSystem(project),
-        tenant.name to Step.PickTenant(project, designSystem),
-    )
     is Step.ShowTokens -> listOf(
         project.name to Step.PickProject,
         designSystem.name to Step.PickDesignSystem(project),
         tenant.name to Step.PickTenant(project, designSystem),
-        platform.name to Step.PickPlatform(project, designSystem, tenant),
     )
 }
 
@@ -182,15 +170,8 @@ public fun MainScreen(
                     onSessionExpired,
                 ) { tenant, autoSelected ->
                     goTo(
-                        Step.PickPlatform(currentStep.project, currentStep.designSystem, tenant),
+                        Step.ShowTokens(currentStep.project, currentStep.designSystem, tenant),
                         replaceCurrent = autoSelected,
-                    )
-                }
-
-            is Step.PickPlatform ->
-                PlatformStep { platform ->
-                    goTo(
-                        Step.ShowTokens(currentStep.project, currentStep.designSystem, currentStep.tenant, platform),
                     )
                 }
 
@@ -200,7 +181,6 @@ public fun MainScreen(
                     currentStep.project,
                     currentStep.designSystem,
                     currentStep.tenant,
-                    currentStep.platform,
                     state,
                     getTokenCodeReference,
                     onSessionExpired,
@@ -383,13 +363,11 @@ private fun TenantStep(
     }
 }
 
-@Composable
-private fun PlatformStep(onSelect: (TokenPlatform) -> Unit) {
-    // Android Studio может подсказать платформу, но не должна угадывать за пользователя —
-    // ANDROID просто идёт первым в списке.
-    val platforms = listOf(TokenPlatform.ANDROID, TokenPlatform.WEB, TokenPlatform.IOS)
-    PickerList(items = platforms, label = { it.name }, onSelect = onSelect)
-}
+/**
+ * Плагин работает только с Android: платформа не выбирается. Значения и code-ссылки токенов
+ * запрашиваются для `android`.
+ */
+private val TOKENS_PLATFORM = TokenPlatform.ANDROID
 
 @Composable
 private fun TokensStep(
@@ -397,31 +375,25 @@ private fun TokensStep(
     project: Project,
     designSystem: DesignSystem,
     tenant: DesignSystemTenant,
-    platform: TokenPlatform,
     state: MainScreenState,
     getTokenCodeReference: suspend (projectId: String, designSystemId: String, tokenName: String, mode: String) ->
     TokenCodeReferenceResult,
     onSessionExpired: () -> Unit,
 ) {
     val mode = state.tokenMode
-    var loadState by remember(project, designSystem, tenant, platform, mode) {
+    var loadState by remember(project, designSystem, tenant, mode) {
         mutableStateOf<LoadState<List<TokenWithValue>>>(LoadState.Loading)
     }
 
-    LaunchedEffect(project, designSystem, tenant, platform, mode) {
+    LaunchedEffect(project, designSystem, tenant, mode) {
         loadState = runCatchingLoad {
-            getDesignSystemTokens.execute(project.id, designSystem.id, platform, mode, tenant.id)
+            getDesignSystemTokens.execute(project.id, designSystem.id, TOKENS_PLATFORM, mode, tenant.id)
         }
     }
 
-    // Code-ссылка запрашивается по клику на конкретный токен (CodeBinding опубликованной документации);
-    // публикация есть только для Compose/Android, для остальных платформ действие не показывается.
-    val resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)? =
-        if (platform == TokenPlatform.ANDROID) {
-            { item -> getTokenCodeReference(project.id, designSystem.id, item.token.name, mode.name.lowercase()) }
-        } else {
-            null
-        }
+    // Code-ссылка запрашивается по клику на конкретный токен (CodeBinding опубликованной документации).
+    val resolveCodeReference: suspend (TokenWithValue) -> TokenCodeReferenceResult =
+        { item -> getTokenCodeReference(project.id, designSystem.id, item.token.name, mode.name.lowercase()) }
 
     Column(Modifier.fillMaxSize()) {
         ModeSwitch(mode = mode, onModeChange = { state.tokenMode = it })
