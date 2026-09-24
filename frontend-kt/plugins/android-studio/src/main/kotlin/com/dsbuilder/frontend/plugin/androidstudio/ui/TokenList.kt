@@ -48,9 +48,6 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.sdds.compose.uikit.Divider
 import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.ListItem
-import com.sdds.compose.uikit.TabItem
-import com.sdds.compose.uikit.Tabs
-import com.sdds.compose.uikit.TabsClip
 import com.sdds.compose.uikit.TextField
 import com.sdds.compose.uikit.graphics.Gradients
 import com.sdds.compose.uikit.shadow.ShadowAppearance
@@ -64,10 +61,6 @@ import com.sdds.serv.styles.iconbutton.IconButtonStyles
 import com.sdds.serv.styles.iconbutton.style
 import com.sdds.serv.styles.listitem.ListItemStyles
 import com.sdds.serv.styles.listitem.style
-import com.sdds.serv.styles.tabitem.TabItemStyles
-import com.sdds.serv.styles.tabitem.style
-import com.sdds.serv.styles.tabs.TabsStyles
-import com.sdds.serv.styles.tabs.style
 import com.sdds.serv.styles.textfield.TextFieldStyles
 import com.sdds.serv.styles.textfield.style
 import com.sdds.serv.theme.SddsServTheme
@@ -81,9 +74,10 @@ private val SWATCH_SHAPE = RoundedCornerShape(8.dp)
 private typealias TypeFilter = TokenType?
 
 /**
- * Список токенов выбранной дизайн-системы: вкладки по типу токена (когда типов больше одного)
- * и поиск по имени внутри выбранной вкладки. Компоненты — из `sdds-uikit-compose`/`sdds-serv`,
- * как и остальной UI плагина. Read-only — ничего не пишет ни в проект пользователя.
+ * Список токенов выбранной дизайн-системы: сегмент типа токена (когда типов больше одного)
+ * и поиск по имени внутри выбранного типа; [modeToggle] — кнопка режима темы справа от поиска, блокируется
+ * на типах, значение которых не зависит от темы.
+ * Компоненты — из `sdds-uikit-compose`/`sdds-serv`, как и остальной UI плагина. Read-only — ничего не пишет ни в проект пользователя.
  */
 @Composable
 public fun TokenList(
@@ -94,6 +88,7 @@ public fun TokenList(
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)? = null,
+    modeToggle: @Composable (enabled: Boolean) -> Unit = {},
 ) {
     // FONT_FAMILY нечего показывать пользователю осмысленно — значение это просто имя шрифта,
     // отдельная вкладка под него не нужна.
@@ -113,10 +108,37 @@ public fun TokenList(
     }
 
     Column(modifier.fillMaxSize()) {
-        if (types.size > 1) {
-            TokenTypeTabs(types = types, selectedIndex = selectedIndex, onSelect = onTabSelected)
+        // Единственный владелец вертикального ритма экрана: у блоков внутри своих вертикальных
+        // отступов нет, шаг между ними и отступ снизу до списка — один и тот же (spacing4x). Сверху
+        // достаточно spacing2x: к нему добавляется нижний отступ хлебных крошек, в сумме тоже шаг.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = SddsServTheme.spacing.spacing4x,
+                    end = SddsServTheme.spacing.spacing4x,
+                    top = SddsServTheme.spacing.spacing2x,
+                    bottom = SddsServTheme.spacing.spacing4x,
+                ),
+            verticalArrangement = Arrangement.spacedBy(SddsServTheme.spacing.spacing4x),
+        ) {
+            if (types.size > 1) {
+                FilterSegment(
+                    items = types,
+                    selectedIndex = selectedIndex,
+                    label = { it.label() },
+                    onSelect = onTabSelected,
+                    scrollable = true,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(SddsServTheme.spacing.spacing2x),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TokenSearchField(query = query, onQueryChange = onQueryChange, modifier = Modifier.weight(1f))
+                modeToggle(selectedType.isThemeDependent())
+            }
         }
-        TokenSearchField(query = query, onQueryChange = onQueryChange)
 
         if (visibleTokens.isEmpty()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { NoMatchesText() }
@@ -133,6 +155,12 @@ public fun TokenList(
         }
     }
 }
+
+/**
+ * Значение токена зависит от режима темы только у цветов и градиентов; у остальных типов
+ * (`typography`, `spacing`, `shape`, `shadow`) значение одно на обе темы, и выбор режима для них бессмыслен.
+ */
+internal fun TokenType?.isThemeDependent(): Boolean = this == TokenType.COLOR || this == TokenType.GRADIENT
 
 /** Фиксированный порядок вкладок — не зависит от того, в каком порядке типы пришли в конкретной дизайн-системе. */
 private val TAB_TYPE_ORDER = listOf(
@@ -181,52 +209,12 @@ private fun TypeFilter.label(): String = when (this) {
 }
 
 @Composable
-private fun TokenTypeTabs(types: List<TypeFilter>, selectedIndex: Int, onSelect: (Int) -> Unit) {
-    Tabs(
-        // У Tabs/TabItem есть собственный встроенный отступ перед текстом (TabsDimensions
-        // .contentPaddingStart, TabItemDimensions.paddingStart) — обнуляем оба, чтобы единственным
-        // источником отступа слева был внешний Modifier.padding ниже, тот же, что у хлебных
-        // крошек и поля поиска.
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SddsServTheme.spacing.spacing4x, vertical = SddsServTheme.spacing.spacing2x),
-        style = TabsStyles.TabsDefaultS.style {
-            dimensions {
-                contentPaddingStart(0.dp)
-                contentPaddingEnd(0.dp)
-            }
-        },
-        selectedTabIndex = selectedIndex,
-        onTabClicked = onSelect,
-        clip = TabsClip.Scroll,
-        stretch = false,
-    ) {
-        types.forEach { type ->
-            tab { isSelected ->
-                TabItem(
-                    style = TabItemStyles.TabItemDefaultS.style {
-                        dimensions {
-                            paddingStart(0.dp)
-                            paddingEnd(0.dp)
-                        }
-                    },
-                    isSelected = isSelected,
-                    label = type.label(),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TokenSearchField(query: String, onQueryChange: (String) -> Unit) {
+private fun TokenSearchField(query: String, onQueryChange: (String) -> Unit, modifier: Modifier = Modifier) {
     TextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = SddsServTheme.spacing.spacing4x, vertical = SddsServTheme.spacing.spacing2x),
-        style = TextFieldStyles.TextFieldMDefault.style(),
+        modifier = modifier,
+        style = TextFieldStyles.TextFieldSDefault.style(),
         placeholderText = "Поиск токена по имени…",
     )
 }
