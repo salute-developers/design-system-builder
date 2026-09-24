@@ -29,6 +29,7 @@ export const generateBaseFileStructure = async ({
     packageName,
     packageVersion,
     coreVersion,
+    hasComponents,
 }: BaseFileStructure) => {
     // const __filename = fileURLToPath(import.meta.url);
     // const __dirname = dirname(__filename);
@@ -45,6 +46,7 @@ export const generateBaseFileStructure = async ({
         packageName,
         packageVersion,
         coreVersion,
+        hasComponents,
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
 
@@ -177,6 +179,11 @@ const copyComponentTemplates = async (pathToComponent: string, componentName: st
 };
 
 export const generateComponentsFiles = async ({ pathToDir, componentsMeta }: ComponentsFiles) => {
+    if (componentsMeta.length === 0) {
+        await fs.writeFile(`${pathToDir}/src/index.ts`, createRootIndex([]));
+        return;
+    }
+
     const metaByName = new Map(componentsMeta.map((meta) => [meta.name, meta]));
     // Дочерние компоненты (compose) живут в папке родителя и не экспортируются с корня отдельно.
     const childNames = new Set(
@@ -236,7 +243,13 @@ export const generateDesignSystem = async (designSystemData: DesignSystemData, o
     const { packageName, packageVersion, componentsData, themeData } = designSystemData;
     const { pathToDir, coreVersion, exportType } = outputParams;
 
-    await generateBaseFileStructure({ pathToDir, packageName, packageVersion, coreVersion });
+    await generateBaseFileStructure({
+        pathToDir,
+        packageName,
+        packageVersion,
+        coreVersion,
+        hasComponents: componentsData.length > 0,
+    });
 
     await generateThemeFiles({ pathToDir, packageName, packageVersion, themeSource: getThemeData(themeData) });
 
