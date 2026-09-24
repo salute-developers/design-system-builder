@@ -955,7 +955,10 @@ router.post("/create", (req, res) =>
     }
 
     // ── 5. Components data ────────────────────────────────────────────────────
-    if (!componentsData?.length) {
+    // TODO(temporary): автоматическая привязка компонентов (в том числе из base)
+    // к новой ДС отключена. Чтобы вернуть — убрать флаг ниже.
+    const AUTO_LINK_COMPONENTS = false;
+    if (!AUTO_LINK_COMPONENTS || !componentsData?.length) {
       res.status(201).json({ id: ds.id });
       return;
     }

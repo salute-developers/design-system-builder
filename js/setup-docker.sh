@@ -8,9 +8,19 @@
 # - Building and starting all services (postgres-registry, db-service, admin, client, generator, docs-generator)
 # - Running database migrations
 # - Seeding initial data (seed-prod.ts)
+# - Bootstrapping the user's project in projects-service (via gateway)
+#   and binding the 'base' design system to it
 # - Comprehensive health checks for all services
 #
 # Usage: ./setup-docker.sh
+#
+# Project bootstrap env (all optional):
+#   DSBUILDER_GATEWAY_URL       gateway of backend-kt stack, default http://localhost:8080
+#   DSBUILDER_PROJECT_USERNAME  Keycloak user that owns the project, default admin@example.com
+#   DSBUILDER_PROJECT_PASSWORD  its password, default password
+#   DSBUILDER_PROJECT_NAME      name for a newly created project, default "Base"
+#   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   Keycloak realm/client, default dsbuilder / dsbuilder-api
+#   DSBUILDER_SKIP_PROJECT=1    skip the project bootstrap step entirely
 # =============================================================================
 
 # Colors for better output
@@ -60,6 +70,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="docker-compose.dev.yml"
 JS_COMPOSE_PROJECT_NAME="${DSBUILDER_JS_COMPOSE_PROJECT_NAME:-design-system-builder}"
 
+# Project bootstrap (backend-kt stack: keycloak + gateway + projects-service)
+GATEWAY_URL="${DSBUILDER_GATEWAY_URL:-http://localhost:8080}"
+PROJECT_USERNAME="${DSBUILDER_PROJECT_USERNAME:-admin@example.com}"
+PROJECT_PASSWORD="${DSBUILDER_PROJECT_PASSWORD:-password}"
+PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
+REALM="${DSBUILDER_REALM:-dsbuilder}"
+CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
+SKIP_PROJECT="${DSBUILDER_SKIP_PROJECT:-0}"
+
 cd "$SCRIPT_DIR"
 
 run_compose() {
@@ -67,6 +86,90 @@ run_compose() {
         --project-name "$JS_COMPOSE_PROJECT_NAME" \
         -f "$COMPOSE_FILE" \
         "$@"
+}
+
+run_psql() {
+    run_compose exec -T postgres-registry psql -U postgres -d ds_registry -v ON_ERROR_STOP=1 -qAt "$@"
+}
+
+# Read a JSON field from stdin: json_field access_token
+json_field() {
+    python3 -c '
+import json, sys
+value = json.load(sys.stdin)
+for part in sys.argv[1].split("."):
+    value = value[part]
+print("" if value is None else value)
+' "$1"
+}
+
+# Extract "sub" (user id) from a JWT
+jwt_sub() {
+    python3 -c '
+import base64, json, sys
+payload = sys.argv[1].split(".")[1]
+payload += "=" * (-len(payload) % 4)
+print(json.loads(base64.urlsafe_b64decode(payload)).get("sub", ""))
+' "$1"
+}
+
+# Find a project owned by the user, or create one. Prints the project id.
+# Returns 1 if the gateway is unavailable or auth fails (caller decides how to react).
+bootstrap_user_project() {
+    local token_response access_token user_id project_id http_status body
+
+    if ! curl -sf "$GATEWAY_URL/health" > /dev/null 2>&1; then
+        echo_warning "Gateway is not reachable at $GATEWAY_URL — start backend-kt first (cd ../backend-kt && ./start-local.sh --detach)" >&2
+        return 1
+    fi
+
+    token_response="$(curl -sf -X POST "$GATEWAY_URL/realms/$REALM/protocol/openid-connect/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        --data-urlencode "grant_type=password" \
+        --data-urlencode "client_id=$CLIENT_ID" \
+        --data-urlencode "username=$PROJECT_USERNAME" \
+        --data-urlencode "password=$PROJECT_PASSWORD")" || {
+        echo_warning "Could not obtain access token for $PROJECT_USERNAME" >&2
+        return 1
+    }
+    access_token="$(printf '%s' "$token_response" | json_field access_token)"
+    if [ -z "$access_token" ]; then
+        echo_warning "Token response has no access_token" >&2
+        return 1
+    fi
+    user_id="$(jwt_sub "$access_token")"
+
+    # Existing project owned by this user?
+    project_id="$(curl -sf "$GATEWAY_URL/api/projects" -H "Authorization: Bearer $access_token" | \
+        python3 -c '
+import json, sys
+user_id = sys.argv[1]
+for project in json.load(sys.stdin):
+    if project.get("ownerUserId") == user_id and project.get("status") != "archived":
+        print(project["id"]); break
+' "$user_id")"
+
+    if [ -n "$project_id" ]; then
+        echo_info "Reusing existing project of $PROJECT_USERNAME: $project_id" >&2
+        printf '%s' "$project_id"
+        return 0
+    fi
+
+    body="$(mktemp)"
+    http_status="$(curl -sS -o "$body" -w "%{http_code}" -X POST "$GATEWAY_URL/api/projects" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Content-Type: application/json" \
+        -d "$(PROJECT_NAME="$PROJECT_NAME" python3 -c 'import json, os; print(json.dumps({"name": os.environ["PROJECT_NAME"]}, ensure_ascii=False))')")"
+    if [ "$http_status" != "201" ]; then
+        echo_warning "Project creation failed: HTTP $http_status $(cat "$body")" >&2
+        rm -f "$body"
+        return 1
+    fi
+    project_id="$(json_field id < "$body")"
+    rm -f "$body"
+
+    echo_info "Created project '$PROJECT_NAME' for $PROJECT_USERNAME: $project_id" >&2
+    printf '%s' "$project_id"
 }
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
@@ -90,6 +193,7 @@ echo ""
 echo_header "🚀 Setting up development environment..."
 echo "   📦 Services: postgres-registry, db-service, admin, client, generator, publisher, docs-generator"
 echo "   🗄️ Database: migrations + seeding (prod seeds)"
+echo "   👤 Project: find/create user project via $GATEWAY_URL and bind it to DS 'base'"
 echo "   🔍 Health checks: all services"
 
 # Stop any existing containers
@@ -155,6 +259,26 @@ if run_compose exec -T db-service npx tsx src/db/seed-prod.ts; then
 else
     echo_error "db-service database seeding (prod) failed"
     exit 1
+fi
+
+# --- User project → design system 'base' ---
+echo ""
+echo_header "👤 Binding design system 'base' to the user's project..."
+if [ "$SKIP_PROJECT" = "1" ]; then
+    echo_info "Skipped (DSBUILDER_SKIP_PROJECT=1)"
+elif project_id="$(bootstrap_user_project)"; then
+    if ! printf '%s' "$project_id" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
+        echo_error "Unexpected project id: $project_id"
+        exit 1
+    fi
+    if run_psql -c "UPDATE design_systems SET project_id = '$project_id' WHERE name = 'base';" > /dev/null; then
+        echo_success "Design system 'base' bound to project $project_id"
+    else
+        echo_error "Failed to set project_id on design system 'base'"
+        exit 1
+    fi
+else
+    echo_warning "Project bootstrap skipped: design system 'base' stays without project_id (visible to every project)"
 fi
 
 # Now start the remaining services (client, admin, generator, etc.)
