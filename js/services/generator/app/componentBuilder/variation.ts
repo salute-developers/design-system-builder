@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { ComponentAPI, VariationConfig } from './type';
 import { Style } from './style';
 
@@ -36,7 +38,7 @@ export class Variation {
     public addStyle(name: string, api: ComponentAPI[]) {
         const styleValues = {
             name,
-            id: globalThis.crypto.randomUUID(),
+            id: randomUUID(),
             intersections: null,
             props: null,
         };
