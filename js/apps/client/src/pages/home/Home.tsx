@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { IconPlus, IconSettingsOutline } from '@salutejs/plasma-icons';
 
@@ -18,14 +19,13 @@ export const Home = () => {
     const currentPage = useLocation().pathname.split('/').filter(Boolean).pop();
     const selectedListItem = currentPage === undefined ? 'projects' : currentPage;
 
-    const onDesignSystemCreate = () => {
+    const onDesignSystemCreate = (event: MouseEvent) => {
+        // Не даём клику всплыть на ListItem: иначе он уведёт на '/' и Home перемонтируется через RootRedirect
+        event.stopPropagation();
+
         if (context.onDesignSystemCreate) {
             context.onDesignSystemCreate();
         }
-    };
-
-    const onChangeListItem = (ListItem: '' | 'drafts') => {
-        navigate(`/${ListItem}`);
     };
 
     return (
@@ -39,8 +39,8 @@ export const Home = () => {
                         </IconButton>
                     </Header>
                     <List>
-                        <ListItem selected={selectedListItem === 'projects'} onClick={() => onChangeListItem('')}>
-                            <ListItemText>Мои проекты</ListItemText>
+                        <ListItem selected={selectedListItem === 'projects'}>
+                            <ListItemText>Мои дизайн-системы</ListItemText>
                             <ListItemContentRight onClick={onDesignSystemCreate}>
                                 <IconPlus size="xs" color="inherit" />
                             </ListItemContentRight>
