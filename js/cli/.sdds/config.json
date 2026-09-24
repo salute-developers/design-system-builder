@@ -1,21 +1,22 @@
 {
-    "projectId": "758d0697-3bc2-4021-9d5b-8e28bb0ed78e",
-    "designSystemId": "bab8ceb1-8c62-4e03-bb1b-c5cc240555f1",
+    "projectId": "ebf00aa1-0022-40e1-a299-7b7358484231",
+    "designSystemId": "1e7b4baf-9649-4516-8622-2938c6a3eef0",
     "credential": {
         "type": "env",
         "name": "DSBUILDER_API_KEY"
     },
     "tenants": [
         {
-            "id": "e29b532e-76b9-42c3-8205-4b47cdf30ae0",
-            "designSystemId": "bab8ceb1-8c62-4e03-bb1b-c5cc240555f1",
-            "name": "plasma_homeds_default",
+            "id": "ee2053b4-0397-4170-ae6c-fef965167901",
+            "designSystemId": "1e7b4baf-9649-4516-8622-2938c6a3eef0",
+            "name": "qwe_default",
             "description": null,
-            "directoryPath": ".sdds/tenants/plasma_homeds_default",
+            "directoryPath": ".sdds/tenants/qwe_default",
             "alias": null,
-            "createdAt": "2026-06-15T09:25:17.623Z",
-            "updatedAt": "2026-06-15T09:25:17.623Z"
+            "createdAt": "2026-09-16T13:18:06.830Z",
+            "updatedAt": "2026-09-16T13:18:06.830Z"
         }
     ],
-    "palettePath": ".sdds/tenants/palette.json"
+    "palettePath": ".sdds/tenants/palette.json",
+    "platforms": []
 }
