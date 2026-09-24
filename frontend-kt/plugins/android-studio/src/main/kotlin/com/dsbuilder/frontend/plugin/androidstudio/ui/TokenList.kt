@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -46,6 +48,9 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenType
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.intellij.util.ui.UIUtil
+import com.sdds.compose.uikit.AccordionItem
+import com.sdds.compose.uikit.AccordionItemDimensions
+import com.sdds.compose.uikit.AccordionItemStyle
 import com.sdds.compose.uikit.Divider
 import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.ListItem
@@ -56,6 +61,8 @@ import com.sdds.compose.uikit.shadow.ShadowLayer
 import com.sdds.compose.uikit.shadow.shadow
 import com.sdds.icons.compose.CopyOutline24
 import com.sdds.icons.compose.SddsIcons
+import com.sdds.serv.styles.accordion.AccordionStyles
+import com.sdds.serv.styles.accordion.style
 import com.sdds.serv.styles.divider.DividerStyles
 import com.sdds.serv.styles.divider.style
 import com.sdds.serv.styles.iconbutton.IconButtonStyles
@@ -148,10 +155,44 @@ public fun TokenList(
             // Divider приходит с тем же стилем, что и раньше, — дорогой `style()` считается один раз, а не на строку.
             val dividerStyle = DividerStyles.DividerDefault.style()
             Box(Modifier.fillMaxSize()) {
+                val groups = remember(visibleTokens, selectedType) {
+                    if (selectedType == TokenType.TYPOGRAPHY) groupByScreenClass(visibleTokens) else listOf(null to visibleTokens)
+                }
+                // Аккордеон по классам экрана: по умолчанию раскрыт только первый; при поиске раскрыты все,
+                // чтобы найденное не пряталось в свёрнутой группе.
+                val expanded = remember(groups) {
+                    mutableStateMapOf<String, Boolean>().apply { groups.firstOrNull()?.first?.let { put(it, true) } }
+                }
+                val accordionBase = AccordionStyles.AccordionClearActionEndM.style().accordionItemStyle
+                val edgePadding = SddsServTheme.spacing.spacing4x
+                val accordionStyle = remember(accordionBase, edgePadding) { accordionBase.withHorizontalPadding(edgePadding) }
                 LazyColumn(Modifier.fillMaxSize()) {
-                    items(items = visibleTokens, key = { it.token.id }) { item ->
-                        TokenRow(item, resolveCodeReference)
-                        Divider(style = dividerStyle)
+                    groups.forEach { (screenClass, groupTokens) ->
+                        if (screenClass == null) {
+                            items(items = groupTokens, key = { it.token.id }) { item ->
+                                TokenRow(item, resolveCodeReference)
+                                Divider(style = dividerStyle)
+                            }
+                        } else {
+                            item(key = "group:$screenClass") {
+                                val isExpanded = query.isNotBlank() || expanded[screenClass] == true
+                                AccordionItem(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    style = accordionStyle,
+                                    opened = isExpanded,
+                                    title = screenClassTitle(screenClass),
+                                    onClick = { expanded[screenClass] = !isExpanded },
+                                ) {
+                                    Column(Modifier.fillMaxWidth()) {
+                                        groupTokens.forEach { item ->
+                                            TokenRow(item, resolveCodeReference, screenClass)
+                                            Divider(style = dividerStyle)
+                                        }
+                                    }
+                                }
+                                Divider(style = dividerStyle)
+                            }
+                        }
                     }
                 }
                 BottomFade(Modifier.align(Alignment.BottomCenter))
@@ -183,6 +224,44 @@ private val BOTTOM_FADE_HEIGHT = 48.dp
  * (`typography`, `spacing`, `shape`, `shadow`) значение одно на обе темы, и выбор режима для них бессмыслен.
  */
 internal fun TokenType?.isThemeDependent(): Boolean = this == TokenType.COLOR || this == TokenType.GRADIENT
+
+/** Класс экрана токена типографики — первый сегмент имени вида `screen-l.body.m.normal`; иначе `null`. */
+internal fun TokenWithValue.screenClass(): String? =
+    token.name.substringBefore('.', missingDelimiterValue = "").takeIf { it.startsWith("screen-") }
+
+/** Группы по классу экрана в порядке первого появления; токены без класса — одной группой без заголовка в конце. */
+internal fun groupByScreenClass(tokens: List<TokenWithValue>): List<Pair<String?, List<TokenWithValue>>> {
+    val grouped = tokens.groupBy { it.screenClass() }
+    val withClass = grouped.filterKeys { it != null }.map { (key, value) -> key to value }
+    return withClass + listOfNotNull(grouped[null]?.let { null to it })
+}
+
+/**
+ * Убирает из названия префикс класса экрана. Имя токена — `screen-s.display.l`, а отображаемое имя
+ * бывает и в camelCase (`screenSDisplayL`), и через разделитель (`screen-s.display.l`); срезается
+ * `screen`/`screen-` + класс без учёта регистра, остаток начинается с маленькой буквы (`displayL`).
+ */
+internal fun String.withoutScreenClass(screenClass: String?): String {
+    if (screenClass == null) return this
+    val prefix = Regex("^" + Regex.escape("screen") + "[-_. ]?" + Regex.escape(screenClass.removePrefix("screen-")) + "[-_. ]?", RegexOption.IGNORE_CASE)
+    val rest = replaceFirst(prefix, "")
+    return if (rest.isEmpty() || rest == this) this else rest.replaceFirstChar { it.lowercaseChar() }
+}
+
+/** Стиль аккордеона у краёв без отступа: заголовок и иконка получают горизонтальный [padding], остальное — как в базовом стиле. */
+private fun AccordionItemStyle.withHorizontalPadding(padding: Dp): AccordionItemStyle {
+    val base = this
+    val dimensions = object : AccordionItemDimensions by base.dimensions {
+        override val paddingStart: Dp = padding
+        override val paddingEnd: Dp = padding
+    }
+    return object : AccordionItemStyle by base {
+        override val dimensions: AccordionItemDimensions = dimensions
+    }
+}
+
+/** Заголовок группы: `screen S`. */
+internal fun screenClassTitle(screenClass: String): String = "screen ${screenClass.removePrefix("screen-").uppercase()}"
 
 /** Фиксированный порядок вкладок — не зависит от того, в каком порядке типы пришли в конкретной дизайн-системе. */
 private val TAB_TYPE_ORDER = listOf(
@@ -317,6 +396,7 @@ private const val MAX_SHADOW_OFFSET_PREVIEW_DP = 16f
 private fun TokenRow(
     item: TokenWithValue,
     resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)?,
+    screenClass: String? = null,
 ) {
     val payload = item.payload
     val preview = previewContent(payload)
@@ -324,7 +404,7 @@ private fun TokenRow(
     ListItem(
         modifier = Modifier.fillMaxWidth(),
         style = ListItemStyles.ListItemNormalM.style(),
-        text = item.token.displayName ?: item.token.name,
+        text = (item.token.displayName ?: item.token.name).withoutScreenClass(screenClass),
         subtitle = describeValue(payload, item.value?.rawValue),
         startContent = preview,
         endContent = resolveCodeReference?.let { resolve -> { CopyCodeReferenceAction(item, resolve) } },
