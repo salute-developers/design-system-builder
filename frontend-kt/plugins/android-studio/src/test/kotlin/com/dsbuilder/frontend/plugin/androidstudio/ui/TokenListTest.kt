@@ -12,7 +12,9 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenValuePayload
 import com.sdds.compose.uikit.graphics.Gradients
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ParseHexColorTest {
     @Test
@@ -203,5 +205,14 @@ class TokenListFormattingTest {
         assertEquals("#8F28D247", formatHexAarrggbb("28D2478F"))
         assertEquals("#F5171717", formatHexAarrggbb("#171717F5"))
         assertEquals("not-a-color", formatHexAarrggbb("not-a-color"))
+    }
+
+    @Test
+    fun themeDependsOnlyForColorAndGradient() {
+        assertTrue(TokenType.COLOR.isThemeDependent())
+        assertTrue(TokenType.GRADIENT.isThemeDependent())
+        listOf(TokenType.TYPOGRAPHY, TokenType.SPACING, TokenType.SHAPE, TokenType.SHADOW, null).forEach {
+            assertFalse(it.isThemeDependent(), "$it")
+        }
     }
 }
