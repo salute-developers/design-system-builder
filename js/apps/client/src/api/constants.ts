@@ -7,3 +7,5 @@ export const AUTH_URL = `${import.meta.env.VITE_API_GATEWAY_URL}/auth/token`;
 export const LOGOUT_URL = `${import.meta.env.VITE_API_GATEWAY_URL}/auth/logout`;
 export const PROJECTS_URL = `${import.meta.env.VITE_API_GATEWAY_URL}/api/projects`;
 export const CLIENT_ID = `${import.meta.env.VITE_CLIENT_ID}`;
+
+export const REQUEST_ACCESS_URL = import.meta.env.VITE_REQUEST_ACCESS_URL || 'mailto:sdds@sberdevices.ru';

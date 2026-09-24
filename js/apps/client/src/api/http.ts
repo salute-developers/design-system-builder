@@ -9,7 +9,7 @@ export const http = axios.create({ baseURL: API_GATEWAY_URL });
 const forceLogout = () => {
     const base = getBaseName().replace(/\/$/, '');
 
-    window.location.href = `${base}/login`;
+    window.location.href = `${base}/login?reason=expired`;
 };
 
 http.interceptors.request.use(async (config) => {
