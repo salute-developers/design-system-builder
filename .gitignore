@@ -157,3 +157,6 @@ frontend-kt/cli/.sdds/
 local.properties
 .gigaide
 **/.sdds/**/
+
+# Local E2E reports and isolated CLI state
+e2e/artifacts/
