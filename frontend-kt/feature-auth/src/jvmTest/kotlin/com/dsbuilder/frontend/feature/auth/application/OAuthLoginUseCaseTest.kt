@@ -7,10 +7,17 @@ import com.dsbuilder.frontend.core.auth.TokenExchangeResult
 import com.dsbuilder.frontend.core.auth.UserOAuthTokens
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -24,7 +31,14 @@ private class FakeRedirectListener(
     override val port: Int = 12345,
     private val resultProvider: () -> LoopbackCallbackResult,
 ) : RedirectListener {
+    var closeCount = 0
+        private set
+
     override fun awaitCallback(timeoutSeconds: Long): LoopbackCallbackResult = resultProvider()
+
+    override fun close() {
+        closeCount++
+    }
 }
 
 private class FakeBrowserLauncher : BrowserLauncher {
@@ -69,6 +83,8 @@ private class FakeRefreshTokenStore : RefreshTokenStore {
     }
 }
 
+private const val WAIT_FOREVER_MILLIS = 60_000L
+
 private val fixedApiUrlResolver = ApiUrlResolver { null }
 
 private fun useCase(
@@ -87,6 +103,79 @@ private fun useCase(
 )
 
 class OAuthLoginUseCaseTest {
+    @Test
+    fun listenerIsClosedAfterSuccessfulLogin() = runTest {
+        val browserLauncher = FakeBrowserLauncher()
+        val listener = FakeRedirectListener(
+            resultProvider = { LoopbackCallbackResult.Error(error = "access_denied", errorDescription = null) },
+        )
+
+        useCase(
+            FakeTokenExchangeClient { error("unused") },
+            UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            browserLauncher,
+            RedirectListenerFactory { listener },
+        ).execute()
+
+        assertEquals(1, listener.closeCount)
+    }
+
+    @Test
+    fun listenerIsClosedWhenBrowserFailsToOpen() = runTest {
+        val listener = FakeRedirectListener(resultProvider = { error("must not wait") })
+
+        val result = useCase(
+            FakeTokenExchangeClient { error("unused") },
+            UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            BrowserLauncher { error("no browser available") },
+            RedirectListenerFactory { listener },
+        ).execute()
+
+        assertIs<OAuthLoginResult.Failed>(result)
+        assertEquals(1, listener.closeCount)
+    }
+
+    @Test
+    fun listenerIsClosedOnTimeout() = runTest {
+        val listener = FakeRedirectListener(resultProvider = { LoopbackCallbackResult.Malformed })
+
+        val result = useCase(
+            FakeTokenExchangeClient { error("unused") },
+            UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            FakeBrowserLauncher(),
+            RedirectListenerFactory { listener },
+        ).execute()
+
+        assertIs<OAuthLoginResult.Failed>(result)
+        assertEquals(1, listener.closeCount)
+    }
+
+    @Test
+    fun cancellationInterruptsWaitAndClosesListener() = runBlocking {
+        val waiting = CountDownLatch(1)
+        val listener = FakeRedirectListener(
+            resultProvider = {
+                waiting.countDown()
+                Thread.sleep(WAIT_FOREVER_MILLIS)
+                LoopbackCallbackResult.Malformed
+            },
+        )
+        val login = useCase(
+            FakeTokenExchangeClient { error("unused") },
+            UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            FakeBrowserLauncher(),
+            RedirectListenerFactory { listener },
+        ).let { useCase ->
+            async(Dispatchers.Default) { useCase.execute() }
+        }
+        assertTrue(waiting.await(5, TimeUnit.SECONDS))
+
+        login.cancel()
+        assertFailsWith<CancellationException> { withTimeout(5_000) { login.await() } }
+
+        assertEquals(1, listener.closeCount)
+    }
+
     @Test
     fun successfulLoginAppliesSession() = runTest {
         val tokenExchangeClient = FakeTokenExchangeClient {
@@ -235,6 +324,38 @@ class OAuthLogoutUseCaseTest {
 
         assertNull(sessionResolver.currentAccessToken())
         assertNull(sessionResolver.storedRefreshToken())
+    }
+
+    @Test
+    fun logoutClosesListenerEvenWhenBrowserFails() = runTest {
+        val listener = FakeRedirectListener(resultProvider = { error("must not wait") })
+
+        OAuthLogoutUseCase(
+            clientId = "dsbuilder-studio-plugin",
+            apiUrlResolver = fixedApiUrlResolver,
+            sessionResolver = UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            browserLauncher = BrowserLauncher { error("no browser available") },
+            redirectListenerFactory = RedirectListenerFactory { listener },
+            ioDispatcher = Dispatchers.Unconfined,
+        ).execute()
+
+        assertEquals(1, listener.closeCount)
+    }
+
+    @Test
+    fun logoutClosesListenerAfterCallback() = runTest {
+        val listener = FakeRedirectListener(resultProvider = { LoopbackCallbackResult.Malformed })
+
+        OAuthLogoutUseCase(
+            clientId = "dsbuilder-studio-plugin",
+            apiUrlResolver = fixedApiUrlResolver,
+            sessionResolver = UserSessionCredentialResolver(FakeRefreshTokenStore()),
+            browserLauncher = FakeBrowserLauncher(),
+            redirectListenerFactory = RedirectListenerFactory { listener },
+            ioDispatcher = Dispatchers.Unconfined,
+        ).execute()
+
+        assertEquals(1, listener.closeCount)
     }
 }
 

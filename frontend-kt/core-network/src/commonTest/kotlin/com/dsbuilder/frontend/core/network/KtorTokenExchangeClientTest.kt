@@ -9,14 +9,14 @@ import io.ktor.client.request.forms.FormDataContent
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class KtorTokenExchangeClientTest {
     @Test
-    fun exchangeAuthorizationCodeSendsExpectedFormParameters() = runBlocking {
+    fun exchangeAuthorizationCodeSendsExpectedFormParameters() = runTest {
         var request: HttpRequestData? = null
         val engine = MockEngine {
             request = it
@@ -46,7 +46,7 @@ class KtorTokenExchangeClientTest {
     }
 
     @Test
-    fun refreshSendsExpectedFormParameters() = runBlocking {
+    fun refreshSendsExpectedFormParameters() = runTest {
         var request: HttpRequestData? = null
         val engine = MockEngine {
             request = it
@@ -66,7 +66,7 @@ class KtorTokenExchangeClientTest {
     }
 
     @Test
-    fun ignoresExtraFieldsRealKeycloakResponseContains() = runBlocking {
+    fun ignoresExtraFieldsRealKeycloakResponseContains() = runTest {
         // Настоящий ответ Keycloak несёт больше полей, чем нужно клиенту — без
         // ignoreUnknownKeys разбор падает именно на них, а не на fixture-JSON из других тестов.
         val engine = MockEngine {
@@ -101,7 +101,7 @@ class KtorTokenExchangeClientTest {
     }
 
     @Test
-    fun failedExchangeThrowsTokenExchangeException() = runBlocking<Unit> {
+    fun failedExchangeThrowsTokenExchangeException() = runTest {
         val engine = MockEngine { respond(content = "invalid_grant", status = HttpStatusCode.BadRequest) }
         val client = KtorTokenExchangeClient(HttpClient(engine), "https://gateway.example.com/auth/token")
 
