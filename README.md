@@ -159,6 +159,20 @@ cp js/.env.example js/.env
 ./backend-kt/start-local.sh --detach
 ```
 
+## Backend E2E
+
+Сквозные backend-сценарии используют обычный общий локальный контур из `setup-local.sh`, обращаются к нему через
+публичный Gateway с реальной авторизацией и при необходимости вызывают JVM CLI `dsbuilder`:
+
+```bash
+./tools/e2e all
+./tools/e2e api-project-access
+./tools/e2e cli-auth-session
+```
+
+E2E запускает разработчик, CI или внешний оркестратор, но не TAKT. Структура сценариев и правила тестовых данных
+описаны в [`e2e/README.md`](./e2e/README.md).
+
 `js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes, собирает контейнеры,
 запускает миграции и seed базы, а затем поднимает Node.js-сервисы, client и admin. Поэтому локальные данные JS-базы при
 таком запуске будут сброшены.

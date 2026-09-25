@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM_NAME="${0##*/}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+E2E_ROOT="$ROOT/e2e"
+SCENARIOS_DIR="$E2E_ROOT/scenarios"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/e2e all
+  tools/e2e <scenario>...
+  tools/e2e list
+
+Commands:
+  all          Run every scenario from e2e/scenarios.
+  <scenario>   Run one or more named scenarios.
+  list         List available scenarios.
+
+Environment:
+  DSBUILDER_E2E_CLI  Use this dsbuilder executable instead of building the JVM distribution.
+USAGE
+}
+
+log() {
+  echo "[$PROGRAM_NAME] $*"
+}
+
+fail() {
+  echo "[$PROGRAM_NAME] $*" >&2
+  exit 1
+}
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || fail "Required command '$1' not found"
+}
+
+list_scenarios() {
+  local file
+  for file in "$SCENARIOS_DIR"/*.sh; do
+    [[ -e "$file" ]] || continue
+    basename "$file" .sh
+  done
+}
+
+command="${1:-}"
+case "$command" in
+  --help|-h|help|"") usage; exit 0 ;;
+  list) list_scenarios; exit 0 ;;
+esac
+shift
+
+selected_scenarios=()
+if [[ "$command" == "all" ]]; then
+  while IFS= read -r scenario; do
+    selected_scenarios+=("$scenario")
+  done < <(list_scenarios)
+else
+  selected_scenarios+=("$command")
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    --*) fail "Unknown option: $1" ;;
+    *) selected_scenarios+=("$1") ;;
+  esac
+  shift
+done
+
+for scenario in "${selected_scenarios[@]}"; do
+  [[ "$scenario" =~ ^[a-z0-9][a-z0-9-]*$ ]] || fail "Invalid scenario name: $scenario"
+  [[ -x "$SCENARIOS_DIR/$scenario.sh" ]] || fail "Unknown or non-executable scenario: $scenario"
+done
+
+require curl
+require jq
+
+run_suffix="$(date -u +%Y%m%d-%H%M%S)-$$"
+branch="$(git -C "$ROOT" branch --show-current 2>/dev/null || true)"
+safe_branch="$(printf '%s' "${branch:-detached}" | tr '[:upper:]/._' '[:lower:]---' | tr -cd 'a-z0-9-')"
+safe_branch="${safe_branch:0:24}"
+E2E_RUN_ID="${safe_branch:-run}-$run_suffix"
+E2E_ARTIFACTS_DIR="$E2E_ROOT/artifacts/$E2E_RUN_ID"
+E2E_CONTEXT_FILE="$E2E_ARTIFACTS_DIR/context.env"
+E2E_GATEWAY_URL="${E2E_GATEWAY_URL:-http://localhost:8080}"
+mkdir -p "$E2E_ARTIFACTS_DIR"
+export E2E_ROOT E2E_RUN_ID E2E_ARTIFACTS_DIR E2E_CONTEXT_FILE E2E_GATEWAY_URL
+
+capture_failure_logs() {
+  local exit_code=$?
+  if [[ "$exit_code" -ne 0 ]] && command -v docker >/dev/null 2>&1; then
+    log "Saving shared local stack logs to $E2E_ARTIFACTS_DIR"
+    docker compose \
+      --project-name design-system-builder \
+      --project-directory "$ROOT/js" \
+      --file "$ROOT/js/docker-compose.dev.yml" \
+      logs --no-color > "$E2E_ARTIFACTS_DIR/js-docker.log" 2>&1 || true
+    docker compose \
+      --project-directory "$ROOT/backend-kt" \
+      --file "$ROOT/backend-kt/docker-compose.local.yml" \
+      logs --no-color > "$E2E_ARTIFACTS_DIR/backend-docker.log" 2>&1 || true
+  fi
+  exit "$exit_code"
+}
+trap capture_failure_logs EXIT
+
+log "Preparing the shared local stack with setup-local.sh"
+"$ROOT/setup-local.sh"
+
+uses_cli="false"
+for scenario in "${selected_scenarios[@]}"; do
+  [[ "$scenario" == cli-* ]] && uses_cli="true"
+done
+
+if [[ "$uses_cli" == "true" && -z "${DSBUILDER_E2E_CLI:-}" ]]; then
+  log "Building JVM CLI distribution"
+  "$ROOT/frontend-kt/gradlew" -p "$ROOT/frontend-kt" :cli:installJvmDist
+fi
+
+E2E_CLI="${DSBUILDER_E2E_CLI:-$ROOT/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder}"
+export E2E_CLI
+if [[ "$uses_cli" == "true" && ! -x "$E2E_CLI" ]]; then
+  fail "CLI executable not found: $E2E_CLI. Set DSBUILDER_E2E_CLI to an existing executable."
+fi
+
+"$E2E_ROOT/seed/common.sh"
+
+for scenario in "${selected_scenarios[@]}"; do
+  log "Running scenario: $scenario"
+  "$SCENARIOS_DIR/$scenario.sh"
+done
+
+log "PASS: ${#selected_scenarios[@]} scenario(s)"
