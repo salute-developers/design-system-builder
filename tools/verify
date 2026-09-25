@@ -1,0 +1,393 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM_NAME="${0##*/}"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+MANIFEST="${ROOT:+$ROOT/.takt/verification.conf}"
+
+log() {
+  echo "[$PROGRAM_NAME] $*"
+}
+
+fail() {
+  echo "[$PROGRAM_NAME] $*" >&2
+  exit 1
+}
+
+[[ -n "$ROOT" ]] || fail "Run this command inside a Git repository"
+[[ -f "$MANIFEST" ]] || fail "Verification manifest not found: .takt/verification.conf"
+
+MANIFEST_VERSION=""
+BASE_REFS=()
+FORBIDDEN_PATH_SEGMENTS=()
+FORBIDDEN_FILE_NAMES=()
+FORBIDDEN_FILE_PREFIXES=()
+OPEN_SPEC_CHANGES_PATH=""
+PROCESS_PATHS=()
+PROCESS_COMMANDS=()
+PROTECTED_PATHS=()
+CONTOURS=()
+
+verification_version() {
+  MANIFEST_VERSION="$1"
+}
+
+base_ref() {
+  BASE_REFS+=("$1")
+}
+
+forbidden_path_segment() {
+  FORBIDDEN_PATH_SEGMENTS+=("$1")
+}
+
+forbidden_file_name() {
+  FORBIDDEN_FILE_NAMES+=("$1")
+}
+
+forbidden_file_prefix() {
+  FORBIDDEN_FILE_PREFIXES+=("$1")
+}
+
+openspec_changes_path() {
+  OPEN_SPEC_CHANGES_PATH="$1"
+}
+
+process_path() {
+  PROCESS_PATHS+=("$1")
+}
+
+process_command() {
+  local cwd="$1"
+  local command="$2"
+  PROCESS_COMMANDS+=("$cwd"$'\t'"$command")
+}
+
+protected_path() {
+  local name="$1"
+  local permission="$2"
+  local paths="$3"
+  local openspec_markers="$4"
+  PROTECTED_PATHS+=("$name"$'\t'"$permission"$'\t'"$paths"$'\t'"$openspec_markers")
+}
+
+contour() {
+  local name="$1"
+  local changed_path="$2"
+  local cwd="$3"
+  local fast_command="$4"
+  local full_command="$5"
+  local audit_command="$6"
+  local compare_command="$7"
+  CONTOURS+=("$name"$'\t'"$changed_path"$'\t'"$cwd"$'\t'"$fast_command"$'\t'"$full_command"$'\t'"$audit_command"$'\t'"$compare_command")
+}
+
+# shellcheck source=/dev/null
+source "$MANIFEST"
+
+[[ "$MANIFEST_VERSION" == "1" ]] || fail "Unsupported verification manifest version: $MANIFEST_VERSION"
+[[ -n "$OPEN_SPEC_CHANGES_PATH" ]] || fail "OpenSpec changes path is missing from verification manifest"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/verify <fast|full|audit> [--base <ref>] [--change <name>] [--all] [--dry-run]
+  tools/verify policy
+  tools/verify snapshot
+
+fast      Runs configured FAST commands for changed repository contours.
+full      Runs configured FULL commands and Strictacode compare gates.
+audit     Writes Strictacode reports for selected repository contours.
+policy    Checks protected paths for the current TAKT run.
+snapshot  Prints protected-path fingerprints for tools/task.
+
+Environment:
+  DSBUILDER_VERIFY_BASE  Base ref used when --base is omitted.
+USAGE
+}
+
+mode="${1:-}"
+case "$mode" in
+  fast|full|audit|policy|snapshot) shift ;;
+  --help|-h|help|"") usage; exit 0 ;;
+  *) fail "Expected verification mode 'fast', 'full', 'audit', 'policy', or 'snapshot', got: $mode" ;;
+esac
+
+base="${DSBUILDER_VERIFY_BASE:-}"
+change_name=""
+dry_run="false"
+all_contours="false"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --base)
+      [[ -n "${2:-}" ]] || fail "--base requires a value"
+      base="$2"
+      shift 2
+      ;;
+    --change)
+      [[ -n "${2:-}" ]] || fail "--change requires a value"
+      change_name="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run="true"
+      shift
+      ;;
+    --all)
+      all_contours="true"
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *) fail "Unknown option: $1" ;;
+  esac
+done
+
+protected_fingerprint() {
+  local paths_spec="$1"
+  local paths=()
+  local file
+  IFS='|' read -r -a paths <<< "$paths_spec"
+  {
+    git -C "$ROOT" ls-files --cached --others --exclude-standard -- "${paths[@]}" |
+      LC_ALL=C sort | while IFS= read -r file; do
+      if [[ -f "$ROOT/$file" ]]; then
+        printf '%s %s\n' "$(git -C "$ROOT" hash-object "$ROOT/$file")" "$file"
+      elif [[ -L "$ROOT/$file" ]]; then
+        printf 'symlink:%s %s\n' "$(readlink "$ROOT/$file")" "$file"
+      else
+        printf 'missing %s\n' "$file"
+      fi
+    done
+  } | git -C "$ROOT" hash-object --stdin
+}
+
+protected_snapshot() {
+  local record name permission paths_spec markers_spec fingerprint
+  local result=""
+  local separator=""
+  for record in "${PROTECTED_PATHS[@]}"; do
+    IFS=$'\t' read -r name permission paths_spec markers_spec <<< "$record"
+    fingerprint="$(protected_fingerprint "$paths_spec")"
+    result+="$separator$name=$fingerprint"
+    separator=","
+  done
+  printf '%s\n' "$result"
+}
+
+if [[ "$mode" == "snapshot" ]]; then
+  protected_snapshot
+  exit 0
+fi
+
+snapshot_value() {
+  local snapshot="$1"
+  local name="$2"
+  printf '%s\n' "$snapshot" | tr ',' '\n' | sed -n "s/^${name}=//p" | head -n 1
+}
+
+openspec_authorizes() {
+  local start_head="$1"
+  local current_change="$2"
+  local markers_spec="$3"
+  local markers=()
+  local grep_args=(grep -F -i -q)
+  local marker archived_name
+  local candidate_paths=("$OPEN_SPEC_CHANGES_PATH/$current_change")
+
+  IFS='|' read -r -a markers <<< "$markers_spec"
+  for marker in "${markers[@]}"; do
+    grep_args+=(-e "$marker")
+  done
+  while IFS= read -r archived_name; do
+    [[ "$archived_name" == *-"$current_change" ]] || continue
+    candidate_paths+=("$OPEN_SPEC_CHANGES_PATH/archive/$archived_name")
+  done < <(git -C "$ROOT" ls-tree -d --name-only "$start_head:$OPEN_SPEC_CHANGES_PATH/archive" 2>/dev/null || true)
+
+  git -C "$ROOT" "${grep_args[@]}" "$start_head" -- "${candidate_paths[@]}" 2>/dev/null
+}
+
+permission_present() {
+  local permissions="$1"
+  local permission="$2"
+  [[ "$permissions" != "-" && ",$permissions," == *",$permission,"* ]]
+}
+
+check_protected_policy() {
+  local context_file="$ROOT/.takt/task-run-context"
+  [[ -f "$context_file" ]] || return 0
+
+  local current_change start_head explicit_permissions start_snapshot
+  current_change="$(sed -n '2p' "$context_file")"
+  start_head="$(sed -n '3p' "$context_file")"
+  explicit_permissions="$(sed -n '4p' "$context_file")"
+  start_snapshot="$(sed -n '5p' "$context_file")"
+  [[ -n "$current_change" && -n "$start_head" && -n "$explicit_permissions" && -n "$start_snapshot" ]] || \
+    fail "Incomplete TAKT run context for protected-path policy"
+
+  local record name permission paths_spec markers_spec baseline current
+  for record in "${PROTECTED_PATHS[@]}"; do
+    IFS=$'\t' read -r name permission paths_spec markers_spec <<< "$record"
+    baseline="$(snapshot_value "$start_snapshot" "$name")"
+    [[ -n "$baseline" ]] || fail "Missing '$name' fingerprint in TAKT run context"
+    current="$(protected_fingerprint "$paths_spec")"
+    [[ "$current" != "$baseline" ]] || continue
+    if permission_present "$explicit_permissions" "$permission"; then
+      log "Protected path '$name' explicitly authorized by the developer"
+      continue
+    fi
+    if openspec_authorizes "$start_head" "$current_change" "$markers_spec"; then
+      log "Protected path '$name' authorized by approved OpenSpec: $current_change"
+      continue
+    fi
+    fail "TAKT changed protected path '$name' without explicit developer or approved OpenSpec authorization. Revert the change, update and approve OpenSpec, or restart with the matching explicit permission."
+  done
+}
+
+check_protected_policy
+if [[ "$mode" == "policy" ]]; then
+  log "PASS: protected-path policy"
+  exit 0
+fi
+
+ref_exists() {
+  git -C "$ROOT" rev-parse --verify --quiet "$1^{commit}" >/dev/null
+}
+
+detect_base() {
+  local branch configured candidate
+  branch="$(git -C "$ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  if [[ -n "$branch" ]]; then
+    configured="$(git -C "$ROOT" config --get "branch.$branch.dsbuilderBase" 2>/dev/null || true)"
+    if [[ -n "$configured" ]]; then
+      echo "$configured"
+      return
+    fi
+  fi
+  for candidate in "${BASE_REFS[@]}"; do
+    if ref_exists "$candidate"; then
+      echo "$candidate"
+      return
+    fi
+  done
+  echo "HEAD"
+}
+
+[[ -n "$base" ]] || base="$(detect_base)"
+ref_exists "$base" || fail "Base ref does not exist: $base"
+merge_base="$(git -C "$ROOT" merge-base HEAD "$base" 2>/dev/null || git -C "$ROOT" rev-parse "$base^{commit}")"
+
+changed_file_list="$(mktemp "${TMPDIR:-/tmp}/dsbuilder-verify.XXXXXX")"
+cleanup() { rm -f "$changed_file_list"; }
+trap cleanup EXIT
+{
+  git -C "$ROOT" diff --name-only --diff-filter=ACMRD "$merge_base"
+  git -C "$ROOT" ls-files --others --exclude-standard
+} | sed '/^$/d' | sort -u > "$changed_file_list"
+
+path_changed() {
+  local configured_path="$1"
+  local file
+  while IFS= read -r file; do
+    [[ "$file" == "$configured_path" || "$file" == "$configured_path/"* ]] && return 0
+  done < "$changed_file_list"
+  return 1
+}
+
+check_forbidden_files() {
+  local file basename value
+  while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    basename="${file##*/}"
+    for value in "${FORBIDDEN_PATH_SEGMENTS[@]}"; do
+      case "/$file/" in
+        *"/$value/"*) fail "Forbidden generated or local file is part of the change: $file" ;;
+      esac
+    done
+    for value in "${FORBIDDEN_FILE_NAMES[@]}"; do
+      [[ "$basename" != "$value" ]] || fail "Forbidden generated or local file is part of the change: $file"
+    done
+    for value in "${FORBIDDEN_FILE_PREFIXES[@]}"; do
+      [[ "$basename" != "$value"* ]] || fail "Forbidden generated or local file is part of the change: $file"
+    done
+  done < "$changed_file_list"
+}
+
+run_command() {
+  local cwd="$1"
+  local command="$2"
+  if [[ "$dry_run" == "true" ]]; then
+    log "DRY RUN ($cwd): $command"
+    return
+  fi
+  log "Running in $cwd: $command"
+  (cd "$ROOT/$cwd" && bash -c "$command")
+}
+
+run_argv() {
+  local cwd="$1"
+  shift
+  if [[ "$dry_run" == "true" ]]; then
+    printf '[%s] DRY RUN (%s):' "$PROGRAM_NAME" "$cwd"
+    printf ' %q' "$@"
+    printf '\n'
+    return
+  fi
+  log "Running in $cwd: $*"
+  (cd "$ROOT/$cwd" && "$@")
+}
+
+validate_openspec() {
+  local names_file name
+  names_file="$(mktemp "${TMPDIR:-/tmp}/dsbuilder-openspec.XXXXXX")"
+  if [[ -n "$change_name" ]]; then
+    printf '%s\n' "$change_name" > "$names_file"
+  else
+    sed -n "s#^${OPEN_SPEC_CHANGES_PATH}/\([^/]*\)/.*#\1#p" "$changed_file_list" |
+      sed '/^archive$/d' | sort -u > "$names_file"
+  fi
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    run_argv . openspec validate "$name" --type change --strict --no-interactive
+  done < "$names_file"
+  rm -f "$names_file"
+}
+
+check_forbidden_files
+
+process_changed="false"
+for configured_path in "${PROCESS_PATHS[@]}"; do
+  if path_changed "$configured_path"; then
+    process_changed="true"
+    break
+  fi
+done
+if [[ "$process_changed" == "true" ]]; then
+  for record in "${PROCESS_COMMANDS[@]}"; do
+    IFS=$'\t' read -r cwd command <<< "$record"
+    run_command "$cwd" "$command"
+  done
+fi
+
+validate_openspec
+
+for record in "${CONTOURS[@]}"; do
+  IFS=$'\t' read -r name changed_path cwd fast_command full_command audit_command compare_command <<< "$record"
+  [[ "$all_contours" == "true" ]] || path_changed "$changed_path" || continue
+  log "Changed contour: $name"
+  case "$mode" in
+    fast)
+      run_command "$cwd" "$fast_command"
+      ;;
+    full)
+      run_command "$cwd" "$full_command"
+      run_command "$cwd" "$compare_command"
+      ;;
+    audit)
+      run_command "$cwd" "$audit_command"
+      ;;
+  esac
+done
+
+log "PASS: $mode verification against $base"

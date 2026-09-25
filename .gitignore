@@ -3,6 +3,12 @@
 
 ### Node ###
 # Logs
+.takt/tasks.yaml
+.takt/tasks/
+.takt/runs/
+.takt/events/
+.takt/worktrees/
+.worktrees/
 .idea
 logs
 *.log
@@ -157,3 +163,7 @@ frontend-kt/cli/.sdds/
 local.properties
 .gigaide
 **/.sdds/**/
+
+# Local E2E reports and isolated CLI state
+e2e/artifacts/
+.codex/config.toml

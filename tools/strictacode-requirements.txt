@@ -1,0 +1,1 @@
+strictacode==0.0.12

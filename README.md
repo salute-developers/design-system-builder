@@ -9,7 +9,125 @@
 - `js/` — существующие React-приложения и Node.js-сервисы.
 - `openspec/` — архитектурные ADR, спецификации и история изменений.
 
-Agent skills и команды OpenSpec находятся в корневых `.claude/`, `.cursor/` и `.gigacode/`.
+Agent skills и команды OpenSpec находятся в корневых `.agents/`, `.claude/`, `.cursor/` и `.gigacode/`.
+
+## Инструменты агентской разработки
+
+Процесс разработки использует TAKT, OpenSpec и Strictacode. Репозиторий проверен со следующими
+версиями:
+
+- TAKT `0.66.0`;
+- OpenSpec `1.6.0`;
+- Strictacode `0.0.12`.
+
+Для TAKT нужен Node.js `22.22.0` или новее. Установите TAKT и OpenSpec глобально через npm:
+
+```bash
+npm install --global takt@0.66.0 @fission-ai/openspec@1.6.0
+```
+
+Strictacode устанавливается изолированно через [pipx](https://pipx.pypa.io/). На macOS можно
+подготовить `pipx` и установить зафиксированную для репозитория версию так:
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install strictacode==0.0.12
+```
+
+Версия Strictacode также записана в `tools/strictacode-requirements.txt`.
+
+Проверьте установку:
+
+```bash
+takt --version
+openspec --version
+strictacode --help
+```
+
+При первом обращении к workflow TAKT предложит выбрать язык и agent provider. Выберите подходящий
+установленный и авторизованный provider, например `Codex`. Репозиторий не хранит персональную
+конфигурацию provider. После настройки проверьте оба workflow:
+
+```bash
+takt --pipeline workflow doctor dsbuilder-openspec dsbuilder-openspec-followup
+openspec validate --all --strict --no-interactive
+```
+
+### Codex внутри TAKT
+
+TAKT запускает Codex как отдельный процесс. Этому процессу нужно записывать
+сессии и SQLite state, поэтому `tools/task` использует отдельный общий каталог,
+доступный из всех checkout и worktree:
+
+```bash
+mkdir -p "$HOME/.cache/dsbuilder-takt-codex"
+CODEX_HOME="$HOME/.cache/dsbuilder-takt-codex" codex login
+```
+
+Когда в `~/.takt/runtime.yaml` выбран provider `codex`, helper передаёт этот
+каталог каждому основному, follow-up и resume запуску. Другие providers не
+получают переопределение `CODEX_HOME`. Нестандартный путь можно задать через
+`DSBUILDER_TAKT_CODEX_HOME`; он должен быть абсолютным.
+
+### Gradle в sandbox Codex
+
+Gradle записывает wrapper distributions, зависимости, metadata и lock-файлы в
+`GRADLE_USER_HOME`. Sandbox Codex не разрешает запись в стандартный `~/.gradle`,
+поэтому для Codex и TAKT используется отдельный общий cache. Один каталог можно
+использовать во всех checkout и worktree:
+
+```bash
+mkdir -p "$HOME/.cache/codex-gradle" "$HOME/.cache/dsbuilder-takt-codex"
+```
+
+Добавьте абсолютный путь к каталогу в пользовательский `~/.codex/config.toml`.
+TOML не подставляет `$HOME` или `~`, поэтому замените `<username>` своим именем
+пользователя:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = [
+    "/Users/<username>/.cache/codex-gradle",
+    "/Users/<username>/.cache/dsbuilder-takt-codex",
+]
+
+[shell_environment_policy]
+set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
+```
+
+У внутреннего Codex свой файл конфигурации. Создайте
+`~/.cache/dsbuilder-takt-codex/config.toml` с минимальным доступом, необходимым
+для сборки в TAKT:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = ["/Users/<username>/.cache/codex-gradle"]
+
+[shell_environment_policy]
+set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
+```
+
+Так внутренний агент получает общий Gradle cache, но не наследует остальные
+дополнительные writable roots внешнего Codex.
+
+Перезапустите Codex после изменения конфигурации: уже запущенная задача не
+получит новый writable root. Эти каталоги не находятся в Git. В Gradle cache
+хранится одна скачанная distribution на версию и общий cache зависимостей для
+всех worktree; проектные `.gradle` и `build` остаются отдельными. Каталог TAKT
+Codex содержит авторизацию, сессии и служебную базу только внутренних агентов.
+
+Перед запуском цикла `tools/task` проверяет, что каталог TAKT Codex доступен для
+записи и авторизован. Поэтому ошибка конфигурации обнаруживается до запуска
+workflow. Авторизация обычного `~/.codex` не переносится автоматически в этот
+изолированный каталог.
+
+Рабочий процесс, команды для веток и worktree, TAKT-цикл и проверки описаны в
+[`.takt/PROCESS.md`](./.takt/PROCESS.md).
 
 ## Основные команды
 
@@ -82,6 +200,20 @@ cp js/.env.example js/.env
 ./js/setup-docker.sh
 ./backend-kt/start-local.sh --detach
 ```
+
+## Backend E2E
+
+Сквозные backend-сценарии используют обычный общий локальный контур из `setup-local.sh`, обращаются к нему через
+публичный Gateway с реальной авторизацией и при необходимости вызывают JVM CLI `dsbuilder`:
+
+```bash
+./tools/e2e all
+./tools/e2e api-project-access
+./tools/e2e cli-auth-session
+```
+
+E2E запускает разработчик, CI или внешний оркестратор, но не TAKT. Структура сценариев и правила тестовых данных
+описаны в [`e2e/README.md`](./e2e/README.md).
 
 `js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes, собирает контейнеры,
 запускает миграции и seed базы, а затем поднимает Node.js-сервисы, client и admin. Поэтому локальные данные JS-базы при

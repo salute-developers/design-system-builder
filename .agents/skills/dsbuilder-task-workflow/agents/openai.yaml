@@ -1,0 +1,6 @@
+interface:
+  display_name: "DS Builder Task Workflow"
+  short_description: "Управление OpenSpec и TAKT задачами"
+  default_prompt: "Используй $dsbuilder-task-workflow, чтобы начать или продолжить задачу DS Builder через Git worktree, OpenSpec и TAKT."
+policy:
+  allow_implicit_invocation: true

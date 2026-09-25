@@ -31,22 +31,43 @@ val spotlessApplyAll = tasks.register("spotlessApplyAll") {
     dependsOn(includedTasks)
 }
 
-subprojects.forEach { subproject ->
-    subproject.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
+val testAll = tasks.register("testAll") {
+    group = "verification"
+    description = "Runs every test task in this build."
+}
+
+val buildAll = tasks.register("buildAll") {
+    group = "build"
+    description = "Builds every project in this build."
+}
+
+allprojects.forEach { project ->
+    project.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
         detektAll.configure {
-            dependsOn("${subproject.path}:detekt")
+            dependsOn("${project.path}:detekt")
         }
     }
-    subproject.pluginManager.withPlugin("com.diffplug.spotless") {
+    project.pluginManager.withPlugin("com.diffplug.spotless") {
         spotlessCheckAll.configure {
-            dependsOn("${subproject.path}:spotlessCheck")
+            dependsOn("${project.path}:spotlessCheck")
         }
         spotlessApplyAll.configure {
-            dependsOn("${subproject.path}:spotlessApply")
+            dependsOn("${project.path}:spotlessApply")
         }
     }
 }
 
+testAll.configure {
+    allprojects.forEach { project ->
+        dependsOn(project.tasks.matching { it.name == "test" || it.name == "allTests" })
+    }
+}
+
+buildAll.configure {
+    allprojects.forEach { project ->
+        dependsOn(project.tasks.matching { it.name == "build" })
+    }
+}
 
 tasks.register("mergeReports") {
     val includedMergeTasks = gradle

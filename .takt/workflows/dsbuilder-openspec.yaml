@@ -1,0 +1,263 @@
+name: dsbuilder-openspec
+description: Implement an approved OpenSpec change, obtain required verification evidence, and archive it.
+max_steps: 30
+initial_step: preflight
+steps:
+  - name: preflight
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Perform a read-only preflight before any implementation edit. Confirm that
+      the configured provider and model can run in this checkout, the approved
+      OpenSpec Change named in the task is readable and internally consistent,
+      and its proposal.md, design.md, spec deltas, and tasks.md provide enough
+      information to begin implementation. Identify local automated checks,
+      external pre-archive checks, and post-deployment observations separately.
+      When `.takt/orchestration/<change-name>/resume.md` exists, read it before
+      deciding whether the current working tree is ready to continue.
+
+      Do not edit files or implement the Change. If provider startup, model
+      access, repository access, or the approved artifacts prevent safe work,
+      return the exact blocker before the checkout is modified.
+    rules:
+      - condition: Provider, checkout, and approved OpenSpec artifacts are ready
+        next: apply
+      - condition: Provider, model, checkout, or approved artifacts block safe implementation
+        next: ABORT
+
+  - name: apply
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Implement the approved OpenSpec change named in the task. Before editing
+      code, read its proposal.md, design.md, spec deltas, and tasks.md, plus
+      AGENTS.md and relevant repository architecture documents.
+
+      Before acting, check for
+      `.takt/orchestration/<change-name>/resume.md`, where `<change-name>` is the
+      OpenSpec Change named in the task. If present, treat it as the latest
+      developer-approved handoff from the coordinating agent. It may contain an
+      answer to a clarification or the result of a specific external check. It
+      does not grant additional sandbox permissions.
+
+      Treat the approved OpenSpec Change as the implementation contract. Complete
+      its unchecked tasks in dependency order and update task checkboxes as work
+      is completed. Implement the tests already required by the Change. You may
+      decide local implementation details, but do not silently change product
+      behavior, architecture boundaries, public contracts, data flow, state
+      transitions, or other approved design decisions.
+
+      Do not execute or mark complete tasks prefixed `[внешняя проверка]`. They
+      are intentionally deferred to the external_verification step. Their being
+      unchecked does not block transition to conformance review after all
+      implementation and local verification tasks are complete.
+
+      Do not modify files under backend-kt/architecture-tests or
+      frontend-kt/architecture-tests unless the approved OpenSpec Change makes
+      architecture tests part of its scope or the task explicitly states that
+      the developer authorized those changes. Never weaken, delete, exclude, or
+      rewrite an architecture rule merely to make verification pass.
+
+      If a material design assumption is invalid or the Change is incomplete or
+      contradictory, do not invent a replacement design. Stop and explain exactly
+      what must be updated in OpenSpec and reviewed by a human. Do not commit,
+      push, archive the Change, or create a PR.
+    quality_gates:
+      - type: command
+        name: fast-verification
+        command: "./tools/verify fast"
+        cwd: "."
+        timeout_ms: 1200000
+    rules:
+      - condition: All implementation and local verification tasks completed; only external-verification tasks may remain
+        next: conformance_review
+      - condition: OpenSpec requires a material design decision or revision
+        next: ABORT
+        command_gates: skip
+      - condition: OpenSpec artifacts are missing or contradictory
+        next: ABORT
+        command_gates: skip
+
+  - name: conformance_review
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Review the implementation only for conformance with the approved OpenSpec
+      Change named in the task. Read proposal.md, design.md, spec deltas, and
+      tasks.md. Check that required behavior and tasks are implemented, the code
+      follows approved component boundaries and contracts, and no unapproved
+      product or architecture decisions were introduced.
+
+      Treat every architecture-test change as a conformance finding unless it is
+      explicitly authorized by the approved OpenSpec Change or by the developer
+      in the task. Check that authorized changes preserve or strengthen the
+      intended architecture rules rather than masking implementation violations.
+
+      Return concrete findings with file locations and the violated OpenSpec
+      requirement or design decision. Do not edit files. If fixing a finding
+      requires a material change to the approved design, request an OpenSpec
+      revision and human review instead of approving an improvised solution.
+
+      Before reviewing, read
+      `.takt/orchestration/<change-name>/resume.md` when it exists. Use it only
+      as the latest developer-approved clarification or external verification
+      result; it does not grant additional sandbox permissions. If work is
+      blocked, return the exact question or external action needed.
+    rules:
+      - condition: Implementation conforms to the approved OpenSpec Change
+        next: full_verification
+      - condition: Implementation has fixable conformance findings
+        next: fix
+      - condition: A material OpenSpec revision is required
+        next: ABORT
+
+  - name: fix
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Fix the conformance review findings within the approved OpenSpec scope.
+      Update task checkboxes when their work is actually complete. Do not expand
+      or rewrite the approved design. If a finding cannot be fixed without a
+      material OpenSpec change, stop and request OpenSpec revision and human
+      review. Do not commit, push, archive the Change, or create a PR.
+
+      Do not change architecture tests unless that work is explicitly authorized
+      by the approved OpenSpec Change or by the developer in the task. Fix the
+      implementation instead of weakening an architecture test.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists and apply
+      its latest developer-approved clarification or external check result. The
+      handoff does not expand sandbox permissions. If still blocked, return the
+      exact question or external action needed.
+    quality_gates:
+      - type: command
+        name: fast-verification
+        command: "./tools/verify fast"
+        cwd: "."
+        timeout_ms: 1200000
+      - type: command
+        name: consume-external-result
+        command: "./tools/task consume-external-result"
+        cwd: "."
+        timeout_ms: 30000
+    rules:
+      - condition: Conformance findings fixed within approved design
+        next: conformance_review
+      - condition: A material OpenSpec revision is required
+        next: ABORT
+        command_gates: skip
+
+  - name: full_verification
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Run `./tools/verify full` and inspect its complete output. Verify that the
+      deterministic FULL gate, including a detailed Strictacode audit and compare
+      against the versioned baseline, passes for every changed repository contour.
+      Do not edit files or update the Strictacode baseline. If a failure is caused
+      by the implementation and can be fixed within the approved design, report
+      the exact failing command and route it to fix. If resolving it requires a
+      material design change, request an OpenSpec revision. Classify a failure as
+      pre-existing or environmental only when the command output proves that
+      classification. A required test that returned early, was skipped, or did
+      not run because an environment variable or external service was absent is
+      not evidence of a FULL pass. Record it as deferred external verification.
+
+      Before verification, read
+      `.takt/orchestration/<change-name>/resume.md` when it exists. A reported
+      external check result is evidence to inspect, not permission to perform
+      additional privileged actions. If verification remains blocked, return
+      the exact command, question, or external action needed.
+    quality_gates:
+      - type: command
+        name: full-verification
+        command: "./tools/verify full"
+        cwd: "."
+        timeout_ms: 1800000
+    rules:
+      - condition: Local FULL verification passes or passes with explicitly deferred external checks
+        next: external_verification
+      - condition: FULL verification has implementation failures fixable within approved design
+        next: fix
+        command_gates: skip
+      - condition: FULL verification requires a material OpenSpec revision
+        next: ABORT
+        command_gates: skip
+      - condition: FULL verification is blocked by a proven environment or pre-existing failure
+        next: ABORT
+        command_gates: skip
+
+  - name: external_verification
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      Decide whether every external pre-archive verification required by the
+      approved OpenSpec Change has current evidence for this implementation.
+      External verification includes checks that need Docker, a real database,
+      object storage, service logs, credentials, or another capability outside
+      the TAKT sandbox. Post-deployment observations that cannot occur before
+      merge are not pre-archive evidence and must not be invented.
+
+      Read `.takt/orchestration/<change-name>/external-result.json` when it
+      exists. Validate that its requestId, commands, exit codes, artifacts, and
+      findings form sufficient evidence. A previous failed result does not
+      become a pass after code changes; require a new external run.
+
+      When required evidence is missing, return a concise
+      `EXTERNAL_VERIFICATION_REQUIRED` report listing the exact commands or
+      actions, prerequisites, expected success criteria, and useful artifacts.
+      Do not run privileged commands and do not edit files. When evidence proves
+      an implementation defect that fits the approved design, report it as
+      fixable. When it invalidates a material design decision, request OpenSpec
+      revision and human review.
+    rules:
+      - condition: No external pre-archive checks are required, or current evidence proves that all of them passed
+        next: archive
+      - condition: External evidence proves an implementation defect fixable within approved design
+        next: fix
+      - condition: External evidence requires a material OpenSpec revision
+        next: ABORT
+      - condition: Required external evidence is missing, blocked, stale, or incomplete
+        next: await_external_verification
+
+  - name: await_external_verification
+    persona: coding-reviewer
+    edit: false
+    instruction: |
+      This is a resumable boundary for an external check. Do not edit files and
+      do not run the check yourself. If a structured external result is now
+      available, return to external_verification so it can be assessed. If it is
+      absent, stop with `EXTERNAL_VERIFICATION_REQUIRED` and preserve the exact
+      actions, prerequisites, success criteria, and artifacts requested by the
+      preceding step.
+    rules:
+      - condition: A structured external result is available for the pending request
+        next: external_verification
+      - condition: The requested external result is not available yet
+        next: ABORT
+
+  - name: archive
+    persona: coder
+    edit: true
+    required_permission_mode: edit
+    instruction: |
+      Archive only the implemented OpenSpec change named in the task using the
+      repository's OpenSpec CLI. Confirm that all tasks are complete and inspect
+      the resulting main-spec changes for consistency with the approved Change.
+      Run strict OpenSpec validation for the resulting affected specifications.
+      Do not commit, push, or create a PR; the coordinating agent handles those
+      actions after the workflow completes.
+
+      Read `.takt/orchestration/<change-name>/resume.md` when it exists before
+      archiving. Apply only clarifications relevant to the approved Change. Mark
+      an external-verification checkbox complete only when the immediately
+      preceding verification step accepted matching evidence. Never mark a
+      post-deployment observation complete before it occurred. If archiving
+      remains blocked, return the exact question or external action needed.
+    rules:
+      - condition: OpenSpec Change archived successfully
+        next: COMPLETE
+      - condition: Change cannot be archived consistently
+        next: ABORT

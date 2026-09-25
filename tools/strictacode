@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM_NAME="${0##*/}"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+REPORT_ROOT="${ROOT:+$ROOT/.takt/strictacode-reports}"
+BASELINE_ROOT="${ROOT:+$ROOT/.takt/strictacode-baseline}"
+
+log() {
+  echo "[$PROGRAM_NAME] $*"
+}
+
+fail() {
+  echo "[$PROGRAM_NAME] $*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/strictacode audit <name> <path>
+  tools/strictacode compare <name> <path>
+  tools/strictacode baseline <name> <path>
+  tools/strictacode audit-set <name:path>...
+  tools/strictacode compare-set <name:path>...
+  tools/strictacode baseline-set <name:path>...
+
+audit     Write a detailed current report under .takt/strictacode-reports.
+compare   Analyze current code and fail when project metrics exceed baseline.
+baseline  Replace the versioned baseline with metrics from current code.
+*-set     Run the corresponding command for several independently analyzed roots.
+USAGE
+}
+
+[[ -n "$ROOT" ]] || fail "Run this command inside a Git repository"
+
+command_name="${1:-}"
+case "$command_name" in
+  audit|compare|baseline|audit-set|compare-set|baseline-set) shift ;;
+  --help|-h|help|"") usage; exit 0 ;;
+  *) fail "Unknown command: $command_name" ;;
+esac
+
+if [[ "$command_name" == *-set ]]; then
+  [[ $# -gt 0 ]] || fail "$command_name requires at least one <name:path> value"
+  single_command="${command_name%-set}"
+  for target in "$@"; do
+    [[ "$target" == *:* ]] || fail "Invalid analysis target: $target"
+    target_name="${target%%:*}"
+    target_path="${target#*:}"
+    [[ -n "$target_name" && -n "$target_path" ]] || fail "Invalid analysis target: $target"
+    "$0" "$single_command" "$target_name" "$target_path"
+  done
+  exit 0
+fi
+
+[[ $# -eq 2 ]] || fail "$command_name requires <name> and <path>"
+name="$1"
+project_path="$2"
+[[ "$name" =~ ^[a-z0-9-]+$ ]] || fail "Invalid report name: $name"
+
+if [[ "$project_path" == /* ]]; then
+  project_root="$project_path"
+else
+  project_root="$PWD/$project_path"
+fi
+[[ -d "$project_root" ]] || fail "Project path does not exist: $project_root"
+[[ -f "$project_root/.strictacode.yml" || -f "$project_root/.strictacode.yaml" || -f "$project_root/.strictacode.json" ]] || \
+  fail "Strictacode language config not found in: $project_root"
+command -v strictacode >/dev/null 2>&1 || \
+  fail "strictacode is not installed; run: pipx install strictacode==0.0.12"
+
+mkdir -p "$REPORT_ROOT"
+current_report="$REPORT_ROOT/$name-current.json"
+diff_report="$REPORT_ROOT/$name-diff.json"
+baseline_report="$BASELINE_ROOT/$name.json"
+
+run_analysis() {
+  local npm_bin npm_shim
+
+  log "Analyzing $name in ${project_root#$ROOT/}"
+  (
+    if [[ "$name" == javascript-* ]]; then
+      [[ -d "$ROOT/js/node_modules/@babel/parser" && -d "$ROOT/js/node_modules/@babel/traverse" ]] || \
+        fail "JavaScript collector dependencies are missing; run: cd js && npm ci"
+      npm_bin="$(command -v npm)"
+      npm_shim="$(mktemp -d "${TMPDIR:-/tmp}/dsbuilder-strictacode-npm.XXXXXX")"
+      trap 'rm -rf "$npm_shim"' EXIT
+      cat > "$npm_shim/npm" <<'SH'
+#!/bin/sh
+if [ "$#" -eq 1 ] && [ "$1" = "root" ]; then
+  printf '%s\n' "$STRICTACODE_NODE_MODULES"
+  exit 0
+fi
+exec "$STRICTACODE_REAL_NPM" "$@"
+SH
+      chmod +x "$npm_shim/npm"
+      export STRICTACODE_NODE_MODULES="$ROOT/js/node_modules"
+      export STRICTACODE_REAL_NPM="$npm_bin"
+      export PATH="$npm_shim:$PATH"
+    fi
+    cd "$project_root"
+    strictacode analyze . \
+      --details \
+      --format json \
+      --top-packages 5 \
+      --top-modules 5 \
+      --top-classes 10 \
+      --top-methods 15 \
+      --top-functions 15 \
+      --output "$current_report"
+  )
+}
+
+run_analysis
+
+case "$command_name" in
+  audit)
+    log "Report: ${current_report#$ROOT/}"
+    ;;
+  compare)
+    [[ -f "$baseline_report" ]] || fail "Baseline not found: ${baseline_report#$ROOT/}"
+    # Strictacode rounds graph-based OP to an integer. A harmless source cleanup can move the
+    # rounded value by one point while score, density, and RP stay unchanged or improve.
+    strictacode compare "$baseline_report" "$current_report" \
+      --details \
+      --format json \
+      --threshold "SCORE=0,DENSITY=0,RP=0,OP=1" \
+      --output "$diff_report"
+    log "Regression check: PASS"
+    log "Diff report: ${diff_report#$ROOT/}"
+    ;;
+  baseline)
+    mkdir -p "$BASELINE_ROOT"
+    python3 - "$current_report" "$baseline_report" <<'PY'
+import json
+import sys
+
+source, destination = sys.argv[1:]
+with open(source, encoding="utf-8") as stream:
+    report = json.load(stream)
+with open(destination, "w", encoding="utf-8") as stream:
+    json.dump({"project": report["project"]}, stream, ensure_ascii=False, indent=2)
+    stream.write("\n")
+PY
+    log "Baseline updated: ${baseline_report#$ROOT/}"
+    ;;
+esac
