@@ -9,11 +9,12 @@ import {
     IconEducationOutline,
     IconBookOutline,
     IconLogout,
+    IconCloudUploadOutline,
 } from '@salutejs/plasma-icons';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { transliterateToSnakeCase, convertColor } from '../utils';
+import { transliterateToSnakeCase, convertColor, hasDraft, isDebugMode } from '../utils';
 import { IconDesignSystemLogo, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
@@ -29,6 +30,7 @@ import {
     Panel,
     Root,
     Separator,
+    StyledBasicButton,
     StyledIconButton,
     StyledPopup,
 } from './Main.styles';
@@ -66,6 +68,10 @@ export const Main = () => {
     const hasComponents = Boolean(components?.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isPopupOpen && !isEditingDesignSystem;
+    const hasUnpublishedChanges = Boolean(
+        designSystemName && designSystemVersion && hasDraft(designSystemName, designSystemVersion),
+    );
+    const isPublishButtonVisible = isEditingDesignSystem && !isPopupOpen && hasUnpublishedChanges;
 
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
@@ -147,9 +153,16 @@ export const Main = () => {
         rerender(null);
     };
 
+    const onDesignSystemPublish = () => {
+        setIsPopupOpen(true);
+        setPopupContentPage(popupContentPages.PUBLISH_PROGRESS);
+    };
+
     const onPublishComplete = () => {
         onClickPanelButton('overview');
         onPopupClose();
+
+        reload();
     };
 
     const handleSignOut = () => {
@@ -254,7 +267,14 @@ export const Main = () => {
                     onDesignSystemCreate,
                 }}
             />
-            {isEditingDesignSystem && (
+            {isPublishButtonVisible && (
+                <StyledBasicButton
+                    text="Опубликовать"
+                    contentRight={<IconCloudUploadOutline size="xs" color="inherit" />}
+                    onClick={onDesignSystemPublish}
+                />
+            )}
+            {isEditingDesignSystem && isDebugMode() && (
                 <Debug
                     designSystem={designSystem}
                     theme={theme}

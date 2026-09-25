@@ -119,6 +119,7 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
 
             reply.status(200).send({
                 message: publishResponse,
+                version,
             });
         } catch (err) {
             console.error(typeof err, err);
