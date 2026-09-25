@@ -1,8 +1,8 @@
 import styled, { CSSObject } from 'styled-components';
-import { h1, textPrimary } from '@salutejs/plasma-themes/tokens/plasma_infra';
+import { h1, textPrimary, textSecondary, textTertiary } from '@salutejs/plasma-themes/tokens/plasma_infra';
 
 import { h6 } from '../../utils';
-import { Progress } from '../../components';
+import { InstallCommand, Progress } from '../../components';
 
 export const Root = styled.div`
     display: flex;
@@ -32,7 +32,7 @@ export const StyledDesignSystemName = styled.div`
 
 export const StyledDescription = styled.div`
     position: absolute;
-    width: 17.5rem;
+    width: 22rem;
     left: 50%;
     transform: translateX(-50%) translateY(-1.875rem);
 
@@ -47,9 +47,33 @@ export const StyledStatus = styled.div`
     ${h6 as CSSObject};
 `;
 
+export const StyledError = styled.div`
+    color: ${textSecondary};
+    text-align: center;
+    word-break: break-word;
+    ${h6 as CSSObject};
+`;
+
 export const StyledVersion = styled.div`
     color: ${textPrimary};
     ${h1 as CSSObject};
 `;
 
-export const StyledProgress = styled(Progress)``;
+export const StyledPackageName = styled.div`
+    color: ${textTertiary};
+    ${h6 as CSSObject};
+`;
+
+export const StyledInstallCommand = styled(InstallCommand)`
+    width: 100%;
+`;
+
+export const StyledActions = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+`;
+
+export const StyledProgress = styled(Progress)`
+    width: 17.5rem;
+`;

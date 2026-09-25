@@ -94,6 +94,7 @@ export const BuilderExpandedItems = styled.div`
 
 export const StyledBasicButton = styled(BasicButton)`
     position: absolute;
+    z-index: 10000;
 
     width: 13.5rem;
     bottom: 1rem;
