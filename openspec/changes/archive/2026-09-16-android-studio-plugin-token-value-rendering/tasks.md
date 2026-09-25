@@ -1,0 +1,51 @@
+## 1. Типизированная модель значения токена
+
+- [x] 1.1 Сверить форму значений со схемой: `db-service` значение не валидирует (`value` — непровалидированный `jsonb`), авторитетный источник — `js/apps/client/src/controllers/themeBuilder/tokens/*/types.ts`. Результат: `shape.kind` — только `'round'`; `gradient.kind` — 4 варианта (`linear`/`radial`/`angular`/`color`), с асимметрией полей android/ios у `radial`/`angular`; ios `typography.weight` — enum из 9 значений (`black`/`bold`/`heavy`/`light`/`medium`/`regular`/`semibold`/`thin`/`ultraLight`). Design.md обновлён под полную форму
+- [x] 1.2 Добавить sealed-модель `TokenValuePayload` в пакет `tokens` плагина (`ColorValue`, `ShapeValue`, `SpacingValue`, `GradientValue(layers)`, `ShadowValue(layers)`, `TypographyValue`, `Unsupported`) — `TokenValuePayload.kt`, плюс `GradientLayer` (4 варианта) и `ShadowLayerValue`
+- [x] 1.3 Реализовать per-type парсер JSON → `TokenValuePayload` (`TokenValueParser.kt`), зеркалящий контракт `TokenValueNormalizer`: отдельные ветки разбора для `android`- и `ios`-форм, typography из обеих платформ сводится к одной нормализованной модели
+- [x] 1.4 Неизвестный `kind` у `shape`/`gradient` и не сопоставленный `weight` у `typography` (ios) не приводят к исключению — парсер возвращает `Unsupported` (все геттеры через безопасные `as?`-касты, без `.jsonPrimitive`/исключений), `weight` — фолбэк на `400` (`FontWeight.Normal`)
+- [x] 1.5 `TokenValue` получил поле `wireValue: JsonElement?` (исходный JSON, заполняется в `HttpDesignSystemDataClient.listTokenValues` рядом с `rawValue`); `TokenWithValue.payload` — вычисляемое свойство, зовущее `parseTokenValuePayload(token.type, value?.platform, value?.wireValue)` в точке, где тип токена уже известен
+- [x] 1.6 `TokenValueParserTest.kt` — по кейсу на тип на `android`/`ios`-форму из данных сидов (включая все 4 `kind` градиента и multi-layer тень), плюс неизвестный `kind`/`weight` (фолбэк без исключения) и `web`/`null` → `Unsupported`; `HttpDesignSystemDataClientTest` дополнен assertion на `wireValue`
+
+## 2. Проверка API `sdds-uikit-compose`
+
+- [x] 2.1 Разрешено через Gradle-кэш (`uikit-compose-jvm-0.51.0.jar`), декомпилировано `javap`: `Gradients.Linear/Radial/Sweep`, `ShadowLayer`, `ShadowAppearance`, `Modifier.shadow(appearance, shape)` — все публичные, сигнатуры совпадают с тем, что читалось из `plasma-android` HEAD. Версионный разрыв не подтвердился
+- [x] 2.2 Не потребовалось — все нужные символы доступны как есть в `0.51.0`
+
+## 3. Рендер `shape`/`spacing` (без внешней зависимости)
+
+- [x] 3.1 `ShapeSwatch` в `TokenList.kt`: `ShapeValue(cornerRadius)` → `RoundedCornerShape(cornerRadius.dp)`, квадрат `SWATCH_SIZE`, заливка нейтральным `NEUTRAL_SWATCH_COLOR` (у формы нет собственного цвета)
+- [x] 3.2 `SpacingBar`: `SpacingValue(value)` → полоска высотой `SPACING_BAR_HEIGHT` шириной `value.dp`, зажатой сверху `spacingPreviewWidthDp`/`MAX_SPACING_PREVIEW_DP`, чтобы большие значения не ломали строку списка; точное значение остаётся в подписи (`describeValue`)
+- [x] 3.3 `SpacingPreviewWidthTest`/`DescribeValueTest` в `TokenListTest.kt` — клэмп ширины и форматирование `dp`-подписи для `shape`/`spacing`
+
+## 4. Рендер `gradient`/`shadow` через `sdds-uikit-compose`
+
+- [x] 4.1 `gradientBrush(layer: GradientLayer): Brush?` в `TokenList.kt`: `linear` → `Gradients.Linear`, `radial` → `Gradients.Radial` (ios: `endRadius`, `startRadius` не используется — см. design.md), `angular` → `Gradients.Sweep` (ios `startAngle`/`endAngle` не используются), `color` → `SolidColor(parseHexColor(background))`. `GradientSwatch` заливает этим брашем/цветом swatch-квадрат (берётся первый слой — сиды всегда содержат один)
+- [x] 4.2 `ShadowSwatch`: слои `ShadowValue` → `ShadowLayer(color, offset=DpOffset(offsetX.dp, offsetY.dp), spreadRadius.dp, blurRadius.dp, fallbackElevation?.dp)`, `Modifier.shadow(ShadowAppearance(layers), SWATCH_SHAPE)` на карточке превью
+- [x] 4.3 `GradientBrushTest` (4 kind'а, включая fallback `endRadius`→`radius` для ios) и `DescribeValueTest`/`describesShadowWithFirstLayerAndExtraCount` в `TokenListTest.kt`, на данных, повторяющих форму сидов
+
+## 5. Рендер `typography`
+
+- [x] 5.1 `typographyTextStyle(value): TextStyle` в `TokenList.kt` — нормализованная `TypographyValue` (`fontWeight` уже числовой на выходе парсера для обеих платформ, см. 1.3/1.4) → `TextStyle(fontSize = ....sp, lineHeight = ....sp, fontWeight = FontWeight(...), letterSpacing = ....em)`
+- [x] 5.2 `TypographySample` — текст-сэмпл `"Aa"` этим `TextStyle` в `startContent` строки (не сам `displayName` — тот остаётся основным текстом `ListItem` без изменения стиля)
+- [x] 5.3 `TypographyTextStyleTest` в `TokenListTest.kt`; фолбэк нераспознанного ios `weight` уже покрыт `TokenValueParserTest.unknownIosWeightFallsBackToNormalInsteadOfUnsupported` (группа 1) — маппинг в `TextStyle` дальше работает с уже нормализованным числом, повторно ветвиться по платформе незачем
+
+## 6. Интеграция в `TokenList`/`TokenRow`
+
+- [x] 6.1 `TokenRow` теперь вычисляет `item.payload` и вызывает `previewContent(payload)` — единая точка ветвления по `TokenValuePayload` вместо старой проверки `item.token.type == TokenType.COLOR`; `describeValue` заменил прямой показ `item.value?.rawValue` в подписи
+- [x] 6.2 `previewContent`/`describeValue` возвращают `null`/`rawValue` для `TokenValuePayload.Unsupported` (в т.ч. платформа `web` и любая нераспознанная форма — парсер сводит их к `Unsupported` уже в группе 1); `color` рендерится тем же кодом (`ColorSwatch`), что и раньше — `ParseHexColorTest` не изменился и остался зелёным
+- [x] 6.3 Визуально сверено пользователем в реальной Android Studio (`runIde` из собственного терминала). Семь проходов правок:
+  - Проход 1: (а) тень не видна на нейтрально-сером/тёмном свотче → светлая подложка; (б) `cornerRadius` на квадратном свотче вырождается в круг → прямоугольная `ShapeSwatch` (56×32dp)
+  - Проход 2 («тени всё ещё не видно», «формы всё ещё одинаковые, нужно увеличивать высоту»): (а) тень утекала за пределы 32dp-подложки в тёмный фон строки без `clip` → подложка увеличена до 64dp и обрезается `Modifier.clip`; (б) высота прямоугольника (32dp) была меньше порога клэмпа для `round.xxl` (32dp) → `SHAPE_PREVIEW_HEIGHT` увеличена до 72dp (при ширине 96dp), порог клэмпа поднят до 36dp
+  - Проход 3 («тень видно лучше, но всё ещё плохо — фон белым, квадрат тёмным»; «round.circle не нужно показывать в dp»; «color/gradient — тот же размер, что у тени»): подложка тени → чисто белая, «приподнятая» поверхность → тёмная (`0xFF2C2C2C`) для максимального контраста; `TYPE_SWATCH_SIZE` (64dp) унифицирован для `color`/`gradient`/`shadow`; `describeValue` для `ShapeValue` показывает `"circle"` вместо `9999dp`, когда `cornerRadiusDp >= SHAPE_CIRCLE_THRESHOLD_DP` (999dp)
+  - Проход 4 («я перестал видеть тени, их просто нет»): контраст был ни при чём — сам `Modifier.shadow` из `sdds-uikit-compose` симулирует блюр полупрозрачными копиями контура с альфой токена (~8%), делённой ещё на число шагов блюра, и самая плотная копия рисуется почти по размеру поверхности — на превью в десятки dp результат неразличим на глаз в принципе, независимо от цветов подложки/поверхности. `Modifier.shadow` для превью убран целиком; каждый слой тени рисуется как обычный `Box` со смещением (`Modifier.offset`) и настоящим гауссовым блюром (`Modifier.blur`, `BlurredEdgeTreatment.Unbounded`), с клэмпом `blurRadius` до 16dp
+  - Проход 5 («попрежнему нет теней», «проанализируй, как в plasma-android применяются токены теней»): честный блюр тоже не помог — по физике он размазывает и без того слабую (~8%) заливку по большей площади, снижая пиковую видимую плотность. Grep по `.shadow(` в `plasma-android` показал: реальные компоненты, использующие эти токены (`Modal`, `ToolBar`, `NavigationBar`, `TabBar`, `DropdownMenu`, `Popover`), — поверхности в сотни dp, где токен — малая доля размера; на свотче 64dp то же абсолютное значение уже сопоставимо со свотчем. Добавлены `SHADOW_ALPHA_BOOST` (6×, клэмп до 100%) и клэмп `offsetX`/`offsetY` до `MAX_SHADOW_OFFSET_PREVIEW_DP` (14dp, иначе `downSoftL`/`downHardL` с offset 60dp уводят пятно за пределы свотча целиком); `blurRadius` клэмп ужесточён до `MAX_SHADOW_BLUR_PREVIEW_DP` (10dp)
+  - Проход 6 («я всё ещё не вижу тень» — даже с 6-кратной альфой): гипотеза (впоследствии опровергнутая в проходе 7) — `Modifier.blur` не рендерится в `ComposePanel`. Заменён на ручную имитацию блюра слоями (`ShadowBlur`)
+  - Проход 7 (пользователь указал на `PopoverStory`/`BasePopover.kt`, где `Modifier.shadow` из `sdds-uikit-compose` даёт хорошо видимую тень на реальном компоненте; «может проблема в самих токенах?»): токены в порядке, `Modifier.shadow` тоже работает нормально — не хватало отступа вокруг поверхности под размер тени, который реальные компоненты (`Popover`) резервируют явно через `getShadowSafePaddings()` (`ShadowUtils.kt`, `internal` — недоступен из плагина). Вернулись к настоящему `Modifier.shadow(ShadowAppearance(layers), shape)`, но клэмпнули `blurRadius`/`offset` каждого слоя (`toPreviewShadowLayer`) под свободное место вокруг уменьшенной поверхности (`SHADOW_PREVIEW_SURFACE_SIZE` 20dp→12dp) внутри `TYPE_SWATCH_SIZE` (64dp) — тот же рендер, что у `Popover`, просто с урезанной под доступное место геометрией
+  - Пользователь подтвердил, задача закрыта; change отправлен в архив
+
+## 7. Верификация
+
+- [x] 7.1 `cd frontend-kt && ./gradlew build` — BUILD SUCCESSFUL, 454 tasks, без регрессий в других модулях
+- [x] 7.2 `:plugins:android-studio:test` — 58/58 зелёных (17 `TokenValueParserTest` + 3 `HttpDesignSystemDataClientTest` + новые `GradientBrushTest`/`TypographyTextStyleTest`/`SpacingPreviewWidthTest`/`DescribeValueTest` + без регрессий в `ParseHexColorTest` и остальных существующих тестах модуля)
+- [x] 7.3 `spotlessCheck`/`detekt` для модуля — чисто. Потребовалась правка построчной длины в тестах (spotlessApply не умеет её автоисправить) и рефакторинг `TokenValueParser.kt`: `parseGradientLayer`/`parseTypographyValue` разбиты на per-kind/per-platform функции (детект CyclomaticComplexMethod), `@Suppress("ReturnCount")` на guard-clause-стиле — уже устоявшийся паттерн в этом кодбейзе (`core-platform`, `feature-components`, `feature-docs`), `MAX_SPACING_PREVIEW_DP` → `const val`, KDoc `@property` добавлен всем публичным полям `TokenValuePayload.kt`

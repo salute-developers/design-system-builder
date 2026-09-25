@@ -4,7 +4,7 @@ import { db } from "../../db/index";
 import { stateSets } from "../../db/schema";
 import { ResolveStateSetSchema, UuidParamSchema } from "../../validation/schema";
 import { validateBody, validateParams } from "../../validation/middleware";
-import { assertFound, tryCatch } from "./utils";
+import { assertFound, causeChain, tryCatch } from "./utils";
 import { z } from "zod";
 
 const router = Router();
@@ -54,14 +54,7 @@ router.post("/resolve", validateBody(ResolveStateSetSchema), (req, res) =>
     } catch (error) {
       // Неизвестное состояние и смешивание компонентов отвергает триггер. Это ошибка
       // запроса, а не сбой сервера, поэтому переводится в 400 с текстом из БД.
-      //
-      // Сообщение ищется и в причине: drizzle заворачивает ошибку драйвера, и в `message`
-      // верхнего уровня лежит текст запроса, а не то, что сказал триггер.
-      const messages: string[] = [];
-      for (let e: unknown = error; e instanceof Error; e = (e as { cause?: unknown }).cause) {
-        messages.push(e.message);
-      }
-      const trigger = messages.find((m) =>
+      const trigger = causeChain(error).find((m) =>
         /state that does not exist|mixes component states/.test(m),
       );
       if (trigger) {

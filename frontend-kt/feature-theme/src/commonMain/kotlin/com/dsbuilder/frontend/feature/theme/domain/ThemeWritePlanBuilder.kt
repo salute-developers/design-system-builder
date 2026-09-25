@@ -29,11 +29,12 @@ internal class ThemeWritePlanBuilder(
         val enabledTokens = tokens.filter { it.enabled }
         val tokensById = tokens.associateBy { it.id }
         val tenantDirectories = tenantDirectoryNormalizer.normalize(tenants)
+        val paletteById = paletteItems.associateBy { it.id }
         val files = mutableListOf<ThemeGeneratedFile>()
 
         for (tenantDirectory in tenantDirectories) {
             val tenant = tenantDirectory.tenant
-            val tenantValues = valuesByTenantId[tenant.id].orEmpty()
+            val tenantValues = valuesByTenantId[tenant.id].orEmpty().map { it.withPaletteReference(paletteById) }
             val knownValues = tenantValues.filter { it.tokenId in tokensById && it.value != null }
             val valuesByTokenId = knownValues.groupBy { it.tokenId }
 
@@ -101,6 +102,23 @@ internal class ThemeWritePlanBuilder(
         )
     }
 }
+
+/**
+ * Значение, привязанное к палитре, хранится как `palette_id` + необязательная прозрачность в `value`;
+ * в файлах темы оно записывается ссылкой `[type.shade.saturation]` или `[type.shade.saturation][opacity]`.
+ */
+private fun TokenValue.withPaletteReference(paletteById: Map<String, PaletteItem>): TokenValue {
+    val item = paletteId?.let { paletteById[it] } ?: return this
+    val opacity = when {
+        value == null -> null
+        else -> (value.singleOrNull() as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?.takeIf { OPACITY_REGEX.matches(it) } ?: return this
+    }
+    val reference = "[${item.type}.${item.shade}.${item.saturation}]" + (opacity?.let { "[$it]" } ?: "")
+    return copy(value = listOf(JsonPrimitive(reference)))
+}
+
+private val OPACITY_REGEX = Regex("""\d*\.?\d+""")
 
 private fun Map<String, JsonElement>.toSortedMapByKey(): Map<String, JsonElement> =
     entries
