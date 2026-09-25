@@ -43,8 +43,17 @@ public interface RedirectListener {
     /** Порт, на котором слушает сервер — используется для построения `redirect_uri`. */
     public val port: Int
 
-    /** Блокирующе ждёт redirect, максимум [timeoutSeconds]. */
+    /**
+     * Блокирующе ждёт redirect, максимум [timeoutSeconds]. Прерывание потока или [close] снимают
+     * ожидание: результат в этом случае — [LoopbackCallbackResult.Malformed].
+     */
     public fun awaitCallback(timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS): LoopbackCallbackResult
+
+    /**
+     * Освобождает порт. Идемпотентен; вызывающая сторона обязана вызвать его в `finally` независимо
+     * от того, дошло ли дело до [awaitCallback] (например, браузер не открылся).
+     */
+    public fun close()
 }
 
 /**

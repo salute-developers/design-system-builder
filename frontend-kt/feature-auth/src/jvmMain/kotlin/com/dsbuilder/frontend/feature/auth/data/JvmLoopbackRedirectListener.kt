@@ -9,6 +9,7 @@ import java.net.URI
 import java.net.URLDecoder
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val CALLBACK_PAGE =
     "<html><body>You can close this tab and return to the IDE.</body></html>"
@@ -20,6 +21,7 @@ private const val CALLBACK_PAGE =
 public class JvmLoopbackRedirectListener : RedirectListener {
     private val server: HttpServer = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
     private val resultFuture = CompletableFuture<LoopbackCallbackResult>()
+    private val closed = AtomicBoolean(false)
 
     override val port: Int get() = server.address.port
 
@@ -40,7 +42,8 @@ public class JvmLoopbackRedirectListener : RedirectListener {
 
     /**
      * Блокирующе ждёт redirect, максимум [timeoutSeconds]. Останавливает сервер после получения
-     * ответа или по таймауту — вызывающая сторона должна выполнять это на background-потоке.
+     * ответа, по таймауту или прерыванию потока — вызывающая сторона должна выполнять это на
+     * background-потоке.
      */
     @Suppress("TooGenericExceptionCaught")
     override fun awaitCallback(timeoutSeconds: Long): LoopbackCallbackResult = try {
@@ -48,7 +51,14 @@ public class JvmLoopbackRedirectListener : RedirectListener {
     } catch (exception: Exception) {
         LoopbackCallbackResult.Malformed
     } finally {
-        server.stop(0)
+        close()
+    }
+
+    override fun close() {
+        if (closed.compareAndSet(false, true)) {
+            server.stop(0)
+            resultFuture.complete(LoopbackCallbackResult.Malformed)
+        }
     }
 
     private fun parseResult(query: Map<String, String>): LoopbackCallbackResult = when {

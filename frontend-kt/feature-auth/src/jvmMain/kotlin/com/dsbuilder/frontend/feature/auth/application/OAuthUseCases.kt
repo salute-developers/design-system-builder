@@ -6,8 +6,10 @@ import com.dsbuilder.frontend.core.auth.TokenExchangeClient
 import com.dsbuilder.frontend.core.auth.UserOAuthTokens
 import com.dsbuilder.frontend.core.auth.UserSessionCredentialResolver
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
@@ -50,6 +52,8 @@ public class OAuthLoginUseCase(
     @Suppress("TooGenericExceptionCaught")
     public suspend fun execute(apiUrlOverride: String? = null): OAuthLoginResult = try {
         withContext(ioDispatcher) { performLogin(apiUrlOverride) }
+    } catch (exception: CancellationException) {
+        throw exception
     } catch (exception: Exception) {
         OAuthLoginResult.Failed(exception.message ?: "Не удалось выполнить вход.")
     }
@@ -62,9 +66,15 @@ public class OAuthLoginUseCase(
         val expectedState = UUID.randomUUID().toString()
         val authorizeUrl = AuthorizeUrlBuilder(gatewayBaseUrl, clientId).build(pkce, expectedState, redirectUri)
 
-        browserLauncher.browse(authorizeUrl)
+        // Порт освобождается при любом исходе: ошибка запуска браузера, таймаут, отмена, успех.
+        val callback = try {
+            browserLauncher.browse(authorizeUrl)
+            runInterruptible { listener.awaitCallback() }
+        } finally {
+            listener.close()
+        }
 
-        return when (val callback = listener.awaitCallback()) {
+        return when (callback) {
             is LoopbackCallbackResult.Success ->
                 handleSuccess(callback, pkce, expectedState, redirectUri)
             is LoopbackCallbackResult.Error ->
@@ -160,10 +170,17 @@ public class OAuthLogoutUseCase(
             try {
                 val gatewayBaseUrl = apiUrlResolver.resolve(apiUrlOverride).value
                 val listener = redirectListenerFactory.create()
-                val redirectUri = "http://127.0.0.1:${listener.port}/callback"
-                val logoutUrl = LogoutUrlBuilder(gatewayBaseUrl, clientId).build(redirectUri)
-                browserLauncher.browse(logoutUrl)
-                listener.awaitCallback()
+                try {
+                    val redirectUri = "http://127.0.0.1:${listener.port}/callback"
+                    val logoutUrl = LogoutUrlBuilder(gatewayBaseUrl, clientId).build(redirectUri)
+                    browserLauncher.browse(logoutUrl)
+                    runInterruptible { listener.awaitCallback() }
+                } finally {
+                    listener.close()
+                }
+            } catch (exception: CancellationException) {
+                sessionResolver.clear()
+                throw exception
             } catch (exception: Exception) {
                 // Локальный logout ниже всё равно произойдёт — не блокируем его сетевым отказом.
             }

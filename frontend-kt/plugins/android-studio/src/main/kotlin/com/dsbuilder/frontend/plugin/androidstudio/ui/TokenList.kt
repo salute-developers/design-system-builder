@@ -153,56 +153,74 @@ public fun TokenList(
         if (visibleTokens.isEmpty()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { NoMatchesText() }
         } else {
-            // Ленивый список: в дизайн-системе сотни цветов, композировать их все сразу — фризы при прокрутке.
-            // Divider приходит с тем же стилем, что и раньше, — дорогой `style()` считается один раз, а не на строку.
-            val dividerStyle = DividerStyles.DividerDefault.style()
-            Box(Modifier.fillMaxSize()) {
-                val groups = remember(visibleTokens, selectedType) {
-                    if (selectedType == TokenType.TYPOGRAPHY) groupByScreenClass(visibleTokens) else listOf(null to visibleTokens)
-                }
-                // Аккордеон по классам экрана: по умолчанию раскрыт только первый; при поиске раскрыты все,
-                // чтобы найденное не пряталось в свёрнутой группе.
-                val expanded = remember(groups) {
-                    mutableStateMapOf<String, Boolean>().apply { groups.firstOrNull()?.first?.let { put(it, true) } }
-                }
-                val accordionBase = AccordionStyles.AccordionClearActionEndM.style().accordionItemStyle
-                val edgePadding = SddsServTheme.spacing.spacing4x
-                val accordionStyle = remember(accordionBase, edgePadding) { accordionBase.withHorizontalPadding(edgePadding) }
-                // Лучшее совпадение стоит первым (см. searchTokens) — при новом запросе прокручиваем к началу.
-                val listState = rememberLazyListState()
-                LaunchedEffect(query) { if (query.isNotBlank()) listState.scrollToItem(0) }
-                LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                    groups.forEach { (screenClass, groupTokens) ->
-                        if (screenClass == null) {
-                            items(items = groupTokens, key = { it.token.id }) { item ->
-                                TokenRow(item, resolveCodeReference)
-                                Divider(style = dividerStyle)
-                            }
-                        } else {
-                            item(key = "group:$screenClass") {
-                                val isExpanded = query.isNotBlank() || expanded[screenClass] == true
-                                AccordionItem(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    style = accordionStyle,
-                                    opened = isExpanded,
-                                    title = screenClassTitle(screenClass),
-                                    onClick = { expanded[screenClass] = !isExpanded },
-                                ) {
-                                    Column(Modifier.fillMaxWidth()) {
-                                        groupTokens.forEach { item ->
-                                            TokenRow(item, resolveCodeReference)
-                                            Divider(style = dividerStyle)
-                                        }
-                                    }
-                                }
-                                Divider(style = dividerStyle)
-                            }
-                        }
-                    }
-                }
-                BottomFade(Modifier.align(Alignment.BottomCenter))
+            TokenListBody(visibleTokens, selectedType, query, resolveCodeReference)
+        }
+    }
+}
+
+/** Ленивый список токенов выбранного типа; для типографики — аккордеоны по классам экрана. */
+@Composable
+private fun TokenListBody(
+    visibleTokens: List<TokenWithValue>,
+    selectedType: TokenType?,
+    query: String,
+    resolveCodeReference: (suspend (TokenWithValue) -> TokenCodeReferenceResult)?,
+) {
+    // Ленивый список: в дизайн-системе сотни цветов, композировать их все сразу — фризы при прокрутке.
+    // Divider приходит с тем же стилем, что и раньше, — дорогой `style()` считается один раз, а не на строку.
+    val dividerStyle = DividerStyles.DividerDefault.style()
+    Box(Modifier.fillMaxSize()) {
+        val groups = remember(visibleTokens, selectedType) {
+            if (selectedType == TokenType.TYPOGRAPHY) {
+                groupByScreenClass(
+                    visibleTokens,
+                )
+            } else {
+                listOf(null to visibleTokens)
             }
         }
+        // Аккордеон по классам экрана: по умолчанию раскрыт только первый; при поиске раскрыты все,
+        // чтобы найденное не пряталось в свёрнутой группе.
+        val expanded = remember(groups) {
+            mutableStateMapOf<String, Boolean>().apply { groups.firstOrNull()?.first?.let { put(it, true) } }
+        }
+        val accordionBase = AccordionStyles.AccordionClearActionEndM.style().accordionItemStyle
+        val edgePadding = SddsServTheme.spacing.spacing4x
+        val accordionStyle =
+            remember(accordionBase, edgePadding) { accordionBase.withHorizontalPadding(edgePadding) }
+        // Лучшее совпадение стоит первым (см. searchTokens) — при новом запросе прокручиваем к началу.
+        val listState = rememberLazyListState()
+        LaunchedEffect(query) { if (query.isNotBlank()) listState.scrollToItem(0) }
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
+            groups.forEach { (screenClass, groupTokens) ->
+                if (screenClass == null) {
+                    items(items = groupTokens, key = { it.token.id }) { item ->
+                        TokenRow(item, resolveCodeReference)
+                        Divider(style = dividerStyle)
+                    }
+                } else {
+                    item(key = "group:$screenClass") {
+                        val isExpanded = query.isNotBlank() || expanded[screenClass] == true
+                        AccordionItem(
+                            modifier = Modifier.fillMaxWidth(),
+                            style = accordionStyle,
+                            opened = isExpanded,
+                            title = screenClassTitle(screenClass),
+                            onClick = { expanded[screenClass] = !isExpanded },
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                groupTokens.forEach { item ->
+                                    TokenRow(item, resolveCodeReference)
+                                    Divider(style = dividerStyle)
+                                }
+                            }
+                        }
+                        Divider(style = dividerStyle)
+                    }
+                }
+            }
+        }
+        BottomFade(Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -248,7 +266,11 @@ internal fun groupByScreenClass(tokens: List<TokenWithValue>): List<Pair<String?
  */
 internal fun String.withoutScreenClass(screenClass: String?): String {
     if (screenClass == null) return this
-    val prefix = Regex("^" + Regex.escape("screen") + "[-_. ]?" + Regex.escape(screenClass.removePrefix("screen-")) + "[-_. ]?", RegexOption.IGNORE_CASE)
+    val prefix =
+        Regex(
+            "^" + Regex.escape("screen") + "[-_. ]?" + Regex.escape(screenClass.removePrefix("screen-")) + "[-_. ]?",
+            RegexOption.IGNORE_CASE,
+        )
     val rest = replaceFirst(prefix, "")
     return if (rest.isEmpty() || rest == this) this else rest.replaceFirstChar { it.lowercaseChar() }
 }
