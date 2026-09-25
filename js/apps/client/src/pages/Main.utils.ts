@@ -3,7 +3,7 @@ import { general } from '@salutejs/plasma-colors';
 
 import { GrayTone, Parameters } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
-import { getNpmMeta, http, PROJECTS_URL } from '../api';
+import { getNpmMeta, getNpmPackageName, http, PROJECTS_URL } from '../api';
 
 export const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
@@ -114,11 +114,16 @@ export const downloadThemeData = async (designSystem: DesignSystem) => {
     URL.revokeObjectURL(url);
 };
 
+export interface PublishResult {
+    success: boolean;
+    version?: string;
+}
+
 export const generatePublish = async (
     designSystem: DesignSystem,
     exportType: 'tgz' | 'zip',
     tokenValue: string,
-): Promise<boolean> => {
+): Promise<PublishResult> => {
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
@@ -130,7 +135,10 @@ export const generatePublish = async (
 
     const result = (await http.post(`${PROJECTS_URL}/${projectId}/generator/generate-publish`, data)).data;
 
-    return result.message.success || false;
+    return {
+        success: result?.message?.success || false,
+        version: result?.version ?? result?.message?.version,
+    };
 };
 
 export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
@@ -186,24 +194,34 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
     return await designSystem.updateDesignSystemData(themeData, componentsData);
 };
 
-// TODO: временная функция проверяющая опубликован ли пакет в npm
-export const longPollNpm = async (packagesName: string, interval = 30_000): Promise<{ success: boolean }> => {
+interface LongPollNpmOptions {
+    version?: string;
+    interval?: number;
+    shouldStop?: () => boolean;
+}
+
+// Опрашивает npm, пока там не появится пакет (или его конкретная версия)
+export const longPollNpm = async (packagesName: string, options: LongPollNpmOptions = {}): Promise<{ success: boolean }> => {
+    const { version, interval = 10_000, shouldStop = () => false } = options;
+
     return new Promise((resolve) => {
         const poll = async () => {
-            try {
-                const data = await getNpmMeta(`@salutejs-ds/${packagesName}`);
+            if (shouldStop()) {
+                return resolve({ success: false });
+            }
 
-                if ('versions' in data) {
-                    console.log(`Найден пакет`);
+            try {
+                const data = await getNpmMeta(getNpmPackageName(packagesName));
+                const published = version ? Boolean(data?.versions?.[version]) : 'versions' in data;
+
+                if (published) {
                     return resolve({ success: true });
                 }
-
-                console.log(`Пакет не найден, повтор через ${interval / 1000} секунд`);
-                setTimeout(poll, interval);
             } catch (err) {
-                console.error(`Ошибка:`, err, `Повтор через ${interval / 1000} секунд`);
-                setTimeout(poll, interval);
+                console.error('[longPollNpm] Ошибка запроса к npm:', err);
             }
+
+            setTimeout(poll, interval);
         };
 
         poll();

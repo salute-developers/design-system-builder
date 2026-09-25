@@ -1,15 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { general } from '@salutejs/plasma-colors';
+import { IconArrowDiagRightUp } from '@salutejs/plasma-icons';
 
 import { Config, DesignSystem, Theme } from '../../controllers';
-import { designSystemSave, generateAndDeployDocumentation, generatePublish, longPollNpm } from '../../pages';
+import { designSystemSave, generatePublish, longPollNpm } from '../../pages/Main.utils';
+import { getNpmInstallCommand, getNpmPackageName, getNpmPackageUrl } from '../../api';
 import { clearDraft } from '../../utils';
+import { BasicButton, LinkButton } from '../../components';
 import {
     Root,
+    StyledActions,
     StyledDescription,
     StyledDesignSystemName,
+    StyledError,
+    StyledInstallCommand,
+    StyledPackageName,
     StyledProgress,
     StyledStatus,
+    StyledVersion,
 } from './PublishProgress.styles';
 
 interface PublishProgressProps {
@@ -20,102 +28,139 @@ interface PublishProgressProps {
     onNextPage: () => void;
 }
 
-export const PublishProgress = (props: PublishProgressProps) => {
-    const { designSystem, theme, components, onNextPage } = props;
-    const [designSystemCreated, setDesignSystemCreated] = useState(false);
+type PublishStage = 'saving' | 'publishing' | 'waiting' | 'success' | 'error';
 
-    // TODO: Перенести в БД
-    const version = '0.1.0';
+const stageStatus: Record<PublishStage, string> = {
+    saving: 'Сохраняем изменения…',
+    publishing: 'Собираем и публикуем пакет…',
+    waiting: 'Ждём, пока пакет появится в npm…',
+    success: 'Пакет опубликован',
+    error: 'Не удалось опубликовать пакет',
+};
+
+// Прогресс-бар не привязан к реальным шагам: до завершения он плавно растёт до 90%, а по факту публикации — до 100%
+const PROGRESS_LIMIT = 90;
+
+export const PublishProgress = (props: PublishProgressProps) => {
+    const { designSystem, theme, components, onPrevPage, onNextPage } = props;
+
+    const [stage, setStage] = useState<PublishStage>('saving');
+    const [publishedVersion, setPublishedVersion] = useState<string | undefined>(undefined);
+    const [errorMessage, setErrorMessage] = useState<string | undefined>(undefined);
+    const [value, setValue] = useState(0);
+
+    const unmountedRef = useRef(false);
+
+    const packagesName = designSystem?.getParameters()?.packagesName;
     const projectName = designSystem?.getParameters()?.projectName;
     const accentColor = designSystem?.getParameters()?.accentColor || 'blue';
     const darkFillSaturation = designSystem?.getParameters()?.darkFillSaturation || 50;
     const progressColor = general[accentColor][darkFillSaturation];
 
-    //TODO: Временная демонстрация прогресса
-    const [value, setValue] = useState(0);
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setValue((value) => {
-                if (value >= 100) {
-                    clearInterval(interval);
-                    return 100;
-                }
+    const isFinished = stage === 'success' || stage === 'error';
 
-                return value + 1;
-            });
-        }, 1_200);
+    useEffect(() => {
+        unmountedRef.current = false;
+
+        const interval = setInterval(() => {
+            setValue((value) => Math.min(value + 1, PROGRESS_LIMIT));
+        }, 1_000);
 
         const publishDesignSystem = async () => {
-            console.log('Publishing design system...', designSystem);
-
-            if (!designSystem || !theme || !components) {
-                return;
+            if (!designSystem || !theme || !components || !packagesName) {
+                throw new Error('Дизайн-система не загружена');
             }
 
-            const packagesName = designSystem.getParameters()?.packagesName;
+            // 1. Сохраняем изменения в базу — публикация собирает пакет из данных базы
+            setStage('saving');
+            await designSystemSave(designSystem, theme, components);
 
-            if (!packagesName) {
-                return;
+            // 2. Генерируем и публикуем пакет
+            setStage('publishing');
+            const publishResult = await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
+            if (!publishResult.success) {
+                throw new Error('Ошибка при публикации дизайн-системы');
             }
 
-            console.log('start', performance.now());
-
-            const result1 = await designSystemSave(designSystem, theme, components);
-            if (!result1.success) {
-                throw new Error(`Ошибка при сохранении дизайн системы: ${result1}`);
+            // 3. Ждём, пока опубликованная версия станет доступна в npm
+            setStage('waiting');
+            const npmResult = await longPollNpm(packagesName, {
+                version: publishResult.version,
+                shouldStop: () => unmountedRef.current,
+            });
+            if (!npmResult.success) {
+                throw new Error('Пакет не появился в npm');
             }
 
-            const dsName = designSystem.getName();
-            const dsVersion = designSystem.getVersion();
-            if (dsName && dsVersion) {
-                clearDraft(dsName, dsVersion);
-            }
+            // Черновик чистим только после успешной публикации: если она упала, изменения уже в базе,
+            // но кнопка «Опубликовать» остаётся и попытку можно повторить
+            clearDraft(designSystem.getName(), designSystem.getVersion());
 
-            const result2 = await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
-            if (!result2) {
-                throw new Error(`Ошибка при публикации дизайн системы: ${result2}`);
-            }
-
-            const result3 = await longPollNpm(packagesName);
-            if (!result3.success) {
-                throw new Error(`Ошибка при поиске пакета: ${result3}`);
-            }
-
-            const result4 = await generateAndDeployDocumentation(designSystem);
-            if (!result4) {
-                throw new Error(`Ошибка при создании документации дизайн системы: ${result4}`);
-            }
-
-            console.log('end', performance.now());
-
-            setDesignSystemCreated(true);
+            return publishResult.version;
         };
 
-        publishDesignSystem();
+        publishDesignSystem()
+            .then((version) => {
+                if (unmountedRef.current) {
+                    return;
+                }
 
-        return () => clearInterval(interval);
+                setPublishedVersion(version);
+                setStage('success');
+                setValue(100);
+            })
+            .catch((error: unknown) => {
+                console.error('[PublishProgress] Ошибка публикации', error);
+
+                if (unmountedRef.current) {
+                    return;
+                }
+
+                setErrorMessage(error instanceof Error ? error.message : String(error));
+                setStage('error');
+            });
+
+        return () => {
+            unmountedRef.current = true;
+            clearInterval(interval);
+        };
     }, []);
 
-    useEffect(() => {
-        console.log('designSystemCreated', designSystemCreated, value);
-
-        if (designSystemCreated) {
-            setValue(100);
+    const onNpmLinkClick = () => {
+        if (!packagesName) {
+            return;
         }
 
-        if (designSystemCreated && value >= 100) {
-            setTimeout(onNextPage, 1_000);
-        }
-    }, [designSystemCreated, value, onNextPage]);
+        window.open(getNpmPackageUrl(packagesName, publishedVersion), '_blank');
+    };
 
     return (
         <Root>
             <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
             <StyledDescription>
-                <StyledStatus>Публикуем новую версию…</StyledStatus>
-                <StyledProgress value={value} color={progressColor} />
-                {/* TODO: Сделать нормальную систему версионирования */}
-                {/* <StyledVersion>{version}</StyledVersion> */}
+                <StyledStatus>{stageStatus[stage]}</StyledStatus>
+                {!isFinished && <StyledProgress value={value} color={progressColor} />}
+                {stage === 'success' && packagesName && (
+                    <>
+                        <StyledVersion>{publishedVersion ?? '—'}</StyledVersion>
+                        <StyledPackageName>{getNpmPackageName(packagesName)}</StyledPackageName>
+                        <StyledInstallCommand command={getNpmInstallCommand(packagesName, publishedVersion)} />
+                        <StyledActions>
+                            <LinkButton
+                                text="Открыть в npm"
+                                contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
+                                onClick={onNpmLinkClick}
+                            />
+                        </StyledActions>
+                        <BasicButton text="Перейти в обзор" onClick={onNextPage} />
+                    </>
+                )}
+                {stage === 'error' && (
+                    <>
+                        <StyledError>{errorMessage}</StyledError>
+                        <BasicButton text="Вернуться" onClick={onPrevPage} />
+                    </>
+                )}
             </StyledDescription>
         </Root>
     );

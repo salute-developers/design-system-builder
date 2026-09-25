@@ -14,8 +14,10 @@ import { StyledPreviewSaturation } from '../../popup/SetupParameters/steps/Satur
 import { h6, prettifyColorName } from '../../utils';
 import { Workspace } from '../../layouts';
 import { DesignSystem, Theme } from '../../controllers';
-import { EditButton, LinkButton } from '../../components';
+import { EditButton, InstallCommand, LinkButton } from '../../components';
 import { grayTones } from '../../types';
+import { useNpmLatestVersion } from '../../hooks';
+import { getNpmInstallCommand, getNpmPackageName, getNpmPackageUrl } from '../../api';
 
 const Root = styled.div`
     display: flex;
@@ -124,6 +126,12 @@ const StyledDesignSystemLinks = styled.div`
     gap: 1rem;
 `;
 
+const StyledInstallCommand = styled(InstallCommand)`
+    width: fit-content;
+    min-width: 24rem;
+    max-width: 100%;
+`;
+
 const StyledDesignSystemPackageName = styled.div`
     color: ${textTertiary};
 
@@ -159,7 +167,10 @@ interface OverviewOutletContextProps {
 }
 
 export const Overview = () => {
-    const { designSystem, theme } = useOutletContext<OverviewOutletContextProps>();
+    const { designSystem } = useOutletContext<OverviewOutletContextProps>();
+
+    const packagesName = designSystem?.getParameters()?.packagesName;
+    const npmVersion = useNpmLatestVersion(packagesName);
 
     if (!designSystem) {
         return null;
@@ -176,16 +187,11 @@ export const Overview = () => {
         lightStrokeSaturation = 50,
     } = designSystem.getParameters()!;
 
-    const packageName = `@salutejs-ds/${name}`;
-    // TODO: Перенести в базу данных
-    const packageVersion = '0.1.0';
-
-    const onDocumentationLinkClick = () => {
-        window.open(`https://plasma.sberdevices.ru/dev/${name}/`, '_blank');
-    };
+    const packageName = getNpmPackageName(name ?? '');
+    const packageVersion = npmVersion ?? 'не опубликовано';
 
     const onNPMLinkClick = () => {
-        window.open(`https://www.npmjs.com/package/${packageName}/v/${packageVersion}`, '_blank');
+        window.open(getNpmPackageUrl(name ?? '', npmVersion ?? undefined), '_blank');
     };
 
     return (
@@ -221,15 +227,16 @@ export const Overview = () => {
                         </StyledDesignSystemPackageVersion>
                         <LinkButton
                             contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
-                            text="Документация"
-                            onClick={onDocumentationLinkClick}
-                        />
-                        <LinkButton
-                            contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
                             text="NPM"
                             onClick={onNPMLinkClick}
                         />
                     </StyledDesignSystemLinks>
+                    {npmVersion && (
+                        <StyledInstallCommand
+                            label="Установка"
+                            command={getNpmInstallCommand(name ?? '', npmVersion)}
+                        />
+                    )}
                     <StyledDesignSystemParameters>
                         <EditButton
                             label="Оттенок серого"

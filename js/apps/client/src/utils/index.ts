@@ -8,3 +8,4 @@ export * from './designSystemDraft';
 export * from './importTokens';
 export * from './importDesignSystem';
 export * from './baseName';
+export * from './debugMode';

@@ -16,3 +16,4 @@ export { Dialog } from './Dialog';
 export { FormField } from './FormField';
 export { ActionButton } from './ActionButton';
 export { Divider } from './Divider';
+export { InstallCommand } from './InstallCommand';

@@ -7,3 +7,4 @@ export { useForceRerender } from './useForceRerender';
 export { useSelectItemInMenu } from './useSelectItemInMenu';
 export { useComponentData } from './useComponentData';
 export { useOwnerProjectId, fetchOwnerProjectId } from './useOwnerProjectId';
+export * from './useNpmLatestVersion';
