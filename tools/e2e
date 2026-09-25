@@ -107,6 +107,17 @@ capture_failure_logs() {
 trap capture_failure_logs EXIT
 
 log "Preparing the shared local stack with setup-local.sh"
+uses_publication_cleanup="false"
+for scenario in "${selected_scenarios[@]}"; do
+  [[ "$scenario" == "documentation-publication-lifecycle" ]] && uses_publication_cleanup="true"
+done
+
+if [[ "$uses_publication_cleanup" == "true" ]]; then
+  export DOCUMENTATION_CLEANUP_ENABLED=false
+  export DOCUMENTATION_CLEANUP_GRACE_SECONDS="${DSBUILDER_E2E_CLEANUP_GRACE_SECONDS:-5}"
+  export DOCUMENTATION_CLEANUP_POLLING_MS="${DSBUILDER_E2E_CLEANUP_POLLING_MS:-200}"
+fi
+
 "$ROOT/setup-local.sh"
 
 uses_cli="false"
