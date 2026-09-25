@@ -1179,8 +1179,10 @@ EOF
     fi
     mv "$resume_file.tmp.$$" "$resume_file"
 
+    local continuation_protected_paths_start
+    continuation_protected_paths_start="$(protected_paths_snapshot)"
     write_run_context "$mode" "$change_name" "$current_head" \
-      "$explicit_permissions" "$protected_paths_start"
+      "$explicit_permissions" "$continuation_protected_paths_start"
 
     local continuation_task
     if [[ "$mode" == "main" ]]; then
