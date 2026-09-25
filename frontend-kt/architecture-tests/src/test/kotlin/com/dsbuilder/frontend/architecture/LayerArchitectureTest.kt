@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.architecture
 
 import com.lemonappdev.konsist.api.Konsist
-import com.lemonappdev.konsist.api.architecture.Layer
 import com.lemonappdev.konsist.api.architecture.KoArchitectureCreator.assertArchitecture
+import com.lemonappdev.konsist.api.architecture.Layer
 import kotlin.test.Test
 
 class LayerArchitectureTest {

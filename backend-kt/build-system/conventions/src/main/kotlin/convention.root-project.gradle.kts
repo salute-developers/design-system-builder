@@ -41,33 +41,33 @@ val buildAll = tasks.register("buildAll") {
     description = "Builds every project in this build."
 }
 
-subprojects.forEach { subproject ->
-    subproject.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
+allprojects.forEach { project ->
+    project.pluginManager.withPlugin("io.gitlab.arturbosch.detekt") {
         detektAll.configure {
-            dependsOn("${subproject.path}:detekt")
+            dependsOn("${project.path}:detekt")
         }
     }
-    subproject.pluginManager.withPlugin("com.diffplug.spotless") {
+    project.pluginManager.withPlugin("com.diffplug.spotless") {
         spotlessCheckAll.configure {
-            dependsOn("${subproject.path}:spotlessCheck")
+            dependsOn("${project.path}:spotlessCheck")
         }
         spotlessApplyAll.configure {
-            dependsOn("${subproject.path}:spotlessApply")
+            dependsOn("${project.path}:spotlessApply")
         }
     }
 }
 
-allprojects.forEach { project ->
-    project.tasks.matching { it.name == "test" || it.name == "allTests" }.configureEach {
-        val testTask = this
-        testAll.configure { dependsOn(testTask) }
-    }
-    project.tasks.matching { it.name == "build" }.configureEach {
-        val buildTask = this
-        buildAll.configure { dependsOn(buildTask) }
+testAll.configure {
+    allprojects.forEach { project ->
+        dependsOn(project.tasks.matching { it.name == "test" || it.name == "allTests" })
     }
 }
 
+buildAll.configure {
+    allprojects.forEach { project ->
+        dependsOn(project.tasks.matching { it.name == "build" })
+    }
+}
 
 tasks.register("mergeReports") {
     val includedMergeTasks = gradle

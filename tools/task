@@ -7,6 +7,8 @@ RUN_CONTEXT_FILE="${CURRENT_ROOT:+$CURRENT_ROOT/.takt/task-run-context}"
 ORCHESTRATION_ROOT="${CURRENT_ROOT:+$CURRENT_ROOT/.takt/orchestration}"
 ACTIVE_TAKT_PID=""
 ACTIVE_TAKT_CHANGE=""
+TAKT_RUNTIME_FILE="${HOME}/.takt/runtime.yaml"
+TAKT_CODEX_HOME="${DSBUILDER_TAKT_CODEX_HOME:-${HOME}/.cache/dsbuilder-takt-codex}"
 
 usage() {
   cat <<'USAGE'
@@ -61,6 +63,9 @@ Environment:
   DSBUILDER_WORKTREE_DIR  Directory for linked worktrees. Default: .worktrees
                           inside the current checkout, so agent tools can access it.
   DSBUILDER_BASE_BRANCH  Default base ref for create and TAKT safety checks.
+  DSBUILDER_TAKT_CODEX_HOME
+                          Writable Codex state directory used by the TAKT Codex
+                          provider. Default: ~/.cache/dsbuilder-takt-codex.
 USAGE
 }
 
@@ -85,6 +90,66 @@ require_value() {
 
 require_repository() {
   [[ -n "$CURRENT_ROOT" ]] || fail "Run this command inside a Git repository"
+}
+
+takt_default_provider() {
+  [[ -f "$TAKT_RUNTIME_FILE" ]] || return 1
+
+  local default_profile
+  default_profile="$(awk '
+    /^  defaults:[[:space:]]*$/ { in_defaults = 1; next }
+    in_defaults && /^    profile:[[:space:]]*/ {
+      sub(/^    profile:[[:space:]]*/, "")
+      print
+      exit
+    }
+    in_defaults && !/^    / { exit }
+  ' "$TAKT_RUNTIME_FILE")"
+  [[ -n "$default_profile" ]] || return 1
+
+  awk -v profile="$default_profile" '
+    /^  profiles:[[:space:]]*$/ { in_profiles = 1; next }
+    in_profiles && $0 == "    " profile ":" { in_profile = 1; next }
+    in_profile && /^      provider:[[:space:]]*/ {
+      sub(/^      provider:[[:space:]]*/, "")
+      print
+      exit
+    }
+    in_profile && /^    [^ ]/ { exit }
+  ' "$TAKT_RUNTIME_FILE"
+}
+
+takt_uses_codex_provider() {
+  [[ "$(takt_default_provider || true)" == "codex" ]]
+}
+
+require_takt_provider_environment() {
+  takt_uses_codex_provider || return 0
+
+  require codex
+  [[ "$TAKT_CODEX_HOME" == /* ]] || \
+    fail "DSBUILDER_TAKT_CODEX_HOME must be an absolute path: $TAKT_CODEX_HOME"
+  [[ -d "$TAKT_CODEX_HOME" ]] || \
+    fail "TAKT Codex home does not exist: $TAKT_CODEX_HOME. Create it and run: CODEX_HOME='$TAKT_CODEX_HOME' codex login"
+
+  local write_probe
+  if ! write_probe="$(mktemp "$TAKT_CODEX_HOME/.dsbuilder-write-test.XXXXXX" 2>/dev/null)"; then
+    fail "TAKT Codex home is not writable from the current sandbox: $TAKT_CODEX_HOME. Add it to sandbox_workspace_write.writable_roots and restart Codex"
+  fi
+  rm -f "$write_probe"
+
+  if ! CODEX_HOME="$TAKT_CODEX_HOME" codex login status >/dev/null 2>&1; then
+    fail "TAKT Codex home is not authenticated. Run: CODEX_HOME='$TAKT_CODEX_HOME' codex login"
+  fi
+}
+
+print_takt_command() {
+  printf '[task] Command:'
+  if takt_uses_codex_provider; then
+    printf ' env CODEX_HOME=%q' "$TAKT_CODEX_HOME"
+  fi
+  printf ' %q' "$@"
+  printf '\n'
 }
 
 validate_change_name() {
@@ -387,16 +452,21 @@ execute_logged_takt() {
   initialize_orchestration_state "$change_name" "$mode" "$log_file"
   rm -f "$directory/abort.requested"
 
+  local -a command=("$@")
+  if takt_uses_codex_provider; then
+    command=(env "CODEX_HOME=$TAKT_CODEX_HOME" "${command[@]}")
+  fi
+
   {
     printf '[task] Started: %s\n' "$(iso_now)"
     printf '[task] Checkout: %s\n' "$CURRENT_ROOT"
     printf '[task] Change: %s\n' "$change_name"
     printf '[task] Command:'
-    printf ' %q' "$@"
+    printf ' %q' "${command[@]}"
     printf '\n'
   } | tee -a "$log_file"
 
-  "$@" >> "$log_file" 2>&1 &
+  "${command[@]}" >> "$log_file" 2>&1 &
   ACTIVE_TAKT_PID=$!
   ACTIVE_TAKT_CHANGE="$change_name"
   patch_orchestration_state "$change_name" "$(jq -cn --argjson pid "$ACTIVE_TAKT_PID" '{pid: $pid}')"
@@ -747,11 +817,11 @@ command_run() {
   local command=(takt --pipeline --skip-git -w dsbuilder-openspec --task "$task_text")
 
   if [[ "$dry_run" == "true" ]]; then
-    printf '[task] Command:'
-    printf ' %q' "${command[@]}"
-    printf '\n'
+    print_takt_command "${command[@]}"
     exit 0
   fi
+
+  require_takt_provider_environment
 
   local start_head
   start_head="$(git rev-parse HEAD)"
@@ -928,11 +998,11 @@ command_follow_up() {
   local command=(takt --pipeline --skip-git -w dsbuilder-openspec-followup --task "$task_text")
 
   if [[ "$dry_run" == "true" ]]; then
-    printf '[task] Command:'
-    printf ' %q' "${command[@]}"
-    printf '\n'
+    print_takt_command "${command[@]}"
     exit 0
   fi
+
+  require_takt_provider_environment
 
   local start_head
   start_head="$(git rev-parse HEAD)"
@@ -1031,6 +1101,8 @@ command_resume() {
   if [[ "$current_status" == "running" && "$current_pid" =~ ^[0-9]+$ ]] && kill -0 "$current_pid" 2>/dev/null; then
     fail "TAKT is still running for OpenSpec change: $change_name"
   fi
+
+  require_takt_provider_environment
 
   local resume_file=""
   if [[ -n "$instruction_file" ]]; then

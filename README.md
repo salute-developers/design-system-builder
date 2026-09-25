@@ -54,6 +54,22 @@ takt --pipeline workflow doctor dsbuilder-openspec dsbuilder-openspec-followup
 openspec validate --all --strict --no-interactive
 ```
 
+### Codex внутри TAKT
+
+TAKT запускает Codex как отдельный процесс. Этому процессу нужно записывать
+сессии и SQLite state, поэтому `tools/task` использует отдельный общий каталог,
+доступный из всех checkout и worktree:
+
+```bash
+mkdir -p "$HOME/.cache/dsbuilder-takt-codex"
+CODEX_HOME="$HOME/.cache/dsbuilder-takt-codex" codex login
+```
+
+Когда в `~/.takt/runtime.yaml` выбран provider `codex`, helper передаёт этот
+каталог каждому основному, follow-up и resume запуску. Другие providers не
+получают переопределение `CODEX_HOME`. Нестандартный путь можно задать через
+`DSBUILDER_TAKT_CODEX_HOME`; он должен быть абсолютным.
+
 ### Gradle в sandbox Codex
 
 Gradle записывает wrapper distributions, зависимости, metadata и lock-файлы в
@@ -62,12 +78,29 @@ Gradle записывает wrapper distributions, зависимости, metad
 использовать во всех checkout и worktree:
 
 ```bash
-mkdir -p "$HOME/.cache/codex-gradle"
+mkdir -p "$HOME/.cache/codex-gradle" "$HOME/.cache/dsbuilder-takt-codex"
 ```
 
 Добавьте абсолютный путь к каталогу в пользовательский `~/.codex/config.toml`.
 TOML не подставляет `$HOME` или `~`, поэтому замените `<username>` своим именем
 пользователя:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = [
+    "/Users/<username>/.cache/codex-gradle",
+    "/Users/<username>/.cache/dsbuilder-takt-codex",
+]
+
+[shell_environment_policy]
+set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
+```
+
+У внутреннего Codex свой файл конфигурации. Создайте
+`~/.cache/dsbuilder-takt-codex/config.toml` с минимальным доступом, необходимым
+для сборки в TAKT:
 
 ```toml
 sandbox_mode = "workspace-write"
@@ -79,10 +112,19 @@ writable_roots = ["/Users/<username>/.cache/codex-gradle"]
 set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
 ```
 
-Перезапустите Codex и новые TAKT-сессии после изменения конфигурации. Сам каталог
-не находится в Git: в нём хранится одна скачанная Gradle distribution на версию
-и общий cache зависимостей для всех worktree. Проектные `.gradle` и `build`
-остаются отдельными в каждом worktree.
+Так внутренний агент получает общий Gradle cache, но не наследует остальные
+дополнительные writable roots внешнего Codex.
+
+Перезапустите Codex после изменения конфигурации: уже запущенная задача не
+получит новый writable root. Эти каталоги не находятся в Git. В Gradle cache
+хранится одна скачанная distribution на версию и общий cache зависимостей для
+всех worktree; проектные `.gradle` и `build` остаются отдельными. Каталог TAKT
+Codex содержит авторизацию, сессии и служебную базу только внутренних агентов.
+
+Перед запуском цикла `tools/task` проверяет, что каталог TAKT Codex доступен для
+записи и авторизован. Поэтому ошибка конфигурации обнаруживается до запуска
+workflow. Авторизация обычного `~/.codex` не переносится автоматически в этот
+изолированный каталог.
 
 Рабочий процесс, команды для веток и worktree, TAKT-цикл и проверки описаны в
 [`.takt/PROCESS.md`](./.takt/PROCESS.md).

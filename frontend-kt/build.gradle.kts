@@ -51,5 +51,6 @@ tasks.register("verifyFull") {
     group = "verification"
     description = "Runs FAST verification and builds every frontend module."
     dependsOn("verifyFast")
+    dependsOn("build")
     dependsOn(subprojects.map { "${it.path}:build" })
 }

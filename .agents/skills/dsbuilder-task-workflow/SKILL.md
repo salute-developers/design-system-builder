@@ -95,6 +95,12 @@ leaves the implementation and archived OpenSpec Change uncommitted for human
 review. FAST and FULL command gates must pass before archive. Do not bypass a
 failed gate; report its exact command and failure class.
 
+When the configured TAKT provider is Codex, the helper preflights the dedicated
+inner-agent state directory before starting or resuming the workflow. If that
+check fails, report the setup command from the helper and the corresponding
+`README.md` section. Do not bypass it by invoking `takt` directly or by reusing
+the outer agent's default `~/.codex` directory.
+
 FULL includes Strictacode compare for each changed contour. Apply the tolerances
 defined by the Strictacode wrapper: project score, complexity density, and
 refactoring pressure may not increase; graph-based overengineering pressure may

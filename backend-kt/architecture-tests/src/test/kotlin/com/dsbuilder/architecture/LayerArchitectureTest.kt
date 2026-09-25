@@ -1,8 +1,8 @@
 package com.dsbuilder.architecture
 
 import com.lemonappdev.konsist.api.Konsist
-import com.lemonappdev.konsist.api.architecture.Layer
 import com.lemonappdev.konsist.api.architecture.KoArchitectureCreator.assertArchitecture
+import com.lemonappdev.konsist.api.architecture.Layer
 import kotlin.test.Test
 
 class LayerArchitectureTest {
@@ -12,8 +12,10 @@ class LayerArchitectureTest {
         // Пока список не пуст, тест служит корректным regression gate, но успешный результат
         // не означает, что backend-архитектура полностью соответствует правилам слоёв.
         val legacyArchitectureExceptions = setOf(
-            "projects-service/feature-projects/src/main/kotlin/com/dsbuilder/projects/feature/projects/application/usecase/AccessKeyUseCases.kt",
-            "documentation-service/feature-ingestion/src/main/kotlin/com/dsbuilder/documentation/ingestion/presentation/DocumentationBundleRoutes.kt",
+            "projects-service/feature-projects/src/main/kotlin/com/dsbuilder/projects/feature/projects/" +
+                "application/usecase/AccessKeyUseCases.kt",
+            "documentation-service/feature-ingestion/src/main/kotlin/com/dsbuilder/documentation/ingestion/" +
+                "presentation/DocumentationBundleRoutes.kt",
         )
         val productionFiles = Konsist
             .scopeFromProduction()
