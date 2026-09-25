@@ -8,6 +8,7 @@ import com.dsbuilder.documentation.processing.application.AtomicPublicationStore
 import com.dsbuilder.documentation.processing.application.ClaimedIngestionJob
 import com.dsbuilder.documentation.processing.application.ProcessingFailure
 import com.dsbuilder.documentation.processing.application.ProcessingJobStore
+import com.dsbuilder.documentation.processing.application.PublicationCleanupSchedulingMetrics
 import com.dsbuilder.documentation.publication.domain.ProcessingDiagnostic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,7 +33,15 @@ import java.util.UUID
 /** PostgreSQL/Exposed queue repository с короткими lease-транзакциями. */
 class ExposedProcessingJobStore(
     private val database: Database,
+    private val cleanupGracePeriod: Duration = Duration.ofHours(24),
+    private val cleanupMetrics: PublicationCleanupSchedulingMetrics = PublicationCleanupSchedulingMetrics { },
 ) : ProcessingJobStore, AtomicPublicationStore {
+    init {
+        require(!cleanupGracePeriod.isZero && !cleanupGracePeriod.isNegative) {
+            "cleanupGracePeriod must be positive"
+        }
+    }
+
     override suspend fun claim(
         workerId: String,
         leaseDuration: Duration,
@@ -206,6 +215,39 @@ class ExposedProcessingJobStore(
 
     @Suppress("LongMethod")
     override suspend fun publish(claim: ClaimedIngestionJob, publicationId: String): Boolean = dbTransaction {
+        val lockKey = exec(
+            """
+                SELECT publication.project_id, publication.design_system_id,
+                    publication.design_system_version, publication.platform
+                FROM ingestion_jobs job
+                JOIN documentation_publications publication ON publication.id = ?
+                WHERE job.id = ? AND job.worker_id = ? AND job.lease_until > now()
+                  AND publication.status = 'candidate'
+                FOR UPDATE OF job, publication
+            """.trimIndent(),
+            args = listOf(
+                VarCharColumnType(80) to publicationId,
+                VarCharColumnType(80) to claim.job.id,
+                VarCharColumnType(128) to claim.workerId,
+            ),
+            explicitStatementType = StatementType.SELECT,
+        ) { result ->
+            if (result.next()) {
+                publicationLockKey(
+                    result.getString("project_id"),
+                    result.getString("design_system_id"),
+                    result.getString("design_system_version"),
+                    result.getString("platform"),
+                )
+            } else {
+                null
+            }
+        }
+            ?: return@dbTransaction false
+        exec(
+            "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+            args = listOf(TextColumnType() to lockKey),
+        )
         val sql = """
             WITH owned_job AS (
                 SELECT job.id
@@ -220,16 +262,30 @@ class ExposedProcessingJobStore(
                 WHERE publication.id = ?
                   AND publication.status = 'candidate'
                 FOR UPDATE
+            ), previous AS (
+                SELECT active.publication_id
+                FROM active_documentation_publications active
+                JOIN candidate ON active.project_id = candidate.project_id
+                    AND active.design_system_id = candidate.design_system_id
+                    AND active.design_system_version = candidate.design_system_version
+                    AND active.platform = candidate.platform
+                WHERE active.publication_id <> candidate.id
+                FOR UPDATE OF active
             ), superseded AS (
                 UPDATE documentation_publications publication
                 SET status = 'superseded'
-                FROM candidate
+                FROM previous
                 WHERE publication.status = 'published'
-                  AND publication.id <> candidate.id
-                  AND publication.project_id = candidate.project_id
-                  AND publication.design_system_id = candidate.design_system_id
-                  AND publication.design_system_version = candidate.design_system_version
-                  AND publication.platform = candidate.platform
+                  AND publication.id = previous.publication_id
+                RETURNING publication.id
+            ), cleanup_job AS (
+                INSERT INTO publication_cleanup_jobs (
+                    publication_id, state, eligible_at, attempt, created_at, updated_at
+                )
+                SELECT id, 'pending', now() + make_interval(secs => ?), 0, now(), now()
+                FROM superseded
+                ON CONFLICT (publication_id) DO NOTHING
+                RETURNING publication_id
             ), published AS (
                 UPDATE documentation_publications publication
                 SET status = 'published', published_at = now()
@@ -254,7 +310,7 @@ class ExposedProcessingJobStore(
             WHERE job.id = ?
               AND job.worker_id = ?
               AND job.lease_until > now()
-            RETURNING job.id
+            RETURNING job.id, (SELECT count(*) FROM cleanup_job) AS cleanup_jobs_created
         """.trimIndent()
         exec(
             sql,
@@ -262,12 +318,22 @@ class ExposedProcessingJobStore(
                 VarCharColumnType(80) to claim.job.id,
                 VarCharColumnType(128) to claim.workerId,
                 VarCharColumnType(80) to publicationId,
+                IntegerColumnType() to cleanupGracePeriod.seconds.coerceIn(1, Int.MAX_VALUE.toLong()).toInt(),
                 VarCharColumnType(80) to publicationId,
                 VarCharColumnType(80) to claim.job.id,
                 VarCharColumnType(128) to claim.workerId,
             ),
             explicitStatementType = StatementType.SELECT,
-        ) { it.next() } ?: false
+        ) { result ->
+            if (!result.next()) {
+                false
+            } else {
+                result.getInt("cleanup_jobs_created").takeIf { it > 0 }?.let { created ->
+                    runCatching { cleanupMetrics.jobsCreated(created) }
+                }
+                true
+            }
+        } ?: false
     }
 
     private fun JdbcTransaction.leaseOwned(claim: ClaimedIngestionJob): Boolean =
@@ -296,6 +362,15 @@ class ExposedProcessingJobStore(
 
     private suspend fun <T> dbTransaction(block: JdbcTransaction.() -> T): T =
         withContext(Dispatchers.IO) { transaction(database, block) }
+}
+
+internal fun publicationLockKey(
+    projectId: String,
+    designSystemId: String,
+    version: String,
+    platform: String,
+): String = listOf(projectId, designSystemId, version, platform).joinToString(separator = "") { value ->
+    "${value.length}:$value"
 }
 
 private fun ResultSet.toClaim(workerId: String): ClaimedIngestionJob {
