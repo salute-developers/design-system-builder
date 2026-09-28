@@ -8,12 +8,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.sdds.compose.uikit.Button
+import com.sdds.compose.uikit.Text
 import com.sdds.serv.styles.basicbutton.BasicButtonStyles
 import com.sdds.serv.styles.basicbutton.style
 import com.sdds.serv.theme.SddsServTheme
@@ -38,16 +38,14 @@ public fun LoginScreen(
     ) {
         Text(
             text = "SDDS Tokens",
-            color = SddsServTheme.colors.textDefaultPrimary,
-            style = SddsServTheme.typography.displayMBold,
-            textAlign = TextAlign.Center,
+            textColor = SddsServTheme.colors.textDefaultPrimary,
+            style = SddsServTheme.typography.displayMBold.copy(textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(SddsServTheme.spacing.spacing2x))
         Text(
             text = "Войдите, чтобы просматривать токены дизайн-системы",
-            color = SddsServTheme.colors.textDefaultSecondary,
-            style = SddsServTheme.typography.bodyMNormal,
-            textAlign = TextAlign.Center,
+            textColor = SddsServTheme.colors.textDefaultSecondary,
+            style = SddsServTheme.typography.bodyMNormal.copy(textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(SddsServTheme.spacing.spacing6x))
         Button(
@@ -61,9 +59,8 @@ public fun LoginScreen(
             Spacer(Modifier.height(SddsServTheme.spacing.spacing4x))
             Text(
                 text = state.message,
-                color = SddsServTheme.colors.textDefaultNegative,
-                style = SddsServTheme.typography.bodyMNormal,
-                textAlign = TextAlign.Center,
+                textColor = SddsServTheme.colors.textDefaultNegative,
+                style = SddsServTheme.typography.bodyMNormal.copy(textAlign = TextAlign.Center),
             )
             Spacer(Modifier.height(SddsServTheme.spacing.spacing2x))
             Button(

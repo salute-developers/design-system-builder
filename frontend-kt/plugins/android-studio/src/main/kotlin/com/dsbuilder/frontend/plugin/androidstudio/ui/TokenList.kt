@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -56,6 +55,7 @@ import com.sdds.compose.uikit.AccordionItemStyle
 import com.sdds.compose.uikit.Divider
 import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.ListItem
+import com.sdds.compose.uikit.Text
 import com.sdds.compose.uikit.TextField
 import com.sdds.compose.uikit.graphics.Gradients
 import com.sdds.compose.uikit.shadow.ShadowAppearance
@@ -371,7 +371,7 @@ private fun NoMatchesText() {
     ) {
         Text(
             text = "Ничего не найдено",
-            color = SddsServTheme.colors.textDefaultSecondary,
+            textColor = SddsServTheme.colors.textDefaultSecondary,
             style = SddsServTheme.typography.bodyMNormal,
         )
     }
@@ -477,7 +477,7 @@ private fun CopyCodeReferenceAction(
         if (status != CopyStatus.IDLE) {
             Text(
                 text = status.label,
-                color = if (isError) {
+                textColor = if (isError) {
                     SddsServTheme.colors.textDefaultNegative
                 } else {
                     SddsServTheme.colors.textDefaultSecondary
@@ -636,7 +636,7 @@ private fun toPreviewShadowLayer(layer: ShadowLayerValue): ShadowLayer = ShadowL
 
 @Composable
 private fun TypographySample(value: TokenValuePayload.TypographyValue) {
-    Text(text = "Aa", style = typographyTextStyle(value))
+    Text(text = "Aa", textColor = SddsServTheme.colors.textDefaultPrimary, style = typographyTextStyle(value))
 }
 
 /** Маппинг нормализованной [TokenValuePayload.TypographyValue] в Compose [TextStyle]. */

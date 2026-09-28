@@ -6,11 +6,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import com.sdds.compose.uikit.Text
 import com.sdds.serv.theme.SddsServTheme
 
 /**
@@ -27,16 +27,14 @@ public fun EmptyProjectsState(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "Пока нет доступных проектов",
-            color = SddsServTheme.colors.textDefaultPrimary,
-            style = SddsServTheme.typography.bodyMBold,
-            textAlign = TextAlign.Center,
+            textColor = SddsServTheme.colors.textDefaultPrimary,
+            style = SddsServTheme.typography.bodyMBold.copy(textAlign = TextAlign.Center),
         )
         Spacer(Modifier.height(SddsServTheme.spacing.spacing2x))
         Text(
             text = "Попросите владельца проекта DS Builder добавить вас участником.",
-            color = SddsServTheme.colors.textDefaultSecondary,
-            style = SddsServTheme.typography.bodyMNormal,
-            textAlign = TextAlign.Center,
+            textColor = SddsServTheme.colors.textDefaultSecondary,
+            style = SddsServTheme.typography.bodyMNormal.copy(textAlign = TextAlign.Center),
         )
     }
 }

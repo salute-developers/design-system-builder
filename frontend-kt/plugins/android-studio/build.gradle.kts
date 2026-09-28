@@ -30,7 +30,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation("org.jetbrains.compose.runtime:runtime-desktop:$composeMultiplatformVersion")
     implementation("org.jetbrains.compose.foundation:foundation-desktop:$composeMultiplatformVersion")
-    implementation("org.jetbrains.compose.material:material-desktop:$composeMultiplatformVersion")
     implementation("org.jetbrains.compose.ui:ui-desktop:$composeMultiplatformVersion")
     runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-macos-arm64:$skikoVersion")
     runtimeOnly("org.jetbrains.skiko:skiko-awt-runtime-macos-x64:$skikoVersion")

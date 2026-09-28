@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +47,7 @@ import com.sdds.compose.uikit.IconButton
 import com.sdds.compose.uikit.PopoverAlignment
 import com.sdds.compose.uikit.PopoverPlacement
 import com.sdds.compose.uikit.PopoverPlacementMode
+import com.sdds.compose.uikit.Text
 import com.sdds.compose.uikit.Tooltip
 import com.sdds.compose.uikit.TriggerInfo
 import com.sdds.compose.uikit.popoverTrigger
@@ -216,21 +216,21 @@ private fun Breadcrumbs(path: List<Pair<String, Step>>, history: List<Step>, onS
             when {
                 isLast -> Text(
                     text = label,
-                    color = SddsServTheme.colors.textDefaultPrimary,
+                    textColor = SddsServTheme.colors.textDefaultPrimary,
                     style = SddsServTheme.typography.bodySBold,
                 )
                 // Авто-выбранный шаг в историю не попадает — вернуться на него нельзя (выбор повторился бы сам).
                 target in history -> BreadcrumbItem(label = label, onClick = { onSelect(target) })
                 else -> Text(
                     text = label,
-                    color = SddsServTheme.colors.textDefaultSecondary,
+                    textColor = SddsServTheme.colors.textDefaultSecondary,
                     style = SddsServTheme.typography.bodySNormal,
                 )
             }
             if (!isLast) {
                 Text(
                     text = " / ",
-                    color = SddsServTheme.colors.textDefaultSecondary,
+                    textColor = SddsServTheme.colors.textDefaultSecondary,
                     style = SddsServTheme.typography.bodySNormal,
                 )
             }
@@ -251,7 +251,7 @@ private fun BreadcrumbItem(label: String, onClick: () -> Unit) {
 
     Text(
         text = label,
-        color = color,
+        textColor = color,
         style = SddsServTheme.typography.bodySNormal,
         // Без ripple/фона при ховере и клике — только смена цвета текста на hover/active токен.
         modifier = Modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
@@ -498,7 +498,7 @@ private fun LoadingText(text: String) {
     ) {
         Text(
             text = text,
-            color = SddsServTheme.colors.textDefaultSecondary,
+            textColor = SddsServTheme.colors.textDefaultSecondary,
             style = SddsServTheme.typography.bodyMNormal,
         )
     }
@@ -513,7 +513,7 @@ private fun ErrorText(message: String, onLoginClick: (() -> Unit)? = null) {
     ) {
         Text(
             text = message,
-            color = SddsServTheme.colors.textDefaultNegative,
+            textColor = SddsServTheme.colors.textDefaultNegative,
             style = SddsServTheme.typography.bodyMNormal,
         )
         if (onLoginClick != null) {
