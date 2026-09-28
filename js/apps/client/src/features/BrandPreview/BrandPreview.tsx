@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 
 import { builderTips } from './BrandPreview.data';
+// Импорт через Vite: файлы уедут в assets/ с хешем, на проде из S3 отдаётся только этот путь
+import brandPreviewImage from './brand-preview.png';
+import sddsLogo from './sdds-logo.svg';
 import {
     Root,
     StyledBrand,
@@ -18,11 +21,6 @@ import {
 } from './BrandPreview.styles';
 
 const ROTATE_INTERVAL = 8_000;
-
-const assetsBase = `${import.meta.env.BASE_URL}auth`;
-
-const brandPreviewImage = `${assetsBase}/brand-preview.png`;
-const sddsLogo = `${assetsBase}/sdds-logo.svg`;
 
 interface BrandPreviewProps {
     className?: string;
