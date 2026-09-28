@@ -30,6 +30,7 @@ jobs:
         env:
           VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL_DEV }}
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_DEV }}
+          VITE_REQUEST_ACCESS_URL: ${{ vars.VITE_REQUEST_ACCESS_URL_DEV }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
           BASE_URL: '/dev/design-system-builder/client/'
         run: |
