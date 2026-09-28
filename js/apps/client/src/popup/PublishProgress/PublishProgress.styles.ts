@@ -65,7 +65,7 @@ export const StyledPackageName = styled.div`
 `;
 
 export const StyledInstallCommand = styled(InstallCommand)`
-    width: 100%;
+    width: max-content;
 `;
 
 export const StyledActions = styled.div`
