@@ -69,7 +69,7 @@ const config = {
                     editUrl: 'https://github.com/salute-developers/plasma/blob/master/website/sdds-finai-docs/',
                     versions: {
                         current: {
-                            label: pckgJson.dependencies['@salutejs-ds/{{ packageName }}'],
+                            label: pckgJson.dependencies['{{ npmPackageScope }}/{{ packageName }}'],
                             path: '',
                         },
                     },
@@ -93,9 +93,9 @@ const config = {
                         },
                     }).parse(
                         await glob([
-                            "./node_modules/@salutejs-ds/{{ packageName }}/components/**/*.d.ts",
-                            "!./node_modules/@salutejs-ds/{{ packageName }}/components/**/index.d.ts",
-                            "!./node_modules/@salutejs-ds/{{ packageName }}/components/**/*.config.d.ts",
+                            "./node_modules/{{ npmPackageScope }}/{{ packageName }}/components/**/*.d.ts",
+                            "!./node_modules/{{ npmPackageScope }}/{{ packageName }}/components/**/index.d.ts",
+                            "!./node_modules/{{ npmPackageScope }}/{{ packageName }}/components/**/*.config.d.ts",
                         ]),
                     );
                 },

@@ -3,11 +3,13 @@ export const createPackageJSON = ({
     packageVersion,
     coreVersion,
     hasComponents = true,
+    packageScope,
 }: {
     packageName: string;
     packageVersion: string;
     coreVersion: string;
     hasComponents?: boolean;
+    packageScope: string;
 }) => {
     // Без компонентов нет `src/components`, и babel на нём падает — собираем только тему через rollup.
     const buildSteps = [
@@ -26,7 +28,7 @@ export const createPackageJSON = ({
 
     return JSON.stringify(
         {
-            name: `@salutejs-ds/${packageName}`,
+            name: `${packageScope}/${packageName}`,
             version: packageVersion,
             description: 'Salute Design System / React UI kit for web applications',
             author: 'Salute Frontend Team <salute.developers@gmail.com>',

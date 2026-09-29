@@ -9,6 +9,7 @@ import * as path from "path";
 export interface GenerateProjectData {
   projectName: string;
   packageName: string;
+  npmPackageScope: string;
   packageVersion: string;
   components: string[];
 }
@@ -156,6 +157,7 @@ export class TemplateService {
       // Для *.hbs шаблонов
       projectName: data.projectName,
       packageName: data.packageName,
+      npmPackageScope: data.npmPackageScope,
       packageVersion: data.packageVersion,
     };
   }

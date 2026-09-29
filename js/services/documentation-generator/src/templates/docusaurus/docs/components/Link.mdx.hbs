@@ -12,12 +12,12 @@ import { PropsTable } from '@site/src/components';
 ## Быстрый старт
 
 ```tsx
-import { Link } from '@salutejs-ds/{{ packageName }}';
+import { Link } from '{{ npmPackageScope }}/{{ packageName }}';
 ```
 
 ```tsx live
 import React from 'react';
-import { TextS, Link } from '@salutejs-ds/{{ packageName }}';
+import { TextS, Link } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     return (
@@ -35,7 +35,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { TextS, Link } from '@salutejs-ds/{{ packageName }}';
+import { TextS, Link } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     const { viewList } = useMockComponentProps();

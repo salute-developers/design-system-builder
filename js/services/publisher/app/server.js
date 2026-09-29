@@ -56,10 +56,10 @@ app.post('/upload', upload.single('package'), async (req, res) => {
         }
 
         filePath = req.file.path;
-        const npmToken = req.body.npmToken;
+        const npmToken = process.env.NPM_TOKEN;
 
         if (!npmToken) {
-            throw new Error('NPM токен не предоставлен');
+            throw new Error('NPM_TOKEN не задан в окружении publisher');
         }
 
         // Проверяем что файл существует и доступен
