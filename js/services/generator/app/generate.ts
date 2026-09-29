@@ -22,7 +22,7 @@ import {
 import { BaseFileStructure, ComponentManifest, ComponentsFiles, DesignSystemData, OutputParams, ThemeFiles } from './types';
 import { Config, Meta } from './componentBuilder';
 import JSZip from 'jszip';
-import { addFolderToZip, getPlasmaConfigName, getThemeData } from './utils';
+import { addFolderToZip, getPlasmaConfigName, getThemeData, NPM_PACKAGE_SCOPE } from './utils';
 
 export const generateBaseFileStructure = async ({
     pathToDir,
@@ -47,6 +47,7 @@ export const generateBaseFileStructure = async ({
         packageVersion,
         coreVersion,
         hasComponents,
+        packageScope: NPM_PACKAGE_SCOPE,
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
 

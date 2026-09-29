@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import fs from 'fs-extra';
 
-import { DB_SERVICE_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL } from '../utils';
+import { DB_SERVICE_URL, CORE_VERSION, GENERATE_ROOT_DIR, PUBLISHER_URL, NPM_PACKAGE_SCOPE } from '../utils';
 import { GenerateRouteBody } from '../types';
 import { generateDesignSystem } from '../generate';
 import stream from 'stream';
@@ -74,16 +74,12 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
 
         try {
             pathToDir = await createGenerateWorkingDir();
-            const { packageName, packageVersion = '0.1.0', exportType, npmToken } = request.body;
+            const { packageName, packageVersion = '0.1.0', exportType } = request.body;
 
-            const npmPackage = await fetch(`https://registry.npmjs.org/@salutejs-ds/${packageName}`);
+            const npmPackage = await fetch(`https://registry.npmjs.org/${NPM_PACKAGE_SCOPE}/${packageName}`);
             const packageMeta = (await npmPackage.json()) as any;
 
             const version = 'error' in packageMeta ? packageVersion : bumpPathVersion(packageMeta['dist-tags'].latest);
-
-            if (!npmToken) {
-                throw new Error('Отсутствует npm-токен');
-            }
 
             const themeData = (await fetch(
                 `${DB_SERVICE_URL}/legacy/design-systems/${packageName}/theme-data`,
@@ -98,7 +94,6 @@ export const generateAndPublishRoute = async (server: FastifyInstance) => {
             );
 
             const formData = new FormData();
-            formData.append('npmToken', npmToken);
             const blob = new Blob([buffer], { type: 'application/gzip' });
             formData.append('package', blob, 'package.tgz');
             formData.append('packageName', packageName);

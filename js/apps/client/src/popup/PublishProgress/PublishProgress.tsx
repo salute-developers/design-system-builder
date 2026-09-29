@@ -77,7 +77,7 @@ export const PublishProgress = (props: PublishProgressProps) => {
 
             // 2. Генерируем и публикуем пакет
             setStage('publishing');
-            const publishResult = await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
+            const publishResult = await generatePublish(designSystem, 'tgz');
             if (!publishResult.success) {
                 throw new Error('Ошибка при публикации дизайн-системы');
             }

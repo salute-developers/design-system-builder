@@ -31,7 +31,6 @@ jobs:
           VITE_API_GATEWAY_URL: ${{ vars.VITE_API_GATEWAY_URL_PROM }}
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_PROM }}
           VITE_REQUEST_ACCESS_URL: ${{ vars.VITE_REQUEST_ACCESS_URL_PROM }}
-          VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
           VITE_NPM_PACKAGE_SCOPE: ${{ vars.VITE_NPM_PACKAGE_SCOPE_PROM }}
           BASE_URL: '/design-system-builder/'
         run: |
