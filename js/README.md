@@ -59,7 +59,7 @@ The platform is a small set of independent services around a central registry. A
 | **Publisher** | [services/publisher](services/publisher/) | 3007 | Express | Receives a packaged design system from the generator and publishes it to a configured npm registry. |
 | **Docs Generator** | [services/documentation-generator](services/documentation-generator/) | 3006 | NestJS, Handlebars, Docusaurus | Pulls a design system from the registry, renders a Docusaurus project from templates, builds the static site, and uploads it to S3. |
 | **Client** | [apps/client](apps/client/) | 3002 | React 18, Vite, `@salutejs/plasma-*` | The end-user UI for composing a design system, editing tokens, and triggering generation/publication/documentation. |
-| **Admin** | [apps/admin](apps/admin/) | 3004 | React 18, Vite, OpenAPI types | Inspector for the registry: schema view, table browser, OpenAPI reference, saved/NL queries. |
+| **Admin** | [apps/admin](apps/admin/) | 3004 | React 18, Vite, OpenAPI types | Inspector for the registry: schema view, table browser, OpenAPI reference, query catalog. |
 
 ### How a design system flows through the system
 
@@ -82,7 +82,7 @@ design-system-builder/
 │   │   │   │   └── types.gen.ts        # generated TS types (artifact)
 │   │   │   ├── pages/
 │   │   │   │   ├── TablesPage.tsx      # /tables — DB table browser
-│   │   │   │   ├── QueriesPage.tsx     # /queries — saved query catalog
+│   │   │   │   ├── QueriesPage.tsx     # /queries — query catalog
 │   │   │   │   ├── SchemaPage.tsx      # /schema — ER diagram
 │   │   │   │   ├── DocsPage.tsx        # /docs — Scalar API reference
 │   │   │   │   └── SettingsPage.tsx    # /settings
@@ -117,7 +117,6 @@ design-system-builder/
 │   │   │   │   └── misc/               # auxiliary routes
 │   │   │   │       ├── tables.ts       # /api/tables
 │   │   │   │       ├── queries.ts      # /api/queries
-│   │   │   │       ├── nl-query.ts     # /api/nl-query
 │   │   │   │       └── schema.ts       # /api/schema
 │   │   │   ├── validation/
 │   │   │   │   ├── schema.ts           # Zod schemas for all tables
@@ -127,10 +126,6 @@ design-system-builder/
 │   │   │   │   └── generate.ts         # writes openapi.json
 │   │   │   ├── queries/
 │   │   │   │   └── catalog.ts          # named query catalog
-│   │   │   ├── nl-query/
-│   │   │   │   ├── llm-service.ts      # Z.AI API client
-│   │   │   │   ├── schema-context.ts   # schema context for the LLM
-│   │   │   │   └── sql-validator.ts    # validation (SELECT only)
 │   │   │   ├── zod-extend.ts           # extendZodWithOpenApi (called once)
 │   │   │   └── index.ts                # Express server entry
 │   │   ├── drizzle/                    # generated SQL migrations
@@ -255,7 +250,6 @@ Postgres lives in the dev compose as `postgres-registry` (host port `5433`). The
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5433/ds_registry
 PORT=3008
-ZAI_API_KEY=your-zai-api-key-here   # for /api/nl-query
 ```
 
 Inside Docker the host becomes `postgres-registry:5432`. See [services/db-service/.env.example](services/db-service/.env.example).

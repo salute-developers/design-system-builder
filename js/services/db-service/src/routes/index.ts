@@ -27,7 +27,6 @@ import componentReuseConfigsRouter from "./api/component-reuse-configs";
 import styleCombinationsRouter from "./api/style-combinations";
 import styleCombinationMembersRouter from "./api/style-combination-members";
 import designSystemChangesRouter from "./api/design-system-changes";
-import savedQueriesRouter from "./api/saved-queries";
 import paletteRouter from "./api/palette";
 import legacyRouter from "./api/legacy";
 import componentConfigRouter from "./api/component-config";
@@ -37,7 +36,6 @@ import componentConfigExportRouter from "./api/component-config-export";
 // Misc (legacy utility routes)
 import tablesRouter from "./misc/tables";
 import queriesRouter from "./misc/queries";
-import nlQueryRouter from "./misc/nl-query";
 import schemaRouter from "./misc/schema";
 
 const router = Router();
@@ -78,7 +76,6 @@ router.use("/ds/component-reuse-configs", componentReuseConfigsRouter);
 router.use("/ds/style-combinations", styleCombinationsRouter);
 router.use("/ds/style-combination-members", styleCombinationMembersRouter);
 router.use("/ds/design-system-changes", designSystemChangesRouter);
-router.use("/ds/saved-queries", savedQueriesRouter);
 router.use("/ds/palette", paletteRouter);
 router.use("/ds/legacy/design-systems", legacyRouter);
 router.use("/ds/component-config", componentConfigRouter);
@@ -88,7 +85,6 @@ router.use("/ds/component-config", componentConfigExportRouter);
 // Misc utility routes
 router.use("/admin/tables", tablesRouter);
 router.use("/admin/queries", queriesRouter);
-router.use("/admin/nl-query", nlQueryRouter);
 router.use("/admin/schema", schemaRouter);
 
 export default router;
