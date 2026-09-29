@@ -639,12 +639,3 @@ Table component_style_reference_styles {
   }
 }
 
-// ─── Служебное ───────────────────────────────────────────────────────────────
-
-Table saved_queries {
-  id uuid [pk]
-  label text [not null]
-  sql text [not null]
-
-  created_at timestamp [not null, default: `now()`]
-}

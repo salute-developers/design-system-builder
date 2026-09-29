@@ -1038,14 +1038,6 @@ export const designSystemChanges = pgTable(
   ],
 );
 
-// Сохранённые пользовательские запросы (сгенерированные через NL Query)
-export const savedQueries = pgTable("saved_queries", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  label: text("label").notNull(),
-  sql: text("sql").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
 // Цветовая палитра (general / additional)
 export const palette = pgTable(
   "palette",

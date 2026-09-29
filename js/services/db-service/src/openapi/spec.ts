@@ -176,11 +176,6 @@ const DesignSystemChangeSchema = registry.register(
   createSelectSchema(tables.designSystemChanges, ts).openapi("DesignSystemChange"),
 );
 
-const SavedQuerySchema = registry.register(
-  "SavedQuery",
-  createSelectSchema(tables.savedQueries, { createdAt: DateTimeSchema }).openapi("SavedQuery"),
-);
-
 const PaletteSchema = registry.register(
   "Palette",
   createSelectSchema(tables.palette, ts).openapi("Palette"),
@@ -240,8 +235,6 @@ const schemas = {
   CreateComponentStyleReference: registry.register("CreateComponentStyleReference", s.CreateComponentStyleReferenceSchema.openapi("CreateComponentStyleReference")),
   CreateComponentStyleReferenceStyle: registry.register("CreateComponentStyleReferenceStyle", s.CreateComponentStyleReferenceStyleSchema.openapi("CreateComponentStyleReferenceStyle")),
   CreateDesignSystemChange: registry.register("CreateDesignSystemChange", s.CreateDesignSystemChangeSchema.openapi("CreateDesignSystemChange")),
-  CreateSavedQuery: registry.register("CreateSavedQuery", s.CreateSavedQuerySchema.openapi("CreateSavedQuery")),
-  UpdateSavedQuery: registry.register("UpdateSavedQuery", s.UpdateSavedQuerySchema.openapi("UpdateSavedQuery")),
   CreatePalette: registry.register("CreatePalette", s.CreatePaletteSchema.openapi("CreatePalette")),
   UpdatePalette: registry.register("UpdatePalette", s.UpdatePaletteSchema.openapi("UpdatePalette")),
 };
@@ -906,23 +899,6 @@ registry.registerPath({
   responses: list(DesignSystemChangeSchema),
 });
 
-registerCrud(`${DS_PREFIX}/saved-queries`, "Saved Queries", SavedQuerySchema, schemas.CreateSavedQuery, schemas.UpdateSavedQuery);
-registry.registerPath({
-  method: "get",
-  path: `${DS_PREFIX}/saved-queries/{id}/run`,
-  tags: ["Saved Queries"],
-  summary: "Execute a saved query",
-  request: { params: z.object({ id: UuidSchema }) },
-  responses: {
-    200: {
-      description: "Query results",
-      ...json(z.object({ id: UuidSchema, label: z.string(), result: z.array(z.record(z.string(), z.any())), count: z.number() })),
-    },
-    404: { description: "Not found", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
 registerCrud(`${DS_PREFIX}/palette`, "Palette", PaletteSchema, schemas.CreatePalette, schemas.UpdatePalette);
 registry.registerPath({
   method: "get",
@@ -1012,32 +988,6 @@ registry.registerPath({
       })),
     },
     404: { description: "Not found", ...json(ErrorResponseSchema) },
-    500: { description: "Server error", ...json(ErrorResponseSchema) },
-  },
-});
-
-registry.registerPath({
-  method: "post",
-  path: `${ADMIN_PREFIX}/nl-query`,
-  tags: ["Admin"],
-  summary: "Run a natural-language SQL query",
-  request: {
-    body: {
-      required: true,
-      ...json(z.object({ query: z.string().min(1) })),
-    },
-  },
-  responses: {
-    200: {
-      description: "Generated SQL and result rows",
-      ...json(z.object({
-        sql: z.string(),
-        columns: z.array(z.string()),
-        rows: z.array(z.record(z.string(), z.any())),
-        count: z.number(),
-      })),
-    },
-    400: { description: "Validation / generation error", ...json(ErrorResponseSchema) },
     500: { description: "Server error", ...json(ErrorResponseSchema) },
   },
 });
