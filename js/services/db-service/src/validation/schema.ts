@@ -457,16 +457,6 @@ export const CreateDesignSystemChangeSchema = z.object({
     data: z.any().optional(),
 });
 
-// Saved Queries
-export const CreateSavedQuerySchema = z.object({
-    label: z.string().trim().min(1).max(500),
-    sql: z.string().trim().min(1),
-});
-export const UpdateSavedQuerySchema = z.object({
-    label: z.string().trim().min(1).max(500).optional(),
-    sql: z.string().trim().min(1).optional(),
-});
-
 // Palette
 export const CreatePaletteSchema = z.object({
     type: PaletteTypeSchema,
@@ -535,8 +525,6 @@ export type CreateStyleCombinationRequest = z.infer<typeof CreateStyleCombinatio
 export type UpdateStyleCombinationRequest = z.infer<typeof UpdateStyleCombinationSchema>;
 export type CreateStyleCombinationMemberRequest = z.infer<typeof CreateStyleCombinationMemberSchema>;
 export type CreateDesignSystemChangeRequest = z.infer<typeof CreateDesignSystemChangeSchema>;
-export type CreateSavedQueryRequest = z.infer<typeof CreateSavedQuerySchema>;
-export type UpdateSavedQueryRequest = z.infer<typeof UpdateSavedQuerySchema>;
 export type CreatePaletteRequest = z.infer<typeof CreatePaletteSchema>;
 export type UpdatePaletteRequest = z.infer<typeof UpdatePaletteSchema>;
 export type CreateStateRequest = z.infer<typeof CreateStateSchema>;

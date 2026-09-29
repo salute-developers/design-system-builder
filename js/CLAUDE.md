@@ -94,10 +94,8 @@ These were deleted intentionally. If you see stale references to them in code/do
 - `generate-ds` (old CLI, superseded by `services/generator`)
 
 ### Admin app gotchas
-- **`/nl-query` page does not exist.** NL-query functionality is implemented as a `NLQueryContent` component **inside** [apps/admin/src/pages/QueriesPage.tsx](apps/admin/src/pages/QueriesPage.tsx) and rendered as a tab in the `/queries` sidebar. A standalone `NLQueryPage.tsx` used to exist but was deleted as dead code. Don't recreate it.
 - Admin pages registered in [apps/admin/src/App.tsx](apps/admin/src/App.tsx): `/tables`, `/queries`, `/schema`, `/docs`, `/settings`. That's all of them.
 - The admin API client is **OpenAPI-typed**. When adding new routes to `db-service`, run `/sync-api-types` so `apps/admin/src/api/types.gen.ts` stays in sync.
-- NL-query backend endpoint `/api/nl-query` is still used by `QueriesPage` (`NLQueryContent`) — don't remove the backend route.
 
 ### CI / deployment
 - [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
@@ -108,7 +106,7 @@ These were deleted intentionally. If you see stale references to them in code/do
 
 - [services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts) — DB schema (source of truth)
 - [services/db-service/src/routes/api/](services/db-service/src/routes/api/) — CRUD routes (one file per table)
-- [services/db-service/src/routes/misc/](services/db-service/src/routes/misc/) — tables/queries/nl-query/schema auxiliary routes
+- [services/db-service/src/routes/misc/](services/db-service/src/routes/misc/) — tables/queries/schema auxiliary routes
 - [services/db-service/src/openapi/spec.ts](services/db-service/src/openapi/spec.ts) — OpenAPI spec (generated via `/sync-spec`)
 - [services/db-service/src/validation/schema.ts](services/db-service/src/validation/schema.ts) — Zod validators (generated via `/sync-validation`)
 - [apps/admin/src/api/types.gen.ts](apps/admin/src/api/types.gen.ts) — admin's API types (generated via `/sync-api-types`)

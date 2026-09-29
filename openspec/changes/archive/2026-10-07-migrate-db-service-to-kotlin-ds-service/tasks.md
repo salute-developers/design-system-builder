@@ -18,7 +18,7 @@
 
 - [x] 3.1 Реализовать Ktor `app`, Koin composition root, JSON/error middleware, ограничение тела не меньше `16 MiB` для импорта, correlation id и регистрацию feature routes.
 - [x] 3.2 Добавить раздельные liveness/readiness endpoints с проверками БД, Flyway, immutable policy и регистрации приложения, а также безопасной диагностикой `policyVersion` и hash.
-- [x] 3.3 Добавить OpenAPI из явных DTO и route manifest, исключив `legacy`, `admin`, `documentation-pages`, `saved-queries` и генерацию.
+- [x] 3.3 Добавить OpenAPI из явных DTO и route manifest, исключив `legacy`, `admin`, `documentation-pages` и генерацию.
 - [x] 3.4 Добавить структурированные журналы и метрики HTTP, RBAC, ownership, транзакций и пула БД без credentials и тел конфигураций.
 - [x] 3.5 Добавить production `Dockerfile`, `.dockerignore`, `application.yaml`, документированные переменные окружения, `DS_SERVICE_PORT=8085` и container healthcheck.
 - [x] 3.6 Подключить `ds-service` к `backend-kt/docker-compose.yml`, `backend-kt/start-local.sh` и корневому локальному контуру с согласованными портом, зависимостями, сетью и secrets-from-environment.

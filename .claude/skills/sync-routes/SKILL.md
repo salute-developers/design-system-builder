@@ -152,7 +152,7 @@ router.get("/by-foo/:fooId", validateParams(byFooSchema), (req, res) => ...);
 - Blank line before and after every `if` block.
 - All `if` blocks use full brace form — no single-line ifs.
 - Functions defined as `const` arrow functions, not `function` declarations.
-- Some routes use `desc()` ordering for list endpoints (e.g. `design-system-changes`, `design-system-versions`, `saved-queries`) — apply `desc(table.createdAt)` when the table is an audit log or time-ordered.
+- Some routes use `desc()` ordering for list endpoints (e.g. `design-system-changes`, `design-system-versions`) — apply `desc(table.createdAt)` when the table is an audit log or time-ordered.
 - `optionalAuthenticate` middleware is used only in special routes (`design-systems`, `legacy`) — do not add it to standard CRUD routes.
 
 ## After changes

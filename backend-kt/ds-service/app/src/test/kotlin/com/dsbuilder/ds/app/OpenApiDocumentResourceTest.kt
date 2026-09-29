@@ -33,7 +33,6 @@ class OpenApiDocumentResourceTest {
         assertFalse("legacy" in routeNames)
         assertFalse("admin" in routeNames)
         assertFalse("documentation-pages" in routeNames)
-        assertFalse("saved-queries" in routeNames)
         assertFalse("generate" in routeNames)
     }
 
