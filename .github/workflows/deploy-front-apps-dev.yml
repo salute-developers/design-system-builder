@@ -32,6 +32,7 @@ jobs:
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_DEV }}
           VITE_REQUEST_ACCESS_URL: ${{ vars.VITE_REQUEST_ACCESS_URL_DEV }}
           VITE_NPM_REGISTRY: ${{ secrets.VITE_NPM_REGISTRY }}
+          VITE_NPM_PACKAGE_SCOPE: ${{ vars.VITE_NPM_PACKAGE_SCOPE_DEV }}
           BASE_URL: '/dev/design-system-builder/client/'
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider

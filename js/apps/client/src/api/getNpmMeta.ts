@@ -3,7 +3,8 @@ export const getNpmMeta = async (packageName: string) => {
     return response.json();
 };
 
-export const getNpmPackageName = (packagesName: string) => `@salutejs-ds/${packagesName}`;
+export const getNpmPackageName = (packagesName: string) =>
+    `${import.meta.env.VITE_NPM_PACKAGE_SCOPE}/${packagesName}`;
 
 export const getNpmPackageUrl = (packagesName: string, version?: string) => {
     const base = `https://www.npmjs.com/package/${getNpmPackageName(packagesName)}`;
