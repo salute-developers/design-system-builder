@@ -6,7 +6,7 @@ cd "$SCRIPT_DIR"
 
 for config in nginx.local.conf nginx.prod.conf.template; do
   ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
-  compatibility_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds/(?:legacy|saved-queries)(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  compatibility_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds/legacy(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   admin_block=$(awk 'index($0, "location ~ ^/api/admin(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   docs_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   documentation_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")

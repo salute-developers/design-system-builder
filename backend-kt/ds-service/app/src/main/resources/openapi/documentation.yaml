@@ -6733,25 +6733,6 @@ components:
         - data
         - createdAt
         - updatedAt
-    SavedQuery:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        label:
-          type: string
-        sql:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-          example: 2024-01-01T00:00:00.000Z
-      required:
-        - id
-        - label
-        - sql
-        - createdAt
     Palette:
       type: object
       properties:
@@ -7744,29 +7725,6 @@ components:
         - entityType
         - entityId
         - operation
-    CreateSavedQuery:
-      type: object
-      properties:
-        label:
-          type: string
-          minLength: 1
-          maxLength: 500
-        sql:
-          type: string
-          minLength: 1
-      required:
-        - label
-        - sql
-    UpdateSavedQuery:
-      type: object
-      properties:
-        label:
-          type: string
-          minLength: 1
-          maxLength: 500
-        sql:
-          type: string
-          minLength: 1
     CreatePalette:
       type: object
       properties:

@@ -20,12 +20,12 @@
 **Non-Goals:**
 
 - изменение предметной схемы, нормализация таблиц или исправление существующих особенностей API;
-- перенос `legacy`, `admin`, `documentation-pages`, `saved-queries` и генерации;
+- перенос `legacy`, `admin`, `documentation-pages` и генерации;
 - удаление `db-service`, его миграций или исключённых маршрутов;
 - поэтапное переключение отдельных предметных сущностей в production;
 - переработка DTO, добавление пагинации или новый вариант API;
 
-Исключённые `legacy` и `saved-queries` остаются доступными через project-scoped Gateway fallback в `db-service`; `/api/admin/**` остаётся user-authenticated fallback в `db-service`. `documentation-pages` не получает fallback в `/ds/**`: документация обслуживается отдельным `documentation-service` по своему Gateway namespace.
+Исключённый `legacy` остаётся доступным через project-scoped Gateway fallback в `db-service`; `/api/admin/**` остаётся user-authenticated fallback в `db-service`. `documentation-pages` не получает fallback в `/ds/**`: документация обслуживается отдельным `documentation-service` по своему Gateway namespace.
 - перенос codec из `frontend-kt`: `ds-service` сохраняет только текущую серверную семантику `component-config`.
 
 ## Decisions

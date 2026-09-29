@@ -49,14 +49,13 @@
 
 ### Requirement: Исключённые маршруты не входят в Kotlin-сервис
 
-`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**` и `/api/admin/**`, а также операции генерации артефактов.
+`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `/legacy/**` и `/api/admin/**`, а также операции генерации артефактов.
 
 | Исключённая область | Маршруты, от которых отказывается `ds-service` |
 |---|---|
 | Документация | `GET /documentation-pages`, `GET /documentation-pages/{id}`, `GET /documentation-pages/by-design-system/{designSystemId}`, `POST /documentation-pages`, `PATCH /documentation-pages/{id}`, `DELETE /documentation-pages/{id}` |
-| Сохранённые запросы | `GET /saved-queries`, `GET /saved-queries/{id}`, `POST /saved-queries`, `PATCH /saved-queries/{id}`, `DELETE /saved-queries/{id}`, `GET /saved-queries/{id}/run` |
 | Legacy | `GET /legacy/design-systems/{name}/component-configs`, `GET /legacy/design-systems/{name}/theme-data`, `GET /legacy/design-systems/{name}/tenant-params`, `POST /legacy/design-systems/create`, `POST /legacy/design-systems/{name}/update`, `GET /legacy/design-systems/{name}/download-theme` |
-| Администрирование | `GET /api/admin/tables`, `GET /api/admin/tables/{name}`, `GET /api/admin/queries`, `GET /api/admin/queries/{id}`, `POST /api/admin/nl-query`, `GET /api/admin/schema` |
+| Администрирование | `GET /api/admin/tables`, `GET /api/admin/tables/{name}`, `GET /api/admin/queries`, `GET /api/admin/queries/{id}`, `GET /api/admin/schema` |
 
 Отдельных смонтированных маршрутов генерации в текущем предметном router нет; `download-theme` считается legacy-операцией и исключён явно.
 
@@ -74,11 +73,11 @@
 
 ### Requirement: Gateway compatibility routing для исключённых API
 
-Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/api/projects/{projectId}/ds/saved-queries/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой. `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
+Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой. `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
 
-#### Scenario: Сохранённый запрос остаётся доступен во время миграции
+#### Scenario: Legacy-маршрут остаётся доступен во время миграции
 
-- **WHEN** авторизованный principal вызывает `/api/projects/{projectId}/ds/saved-queries`
+- **WHEN** авторизованный principal вызывает `/api/projects/{projectId}/ds/legacy/**`
 - **THEN** Gateway проксирует запрос в `db-service`
 - **AND** `ds-service` не обрабатывает этот маршрут
 

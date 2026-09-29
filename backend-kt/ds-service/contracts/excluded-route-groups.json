@@ -8,11 +8,6 @@
       "reason": "Documentation belongs to documentation-service."
     },
     {
-      "name": "saved-queries",
-      "sources": ["src/routes/api/saved-queries.ts"],
-      "reason": "Administrative query functionality is outside the DS domain."
-    },
-    {
       "name": "legacy",
       "sources": ["src/routes/api/legacy.ts"],
       "reason": "Legacy compatibility routes remain in db-service during migration."
@@ -22,7 +17,6 @@
       "sources": [
         "src/routes/misc/tables.ts",
         "src/routes/misc/queries.ts",
-        "src/routes/misc/nl-query.ts",
         "src/routes/misc/schema.ts"
       ],
       "reason": "Administrative and schema-inspection routes are outside the DS domain."

@@ -126,7 +126,6 @@ services:
       NODE_ENV: production
       PORT: 3008
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
-      ZAI_API_KEY: ${ZAI_API_KEY:-}
     expose:
       - "3008"
     healthcheck:

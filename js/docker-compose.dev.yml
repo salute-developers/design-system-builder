@@ -30,7 +30,6 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3008
-      ZAI_API_KEY: ${ZAI_API_KEY}
       DATABASE_URL: postgresql://postgres:postgres@postgres-registry:5432/ds_registry
     ports:
       - "3008:3008"

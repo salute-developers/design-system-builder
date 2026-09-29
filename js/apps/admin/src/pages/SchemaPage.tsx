@@ -149,12 +149,12 @@ function SchemaPage() {
 
           <details className="schema-code-details">
             <summary>DBML</summary>
-            <pre className="nl-query-sql">{dbml}</pre>
+            <pre className="code-block">{dbml}</pre>
           </details>
 
           <details className="schema-code-details">
             <summary>Mermaid</summary>
-            <pre className="nl-query-sql">{mermaidText}</pre>
+            <pre className="code-block">{mermaidText}</pre>
           </details>
         </>
       )}
