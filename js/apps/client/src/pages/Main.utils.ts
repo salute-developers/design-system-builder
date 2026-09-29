@@ -122,13 +122,11 @@ export interface PublishResult {
 export const generatePublish = async (
     designSystem: DesignSystem,
     exportType: 'tgz' | 'zip',
-    tokenValue: string,
 ): Promise<PublishResult> => {
     const data = {
         packageName: designSystem.getName(),
         packageVersion: designSystem.getVersion(),
         exportType,
-        npmToken: tokenValue,
     };
 
     const projectId = designSystem.getParameters()?.projectId;

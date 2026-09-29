@@ -32,12 +32,6 @@
         <small>Только файлы с расширением .tgz или .tar.gz</small>
     </div>
 
-    <div class="form-group">
-        <label for="npmToken">NPM Токен:</label>
-        <input type="password" id="npmToken" name="npmToken" placeholder="npm_xxxxxxxxxxxxxxxx" required>
-        <small>Токен можно получить через: <code>npm token create</code> или на npmjs.com</small>
-    </div>
-
     <button type="submit" id="publishBtn">🚀 Опубликовать в NPM</button>
     <button type="button" id="validateBtn" class="secondary">🔍 Проверить файл</button>
 </form>
@@ -125,7 +119,6 @@
                         <p><a href="${data.npmUrl}" target="_blank">📦 Посмотреть на NPM</a></p>
                     `;
 
-                document.getElementById('npmToken').value = '';
             } else {
                 throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
             }

@@ -25,7 +25,7 @@
          ▼
 ┌──────────────────┐
 │ Docusaurus Build │  Сборка статического сайта через Docker
-│   (npm install + │  + установка @salutejs-ds/{packageName}
+│   (npm install + │  + установка ${NPM_PACKAGE_SCOPE}/{packageName}
 │    npm run build)│
 └────────┬─────────┘
          │
@@ -88,7 +88,7 @@
 
 ### 4. **DocusaurusService** (`src/services/`)
 - Запуск сборки проекта через Docker контейнер
-- Установка дополнительных пакетов (`@salutejs-ds/{packageName}`)
+- Установка дополнительных пакетов (`${NPM_PACKAGE_SCOPE}/{packageName}`; по умолчанию `@sddsjs`)
 - Выполнение `npm install` и `npm run build`
 - Возврат пути к собранной директории
 

@@ -5,6 +5,13 @@ import { ThemeSource } from '../themeBuilder/types';
 
 export const DB_SERVICE_URL = `${process.env.DB_SERVICE_URL || 'http://localhost:3008/api'}/ds`;
 export const PUBLISHER_URL = process.env.PUBLISHER_URL || 'http://localhost:3007';
+const npmPackageScope = process.env.NPM_PACKAGE_SCOPE;
+
+if (!npmPackageScope) {
+    throw new Error('NPM_PACKAGE_SCOPE must be set');
+}
+
+export const NPM_PACKAGE_SCOPE = npmPackageScope;
 
 export const CORE_VERSION = 'latest';
 export const GENERATE_ROOT_DIR = './result';

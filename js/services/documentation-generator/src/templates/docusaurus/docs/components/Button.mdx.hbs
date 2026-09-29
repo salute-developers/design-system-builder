@@ -13,7 +13,7 @@ import { PropsTable } from '@site/src/components';
 ## Быстрый старт
 
 ```tsx
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 ```
 
 Компонент `Button` может содержать текст, который указывается в свойстве `text`, или любой контент напрямую через `children`.
@@ -23,7 +23,7 @@ import { Button } from '@salutejs-ds/{{ packageName }}';
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 import { IconDownload } from '@salutejs/plasma-icons';
 
 export function App() {
@@ -49,7 +49,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     const { viewList } = useMockComponentProps();
@@ -71,7 +71,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     const { sizeList } = useMockComponentProps();
@@ -97,7 +97,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     return (
@@ -118,7 +118,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 
 
 export function App() {
@@ -139,7 +139,7 @@ export function App() {
 
 ```tsx live
 import React from 'react';
-import { Button } from '@salutejs-ds/{{ packageName }}';
+import { Button } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export function App() {
     return (

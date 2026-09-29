@@ -32,7 +32,7 @@ import WepAppExample from './_examples/_init_web_app.mdx';
 :::
 
 ```bash
-$ npm install --save @salutejs-ds/{{ packageName }}
+$ npm install --save {{ npmPackageScope }}/{{ packageName }}
 ```
 
 Для работы со `styled-components`, необходимо установить
@@ -47,7 +47,7 @@ $ npm install --save styled-components@5.3.1
 
 ```jsx
 import styled from 'styled-components';
-import { Button, textAccent } from '@salutejs-ds/{{ packageName }}';
+import { Button, textAccent } from '{{ npmPackageScope }}/{{ packageName }}';
 
 export const App = () => {
     const StyledP = styled.p`

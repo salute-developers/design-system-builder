@@ -81,6 +81,11 @@ export class DocumentationService implements OnModuleInit {
    * @returns Метаданные об обработке (путь, ID, время, количество компонентов)
    */
   async generate(dto: GenerateDocsDto): Promise<DocsResponseDto> {
+    const npmPackageScope = this.configService.get<string>("NPM_PACKAGE_SCOPE");
+    if (!npmPackageScope) {
+      throw new Error("NPM_PACKAGE_SCOPE must be set");
+    }
+
     this.logger.log(
       `Received documentation generation request for DS Package: ${dto.packageName}@${dto.packageVersion}`,
     );
@@ -106,6 +111,7 @@ export class DocumentationService implements OnModuleInit {
     const templateData = {
       projectName: dto.projectName,
       packageName: dto.packageName,
+      npmPackageScope,
       packageVersion: dto.packageVersion,
       components: componentNames,
     };
@@ -142,7 +148,7 @@ export class DocumentationService implements OnModuleInit {
       await this.templateService.generateProject(templateData, projectDir);
 
       // Формируем список дополнительных пакетов для установки
-      const extraPackages = [`@salutejs-ds/${dto.packageName}@latest`];
+      const extraPackages = [`${npmPackageScope}/${dto.packageName}@latest`];
 
       // Собираем Docusaurus проект через Docker
       const buildDir = await this.docusaurusService.build(

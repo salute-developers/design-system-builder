@@ -122,7 +122,7 @@ export const Debug = (props: DebugProps) => {
             return;
         }
 
-        return await generatePublish(designSystem, 'tgz', import.meta.env.VITE_NPM_REGISTRY);
+        return await generatePublish(designSystem, 'tgz');
     };
 
     const onDesignSystemDocs = async () => {
