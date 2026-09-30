@@ -9,7 +9,100 @@
 - `js/` — существующие React-приложения и Node.js-сервисы.
 - `openspec/` — архитектурные ADR, спецификации и история изменений.
 
-Agent skills и команды OpenSpec находятся в корневых `.claude/`, `.cursor/` и `.gigacode/`.
+Agent skills и команды OpenSpec находятся в корневых `.agents/`, `.claude/`, `.cursor/` и `.gigacode/`.
+
+## Инструменты агентской разработки
+
+Процесс разработки использует OpenSpec, репозиторный agent skill и Strictacode.
+Репозиторий проверен со следующими версиями:
+
+- OpenSpec `1.6.0`;
+- Strictacode `0.0.12`.
+
+Установите OpenSpec глобально через npm:
+
+```bash
+npm install --global @fission-ai/openspec@1.6.0
+```
+
+Strictacode устанавливается изолированно через [pipx](https://pipx.pypa.io/):
+
+```bash
+brew install pipx
+pipx ensurepath
+pipx install strictacode==0.0.12
+```
+
+Версия Strictacode также записана в `tools/strictacode-requirements.txt`.
+Проверьте установку:
+
+```bash
+openspec --version
+strictacode --help
+openspec validate --all --strict --no-interactive
+```
+
+### Agent workflow
+
+Главный агент Codex или Claude Code работает непосредственно в checkout
+разработчика: реализует утверждённый OpenSpec Change, запускает проверки и
+создаёт свежего read-only reviewer через нативный механизм своей среды.
+
+Полный процесс описан в
+[`.agents/workflows/dsbuilder-development.md`](./.agents/workflows/dsbuilder-development.md).
+Codex использует репозиторный skill
+[`dsbuilder-task-workflow`](./.agents/skills/dsbuilder-task-workflow/SKILL.md),
+для Claude Code доступен тонкий адаптер в `.claude/skills`.
+
+Git branch и OpenSpec Change имеют независимые имена. Для веток и worktree
+используйте:
+
+```bash
+tools/task create <branch-name> [--worktree] [--base <ref>]
+tools/task list
+tools/task cleanup <branch-name>
+```
+
+Реализация остаётся незакоммиченной до human review. Основные gate:
+
+```bash
+tools/verify fast --change <change-name>
+tools/verify full --change <change-name>
+tools/verify audit --all
+```
+
+Конфигурация контуров и protected paths находится в `.verification/config`, а
+версионированные Strictacode baseline — в `.verification/strictacode-baseline`.
+Локальное состояние длинной задачи можно хранить в игнорируемом
+`.agent-workflow/<change-name>/state.md`; Git diff и OpenSpec всегда имеют над
+ним приоритет.
+
+### Gradle в sandbox Codex
+
+Gradle записывает wrapper distributions, зависимости, metadata и lock-файлы в
+`GRADLE_USER_HOME`. Sandbox Codex не разрешает запись в стандартный `~/.gradle`,
+поэтому можно использовать отдельный общий cache для всех checkout и worktree:
+
+```bash
+mkdir -p "$HOME/.cache/codex-gradle"
+```
+
+Добавьте абсолютный путь в пользовательский `~/.codex/config.toml`. TOML не
+подставляет `$HOME` или `~`, поэтому замените `<username>` своим именем:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = ["/Users/<username>/.cache/codex-gradle"]
+
+[shell_environment_policy]
+set = { GRADLE_USER_HOME = "/Users/<username>/.cache/codex-gradle" }
+```
+
+Перезапустите Codex после изменения конфигурации. В cache хранится одна
+скачанная Gradle distribution на версию и общие зависимости; проектные
+`.gradle` и `build` остаются отдельными в каждом worktree.
 
 ## Основные команды
 
@@ -94,7 +187,8 @@ cp js/.env.example js/.env
 ./tools/e2e cli-auth-session
 ```
 
-E2E запускает разработчик, CI или внешний оркестратор, но не TAKT. Структура сценариев и правила тестовых данных
+E2E запускает разработчик, CI или главный агент как внешнюю проверку до
+архивирования OpenSpec Change. Структура сценариев и правила тестовых данных
 описаны в [`e2e/README.md`](./e2e/README.md).
 
 `js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes, собирает контейнеры,
