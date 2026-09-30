@@ -88,28 +88,32 @@ export const Projects = () => {
             )}
             {loadedDesignSystems && loadedDesignSystems !== 'pending' && (
                 <StyledDesignSystems>
-                    {loadedDesignSystems.map(({ name, projectName, projectId, updatedAt }, index) => (
-                        <StyledDesignSystemItem key={`${name}@${version}`}>
-                            <StyledDesignSystemData onClick={() => onLoadDesignSystem(name, version, projectId)}>
-                                <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
-                                <StyledDesignSystemInfo>
-                                    <StyledDesignSystemVersion>{version}</StyledDesignSystemVersion>
-                                    <StyledDesignSystemDate>{getFormatDate(updatedAt)}</StyledDesignSystemDate>
-                                </StyledDesignSystemInfo>
-                            </StyledDesignSystemData>
-                            <StyledDesignSystemLastUpdated>
-                                <StyledDesignSystemLastUpdatedLabel>
-                                    <StyledIconLongArrowDownRight color="inherit" size="xs" />
-                                    Последнее изменение
-                                </StyledDesignSystemLastUpdatedLabel>
-                                <LinkButton
-                                    contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
-                                    text={fakeLastUpdatedList[index].label}
-                                    onClick={() => onGoTo(name, version, fakeLastUpdatedList[index].value, projectId)}
-                                />
-                            </StyledDesignSystemLastUpdated>
-                        </StyledDesignSystemItem>
-                    ))}
+                    {loadedDesignSystems.map(({ name, projectName, projectId, updatedAt }, index) => {
+                        const lastUpdated = fakeLastUpdatedList[index % fakeLastUpdatedList.length];
+
+                        return (
+                            <StyledDesignSystemItem key={`${name}@${version}`}>
+                                <StyledDesignSystemData onClick={() => onLoadDesignSystem(name, version, projectId)}>
+                                    <StyledDesignSystemName>{projectName}</StyledDesignSystemName>
+                                    <StyledDesignSystemInfo>
+                                        <StyledDesignSystemVersion>{version}</StyledDesignSystemVersion>
+                                        <StyledDesignSystemDate>{getFormatDate(updatedAt)}</StyledDesignSystemDate>
+                                    </StyledDesignSystemInfo>
+                                </StyledDesignSystemData>
+                                <StyledDesignSystemLastUpdated>
+                                    <StyledDesignSystemLastUpdatedLabel>
+                                        <StyledIconLongArrowDownRight color="inherit" size="xs" />
+                                        Последнее изменение
+                                    </StyledDesignSystemLastUpdatedLabel>
+                                    <LinkButton
+                                        contentRight={<IconArrowDiagRightUp color="inherit" size="xs" />}
+                                        text={lastUpdated.label}
+                                        onClick={() => onGoTo(name, version, lastUpdated.value, projectId)}
+                                    />
+                                </StyledDesignSystemLastUpdated>
+                            </StyledDesignSystemItem>
+                        );
+                    })}
                 </StyledDesignSystems>
             )}
         </ContentWrapper>
