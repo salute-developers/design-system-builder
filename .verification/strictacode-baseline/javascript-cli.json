@@ -1,0 +1,41 @@
+{
+  "project": {
+    "lang": "javascript",
+    "loc": 576,
+    "packages": 4,
+    "modules": 9,
+    "classes": 0,
+    "methods": 0,
+    "functions": 31,
+    "status": {
+      "name": "healthy",
+      "score": 13,
+      "reasons": [],
+      "suggestions": []
+    },
+    "overengineering_pressure": {
+      "score": 10
+    },
+    "refactoring_pressure": {
+      "score": 17,
+      "stat(modules)": {
+        "avg": 6,
+        "min": 1,
+        "max": 19,
+        "p50": 4,
+        "p90": 14
+      }
+    },
+    "complexity": {
+      "score": 54,
+      "density": 9.38,
+      "stat(modules)": {
+        "avg": 6,
+        "min": 1,
+        "max": 16,
+        "p50": 5,
+        "p90": 14
+      }
+    }
+  }
+}

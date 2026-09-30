@@ -1,0 +1,44 @@
+{
+  "project": {
+    "lang": "javascript",
+    "loc": 29508,
+    "packages": 97,
+    "modules": 265,
+    "classes": 45,
+    "methods": 165,
+    "functions": 612,
+    "status": {
+      "name": "warning",
+      "score": 44,
+      "reasons": [
+        "High RP/OE imbalance - possibly spaghetti code",
+        "Increased refactoring pressure"
+      ],
+      "suggestions": []
+    },
+    "overengineering_pressure": {
+      "score": 10
+    },
+    "refactoring_pressure": {
+      "score": 58,
+      "stat(modules)": {
+        "avg": 6,
+        "min": 0,
+        "max": 21,
+        "p50": 5,
+        "p90": 13
+      }
+    },
+    "complexity": {
+      "score": 2200,
+      "density": 7.46,
+      "stat(modules)": {
+        "avg": 8,
+        "min": 1,
+        "max": 408,
+        "p50": 3,
+        "p90": 18
+      }
+    }
+  }
+}

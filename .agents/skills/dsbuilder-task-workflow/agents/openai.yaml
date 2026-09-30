@@ -1,0 +1,6 @@
+interface:
+  display_name: "DS Builder Task Workflow"
+  short_description: "OpenSpec, worktree, review и проверки"
+  default_prompt: "Используй $dsbuilder-task-workflow, чтобы начать или продолжить задачу DS Builder через Git worktree, OpenSpec, независимое review и репозиторные проверки."
+policy:
+  allow_implicit_invocation: true

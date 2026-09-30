@@ -2,7 +2,10 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=node
 
 ### Node ###
-# Logs
+# Local agent workflow state and reports
+.agent-workflow/
+.verification/strictacode-reports/
+.worktrees/
 .idea
 logs
 *.log
@@ -160,3 +163,4 @@ local.properties
 
 # Local E2E reports and isolated CLI state
 e2e/artifacts/
+.codex/config.toml
