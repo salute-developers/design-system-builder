@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM_NAME="${0##*/}"
+CURRENT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  tools/task create <branch> [--worktree] [--base <ref>]
+  tools/task list
+  tools/task cleanup <branch>
+
+Commands:
+  create   Create the explicitly named branch in the current checkout, or in a
+           linked Git worktree when --worktree is passed.
+  list     List linked worktrees, their branches, and working-tree state.
+  cleanup  Remove a clean linked worktree and try to delete its local branch.
+
+Options:
+  --worktree  Create the branch in a linked worktree.
+  --base REF  Override the create base ref. By default, use the branch checked
+              out in the invoking checkout.
+  --help      Show this help.
+
+Environment:
+  DSBUILDER_WORKTREE_DIR  Directory for linked worktrees. Default: .worktrees
+                          inside the current checkout.
+  DSBUILDER_BASE_BRANCH  Optional create base override.
+USAGE
+}
+
+log() {
+  echo "[$PROGRAM_NAME] $*"
+}
+
+fail() {
+  echo "[$PROGRAM_NAME] $*" >&2
+  exit 1
+}
+
+require_repository() {
+  [[ -n "$CURRENT_ROOT" ]] || fail "Run this command inside a Git repository"
+}
+
+current_branch() {
+  git -C "$1" symbolic-ref --quiet --short HEAD 2>/dev/null || true
+}
+
+validate_branch() {
+  git check-ref-format --branch "$1" >/dev/null 2>&1 || fail "Invalid branch name: $1"
+}
+
+require_value() {
+  local option="$1"
+  local value="${2:-}"
+  [[ -n "$value" ]] || fail "Option $option requires a value"
+}
+
+require_clean_checkout() {
+  local root="$1"
+  if [[ -n "$(git -C "$root" status --porcelain --untracked-files=all)" ]]; then
+    fail "Checkout has uncommitted changes: $root"
+  fi
+}
+
+primary_root() {
+  git worktree list --porcelain | sed -n 's/^worktree //p' | head -n 1
+}
+
+default_create_base_ref() {
+  local branch
+  if [[ -n "${DSBUILDER_BASE_BRANCH:-}" ]]; then
+    echo "$DSBUILDER_BASE_BRANCH"
+  elif branch="$(current_branch "$CURRENT_ROOT")" && [[ -n "$branch" ]]; then
+    echo "$branch"
+  else
+    echo "HEAD"
+  fi
+}
+
+worktree_path_for_branch() {
+  local branch="$1"
+  local ref="refs/heads/$branch"
+  git worktree list --porcelain | awk -v target="$ref" '
+    /^worktree / { path = substr($0, 10) }
+    /^branch / && substr($0, 8) == target { print path; exit }
+  '
+}
+
+command_create() {
+  [[ $# -gt 0 ]] || fail "create requires <branch>"
+
+  local branch="$1"
+  shift
+  local use_worktree="false"
+  local base=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --worktree)
+        use_worktree="true"
+        shift
+        ;;
+      --base)
+        require_value "$1" "${2:-}"
+        base="$2"
+        shift 2
+        ;;
+      --help)
+        usage
+        exit 0
+        ;;
+      *) fail "Unknown create option: $1" ;;
+    esac
+  done
+
+  require_repository
+  [[ -n "$base" ]] || base="$(default_create_base_ref)"
+  validate_branch "$branch"
+  git rev-parse --verify --quiet "$base^{commit}" >/dev/null || fail "Base ref does not exist: $base"
+
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    fail "Local branch already exists: $branch"
+  fi
+
+  if [[ "$use_worktree" == "false" ]]; then
+    require_clean_checkout "$CURRENT_ROOT"
+    git switch -c "$branch" "$base"
+    git config "branch.$branch.dsbuilderBase" "$base"
+    log "Created $branch in $CURRENT_ROOT"
+    log "Base ref: $base"
+    return
+  fi
+
+  local root
+  root="$(primary_root)"
+  [[ -n "$root" ]] || fail "Cannot determine the primary worktree"
+
+  local worktree_base="${DSBUILDER_WORKTREE_DIR:-$CURRENT_ROOT/.worktrees}"
+  local directory_name
+  directory_name="$(printf '%s' "$branch" | tr '/[:space:]' '--')"
+  [[ -n "$directory_name" ]] || fail "Cannot derive a worktree directory from branch name"
+  local path="$worktree_base/$directory_name"
+
+  [[ ! -e "$path" ]] || fail "Worktree path already exists: $path"
+  mkdir -p "$worktree_base"
+  git -C "$root" worktree add "$path" -b "$branch" "$base"
+  git -C "$root" config "branch.$branch.dsbuilderBase" "$base"
+
+  log "Created $branch"
+  log "Base ref: $base"
+  log "Worktree: $path"
+  command -v idea >/dev/null 2>&1 && log "Open in IDEA: idea '$path'"
+  command -v code >/dev/null 2>&1 && log "Open in VS Code: code '$path'"
+}
+
+print_worktree() {
+  local path="$1"
+  local branch="$2"
+  local git_state="$3"
+  local state="clean"
+
+  if [[ ! -d "$path" ]]; then
+    state="missing"
+  elif [[ -n "$(git -C "$path" status --porcelain --untracked-files=all 2>/dev/null || true)" ]]; then
+    state="changes"
+  fi
+  [[ -z "$git_state" ]] || state="$state,$git_state"
+  printf '%-76s %-36s %s\n' "$path" "$branch" "$state"
+}
+
+command_list() {
+  require_repository
+  printf '%-76s %-36s %s\n' "WORKTREE" "BRANCH" "STATE"
+
+  local path=""
+  local branch="(detached)"
+  local git_state=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      worktree\ *)
+        [[ -z "$path" ]] || print_worktree "$path" "$branch" "$git_state"
+        path="${line#worktree }"
+        branch="(detached)"
+        git_state=""
+        ;;
+      branch\ refs/heads/*) branch="${line#branch refs/heads/}" ;;
+      locked*) git_state="locked" ;;
+      prunable*) git_state="prunable" ;;
+      "")
+        if [[ -n "$path" ]]; then
+          print_worktree "$path" "$branch" "$git_state"
+          path=""
+        fi
+        ;;
+    esac
+  done < <(git worktree list --porcelain)
+  [[ -z "$path" ]] || print_worktree "$path" "$branch" "$git_state"
+}
+
+command_cleanup() {
+  [[ $# -eq 1 ]] || fail "cleanup requires exactly one <branch>"
+  local branch="$1"
+  require_repository
+  validate_branch "$branch"
+
+  local path
+  path="$(worktree_path_for_branch "$branch")"
+  [[ -n "$path" ]] || fail "No linked worktree found for branch: $branch"
+
+  local root
+  root="$(primary_root)"
+  [[ "$path" != "$root" ]] || fail "Refusing to remove the primary worktree"
+  require_clean_checkout "$path"
+
+  local physical_pwd
+  physical_pwd="$(pwd -P)"
+  case "$physical_pwd/" in
+    "$path/"*) fail "Run cleanup outside the worktree being removed: $path" ;;
+  esac
+
+  git -C "$root" worktree remove "$path"
+  log "Removed worktree: $path"
+  if git -C "$root" branch -d "$branch" >/dev/null 2>&1; then
+    log "Deleted local branch: $branch"
+  else
+    log "Local branch was kept because Git does not consider it merged: $branch"
+  fi
+  if git -C "$root" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    log "Remote branch still exists: origin/$branch"
+  fi
+}
+
+main() {
+  local command="${1:-}"
+  case "$command" in
+    create) shift; command_create "$@" ;;
+    list)
+      shift
+      [[ $# -eq 0 ]] || fail "list does not accept arguments"
+      command_list
+      ;;
+    cleanup) shift; command_cleanup "$@" ;;
+    --help|-h|help|"") usage ;;
+    *)
+      echo "[$PROGRAM_NAME] Unknown command: $command" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
