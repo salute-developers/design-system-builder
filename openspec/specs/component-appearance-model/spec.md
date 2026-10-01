@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change add-cli-components-fetch. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: Variation axis declaration belongs to the appearance
 
 `db-service` SHALL store the declaration of variation axes — which axes a component style exposes,
@@ -207,13 +205,13 @@ override alike — from the token that value refers to, falling back to the type
 ### Requirement: Component name belongs to the component code
 
 `db-service` SHALL treat the stored component name as the name used by component code, imported
-from `uikit-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
+from `uikit-compose-api-meta.json`. Appearance configurations SHALL NOT rewrite it.
 
 #### Scenario: Имя пишет только импорт метаинформации кода
 
 - **WHEN** the global layer of components is populated
-- **THEN** the component name MUST be the name declared by `uikit-api-meta.json`
-- **THEN** seeds MUST use the same spelling as `uikit-api-meta.json`
+- **THEN** the component name MUST be the name declared by `uikit-compose-api-meta.json`
+- **THEN** seeds MUST use the same spelling as `uikit-compose-api-meta.json`
 - **THEN** importing a component configuration MUST NOT create or rename a component
 
 #### Scenario: Имя конфигурации выводится обратимо
@@ -495,3 +493,4 @@ Endpoint `GET /:name/component-configs` SHALL строить состав и п�
 - **WHEN** сид appearance содержит `combinations` с `styles: { view: 'clear', itemView: 'accent' }`
 - **THEN** сидер MUST разрешить имена в стили и записать значение на сочетание
 - **THEN** повторный сид MUST NOT дублировать сочетание
+

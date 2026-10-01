@@ -31,8 +31,8 @@ context: |
   - backend-kt/project-publisher/core contains shared infrastructure for the service.
   - backend-kt/documentation-service/ is the documentation microservice. It reads the JS db-service.
   - backend-kt/preview/ contains the component preview contract and its tooling.
-  - backend-kt/scripts/ contains operational scripts; import-uikit-api-meta.sh is the only writer of
-    the global component layer in db-service.
+  - The global component layer of db-service (components, properties, states, platform names) is
+    written by `dsbuilder components import-api` (frontend-kt) through the import-api-meta endpoint.
   - backend-kt/build-system/ is an included composite build with Gradle convention plugins,
     Detekt/Spotless configuration, and custom Detekt rules.
   - backend-kt/gradle/libs.versions.toml is the shared version catalog of the backend build.
