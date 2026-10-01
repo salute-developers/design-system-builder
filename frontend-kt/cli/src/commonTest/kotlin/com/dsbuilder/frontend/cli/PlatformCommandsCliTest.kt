@@ -6,7 +6,6 @@ import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
-import com.dsbuilder.frontend.core.platform.Capability
 import com.dsbuilder.frontend.core.platform.ToolchainId
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
@@ -138,14 +137,6 @@ class PlatformCommandsCliTest {
 
         assertEquals(listOf(ToolchainId("ios")), registry.all.map { it.toolchain })
         assertNull(registry.forToolchain(ToolchainId("android")))
-    }
-
-    @Test
-    fun compositionRootOffersApiMetaExtractionThroughTheAndroidDelegateOnly() {
-        val registry = cli().platformDelegateRegistry()
-
-        assertTrue(Capability.API_META in registry.forPlatform(TargetPlatform.COMPOSE)!!.capabilities)
-        assertTrue(Capability.API_META !in registry.forPlatform(TargetPlatform.SWIFT_UI)!!.capabilities)
     }
 
     @Test

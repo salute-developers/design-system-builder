@@ -2,13 +2,17 @@ package com.dsbuilder.frontend.cli.feature.components
 
 import com.dsbuilder.frontend.cli.DsBuilderCli
 import com.dsbuilder.frontend.core.application.ClientRuntime
+import com.dsbuilder.frontend.core.auth.AuthErrorCode
+import com.dsbuilder.frontend.core.auth.AuthResult
+import com.dsbuilder.frontend.core.auth.BackendCredential
+import com.dsbuilder.frontend.core.auth.CredentialStore
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import com.dsbuilder.frontend.core.auth.TokenClient
+import com.dsbuilder.frontend.core.auth.TokenResponse
+import com.dsbuilder.frontend.core.auth.UserSession
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
-import com.dsbuilder.frontend.core.process.ProcessRequest
-import com.dsbuilder.frontend.core.process.ProcessResult
-import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import okio.BufferedSink
 import kotlin.test.Test
@@ -18,35 +22,44 @@ import kotlin.test.assertTrue
 /**
  * Сквозные тесты `components import-api` через настоящий DI-граф CLI.
  *
- * Подменены только границы: файловая система (в памяти), процесс Gradle (пишет файл меты, как это
- * делает задача плагина) и HTTP.
+ * Подменены только границы: файловая система (в памяти), хранилище user session, клиент токенов и
+ * HTTP. Проекта, `.sdds/config.json` и процессов нет: команда читает файл меты и идёт к backend с
+ * сессией администратора.
  */
 class ComponentsImportApiCliCommandTest {
     private val requests = mutableListOf<Pair<String, String>>()
-    private val processes = mutableListOf<ProcessRequest>()
+    private val credentials = mutableListOf<BackendCredential>()
 
     @Test
-    fun dryRunRunsGradleReadsTheMetaAndSendsOneRequest() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend"))
+    fun dryRunReadsTheFileAndSendsOneRequestToTheAdminRoute() {
+        val result = run(base())
 
         assertEquals(0, result.exitCode, result.output)
         assertEquals(1, requests.size, "запросов должно быть ровно один: $requests")
         val (path, body) = requests.single()
-        assertEquals("/api/projects/project-a/ds/component-config/import-api-meta", path)
+        assertEquals("/api/admin/component-config/import-api-meta", path)
         assertTrue(body.contains("\"dryRun\":true"), body)
         assertTrue(body.contains("\"platform\":\"compose\""), body)
-        assertTrue(body.contains("\"designSystemId\":\"ds-a\""), body)
-        assertTrue(processes.any { "readUikitComposeApiMeta" in it.args }, "задача меты не запущена: $processes")
+        assertTrue(!body.contains("designSystemId"), body)
+        assertTrue(body.contains("\"source\":\"uikit-compose-api-meta.json\""), body)
         assertTrue(result.output.contains("Status: dry run"), result.output)
         assertTrue(result.output.contains("Components: 2"), result.output)
         assertTrue(result.output.contains("Properties: 3"), result.output)
         assertTrue(result.output.contains("Created components: 1"), result.output)
-        assertTrue(!result.output.contains("secret-key"), "ключ попал в вывод:\n${result.output}")
+    }
+
+    @Test
+    fun theCredentialIsTheUserSessionTokenNotTheProjectKeyFromTheEnvironment() {
+        val result = run(base(), env = mapOf("DSBUILDER_API_KEY" to "secret-key"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(listOf<BackendCredential>(BackendCredential.Bearer("access-token")), credentials)
+        assertTrue(!result.output.contains("secret-key"), result.output)
     }
 
     @Test
     fun applySendsTheRequestAsNonDryRun() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend", "--apply"))
+        val result = run(base() + "--apply")
 
         assertEquals(0, result.exitCode, result.output)
         assertTrue(requests.single().second.contains("\"dryRun\":false"), requests.single().second)
@@ -54,25 +67,43 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun printsTheTargetBeforeTheRequestGoesOut() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend"))
+    fun printsTheTargetWithoutProjectOrDesignSystem() {
+        val result = run(base())
 
         listOf(
             "Platform: compose",
-            "Source: /repo/build/theme-builder/components/uikit-compose-api-meta.json",
+            "Source: $META_PATH",
             "API URL: http://backend (from --api-url)",
-            "Project: project-a",
-            "Design system: ds-a",
-        )
-            .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
+        ).forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
+        listOf("Project:", "Design system:", "Linked to the design system").forEach {
+            assertTrue(!result.output.contains(it), "лишнее '$it' в выводе:\n${result.output}")
+        }
+    }
+
+    @Test
+    fun aRelativeFromPathIsResolvedAgainstTheWorkingDirectory() {
+        val result =
+            run(
+                listOf(
+                    "components",
+                    "import-api",
+                    "--from",
+                    "uikit-compose-api-meta.json",
+                    "--platform",
+                    "compose",
+                    "--api-url",
+                    "http://backend",
+                ),
+                files = mapOf("/repo/uikit-compose-api-meta.json" to META),
+            )
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Source: /repo/uikit-compose-api-meta.json"), result.output)
     }
 
     @Test
     fun printsRejectionsAndTypeMismatches() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            report = REPORT_WITH_FINDINGS,
-        )
+        val result = run(base(), report = REPORT_WITH_FINDINGS)
 
         assertEquals(0, result.exitCode, result.output)
         assertTrue(result.output.contains("Rejected: 1"), result.output)
@@ -83,10 +114,7 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun strictFailsOnRejectedProperties() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend", "--strict"),
-            report = REPORT_WITH_FINDINGS,
-        )
+        val result = run(base() + "--strict", report = REPORT_WITH_FINDINGS)
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("Rejected: 1"), "отчёт не напечатан:\n${result.output}")
@@ -94,14 +122,12 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun strictPassesWhenNothingIsRejected() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend", "--strict"))
-
-        assertEquals(0, result.exitCode, result.output)
+        assertEquals(0, run(base() + "--strict").exitCode)
     }
 
     @Test
     fun mapTypeIsAppliedToTheRequest() {
-        run(listOf("components", "import-api", "--api-url", "http://backend", "--map-type", "dimension:float"))
+        run(base() + listOf("--map-type", "dimension:float"))
 
         val body = requests.single().second
         assertTrue(!body.contains("\"type\":\"dimension\""), body)
@@ -109,133 +135,130 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun malformedMapTypeIsRejectedBeforeAnythingRuns() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend", "--map-type", "dimension"))
+    fun malformedMapTypeIsRejectedBeforeAnythingIsSent() {
+        val result = run(base() + listOf("--map-type", "dimension"))
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("from:to"), result.output)
-        assertTrue(processes.isEmpty() && requests.isEmpty())
-    }
-
-    @Test
-    fun applyAndDryRunTogetherAreRejectedBeforeAnythingRuns() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend", "--apply", "--dry-run"))
-
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(processes.isEmpty() && requests.isEmpty())
-    }
-
-    @Test
-    fun withoutAnExplicitApiUrlNothingIsRunOrSent() {
-        val result = run(listOf("components", "import-api"))
-
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("--api-url"), result.output)
-        assertTrue(processes.isEmpty(), "Gradle запущен без явного API URL: $processes")
         assertTrue(requests.isEmpty())
     }
 
     @Test
-    fun anUnsupportedPlatformIsRefusedBeforeAnythingRuns() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "swiftui",
-        )
+    fun applyAndDryRunTogetherAreRejectedBeforeAnythingIsSent() {
+        val result = run(base() + listOf("--apply", "--dry-run"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun fromAndPlatformAreRequired() {
+        val withoutFrom =
+            run(listOf("components", "import-api", "--platform", "compose", "--api-url", "http://backend"))
+        val withoutPlatform =
+            run(listOf("components", "import-api", "--from", META_PATH, "--api-url", "http://backend"))
+
+        assertEquals(1, withoutFrom.exitCode, withoutFrom.output)
+        assertTrue(withoutFrom.output.contains("--from"), withoutFrom.output)
+        assertEquals(1, withoutPlatform.exitCode, withoutPlatform.output)
+        assertTrue(withoutPlatform.output.contains("--platform"), withoutPlatform.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun theGradleToolAndTheApiKeyOptionsAreGone() {
+        val tool = run(base() + listOf("--tool", "gradle"))
+        val key = run(base() + listOf("--api-key", "secret-key"))
+
+        assertEquals(1, tool.exitCode, tool.output)
+        assertTrue(tool.output.contains("--tool"), tool.output)
+        assertEquals(1, key.exitCode, key.output)
+        assertTrue(key.output.contains("--api-key"), key.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun withoutAnExplicitApiUrlNothingIsSent() {
+        val result = run(listOf("components", "import-api", "--from", META_PATH, "--platform", "compose"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("--api-url"), result.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun anUnsupportedPlatformIsRefusedBeforeAnythingIsSent() {
+        val result = run(base(platform = "swiftui"))
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("does not support platform 'swiftui'"), result.output)
         assertTrue(result.output.contains("Supported: compose, android-view"), result.output)
-        assertTrue(processes.isEmpty() && requests.isEmpty())
+        assertTrue(requests.isEmpty())
     }
 
     @Test
-    fun theExplicitPlatformOptionOverridesTheConfig() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend", "--platform", "compose"),
-            platform = "android-view",
-        )
+    fun aMissingFileNamesThePath() {
+        val result = run(base(), files = emptyMap())
 
-        assertEquals(0, result.exitCode, result.output)
-        assertEquals(1, requests.size)
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains(META_PATH), result.output)
+        assertTrue(requests.isEmpty())
     }
 
     @Test
     fun anEmptyMetaIsRefusedAndNothingIsSent() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend"), meta = "[]")
+        val result = run(base(), files = mapOf(META_PATH to "[]"))
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("classpath"), result.output)
+        assertTrue(result.output.contains(META_PATH), result.output)
         assertTrue(requests.isEmpty(), "пустой манифест отправлен")
     }
 
     @Test
-    fun aMissingMetaFileNamesTheExpectedPath() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend"), meta = null)
+    fun withoutAUserSessionTheMessageSaysHowToLogIn() {
+        val result = run(base(), session = false)
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(
-            result.output.contains("/repo/build/theme-builder/components/uikit-compose-api-meta.json"),
-            result.output,
-        )
+        assertTrue(result.output.contains("dsbuilder auth login --api-url http://backend"), result.output)
+        assertTrue(result.output.contains("system administrator"), result.output)
         assertTrue(requests.isEmpty())
     }
 
     @Test
-    fun aFailingGradleTaskFailsTheCommandAndSendsNothing() {
+    fun aForbiddenAnswerShowsTheReasonOfTheServer() {
         val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            gradleExitCode = 1,
+            base(),
+            answer = AuthenticatedHttpResult.Failure(
+                "Credential has no access to this project. Server: System administrator role is required",
+            ),
         )
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("exit code 1"), result.output)
-        assertTrue(requests.isEmpty())
+        assertTrue(result.output.contains("System administrator role is required"), result.output)
     }
 
     @Test
-    fun anAndroidViewProjectRunsTheViewMetaTaskAndSendsTheXmlPlatform() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-        )
+    fun anAndroidViewMetaGoesWithTheXmlPlatform() {
+        val result =
+            run(base(platform = "android-view", from = VIEW_META_PATH), files = mapOf(VIEW_META_PATH to VIEW_META))
 
         assertEquals(0, result.exitCode, result.output)
-        assertTrue(processes.any { "readUikitApiMeta" in it.args }, "задача меты View не запущена: $processes")
-        assertTrue(processes.none { "readUikitComposeApiMeta" in it.args }, "запущена задача меты Compose")
         val (path, body) = requests.single()
-        assertEquals("/api/projects/project-a/ds/component-config/import-api-meta", path)
+        assertEquals("/api/admin/component-config/import-api-meta", path)
         assertTrue(body.contains("\"platform\":\"xml\""), body)
         assertTrue(body.contains("\"platformNames\":[\"android:minWidth\",\"android:maxWidth\"]"), body)
-        assertTrue(!body.contains("\"platformName\":"), body)
         assertTrue(body.contains("\"states\":[\"active\"]"), body)
+        listOf("Platform: android-view", "Source: $VIEW_META_PATH", "Components: 3", "Properties: 3", "States: 1")
+            .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
     }
 
     @Test
-    fun theViewTargetNamesTheViewMetaFileAndItsContents() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-        )
-
-        listOf(
-            "Platform: android-view",
-            "Source: $VIEW_META_PATH",
-            "Components: 3",
-            "Properties: 3",
-            "States: 1",
-        ).forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
-    }
-
-    @Test
-    fun whatTheViewNormalizerSkippedIsPrinted() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-        )
+    fun whatTheViewNormalizerSkippedIsPrintedBetweenTheReportAndTheStatus() {
+        val result =
+            run(base(platform = "android-view", from = VIEW_META_PATH), files = mapOf(VIEW_META_PATH to VIEW_META))
 
         assertTrue(result.output.contains("Skipped: 1 properties of type unknown"), result.output)
         assertTrue(result.output.contains("Skipped: 1 properties of sub-style records"), result.output)
-        // Пропуски идут после отчёта и перед статусом.
         assertTrue(
             result.output.indexOf("Rejected:") < result.output.indexOf("Skipped:") &&
                 result.output.indexOf("Skipped:") < result.output.indexOf("Status:"),
@@ -245,122 +268,76 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun composeImportPrintsNoSkippedLines() {
-        val result = run(listOf("components", "import-api", "--api-url", "http://backend"))
-
-        assertTrue(!result.output.contains("Skipped:"), result.output)
+        assertTrue(!run(base()).output.contains("Skipped:"))
     }
 
     @Test
-    fun anEmptyViewMetaIsRefusedAndNothingIsSent() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-            viewMeta = "{}",
-        )
-
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("classpath"), result.output)
-        assertTrue(result.output.contains(VIEW_META_PATH), result.output)
-        assertTrue(requests.isEmpty(), "пустой манифест отправлен")
-    }
-
-    @Test
-    fun aMissingViewMetaFileNamesTheExpectedPath() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-            viewMeta = null,
-        )
-
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains(VIEW_META_PATH), result.output)
-        assertTrue(requests.isEmpty())
-    }
-
-    @Test
-    fun aComposeMetaInAnAndroidViewProjectIsReportedWithTheFile() {
-        val result = run(
-            listOf("components", "import-api", "--api-url", "http://backend"),
-            platform = "android-view",
-            viewMeta = "[]",
-        )
+    fun aComposeMetaGivenAsAndroidViewIsReportedWithTheFile() {
+        val result = run(base(platform = "android-view"))
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("not a View meta"), result.output)
+        assertTrue(result.output.contains(META_PATH), result.output)
         assertTrue(requests.isEmpty())
     }
 
-    /**
-     * Запускает CLI на проекте с указанной платформой.
-     *
-     * @param meta содержимое файла, который «пишет» задача Gradle; `null` — файл не появляется.
-     */
+    private fun base(platform: String = "compose", from: String = META_PATH) = listOf(
+        "components",
+        "import-api",
+        "--from",
+        from,
+        "--platform",
+        platform,
+        "--api-url",
+        "http://backend",
+    )
+
     private fun run(
         args: List<String>,
-        platform: String = "compose",
-        meta: String? = META,
-        gradleExitCode: Int = 0,
+        files: Map<String, String> = mapOf(META_PATH to META),
+        env: Map<String, String> = emptyMap(),
+        session: Boolean = true,
         report: String = REPORT,
-        viewMeta: String? = VIEW_META,
-    ) = cli(platform, meta, viewMeta, gradleExitCode, report).execute(args)
+        answer: AuthenticatedHttpResult = AuthenticatedHttpResult.Success(report),
+    ) = DsBuilderCli(
+        ClientRuntime(
+            fileSystem = InMemoryFileSystem(files.toMutableMap()),
+            environmentReader = EnvironmentReader { name -> env[name] },
+            httpClientFactory = FakeHttpClientFactory(answer, requests, credentials),
+            credentialStore = sessionStore(session),
+            tokenClient = tokenClient(),
+        ),
+    ).execute(args)
 
-    private fun cli(
-        platform: String,
-        meta: String?,
-        viewMeta: String?,
-        gradleExitCode: Int,
-        report: String,
-    ): DsBuilderCli {
-        val files = mutableMapOf(
-            "/repo/.sdds/config.json" to config(platform),
-            "/repo/gradlew" to "",
-        )
-        return DsBuilderCli(
-            ClientRuntime(
-                fileSystem = InMemoryFileSystem(files),
-                environmentReader = EnvironmentReader { name ->
-                    if (name == "DSBUILDER_API_KEY") "secret-key" else null
-                },
-                httpClientFactory = object : AuthenticatedHttpClientFactory {
-                    override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
-                        object : AuthenticatedHttpClient {
-                            override suspend fun get(path: String): AuthenticatedHttpResult =
-                                AuthenticatedHttpResult.Failure("unexpected GET $path")
+    private fun sessionStore(present: Boolean): CredentialStore = object : CredentialStore {
+        override suspend fun read(apiUrl: String): UserSession? = UserSession(
+            schemaVersion = 1,
+            apiUrl = apiUrl,
+            username = "admin@example.com",
+            refreshToken = "refresh-token",
+            refreshExpiresAt = 999,
+            updatedAt = 1,
+        ).takeIf { present }
 
-                            override suspend fun post(path: String, body: String): AuthenticatedHttpResult {
-                                requests += path to body
-                                return AuthenticatedHttpResult.Success(report)
-                            }
-                        }
-                },
-                processRunner = ProcessRunner { request ->
-                    processes += request
-                    if ("readUikitComposeApiMeta" in request.args) {
-                        if (meta != null && gradleExitCode == 0) files[META_PATH] = meta
-                        ProcessResult(exitCode = gradleExitCode, output = "")
-                    } else if ("readUikitApiMeta" in request.args) {
-                        if (viewMeta != null && gradleExitCode == 0) files[VIEW_META_PATH] = viewMeta
-                        ProcessResult(exitCode = gradleExitCode, output = "")
-                    } else {
-                        ProcessResult(exitCode = 0, output = "")
-                    }
-                },
-            ),
-        )
+        override suspend fun save(session: UserSession) = Unit
+
+        override suspend fun delete(apiUrl: String) = Unit
     }
 
-    private fun config(platform: String) = """
-        {
-          "projectId": "project-a",
-          "designSystemId": "ds-a",
-          "credential": { "type": "env", "name": "DSBUILDER_API_KEY" },
-          "platforms": ["$platform"]
-        }
-    """.trimIndent()
+    private fun tokenClient(): TokenClient = object : TokenClient {
+        override suspend fun login(apiUrl: String, username: String, password: String): AuthResult<TokenResponse> =
+            AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
+
+        override suspend fun refresh(apiUrl: String, refreshToken: String): AuthResult<TokenResponse> =
+            AuthResult.Success(TokenResponse("access-token", "refresh-token", 999))
+
+        override suspend fun logout(apiUrl: String, refreshToken: String): AuthResult<Unit> =
+            AuthResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Unavailable")
+    }
 
     private companion object {
-        const val META_PATH = "/repo/build/theme-builder/components/uikit-compose-api-meta.json"
-        const val VIEW_META_PATH = "/repo/build/theme-builder/components/uikit-api-meta.json"
+        const val META_PATH = "/work/meta/uikit-compose-api-meta.json"
+        const val VIEW_META_PATH = "/work/meta/uikit-api-meta.json"
 
         /** Мета View в форме вывода плагина: поля со значениями по умолчанию опущены. */
         const val VIEW_META = """
@@ -388,12 +365,12 @@ class ComponentsImportApiCliCommandTest {
         """
 
         const val REPORT = """
-            {"createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,"createdLinks":2,
+            {"createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,
              "unchangedProperties":0,"rejected":[],"typeMismatches":[]}
         """
 
         const val REPORT_WITH_FINDINGS = """
-            {"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,"createdLinks":0,
+            {"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,
              "unchangedProperties":2,
              "rejected":[{"component":"Box","property":"odd","reason":"unknown property type: odd"}],
              "typeMismatches":["Box.size: db=float, meta=dimension"]}
@@ -401,9 +378,30 @@ class ComponentsImportApiCliCommandTest {
     }
 }
 
-/**
- * Файловая система в памяти: Gradle-процесс дописывает в неё файл меты.
- */
+private class FakeHttpClientFactory(
+    private val answer: AuthenticatedHttpResult,
+    private val requests: MutableList<Pair<String, String>>,
+    private val credentials: MutableList<BackendCredential>,
+) : AuthenticatedHttpClientFactory {
+    override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient = client()
+
+    override fun create(apiUrl: String, credential: BackendCredential): AuthenticatedHttpClient {
+        credentials += credential
+        return client()
+    }
+
+    private fun client() = object : AuthenticatedHttpClient {
+        override suspend fun get(path: String): AuthenticatedHttpResult =
+            AuthenticatedHttpResult.Failure("unexpected GET $path")
+
+        override suspend fun post(path: String, body: String): AuthenticatedHttpResult {
+            requests += path to body
+            return answer
+        }
+    }
+}
+
+/** Файловая система в памяти с файлом меты, который администратор указывает в `--from`. */
 private class InMemoryFileSystem(private val files: MutableMap<String, String>) : WorkspaceFileSystem {
     override fun currentWorkingDirectory(): String = "/repo"
 

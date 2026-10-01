@@ -437,84 +437,51 @@ project context, API URL and credentials as package export.
 
 ### Requirement: CLI components import-api command
 
-CLI `dsbuilder` SHALL предоставлять project-scoped команду `components import-api`, заводящую компоненты, свойства, состояния и платформенные имена в глобальном слое DS Builder по API-мете платформы проекта.
+CLI `dsbuilder` SHALL предоставлять команду `components import-api`, заводящую компоненты, свойства, состояния и платформенные имена в глобальном слое DS Builder по файлу API-меты платформы. Команда MUST быть доступна только системному администратору и MUST NOT зависеть от проекта или дизайн-системы.
 
-#### Scenario: Команда использует project-scoped context
+#### Scenario: Команда не использует project context
 
-- **WHEN** разработчик запускает `dsbuilder components import-api` внутри initialized project directory
-- **THEN** CLI MUST разрешить ближайшую `.sdds/config.json`
-- **THEN** CLI MUST использовать `projectId` и `designSystemId` из config
-- **THEN** CLI MUST разрешить credential через CLI core и отправить его так же, как `components push`
+- **WHEN** разработчик запускает `dsbuilder components import-api` в любой директории
+- **THEN** CLI MUST NOT искать `.sdds/config.json` и MUST NOT требовать `projectId` или `designSystemId`
 - **THEN** CLI MUST NOT выводить raw credential
 
-#### Scenario: Help не требует project config
+#### Scenario: Help не требует ничего
 
 - **WHEN** разработчик запускает `dsbuilder components import-api --help`
 - **THEN** CLI MUST показать deterministic help
-- **THEN** CLI MUST NOT требовать `.sdds/config.json`, backend, credential или private URL
+- **THEN** CLI MUST NOT требовать backend, credential, файл или private URL
 
-#### Scenario: Команда не требует plasma-android
+#### Scenario: Команда не требует plasma-android и Gradle
 
-- **WHEN** проект пользователя применяет Gradle-плагин `dsBuilder`
+- **WHEN** команда запущена
+- **THEN** CLI MUST NOT запускать Gradle и платформенные инструменты
 - **THEN** CLI MUST NOT требовать рабочей копии plasma-android, `jq` или `curl`
 
 ### Requirement: API meta import platform
 
-Команда SHALL брать платформу из `.sdds/config.json`, позволять переопределить её `--platform` и поддерживать платформы `compose` и `android-view`.
+Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose` и `android-view`.
 
-#### Scenario: Платформа из config
+#### Scenario: Платформа обязательна
 
 - **WHEN** `--platform` не указан
-- **THEN** CLI MUST использовать платформу из `.sdds/config.json`
+- **THEN** CLI MUST завершиться ошибкой использования до чтения файла и обращения к backend
 
 #### Scenario: Платформа android-view
 
 - **WHEN** платформа — `android-view`
-- **THEN** CLI MUST выполнить импорт так же, как для `compose`: получить мету через делегата, нормализовать и отправить одним запросом
+- **THEN** CLI MUST нормализовать мету View и отправить её одним запросом
 - **THEN** CLI MUST передать backend `platform` со значением `xml`
 
 #### Scenario: Неподдержанная платформа
 
 - **WHEN** платформа — `swiftui` или `react`
 - **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что платформа пока не поддержана
-- **THEN** CLI MUST NOT запускать процессы и MUST NOT обращаться к backend
+- **THEN** CLI MUST NOT читать файл и MUST NOT обращаться к backend
 
 #### Scenario: Соответствие платформы значению backend
 
 - **WHEN** CLI формирует запрос
 - **THEN** он MUST передать `compose` для `compose`, `xml` для `android-view`, `ios` для `swiftui`, `web` для `react`
-
-### Requirement: API meta import gets the meta from the project artifact
-
-CLI SHALL получать API-мету через capability `API_META` платформенного делегата, а не из рабочей копии исходников plasma-android, и MUST читать результат после успешного завершения инструмента.
-
-#### Scenario: Мета Compose
-
-- **WHEN** платформа — `compose`
-- **THEN** CLI MUST запустить делегата с capability `API_META`
-- **THEN** после успешного завершения CLI MUST прочитать `<workspaceDir>/build/theme-builder/components/uikit-compose-api-meta.json`
-
-#### Scenario: Мета View
-
-- **WHEN** платформа — `android-view`
-- **THEN** CLI MUST запустить делегата с capability `API_META`
-- **THEN** после успешного завершения CLI MUST прочитать `<workspaceDir>/build/theme-builder/components/uikit-api-meta.json`
-
-#### Scenario: Инструмент не запускается до проверок
-
-- **WHEN** нет project context, явного API URL или credentials
-- **THEN** CLI MUST отказать с диагностикой и MUST NOT запускать Gradle
-
-#### Scenario: Файл не найден или пуст
-
-- **WHEN** файл отсутствует либо не содержит ни одного компонента (пустой список меты Compose или пустая мета View)
-- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что артефакт uikit не найден в classpath проекта, и назвать ожидаемый путь
-- **THEN** CLI MUST NOT отправлять запрос на backend
-
-#### Scenario: Ошибка инструмента
-
-- **WHEN** делегат сообщает о сбое или об отсутствии toolchain
-- **THEN** CLI MUST показать сообщение делегата и завершиться ненулевым кодом
 
 ### Requirement: API meta normalization
 
@@ -566,7 +533,7 @@ CLI SHALL преобразовывать API-мету Compose в манифес�
 #### Scenario: Конфликт режимов
 
 - **WHEN** указаны `--apply` и `--dry-run` вместе
-- **THEN** CLI MUST завершиться ошибкой использования до какого-либо запуска
+- **THEN** CLI MUST завершиться ошибкой использования до какого-либо чтения файла или запроса
 
 #### Scenario: Явный API URL
 
@@ -576,23 +543,31 @@ CLI SHALL преобразовывать API-мету Compose в манифес�
 #### Scenario: Печать цели
 
 - **WHEN** манифест готов
-- **THEN** CLI MUST напечатать API URL и его источник, `projectId`, `designSystemId`, платформу, путь файла меты, число компонентов и свойств до отправки
+- **THEN** CLI MUST напечатать API URL и его источник, платформу, путь файла меты, число компонентов, свойств и состояний до отправки
+- **THEN** CLI MUST NOT печатать `projectId` и `designSystemId`
 
 ### Requirement: API meta import backend contract
 
-CLI SHALL отправлять весь манифест одним запросом на `import-api-meta`.
+CLI SHALL отправлять весь манифест одним запросом на административный маршрут `import-api-meta`.
 
 #### Scenario: Один запрос
 
 - **WHEN** манифест готов
-- **THEN** CLI MUST отправить `POST /api/projects/{projectId}/ds/component-config/import-api-meta`
-- **THEN** тело MUST содержать `designSystemId` из config, `platform`, метаданные источника, `dryRun` и все компоненты
+- **THEN** CLI MUST отправить `POST /api/admin/component-config/import-api-meta`
+- **THEN** тело MUST содержать `platform`, метаданные источника, `dryRun` и все компоненты
+- **THEN** тело MUST NOT содержать `designSystemId`
 - **THEN** CLI MUST NOT отправлять по запросу на компонент или свойство
+
+#### Scenario: Источник — имя файла
+
+- **WHEN** CLI формирует метаданные источника
+- **THEN** он MUST передать имя файла без директорий
 
 #### Scenario: Печать отчёта
 
 - **WHEN** backend вернул успешный ответ
-- **THEN** CLI MUST напечатать счётчики созданных компонентов, свойств, состояний, алиасов и привязок и число неизменённых свойств
+- **THEN** CLI MUST напечатать счётчики созданных компонентов, свойств, состояний и платформенных имён и число неизменённых свойств
+- **THEN** CLI MUST NOT печатать строку о привязках к дизайн-системе
 - **THEN** CLI MUST напечатать `rejected` и `typeMismatches`, если они не пусты, каждый с причиной
 
 #### Scenario: Строгий режим
@@ -604,7 +579,7 @@ CLI SHALL отправлять весь манифест одним запрос
 
 - **WHEN** backend вернул неуспешный статус
 - **THEN** CLI MUST обработать его общим HTTP error handling CLI core
-- **THEN** CLI MUST NOT выводить raw API key
+- **THEN** CLI MUST NOT выводить raw credential
 
 #### Scenario: Отчёт не разбирается
 
@@ -681,4 +656,71 @@ CLI SHALL сообщать, что нормализатор пропустил, 
 
 - **WHEN** нормализатор ничего не пропустил
 - **THEN** CLI MUST NOT печатать сводку пропущенного
+
+### Requirement: API meta import reads the meta from a file
+
+CLI SHALL читать API-мету из локального файла, путь которого задан обязательной опцией `--from`, и MUST NOT получать её через платформенные инструменты.
+
+#### Scenario: Файл из --from
+
+- **WHEN** задан `--from <путь>`
+- **THEN** CLI MUST прочитать файл по этому пути; относительный путь MUST быть приведён к абсолютному относительно текущей директории
+
+#### Scenario: Оба вида файла
+
+- **WHEN** файл — сырой вывод генератора меты либо вывод плагина `dsBuilder` с опущенными значениями по умолчанию
+- **THEN** CLI MUST нормализовать оба вида одинаково
+
+#### Scenario: --from обязателен
+
+- **WHEN** `--from` не указан
+- **THEN** CLI MUST завершиться ошибкой использования до обращения к backend
+
+#### Scenario: Файл не найден
+
+- **WHEN** файл по `--from` отсутствует или не читается
+- **THEN** CLI MUST завершиться ненулевым кодом, назвать путь и MUST NOT обращаться к backend
+
+#### Scenario: Файл пуст
+
+- **WHEN** файл не содержит ни одного компонента с параметрами
+- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что мета пуста, и назвать путь
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Файл другой платформы
+
+- **WHEN** содержимое файла не соответствует формату выбранной платформы
+- **THEN** CLI MUST завершиться ненулевым кодом, назвать файл и причину
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Опции удалённого способа не принимаются
+
+- **WHEN** команда запущена с `--tool` или `--api-key`
+- **THEN** CLI MUST завершиться ошибкой использования
+
+### Requirement: API meta import requires a user session
+
+CLI SHALL выполнять запрос только с user session и MUST NOT использовать ключи проекта для этой команды.
+
+#### Scenario: User session
+
+- **WHEN** для указанного API URL сохранена user session
+- **THEN** CLI MUST отправить запрос с токеном пользователя (`Authorization: Bearer`)
+
+#### Scenario: Ключ проекта игнорируется
+
+- **WHEN** в окружении задан ключ проекта
+- **THEN** CLI MUST NOT использовать его для этой команды
+
+#### Scenario: Нет user session
+
+- **WHEN** для указанного API URL нет user session
+- **THEN** CLI MUST завершиться ненулевым кодом с указанием выполнить `dsbuilder auth login` для этого API URL
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Роль проверяет сервер
+
+- **WHEN** пользователь не системный администратор
+- **THEN** CLI MUST показать отказ backend с его причиной и завершиться ненулевым кодом
+- **THEN** CLI MUST NOT проверять роль самостоятельно до запроса
 

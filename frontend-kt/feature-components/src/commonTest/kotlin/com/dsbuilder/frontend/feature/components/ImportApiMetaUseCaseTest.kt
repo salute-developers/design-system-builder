@@ -1,21 +1,18 @@
 package com.dsbuilder.frontend.feature.components
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
+import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
-import com.dsbuilder.frontend.core.application.ProjectContextReadResult
-import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.auth.BackendCredentialType
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
-import com.dsbuilder.frontend.core.domain.DesignSystemId
-import com.dsbuilder.frontend.core.domain.ProjectContext
-import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.CredentialPolicy
+import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.API_URL_ENV
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
-import com.dsbuilder.frontend.core.platform.PlatformRunPlan
 import com.dsbuilder.frontend.feature.components.application.ApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ApiMetaSource
 import com.dsbuilder.frontend.feature.components.application.ApiMetaSourceResult
@@ -38,14 +35,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ImportApiMetaUseCaseTest {
-    private val context = ProjectContext(
-        projectId = ProjectId("project-a"),
-        designSystemId = DesignSystemId("ds-a"),
-        credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
-        configPath = "/work/.sdds/config.json",
-        platforms = listOf(TargetPlatform.COMPOSE),
-    )
-
     @Test
     fun sendsTheNormalizedManifestThroughTheRemoteSourceOnce() = runTest {
         val sent = mutableListOf<ImportApiMetaRemoteCommand>()
@@ -55,13 +44,40 @@ class ImportApiMetaUseCaseTest {
         assertIs<ImportApiMetaResult.Imported>(result, "импорт отказал: $result")
         val command = sent.single()
         assertEquals("http://localhost:8080", command.apiUrl.value)
-        assertEquals(BackendCredential.ProjectKey("secret-key"), command.credential)
-        assertEquals("project-a", command.projectId.value)
-        assertEquals("ds-a", command.designSystemId.value)
+        assertEquals(BackendCredential.Bearer("admin-token"), command.credential)
         assertEquals("compose", command.platform)
-        assertEquals("/work/build/theme-builder/components/uikit-compose-api-meta.json", command.source)
         assertEquals(listOf("Avatar", "DropZone", "Slider"), command.manifest.components.map { it.name })
         assertEquals(66, command.manifest.propertyCount)
+    }
+
+    @Test
+    fun theSourceSentToTheBackendIsTheFileNameWithoutDirectories() = runTest {
+        val sent = mutableListOf<ImportApiMetaRemoteCommand>()
+
+        execute(onImport = { sent += it })
+        execute(
+            meta = ApiMetaSourceResult.Read(
+                "C:\\work\\meta\\uikit-compose-api-meta.json",
+                COMPOSE_API_META_CORPUS,
+            ),
+            onImport = {
+                sent += it
+            },
+        )
+
+        assertEquals(listOf("uikit-compose-api-meta.json", "uikit-compose-api-meta.json"), sent.map { it.source })
+    }
+
+    @Test
+    fun onlyTheUserSessionPolicyIsRequestedAndNoProjectKeyIsOffered() = runTest {
+        val requests = mutableListOf<CredentialRequest>()
+
+        execute(onCredential = { requests += it })
+
+        val request = requests.single()
+        assertEquals(CredentialPolicy.USER_SESSION, request.policy)
+        assertNull(request.projectKeyOverride)
+        assertEquals("http://localhost:8080", request.apiUrl.value)
     }
 
     @Test
@@ -94,9 +110,8 @@ class ImportApiMetaUseCaseTest {
         assertEquals(REPORT, imported.report)
         assertEquals("http://localhost:8080", imported.target.apiUrl.value)
         assertEquals("--api-url", imported.target.apiUrl.sourceName)
-        assertEquals("project-a", imported.target.projectId)
-        assertEquals("ds-a", imported.target.designSystemId)
         assertEquals(TargetPlatform.COMPOSE, imported.target.platform)
+        assertEquals(META_PATH, imported.target.source)
         assertEquals(3, imported.target.componentCount)
         assertEquals(66, imported.target.propertyCount)
         assertEquals(6, imported.target.stateCount)
@@ -112,31 +127,11 @@ class ImportApiMetaUseCaseTest {
     }
 
     @Test
-    fun anUnsupportedPlatformFailsBeforeAnyToolIsStarted() = runTest {
-        var read = false
-        var requested = false
-
-        val result = execute(
-            platform = TargetPlatform.SWIFT_UI,
-            onRead = { read = true },
-            onImport = { requested = true },
-        )
-
-        val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(failed.message.contains("swiftui"), failed.message)
-        assertTrue(failed.message.contains("compose"), failed.message)
-        assertTrue(failed.message.contains("android-view"), failed.message)
-        assertTrue(!read, "платформенный инструмент запущен для неподдержанной платформы")
-        assertTrue(!requested, "запрос отправлен для неподдержанной платформы")
-    }
-
-    @Test
-    fun anAndroidViewProjectGetsTheViewNormalizerAndTheXmlPlatform() = runTest {
+    fun anAndroidViewMetaGetsTheViewNormalizerAndTheXmlPlatform() = runTest {
         val sent = mutableListOf<ImportApiMetaRemoteCommand>()
 
         val result = execute(
-            platform = null,
-            contextPlatforms = listOf(TargetPlatform.ANDROID_VIEW),
+            platform = TargetPlatform.ANDROID_VIEW,
             meta = ApiMetaSourceResult.Read(VIEW_META_PATH, VIEW_API_META_CORPUS),
             onImport = { sent += it },
         )
@@ -144,7 +139,7 @@ class ImportApiMetaUseCaseTest {
         assertIs<ImportApiMetaResult.Imported>(result, "импорт View отказал: $result")
         val command = sent.single()
         assertEquals("xml", command.platform)
-        assertEquals(VIEW_META_PATH, command.source)
+        assertEquals("uikit-api-meta.json", command.source)
         val spinner = command.manifest.components.single { it.name == "Spinner" }
         assertEquals(
             listOf("android:maxHeight", "android:maxWidth", "android:minHeight", "android:minWidth"),
@@ -160,13 +155,12 @@ class ImportApiMetaUseCaseTest {
             meta = ApiMetaSourceResult.Read(VIEW_META_PATH, VIEW_API_META_CORPUS),
         )
 
-        val skipped = assertIs<ImportApiMetaResult.Imported>(result).skipped
         assertEquals(
             listOf(
                 ApiMetaSkipped("properties of type unknown", 20),
                 ApiMetaSkipped("properties of sub-style records", 18),
             ),
-            skipped,
+            assertIs<ImportApiMetaResult.Imported>(result).skipped,
         )
     }
 
@@ -176,77 +170,28 @@ class ImportApiMetaUseCaseTest {
     }
 
     @Test
-    fun aComposeMetaGivenToAnAndroidViewProjectIsRejectedAndNothingIsSent() = runTest {
-        var requested = false
+    fun anUnsupportedPlatformFailsBeforeAnythingIsReadOrResolved() = runTest {
+        val touched = Touched()
 
-        val result = execute(
-            platform = TargetPlatform.ANDROID_VIEW,
-            meta = readMeta(COMPOSE_API_META_CORPUS),
-            onImport = { requested = true },
-        )
+        val result = execute(platform = TargetPlatform.SWIFT_UI, touched = touched)
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(failed.message.contains(META_PATH), failed.message)
-        assertTrue(!requested)
+        assertTrue(failed.message.contains("swiftui"), failed.message)
+        assertTrue(failed.message.contains("compose") && failed.message.contains("android-view"), failed.message)
+        touched.assertNothing()
     }
 
     @Test
-    fun anEmptyViewMetaNamesTheFileAndTheClasspathAndSendsNothing() = runTest {
-        var requested = false
+    fun rejectsTheDefaultApiUrlBeforeAnythingIsReadOrResolved() = runTest {
+        val touched = Touched()
 
-        val result = execute(
-            platform = TargetPlatform.ANDROID_VIEW,
-            meta = ApiMetaSourceResult.Read(VIEW_META_PATH, "{}"),
-            onImport = { requested = true },
-        )
-
-        val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(failed.message.contains(VIEW_META_PATH), failed.message)
-        assertTrue(failed.message.contains("classpath"), failed.message)
-        assertTrue(!requested)
-    }
-
-    @Test
-    fun platformComesFromTheProjectConfigWhenNotGiven() = runTest {
-        val sent = mutableListOf<ImportApiMetaRemoteCommand>()
-
-        execute(platform = null, onImport = { sent += it })
-
-        assertEquals("compose", sent.single().platform)
-    }
-
-    @Test
-    fun aMissingPlatformIsReportedWithoutRunningTheTool() = runTest {
-        var read = false
-
-        val result = execute(
-            platform = null,
-            contextPlatforms = emptyList(),
-            onRead = { read = true },
-        )
-
-        assertIs<ImportApiMetaResult.Failed>(result)
-        assertTrue(!read)
-    }
-
-    @Test
-    fun rejectsTheDefaultApiUrlBeforeRunningTheTool() = runTest {
-        var read = false
-        var requested = false
-
-        val result = execute(
-            apiUrlOverride = null,
-            environment = { null },
-            onRead = { read = true },
-            onImport = { requested = true },
-        )
+        val result = execute(apiUrlOverride = null, environment = { null }, touched = touched)
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
         assertTrue(failed.message.contains("--api-url"), failed.message)
         assertTrue(failed.message.contains(API_URL_ENV), failed.message)
-        assertTrue(!read, "Gradle запущен несмотря на умолчание API URL")
-        assertTrue(!requested)
         assertNull(failed.target)
+        touched.assertNothing()
     }
 
     @Test
@@ -260,80 +205,96 @@ class ImportApiMetaUseCaseTest {
     }
 
     @Test
-    fun missingProjectContextIsReportedWithoutRunningTheTool() = runTest {
-        var read = false
+    fun aMissingFileFailsBeforeTheCredentialIsResolvedAndSendsNothing() = runTest {
+        val touched = Touched()
 
         val result = execute(
-            contextReader = ProjectContextReader { _ ->
-                ProjectContextReadResult.Failed("Error: no .sdds/config.json found.")
-            },
-            onRead = { read = true },
-        )
-
-        assertEquals("Error: no .sdds/config.json found.", (result as ImportApiMetaResult.Failed).message)
-        assertTrue(!read)
-    }
-
-    @Test
-    fun missingApiKeyIsReportedWithoutRunningTheTool() = runTest {
-        var read = false
-
-        val result = execute(
-            credentialProvider = testCredentialProvider(
-                CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: API key is not set."),
-            ),
-            onRead = { read = true },
-        )
-
-        assertEquals("Error: API key is not set.", (result as ImportApiMetaResult.Failed).message)
-        assertTrue(!read, "Gradle запущен без API key")
-    }
-
-    @Test
-    fun aToolFailureIsReportedAndNothingIsSent() = runTest {
-        var requested = false
-
-        val result = execute(
-            meta = ApiMetaSourceResult.Failed("Toolchain 'android' failed with exit code 1: see the output above"),
-            onImport = { requested = true },
+            meta = ApiMetaSourceResult.Failed("Error: API meta file '/work/missing.json' does not exist."),
+            touched = touched,
         )
 
         assertEquals(
-            "Toolchain 'android' failed with exit code 1: see the output above",
-            (result as ImportApiMetaResult.Failed).message,
+            "Error: API meta file '/work/missing.json' does not exist.",
+            assertIs<ImportApiMetaResult.Failed>(result).message,
         )
-        assertTrue(!requested)
+        assertTrue(!touched.credentialResolved, "credential запрошен до проверки файла")
+        assertTrue(!touched.requested)
     }
 
     @Test
-    fun anEmptyMetaNamesTheFileAndTheClasspathAndSendsNothing() = runTest {
-        var requested = false
+    fun anEmptyComposeMetaNamesTheFileAndSendsNothing() = runTest {
+        val touched = Touched()
 
-        val result = execute(meta = readMeta("[]"), onImport = { requested = true })
+        val result = execute(meta = readMeta("[]"), touched = touched)
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
         assertTrue(failed.message.contains(META_PATH), failed.message)
-        assertTrue(failed.message.contains("classpath"), failed.message)
-        assertTrue(!requested, "пустой манифест отправлен в backend")
+        assertTrue(failed.message.contains("no components"), failed.message)
+        assertTrue(!touched.credentialResolved && !touched.requested)
     }
 
     @Test
-    fun anUnreadableMetaIsReportedWithTheFile() = runTest {
-        var requested = false
+    fun anEmptyViewMetaNamesTheFileAndSendsNothing() = runTest {
+        val touched = Touched()
 
-        val result = execute(meta = readMeta("not json"), onImport = { requested = true })
+        val result = execute(
+            platform = TargetPlatform.ANDROID_VIEW,
+            meta = ApiMetaSourceResult.Read(VIEW_META_PATH, "{}"),
+            touched = touched,
+        )
+
+        val failed = assertIs<ImportApiMetaResult.Failed>(result)
+        assertTrue(failed.message.contains(VIEW_META_PATH), failed.message)
+        assertTrue(!touched.requested)
+    }
+
+    @Test
+    fun aMetaOfAnotherPlatformIsReportedWithTheFileAndSendsNothing() = runTest {
+        val touched = Touched()
+
+        val result = execute(
+            platform = TargetPlatform.ANDROID_VIEW,
+            meta = readMeta(COMPOSE_API_META_CORPUS),
+            touched = touched,
+        )
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
         assertTrue(failed.message.contains(META_PATH), failed.message)
-        assertTrue(!requested)
+        assertTrue(!touched.credentialResolved && !touched.requested)
+    }
+
+    @Test
+    fun noUserSessionTellsHowToLogInForTheSameApiUrlAndSendsNothing() = runTest {
+        val touched = Touched()
+
+        val result = execute(
+            credential = CredentialResult.Failed(AuthErrorCode.AUTH_REQUIRED, "Error: authentication is required."),
+            touched = touched,
+        )
+
+        val failed = assertIs<ImportApiMetaResult.Failed>(result)
+        assertTrue(failed.message.startsWith("Error: authentication is required."), failed.message)
+        assertTrue(failed.message.contains("dsbuilder auth login --api-url http://localhost:8080"), failed.message)
+        assertTrue(failed.message.contains("system administrator"), failed.message)
+        assertTrue(!touched.requested)
+        assertNull(failed.target)
+    }
+
+    @Test
+    fun otherCredentialFailuresKeepTheirMessage() = runTest {
+        val result = execute(
+            credential = CredentialResult.Failed(AuthErrorCode.BACKEND_UNAVAILABLE, "Error: backend is unavailable."),
+        )
+
+        assertEquals("Error: backend is unavailable.", assertIs<ImportApiMetaResult.Failed>(result).message)
     }
 
     @Test
     fun aBackendFailureKeepsTheTarget() = runTest {
-        val result = execute(importResult = ImportApiMetaRemoteResult.Failed("Status: forbidden."))
+        val result = execute(importResult = ImportApiMetaRemoteResult.Failed("Status: forbidden. Server: no role"))
 
         val failed = assertIs<ImportApiMetaResult.Failed>(result)
-        assertEquals("Status: forbidden.", failed.message)
+        assertEquals("Status: forbidden. Server: no role", failed.message)
         assertNotNull(failed.target)
     }
 
@@ -354,42 +315,61 @@ class ImportApiMetaUseCaseTest {
 
     private fun readMeta(text: String) = ApiMetaSourceResult.Read(META_PATH, text)
 
+    /** Что команда успела затронуть: нужно, чтобы проверять порядок барьеров. */
+    private class Touched {
+        var read = false
+        var credentialResolved = false
+        var requested = false
+
+        fun assertNothing() {
+            assertTrue(!read, "файл прочитан")
+            assertTrue(!credentialResolved, "credential запрошен")
+            assertTrue(!requested, "запрос отправлен")
+        }
+    }
+
     @Suppress("LongParameterList")
     private suspend fun execute(
-        platform: TargetPlatform? = TargetPlatform.COMPOSE,
-        contextPlatforms: List<TargetPlatform> = listOf(TargetPlatform.COMPOSE),
+        platform: TargetPlatform = TargetPlatform.COMPOSE,
         dryRun: Boolean = true,
         typeMap: Map<String, String> = emptyMap(),
         apiUrlOverride: String? = "http://localhost:8080",
         environment: (String) -> String? = { null },
         meta: ApiMetaSourceResult = readMeta(COMPOSE_API_META_CORPUS),
         importResult: ImportApiMetaRemoteResult = ImportApiMetaRemoteResult.Imported(REPORT),
-        contextReader: ProjectContextReader = ProjectContextReader { _ ->
-            ProjectContextReadResult.Found(context.copy(platforms = contextPlatforms))
-        },
-        credentialProvider: CredentialProvider = testCredentialProvider(
-            CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
+        credential: CredentialResult = CredentialResult.Selected(
+            BackendCredential.Bearer("admin-token"),
+            BackendCredentialType.USER_SESSION,
         ),
-        onRead: () -> Unit = {},
+        touched: Touched = Touched(),
+        onCredential: (CredentialRequest) -> Unit = {},
         onTarget: () -> Unit = {},
         onImport: (ImportApiMetaRemoteCommand) -> Unit = {},
     ): ImportApiMetaResult {
         val useCase = ImportApiMetaUseCase(
-            projectContextReader = contextReader,
-            credentialProvider = credentialProvider,
+            credentialProvider = object : CredentialProvider {
+                override suspend fun resolve(request: CredentialRequest): CredentialResult {
+                    touched.credentialResolved = true
+                    onCredential(request)
+                    return credential
+                }
+
+                override suspend fun resolve(
+                    apiUrl: ProjectApiUrl,
+                    projectKeyOverride: String?,
+                    credentialEnvName: CredentialEnvName,
+                ): CredentialResult = error("устаревший вход не должен использоваться")
+            },
             apiUrlResolver = ApiUrlResolver(EnvironmentReader(environment)),
             metaSource = object : ApiMetaSource {
-                override fun read(
-                    platform: TargetPlatform,
-                    toolOverride: String?,
-                    onPlan: (PlatformRunPlan) -> Unit,
-                ): ApiMetaSourceResult {
-                    onRead()
+                override fun read(path: String): ApiMetaSourceResult {
+                    touched.read = true
                     return meta
                 }
             },
             remoteSource = object : ApiMetaRemoteSource {
                 override suspend fun import(command: ImportApiMetaRemoteCommand): ImportApiMetaRemoteResult {
+                    touched.requested = true
                     onImport(command)
                     return importResult
                 }
@@ -403,6 +383,7 @@ class ImportApiMetaUseCaseTest {
         return useCase.execute(
             ImportApiMetaCommand(
                 platform = platform,
+                from = "meta.json",
                 dryRun = dryRun,
                 typeMap = typeMap,
                 apiUrlOverride = apiUrlOverride,
@@ -412,15 +393,14 @@ class ImportApiMetaUseCaseTest {
     }
 
     private companion object {
-        const val META_PATH = "/work/build/theme-builder/components/uikit-compose-api-meta.json"
-        const val VIEW_META_PATH = "/work/build/theme-builder/components/uikit-api-meta.json"
+        const val META_PATH = "/work/meta/uikit-compose-api-meta.json"
+        const val VIEW_META_PATH = "/work/meta/uikit-api-meta.json"
 
         val REPORT = ApiMetaImportReport(
             createdComponents = 1,
             createdProperties = 2,
             createdStates = 3,
             createdAliases = 4,
-            createdLinks = 5,
             unchangedProperties = 6,
             rejected = listOf(ApiMetaRejection("Box", "odd", "unknown property type: odd")),
             typeMismatches = listOf("Box.size: db=float, meta=dimension"),

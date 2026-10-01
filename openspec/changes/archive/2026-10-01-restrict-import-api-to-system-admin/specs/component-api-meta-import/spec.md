@@ -1,8 +1,5 @@
-# component-api-meta-import Specification
+## MODIFIED Requirements
 
-## Purpose
-Определяет ручку `import-api-meta` в `db-service`, которой CLI `dsbuilder components import-api` заводит глобальный слой компонентной модели (компоненты, свойства, состояния, платформенные имена и привязку к дизайн-системе) по манифесту API-меты платформы: контракт манифеста, аддитивную запись, проверку типов свойств по схеме БД, dry run и отчёт.
-## Requirements
 ### Requirement: API meta import endpoint
 
 `db-service` SHALL предоставлять endpoint `POST /api/admin/component-config/import-api-meta`, принимающий манифест API-меты компонентов целиком одним запросом и записывающий его в глобальный слой компонентной модели в одной транзакции. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
@@ -112,35 +109,6 @@
 - **WHEN** манифесты двух платформ с совпадающими типами общих свойств импортируются в любом порядке
 - **THEN** набор компонентов, свойств, их типов и состояний MUST быть одинаковым при обоих порядках
 
-### Requirement: Property type validation belongs to backend
-
-Backend SHALL проверять `type` свойства по значениям `property_type` и MUST NOT принимать типы вне этого списка.
-
-#### Scenario: Неизвестный тип отклоняет свойство, а не импорт
-
-- **WHEN** свойство содержит тип вне `property_type`
-- **THEN** backend MUST вернуть свойство в `rejected` с причиной, содержащей тип
-- **THEN** backend MUST импортировать остальные свойства и компоненты
-
-#### Scenario: Схема БД не меняется
-
-- **WHEN** тип неизвестен
-- **THEN** backend MUST NOT выполнять DDL и MUST NOT расширять enum
-
-### Requirement: API meta import dry run
-
-Импорт SHALL поддерживать `dryRun`, выполняющий всю работу и откатывающий транзакцию.
-
-#### Scenario: Отчёт dry run совпадает с отчётом применения
-
-- **WHEN** запрос с `dryRun: true` и запрос с `dryRun: false` выполняются на одном состоянии БД с одним манифестом
-- **THEN** их отчёты MUST совпадать
-
-#### Scenario: Dry run не сохраняет данные
-
-- **WHEN** `dryRun` равен `true`
-- **THEN** backend MUST NOT сохранить ни одной строки, включая запись в `design_system_changes`
-
 ### Requirement: API meta import report
 
 Ответ SHALL содержать счётчики `createdComponents`, `createdProperties`, `createdStates`, `createdAliases`, `unchangedProperties` и списки `rejected` и `typeMismatches`. Счётчика привязок к дизайн-системам MUST NOT быть.
@@ -156,6 +124,8 @@ Backend SHALL проверять `type` свойства по значениям
 - **WHEN** запись в БД завершается ошибкой
 - **THEN** backend MUST откатить транзакцию и ответить `422` с кратким сообщением
 - **THEN** причина MUST быть записана в лог сервера
+
+## ADDED Requirements
 
 ### Requirement: API meta import is restricted to system administrators
 
@@ -211,4 +181,3 @@ Backend SHALL проверять `type` свойства по значениям
 
 - **WHEN** запрашивается лента изменений конкретной дизайн-системы
 - **THEN** она MUST NOT содержать записей об импорте API-меты
-

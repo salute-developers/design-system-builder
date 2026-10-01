@@ -1,39 +1,29 @@
 package com.dsbuilder.frontend.feature.components.application
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
-import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
-import com.dsbuilder.frontend.core.domain.ProjectId
-import com.dsbuilder.frontend.core.domain.TargetPlatform
-import com.dsbuilder.frontend.core.platform.PlatformRunPlan
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 
 /**
- * Port получения API-меты платформы из проекта пользователя.
+ * Port чтения файла API-меты, указанного пользователем.
  *
- * Реализация просит платформенный инструмент достать файл из артефакта UI-кита и читает его;
- * разбирает содержимое не она, а нормализатор платформы.
+ * Файл — вывод генератора меты или вывод плагина `dsBuilder`; разбирает его нормализатор платформы, а
+ * реализация только находит и читает файл.
  */
 internal interface ApiMetaSource {
     /**
-     * Достаёт мету платформы и возвращает её текст.
+     * Читает файл меты.
      *
-     * @param platform платформа, чью мету нужно получить.
-     * @param toolOverride путь инструмента из `--tool`.
-     * @param onPlan вызывается до запуска инструмента, чтобы presentation напечатала, что и чем запускается.
+     * @param path путь файла из `--from`; относительный путь приводится к абсолютному.
      */
-    fun read(
-        platform: TargetPlatform,
-        toolOverride: String?,
-        onPlan: (PlatformRunPlan) -> Unit,
-    ): ApiMetaSourceResult
+    fun read(path: String): ApiMetaSourceResult
 }
 
-/** Результат получения меты. */
+/** Результат чтения файла меты. */
 internal sealed interface ApiMetaSourceResult {
     /**
-     * Мета получена.
+     * Файл прочитан.
      *
      * @property path абсолютный путь прочитанного файла.
      * @property text содержимое файла.
@@ -41,7 +31,7 @@ internal sealed interface ApiMetaSourceResult {
     data class Read(val path: String, val text: String) : ApiMetaSourceResult
 
     /**
-     * Мету получить не удалось.
+     * Файл прочитать не удалось.
      *
      * @property message deterministic сообщение для CLI output.
      */
@@ -51,7 +41,7 @@ internal sealed interface ApiMetaSourceResult {
 /**
  * Port загрузки манифеста API-меты в backend.
  *
- * Адрес и credentials приходят командой, а не читаются реализацией: их разрешают барьеры use case
+ * Адрес и credential приходят командой, а не читаются реализацией: их разрешают барьеры use case
  * до отправки, и повторное чтение обошло бы отказ по умолчательному API URL.
  */
 internal interface ApiMetaRemoteSource {
@@ -63,19 +53,15 @@ internal interface ApiMetaRemoteSource {
  * Запрос на загрузку манифеста.
  *
  * @property apiUrl разрешённый backend API URL.
- * @property credential credential, авторизующий запись.
- * @property projectId идентификатор проекта.
- * @property designSystemId дизайн-система, к которой привязываются компоненты.
+ * @property credential user session администратора.
  * @property platform значение `platform` для backend (`compose`, `xml`, `ios`, `web`).
- * @property source разрешённый источник меты: путь прочитанного файла.
+ * @property source имя файла меты без директорий: локальный путь администратора на сервер не уходит.
  * @property dryRun выполнять ли импорт без сохранения изменений.
  * @property manifest что загружать.
  */
 internal data class ImportApiMetaRemoteCommand(
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
-    val projectId: ProjectId,
-    val designSystemId: DesignSystemId,
     val platform: String,
     val source: String,
     val dryRun: Boolean,

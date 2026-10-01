@@ -284,34 +284,38 @@ components:write
 ## Импорт API компонентов
 
 Команда `components import-api` заводит в DS Builder глобальный слой компонентной модели —
-компоненты, их свойства, состояния и платформенные имена свойств — по API-мете платформы проекта.
+компоненты, их свойства, состояния и платформенные имена свойств — по файлу API-меты платформы.
+Слой общий для всех дизайн-систем всех проектов, поэтому команду может выполнить **только системный
+администратор** (realm-роль Keycloak `system_admin`). Ключ проекта не принимается вообще: на gateway он
+получает `401`. CLI роль сам не проверяет, её проверяет сервер.
+
 `components push` и `components fetch` этот слой используют: свойства и состояния, которых в нём нет,
 попадают в отчёт `push` как `unknownProperties` и `unknownStates`.
 
+Нужна user session администратора на **том же API URL**, который передаётся команде:
+
 ```bash
-dsbuilder components import-api --api-url https://your-gateway           # план, ничего не пишется
-dsbuilder components import-api --api-url https://your-gateway --apply   # запись
+dsbuilder auth login --username admin@example.com --api-url https://your-gateway
+dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
+  --api-url https://your-gateway           # план, ничего не пишется
+dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
+  --api-url https://your-gateway --apply   # запись
 ```
 
-Платформа берётся из `.sdds/config.json`; `--platform` переопределяет. Поддержаны `compose` и `android-view`:
-остальные платформы команда отклоняет до запуска каких-либо процессов. Если в проекте объявлено несколько
-платформ, выберите нужную через `--platform`: каждая платформа импортируется отдельным запуском.
+Команде не нужны проект, `.sdds/config.json`, Gradle и дизайн-система: только файл, платформа и API URL.
+`--from` и `--platform` обязательны. Поддержаны `compose` и `android-view`; остальные платформы команда
+отклоняет до чтения файла и обращения к backend.
 
-Мету CLI получает так же, как её берёт генератор: платформенный инструмент достаёт файл меты из артефакта
-uikit, от которого зависит проект. Это Gradle-задача плагина `dsBuilder`, поэтому нужны те же условия, что для
-`components generate`: проект с `gradlew` и плагином `dsBuilder` с секцией `components`.
+Файл меты — вывод генератора меты платформы (`uikit-compose-api-meta.json`, `uikit-api-meta.json`) или
+вывод плагина `dsBuilder`; нормализатор читает обе формы. Платформа должна совпадать с файлом: меты
+Compose и View разные, и файл другой платформы команда отклоняет с указанием пути. Версию меты
+определяет выбранный файл, поэтому проверяйте, что он от нужного релиза uikit.
 
-| Платформа | Gradle-задача | Файл в `build/theme-builder/components/` |
-|---|---|---|
-| `compose` | `readUikitComposeApiMeta` | `uikit-compose-api-meta.json` |
-| `android-view` | `readUikitApiMeta` | `uikit-api-meta.json` |
-
-Версия меты — версия uikit из `build.gradle.kts` проекта; чтобы обновить API, обновите зависимость.
 Платформенные имена свойств попадают в базу под платформой запроса: `compose` для Compose и `xml` для
 Android View (XML-атрибуты вроде `sd_labelColor`).
 
-Перед отправкой команда печатает платформу, путь файла меты, число компонентов, свойств и состояний,
-API URL, `projectId` и `designSystemId`. Данные уходят одним запросом.
+Перед отправкой команда печатает платформу, путь файла меты, число компонентов, свойств и состояний
+и API URL. На backend уходит одно имя файла без каталогов. Данные идут одним запросом.
 
 Отчёт:
 
@@ -320,7 +324,6 @@ Created components: 0
 Created properties: 12
 Created states: 3
 Created platform names: 12
-Linked to the design system: 1
 Unchanged properties: 1251
 Rejected: 0
 ```
@@ -329,8 +332,24 @@ Rejected: 0
 меняются. Если тип существующего свойства в базе отличается от типа в мете, тип не меняется, а свойство
 попадает в раздел `Property type mismatches`: глобальный слой общий для всех дизайн-систем. Свойство с
 типом, которого нет в схеме БД, попадает в `Rejected` с причиной; остальной импорт от этого не зависит.
-Повторный запуск без изменений в мете не создаёт ничего. Компоненты привязываются только к
-дизайн-системе из `.sdds/config.json`.
+Повторный запуск без изменений в мете не создаёт ничего. Компоненты ни к какой дизайн-системе не
+привязываются: привязка делается отдельными маршрутами `design-system-components`.
+
+Импорт записывается в журнал `design_system_changes` со значением `design_system_id = NULL`
+(`entity_type = components:import-api-meta`, в `data` — пользователь, платформа, имя файла и счётчики).
+Dry run ничего не пишет, в том числе в журнал. В ленты дизайн-систем такая запись не попадает.
+
+### Отказ доступа
+
+Если у пользователя нет роли `system_admin`, сервер отвечает `403`, и CLI показывает причину сервера:
+
+```
+Status: forbidden. Credential has no access to this project. Server: System administrator role is required
+```
+
+Первая часть сообщения общая для всех команд; причина после `Server:` — из ответа backend. Если user
+session для этого API URL нет, команда подскажет `dsbuilder auth login --api-url <url>` и ничего не
+отправит.
 
 ### Что при импорте View не попадает в базу
 
@@ -356,10 +375,8 @@ Skipped: 20 properties of sub-style records
 платформа импортирована первой. Если типы одного свойства у платформ разойдутся, победит тип первой
 импортированной, а расхождение будет показано в разделе `Property type mismatches`.
 
-Параметры: `--tool` (путь к `gradlew`), `--map-type from:to` (заменить тип свойства до отправки,
-можно повторять), `--strict` (завершиться с кодом 1, если что-то отклонено).
-
-Требуемые scope ключа проекта: `components:write`.
+Параметры: `--map-type from:to` (заменить тип свойства до отправки, можно повторять), `--strict`
+(завершиться с кодом 1, если что-то отклонено).
 
 ## Выгрузка конфигов компонентов
 

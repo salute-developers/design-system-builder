@@ -41,13 +41,6 @@ public enum class Capability(
 
     /** Собрать платформенно насыщенное дерево документации в `.sdds/temp/docs`. */
     DOCS_AGGREGATE("documentation aggregation"),
-
-    /**
-     * Достать API-мету компонентов из артефакта UI-кита проекта и оставить её файлом в рабочей копии.
-     *
-     * Инструмент только извлекает файл; разбирает его и отправляет в backend CLI.
-     */
-    API_META("API meta extraction"),
 }
 
 /**

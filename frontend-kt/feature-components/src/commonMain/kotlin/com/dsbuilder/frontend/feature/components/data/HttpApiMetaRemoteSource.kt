@@ -26,7 +26,6 @@ internal class HttpApiMetaRemoteSource(
         val body = json.encodeToString(
             ApiMetaImportRequest.serializer(),
             ApiMetaImportRequest(
-                designSystemId = command.designSystemId.value,
                 platform = command.platform,
                 meta = ApiMetaImportMeta(source = command.source),
                 dryRun = command.dryRun,
@@ -47,7 +46,7 @@ internal class HttpApiMetaRemoteSource(
             ),
         )
 
-        val path = "/api/projects/${command.projectId.value}/ds/component-config/import-api-meta"
+        val path = "/api/admin/component-config/import-api-meta"
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
@@ -75,8 +74,6 @@ internal class HttpApiMetaRemoteSource(
 /**
  * Тело запроса `POST /ds/component-config/import-api-meta`.
  *
- * @property designSystemId дизайн-система, к которой привязываются компоненты. Идентификатора нет
- * в пути: backend адресует дизайн-систему телом запроса.
  * @property platform платформа из словаря backend.
  * @property meta метаданные источника.
  * @property dryRun признак импорта без сохранения изменений.
@@ -84,7 +81,6 @@ internal class HttpApiMetaRemoteSource(
  */
 @Serializable
 private data class ApiMetaImportRequest(
-    val designSystemId: String,
     val platform: String,
     val meta: ApiMetaImportMeta,
     val dryRun: Boolean,
@@ -120,7 +116,6 @@ private data class ApiMetaImportReportResponse(
     val createdProperties: Int = 0,
     val createdStates: Int = 0,
     val createdAliases: Int = 0,
-    val createdLinks: Int = 0,
     val unchangedProperties: Int = 0,
     val rejected: List<ApiMetaRejectionResponse> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
@@ -130,7 +125,6 @@ private data class ApiMetaImportReportResponse(
         createdProperties = createdProperties,
         createdStates = createdStates,
         createdAliases = createdAliases,
-        createdLinks = createdLinks,
         unchangedProperties = unchangedProperties,
         rejected = rejected.map { ApiMetaRejection(it.component, it.property, it.reason) },
         typeMismatches = typeMismatches,

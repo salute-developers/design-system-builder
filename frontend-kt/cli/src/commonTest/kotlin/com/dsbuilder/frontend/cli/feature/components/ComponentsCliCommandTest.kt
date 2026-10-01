@@ -46,8 +46,11 @@ class ComponentsCliCommandTest {
         val result = cli(fileSystem) { backendCalls++ }.execute(listOf("components", "import-api", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
-        listOf("--platform", "--api-url", "--api-key", "--tool", "--map-type", "--apply", "--dry-run", "--strict")
+        listOf("--from", "--platform", "--api-url", "--map-type", "--apply", "--dry-run", "--strict")
             .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
+        listOf("--api-key", "--tool")
+            .forEach { assertTrue(!result.output.contains(it), "$it остался в help:\n${result.output}") }
+        assertTrue(result.output.contains("administrator only"), result.output)
         assertEquals(0, backendCalls)
         assertTrue(fileSystem.reads.isEmpty(), "help прочитал файлы: ${fileSystem.reads}")
     }

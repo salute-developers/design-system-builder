@@ -26,10 +26,10 @@ import com.dsbuilder.frontend.feature.components.data.HttpApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigsSnapshotSource
 import com.dsbuilder.frontend.feature.components.data.HttpComponentReadRemoteSource
+import com.dsbuilder.frontend.feature.components.data.LocalApiMetaFileSource
 import com.dsbuilder.frontend.feature.components.data.LocalComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirectoryReader
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
-import com.dsbuilder.frontend.feature.components.data.PlatformApiMetaSource
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ViewApiMetaNormalizer
@@ -93,16 +93,10 @@ public fun componentsApplicationModule(): Module = module {
 private fun Module.apiMetaBindings() {
     single { ComposeApiMetaNormalizer() }
     single { ViewApiMetaNormalizer() }
-    single<ApiMetaSource> {
-        PlatformApiMetaSource(
-            platformCapabilityRunner = get<PlatformCapabilityRunner>(),
-            fileSystem = get<WorkspaceFileSystem>(),
-        )
-    }
+    single<ApiMetaSource> { LocalApiMetaFileSource(fileSystem = get<WorkspaceFileSystem>()) }
     single<ApiMetaRemoteSource> { HttpApiMetaRemoteSource(get<AuthenticatedHttpClientFactory>()) }
     single {
         ImportApiMetaUseCase(
-            projectContextReader = get<ProjectContextReader>(),
             credentialProvider = get<CredentialProvider>(),
             apiUrlResolver = get<ApiUrlResolver>(),
             metaSource = get<ApiMetaSource>(),

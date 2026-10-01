@@ -263,6 +263,10 @@ http {
         }
 
         location ~ ^/api/admin(/.*)?$ {
+            # Манифест API-меты уезжает одним запросом (сотни килобайт), поэтому лимит такой же, как у
+            # маршрута `ds`, а не общий 2m. Принимается только токен пользователя: ключ проекта получает 401.
+            client_max_body_size 16m;
+
             limit_req zone=project_api burst=20 nodelay;
             auth_request /_auth_user;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;

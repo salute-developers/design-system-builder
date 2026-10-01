@@ -80,7 +80,7 @@ CLI SHALL expose a `PlatformDelegate` port that declares a toolchain id, the set
 - **WHEN** a delegate is registered
 - **THEN** it MUST declare a non-blank lowercase toolchain id matching `[a-z][a-z0-9-]*`
 - **THEN** it MUST declare the target platforms it serves
-- **THEN** it MUST declare which of `THEME`, `COMPONENTS`, `DOCS_AGGREGATE`, `API_META` it supports
+- **THEN** it MUST declare which of `THEME`, `COMPONENTS`, `DOCS_AGGREGATE` it supports
 
 #### Scenario: Вызов делегата
 

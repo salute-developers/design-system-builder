@@ -1,7 +1,5 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
-import com.dsbuilder.frontend.cli.presentation.PLATFORM_OPTION_HELP
-import com.dsbuilder.frontend.cli.presentation.printPlan
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaCommand
@@ -17,6 +15,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.options.required
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -25,14 +24,15 @@ import kotlinx.coroutines.runBlocking
 internal class ComponentsImportApiCliCommand(
     private val importApiMetaUseCase: ImportApiMetaUseCase,
 ) : CliktCommand(name = "import-api") {
-    private val platform: TargetPlatform? by option("--platform").targetPlatform().help(PLATFORM_OPTION_HELP)
+    private val from: String by option("--from")
+        .required()
+        .help("API meta file of the platform: the output of the meta generator or of the dsBuilder plugin.")
 
-    private val apiKey: String? by option("--api-key")
+    private val platform: TargetPlatform by option("--platform").targetPlatform().required()
+        .help("Platform of the API meta file.")
 
     private val apiUrl: String? by option("--api-url")
-
-    private val tool: String? by option("--tool")
-        .help("Path to the platform tool; overrides toolchain discovery.")
+        .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
     private val mapType: List<String> by option("--map-type")
         .multiple()
@@ -56,13 +56,11 @@ internal class ComponentsImportApiCliCommand(
             importApiMetaUseCase.execute(
                 ImportApiMetaCommand(
                     platform = platform,
+                    from = from,
                     dryRun = !apply,
                     typeMap = typeMap,
-                    apiKeyOverride = apiKey,
                     apiUrlOverride = apiUrl,
-                    toolOverride = tool,
                 ),
-                onPlan = ::printPlan,
                 onTarget = { target -> echo(target.render()) },
             )
         }
@@ -82,7 +80,7 @@ internal class ComponentsImportApiCliCommand(
     }
 
     override fun help(context: Context): String =
-        "Import component API meta of the project platform into the DS Builder component layer."
+        "Import an API meta file into the DS Builder component layer (system administrator only)."
 }
 
 /**
@@ -111,8 +109,6 @@ private fun ImportApiMetaTarget.render(): String = """
     Properties: $propertyCount
     States: $stateCount
     API URL: ${apiUrl.value} (from ${apiUrl.sourceName})
-    Project: $projectId
-    Design system: $designSystemId
 """.trimIndent()
 
 private fun ImportApiMetaResult.Imported.render(): String = buildString {
@@ -130,7 +126,6 @@ private fun ApiMetaImportReport.render(): String = buildString {
     appendLine("Created properties: $createdProperties")
     appendLine("Created states: $createdStates")
     appendLine("Created platform names: $createdAliases")
-    appendLine("Linked to the design system: $createdLinks")
     appendLine("Unchanged properties: $unchangedProperties")
     append("Rejected: ${rejected.size}")
     rejected.forEach { rejection ->

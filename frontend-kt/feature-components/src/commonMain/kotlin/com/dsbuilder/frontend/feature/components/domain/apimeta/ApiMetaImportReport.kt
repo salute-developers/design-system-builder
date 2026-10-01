@@ -10,7 +10,6 @@ package com.dsbuilder.frontend.feature.components.domain.apimeta
  * @property createdProperties число созданных свойств.
  * @property createdStates число созданных состояний компонентов.
  * @property createdAliases число созданных платформенных имён свойств.
- * @property createdLinks число созданных привязок компонентов к дизайн-системе.
  * @property unchangedProperties число свойств, которые уже были в базе с тем же типом.
  * @property rejected свойства, которые не удалось записать, с причинами.
  * @property typeMismatches существующие свойства, чей тип в базе отличается от присланного;
@@ -21,7 +20,6 @@ public data class ApiMetaImportReport(
     public val createdProperties: Int = 0,
     public val createdStates: Int = 0,
     public val createdAliases: Int = 0,
-    public val createdLinks: Int = 0,
     public val unchangedProperties: Int = 0,
     public val rejected: List<ApiMetaRejection> = emptyList(),
     public val typeMismatches: List<String> = emptyList(),

@@ -1,9 +1,7 @@
 package com.dsbuilder.frontend.feature.components
 
 import com.dsbuilder.frontend.core.auth.BackendCredential
-import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
-import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
@@ -41,13 +39,13 @@ class HttpApiMetaRemoteSourceTest {
         assertIs<ImportApiMetaRemoteResult.Imported>(result)
         assertEquals(0, gets)
         assertEquals(1, posts.size, "выполнены лишние запросы: $posts")
-        assertEquals("/api/projects/project-a/ds/component-config/import-api-meta", posts.single().first)
+        assertEquals("/api/admin/component-config/import-api-meta", posts.single().first)
 
         val body = Json.parseToJsonElement(posts.single().second).jsonObject
-        assertEquals("ds-a", body.getValue("designSystemId").jsonPrimitive.content)
+        assertTrue("designSystemId" !in body, "тело содержит designSystemId: $body")
         assertEquals("compose", body.getValue("platform").jsonPrimitive.content)
         assertEquals(
-            "/work/uikit-compose-api-meta.json",
+            "uikit-compose-api-meta.json",
             body.getValue("meta").jsonObject
                 .getValue("source").jsonPrimitive.content,
         )
@@ -155,7 +153,6 @@ class HttpApiMetaRemoteSourceTest {
         assertEquals(2, report.createdProperties)
         assertEquals(3, report.createdStates)
         assertEquals(4, report.createdAliases)
-        assertEquals(5, report.createdLinks)
         assertEquals(6, report.unchangedProperties)
         assertEquals("Box", report.rejected.single().component)
         assertEquals("odd", report.rejected.single().property)
@@ -198,10 +195,8 @@ class HttpApiMetaRemoteSourceTest {
             ImportApiMetaRemoteCommand(
                 apiUrl = ProjectApiUrl("http://localhost:8080"),
                 credential = BackendCredential.ProjectKey("secret-key"),
-                projectId = ProjectId("project-a"),
-                designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",
-                source = "/work/uikit-compose-api-meta.json",
+                source = "uikit-compose-api-meta.json",
                 dryRun = dryRun,
                 manifest = MANIFEST,
             ),
@@ -237,7 +232,7 @@ class HttpApiMetaRemoteSourceTest {
 
         const val REPORT = """
             {"createdComponents":1,"createdProperties":2,"createdStates":3,"createdAliases":4,
-             "createdLinks":5,"unchangedProperties":6,
+             "unchangedProperties":6,
              "rejected":[{"component":"Box","property":"odd","reason":"unknown property type: odd"}],
              "typeMismatches":["Box.size: db=float, meta=dimension"]}
         """

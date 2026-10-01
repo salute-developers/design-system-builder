@@ -43,6 +43,17 @@ for config in nginx.local.conf nginx.prod.conf.template; do
     printf '%s' "$documentation_block" | grep -Fq 'limit_req zone=project_api burst=20 nodelay;'
   fi
 
+  admin_block=$(awk 'index($0, "location ~ ^/api/admin(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+
+  test -n "$admin_block"
+
+  # Административные маршруты принимают только токен пользователя: ключ проекта отсекается здесь,
+  # а лимит тела позволяет отправить манифест API-меты одним запросом.
+  printf '%s' "$admin_block" | grep -Fq 'auth_request /_auth_user;'
+  ! printf '%s' "$admin_block" | grep -Fq 'auth_request /_auth_project;'
+  printf '%s' "$admin_block" | grep -Fq 'client_max_body_size 16m;'
+  printf '%s' "$admin_block" | grep -Fq 'proxy_set_header X-System-Admin $trusted_system_admin;'
+
   ! grep -Fq 'location /documentation' "$config"
   ! grep -Fq 'location = /documentation' "$config"
   ! grep -Fq 'location ~ ^/documentation' "$config"
