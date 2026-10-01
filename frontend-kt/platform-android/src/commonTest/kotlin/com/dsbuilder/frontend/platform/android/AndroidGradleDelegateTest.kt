@@ -21,13 +21,13 @@ class AndroidGradleDelegateTest {
     private val gradlewPath = "/repo/gradlew"
 
     @Test
-    fun servesComposeAndAndroidViewWithThemeComponentsAndDocs() {
+    fun servesComposeAndAndroidViewWithThemeComponentsDocsAndApiMeta() {
         val delegate = delegate()
 
         assertEquals(ToolchainId("android"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW), delegate.platforms)
         assertEquals(
-            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE),
+            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.API_META),
             delegate.capabilities,
         )
     }
@@ -75,6 +75,105 @@ class AndroidGradleDelegateTest {
 
         assertEquals(listOf("-p", "/repo/tokens/theme-module", "generateComposeComponents"), requests[0].args)
         assertEquals(listOf("-p", "/repo/tokens/theme-module", "generateViewComponents"), requests[1].args)
+    }
+
+    @Test
+    fun apiMetaRunsTheComposeMetaTaskInTheWorkspace() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(invocation(Capability.API_META, TargetPlatform.COMPOSE))
+
+        assertIs<DelegateResult.Completed>(result)
+        assertEquals(gradlewPath, requests.single().executable)
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "readUikitComposeApiMeta"),
+            requests.single().args,
+        )
+        assertEquals("/repo/tokens/theme-module", requests.single().workingDirectory)
+        assertTrue(requests.single().inheritStdio)
+    }
+
+    @Test
+    fun apiMetaAppendsPassthroughAfterTheTaskName() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        delegate.run(
+            invocation(Capability.API_META, TargetPlatform.COMPOSE, passthrough = listOf("--offline")),
+        )
+
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "readUikitComposeApiMeta", "--offline"),
+            requests.single().args,
+        )
+    }
+
+    @Test
+    fun apiMetaRunsTheViewMetaTaskForAndroidView() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(invocation(Capability.API_META, TargetPlatform.ANDROID_VIEW))
+
+        assertIs<DelegateResult.Completed>(result)
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "readUikitApiMeta"),
+            requests.single().args,
+        )
+        assertTrue(requests.single().inheritStdio)
+    }
+
+    @Test
+    fun apiMetaForAndroidViewAppendsPassthroughAfterTheTaskName() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        delegate.run(
+            invocation(Capability.API_META, TargetPlatform.ANDROID_VIEW, passthrough = listOf("--offline")),
+        )
+
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "readUikitApiMeta", "--offline"),
+            requests.single().args,
+        )
+    }
+
+    @Test
+    fun apiMetaIsStillUnsupportedForPlatformsTheDelegateDoesNotServe() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(invocation(Capability.API_META, TargetPlatform.SWIFT_UI))
+
+        val message = assertIs<DelegateResult.Unsupported>(result).message
+        assertTrue(message.contains("API meta extraction"), message)
+        assertTrue(message.contains("swiftui"), message)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun apiMetaRejectsOutputAndNothingIsStarted() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(
+            invocation(Capability.API_META, TargetPlatform.COMPOSE, output = "/somewhere"),
+        )
+
+        assertIs<DelegateResult.Unsupported>(result)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun apiMetaFailureKeepsTheExitCode() {
+        val delegate = delegate(runner = { ProcessResult(exitCode = 3, output = "") })
+
+        val failure = assertIs<DelegateResult.Failed>(
+            delegate.run(invocation(Capability.API_META, TargetPlatform.COMPOSE)),
+        )
+
+        assertEquals(3, failure.exitCode)
     }
 
     @Test

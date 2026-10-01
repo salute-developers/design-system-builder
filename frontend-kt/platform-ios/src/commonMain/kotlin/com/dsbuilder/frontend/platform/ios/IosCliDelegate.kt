@@ -93,6 +93,7 @@ public class IosCliDelegate internal constructor(
         Capability.THEME -> generationArguments("theme", invocation)
         Capability.COMPONENTS -> generationArguments("components", invocation)
         Capability.DOCS_AGGREGATE -> docsArguments(invocation)
+        Capability.API_META -> error("The iOS toolchain does not declare ${Capability.API_META}")
     }
 
     /**
@@ -127,6 +128,7 @@ public class IosCliDelegate internal constructor(
         Capability.THEME -> "Theme generated from ${invocation.workspace.sddsDir}."
         Capability.COMPONENTS -> "Component variations generated from ${invocation.workspace.sddsDir}."
         Capability.DOCS_AGGREGATE -> "Documentation tree aggregated from ${invocation.workspace.sddsDir}."
+        Capability.API_META -> "Done."
     }
 
     /** Результат чтения версии инструмента. */

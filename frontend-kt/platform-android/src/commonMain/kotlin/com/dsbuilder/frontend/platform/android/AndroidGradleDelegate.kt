@@ -26,6 +26,11 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  * `aggregateComposeDocumentation`/`aggregateViewDocumentation`): если платформа не сконфигурирована,
  * соответствующей таски не существует, и Gradle сам сообщает об этом понятной ошибкой вместо тихой
  * генерации/агрегации не той платформы.
+ *
+ * `API_META` работает иначе: задача только извлекает файл меты из артефакта uikit на classpath проекта и
+ * кладёт его в `build/theme-builder/components` (`readUikitComposeApiMeta` для `COMPOSE` даёт
+ * `uikit-compose-api-meta.json`, `readUikitApiMeta` для `ANDROID_VIEW` даёт `uikit-api-meta.json`). Файл
+ * читает и разбирает CLI.
  */
 public class AndroidGradleDelegate internal constructor(
     private val processRunner: ProcessRunner,
@@ -36,7 +41,7 @@ public class AndroidGradleDelegate internal constructor(
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)
 
     override val capabilities: Set<Capability> =
-        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE)
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.API_META)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val gradlew = locator.locate(workspace.workspaceDir, toolOverride)
@@ -141,6 +146,8 @@ public class AndroidGradleDelegate internal constructor(
             (Capability.COMPONENTS to TargetPlatform.ANDROID_VIEW) to "generateViewComponents",
             (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to "aggregateComposeDocumentation",
             (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to "aggregateViewDocumentation",
+            (Capability.API_META to TargetPlatform.COMPOSE) to "readUikitComposeApiMeta",
+            (Capability.API_META to TargetPlatform.ANDROID_VIEW) to "readUikitApiMeta",
         )
 
         /** `doctor` не получает capability/platform — проверяет обе THEME-таски, готовность значит «хотя бы одна». */
