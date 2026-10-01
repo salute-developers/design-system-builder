@@ -11,7 +11,7 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 
 - **WHEN** CLI builds its platform delegate registry
 - **THEN** the registry MUST resolve `swiftui` to the `ios` toolchain
-- **THEN** the `ios` toolchain MUST declare the capabilities `THEME` and `DOCS_AGGREGATE`
+- **THEN** the `ios` toolchain MUST declare the capabilities `THEME`, `COMPONENTS` and `DOCS_AGGREGATE`
 - **THEN** `toolchain list` MUST show it without any additional configuration
 
 #### Scenario: Генерация темы
@@ -28,11 +28,11 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 - **THEN** it MUST invoke the tool as `docs aggregate --sdds <sddsDir>`
 - **THEN** the tool MUST receive the same output and passthrough handling as the theme capability
 
-#### Scenario: Компоненты генерируются вместе с темой
+#### Scenario: Генерация компонентов
 
-- **WHEN** the delegate is asked for the `COMPONENTS` capability
-- **THEN** it MUST return an unsupported result naming `theme generate`
-- **THEN** it MUST NOT start any process
+- **WHEN** the delegate runs the `COMPONENTS` capability
+- **THEN** it MUST invoke the tool as `components generate --sdds <sddsDir>`
+- **THEN** the tool MUST receive the same output and passthrough handling as the theme capability
 
 #### Scenario: Результат инструмента
 

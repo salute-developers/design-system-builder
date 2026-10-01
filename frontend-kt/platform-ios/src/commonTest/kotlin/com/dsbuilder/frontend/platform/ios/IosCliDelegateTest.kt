@@ -21,12 +21,15 @@ class IosCliDelegateTest {
     private val toolPath = "/tools/dsbuilder-ios"
 
     @Test
-    fun servesSwiftUiAndSkipsComponents() {
+    fun servesSwiftUiWithEveryCapability() {
         val delegate = delegate()
 
         assertEquals(ToolchainId("ios"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.SWIFT_UI), delegate.platforms)
-        assertEquals(setOf(Capability.THEME, Capability.DOCS_AGGREGATE), delegate.capabilities)
+        assertEquals(
+            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE),
+            delegate.capabilities,
+        )
     }
 
     @Test
@@ -86,16 +89,29 @@ class IosCliDelegateTest {
         )
     }
 
+    /**
+     * Компоненты генерируются своей командой инструмента — тем же разделением, что
+     * `generateComposeComponents` на Android, а не вместе с темой.
+     */
     @Test
-    fun componentsAreUnsupportedAndNothingIsStarted() {
+    fun componentsRunUsesItsOwnCommand() {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
-        val result = delegate.run(invocation(Capability.COMPONENTS))
+        val result = delegate.run(invocation(Capability.COMPONENTS, output = "/out/Themes"))
 
-        val message = assertIs<DelegateResult.Unsupported>(result).message
-        assertTrue(message.contains("together with the theme"), message)
-        assertTrue(requests.isEmpty())
+        assertIs<DelegateResult.Completed>(result)
+        assertEquals(
+            listOf(
+                "components",
+                "generate",
+                "--sdds",
+                "/repo/Themes/PlasmaHomeDSTheme/.sdds",
+                "--output",
+                "/out/Themes",
+            ),
+            requests.single().args,
+        )
     }
 
     @Test
