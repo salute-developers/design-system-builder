@@ -30,11 +30,8 @@ public class IosCliDelegate internal constructor(
      */
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.SWIFT_UI)
 
-    /**
-     * Вариации компонентов на iOS генерируются вместе с темой, отдельного входа для них нет:
-     * `COMPONENTS` осознанно не поддержан, чтобы команда отказала понятно, а не сгенерировала половину.
-     */
-    override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.DOCS_AGGREGATE)
+    override val capabilities: Set<Capability> =
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
@@ -70,10 +67,6 @@ public class IosCliDelegate internal constructor(
 
     override fun run(invocation: DelegateInvocation): DelegateResult {
         val arguments = arguments(invocation)
-            ?: return DelegateResult.Unsupported(
-                "dsbuilder-ios generates component variations together with the theme; " +
-                    "run `dsbuilder theme generate --platform swiftui` instead.",
-            )
         val executable = locator.locate(invocation.toolOverride)
             ?: return DelegateResult.ToolchainMissing(missingHint(invocation.toolOverride))
 
@@ -95,15 +88,19 @@ public class IosCliDelegate internal constructor(
         }
     }
 
-    /** Аргументы инструмента либо `null`, если capability он не умеет. */
-    private fun arguments(invocation: DelegateInvocation): List<String>? = when (invocation.capability) {
-        Capability.THEME -> themeArguments(invocation)
+    /** Аргументы инструмента для capability; поддержаны все объявленные в [capabilities]. */
+    private fun arguments(invocation: DelegateInvocation): List<String> = when (invocation.capability) {
+        Capability.THEME -> generationArguments("theme", invocation)
+        Capability.COMPONENTS -> generationArguments("components", invocation)
         Capability.DOCS_AGGREGATE -> docsArguments(invocation)
-        Capability.COMPONENTS -> null
     }
 
-    private fun themeArguments(invocation: DelegateInvocation): List<String> = buildList {
-        add("theme")
+    /**
+     * `theme generate` и `components generate` принимают одинаковые аргументы: инструмент
+     * разделяет их так же, как Gradle-плагин Android разделяет свои generate-таски.
+     */
+    private fun generationArguments(command: String, invocation: DelegateInvocation): List<String> = buildList {
+        add(command)
         add("generate")
         add("--sdds")
         add(invocation.workspace.sddsDir)
@@ -128,8 +125,8 @@ public class IosCliDelegate internal constructor(
 
     private fun completedSummary(invocation: DelegateInvocation): String = when (invocation.capability) {
         Capability.THEME -> "Theme generated from ${invocation.workspace.sddsDir}."
+        Capability.COMPONENTS -> "Component variations generated from ${invocation.workspace.sddsDir}."
         Capability.DOCS_AGGREGATE -> "Documentation tree aggregated from ${invocation.workspace.sddsDir}."
-        Capability.COMPONENTS -> "Done."
     }
 
     /** Результат чтения версии инструмента. */
