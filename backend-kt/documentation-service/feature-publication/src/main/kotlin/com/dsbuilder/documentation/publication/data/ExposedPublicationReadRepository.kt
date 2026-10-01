@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
@@ -75,7 +76,7 @@ class ExposedPublicationReadRepository(private val database: Database) : Publica
     override suspend fun activePublication(
         projectId: String,
         designSystemId: String,
-        version: String,
+        version: String?,
         platform: String,
     ): ActivePublicationDto? = query {
         ActivePointers.join(Publications, JoinType.INNER, ActivePointers.publicationId, Publications.id)
@@ -83,16 +84,19 @@ class ExposedPublicationReadRepository(private val database: Database) : Publica
             .where {
                 (ActivePointers.projectId eq projectId) and
                     (ActivePointers.designSystemId eq designSystemId) and
-                    (ActivePointers.version eq version) and
                     (ActivePointers.platform eq platform) and
-                    (Publications.status eq "published")
+                    (Publications.status eq "published") and
+                    // Без версии — последняя опубликованная для (design system, platform).
+                    (if (version == null) Op.TRUE else ActivePointers.version eq version)
             }
-            .singleOrNull()
+            .orderBy(Publications.publishedAt to SortOrder.DESC)
+            .limit(1)
+            .firstOrNull()
             ?.let {
                 ActivePublicationDto(
                     it[ActivePointers.publicationId],
                     designSystemId,
-                    version,
+                    it[ActivePointers.version],
                     platform,
                     it[Publications.status],
                     requireNotNull(it[Publications.publishedAt]).toString(),
