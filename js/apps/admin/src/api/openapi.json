@@ -42,10 +42,44 @@
                 }
               }
             ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "editRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
           "error"
+        ]
+      },
+      "ThemePreview": {
+        "type": "object",
+        "properties": {
+          "accentLight": {
+            "type": "string"
+          },
+          "onAccentLight": {
+            "type": "string"
+          },
+          "surfaceLight": {
+            "type": "string"
+          },
+          "accentDark": {
+            "type": "string"
+          },
+          "surfaceDark": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accentLight",
+          "onAccentLight",
+          "surfaceLight",
+          "accentDark",
+          "surfaceDark"
         ]
       },
       "DesignSystem": {
@@ -78,6 +112,36 @@
             "type": "string",
             "format": "date-time",
             "example": "2024-01-01T00:00:00.000Z"
+          },
+          "tenantCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "themePreviews": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tenantId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "name": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "preview": {
+                  "$ref": "#/components/schemas/ThemePreview"
+                }
+              },
+              "required": [
+                "tenantId",
+                "name",
+                "preview"
+              ]
+            },
+            "maxItems": 4
           }
         },
         "required": [
@@ -808,6 +872,11 @@
               }
             ]
           },
+          "editRevision": {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -817,6 +886,9 @@
             "type": "string",
             "format": "date-time",
             "example": "2024-01-01T00:00:00.000Z"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/ThemePreview"
           }
         },
         "required": [
@@ -825,6 +897,7 @@
           "name",
           "description",
           "colorConfig",
+          "editRevision",
           "createdAt",
           "updatedAt"
         ]
@@ -2290,65 +2363,60 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "maxLength": 255
+            "type": "string"
           },
           "description": {
             "type": "string",
             "maxLength": 1000
           },
-          "colorConfig": {
+          "profile": {
+            "type": "string",
+            "enum": [
+              "sber",
+              "malachite",
+              "b2b",
+              "custom"
+            ],
+            "default": "malachite"
+          },
+          "customPalette": {
             "type": "object",
             "properties": {
-              "grayTone": {
-                "type": "string"
+              "primary": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
               },
-              "accentColor": {
-                "type": "string"
+              "onPrimary": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
               },
-              "light": {
-                "type": "object",
-                "properties": {
-                  "strokeSaturation": {
-                    "type": "number"
-                  },
-                  "fillSaturation": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "strokeSaturation",
-                  "fillSaturation"
-                ]
+              "background": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
               },
-              "dark": {
-                "type": "object",
-                "properties": {
-                  "strokeSaturation": {
-                    "type": "number"
-                  },
-                  "fillSaturation": {
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "strokeSaturation",
-                  "fillSaturation"
-                ]
+              "text": {
+                "type": "string",
+                "pattern": "^#[0-9A-Fa-f]{6}$"
               }
-            }
+            },
+            "required": [
+              "primary",
+              "onPrimary",
+              "background",
+              "text"
+            ]
           }
         },
         "required": [
-          "designSystemId"
+          "designSystemId",
+          "name"
         ]
       },
       "UpdateTenant": {
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "maxLength": 255
+            "type": "string"
           },
           "description": {
             "type": "string",
@@ -2357,6 +2425,42 @@
           "colorConfig": {
             "type": "object",
             "properties": {
+              "profile": {
+                "type": "string",
+                "enum": [
+                  "sber",
+                  "malachite",
+                  "b2b",
+                  "custom"
+                ]
+              },
+              "customPalette": {
+                "type": "object",
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                  },
+                  "onPrimary": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                  },
+                  "background": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^#[0-9A-Fa-f]{6}$"
+                  }
+                },
+                "required": [
+                  "primary",
+                  "onPrimary",
+                  "background",
+                  "text"
+                ]
+              },
               "grayTone": {
                 "type": "string"
               },
@@ -3026,6 +3130,22 @@
             "type": "string",
             "format": "uuid",
             "description": "Дизайн-система, конфигурации которой выгружаются"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional component names to include in the returned package"
+          },
+          "styles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional style names to include in the returned package"
           }
         },
         "required": [
@@ -3479,96 +3599,6 @@
         }
       }
     },
-    "/ds/design-systems/{id}/components": {
-      "get": {
-        "tags": [
-          "Design Systems"
-        ],
-        "summary": "Get components for design system",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Component"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ds/design-systems/{id}/tokens": {
-      "get": {
-        "tags": [
-          "Design Systems"
-        ],
-        "summary": "Get tokens for design system",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Token"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/ds/design-systems/{id}/tenants": {
       "get": {
         "tags": [
@@ -3687,6 +3717,256 @@
                   "items": {
                     "$ref": "#/components/schemas/DesignSystemChange"
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/tokens": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get tokens for design system",
+        "description": "Project-scoped authoritative token list. Preserves array response shape and supports optional type/query filters.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "color",
+                "gradient",
+                "typography",
+                "fontFamily",
+                "spacing",
+                "shape",
+                "shadow"
+              ]
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "query",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks tokens:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Design system not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/components": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get components for design system",
+        "description": "Project-scoped authoritative component list. Preserves array response shape and supports optional textual query.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "query",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Component list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Component"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Design system not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/components/{componentId}/styles": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get component styles in design system",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "componentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Styles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Style"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Component not found in design system",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8006,7 +8286,7 @@
         "tags": [
           "Tokens"
         ],
-        "summary": "All token values for a token",
+        "summary": "Filtered token values for a token",
         "parameters": [
           {
             "schema": {
@@ -8017,11 +8297,46 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": false,
+            "name": "tenantId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "light",
+                "dark"
+              ]
+            },
+            "required": false,
+            "name": "mode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "android",
+                "ios"
+              ]
+            },
+            "required": false,
+            "name": "platform",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of items",
+            "description": "Token values",
             "content": {
               "application/json": {
                 "schema": {
@@ -8029,6 +8344,36 @@
                   "items": {
                     "$ref": "#/components/schemas/TokenValue"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks tokens:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8327,6 +8672,137 @@
                   "items": {
                     "$ref": "#/components/schemas/TokenValue"
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tenants"
+        ],
+        "summary": "Atomically save token values for one tenant",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "editRevision": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tokenId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "platform": {
+                          "type": "string",
+                          "enum": [
+                            "web",
+                            "android",
+                            "ios"
+                          ]
+                        },
+                        "mode": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            "light",
+                            "dark",
+                            null
+                          ]
+                        },
+                        "paletteId": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "uuid"
+                        },
+                        "value": {
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "tokenId",
+                        "platform",
+                        "mode"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "editRevision",
+                  "values"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "editRevision": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "editRevision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Tenant edit conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

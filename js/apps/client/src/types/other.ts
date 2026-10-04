@@ -23,6 +23,10 @@ export interface Parameters {
     projectName: string;
     packagesName: string;
     projectId: string;
+    designSystemId?: string;
+    tenantId?: string;
+    editRevision?: number;
+    readOnly?: boolean;
     grayTone: GrayTone;
     accentColor: GeneralColor;
     lightStrokeSaturation: PlasmaSaturation;

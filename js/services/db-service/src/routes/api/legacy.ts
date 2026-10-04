@@ -30,6 +30,7 @@ import {
   stateSets,
 } from "../../db/schema";
 import { assertFound, designSystemBelongsToScope, getProjectId, tryCatch } from "./utils";
+import { initializeDesignSystemDefinitions } from "../../db/initializers/design-system";
 
 
 /**
@@ -862,29 +863,17 @@ router.post("/create", (req, res) =>
 
     // ── 3. Tokens + token_values ─────────────────────────────────────────────
     if (themeData?.meta?.tokens?.length) {
-      const stripMode = (name: string) =>
-        name.startsWith("dark.") || name.startsWith("light.")
-          ? name.slice(name.indexOf(".") + 1)
-          : name;
-
-      // Deduplicate tokens by stripped name (dark./light. prefix → mode)
-      const tokenMap = new Map<string, LegacyToken>();
-      for (const t of themeData.meta.tokens) {
-        const strippedName = stripMode(t.name);
-        if (!tokenMap.has(strippedName)) {
-          tokenMap.set(strippedName, t);
-        }
-      }
-
-      const tokenInserts = [...tokenMap.entries()].map(([strippedName, t]) => ({
-        designSystemId: ds.id,
-        name: strippedName,
-        type: t.type as any,
-        displayName: t.displayName ?? null,
-        description: t.description ?? null,
-        enabled: t.enabled ?? true,
-      }));
-      const insertedTokens = await db.insert(tokens).values(tokenInserts).returning();
+      const insertedTokens = await initializeDesignSystemDefinitions(
+        db,
+        ds.id,
+        themeData.meta.tokens.map((token) => ({
+          name: token.name,
+          type: token.type,
+          displayName: token.displayName ?? token.name,
+          description: token.description ?? "",
+          enabled: token.enabled ?? true,
+        })),
+      );
       const tokenByName = new Map(insertedTokens.map((t) => [t.name, t]));
 
       // token_values: variations[type][platform][tokenName] = value

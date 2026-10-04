@@ -2,7 +2,6 @@
 
 ## Purpose
 TBD - created by archiving change plasmabldr-137-add-projects-core. Update Purpose after archive.
-
 ## Requirements
 ### Requirement: Authenticated user can create project
 
@@ -34,12 +33,18 @@ TBD - created by archiving change plasmabldr-137-add-projects-core. Update Purpo
 
 ### Requirement: Project metadata can be read and updated
 
-Система SHALL предоставлять API для чтения и обновления metadata проекта.
+Система SHALL предоставлять API для чтения и обновления metadata проекта и SHALL возвращать итоговую роль текущего пользователя в доступном проекте.
 
 #### Scenario: Пользователь получает список своих проектов
 
 - **WHEN** authenticated пользователь запрашивает `GET /projects`
 - **THEN** система MUST вернуть список проектов, где пользователь является Owner или member
+- **THEN** каждый project response DTO MUST содержать `effectiveRole` со значением `owner`, `maintainer`, `editor` или `viewer` для текущего пользователя
+
+#### Scenario: Пользователь получает карточку проекта
+
+- **WHEN** authenticated пользователь запрашивает доступный `GET /projects/{projectId}`
+- **THEN** project response DTO MUST содержать `effectiveRole` текущего пользователя в этом проекте
 
 #### Scenario: Gateway пропускает list projects только для authenticated user
 
@@ -55,6 +60,7 @@ TBD - created by archiving change plasmabldr-137-add-projects-core. Update Purpo
 
 - **WHEN** пользователь с global role `system_admin` запрашивает `GET /projects`
 - **THEN** система MUST вернуть список всех проектов независимо от membership
+- **THEN** каждый project response DTO MUST содержать `effectiveRole = owner`
 
 #### Scenario: Archived project остается видимым в списке
 

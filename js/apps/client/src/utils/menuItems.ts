@@ -75,7 +75,6 @@ const componentList = [
             { name: 'LinkButton', disabled: false },
             { name: 'NumberFormat', disabled: true },
             { name: 'NumberInput', disabled: false },
-            { name: 'Portal', disabled: true },
             { name: 'Radiobox', disabled: false },
             { name: 'Range', disabled: false },
             { name: 'SegmentGroup', disabled: false },

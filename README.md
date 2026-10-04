@@ -169,6 +169,9 @@ DSBUILDER_JAVA_HOME=/path/to/jdk-17 ./setup-local.sh
 cp js/.env.example js/.env
 ```
 
+Для локального запуска `NPM_PACKAGE_SCOPE` по умолчанию равен `@sddsjs`, а `NPM_TOKEN` не требуется. Токен нужен
+только для legacy-сценария публикации npm-пакета.
+
 Контуры можно запускать и отдельно:
 
 ```bash

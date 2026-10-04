@@ -56,6 +56,8 @@ export const Shapes = () => {
 
     return (
         <Workspace
+            section="shapes"
+            readOnly={designSystem.getParameters()?.readOnly}
             menuBackground={'transparent'}
             menu={
                 <MenuOld
@@ -68,9 +70,7 @@ export const Shapes = () => {
                     onItemDisable={onTokenDisable}
                 />
             }
-            content={
-                <TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />
-            }
+            content={<TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />}
         />
     );
 };

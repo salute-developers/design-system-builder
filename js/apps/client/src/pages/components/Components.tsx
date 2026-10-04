@@ -92,6 +92,8 @@ export const Components = () => {
 
     return (
         <Workspace
+            section="components"
+            readOnly={designSystem.getParameters()?.readOnly}
             menuBackground={'transparent'}
             menu={
                 <MenuOld

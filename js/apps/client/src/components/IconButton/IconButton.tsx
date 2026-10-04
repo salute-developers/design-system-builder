@@ -3,6 +3,7 @@ import { MouseEvent } from 'react';
 import { Root } from './IconButton.styles';
 
 interface IconButtonProps {
+    className?: string;
     selected?: boolean;
     disabled?: boolean;
     children: React.ReactNode;

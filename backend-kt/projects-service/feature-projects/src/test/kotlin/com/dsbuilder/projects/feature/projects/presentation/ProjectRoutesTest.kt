@@ -19,6 +19,7 @@ import com.dsbuilder.projects.feature.projects.application.usecase.ProjectAccess
 import com.dsbuilder.projects.feature.projects.application.usecase.RemoveProjectMemberUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RestoreProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.RevokeProjectAccessKeyUseCase
+import com.dsbuilder.projects.feature.projects.application.usecase.SearchProjectMemberCandidatesUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectMemberRoleUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.UpdateProjectUseCase
 import com.dsbuilder.projects.feature.projects.application.usecase.VerifyProjectAccessKeyUseCase
@@ -65,7 +66,15 @@ class ProjectRoutesTest {
     @Test
     fun `create and read project`() = testApplication {
         val repository = routeRepository()
-        installTestModule(repository, RouteIdentityUserLookup())
+        val identityUserLookup = RouteIdentityUserLookup().apply {
+            usersByEmail["owner@example.com"] = IdentityUser(
+                userId = "owner-1",
+                email = "owner@example.com",
+                displayName = "Owner User",
+                username = "owner",
+            )
+        }
+        installTestModule(repository, identityUserLookup)
 
         val createResponse = client.post("/projects") {
             header("X-User-Id", "owner-1")
@@ -83,6 +92,10 @@ class ProjectRoutesTest {
         }
 
         assertEquals(HttpStatusCode.OK, getResponse.status)
+        assertEquals(
+            "owner",
+            Json.parseToJsonElement(getResponse.bodyAsText()).jsonObject["effectiveRole"]!!.toString().trim('"'),
+        )
     }
 
     @Test
@@ -142,6 +155,68 @@ class ProjectRoutesTest {
         assertEquals(true, body.contains("project-1"))
         assertEquals(true, body.contains("project-2"))
         assertEquals(false, body.contains("project-3"))
+        assertTrue(body.contains("\"effectiveRole\":\"owner\""))
+        assertTrue(body.contains("\"effectiveRole\":\"viewer\""))
+    }
+
+    @Test
+    fun `get project returns owner maintainer editor viewer and system admin roles`() = testApplication {
+        val repository = routeRepository().apply {
+            val now = Instant.now(clock)
+            seedProject(
+                Project(
+                    "project-1",
+                    "Workspace",
+                    null,
+                    ProjectStatus.ACTIVE,
+                    "owner-1",
+                    now,
+                    now,
+                ),
+            )
+            listOf(ProjectRole.MAINTAINER, ProjectRole.EDITOR, ProjectRole.VIEWER).forEach { role ->
+                seedMember(ProjectMember("project-1", role.name.lowercase(), role, now, now))
+            }
+        }
+        val identityUserLookup = RouteIdentityUserLookup().apply {
+            usersByEmail["owner@example.com"] = IdentityUser(
+                userId = "owner-1",
+                email = "owner@example.com",
+                displayName = "Owner User",
+                username = "owner",
+            )
+        }
+        installTestModule(repository, identityUserLookup)
+
+        val actors = listOf(
+            "owner-1" to "owner",
+            "maintainer" to "maintainer",
+            "editor" to "editor",
+            "viewer" to "viewer",
+        )
+        actors.forEach { (userId, expectedRole) ->
+            val response = client.get("/projects/project-1") { header("X-User-Id", userId) }
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertTrue(response.bodyAsText().contains("\"effectiveRole\":\"$expectedRole\""))
+            assertTrue(response.bodyAsText().contains("\"ownerDisplayName\":\"Owner User\""))
+            assertTrue(response.bodyAsText().contains("\"ownerEmail\":\"owner@example.com\""))
+        }
+        val projectKey = client.get("/projects/project-1") {
+            header("X-Actor-Type", "project_key")
+            header("X-User-Id", "key-1")
+            header("X-Project-Id", "project-1")
+            header("X-Project-Key-Id", "key-1")
+            header("X-Project-Scopes", "projects:read")
+        }
+        assertEquals(HttpStatusCode.OK, projectKey.status)
+        assertTrue(!projectKey.bodyAsText().contains("Owner User"))
+        assertTrue(!projectKey.bodyAsText().contains("owner@example.com"))
+        val admin = client.get("/projects/project-1") {
+            header("X-User-Id", "admin-1")
+            header("X-System-Admin", "true")
+        }
+        assertEquals(HttpStatusCode.OK, admin.status)
+        assertTrue(admin.bodyAsText().contains("\"effectiveRole\":\"owner\""))
     }
 
     @Test
@@ -187,12 +262,18 @@ class ProjectRoutesTest {
             contentType(ContentType.Application.Json)
             setBody("""{"role":"viewer"}""")
         }
+        val listResponse = client.get("/projects/project-1/members") {
+            header("X-User-Id", "maintainer-1")
+        }
         val deleteResponse = client.delete("/projects/project-1/members/editor-1") {
             header("X-User-Id", "maintainer-1")
         }
 
         assertEquals(HttpStatusCode.Created, addResponse.status)
         assertEquals(HttpStatusCode.OK, patchResponse.status)
+        assertEquals(HttpStatusCode.OK, listResponse.status)
+        assertTrue(listResponse.bodyAsText().contains("Editor One"))
+        assertTrue(listResponse.bodyAsText().contains("editor@example.com"))
         assertEquals(HttpStatusCode.NoContent, deleteResponse.status)
     }
 
@@ -221,6 +302,27 @@ class ProjectRoutesTest {
 
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals(true, response.bodyAsText().contains("registered_user_not_found"))
+    }
+
+    @Test
+    fun `member candidates are searchable by username and display name`() = testApplication {
+        val identityUserLookup = RouteIdentityUserLookup().apply {
+            usersByEmail["alex@example.com"] = IdentityUser(
+                userId = "user-2",
+                email = "alex@example.com",
+                displayName = "Alex User",
+                username = "alex",
+            )
+        }
+        installTestModule(routeRepository(), identityUserLookup)
+
+        val response = client.get("/projects/member-candidates?query=ale") {
+            header("X-User-Id", "owner-1")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(true, response.bodyAsText().contains("alex@example.com"))
+        assertEquals(true, response.bodyAsText().contains("Alex User"))
     }
 
     @Test
@@ -255,6 +357,37 @@ class ProjectRoutesTest {
 
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
         assertEquals(true, response.bodyAsText().contains("identity_provider_unavailable"))
+    }
+
+    @Test
+    fun `project and member reads survive identity provider failure`() = testApplication {
+        val now = Instant.now(clock)
+        val repository = routeRepository().apply {
+            seedProject(
+                Project("project-1", "Workspace", null, ProjectStatus.ACTIVE, "owner-1", now, now),
+            )
+            seedMember(ProjectMember("project-1", "member-1", ProjectRole.VIEWER, now, now))
+        }
+        installTestModule(
+            repository,
+            object : IdentityUserLookup {
+                override suspend fun findRegisteredUserByEmail(email: String): IdentityUser? {
+                    throw IdentityProviderUnavailableException()
+                }
+            },
+        )
+
+        val projectResponse = client.get("/projects/project-1") {
+            header("X-User-Id", "owner-1")
+        }
+        val membersResponse = client.get("/projects/project-1/members") {
+            header("X-User-Id", "owner-1")
+        }
+
+        assertEquals(HttpStatusCode.OK, projectResponse.status)
+        assertTrue(projectResponse.bodyAsText().contains("owner-1"))
+        assertEquals(HttpStatusCode.OK, membersResponse.status)
+        assertTrue(membersResponse.bodyAsText().contains("member-1"))
     }
 
     @Test
@@ -398,13 +531,14 @@ class ProjectRoutesTest {
                             )
                         }
                         single { CreateProjectUseCase(get(), get(), get(), get()) }
-                        single { ListProjectsUseCase(get(), get()) }
-                        single { GetProjectUseCase(get(), get(), get()) }
+                        single { ListProjectsUseCase(get(), get(), get()) }
+                        single { GetProjectUseCase(get(), get(), get(), get()) }
                         single { UpdateProjectUseCase(get(), get(), get(), get()) }
                         single { ArchiveProjectUseCase(get(), get(), get(), get()) }
                         single { RestoreProjectUseCase(get(), get(), get(), get()) }
-                        single { ListProjectMembersUseCase(get(), get(), get()) }
+                        single { ListProjectMembersUseCase(get(), get(), get(), get()) }
                         single { AddProjectMemberUseCase(get(), get(), get(), get(), get()) }
+                        single { SearchProjectMemberCandidatesUseCase(get()) }
                         single { UpdateProjectMemberRoleUseCase(get(), get(), get(), get()) }
                         single { RemoveProjectMemberUseCase(get(), get(), get()) }
                         single { CreateProjectAccessKeyUseCase(get(), get(), get(), get(), get(), get()) }
@@ -523,6 +657,14 @@ private class RouteIdentityUserLookup : IdentityUserLookup {
     val usersByEmail = linkedMapOf<String, IdentityUser>()
 
     override suspend fun findRegisteredUserByEmail(email: String): IdentityUser? = usersByEmail[email]
+
+    override suspend fun findRegisteredUserById(userId: String): IdentityUser? =
+        usersByEmail.values.firstOrNull { it.userId == userId }
+
+    override suspend fun searchRegisteredUsers(query: String, limit: Int): List<IdentityUser> =
+        usersByEmail.values.filter { user ->
+            listOfNotNull(user.displayName, user.username, user.email).any { it.contains(query, ignoreCase = true) }
+        }.take(limit)
 }
 
 private object RouteAccessKeySecretManager : AccessKeySecretManager {

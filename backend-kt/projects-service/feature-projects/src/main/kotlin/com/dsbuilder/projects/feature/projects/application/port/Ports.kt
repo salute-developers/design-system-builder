@@ -12,11 +12,21 @@ internal data class IdentityUser(
     val userId: String,
     val email: String,
     val displayName: String?,
+    val username: String? = null,
 )
 
 internal interface IdentityUserLookup {
     @Throws(IdentityProviderException::class)
     suspend fun findRegisteredUserByEmail(email: String): IdentityUser?
+
+    suspend fun findRegisteredUserByIdentifier(identifier: String): IdentityUser? =
+        findRegisteredUserByEmail(identifier)
+
+    suspend fun findRegisteredUserById(userId: String): IdentityUser? =
+        findRegisteredUserByIdentifier(userId)
+
+    suspend fun searchRegisteredUsers(query: String, limit: Int): List<IdentityUser> =
+        listOfNotNull(findRegisteredUserByEmail(query)).take(limit)
 }
 
 internal interface ProjectRepository {

@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 import {
     IconArrowLeft,
     IconGroupOutline,
     IconFolderOutline,
-    IconEducationOutline,
     IconBookOutline,
-    IconLogout,
     IconCloudUploadOutline,
+    IconSettingsOutline,
 } from '@salutejs/plasma-icons';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { transliterateToSnakeCase, convertColor, hasDraft, isDebugMode } from '../utils';
-import { IconDesignSystemLogo, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
+import { transliterateToSnakeCase, hasDraft, isDebugMode } from '../utils';
+import { IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
@@ -23,18 +22,23 @@ import { Debug } from './Debug';
 
 import { defaultParameters, popupContentPages } from './Main.utils';
 import {
-    BuilderItems,
-    Logo,
-    LogoGradient,
+    EditorBody,
+    EditorCanvas,
+    EditorLoadingSpinner,
     MainItems,
-    Panel,
     Root,
     Separator,
     StyledBasicButton,
     StyledIconButton,
     StyledPopup,
 } from './Main.styles';
-import { tokenStore } from '../api';
+import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { all, any, choose, Visible } from '../components/rendering';
+const loadErrorMessages = {
+    forbidden: 'Нет доступа',
+    'not-found': 'Theme не найдена',
+    failed: 'Не удалось загрузить Theme',
+} as const;
 
 export const Main = () => {
     const navigate = useNavigate();
@@ -55,23 +59,39 @@ export const Main = () => {
 
     const { accentColor, darkFillSaturation } = parameters;
 
-    const { designSystemProjectId, designSystemName, designSystemVersion } = useParams();
-    const { designSystem, theme, components, reload } = useDesignSystem(
-        designSystemProjectId,
+    const { designSystemProjectId, designSystemName, designSystemVersion, projectId, designSystemId, tenantId } =
+        useParams();
+    const editorContext = useMemo(
+        () =>
+            choose(all(projectId, designSystemId, tenantId), undefined, {
+                projectId: projectId!,
+                designSystemId: designSystemId!,
+                tenantId: tenantId!,
+            }),
+        [projectId, designSystemId, tenantId],
+    );
+    const { designSystem, theme, components, incompleteTokenIds, loadError, reload } = useDesignSystem(
+        choose<string | NonNullable<typeof editorContext> | undefined>(
+            Boolean(editorContext),
+            designSystemProjectId,
+            editorContext!,
+        ),
         designSystemName,
         designSystemVersion,
     );
 
     // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
-    const isEditingDesignSystem = Boolean(designSystemName && designSystemVersion);
+    const isEditingDesignSystem = any(editorContext, all(designSystemName, designSystemVersion));
+    const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
     const hasComponents = Boolean(components?.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
-    const isHome = !isPopupOpen && !isEditingDesignSystem;
+    const isHome = all(!isPopupOpen, !isEditingDesignSystem);
     const hasUnpublishedChanges = Boolean(
         designSystemName && designSystemVersion && hasDraft(designSystemName, designSystemVersion),
     );
-    const isPublishButtonVisible = isEditingDesignSystem && !isPopupOpen && hasUnpublishedChanges;
+    const isPublishButtonVisible = isEditingDesignSystem && !isReadOnly && !isPopupOpen && hasUnpublishedChanges;
+    const isEditorLoading = all(editorContext, !designSystem, !loadError);
 
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({ ...prev, [name]: value }));
@@ -134,7 +154,11 @@ export const Main = () => {
         // Раздел идёт сразу после версии, а у разделов могут быть вложенные сегменты
         // (например выбранный компонент в /components/:componentName) — строим путь от версии,
         // чтобы при переключении раздела они сбрасывались.
-        const newPath = `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`;
+        const newPath = choose(
+            Boolean(editorContext),
+            `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`,
+            `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`,
+        );
 
         navigate(newPath, { replace: true });
     };
@@ -146,7 +170,11 @@ export const Main = () => {
 
         onPopupClose();
 
-        if (designSystemProjectId) {
+        if (editorContext) {
+            navigate(`/projects/${editorContext.projectId}/design-systems/${editorContext.designSystemId}`, {
+                replace: true,
+            });
+        } else if (designSystemProjectId) {
             navigate(`/${designSystemProjectId}`, { replace: true });
         }
 
@@ -159,16 +187,10 @@ export const Main = () => {
     };
 
     const onPublishComplete = () => {
-        onClickPanelButton('overview');
+        onClickPanelButton('colors');
         onPopupClose();
 
         reload();
-    };
-
-    const handleSignOut = () => {
-        tokenStore.clear();
-
-        navigate('/login');
     };
 
     // TODO: Временное решение для получения projectId после создания дизайн-системы, придумать что-то получше
@@ -176,105 +198,144 @@ export const Main = () => {
         if (designSystemProjectId) {
             setParameters((prev) => ({ ...prev, projectId: designSystemProjectId }));
         }
-    }, [designSystemProjectId]);
-
-    const mainColor = useMemo(() => {
-        if (!designSystem) {
-            return '#FFFFFF';
-        }
-
-        const accentColor = designSystem.getParameters()?.accentColor || parameters.accentColor;
-        const darkFillSaturation = designSystem.getParameters()?.darkFillSaturation || parameters.darkFillSaturation;
-        const hexColor = general[accentColor][darkFillSaturation];
-
-        const rgbColor = convertColor(hexColor).rgb;
-
-        return rgbColor.replace(/rgb\((\d+), (\d+), (\d+)\)/, '$1, $2, $3');
-    }, [designSystem]);
+    }, [designSystemProjectId, projectId]);
 
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
-            {isEditingDesignSystem && <LogoGradient color={mainColor} />}
-            <Panel>
-                <Logo color={mainColor}>
-                    <IconDesignSystemLogo color="inherit" />
-                </Logo>
-                <BuilderItems>
+            <div className="builder-shell-gradient" aria-hidden="true" />
+            <BuilderIconRail
+                testId="editor-rail"
+                projectName={designSystem?.getParameters()?.projectName}
+                main={
                     <MainItems>
-                        <StyledIconButton selected={isHome} onClick={onHomeClick}>
-                            {isPopupOpen ? (
-                                <IconArrowLeft size="xs" color="inherit" />
-                            ) : (
-                                <IconFolderOutline size="xs" color="inherit" />
-                            )}
-                        </StyledIconButton>
-                        {isEditingDesignSystem && (
+                        <Visible when={!editorContext}>
+                            <StyledIconButton
+                                className={`builder-rail-button ${isHome ? 'is-active' : ''}`}
+                                selected={isHome}
+                                onClick={onHomeClick}
+                            >
+                                {
+                                    [
+                                        <IconFolderOutline size="xs" color="inherit" />,
+                                        <IconArrowLeft size="xs" color="inherit" />,
+                                    ][Number(isPopupOpen)]
+                                }
+                            </StyledIconButton>
+                        </Visible>
+                        <Visible when={isEditingDesignSystem}>
                             <>
                                 <StyledIconButton
+                                    className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
+                                    data-testid="editor-nav-colors"
                                     selected={currentPath.includes('colors')}
                                     onClick={() => onClickPanelButton('colors')}
                                 >
                                     <IconPaletteOutline size="xs" color="inherit" />
                                 </StyledIconButton>
                                 <StyledIconButton
+                                    className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
+                                    data-testid="editor-nav-typography"
                                     selected={currentPath.includes('typography')}
                                     onClick={() => onClickPanelButton('typography')}
                                 >
                                     <IconTypography size="xs" color="inherit" />
                                 </StyledIconButton>
                                 <StyledIconButton
+                                    className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
+                                    data-testid="editor-nav-shapes"
                                     selected={currentPath.includes('shapes')}
                                     onClick={() => onClickPanelButton('shapes')}
                                 >
                                     <IconShapeOutline size="xs" color="inherit" />
                                 </StyledIconButton>
-                                {hasComponents && (
+                                <Visible when={hasComponents}>
                                     <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-components"
                                         selected={currentPath.includes('components')}
                                         onClick={() => onClickPanelButton('components')}
                                     >
                                         <IconGroupOutline size="xs" color="inherit" />
                                     </StyledIconButton>
-                                )}
+                                </Visible>
                                 <Separator />
-                                <StyledIconButton
-                                    selected={currentPath.includes('overview')}
-                                    onClick={() => onClickPanelButton('overview')}
-                                >
-                                    <IconEducationOutline size="xs" color="inherit" />
-                                </StyledIconButton>
-                                <StyledIconButton disabled>
+                                <StyledIconButton className="builder-rail-button" disabled>
                                     <IconBookOutline size="xs" color="inherit" />
                                 </StyledIconButton>
                             </>
-                        )}
+                        </Visible>
                     </MainItems>
-
-                    <StyledIconButton onClick={handleSignOut}>
-                        <IconLogout size="xs" color="inherit" />
-                    </StyledIconButton>
-                </BuilderItems>
-            </Panel>
-            <Outlet
-                context={{
-                    projectName: designSystemName,
-                    projectId: designSystemProjectId,
-                    designSystem,
-                    theme,
-                    components,
-                    updated,
-                    rerender,
-                    onDesignSystemCreate,
-                }}
+                }
             />
-            {isPublishButtonVisible && (
+            <EditorBody>
+                <Visible when={Boolean(editorContext)}>
+                    <BuilderHierarchyBar
+                        title={theme?.getName() ?? 'Тема'}
+                        projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
+                        projectId={projectId}
+                        ariaLabel="Навигация темы"
+                        loading={isEditorLoading}
+                        breadcrumbSegments={[
+                            {
+                                label: designSystem?.getParameters()?.projectName ?? 'Проект',
+                                to: `/projects/${projectId}`,
+                            },
+                            {
+                                label: designSystem?.getName() ?? 'Дизайн-система',
+                                to: `/projects/${projectId}/design-systems/${designSystemId}`,
+                            },
+                        ]}
+                        action={choose(
+                            isEditorLoading,
+                            <Link
+                                className="builder-icon-button"
+                                to={`/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/settings`}
+                                aria-label="Настройки темы"
+                                title="Настройки темы"
+                            >
+                                <IconSettingsOutline size="xs" color="inherit" />
+                            </Link>,
+                            <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />,
+                        )}
+                    />
+                </Visible>
+                <EditorCanvas>
+                    <Outlet
+                        context={{
+                            projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
+                            projectId: projectId ?? designSystemProjectId,
+                            designSystem,
+                            theme,
+                            components,
+                            updated,
+                            rerender,
+                            onDesignSystemCreate,
+                        }}
+                    />
+                </EditorCanvas>
+            </EditorBody>
+            <Visible when={isReadOnly}>
+                <div className="editor-readonly-status" role="status">
+                    Режим просмотра
+                </div>
+            </Visible>
+            <Visible when={Boolean(loadError)}>
+                <div role="alert">{loadErrorMessages[loadError!]}</div>
+            </Visible>
+            <Visible when={incompleteTokenIds.length > 0}>
+                <div role="alert">
+                    В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
+                    значениями другой темы.
+                </div>
+            </Visible>
+            <Visible when={isPublishButtonVisible}>
                 <StyledBasicButton
                     text="Опубликовать"
                     contentRight={<IconCloudUploadOutline size="xs" color="inherit" />}
                     onClick={onDesignSystemPublish}
                 />
-            )}
-            {isEditingDesignSystem && isDebugMode() && (
+            </Visible>
+            <Visible when={all(isEditingDesignSystem, !isReadOnly, isDebugMode())}>
                 <Debug
                     designSystem={designSystem}
                     theme={theme}
@@ -282,13 +343,13 @@ export const Main = () => {
                     rerender={rerender}
                     reload={reload}
                 />
-            )}
-            {isPopupOpen && (
+            </Visible>
+            <Visible when={isPopupOpen}>
                 <StyledPopup>
-                    {popupContentPage === popupContentPages.CREATE_FIRST_NAME && (
+                    <Visible when={popupContentPage === popupContentPages.CREATE_FIRST_NAME}>
                         <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
-                    )}
-                    {popupContentPage === popupContentPages.SETUP_PARAMETERS && (
+                    </Visible>
+                    <Visible when={popupContentPage === popupContentPages.SETUP_PARAMETERS}>
                         <SetupParameters
                             parameters={parameters}
                             themeMode={themeMode}
@@ -299,16 +360,16 @@ export const Main = () => {
                             onChangeThemeMode={onChangeThemeMode}
                             onNextPage={onNextPageCreateSetupParameters}
                         />
-                    )}
-                    {popupContentPage === popupContentPages.CREATION_PROGRESS && (
+                    </Visible>
+                    <Visible when={popupContentPage === popupContentPages.CREATION_PROGRESS}>
                         <CreationProgress
                             parameters={parameters}
                             accentColor={general[accentColor][darkFillSaturation]}
                             onPrevPage={onPopupClose}
                             onNextPage={onCreateComplete}
                         />
-                    )}
-                    {popupContentPage === popupContentPages.PUBLISH_PROGRESS && (
+                    </Visible>
+                    <Visible when={popupContentPage === popupContentPages.PUBLISH_PROGRESS}>
                         <PublishProgress
                             designSystem={designSystem}
                             theme={theme}
@@ -316,9 +377,9 @@ export const Main = () => {
                             onPrevPage={onPopupClose}
                             onNextPage={onPublishComplete}
                         />
-                    )}
+                    </Visible>
                 </StyledPopup>
-            )}
+            </Visible>
         </Root>
     );
 };

@@ -55,6 +55,8 @@ export const Typography = () => {
 
     return (
         <Workspace
+            section="typography"
+            readOnly={designSystem.getParameters()?.readOnly}
             menuBackground={'transparent'}
             menu={
                 <MenuOld
