@@ -1,0 +1,150 @@
+## ADDED Requirements
+
+### Requirement: Модульная архитектура ds-service
+
+`ds-service` SHALL быть отдельной Kotlin Gradle-сборкой с модулями `app`, `core`, `feature-design-systems`, `feature-themes`, `feature-tokens` и `feature-components` и SHALL соблюдать направление зависимостей `presentation -> application -> domain`.
+
+#### Scenario: Проверка модульного графа
+
+- **WHEN** выполняются архитектурные тесты `backend-kt`
+- **THEN** feature-модули MUST зависеть от `core`, но MUST NOT зависеть друг от друга
+- **AND** `app` MUST быть единственным модулем, собирающим feature-модули в запускаемое приложение
+
+#### Scenario: Проверка слоёв feature-модуля
+
+- **WHEN** статический архитектурный тест анализирует production-код feature-модуля
+- **THEN** `domain` MUST NOT зависеть от Ktor, Exposed, Koin, Docker или внешних DTO
+- **AND** `application` MUST зависеть от `domain` и собственных портов, но MUST NOT зависеть от `presentation` или конкретной реализации `data`
+- **AND** инфраструктурные реализации MUST находиться в `data`, а связывание зависимостей — в `di`
+
+#### Scenario: Читаемое размещение типов
+
+- **WHEN** в сервис добавляется публичный DTO, use case, repository contract или предметный тип
+- **THEN** он MUST размещаться в отдельном согласованно названном файле, кроме малых тесно связанных value objects
+- **AND** один файл MUST NOT использоваться как несвязанный контейнер классов нескольких ресурсов
+
+### Requirement: Один UseCase на application-сценарий
+
+Каждая операция route manifest SHALL вызывать отдельный класс `*UseCase` с единственным открытым методом `execute`; application-слой MUST NOT объединять несколько операций в интерфейсы или классы `*Queries`, `*Commands`, `*Operations`, общий `*Service` или универсальный CRUD use case.
+
+#### Scenario: Route вызывает application-сценарий
+
+- **WHEN** Ktor route завершил разбор и отображение request DTO
+- **THEN** route MUST вызвать ровно один соответствующий `*UseCase.execute`
+- **AND** use case MUST самостоятельно применить permission, транзакционную границу и нужный repository port
+
+#### Scenario: CRUD одного ресурса
+
+- **WHEN** ресурс поддерживает list, get, create, update и delete
+- **THEN** каждая операция MUST иметь отдельный `List*UseCase`, `Get*UseCase`, `Create*UseCase`, `Update*UseCase` или `Delete*UseCase`
+- **AND** реализации MUST NOT наследоваться от универсального `CrudUseCase`
+
+#### Scenario: Специальная предметная операция
+
+- **WHEN** маршрут выполняет lookup, resolve, import, export или агрегатное чтение
+- **THEN** операция MUST иметь отдельный use case с предметным именем и типизированными входом и результатом
+
+### Requirement: Flyway управляет схемой предметной БД
+
+`ds-service` SHALL использовать Flyway как единственное средство применения будущих миграций предметной схемы и SHALL воспроизводить текущее состояние `schema.ts`, применённых Drizzle-миграций, ограничений, индексов, функций и триггеров.
+
+#### Scenario: Инициализация пустой БД
+
+- **WHEN** `ds-service` запускается с пустой поддерживаемой PostgreSQL-базой
+- **THEN** Flyway MUST создать всю предметную схему
+- **AND** итоговая схема и поведение триггеров MUST пройти автоматическое сравнение с эталоном `db-service`
+
+#### Scenario: Принятие существующей БД
+
+- **WHEN** существующая БД соответствует проверенному текущему состоянию Drizzle-схемы и ещё не содержит `flyway_schema_history`
+- **THEN** управляемая процедура MUST проверить fingerprint схемы до создания baseline
+- **AND** MUST зарегистрировать согласованную baseline-версию без повторного выполнения DDL
+- **AND** `flyway validate` MUST завершиться успешно до readiness
+
+#### Scenario: Существующая схема отличается
+
+- **WHEN** fingerprint существующей БД не соответствует ожидаемому состоянию
+- **THEN** процедура MUST завершиться ошибкой до изменения migration history
+- **AND** сервис MUST остаться неготовым до явного устранения расхождения
+
+#### Scenario: Единственный владелец миграций
+
+- **WHEN** Flyway принял предметную схему
+- **THEN** Drizzle migration runner MUST быть отключён для этой БД
+- **AND** `db-service` MAY использовать схему для чтения, записи или отката runtime, но MUST NOT применять миграции
+
+### Requirement: Совместное существование и атомарное переключение
+
+`ds-service` SHALL разворачиваться рядом с `db-service` до cutover, SHALL запрещать двойную запись и SHALL поддерживать возврат всего перенесённого набора на прежний upstream.
+
+#### Scenario: Проверка чтений до переключения
+
+- **WHEN** `ds-service` развёрнут, но ещё не является основным upstream
+- **THEN** безопасные запросы чтения MAY сравниваться с `db-service`
+- **AND** теневой запрос MUST NOT изменять данные
+
+#### Scenario: Переключение предметного набора
+
+- **WHEN** контрактные, миграционные и эксплуатационные проверки завершены успешно
+- **THEN** Gateway MUST переключить весь разрешённый предметный набор на `ds-service` одной управляемой конфигурацией
+- **AND** production-трафик MUST NOT делиться между реализациями по сущностям
+
+#### Scenario: Откат runtime
+
+- **WHEN** после переключения обнаруживается критическое несовпадение
+- **THEN** Gateway MUST позволять вернуть весь перенесённый набор в `db-service`
+- **AND** откат MUST NOT требовать удаления данных или Flyway history
+
+### Requirement: Контейнерный и локальный запуск
+
+`ds-service` SHALL иметь production `Dockerfile`, конфигурацию Docker Compose и общего локального контура, внутренний порт `8085` через `DS_SERVICE_PORT`, конфигурацию через окружение и автоматический healthcheck.
+
+#### Scenario: Запуск контейнера
+
+- **WHEN** образ `ds-service` запускается с JDBC URL, credentials БД, путём к policy, портом и параметрами пула
+- **THEN** приложение MUST запуститься без встроенных секретов
+- **AND** контейнер MUST объявлять тот же порт, который используют compose и Gateway
+
+#### Scenario: Запуск общего локального контура
+
+- **WHEN** разработчик запускает корневой `./setup-local.sh`
+- **THEN** `ds-service` MUST запускаться вместе с необходимой БД и Gateway
+- **AND** healthcheck MUST отражать состояние приложения без ручной настройки внутри контейнера
+
+### Requirement: Раздельные проверки жизнеспособности и готовности
+
+`ds-service` SHALL предоставлять liveness и readiness endpoints, причём readiness MUST быть закрыта при недоступной БД, невалидной policy, незавершённой Flyway-проверке или ошибке регистрации приложения.
+
+#### Scenario: Процесс жив, но зависимость не готова
+
+- **WHEN** процесс работает, но БД недоступна или Flyway validation завершилась ошибкой
+- **THEN** liveness MUST сообщить, что процесс жив
+- **AND** readiness MUST сообщить неготовность
+
+#### Scenario: Сервис полностью готов
+
+- **WHEN** БД доступна, миграции валидны, immutable policy загружена и маршруты зарегистрированы
+- **THEN** readiness MUST сообщить готовность
+- **AND** диагностика MUST включать безопасные `policyVersion`, hash policy и состояние Flyway без credentials
+
+### Requirement: OpenAPI и наблюдаемость
+
+`ds-service` SHALL публиковать OpenAPI только для разрешённого набора и SHALL записывать структурированные журналы и метрики, достаточные для проверки cutover без раскрытия предметных конфигураций и секретов.
+
+#### Scenario: OpenAPI соответствует route manifest
+
+- **WHEN** OpenAPI сервиса сравнивается с route manifest
+- **THEN** все разрешённые операции MUST присутствовать
+- **AND** исключённые операции MUST отсутствовать
+
+#### Scenario: Диагностика запроса
+
+- **WHEN** сервис завершает запрос
+- **THEN** журнал MUST содержать correlation id, шаблон маршрута, actor type, project id, проверенный permission, результат и длительность
+- **AND** журнал MUST NOT содержать access key, authorization header, пароль БД или полное тело `component-config`
+
+#### Scenario: Метрики безопасности и БД
+
+- **WHEN** происходят отказ RBAC, ownership miss, HTTP-ошибка или сбой транзакции
+- **THEN** сервис MUST увеличить отдельный счётчик соответствующего класса
+- **AND** MUST предоставлять метрики длительности запросов и состояния пула БД
