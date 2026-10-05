@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "postgresMajor": 16,
+  "flywayBaselineVersion": "1",
+  "sha256": "b704ff11490fc5a432807ff2450d4a104d61b76e6d2b38da7411338edfae86d3"
+}
