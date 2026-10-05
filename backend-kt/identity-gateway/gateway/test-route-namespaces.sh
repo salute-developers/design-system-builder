@@ -5,11 +5,29 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$SCRIPT_DIR"
 
 for config in nginx.local.conf nginx.prod.conf.template; do
+  ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  compatibility_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds/(?:legacy|saved-queries)(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  admin_block=$(awk 'index($0, "location ~ ^/api/admin(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   docs_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   documentation_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
+  test -n "$ds_block"
+  test -n "$compatibility_block"
+  test -n "$admin_block"
   test -n "$docs_block"
   test -n "$documentation_block"
+
+  printf '%s' "$ds_block" | grep -Fq 'set $project_id $1;'
+  printf '%s' "$ds_block" | grep -Fq 'auth_request /_auth_project;'
+  printf '%s' "$ds_block" | grep -Fq 'auth_request_set $trusted_project_id $upstream_http_x_project_id;'
+  printf '%s' "$ds_block" | grep -Fq 'proxy_set_header X-Project-Id $trusted_project_id;'
+  printf '%s' "$ds_block" | grep -Fq 'rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;'
+  printf '%s' "$ds_block" | grep -Fq 'ds_service_api'
+  printf '%s' "$compatibility_block" | grep -Fq 'auth_request /_auth_project;'
+  printf '%s' "$compatibility_block" | grep -Fq 'proxy_set_header X-Project-Id $trusted_project_id;'
+  printf '%s' "$compatibility_block" | grep -Fq 'db_service_api'
+  printf '%s' "$admin_block" | grep -Fq 'auth_request /_auth_user;'
+  printf '%s' "$admin_block" | grep -Fq 'db_service_api'
 
   printf '%s' "$docs_block" | grep -Fq 'auth_request /_auth_project;'
   printf '%s' "$docs_block" | grep -Fq 'proxy_pass '

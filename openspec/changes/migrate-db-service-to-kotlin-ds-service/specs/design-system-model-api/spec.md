@@ -72,6 +72,16 @@
 - **THEN** Gateway MAY сохранить более специфичную маршрутизацию этого пути в `db-service`
 - **AND** это MUST NOT добавлять исключённый маршрут в контракт `ds-service`
 
+### Requirement: Gateway compatibility routing для исключённых API
+
+Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/api/projects/{projectId}/ds/saved-queries/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой. `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
+
+#### Scenario: Сохранённый запрос остаётся доступен во время миграции
+
+- **WHEN** авторизованный principal вызывает `/api/projects/{projectId}/ds/saved-queries`
+- **THEN** Gateway проксирует запрос в `db-service`
+- **AND** `ds-service` не обрабатывает этот маршрут
+
 ### Requirement: Совместимость перенесённого API
 
 Каждый перенесённый маршрут SHALL сохранять наблюдаемый контракт текущего `db-service`: имена и обязательность path/query/body полей, форму JSON, семантику `null` и отсутствующих полей, коды успешных ответов, предметные ошибки, порядок элементов там, где он стабилен, и транзакционные границы.
@@ -108,6 +118,39 @@
 - **WHEN** запрос недопустим, ресурс не найден, permission отсутствует или БД недоступна
 - **THEN** presentation-слой MUST вернуть стабильный HTTP-статус и совместимое тело ошибки
 - **AND** ответ MUST NOT содержать stack trace, SQL или сведения о владельце чужого ресурса
+
+### Requirement: Совместимый контракт профилей и preview тем
+
+`ds-service` SHALL воспроизводить актуальный контракт `db-service` из `feature/projects-workflow`: `POST /tenants` принимает `profile` (`sber`, `malachite`, `b2b` или `custom`) и для `custom` обязательный `customPalette`; ответы `Tenant` содержат `editRevision` и `preview`; список тем и агрегаты дизайн-систем SHALL возвращать вычисленные preview без раскрытия внутренних данных токенов.
+
+#### Scenario: Создание темы с профилем
+
+- **WHEN** principal с `tenants:write` создаёт тему доступной дизайн-системы с валидным профилем
+- **THEN** `ds-service` MUST нормализовать имя и создать тему с `editRevision = 0`
+- **AND** MUST создать начальные значения токенов в той же транзакционной границе
+- **AND** ответ MUST быть совместим с DTO `Tenant` текущего `db-service`
+
+#### Scenario: Дублирующее имя темы
+
+- **WHEN** в одной дизайн-системе создаётся или переименовывается тема с совпадающим после нормализации и приведения регистра именем
+- **THEN** `ds-service` MUST вернуть `409 Conflict` с кодом `TENANT_NAME_CONFLICT`
+- **AND** MUST NOT изменить существующую тему
+
+### Requirement: Пакетное сохранение значений темы с optimistic concurrency
+
+`ds-service` SHALL публиковать `PUT /tenants/{id}/token-values` с массивом значений и обязательным `editRevision`. Операция MUST проверить `tenants:write`, ownership темы, принадлежность каждого токена дизайн-системе темы и уникальность комбинации `tokenId/platform/mode`.
+
+#### Scenario: Успешное пакетное сохранение
+
+- **WHEN** клиент передаёт актуальный `editRevision` и валидный уникальный набор значений
+- **THEN** сервис MUST атомарно заменить platform-specific значения темы
+- **AND** MUST вернуть увеличенный `editRevision`
+
+#### Scenario: Конфликт параллельного изменения
+
+- **WHEN** переданный `editRevision` отличается от сохранённого
+- **THEN** сервис MUST вернуть `409 Conflict` с кодом `TENANT_EDIT_CONFLICT` и актуальным `editRevision`
+- **AND** MUST NOT заменить ни одно значение токена
 
 ## MODIFIED Requirements
 

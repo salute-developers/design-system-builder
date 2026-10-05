@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "description": "Express route groups intentionally excluded from ds-service. This file is an audit input and is not an API contract.",
+  "groups": [
+    {
+      "name": "documentation-pages",
+      "sources": ["src/routes/api/documentation-pages.ts"],
+      "reason": "Documentation belongs to documentation-service."
+    },
+    {
+      "name": "saved-queries",
+      "sources": ["src/routes/api/saved-queries.ts"],
+      "reason": "Administrative query functionality is outside the DS domain."
+    },
+    {
+      "name": "legacy",
+      "sources": ["src/routes/api/legacy.ts"],
+      "reason": "Legacy compatibility routes remain in db-service during migration."
+    },
+    {
+      "name": "admin",
+      "sources": [
+        "src/routes/misc/tables.ts",
+        "src/routes/misc/queries.ts",
+        "src/routes/misc/nl-query.ts",
+        "src/routes/misc/schema.ts"
+      ],
+      "reason": "Administrative and schema-inspection routes are outside the DS domain."
+    }
+  ]
+}

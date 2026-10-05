@@ -6,7 +6,7 @@ import com.dsbuilder.documentation.ingestion.application.AcceptDocumentationBund
 import com.dsbuilder.documentation.ingestion.application.DocumentationPublishPolicy
 import com.dsbuilder.documentation.ingestion.data.ArchiveLimits
 import com.dsbuilder.documentation.ingestion.data.BoundedBundleUpload
-import com.dsbuilder.documentation.ingestion.data.DbServiceOwnershipVerifier
+import com.dsbuilder.documentation.ingestion.data.DsServiceOwnershipVerifier
 import com.dsbuilder.documentation.ingestion.data.ExposedDocumentationBundleRepository
 import com.dsbuilder.documentation.ingestion.data.ExposedIngestionJobRepository
 import com.dsbuilder.documentation.ingestion.data.JdbcTransactionManager
@@ -387,9 +387,9 @@ private fun createUseCase(
     val httpClient = createDbServiceClient(environment)
     return AcceptDocumentationBundleUseCase(
         inspector = TarGzipBundleArchiveInspector(createArchiveLimits(environment)),
-        ownershipVerifier = DbServiceOwnershipVerifier(
+        ownershipVerifier = DsServiceOwnershipVerifier(
             httpClient,
-            environment.value(DB_SERVICE_BASE_URL, DEFAULT_DB_SERVICE_BASE_URL),
+            environment.value(DS_SERVICE_BASE_URL, DEFAULT_DS_SERVICE_BASE_URL),
         ),
         storage = storage,
         bundleRepository = ExposedDocumentationBundleRepository(database),
@@ -485,7 +485,7 @@ private const val MAX_ENTRY_BYTES = "DOCUMENTATION_MAX_ENTRY_BYTES"
 private const val MAX_ENTRIES = "DOCUMENTATION_MAX_ENTRIES"
 private const val MAX_PATH_BYTES = "DOCUMENTATION_MAX_PATH_BYTES"
 private const val MAX_MANIFEST_BYTES = "DOCUMENTATION_MAX_MANIFEST_BYTES"
-private const val DB_SERVICE_BASE_URL = "DB_SERVICE_BASE_URL"
+private const val DS_SERVICE_BASE_URL = "DS_SERVICE_BASE_URL"
 private const val DB_SERVICE_CONNECT_TIMEOUT = "DB_SERVICE_CONNECT_TIMEOUT_MS"
 private const val DB_SERVICE_REQUEST_TIMEOUT = "DB_SERVICE_REQUEST_TIMEOUT_MS"
 private const val S3_ENDPOINT = "DOCUMENTATION_S3_ENDPOINT"
@@ -540,7 +540,7 @@ private const val CHUNK_TARGET_BYTES = "DOCUMENTATION_CHUNK_TARGET_BYTES"
 private const val DEFAULT_DATABASE_URL = "jdbc:postgresql://localhost:5434/documentation_service"
 private const val DEFAULT_DATABASE_USER = "documentation"
 private const val DEFAULT_DATABASE_PASSWORD = "documentation"
-private const val DEFAULT_DB_SERVICE_BASE_URL = "http://localhost:3008"
+private const val DEFAULT_DS_SERVICE_BASE_URL = "http://localhost:8085"
 private const val DEFAULT_S3_REGION = "us-east-1"
 private const val DEFAULT_S3_BUCKET = "documentation-bundles"
 private const val DEFAULT_S3_ACCESS_KEY = "minio"

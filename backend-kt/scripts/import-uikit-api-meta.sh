@@ -3,7 +3,7 @@ set -euo pipefail
 
 DEFAULT_INPUT="${PLASMA_ANDROID_ROOT:-../plasma-android}/sdds-core/uikit-compose/build/generated/ksp/release/resources/sdds/api/uikit-api-meta.json"
 input="$DEFAULT_INPUT"
-api_base="http://localhost:3008/api/ds"
+api_base="http://localhost:8085/api/ds"
 platform="compose"
 apply=false
 strict=false
@@ -22,7 +22,7 @@ Usage: scripts/import-uikit-api-meta.sh [options]
 
 Options:
   --input <path>             Path to uikit-api-meta.json
-  --api-base <url>           DB Service DS API base URL or Gateway project DS API base URL
+  --api-base <url>           DS Service API base URL or Gateway project DS API base URL
   --platform <name>          xml|compose|ios|web (default: compose)
   --include-types <list>     Comma-separated source/resolved type allow-list
   --map-type <from:to>       Map a source type; may be repeated
@@ -201,7 +201,7 @@ jq -n \
     '{mode:$mode, sourceComponents:$sourceComponents, importComponents:$importComponents, importProperties:$importProperties, importStates:$importStates, skippedParams:$skippedParams}'
 
 $apply || {
-    echo "Dry-run only. Re-run with --apply to write to DB Service."
+    echo "Dry-run only. Re-run with --apply to write to DS Service."
     exit 0
 }
 
@@ -233,7 +233,10 @@ api() {
             response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
                 --connect-timeout 10 --max-time "$request_timeout_seconds" \
                 --write-out $'\n%{http_code}' --output - \
-                -X "$method" -H 'Content-Type: application/json' -d "$body" "$url" 2>"$curl_error")"
+                -X "$method" -H 'Content-Type: application/json' \
+                -H 'X-Actor-Type: user' -H 'X-User-Id: uikit-api-meta-import' \
+                -H 'X-Project-Id: global' -H 'X-System-Admin: true' \
+                -d "$body" "$url" 2>"$curl_error")"
         fi
     else
         if [[ -n "$authorization_header" ]]; then
@@ -244,7 +247,10 @@ api() {
         else
             response="$(curl --fail-with-body --silent --show-error --dump-header "$curl_headers" \
                 --connect-timeout 10 --max-time "$request_timeout_seconds" \
-                --write-out $'\n%{http_code}' --output - -X "$method" "$url" 2>"$curl_error")"
+                --write-out $'\n%{http_code}' --output - -X "$method" \
+                -H 'X-Actor-Type: user' -H 'X-User-Id: uikit-api-meta-import' \
+                -H 'X-Project-Id: global' -H 'X-System-Admin: true' \
+                "$url" 2>"$curl_error")"
         fi
     fi
     curl_status=$?
