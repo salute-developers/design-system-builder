@@ -1,0 +1,35 @@
+{
+  "includedConsumers": {
+    "frontend-kt": [
+      "/design-systems/**",
+      "/tokens/**",
+      "/tenants/**",
+      "/palette/**",
+      "/components/**",
+      "/component-config/import",
+      "/component-config/export"
+    ],
+    "js/apps/client": [
+      "/design-systems"
+    ]
+  },
+  "excludedButUsed": {
+    "frontend-kt": [
+      "/legacy/design-systems/{name}/component-configs"
+    ],
+    "js/apps/client": [
+      "/legacy/design-systems/create",
+      "/legacy/design-systems/{name}/update",
+      "/legacy/design-systems/{name}/theme-data",
+      "/legacy/design-systems/{name}/component-configs",
+      "/legacy/design-systems/{name}/tenant-params",
+      "/legacy/design-systems/{name}/download-theme"
+    ]
+  },
+  "compatibilityFallbacks": [
+    "/api/projects/{projectId}/ds/legacy/**",
+    "/api/projects/{projectId}/ds/saved-queries/**",
+    "/api/admin/**"
+  ],
+  "decision": "Keep authenticated legacy and saved-query project routes plus user-authenticated admin routes on db-service; no consumer contract changes are required for included routes."
+}

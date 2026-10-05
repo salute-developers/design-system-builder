@@ -71,6 +71,8 @@ services:
         condition: service_healthy
       documentation-service:
         condition: service_healthy
+      ds-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
@@ -119,6 +121,34 @@ services:
       start_period: 20s
       retries: 5
 
+  ds-service:
+    build:
+      context: ./ds-service/app
+      dockerfile: Dockerfile.local
+    environment:
+      DS_SERVICE_PORT: 8085
+      DS_DATABASE_URL: ${DS_DATABASE_URL:-jdbc:postgresql://host.docker.internal:5433/ds_registry}
+      DS_DATABASE_USER: ${DS_DATABASE_USER:-postgres}
+      DS_DATABASE_PASSWORD: ${DS_DATABASE_PASSWORD:-postgres}
+      DS_DATABASE_POOL_SIZE: 10
+      DS_DATABASE_CONNECTION_TIMEOUT_MS: 5000
+      DS_FLYWAY_ENABLED: "true"
+      DS_FLYWAY_ADOPT_EXISTING: ${DS_FLYWAY_ADOPT_EXISTING:-true}
+      DS_EXPECTED_SCHEMA_SHA256: ${DS_EXPECTED_SCHEMA_SHA256:-b704ff11490fc5a432807ff2450d4a104d61b76e6d2b38da7411338edfae86d3}
+      AUTHORIZATION_POLICY_PATH: /app/authorization/policy.json
+    expose:
+      - "8085"
+    volumes:
+      - ../authorization/policy.json:/app/authorization/policy.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
   documentation-db:
     image: postgres:16-alpine
 #    Удалить
@@ -163,7 +193,7 @@ services:
       DOCUMENTATION_DATABASE_URL: jdbc:postgresql://documentation-db:5432/documentation_service
       DOCUMENTATION_POSTGRES_USER: documentation
       DOCUMENTATION_POSTGRES_PASSWORD: documentation
-      DB_SERVICE_BASE_URL: http://host.docker.internal:3008
+      DS_SERVICE_BASE_URL: http://ds-service:8085
       DOCUMENTATION_TEMP_DIRECTORY: /var/tmp/documentation
       DOCUMENTATION_S3_ENDPOINT: http://minio:9000
       DOCUMENTATION_S3_REGION: us-east-1

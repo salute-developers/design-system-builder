@@ -21,6 +21,7 @@
 #   DSBUILDER_PROJECT_NAME      name for a newly created project, default "Base"
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   Keycloak realm/client, default dsbuilder / dsbuilder-api
 #   DSBUILDER_SKIP_PROJECT=1    skip the project bootstrap step entirely
+#   DS_SCHEMA_MIGRATION_OWNER   drizzle (default) or flyway; flyway disables the Drizzle runner
 # =============================================================================
 
 # Colors for better output
@@ -78,6 +79,12 @@ PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
 CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
 SKIP_PROJECT="${DSBUILDER_SKIP_PROJECT:-0}"
+SCHEMA_MIGRATION_OWNER="${DS_SCHEMA_MIGRATION_OWNER:-drizzle}"
+
+if [ "$SCHEMA_MIGRATION_OWNER" != "drizzle" ] && [ "$SCHEMA_MIGRATION_OWNER" != "flyway" ]; then
+    echo_error "DS_SCHEMA_MIGRATION_OWNER must be either 'drizzle' or 'flyway'"
+    exit 1
+fi
 
 cd "$SCRIPT_DIR"
 
@@ -243,13 +250,17 @@ echo_success "PostgreSQL (db-service) is ready"
 echo ""
 echo_header "🗄️ Setting up databases..."
 
-# --- db-service migrations ---
-echo_step "Running db-service migrations..."
-if run_compose exec -T db-service npx drizzle-kit migrate; then
-    echo_success "db-service migrations completed"
+# --- schema migrations ---
+if [ "$SCHEMA_MIGRATION_OWNER" = "drizzle" ]; then
+    echo_step "Running db-service migrations..."
+    if run_compose exec -T db-service npx drizzle-kit migrate; then
+        echo_success "db-service migrations completed"
+    else
+        echo_error "db-service migrations failed"
+        exit 1
+    fi
 else
-    echo_error "db-service migrations failed"
-    exit 1
+    echo_info "Skipping Drizzle migrations: Flyway owns the shared schema"
 fi
 
 # --- Seeding ---
