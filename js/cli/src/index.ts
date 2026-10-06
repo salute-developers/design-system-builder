@@ -7,7 +7,7 @@ import { generateTheme } from './generate-theme.ts';
 import { readThemeSource, writeThemeSourceModules } from './theme-source.ts';
 import { resolveLocalThemePaths } from './local-theme-source.ts';
 
-const cliDirectory = dirname(fileURLToPath(import.meta.url));
+const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDirectory = join(cliDirectory, 'output');
 const themeOutputDirectory = join(outputDirectory, 'theme');
 

@@ -18,7 +18,7 @@ export const properties: PropertySeed[] = [
     { name: 'listItemContentPadding', type: 'dimension', variations: ['size'], params: { web: ['listItemContentPadding'] } },
     { name: 'listGap', type: 'dimension', variations: ['size'], params: { web: ['listGap'] } },
     { name: 'listItemFocusColor', type: 'color', params: { web: ['listItemFocusColor'] } },
-    { name: 'listItemDividerWidth', type: 'dimension', variations: ['size'], params: { web: ['listItemDividerWidth'] } },
+    { name: 'listItemDividerHeight', type: 'dimension', variations: ['size'], params: { web: ['listItemDividerHeight'] } },
     { name: 'listItemTightDifference', type: 'dimension', variations: ['size'], params: { web: ['listItemTightDifference'] } },
     { name: 'listItemStyle', type: 'typography', variations: ['size'], params: { web: ['listItemFontFamily', 'listItemFontSize', 'listItemFontStyle', 'listItemFontWeight', 'listItemLetterSpacing', 'listItemLineHeight'] } },
     { name: 'listItemPaddingTop', type: 'dimension', variations: ['size'], params: { web: ['listItemPaddingTop'] } },

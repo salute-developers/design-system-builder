@@ -63,44 +63,30 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const variations = config.getVariations();
 
-    const variationNames = useMemo(() => new Set(variations.map((variation) => variation.getName())), [variations]);
+    const variationNames = new Set(variations.map((variation) => variation.getName()));
 
-    const styleNameByID = useMemo(
-        () =>
-            new Map(
-                variations.flatMap(
-                    (variation) => variation.getStyles()?.map((style) => [style.getID(), style.getName()]) ?? [],
-                ),
-            ),
-        [variations],
+    const styleNameByID = new Map(
+        variations.flatMap(
+            (variation) => variation.getStyles()?.map((style) => [style.getID(), style.getName()]) ?? [],
+        ),
     );
 
     const toStoryArg = (styleName: string) => (styleName === 'true' ? true : styleName);
 
-    const storyArgsValue = useMemo(
-        () =>
-            Object.fromEntries(
-                Object.entries(args).map(([name, value]) => [
-                    name,
-                    typeof value === 'string' && styleNameByID.has(value)
-                        ? toStoryArg(styleNameByID.get(value)!)
-                        : value,
-                ]),
-            ),
-        [args, styleNameByID],
+    const storyArgsValue = Object.fromEntries(
+        Object.entries(args).map(([name, value]) => [
+            name,
+            typeof value === 'string' && styleNameByID.has(value) ? toStoryArg(styleNameByID.get(value)!) : value,
+        ]),
     );
 
-    const isResolved = useMemo(
-        () =>
-            Object.entries(args).every(([name, value]) => {
-                if (!variationNames.has(name)) {
-                    return true;
-                }
+    const isResolved = Object.entries(args).every(([name, value]) => {
+        if (!variationNames.has(name)) {
+            return true;
+        }
 
-                return typeof value === 'string' && styleNameByID.has(value);
-            }),
-        [args, variationNames, styleNameByID],
-    );
+        return typeof value === 'string' && styleNameByID.has(value);
+    });
 
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
     const switchBackground = useMemo(
