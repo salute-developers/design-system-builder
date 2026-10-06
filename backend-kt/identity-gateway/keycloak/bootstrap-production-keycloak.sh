@@ -177,6 +177,48 @@ if ! /opt/keycloak/bin/kcadm.sh get "clients/$public_client_id/protocol-mappers/
     -s 'config."access.token.claim"=true'
 fi
 
+studio_plugin_client_id="dsbuilder-studio-plugin"
+studio_plugin_redirect_uri="http://127.0.0.1:*"
+
+studio_plugin_uuid="$(
+  /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$studio_plugin_client_id" | extract_first_id
+)"
+
+if [ -z "$studio_plugin_uuid" ]; then
+  /opt/keycloak/bin/kcadm.sh create clients -r "$realm" \
+    -s "clientId=$studio_plugin_client_id" \
+    -s "enabled=true" \
+    -s "publicClient=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "standardFlowEnabled=true" \
+    -s "redirectUris=[\"$studio_plugin_redirect_uri\"]" \
+    -s "attributes.\"pkce.code.challenge.method\"=S256" \
+    -s "protocol=openid-connect"
+
+  studio_plugin_uuid="$(
+    /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$studio_plugin_client_id" | extract_first_id
+  )"
+else
+  /opt/keycloak/bin/kcadm.sh update "clients/$studio_plugin_uuid" -r "$realm" \
+    -s "clientId=$studio_plugin_client_id" \
+    -s "enabled=true" \
+    -s "publicClient=true" \
+    -s "directAccessGrantsEnabled=false" \
+    -s "standardFlowEnabled=true" \
+    -s "redirectUris=[\"$studio_plugin_redirect_uri\"]" \
+    -s "attributes.\"pkce.code.challenge.method\"=S256" \
+    -s "protocol=openid-connect"
+fi
+
+if ! /opt/keycloak/bin/kcadm.sh get "clients/$studio_plugin_uuid/protocol-mappers/models" -r "$realm" | grep -q '"name" : "dsbuilder-api-audience"'; then
+  /opt/keycloak/bin/kcadm.sh create "clients/$studio_plugin_uuid/protocol-mappers/models" -r "$realm" \
+    -s "name=dsbuilder-api-audience" \
+    -s "protocol=openid-connect" \
+    -s "protocolMapper=oidc-audience-mapper" \
+    -s "config.\"included.client.audience\"=$oidc_client_id" \
+    -s 'config."access.token.claim"=true'
+fi
+
 projects_client_uuid="$(
   /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$projects_client_id" | extract_first_id
 )"

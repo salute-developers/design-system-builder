@@ -81,11 +81,14 @@ interface PublicationReadRepository {
     /** Читает job только внутри trusted project. */
     suspend fun ingestionJob(projectId: String, jobId: String): IngestionJobStatusDto?
 
-    /** Читает только active published publication trusted project. */
+    /**
+     * Читает только active published publication trusted project. Без [version] возвращает последнюю
+     * по времени публикации для пары (design system, platform).
+     */
     suspend fun activePublication(
         projectId: String,
         designSystemId: String,
-        version: String,
+        version: String?,
         platform: String,
     ): ActivePublicationDto?
 

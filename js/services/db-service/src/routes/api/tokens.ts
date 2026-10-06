@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../../db/index";
 import { designSystems, tokens, tokenValues } from "../../db/schema";
 import {
@@ -14,6 +14,7 @@ import {
   andOptional,
   assertFound,
   designSystemBelongsToScope,
+  designSystemScopeFilter,
   getProjectId,
   isSystemAdmin,
   requireScope,
@@ -38,9 +39,18 @@ const requireTokenAccess = async (
   return Boolean(designSystem && designSystemBelongsToScope(designSystem, req));
 };
 
-router.get("/", (_req, res) =>
+router.get("/", (req, res) =>
   tryCatch(res, async () => {
-    const rows = await db.select().from(tokens);
+    const scope = designSystemScopeFilter(req);
+    const query = db.select().from(tokens);
+    const rows = scope
+      ? await query.where(
+          inArray(
+            tokens.designSystemId,
+            db.select({ id: designSystems.id }).from(designSystems).where(scope),
+          ),
+        )
+      : await query;
     res.json(rows);
   }),
 );
