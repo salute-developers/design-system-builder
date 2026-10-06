@@ -52,7 +52,9 @@ BEGIN
 END $$;--> statement-breakpoint
 
 -- Числа до миграции для финальной сверки.
-CREATE TEMP TABLE migration_0007_before ON COMMIT DROP AS
+-- Временные таблицы без ON COMMIT DROP: Flyway выполняет baseline вне транзакции (в нём есть ALTER TYPE
+-- ... ADD VALUE), и таблица, удаляемая при commit, исчезла бы после первого же оператора.
+CREATE TEMP TABLE migration_0007_before AS
 SELECT
   (SELECT count(*) FROM appearances) AS appearances,
   (SELECT count(*) FROM variation_property_values) AS variation_values,
@@ -63,7 +65,7 @@ SELECT
 
 -- ── 2. Удаление производного нативного слоя ──────────────────────────────────────────────────
 -- Компоненты без веб-признака, у которых есть нативные данные.
-CREATE TEMP TABLE migration_0007_native_components ON COMMIT DROP AS
+CREATE TEMP TABLE migration_0007_native_components AS
 SELECT c.id
 FROM components c
 WHERE NOT (
@@ -152,3 +154,6 @@ BEGIN
     RAISE EXCEPTION 'Миграция 0007: изменилось число строк контента дизайн-систем';
   END IF;
 END $$;
+--> statement-breakpoint
+
+DROP TABLE migration_0007_before, migration_0007_native_components;

@@ -176,11 +176,14 @@ const requestBody = (operation: Operation): string | undefined => {
   const properties = schema?.properties ?? {};
   if (suffix === "/component-config/import") return JSON.stringify({
     designSystemId: fixture.ids.designSystem,
+    platform: "web",
     meta: { name: "differential", source: "contract" },
     dryRun: false,
     components: [{ componentName: "Contract", styleName: "Contract", config: { invariants: {}, defaults: [], variations: [] } }],
   });
-  if (suffix === "/component-config/export") return JSON.stringify({ designSystemId: fixture.ids.designSystem });
+  if (suffix === "/component-config/export") {
+    return JSON.stringify({ designSystemId: fixture.ids.designSystem, platform: "web" });
+  }
   if (suffix === "/token-values") return JSON.stringify({
     tokenId: fixture.ids.token, tenantId: fixture.ids.tenant, paletteId: fixture.ids.palette,
     platform: "web", mode: "dark", value: fixture.values.tokenComposite,
@@ -297,7 +300,7 @@ const seedFixture = async (url: string) => {
     const q = (value: unknown) => `'${String(value).replaceAll("'", "''")}'`;
     const statements = [
       `insert into design_systems(id,name,project_name,project_id) values (${q(id.designSystem)},'contract-ds',${q(fixture.project.id)},${q(fixture.project.id)})`,
-      `insert into components(id,name) values (${q(id.component)},'contract-component'),(${q(id.componentChild)},'contract-child'),(${q(id.componentThird)},'contract-third')`,
+      `insert into components(id,name,platform) values (${q(id.component)},'contract-component','web'),(${q(id.componentChild)},'contract-child','web'),(${q(id.componentThird)},'contract-third','web')`,
       `insert into design_system_components(id,design_system_id,component_id) values (${q(id.designSystemComponent)},${q(id.designSystem)},${q(id.component)})`,
       `insert into design_system_versions(id,design_system_id,version,snapshot,publication_status) values (${q(id.designSystemVersion)},${q(id.designSystem)},'1.0.0','{}','published')`,
       `insert into design_system_changes(id,design_system_id,entity_type,entity_id,operation,data) values (${q(id.designSystemChange)},${q(id.designSystem)},'component',${q(id.component)},'created','{}')`,
@@ -307,13 +310,13 @@ const seedFixture = async (url: string) => {
       `insert into token_values(id,token_id,tenant_id,palette_id,platform,mode,value) values (${q(id.tokenValue)},${q(id.token)},${q(id.tenant)},${q(id.palette)},'web','light','["#ff0000"]')`,
       `insert into variations(id,component_id,name) values (${q(id.variation)},${q(id.component)},'contract-variation')`,
       `insert into variations(id,component_id,name) values (${q(id.variationChild)},${q(id.componentChild)},'contract-child-variation')`,
-      `insert into properties(id,component_id,name,type,platform) values (${q(id.property)},${q(id.component)},'contract-property','color','web')`,
-      `insert into properties(id,component_id,name,type,platform) values (${q(id.propertyChild)},${q(id.componentChild)},'contract-child-property','color','web')`,
+      `insert into properties(id,component_id,name,type) values (${q(id.property)},${q(id.component)},'contract-property','color')`,
+      `insert into properties(id,component_id,name,type) values (${q(id.propertyChild)},${q(id.componentChild)},'contract-child-property','color')`,
       `insert into property_platform_params(id,property_id,platform,name) values (${q(id.propertyPlatformParam)},${q(id.property)},'web','contract-param')`,
-      `insert into property_platform_params(id,property_id,platform,name) values (${q(id.propertyPlatformParamCreate)},${q(id.property)},'xml','contract-param-create')`,
+      `insert into property_platform_params(id,property_id,platform,name) values (${q(id.propertyPlatformParamCreate)},${q(id.property)},'web','contract-param-create')`,
       `insert into property_variations(id,property_id,variation_id) values (${q(id.propertyVariation)},${q(id.property)},${q(id.variation)})`,
-      `insert into appearances(id,design_system_id,component_id,name,platform) values (${q(id.appearance)},${q(id.designSystem)},${q(id.component)},'contract-appearance','web')`,
-      `insert into appearances(id,design_system_id,component_id,name,platform) values (${q(id.appearanceChild)},${q(id.designSystem)},${q(id.componentChild)},'contract-child-appearance','web')`,
+      `insert into appearances(id,design_system_id,component_id,name) values (${q(id.appearance)},${q(id.designSystem)},${q(id.component)},'contract-appearance')`,
+      `insert into appearances(id,design_system_id,component_id,name) values (${q(id.appearanceChild)},${q(id.designSystem)},${q(id.componentChild)},'contract-child-appearance')`,
       `insert into styles(id,design_system_id,variation_id,name) values (${q(id.style)},${q(id.designSystem)},${q(id.variation)},'contract-style')`,
       `insert into styles(id,design_system_id,variation_id,name) values (${q(id.styleSecond)},${q(id.designSystem)},${q(id.variation)},'contract-style-second')`,
       `insert into styles(id,design_system_id,variation_id,name) values (${q(id.styleChild)},${q(id.designSystem)},${q(id.variationChild)},'contract-child-style')`,
