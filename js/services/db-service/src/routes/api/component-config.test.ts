@@ -24,8 +24,9 @@ let designSystemId: string;
 let colorToken: string;
 let gradientToken: string;
 
-const get = async (query: Record<string, string>) => {
-  const search = new URLSearchParams(query).toString();
+// Компонент фикстуры нативный (compose): платформа в запросе обязательна и по умолчанию эта.
+const get = async (query: Record<string, string>, platform: string | null = "compose") => {
+  const search = new URLSearchParams(platform ? { ...query, platform } : query).toString();
   const res = await fetch(`${baseUrl}/api/ds/component-config?${search}`);
   return { status: res.status, body: (await res.json()) as any };
 };
@@ -52,7 +53,7 @@ beforeAll(async () => {
 
   const [component] = await testDb
     .insert(schema.components)
-    .values({ name: "ReadHandleButton" })
+    .values({ name: "ReadHandleButton", platform: "compose" })
     .returning();
   await testDb
     .insert(schema.designSystemComponents)
@@ -77,7 +78,7 @@ beforeAll(async () => {
   // Прежняя редакция ручки отдавала её обоим, потому что выводила оси из наличия
   // стилей в дизайн-системе, а стили заводит любой из appearance.
   await testDb.transaction((tx) =>
-    importComponents(tx, designSystemId, [
+    importComponents(tx, designSystemId, "compose", [
       {
         componentName: "ReadHandleButton",
         styleName: "with-view",
@@ -127,6 +128,35 @@ afterAll(async () => {
 });
 
 describe("GET /ds/component-config", () => {
+  it("без платформы отвечает 400 и ничего не ищет", async () => {
+    const { status, body } = await get(
+      { ds: DS_NAME, version: VERSION, appearance: "with-view", component: "ReadHandleButton" },
+      null,
+    );
+
+    expect(status).toBe(400);
+    expect(body.error).toContain("platform");
+  });
+
+  it("отвергает платформу вне словаря", async () => {
+    const { status, body } = await get(
+      { ds: DS_NAME, version: VERSION, appearance: "with-view", component: "ReadHandleButton" },
+      "android",
+    );
+
+    expect(status).toBe(400);
+    expect(body.error).toContain("Invalid platform");
+  });
+
+  it("не отдаёт компонент другой платформы", async () => {
+    const { status } = await get(
+      { ds: DS_NAME, version: VERSION, appearance: "with-view", component: "ReadHandleButton" },
+      "web",
+    );
+
+    expect(status).toBe(404);
+  });
+
   it("отдаёт вид заливки по токену значения, а не тип слота", async () => {
     const { status, body } = await get({
       ds: DS_NAME,

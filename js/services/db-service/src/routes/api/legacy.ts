@@ -134,7 +134,8 @@ router.get("/:name/component-configs", (req, res) =>
       where: eq(designSystemComponents.designSystemId, dsId),
       with: { component: true },
     });
-    const componentList = dscRows.map((r) => r.component);
+    // Legacy-формат обслуживает веб-клиент и генератор: компоненты других платформ в выдачу не попадают.
+    const componentList = dscRows.map((r) => r.component).filter((c) => c.platform === "web");
     const componentIds = componentList.map((c) => c.id);
 
     if (componentIds.length === 0) { res.json([]); return; }
@@ -142,13 +143,10 @@ router.get("/:name/component-configs", (req, res) =>
     const [variationRows, propertyRows, appearanceRows] = await Promise.all([
       db.select().from(variations).where(inArray(variations.componentId, componentIds)),
       db.select().from(properties).where(inArray(properties.componentId, componentIds)),
-      // Legacy-формат обслуживает веб-клиент и генератор: нативные appearances
-      // того же компонента (platform IS NULL) в выдачу не попадают.
       db.select().from(appearances).where(
         and(
           eq(appearances.designSystemId, dsId),
           inArray(appearances.componentId, componentIds),
-          eq(appearances.platform, "web"),
         ),
       ),
     ]);
@@ -964,7 +962,7 @@ router.post("/create", (req, res) =>
     const existingComponents = await db
       .select()
       .from(components)
-      .where(inArray(components.name, compNames));
+      .where(and(eq(components.platform, "web"), inArray(components.name, compNames)));
     const componentByName = new Map(existingComponents.map((c) => [c.name, c]));
 
     // Загружаем variations для этих компонентов
@@ -1094,7 +1092,6 @@ router.post("/create", (req, res) =>
             designSystemId: ds.id,
             componentId: component.id,
             name: configEntry.name,
-            platform: "web",
           })
           .returning();
 
@@ -1434,7 +1431,7 @@ router.post("/:name/update", (req, res) =>
     const existingComponents = await db
       .select()
       .from(components)
-      .where(inArray(components.name, compNames));
+      .where(and(eq(components.platform, "web"), inArray(components.name, compNames)));
     const componentByName = new Map(existingComponents.map((c) => [c.name, c]));
 
     const compIds = existingComponents.map((c) => c.id);
@@ -1526,8 +1523,7 @@ router.post("/:name/update", (req, res) =>
           and(
             eq(appearances.designSystemId, ds.id),
             eq(appearances.componentId, component.id),
-            eq(appearances.platform, "web"),
-          ),
+            ),
         );
       const existingAppearanceIds = existingAppearances.map((a) => a.id);
 
@@ -1650,7 +1646,6 @@ router.post("/:name/update", (req, res) =>
             designSystemId: ds.id,
             componentId: component.id,
             name: configEntry.name,
-            platform: "web",
           })
           .returning();
 

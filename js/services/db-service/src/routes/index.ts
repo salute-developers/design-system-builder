@@ -39,6 +39,7 @@ import tablesRouter from "./misc/tables";
 import queriesRouter from "./misc/queries";
 import nlQueryRouter from "./misc/nl-query";
 import schemaRouter from "./misc/schema";
+import componentConfigImportApiMetaRouter from "./misc/component-config-import-api-meta";
 
 const router = Router();
 
@@ -90,5 +91,6 @@ router.use("/admin/tables", tablesRouter);
 router.use("/admin/queries", queriesRouter);
 router.use("/admin/nl-query", nlQueryRouter);
 router.use("/admin/schema", schemaRouter);
+router.use("/admin/component-config", componentConfigImportApiMetaRouter);
 
 export default router;

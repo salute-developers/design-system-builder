@@ -57,7 +57,10 @@ export async function seedProperties(
   const platformParamsData: { propertyId: string; platform: string; name: string }[] = [];
 
   function addPlatformParams(propertyId: string, params: PlatformMap) {
+    // Сид описывает веб-компоненты: алиас принадлежит платформе своего компонента, поэтому
+    // нативные сопоставления (xml, compose, ios) не записываются, их создаёт import-api по метам.
     for (const [platform, names] of Object.entries(params)) {
+      if (platform !== 'web') continue;
       if (names) {
         for (const n of names) {
           platformParamsData.push({ propertyId, platform, name: n });

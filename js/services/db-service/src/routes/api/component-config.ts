@@ -6,6 +6,7 @@ import {
   designSystems,
   designSystemVersions,
   components,
+  componentPlatformEnum,
   appearances,
   appearanceVariations,
   appearanceVariationValues,
@@ -67,15 +68,25 @@ router.get("/", (req, res) =>
     const version = req.query.version;
     const appearanceName = req.query.appearance;
     const componentName = req.query.component;
+    const platform = req.query.platform;
 
     if (
       typeof dsName !== "string" ||
       typeof version !== "string" ||
       typeof appearanceName !== "string" ||
-      typeof componentName !== "string"
+      typeof componentName !== "string" ||
+      typeof platform !== "string"
     ) {
       res.status(400).json({
-        error: "Query params required: ds, version, appearance, component",
+        error: "Query params required: ds, version, appearance, component, platform",
+      });
+      return;
+    }
+    // Компонент идентифицируется парой (имя, платформа): без платформы выбор неоднозначен.
+    const platformParsed = componentPlatformEnum.enumValues.find((value) => value === platform);
+    if (!platformParsed) {
+      res.status(400).json({
+        error: `Invalid platform '${platform}'. Expected one of: ${componentPlatformEnum.enumValues.join(", ")}`,
       });
       return;
     }
@@ -102,7 +113,7 @@ router.get("/", (req, res) =>
     const [component] = await db
       .select()
       .from(components)
-      .where(eq(components.name, componentName));
+      .where(and(eq(components.name, componentName), eq(components.platform, platformParsed)));
 
     if (!assertFound(component, res)) return;
 
@@ -115,8 +126,6 @@ router.get("/", (req, res) =>
           eq(appearances.designSystemId, ds.id),
           eq(appearances.componentId, component.id),
           eq(appearances.name, appearanceName),
-          // Общий формат отдаёт нативные конфиги; веб-appearance того же имени не наш.
-          isNull(appearances.platform),
         ),
       );
 

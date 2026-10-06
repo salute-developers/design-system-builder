@@ -149,9 +149,12 @@ async function seed() {
         .select({ id: schema.components.id })
         .from(schema.components)
         .where(
-            inArray(
-                schema.components.name,
-                seeds.map((item) => item.name),
+            and(
+                eq(schema.components.platform, 'web'),
+                inArray(
+                    schema.components.name,
+                    seeds.map((item) => item.name),
+                ),
             ),
         );
     await clearComponentData(

@@ -113,6 +113,9 @@
             "format": "date-time",
             "example": "2024-01-01T00:00:00.000Z"
           },
+          "isTechnical": {
+            "type": "boolean"
+          },
           "tenantCount": {
             "type": "integer",
             "minimum": 0
@@ -240,6 +243,15 @@
             "type": "string",
             "nullable": true
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -255,6 +267,7 @@
           "id",
           "name",
           "description",
+          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -370,16 +383,6 @@
             "type": "string",
             "nullable": true
           },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -398,7 +401,6 @@
           "type",
           "defaultValue",
           "description",
-          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -417,14 +419,21 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           },
           "createdAt": {
             "type": "string",
@@ -442,6 +451,8 @@
           "propertyId",
           "platform",
           "name",
+          "deprecated",
+          "deprecatedMessage",
           "createdAt",
           "updatedAt"
         ]
@@ -587,16 +598,6 @@
             "type": "string",
             "nullable": true
           },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -613,7 +614,6 @@
           "designSystemId",
           "componentId",
           "name",
-          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -1551,6 +1551,7 @@
           },
           "designSystemId": {
             "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "entityType": {
@@ -1792,13 +1793,23 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
           "description": {
             "type": "string",
             "maxLength": 1000
           }
         },
         "required": [
-          "name"
+          "name",
+          "platform"
         ]
       },
       "UpdateComponent": {
@@ -1902,16 +1913,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         },
         "required": [
@@ -1949,16 +1950,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         }
       },
@@ -1972,16 +1963,23 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -1996,16 +1994,23 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2109,16 +2114,6 @@
             "type": "string",
             "maxLength": 255,
             "default": "default"
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         },
         "required": [
@@ -2133,16 +2128,6 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         }
       },
@@ -3131,6 +3116,16 @@
             "format": "uuid",
             "description": "Дизайн-система, конфигурации которой выгружаются"
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ],
+            "description": "Платформа компонентов: компонент идентифицируется парой (имя, платформа), без неё запрос отклоняется"
+          },
           "components": {
             "type": "array",
             "items": {
@@ -3149,7 +3144,8 @@
           }
         },
         "required": [
-          "designSystemId"
+          "designSystemId",
+          "platform"
         ]
       },
       "ComponentExportPackage": {
@@ -3309,6 +3305,82 @@
           "typeMismatches",
           "gradientOnlyProperties",
           "underivableVariationIds"
+        ]
+      },
+      "ApiMetaImportReport": {
+        "type": "object",
+        "properties": {
+          "createdComponents": {
+            "type": "integer"
+          },
+          "createdProperties": {
+            "type": "integer"
+          },
+          "createdStates": {
+            "type": "integer"
+          },
+          "createdAliases": {
+            "type": "integer"
+          },
+          "unchangedProperties": {
+            "type": "integer"
+          },
+          "deprecatedMarked": {
+            "type": "integer"
+          },
+          "deprecatedMessageChanged": {
+            "type": "integer"
+          },
+          "deprecatedCleared": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string"
+                },
+                "property": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "component",
+                "property",
+                "reason"
+              ]
+            }
+          },
+          "typeMismatches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "absent": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "createdComponents",
+          "createdProperties",
+          "createdStates",
+          "createdAliases",
+          "unchangedProperties",
+          "deprecatedMarked",
+          "deprecatedMessageChanged",
+          "deprecatedCleared",
+          "rejected",
+          "typeMismatches",
+          "absent"
         ]
       }
     },
@@ -4409,6 +4481,23 @@
             },
             "required": true,
             "name": "component",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "compose",
+                "xml",
+                "ios"
+              ],
+              "example": "compose",
+              "description": "Платформа компонента: имя компонента уникально только внутри платформы"
+            },
+            "required": true,
+            "description": "Платформа компонента: имя компонента уникально только внутри платформы",
+            "name": "platform",
             "in": "query"
           }
         ],
@@ -12965,7 +13054,7 @@
           "Component Config"
         ],
         "summary": "Импорт конфигураций компонентов одним запросом",
-        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nДизайн-система адресуется полем designSystemId тела запроса.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nuikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,\nкоторого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в\nunknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
+        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nДизайн-система адресуется полем designSystemId тела запроса.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nAPI-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta).\nКонфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие\nсвойства попадают в unknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12976,6 +13065,15 @@
                   "designSystemId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "compose",
+                      "xml",
+                      "ios"
+                    ]
                   },
                   "meta": {
                     "type": "object",
@@ -13221,6 +13319,7 @@
                 },
                 "required": [
                   "designSystemId",
+                  "platform",
                   "meta",
                   "components"
                 ]
@@ -13261,6 +13360,195 @@
           },
           "404": {
             "description": "Дизайн-система не найдена или недоступна проекту",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Импорт отклонён при записи",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/component-config/import-api-meta": {
+      "post": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Импорт API-меты компонентов в глобальный слой одним запросом (только системный администратор)",
+        "description": "Заводит компоненты платформы запроса, их свойства, состояния и платформенные имена свойств\n(property_platform_params) из манифеста, который строит CLI. Формат исходной меты платформы\nсюда не передаётся. Компонент идентифицируется парой (name, platform): компоненты других\nплатформ не читаются и не меняются. К дизайн-системам компоненты не привязываются.\n\nЗапись аддитивная: существующие строки не меняются и не удаляются, кроме статуса устаревания\nалиаса (deprecated, deprecated_message): пометка ставится, сообщение меняется, пометка\nснимается, если имя пришло объектом {name} без deprecated. Имя строкой статус не трогает.\nРасхождение типа существующего свойства попадает в typeMismatches, тип не меняется. Свойство\nс типом вне property_type попадает в rejected, остальной импорт не отменяется. Список absent\nсправочно показывает компоненты платформы и свойства импортируемых компонентов, которые есть\nв базе и отсутствуют в мете; ничего не удаляется.\n\nВся работа выполняется в одной транзакции. При dryRun=true транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения. Применённый импорт пишется в\ndesign_system_changes без дизайн-системы (design_system_id = NULL): пользователь,\nплатформа, имя файла и счётчики лежат в data.\n\nПлатформенные имена свойства передаются списком platformNames (у View их может быть\nнесколько: android:minWidth и android:maxWidth); алиас создаётся на каждое имя. Элемент\nсписка — строка либо объект {name, deprecated?: {message}}. Прежнее поле platformName\nпринимается как список из одного имени; при двух полях действует platformNames, без обоих\nзапрос отклоняется статусом 400.\n\nДоступно только системному администратору: db-service требует доверенный заголовок\nX-System-Admin: true, а при его отсутствии отвечает 403 до разбора тела. Gateway на маршрутах\n/api/admin принимает только токен пользователя, ключ проекта получает 401.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "compose",
+                      "xml",
+                      "ios"
+                    ]
+                  },
+                  "meta": {
+                    "type": "object",
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "default": ""
+                      }
+                    },
+                    "default": {
+                      "source": ""
+                    }
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "properties": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "type": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "platformNames": {
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "minLength": 1
+                                        },
+                                        "deprecated": {
+                                          "type": "object",
+                                          "properties": {
+                                            "message": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "message"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "name"
+                                      ]
+                                    }
+                                  ]
+                                },
+                                "minItems": 1
+                              },
+                              "platformName": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "description": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "type"
+                            ]
+                          },
+                          "default": []
+                        },
+                        "states": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "default": []
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ]
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "platform",
+                  "components"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Отчёт импорта",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiMetaImportReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Тело запроса не соответствует формату",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нужна роль системного администратора",
             "content": {
               "application/json": {
                 "schema": {

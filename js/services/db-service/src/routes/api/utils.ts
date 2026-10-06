@@ -62,6 +62,29 @@ export const requireProjectRole =
 
 export const isSystemAdmin = (req: Request): boolean => headerValue(req, 'x-system-admin') === 'true';
 
+/** Идентификатор пользователя, которого gateway передаёт доверенным заголовком. */
+export const getUserId = (req: Request): string | undefined => headerValue(req, 'x-user-id');
+
+/**
+ * Middleware, пропускающий только системного администратора.
+ *
+ * В отличие от `requireScope`, проверка строгая: отсутствие заголовка `X-System-Admin` означает
+ * отказ. `requireScope` пропускает запрос без заголовков, считая его внутренним вызовом, но для
+ * административной операции это значило бы, что прямой вызов в обход gateway сам становится
+ * административным. Цена — тестам и ручному `curl` на db-service нужно передавать заголовок.
+ *
+ * Ключ проекта не бывает системным администратором: gateway выставляет ему `X-System-Admin: false`.
+ * Проверка стоит до разбора тела: манифест весит сотни килобайт, а разбирать его для запроса,
+ * которому в любом случае отказано, незачем.
+ */
+export const requireSystemAdmin = (req: Request, res: Response, next: NextFunction): void => {
+    if (!isSystemAdmin(req)) {
+        res.status(403).json({ error: 'System administrator role is required' });
+        return;
+    }
+    next();
+};
+
 export const getProjectId = (req: Request): string | undefined => headerValue(req, 'x-project-id');
 
 export const designSystemScopeFilter = (req: Request): SQL | undefined => {

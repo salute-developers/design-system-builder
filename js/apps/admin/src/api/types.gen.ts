@@ -1010,6 +1010,8 @@ export interface paths {
                     version: string;
                     appearance: string;
                     component: string;
+                    /** @description Платформа компонента: имя компонента уникально только внутри платформы */
+                    platform: "web" | "compose" | "xml" | "ios";
                 };
                 header?: never;
                 path?: never;
@@ -8980,9 +8982,9 @@ export interface paths {
          *     поэтому отчёт плана совпадает с отчётом применения.
          *
          *     Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из
-         *     uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,
-         *     которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в
-         *     unknownProperties, остальная часть конфигурации грузится.
+         *     API-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta).
+         *     Конфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие
+         *     свойства попадают в unknownProperties, остальная часть конфигурации грузится.
          *
          *     Требует scope components:write, если запрос пришёл с ключом проекта.
          */
@@ -8998,6 +9000,8 @@ export interface paths {
                     "application/json": {
                         /** Format: uuid */
                         designSystemId: string;
+                        /** @enum {string} */
+                        platform: "web" | "compose" | "xml" | "ios";
                         meta: {
                             name: string;
                             /** @default  */
@@ -9136,6 +9140,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/component-config/import-api-meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Импорт API-меты компонентов в глобальный слой одним запросом (только системный администратор)
+         * @description Заводит компоненты платформы запроса, их свойства, состояния и платформенные имена свойств
+         *     (property_platform_params) из манифеста, который строит CLI. Формат исходной меты платформы
+         *     сюда не передаётся. Компонент идентифицируется парой (name, platform): компоненты других
+         *     платформ не читаются и не меняются. К дизайн-системам компоненты не привязываются.
+         *
+         *     Запись аддитивная: существующие строки не меняются и не удаляются, кроме статуса устаревания
+         *     алиаса (deprecated, deprecated_message): пометка ставится, сообщение меняется, пометка
+         *     снимается, если имя пришло объектом {name} без deprecated. Имя строкой статус не трогает.
+         *     Расхождение типа существующего свойства попадает в typeMismatches, тип не меняется. Свойство
+         *     с типом вне property_type попадает в rejected, остальной импорт не отменяется. Список absent
+         *     справочно показывает компоненты платформы и свойства импортируемых компонентов, которые есть
+         *     в базе и отсутствуют в мете; ничего не удаляется.
+         *
+         *     Вся работа выполняется в одной транзакции. При dryRun=true транзакция откатывается,
+         *     поэтому отчёт плана совпадает с отчётом применения. Применённый импорт пишется в
+         *     design_system_changes без дизайн-системы (design_system_id = NULL): пользователь,
+         *     платформа, имя файла и счётчики лежат в data.
+         *
+         *     Платформенные имена свойства передаются списком platformNames (у View их может быть
+         *     несколько: android:minWidth и android:maxWidth); алиас создаётся на каждое имя. Элемент
+         *     списка — строка либо объект {name, deprecated?: {message}}. Прежнее поле platformName
+         *     принимается как список из одного имени; при двух полях действует platformNames, без обоих
+         *     запрос отклоняется статусом 400.
+         *
+         *     Доступно только системному администратору: db-service требует доверенный заголовок
+         *     X-System-Admin: true, а при его отсутствии отвечает 403 до разбора тела. Gateway на маршрутах
+         *     /api/admin принимает только токен пользователя, ключ проекта получает 401.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        platform: "web" | "compose" | "xml" | "ios";
+                        /**
+                         * @default {
+                         *       "source": ""
+                         *     }
+                         */
+                        meta?: {
+                            /** @default  */
+                            source?: string;
+                        };
+                        /** @default true */
+                        dryRun?: boolean;
+                        components: {
+                            name: string;
+                            /** @default [] */
+                            properties?: {
+                                name: string;
+                                type: string;
+                                platformNames?: (string | {
+                                    name: string;
+                                    deprecated?: {
+                                        message: string;
+                                    };
+                                })[];
+                                platformName?: string;
+                                description?: string;
+                            }[];
+                            /** @default [] */
+                            states?: string[];
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Отчёт импорта */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiMetaImportReport"];
+                    };
+                };
+                /** @description Тело запроса не соответствует формату */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Нужна роль системного администратора */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Импорт отклонён при записи */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9175,6 +9316,7 @@ export interface components {
              * @example 2024-01-01T00:00:00.000Z
              */
             updatedAt: string;
+            isTechnical?: boolean;
             tenantCount?: number;
             themePreviews?: {
                 /**
@@ -9209,6 +9351,8 @@ export interface components {
             id: string;
             name: string;
             description: string | null;
+            /** @enum {string} */
+            platform: "web" | "compose" | "xml" | "ios";
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9266,8 +9410,6 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue: string | null;
             description: string | null;
-            /** @enum {string|null} */
-            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9285,8 +9427,10 @@ export interface components {
             /** Format: uuid */
             propertyId: string;
             /** @enum {string} */
-            platform: "xml" | "compose" | "ios" | "web";
+            platform: "web" | "compose" | "xml" | "ios";
             name: string;
+            deprecated: boolean;
+            deprecatedMessage: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9364,8 +9508,6 @@ export interface components {
             /** Format: uuid */
             componentId: string;
             name: string | null;
-            /** @enum {string|null} */
-            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9759,7 +9901,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            designSystemId: string;
+            designSystemId: string | null;
             entityType: string;
             /** Format: uuid */
             entityId: string;
@@ -9836,6 +9978,8 @@ export interface components {
         };
         CreateComponent: {
             name: string;
+            /** @enum {string} */
+            platform: "web" | "compose" | "xml" | "ios";
             description?: string;
         };
         UpdateComponent: {
@@ -9866,8 +10010,6 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateProperty: {
             name?: string;
@@ -9875,20 +10017,22 @@ export interface components {
             type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         CreatePropertyPlatformParam: {
             /** Format: uuid */
             propertyId: string;
             /** @enum {string} */
-            platform: "xml" | "compose" | "ios" | "web";
+            platform: "web" | "compose" | "xml" | "ios";
             name: string;
+            deprecated?: boolean;
+            deprecatedMessage?: string | null;
         };
         UpdatePropertyPlatformParam: {
             /** @enum {string} */
-            platform?: "xml" | "compose" | "ios" | "web";
+            platform?: "web" | "compose" | "xml" | "ios";
             name?: string;
+            deprecated?: boolean;
+            deprecatedMessage?: string | null;
         };
         CreateVariationPlatformParamAdjustment: {
             /** Format: uuid */
@@ -9927,13 +10071,9 @@ export interface components {
             componentId: string;
             /** @default default */
             name: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateAppearance: {
             name?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         CreateStyle: {
             /** Format: uuid */
@@ -10249,6 +10389,11 @@ export interface components {
              * @description Дизайн-система, конфигурации которой выгружаются
              */
             designSystemId: string;
+            /**
+             * @description Платформа компонентов: компонент идентифицируется парой (имя, платформа), без неё запрос отклоняется
+             * @enum {string}
+             */
+            platform: "web" | "compose" | "xml" | "ios";
             /** @description Optional component names to include in the returned package */
             components?: string[];
             /** @description Optional style names to include in the returned package */
@@ -10298,6 +10443,23 @@ export interface components {
             gradientOnlyProperties: string[];
             /** @description Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить */
             underivableVariationIds: string[];
+        };
+        ApiMetaImportReport: {
+            createdComponents: number;
+            createdProperties: number;
+            createdStates: number;
+            createdAliases: number;
+            unchangedProperties: number;
+            deprecatedMarked: number;
+            deprecatedMessageChanged: number;
+            deprecatedCleared: number;
+            rejected: {
+                component: string;
+                property: string;
+                reason: string;
+            }[];
+            typeMismatches: string[];
+            absent: string[];
         };
     };
     responses: never;
