@@ -5,8 +5,8 @@ import type { ThemeSource } from './theme-source.ts';
 
 // Сервис генерации использует CommonJS, поэтому подключаем его через require из ES-модуля CLI.
 const require = createRequire(import.meta.url);
-const { generate } = require('../services/generator/app/themeBuilder/index.ts') as
-    typeof import('../services/generator/app/themeBuilder/index.ts');
+const { generate } = require('../../services/generator/app/themeBuilder/index.ts') as
+    typeof import('../../services/generator/app/themeBuilder/index.ts');
 
 /** Раскрывает ссылку на локальную палитру в цвет, понятный исходному генератору сервиса. */
 function resolvePaletteColor(value: string, palette: ThemeSource['palette']): string {

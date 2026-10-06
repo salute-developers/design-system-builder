@@ -1,7 +1,7 @@
 import { Request, Router } from 'express';
 import { and, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/index';
-import { designSystems, tenants, tokens, tokenValues } from '../../db/schema';
+import { designSystems, palette, tenants, tokens, tokenValues } from '../../db/schema';
 import { initializeTenantValues } from '../../db/initializers/design-system';
 import { type ThemeColorConfig } from '../../domain/theme-profiles';
 import { withThemePreviews } from '../../queries/theme-previews';
@@ -184,8 +184,29 @@ router.get('/:id/token-values', validateParams(UuidParamSchema), (req, res) =>
             res.status(404).json({ error: 'Not found' });
             return;
         }
-        const rows = await db.select().from(tokenValues).where(eq(tokenValues.tenantId, req.params.id));
-        res.json(rows);
+        const rows = await db
+            .select({
+                ...getTableColumns(tokenValues),
+                paletteType: palette.type,
+                paletteShade: palette.shade,
+                paletteSaturation: palette.saturation,
+            })
+            .from(tokenValues)
+            .leftJoin(palette, eq(tokenValues.paletteId, palette.id))
+            .where(eq(tokenValues.tenantId, req.params.id));
+
+        // Значения, хранимые ссылкой на палитру, отдаём строкой "[type.shade.saturation]",
+        // а value такой строки содержит только альфу. Потребители раскрывают ссылку по локальной палитре.
+        res.json(
+            rows.map(({ paletteType, paletteShade, paletteSaturation, ...row }) => {
+                if (!row.paletteId || paletteType === null) {
+                    return row;
+                }
+                const ref = `[${paletteType}.${paletteShade}.${paletteSaturation}]`;
+                const alpha = (row.value as unknown[] | null)?.[0] ?? null;
+                return { ...row, value: [alpha === null ? ref : `${ref}[${alpha}]`] };
+            }),
+        );
     }),
 );
 

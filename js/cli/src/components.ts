@@ -4,18 +4,18 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-import type { Meta } from '../services/generator/app/componentBuilder/type.ts';
+import type { Meta } from '../../services/generator/app/componentBuilder/type.ts';
 import { generateTheme } from './generate-theme.ts';
 import { readThemeSource } from './theme-source.ts';
 import { resolveLocalThemePaths } from './local-theme-source.ts';
 
-const cliDirectory = dirname(fileURLToPath(import.meta.url));
+const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // Генератор использует CommonJS: подключаем его из ES-модуля через require с обработчиком TypeScript от tsx.
 const require = createRequire(import.meta.url);
 const { generateBaseFileStructure, generateComponentsFiles } =
-    require('../services/generator/app/generate.ts') as typeof import('../services/generator/app/generate.ts');
+    require('../../services/generator/app/generate.ts') as typeof import('../../services/generator/app/generate.ts');
 const { CORE_VERSION } =
-    require('../services/generator/app/utils/index.ts') as typeof import('../services/generator/app/utils/index.ts');
+    require('../../services/generator/app/utils/index.ts') as typeof import('../../services/generator/app/utils/index.ts');
 
 /**
  * Разбирает аргументы CLI, читает компоненты и тему из .sdds и создаёт исходники React-пакета.
