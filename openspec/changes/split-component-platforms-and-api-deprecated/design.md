@@ -121,6 +121,14 @@ CLI определяет платформу так же, как `import-api`: е
 - **Снятие `deprecated` по последнему импорту** может снять пометку, если импортировать мету старой библиотеки. Принято; защита — dry run и строки старых CLI.
 - **BREAKING для CLI без платформы в push/fetch.** Backend и CLI выкатываются вместе.
 
+## Потребители
+
+Инвентаризация мест, выбирающих компонент по имени (результат задачи 1.3):
+
+- `db-service`: `queries/catalog.ts` (поиск по `componentName` в строках 248, 298, 577, 996, 1758 и списки компонентов — каталог веб-дизайн-систем: фильтр `platform = 'web'`), `routes/api/component-config.ts` (push, export, чтение: платформа из запроса), `routes/api/legacy.ts` (веб: `appearances.platform = 'web'` заменяется компонентом `platform = 'web'`), `routes/api/design-systems.ts` и `routes/api/components.ts` (списки: отдают `platform`), `db/import/apiMetaImport.ts`, `db/export/componentExport.ts`, `db/import/componentImport.ts`, `db/seeds/**` (создание с `web`, конфликт по `(name, platform)`), `test/fixtures.ts`.
+- `generator`, `apps/client`, `apps/admin`, `documentation-generator`: работают с веб-дизайн-системами через маршруты `db-service`; идентификатор компонента берут из ответов, а имя компонента — как отображаемое. Прямых запросов «компонент по имени» к БД нет, платформа им не нужна, кроме маршрутов push/fetch CLI.
+- `frontend-kt`: `components push` и `components fetch` (платформа из `config.json`), `import-api`.
+
 ## Migration Plan
 
 1. `audit.sql` на целевой базе: подтвердить, что нативных данных нет (нет нативных appearances и привязок к нативным компонентам).
