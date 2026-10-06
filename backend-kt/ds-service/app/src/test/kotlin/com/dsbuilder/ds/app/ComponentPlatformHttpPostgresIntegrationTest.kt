@@ -194,6 +194,24 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `a repeated state in one property collapses to the last value`() = withService {
+        val designSystem =
+            id(post("/api/ds/design-systems", """{"name":"beta","projectName":"beta"}""", owner = true).bodyAsText())
+        val component =
+            id(post("/api/ds/components", """{"name":"Button","platform":"compose"}""", admin = true).bodyAsText())
+        post("/api/ds/properties", """{"componentId":"$component","name":"color","type":"color"}""", admin = true)
+        val body = importBody(designSystem, platform = "compose").replace(
+            """"shape":{"type":"value","value":{"radius":8}}""",
+            """"color":{"type":"color","default":"a","states":[""" +
+                """{"state":["hovered"],"value":"b"},{"state":["hovered"],"value":"c"}]}""",
+        )
+        val imported = post("/api/ds/component-config/import", body, editor = true)
+        assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+        assertEquals("1", field(imported.bodyAsText(), "created"))
+        assertEquals(2, count("invariant_property_values"))
+    }
+
+    @Test
     fun `journal rows without a design system never reach the project feeds`() = withService {
         val designSystem =
             id(post("/api/ds/design-systems", """{"name":"beta","projectName":"beta"}""", owner = true).bodyAsText())

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -381,7 +382,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val target = component?.let { appearance(ds, it, styleName) }
             val available = component?.let { componentId ->
-                ComponentStylesTable.innerJoin(VariationsTable).selectAll().where {
+                ComponentStylesTable.join(
+                    VariationsTable,
+                    JoinType.INNER,
+                    ComponentStylesTable.variationId,
+                    VariationsTable.id,
+                ).selectAll().where {
                     (ComponentStylesTable.designSystemId eq ds) and (VariationsTable.componentId eq componentId)
                 }.associate { it[ComponentStylesTable.name] to it[ComponentStylesTable.id] }
             }.orEmpty()
@@ -532,7 +538,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             } == true
         }
     }
-    private fun expand(
+
+    /** One row per state set: a repeated state set in the config is collapsed, the last one wins. */
+    private fun expand(p: ComponentConfig.Property): List<Expanded> =
+        expandAll(p).associateBy { it.states }.values.toList()
+
+    private fun expandAll(
         p: ComponentConfig.Property,
     ) = listOf(
         Expanded(

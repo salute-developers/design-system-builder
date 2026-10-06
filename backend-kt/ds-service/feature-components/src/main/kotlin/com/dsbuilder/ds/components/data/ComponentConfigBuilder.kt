@@ -186,7 +186,8 @@ internal class ComponentConfigBuilder {
                     members,
                 )
             }
-        val keys = (byKey.keys + declared.map { it.first }).distinct()
+        // Declared order first; undeclared keys sorted so the export does not depend on physical row order.
+        val keys = (declared.map { it.first } + byKey.keys.sorted()).distinct()
         return keys.mapNotNull { key ->
             val declaration = declared.firstOrNull { it.first == key }
             val members = declaration?.third ?: storedMembers[key].orEmpty()
@@ -194,7 +195,9 @@ internal class ComponentConfigBuilder {
             ConfigCombination(
                 owner.styleId,
                 members,
-                byKey[key].orEmpty().map { row ->
+                byKey[key].orEmpty().sortedWith(
+                    compareBy({ it[PropertiesTable.name] }, { it[StyleCombinationsTable.position] }),
+                ).map { row ->
                     ConfigValueRow(
                         row[PropertiesTable.id], row[PropertiesTable.name], row[PropertiesTable.type].wireValue, null,
                         row[StyleCombinationsTable.value], row[StyleCombinationsTable.alpha],
