@@ -214,14 +214,14 @@ class DsServiceHttpPostgresIntegrationTest {
                 assertEquals("[]", report.getValue("unknownStates").toString())
 
                 val single = client.get(
-                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Button",
+                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Button&platform=web",
                 ) { trusted("project-a", "viewer") }
                 assertEquals(HttpStatusCode.OK, single.status, single.bodyAsText())
                 assertTrue(single.bodyAsText().contains("pressed"))
 
                 val exported = client.post("/api/ds/component-config/export") {
                     trusted("project-a", "viewer")
-                    jsonBody("""{"designSystemId":"$designSystemId","components":["button"]}""")
+                    jsonBody("""{"designSystemId":"$designSystemId","platform":"web","components":["button"]}""")
                 }
                 assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
                 assertTrue(exported.bodyAsText().contains("\"version\":\"1.0.0\""))
@@ -235,7 +235,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 assertEquals(countsBeforeDryRun, counts(postgres))
 
                 val absentPreview = client.get(
-                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=preview&component=Button",
+                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=preview&component=Button&platform=web",
                 ) { trusted("project-a", "viewer") }
                 assertEquals(HttpStatusCode.NotFound, absentPreview.status)
 
@@ -274,7 +274,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                 val foreignOnlyComponent = client.post("/api/ds/components") {
                     trustedSystemAdmin()
-                    jsonBody("""{"name":"ForeignOnly"}""")
+                    jsonBody("""{"name":"ForeignOnly","platform":"web"}""")
                 }
                 val foreignOnlyComponentId = id(foreignOnlyComponent.bodyAsText())
                 assertEquals(
@@ -331,7 +331,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                 val privateComponent = client.post("/api/ds/components") {
                     trustedSystemAdmin()
-                    jsonBody("""{"name":"PrivateButton"}""")
+                    jsonBody("""{"name":"PrivateButton","platform":"web"}""")
                 }
                 assertEquals(HttpStatusCode.Created, privateComponent.status)
                 val privateComponentId = id(privateComponent.bodyAsText())
@@ -535,6 +535,7 @@ class DsServiceHttpPostgresIntegrationTest {
         """
         {
           "designSystemId":"$designSystemId",
+          "platform":"web",
           "meta":{"name":"integration-fixture","source":"kotlin-test"},
           "dryRun":$dryRun,
           "components":[{

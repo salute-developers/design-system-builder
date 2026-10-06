@@ -417,6 +417,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<CreatePropertyPlatformParamUseCase>(),
         koin.get<UpdatePropertyPlatformParamUseCase>(),
         koin.get<DeletePropertyPlatformParamUseCase>(),
+        json,
     )
     propertyVariationRoutes(
         runtime.evaluator,

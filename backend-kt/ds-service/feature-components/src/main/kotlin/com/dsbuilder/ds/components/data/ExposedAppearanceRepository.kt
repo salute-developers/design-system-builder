@@ -59,7 +59,6 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[designSystemId] = command.designSystemId
             it[componentId] = command.componentId
             it[name] = command.name
-            it[platform] = command.platform?.let { value -> requireNotNull(ComponentPlatformDb.fromWire(value)) }
         }.single().let(::appearance)
     }
 
@@ -82,9 +81,6 @@ class ExposedAppearanceRepository : AppearanceRepository {
                 )
         }) {
             command.name?.let { value -> it[name] = value }
-            if (command.platformPresent) {
-                it[platform] = command.platform?.let { value -> requireNotNull(ComponentPlatformDb.fromWire(value)) }
-            }
             it[updatedAt] = Instant.now()
         }.singleOrNull()?.let(::appearance)
     }
@@ -312,7 +308,6 @@ private fun appearance(row: ResultRow) = Appearance(
     row[ComponentAppearancesTable.designSystemId],
     row[ComponentAppearancesTable.componentId],
     row[ComponentAppearancesTable.name],
-    row[ComponentAppearancesTable.platform]?.wireValue,
     row[ComponentAppearancesTable.createdAt],
     row[ComponentAppearancesTable.updatedAt],
 )

@@ -163,6 +163,6 @@ class FlywayPostgresIntegrationTest {
         }
 
     private companion object {
-        const val EXPECTED_SCHEMA_FINGERPRINT = "b704ff11490fc5a432807ff2450d4a104d61b76e6d2b38da7411338edfae86d3"
+        const val EXPECTED_SCHEMA_FINGERPRINT = "7008e23cefc457c02ba1148b1aee60c9ee75f841c3393f90bc6871a6bbd38108"
     }
 }

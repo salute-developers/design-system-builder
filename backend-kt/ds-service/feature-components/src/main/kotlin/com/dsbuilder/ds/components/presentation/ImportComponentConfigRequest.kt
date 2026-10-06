@@ -15,6 +15,8 @@ import java.util.UUID
 data class ImportComponentConfigRequest(
     /** Design system id carried by this contract. */
     val designSystemId: String,
+    /** Platform of the components: a component is identified by its name and platform. */
+    val platform: String,
     /** Meta carried by this contract. */
     val meta: Meta,
     /** Dry run carried by this contract. */
@@ -138,6 +140,7 @@ data class ImportComponentConfigRequest(
     /** Performs the to command operation. */
     fun toCommand(id: UUID) = ImportComponentConfig(
         id,
+        platform,
         ImportComponentConfig.Meta(meta.name, meta.source),
         dryRun,
         components.map { entry ->

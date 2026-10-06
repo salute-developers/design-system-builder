@@ -12,6 +12,12 @@ internal object ComponentsTable : Table("components") {
     val id = uuid("id")
     val name = text("name")
     val description = text("description").nullable()
+    val platform = postgresEnum(
+        "platform",
+        "component_platform",
+        ComponentPlatformDb::fromWire,
+        ComponentPlatformDb::wireValue,
+    )
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -65,12 +71,6 @@ internal object PropertiesTable : Table("properties") {
     val type = postgresEnum("type", "property_type", PropertyTypeDb::fromWire, PropertyTypeDb::wireValue)
     val defaultValue = text("default_value").nullable()
     val description = text("description").nullable()
-    val platform = postgresEnum(
-        "platform",
-        "component_platform",
-        ComponentPlatformDb::fromWire,
-        ComponentPlatformDb::wireValue,
-    ).nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -104,12 +104,6 @@ internal object ComponentAppearancesTable : Table("appearances") {
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val componentId = reference("component_id", ComponentsTable.id)
     val name = text("name").nullable()
-    val platform = postgresEnum(
-        "platform",
-        "component_platform",
-        ComponentPlatformDb::fromWire,
-        ComponentPlatformDb::wireValue,
-    ).nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -154,11 +148,13 @@ internal object PropertyPlatformParamsTable : Table("property_platform_params") 
     val propertyId = reference("property_id", PropertiesTable.id)
     val platform = postgresEnum(
         "platform",
-        "property_platform",
-        PropertyPlatformDb::fromWire,
-        PropertyPlatformDb::wireValue,
+        "component_platform",
+        ComponentPlatformDb::fromWire,
+        ComponentPlatformDb::wireValue,
     )
     val name = text("name")
+    val deprecated = bool("deprecated").default(false)
+    val deprecatedMessage = text("deprecated_message").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -303,7 +299,7 @@ internal object ComponentStyleReferenceStylesTable : Table("component_style_refe
 
 internal object DesignSystemChangesTable : Table("design_system_changes") {
     val id = uuid("id")
-    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
+    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id).nullable()
     val entityType = text("entity_type")
     val entityId = uuid("entity_id")
     val operation = postgresEnum(
@@ -390,6 +386,7 @@ internal enum class PropertyTypeDb(val wireValue: String) {
 internal enum class ComponentPlatformDb(val wireValue: String) {
     WEB("web"),
     COMPOSE("compose"),
+    XML("xml"),
     IOS("ios"),
     ;
 
@@ -401,18 +398,6 @@ internal enum class ComponentPlatformDb(val wireValue: String) {
 internal enum class RelationTypeDb(val wireValue: String) {
     REUSE("reuse"),
     COMPOSE("compose"),
-    ;
-
-    companion object {
-        fun fromWire(value: String) = entries.firstOrNull { it.wireValue == value }
-    }
-}
-
-internal enum class PropertyPlatformDb(val wireValue: String) {
-    XML("xml"),
-    COMPOSE("compose"),
-    IOS("ios"),
-    WEB("web"),
     ;
 
     companion object {

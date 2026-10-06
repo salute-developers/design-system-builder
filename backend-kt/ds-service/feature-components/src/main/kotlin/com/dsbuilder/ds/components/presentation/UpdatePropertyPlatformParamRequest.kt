@@ -9,4 +9,8 @@ data class UpdatePropertyPlatformParamRequest(
     val platform: String? = null,
     /** Name carried by this contract. */
     val name: String? = null,
+    /** Whether the platform name is deprecated. */
+    val deprecated: Boolean? = null,
+    /** Deprecation message; an explicit `null` clears it. */
+    val deprecatedMessage: String? = null,
 )

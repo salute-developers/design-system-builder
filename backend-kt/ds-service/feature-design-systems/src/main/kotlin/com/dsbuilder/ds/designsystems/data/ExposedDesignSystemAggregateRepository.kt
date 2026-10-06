@@ -204,7 +204,6 @@ private fun appearance(row: ResultRow) = DesignSystemAppearanceSummary(
     row[AggregateAppearancesTable.designSystemId],
     row[AggregateAppearancesTable.componentId],
     row[AggregateAppearancesTable.name],
-    row[AggregateAppearancesTable.platform],
     row[AggregateAppearancesTable.createdAt],
     row[AggregateAppearancesTable.updatedAt],
 )

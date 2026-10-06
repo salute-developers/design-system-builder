@@ -61,7 +61,6 @@ internal object AggregateAppearancesTable : Table("appearances") {
     val designSystemId = uuid("design_system_id")
     val componentId = uuid("component_id")
     val name = text("name").nullable()
-    val platform = text("platform").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 }

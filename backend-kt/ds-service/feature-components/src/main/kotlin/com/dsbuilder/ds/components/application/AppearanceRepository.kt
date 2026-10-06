@@ -80,18 +80,12 @@ interface AppearanceRepository {
         val componentId: UUID,
         /** Name carried by this contract. */
         val name: String?,
-        /** Platform carried by this contract. */
-        val platform: String?,
     )
 
     /** Public model for appearance update. */
     data class AppearanceUpdate(
         /** Name carried by this contract. */
         val name: String?,
-        /** Platform carried by this contract. */
-        val platform: String?,
-        /** Platform present carried by this contract. */
-        val platformPresent: Boolean,
     )
 
     /** Public model for variation create. */

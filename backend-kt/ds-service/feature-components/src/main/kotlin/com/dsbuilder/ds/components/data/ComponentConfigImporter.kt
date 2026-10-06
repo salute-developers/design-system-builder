@@ -32,6 +32,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ComponentTokensTable.selectAll().where { ComponentTokensTable.designSystemId eq command.designSystemId }
             .associate { it[ComponentTokensTable.name] to it[ComponentTokensTable.id] },
         command.components,
+        requireNotNull(ComponentPlatformDb.fromWire(command.platform)),
     ).also { context ->
         ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }.forEach {
             context.interactionStates[it[ComponentStatesTable.name].canonical()] = it[ComponentStatesTable.id]
@@ -45,7 +46,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
         val component = component(entry.componentName, context) ?: return context.report.reject(
             entry,
-            "Component '${entry.componentName}' is not present in the global layer",
+            "Component '${entry.componentName}' is not present in the global layer for platform " +
+                "'${context.platform.wireValue}'",
         )
         val componentId = component[ComponentsTable.id]
         link(ds, componentId)
@@ -55,7 +57,6 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             it[designSystemId] = ds
             it[ComponentAppearancesTable.componentId] = componentId
             it[name] = entry.styleName
-            it[platform] = null
         }.single()[ComponentAppearancesTable.id]
         val descriptor = ConfigAppearance(
             appearanceId,
@@ -91,9 +92,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         val id = context.componentIds[key]
         if (id != null) return ComponentsTable.selectAll().where { ComponentsTable.id eq id }.single()
         if (context.componentIds.containsKey(key)) return null
-        return ComponentsTable.selectAll().firstOrNull { it[ComponentsTable.name].canonical() == key }.also {
-            context.componentIds[key] = it?.get(ComponentsTable.id)
-        }
+        return ComponentsTable.selectAll().where { ComponentsTable.platform eq context.platform }
+            .firstOrNull { it[ComponentsTable.name].canonical() == key }.also {
+                context.componentIds[key] = it?.get(ComponentsTable.id)
+            }
     }
 
     private fun link(ds: UUID, component: UUID) {
@@ -112,7 +114,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun appearance(ds: UUID, component: UUID, name: String) = ComponentAppearancesTable.selectAll().where {
         (ComponentAppearancesTable.designSystemId eq ds) and
             (ComponentAppearancesTable.componentId eq component) and
-            (ComponentAppearancesTable.name eq name) and ComponentAppearancesTable.platform.isNull()
+            (ComponentAppearancesTable.name eq name)
     }.singleOrNull()
 
     private fun clear(id: UUID) {
@@ -447,6 +449,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                         put("source", command.meta.source)
                     },
                 )
+                put("platform", command.platform)
                 put("dryRun", command.dryRun)
                 put("created", context.report.created)
                 put("updated", context.report.updated)
