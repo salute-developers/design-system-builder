@@ -51,7 +51,7 @@
 - [x] 7.1 Обновить Gateway upstream и правила переписывания для атомарного переключения разрешённого `/api/projects/{projectId}/ds/**`, полного набора trusted headers, сетевой изоляции внутреннего порта и проверенной конфигурации отката.
 - [x] 7.2 Зафиксировать более специфичные Gateway rules для реально используемых исключённых маршрутов, которые временно остаются в `db-service`, не добавляя их в OpenAPI `ds-service`.
 - [x] 7.3 Перевести ownership client `documentation-service` на `ds-service`, сохранив документированные timeout/error semantics и добавив focused client tests.
-- [x] 7.4 Перевести `backend-kt/scripts/import-uikit-api-meta.sh` на защищённый импорт `ds-service` с trusted `system_admin` контекстом и добавить проверяемый dry-run/изоляционный тест глобального слоя.
+- [x] 7.4 Перевести `backend-kt/scripts/import-uikit-api-meta.sh` на защищённый импорт `ds-service` с trusted `system_admin` контекстом и добавить проверяемый dry-run/изоляционный тест глобального слоя. **Пересмотрено:** скрипт удалён, глобальный слой наполняет `dsbuilder components import-api` через административную ручку `/api/admin/component-config/import-api-meta`; маршруты `admin` в `ds-service` не переносятся, ручка остаётся в `db-service` (change `restrict-import-api-to-system-admin`).
 - [x] 7.5 Провести репозиторный аудит `frontend-kt` и `js/apps/client` по включённым и исключённым маршрутам; обновить потребителя только при доказанной несовместимости и добавить его штатные тесты/сборку.
 - [x] 7.6 Запустить дифференциальные контрактные тесты всех включённых чтений на общей фикстуре и всех мутаций на изолированных БД; устранить все необъявленные различия статусов, DTO и состояния.
 
