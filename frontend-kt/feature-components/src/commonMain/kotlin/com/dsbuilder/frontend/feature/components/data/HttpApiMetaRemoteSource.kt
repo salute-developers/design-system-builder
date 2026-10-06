@@ -72,7 +72,7 @@ internal class HttpApiMetaRemoteSource(
 }
 
 /**
- * Тело запроса `POST /ds/component-config/import-api-meta`.
+ * Тело запроса `POST /api/admin/component-config/import-api-meta`.
  *
  * @property platform платформа из словаря backend.
  * @property meta метаданные источника.
