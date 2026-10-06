@@ -15,25 +15,25 @@
 
 ## 3. db-service: импорт API-меты
 
-- [ ] 3.1 `db/import/apiMetaManifest.ts`: принять элементы `platformNames` строкой или объектом `{name, deprecated?: {message}}`, сохранить `platformName`; `platformNamesOf` отдаёт имя и признак «сведений нет»
-- [ ] 3.2 `db/import/apiMetaImport.ts`: идентичность компонента `(name, platform запроса)`, создание компонента платформы, поиск свойств внутри него; убрать работу с `properties.platform`
-- [ ] 3.3 Обновление `deprecated` по таблице из `design.md` (поставить, сменить сообщение, снять, строка не трогает) и счётчики `deprecatedMarked`, `deprecatedMessageChanged`, `deprecatedCleared`; для dry run те же числа
-- [ ] 3.4 Список `absent`: компоненты платформы и свойства импортируемых компонентов, которых нет в мете; справочный
-- [ ] 3.5 Ручка `routes/misc/component-config-import-api-meta.ts` и журнал: новые счётчики в `data` записи `components:import-api-meta`; схема ответа в `openapi/spec.ts`
-- [ ] 3.6 Тесты `apiMetaImport.test.ts` и `component-config-import-api-meta.test.ts`: идентичность по платформе, нет конфликта типов между платформами, `deprecated` во всех строках таблицы (включая пустое сообщение, строку, независимость алиасов View, отсутствие алиаса в мете), повтор даёт нули, dry run совпадает с apply, `absent` для свойства и компонента, компонент другой платформы не попадает в `absent`
+- [x] 3.1 `db/import/apiMetaManifest.ts`: принять элементы `platformNames` строкой или объектом `{name, deprecated?: {message}}`, сохранить `platformName`; `platformNamesOf` отдаёт имя и признак «сведений нет»
+- [x] 3.2 `db/import/apiMetaImport.ts`: идентичность компонента `(name, platform запроса)`, создание компонента платформы, поиск свойств внутри него; убрать работу с `properties.platform`
+- [x] 3.3 Обновление `deprecated` по таблице из `design.md` (поставить, сменить сообщение, снять, строка не трогает) и счётчики `deprecatedMarked`, `deprecatedMessageChanged`, `deprecatedCleared`; для dry run те же числа
+- [x] 3.4 Список `absent`: компоненты платформы и свойства импортируемых компонентов, которых нет в мете; справочный
+- [x] 3.5 Ручка `routes/misc/component-config-import-api-meta.ts` и журнал: новые счётчики в `data` записи `components:import-api-meta`; схема ответа в `openapi/spec.ts`
+- [x] 3.6 Тесты `apiMetaImport.test.ts` и `component-config-import-api-meta.test.ts`: идентичность по платформе, нет конфликта типов между платформами, `deprecated` во всех строках таблицы (включая пустое сообщение, строку, независимость алиасов View, отсутствие алиаса в мете), повтор даёт нули, dry run совпадает с apply, `absent` для свойства и компонента, компонент другой платформы не попадает в `absent`
 
 ## 4. db-service: остальные маршруты и данные
 
-- [ ] 4.1 `routes/api/component-config.ts`, `db/import/componentImport.ts`, `db/export/componentExport.ts`: платформа обязательна в запросе push, export и чтения компонента (`400` без неё), поиск по `(name, platform)`, убрать фильтры по `appearances.platform` (`isNull`, `'web'`)
-- [ ] 4.2 `routes/api/design-systems.ts`, `routes/api/legacy.ts`, `queries/catalog.ts` и остальные места из инвентаризации 1.3: выбор компонента с платформой; привязки дизайн-системы к компонентам платформы
-- [ ] 4.3 Сиды `db/seeds/**` и `seed-generate-prod.ts`: компоненты создаются с платформой `web`, конфликт по `(name, platform)`; обновить фикстуры тестов
-- [ ] 4.4 `validation/schema.ts`, `openapi/spec.ts`, `/sync-all`; убедиться, что `apps/admin/src/api/types.gen.ts` регенерирован
-- [ ] 4.5 Тесты: запрос без платформы получает `400`, push и fetch двух платформ одного имени не затирают друг друга, appearance веба и нативной платформы разных компонентов сосуществуют; весь набор `db-service` проходит
+- [x] 4.1 `routes/api/component-config.ts`, `db/import/componentImport.ts`, `db/export/componentExport.ts`: платформа обязательна в запросе push, export и чтения компонента (`400` без неё), поиск по `(name, platform)`, убрать фильтры по `appearances.platform` (`isNull`, `'web'`)
+- [x] 4.2 `routes/api/design-systems.ts`, `routes/api/legacy.ts`, `queries/catalog.ts` и остальные места из инвентаризации 1.3: выбор компонента с платформой; привязки дизайн-системы к компонентам платформы
+- [x] 4.3 Сиды `db/seeds/**` и `seed-generate-prod.ts`: компоненты создаются с платформой `web`, конфликт по `(name, platform)`; обновить фикстуры тестов
+- [x] 4.4 `validation/schema.ts`, `openapi/spec.ts`, `/sync-all`; убедиться, что `apps/admin/src/api/types.gen.ts` регенерирован
+- [x] 4.5 Тесты: запрос без платформы получает `400`, push и fetch двух платформ одного имени не затирают друг друга, appearance веба и нативной платформы разных компонентов сосуществуют; весь набор `db-service` проходит
 
 ## 5. Потребители вне db-service
 
-- [ ] 5.1 Generator, client и admin: передавать платформу при выборе компонента (по результатам инвентаризации 1.3), поправить типы и запросы
-- [ ] 5.2 Сборки: `cd js && npm run build` для затронутых приложений и сервисов
+- [x] 5.1 Generator, client и admin: передавать платформу при выборе компонента (по результатам инвентаризации 1.3), поправить типы и запросы
+- [x] 5.2 Сборки: `cd js && npm run build` для затронутых приложений и сервисов
 
 ## 6. frontend-kt и CLI
 
