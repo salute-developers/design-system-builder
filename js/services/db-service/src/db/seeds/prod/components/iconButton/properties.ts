@@ -10,7 +10,7 @@ export const properties: PropertySeed[] = [
     { name: 'spinnerColor', type: 'color', description: 'Цвет спиннера', variations: ['view'], params: { xml: ['sd_spinnerTint'], compose: ['spinnerColor'], ios: ['spinnerColor'], web: ['iconButtonSpinnerColor'] } },
     { name: 'focusColor', type: 'color', description: 'Цвет обводки компонента', defaultValue: 'text.default.accent', params: { web: ['iconButtonFocusColor'] } },
     { name: 'paddingStart', type: 'dimension', description: 'Отступ слева', variations: ['size'], params: { xml: ['android:paddingStart'], compose: ['paddings'], ios: ['paddings'], web: ['iconButtonPadding'] } },
-    { name: 'paddingEnd', type: 'dimension', description: 'Отступ справа', variations: ['size'], params: { xml: ['paddingEnd'], compose: ['paddings'], ios: ['paddings'], web: ['iconButtonPadding'] } },
+    { name: 'paddingEnd', type: 'dimension', description: 'Отступ справа', variations: ['size'], params: { xml: ['paddingEnd'], compose: ['paddings'], ios: ['paddings'] } },
     { name: 'minWidth', type: 'dimension', description: 'Минимальная ширина', variations: ['size'], params: { xml: ['android:minWidth'], compose: ['minWidth'], web: ['iconButtonWidth'] } },
     { name: 'iconSize', type: 'dimension', description: 'Размер иконки', variations: ['size'], params: { xml: ['sd_iconSize'], compose: ['iconSize'], ios: ['iconSize'] } },
     { name: 'spinnerSize', type: 'dimension', description: 'Размер спиннера', variations: ['size'], params: { xml: ['sd_spinnerSize'], compose: ['spinnerSize'], ios: ['spinnerSize'], web: ['iconButtonSpinnerSize'] } },

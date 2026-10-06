@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { db } from "../../db/index";
-import { designSystems, tenants, tokenValues } from "../../db/schema";
+import { designSystems, palette, tenants, tokenValues } from "../../db/schema";
 import {
   CreateTenantSchema,
   UpdateTenantSchema,
@@ -93,10 +93,28 @@ router.delete("/:id", validateParams(UuidParamSchema), (req, res) =>
 router.get("/:id/token-values", validateParams(UuidParamSchema), (req, res) =>
   tryCatch(res, async () => {
     const rows = await db
-      .select()
+      .select({
+        ...getTableColumns(tokenValues),
+        paletteType: palette.type,
+        paletteShade: palette.shade,
+        paletteSaturation: palette.saturation,
+      })
       .from(tokenValues)
+      .leftJoin(palette, eq(tokenValues.paletteId, palette.id))
       .where(eq(tokenValues.tenantId, req.params.id));
-    res.json(rows);
+
+    // Значения, хранимые ссылкой на палитру, отдаём строкой "[type.shade.saturation]",
+    // а value такой строки содержит только альфу. Потребители раскрывают ссылку по локальной палитре.
+    res.json(
+      rows.map(({ paletteType, paletteShade, paletteSaturation, ...row }) => {
+        if (!row.paletteId || paletteType === null) {
+          return row;
+        }
+        const ref = `[${paletteType}.${paletteShade}.${paletteSaturation}]`;
+        const alpha = (row.value as unknown[] | null)?.[0] ?? null;
+        return { ...row, value: [alpha === null ? ref : `${ref}[${alpha}]`] };
+      }),
+    );
   }),
 );
 

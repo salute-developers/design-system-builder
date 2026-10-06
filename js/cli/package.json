@@ -3,7 +3,14 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "generate:theme": "../services/generator/node_modules/.bin/tsx index.ts",
-        "generate:components": "../services/generator/node_modules/.bin/tsx components.ts"
+        "generate:theme": "tsx src/index.ts",
+        "generate:components": "tsx src/components.ts",
+        "generate:api-meta": "tsx src/generate-api-meta.ts"
+    },
+    "devDependencies": {
+        "@salutejs/plasma-new-hope": "file:../../../plasma/packages/plasma-new-hope/salutejs-plasma-new-hope-0.378.1.tgz",
+        "@types/node": "^22.20.5",
+        "tsx": "^4.23.15",
+        "typescript": "^5.9.3"
     }
 }

@@ -9,6 +9,6 @@
         "noEmit": true,
         "skipLibCheck": true
     },
-    "include": ["**/*.ts"],
+    "include": ["src/**/*.ts"],
     "exclude": [".sdds", "output"]
 }
