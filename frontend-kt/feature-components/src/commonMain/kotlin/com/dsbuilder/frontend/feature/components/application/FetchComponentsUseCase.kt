@@ -45,7 +45,7 @@ public class FetchComponentsUseCase internal constructor(
      * директории, потому что неконвертируемая конфигурация — отказ всей выгрузки, и трогать
      * из-за неё файлы незачем.
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
         val found = when (
             val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
@@ -203,6 +203,7 @@ private sealed interface RenderResult {
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property platformOverride платформа компонентов из `--platform`; побеждает конфигурацию проекта.
  */
 public data class FetchComponentsCommand(
     public val destination: ComponentDestination,

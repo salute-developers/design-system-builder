@@ -168,6 +168,7 @@ private sealed interface ConversionResult {
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property platformOverride платформа компонентов из `--platform`; побеждает конфигурацию проекта.
  */
 public data class PushComponentsCommand(
     public val source: ComponentSource,
@@ -184,6 +185,7 @@ public data class PushComponentsCommand(
  *
  * Обе стороны показываются рядом, потому что автоматической сверки имён нет.
  *
+ * @property platform платформа компонентов, определённая по конфигурации или `--platform`.
  * @property apiUrl разрешённый backend API URL вместе с источником.
  * @property projectId идентификатор проекта.
  * @property designSystemId идентификатор дизайн-системы.

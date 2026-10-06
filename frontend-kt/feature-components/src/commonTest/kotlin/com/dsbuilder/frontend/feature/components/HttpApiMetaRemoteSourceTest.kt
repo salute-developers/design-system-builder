@@ -218,10 +218,13 @@ class HttpApiMetaRemoteSourceTest {
     @Test
     fun aMarkedNameCarriesDeprecatedAndAnUnmarkedOneIsAnObjectWithoutIt() = runTest {
         var body = ""
-        import(manifest = deprecatedManifest, onPost = { _, requestBody ->
-            body = requestBody
-            AuthenticatedHttpResult.Success(REPORT)
-        })
+        import(
+            manifest = deprecatedManifest,
+            onPost = { _, requestBody ->
+                body = requestBody
+                AuthenticatedHttpResult.Success(REPORT)
+            },
+        )
 
         val properties = Json.parseToJsonElement(body).jsonObject.getValue("components").jsonArray[0].jsonObject
             .getValue("properties").jsonArray.map { it.jsonObject }
