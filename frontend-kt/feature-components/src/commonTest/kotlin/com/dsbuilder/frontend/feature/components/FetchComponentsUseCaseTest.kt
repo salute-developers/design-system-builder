@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotResult
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
@@ -88,6 +89,7 @@ class FetchComponentsUseCaseTest {
         designSystemId = DesignSystemId("ds-a"),
         credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
         configPath = "/work/.sdds/config.json",
+        platforms = listOf(TargetPlatform.COMPOSE),
     )
 
     @Test
@@ -222,6 +224,57 @@ class FetchComponentsUseCaseTest {
     )
 
     @Suppress("LongParameterList")
+    @Test
+    fun exportsTheProjectPlatform() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        val result = execute(onExport = { commands += it })
+
+        assertEquals("compose", commands.single().platform)
+        assertEquals(TargetPlatform.COMPOSE, (result as FetchComponentsResult.Fetched).source.platform)
+    }
+
+    @Test
+    fun anAndroidViewProjectExportsTheXmlPlatform() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.ANDROID_VIEW)),
+            onExport = { commands += it },
+        )
+
+        assertEquals("xml", commands.single().platform)
+    }
+
+    @Test
+    fun theExplicitPlatformBeatsTheConfig() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)),
+            platformOverride = TargetPlatform.COMPOSE,
+            onExport = { commands += it },
+        )
+
+        assertEquals("compose", commands.single().platform)
+    }
+
+    @Test
+    fun severalPlatformsWithoutAnOverrideFailBeforeAnythingIsRequested() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+        var written = false
+
+        val result = execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)),
+            onExport = { commands += it },
+            onWrite = { written = true },
+        )
+
+        val failed = result as FetchComponentsResult.Failed
+        assertTrue(failed.message.contains("--platform"), failed.message)
+        assertTrue(commands.isEmpty() && !written)
+    }
+
     private suspend fun execute(
         configurations: List<ExportedComponentConfig> = listOf(exported("avatar", "avatar")),
         underivedTypes: List<String> = emptyList(),
@@ -236,6 +289,7 @@ class FetchComponentsUseCaseTest {
         onWrite: () -> Unit = {},
         selectedContext: ProjectContext = context,
         destination: ComponentDestination = ComponentDestination(),
+        platformOverride: TargetPlatform? = null,
     ): FetchComponentsResult {
         val result = exportResult ?: ExportComponentsResult.Exported(
             ExportedComponentPackage(
@@ -277,6 +331,7 @@ class FetchComponentsUseCaseTest {
             FetchComponentsCommand(
                 destination = destination,
                 apiUrlOverride = "http://localhost:8080",
+                platformOverride = platformOverride,
             ),
         )
     }

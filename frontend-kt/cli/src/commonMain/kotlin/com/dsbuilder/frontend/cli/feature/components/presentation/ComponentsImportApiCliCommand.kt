@@ -127,6 +127,12 @@ private fun ApiMetaImportReport.render(): String = buildString {
     appendLine("Created states: $createdStates")
     appendLine("Created platform names: $createdAliases")
     appendLine("Unchanged properties: $unchangedProperties")
+    // Устаревание обновляется на существующих алиасах, поэтому строки печатаются, только если оно менялось.
+    if (deprecatedMarked + deprecatedMessageChanged + deprecatedCleared > 0) {
+        appendLine("Deprecated marked: $deprecatedMarked")
+        appendLine("Deprecated message changed: $deprecatedMessageChanged")
+        appendLine("Deprecated cleared: $deprecatedCleared")
+    }
     append("Rejected: ${rejected.size}")
     rejected.forEach { rejection ->
         appendLine()
@@ -142,6 +148,8 @@ private fun ApiMetaImportReport.render(): String = buildString {
             append("  $entry")
         }
     }
+    // Справочно: в базе есть, в мете нет. Ничего не удаляется и на код выхода не влияет.
+    appendSection("Absent from meta (informational, nothing was removed)", absent)
 }
 
 /**

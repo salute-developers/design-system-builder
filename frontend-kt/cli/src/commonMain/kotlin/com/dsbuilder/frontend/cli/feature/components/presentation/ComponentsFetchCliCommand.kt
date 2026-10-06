@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.targetPlatform
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsResult
@@ -8,6 +10,7 @@ import com.dsbuilder.frontend.feature.components.application.FetchSource
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
+import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import kotlinx.coroutines.runBlocking
 
@@ -20,6 +23,8 @@ internal class ComponentsFetchCliCommand(
     private val to: String? by option("--to")
 
     private val apiKey: String? by option("--api-key")
+
+    private val platform: TargetPlatform? by option("--platform").targetPlatform().help(PLATFORM_COMPONENTS_HELP)
 
     private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
@@ -34,6 +39,7 @@ internal class ComponentsFetchCliCommand(
                     apiUrlOverride = apiUrl,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
+                    platformOverride = platform,
                 ),
             )
         }
@@ -59,6 +65,7 @@ internal class ComponentsFetchCliCommand(
  * API key не выводится ни в каком виде.
  */
 private fun FetchSource.render(): String = """
+    Platform: ${platform.cliValue}
     Package: $packageName
     Version: $packageVersion
     Configurations: $configurationCount

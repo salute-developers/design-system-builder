@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.components
 
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaDeprecation
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizationResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaProperty
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
@@ -200,5 +201,46 @@ class ComposeApiMetaNormalizerTest {
         assertEquals("text-inlined", "textInlined".toKebabCase())
         assertEquals("in-edit", "InEdit".toKebabCase())
         assertEquals("", "".toKebabCase())
+    }
+
+    @Test
+    fun aDeprecatedMarkOnOneOverloadDeprecatesTheWholeProperty() {
+        val property = normalized(
+            """[{"componentName":"Box","params":[
+                {"id":"color","type":"color","group":"root","paramSimpleType":"Color"},
+                {"id":"color","type":"color","group":"dimensions","paramSimpleType":"InteractiveColor",
+                 "deprecated":{"message":"Use InteractiveColor"}}
+            ]}]""",
+        ).manifest.components.single().properties.single()
+
+        assertEquals(mapOf("color" to ApiMetaDeprecation("Use InteractiveColor")), property.deprecations)
+    }
+
+    @Test
+    fun theMessageOfTheFirstMarkedEntryWins() {
+        val property = normalized(
+            """[{"componentName":"Box","params":[
+                {"id":"color","type":"color","deprecated":{"message":"first"}},
+                {"id":"color","type":"color","deprecated":{"message":"second"}}
+            ]}]""",
+        ).manifest.components.single().properties.single()
+
+        assertEquals("first", property.deprecations.getValue("color").message)
+    }
+
+    @Test
+    fun anEmptyMessageStillMeansDeprecated() {
+        val property = normalized(
+            """[{"componentName":"Box","params":[{"id":"color","type":"color","deprecated":{"message":""}}]}]""",
+        ).manifest.components.single().properties.single()
+
+        assertEquals(mapOf("color" to ApiMetaDeprecation("")), property.deprecations)
+    }
+
+    @Test
+    fun aMetaWithoutDeprecatedHasNoDeprecations() {
+        normalized().manifest.components.flatMap { it.properties }.forEach { property ->
+            assertTrue(property.deprecations.isEmpty(), "${property.name}: ${property.deprecations}")
+        }
     }
 }

@@ -9,6 +9,7 @@ import com.dsbuilder.frontend.feature.components.application.ImportApiMetaRemote
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaRemoteResult
 import com.dsbuilder.frontend.feature.components.data.HttpApiMetaRemoteSource
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaComponent
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaDeprecation
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaProperty
 import kotlinx.coroutines.test.runTest
@@ -82,7 +83,10 @@ class HttpApiMetaRemoteSourceTest {
         val property = avatar.getValue("properties").jsonArray[0].jsonObject
         assertEquals("shape", property.getValue("name").jsonPrimitive.content)
         assertEquals("shape", property.getValue("type").jsonPrimitive.content)
-        assertEquals(listOf("shape"), property.getValue("platformNames").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(
+            listOf("shape"),
+            property.getValue("platformNames").jsonArray.map { it.jsonObject.getValue("name").jsonPrimitive.content },
+        )
         assertTrue(!property.containsKey("platformName"), "прежнее поле platformName отправлено")
         assertEquals("method: shape", property.getValue("description").jsonPrimitive.content)
     }
@@ -101,7 +105,7 @@ class HttpApiMetaRemoteSourceTest {
         val width = slider.getValue("properties").jsonArray[0].jsonObject
         assertEquals(
             listOf("android:minWidth", "android:maxWidth"),
-            width.getValue("platformNames").jsonArray.map { it.jsonPrimitive.content },
+            width.getValue("platformNames").jsonArray.map { it.jsonObject.getValue("name").jsonPrimitive.content },
         )
     }
 
@@ -186,7 +190,83 @@ class HttpApiMetaRemoteSourceTest {
         assertTrue(!failed.message.contains("secret-key"))
     }
 
+    private val deprecatedManifest = ApiMetaManifest(
+        listOf(
+            ApiMetaComponent(
+                name = "Toast",
+                properties = listOf(
+                    ApiMetaProperty(
+                        name = "textColor",
+                        type = "color",
+                        platformNames = listOf("sd_textColor", "android:textColor"),
+                        description = null,
+                        deprecations = mapOf("sd_textColor" to ApiMetaDeprecation("Use android:textColor")),
+                    ),
+                    ApiMetaProperty(
+                        "icon",
+                        "icon",
+                        listOf("sd_icon"),
+                        null,
+                        mapOf("sd_icon" to ApiMetaDeprecation("")),
+                    ),
+                ),
+                states = emptyList(),
+            ),
+        ),
+    )
+
+    @Test
+    fun aMarkedNameCarriesDeprecatedAndAnUnmarkedOneIsAnObjectWithoutIt() = runTest {
+        var body = ""
+        import(manifest = deprecatedManifest, onPost = { _, requestBody ->
+            body = requestBody
+            AuthenticatedHttpResult.Success(REPORT)
+        })
+
+        val properties = Json.parseToJsonElement(body).jsonObject.getValue("components").jsonArray[0].jsonObject
+            .getValue("properties").jsonArray.map { it.jsonObject }
+        val names = properties[0].getValue("platformNames").jsonArray.map { it.jsonObject }
+        assertEquals("sd_textColor", names[0].getValue("name").jsonPrimitive.content)
+        assertEquals(
+            "Use android:textColor",
+            names[0].getValue("deprecated").jsonObject.getValue("message").jsonPrimitive.content,
+        )
+        assertEquals("android:textColor", names[1].getValue("name").jsonPrimitive.content)
+        assertTrue(!names[1].containsKey("deprecated"), "актуальное имя отправлено с deprecated: ${names[1]}")
+        // Пустое сообщение остаётся пустой строкой, а не пропадает.
+        val empty = properties[1].getValue("platformNames").jsonArray[0].jsonObject.getValue("deprecated").jsonObject
+        assertEquals("", empty.getValue("message").jsonPrimitive.content)
+    }
+
+    @Test
+    fun parsesTheDeprecationCountersAndTheAbsentList() = runTest {
+        val result = import(
+            onPost = { _, _ ->
+                AuthenticatedHttpResult.Success(
+                    """{"deprecatedMarked":1,"deprecatedMessageChanged":2,"deprecatedCleared":3,
+                        "absent":["Box","Box.size"]}""",
+                )
+            },
+        )
+
+        val report = assertIs<ImportApiMetaRemoteResult.Imported>(result).report
+        assertEquals(1, report.deprecatedMarked)
+        assertEquals(2, report.deprecatedMessageChanged)
+        assertEquals(3, report.deprecatedCleared)
+        assertEquals(listOf("Box", "Box.size"), report.absent)
+    }
+
+    @Test
+    fun anOldBackendReportWithoutTheNewFieldsStillParses() = runTest {
+        val result = import(onPost = { _, _ -> AuthenticatedHttpResult.Success(REPORT) })
+
+        val report = assertIs<ImportApiMetaRemoteResult.Imported>(result).report
+        assertEquals(0, report.deprecatedMarked)
+        assertEquals(emptyList(), report.absent)
+    }
+
     private suspend fun import(
+        manifest: ApiMetaManifest = MANIFEST,
         dryRun: Boolean = true,
         onGet: (String) -> Unit = {},
         onPost: (String, String) -> AuthenticatedHttpResult,
@@ -198,7 +278,7 @@ class HttpApiMetaRemoteSourceTest {
                 platform = "compose",
                 source = "uikit-compose-api-meta.json",
                 dryRun = dryRun,
-                manifest = MANIFEST,
+                manifest = manifest,
             ),
         )
 

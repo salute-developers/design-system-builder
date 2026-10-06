@@ -46,6 +46,7 @@ class HttpComponentConfigRemoteSourceTest {
 
         val parsed = Json.parseToJsonElement(requests.single().second).jsonObject
         assertEquals("ds-a", parsed.getValue("designSystemId").jsonPrimitive.content)
+        assertEquals("compose", parsed.getValue("platform").jsonPrimitive.content)
         val meta = parsed.getValue("meta").jsonObject
         assertEquals("sdds_sbcom", meta.getValue("name").jsonPrimitive.content)
         assertEquals("/work/.sdds/components", meta.getValue("source").jsonPrimitive.content)
@@ -181,7 +182,8 @@ class HttpComponentConfigRemoteSourceTest {
         // Дизайн-система адресуется идентификатором тела, а не именем в пути.
         val parsed = Json.parseToJsonElement(requests.single().second).jsonObject
         assertEquals("ds-a", parsed.getValue("designSystemId").jsonPrimitive.content)
-        assertEquals(1, parsed.size, "тело несёт лишние поля: $parsed")
+        assertEquals("compose", parsed.getValue("platform").jsonPrimitive.content)
+        assertEquals(2, parsed.size, "тело несёт лишние поля: $parsed")
     }
 
     @Test
@@ -223,6 +225,7 @@ class HttpComponentConfigRemoteSourceTest {
                 credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
+                platform = "compose",
             ),
         )
 
@@ -239,6 +242,7 @@ class HttpComponentConfigRemoteSourceTest {
                 credential = BackendCredential.ProjectKey("secret-key"),
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
+                platform = "compose",
                 packageName = "sdds_sbcom",
                 packageOrigin = "/work/.sdds/components",
                 dryRun = dryRun,

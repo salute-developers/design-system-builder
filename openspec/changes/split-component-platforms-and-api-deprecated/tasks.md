@@ -37,11 +37,11 @@
 
 ## 6. frontend-kt и CLI
 
-- [ ] 6.1 `feature-components`: модель имени платформы с `deprecated` в манифесте и сериализации (`platformNames` объектами), модель отчёта с `deprecatedMarked`, `deprecatedMessageChanged`, `deprecatedCleared` и `absent`, разбор ответа
-- [ ] 6.2 Нормализатор Compose: чтение `deprecated`, правило «хотя бы одна запись с `id`», сообщение первой помеченной; нормализатор View: статус по `attrName`, слияние записей компонента; корпуса тестов с помеченными свойствами, пустым сообщением и без поля
-- [ ] 6.3 Печать отчёта `import-api`: строки счётчиков `deprecated*` (если не нули) и раздел `Absent from meta`; `--strict` не реагирует на них
-- [ ] 6.4 `components push` и `fetch`: платформа из `.sdds/config.json` (одна платформа) или `--platform` (несколько, переопределение), маппинг `compose/xml/ios/web`, передача в теле запроса, ошибка использования при неоднозначности; тесты `ComponentsCliCommandTest` и сквозные
-- [ ] 6.5 `cli/USAGE.md`: раздел импорта (поведение `deprecated`, автоматическое снятие, риск меты старой библиотеки, `Absent from meta`) и разделы push и fetch (платформа и `--platform`)
+- [x] 6.1 `feature-components`: модель имени платформы с `deprecated` в манифесте и сериализации (`platformNames` объектами), модель отчёта с `deprecatedMarked`, `deprecatedMessageChanged`, `deprecatedCleared` и `absent`, разбор ответа
+- [x] 6.2 Нормализатор Compose: чтение `deprecated`, правило «хотя бы одна запись с `id`», сообщение первой помеченной; нормализатор View: статус по `attrName`, слияние записей компонента; корпуса тестов с помеченными свойствами, пустым сообщением и без поля
+- [x] 6.3 Печать отчёта `import-api`: строки счётчиков `deprecated*` (если не нули) и раздел `Absent from meta`; `--strict` не реагирует на них
+- [x] 6.4 `components push` и `fetch`: платформа из `.sdds/config.json` (одна платформа) или `--platform` (несколько, переопределение), маппинг `compose/xml/ios/web`, передача в теле запроса, ошибка использования при неоднозначности; тесты `ComponentsCliCommandTest` и сквозные
+- [x] 6.5 `cli/USAGE.md`: раздел импорта (поведение `deprecated`, автоматическое снятие, риск меты старой библиотеки, `Absent from meta`) и разделы push и fetch (платформа и `--platform`)
 
 ## 7. Проверка
 

@@ -42,12 +42,24 @@ internal data class ApiMetaComponent(
  * @property platformNames имена свойства на платформе запроса: у Compose одно, это `id`; у View — XML-атрибуты,
  * и их может быть несколько (`Avatar.width` → `android:minWidth` и `android:maxWidth`).
  * @property description справочное описание; `null`, если сказать нечего.
+ * @property deprecations пометки устаревания по платформенным именам: ключ — имя из [platformNames].
+ * Имя без записи актуально (в запрос оно уходит объектом без `deprecated`, и backend снимет прежнюю пометку).
  */
 internal data class ApiMetaProperty(
     val name: String,
     val type: String,
     val platformNames: List<String>,
     val description: String?,
+    val deprecations: Map<String, ApiMetaDeprecation> = emptyMap(),
+)
+
+/**
+ * Пометка устаревания платформенного имени.
+ *
+ * @property message сообщение; пустая строка допустима и означает «устарело без сообщения».
+ */
+internal data class ApiMetaDeprecation(
+    val message: String,
 )
 
 /**

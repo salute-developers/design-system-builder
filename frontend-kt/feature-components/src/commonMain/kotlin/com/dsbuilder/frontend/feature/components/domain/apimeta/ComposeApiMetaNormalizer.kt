@@ -59,11 +59,15 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
                 val known = target.properties[param.id]
                 if (known == null) {
                     target.properties[param.id] = MutableProperty(type, param.methodName?.takeIf { it.isNotBlank() })
-                        .also { it.addParamType(param.paramSimpleType) }
+                        .also {
+                            it.addParamType(param.paramSimpleType)
+                            it.markDeprecated(param.deprecated)
+                        }
                 } else if (known.type != type) {
                     conflicts += "${component.componentName}.${param.id}: kept ${known.type}, ignored $type"
                 } else {
                     known.addParamType(param.paramSimpleType)
+                    known.markDeprecated(param.deprecated)
                 }
             }
             component.stateEnum?.values.orEmpty()
@@ -105,6 +109,17 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
     private class MutableProperty(val type: String, private val methodName: String?) {
         private val paramTypes = LinkedHashSet<String>()
 
+        /**
+         * Устаревание относится к свойству целиком: производитель меты распространяет пометку на все
+         * перегрузки одного `id`, но если она всё же есть не у первого вхождения, достаточно любого.
+         * Сообщение берётся у первого помеченного.
+         */
+        private var deprecation: ApiMetaDeprecation? = null
+
+        fun markDeprecated(meta: ComposeMetaDeprecation?) {
+            if (deprecation == null && meta != null) deprecation = ApiMetaDeprecation(meta.message)
+        }
+
         fun addParamType(paramSimpleType: String?) {
             paramSimpleType?.takeIf { it.isNotBlank() }?.let(paramTypes::add)
         }
@@ -119,6 +134,7 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
                 type = type,
                 platformNames = listOf(id),
                 description = parts.takeIf { it.isNotEmpty() }?.joinToString("; "),
+                deprecations = deprecation?.let { mapOf(id to it) }.orEmpty(),
             )
         }
     }
@@ -153,6 +169,12 @@ private data class ComposeMetaParam(
     val type: String = "",
     val methodName: String? = null,
     val paramSimpleType: String? = null,
+    val deprecated: ComposeMetaDeprecation? = null,
+)
+
+@Serializable
+internal data class ComposeMetaDeprecation(
+    val message: String = "",
 )
 
 @Serializable

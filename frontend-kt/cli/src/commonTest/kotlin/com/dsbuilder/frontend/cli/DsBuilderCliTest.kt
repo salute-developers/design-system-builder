@@ -171,6 +171,40 @@ class DsBuilderCliTest {
     }
 
     @Test
+    fun componentsPushAndFetchOfferThePlatformOption() {
+        val cli = DsBuilderCli(fakeRuntime())
+        listOf(listOf("components", "push"), listOf("components", "fetch")).forEach { command ->
+            val result = cli.execute(command + "--help")
+            assertEquals(0, result.exitCode, result.output)
+            assertTrue(result.output.contains("--platform"), result.output)
+        }
+    }
+
+    @Test
+    fun componentsFetchAsksForThePlatformWhenTheConfigDeclaresSeveral() {
+        val fileSystem = FakeFileSystem(currentDirectory = "/repo/src").apply {
+            writeText(
+                "/repo/.sdds/config.json",
+                ProjectConfigCodec().encode(projectConfig().copy(platforms = listOf("compose", "android-view"))),
+            )
+        }
+        val calls = mutableListOf<String>()
+        val result = DsBuilderCli(
+            fakeRuntime(
+                fileSystem = fileSystem,
+                environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+                httpResults = successfulComponentHttpResults(),
+                onGet = { calls += it },
+            ),
+        ).execute(listOf("components", "fetch", "--to", "/custom-components", "--api-url", "http://backend"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("compose, android-view"), result.output)
+        assertTrue(result.output.contains("--platform"), result.output)
+        assertTrue(calls.isEmpty(), "запросы до выбора платформы: $calls")
+    }
+
+    @Test
     fun userSessionCanFetchThemeAndPublishDocsWithoutProjectKey() {
         val fileSystem = initializedFileSystem().apply {
             writeText(
@@ -1235,6 +1269,7 @@ class DsBuilderCliTest {
     private fun projectConfig(projectId: String = "project-a"): ProjectConfig = ProjectConfig(
         projectId = projectId,
         designSystemId = "design-system-a",
+        platforms = listOf("compose"),
         credential = CredentialReference(
             type = CredentialReferenceType.ENV,
             name = "DSBUILDER_PROJECT_A_API_KEY",

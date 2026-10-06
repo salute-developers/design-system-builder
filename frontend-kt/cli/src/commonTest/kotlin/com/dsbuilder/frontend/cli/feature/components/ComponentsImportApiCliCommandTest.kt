@@ -246,7 +246,10 @@ class ComponentsImportApiCliCommandTest {
         val (path, body) = requests.single()
         assertEquals("/api/admin/component-config/import-api-meta", path)
         assertTrue(body.contains("\"platform\":\"xml\""), body)
-        assertTrue(body.contains("\"platformNames\":[\"android:minWidth\",\"android:maxWidth\"]"), body)
+        assertTrue(
+            body.contains("\"platformNames\":[{\"name\":\"android:minWidth\"},{\"name\":\"android:maxWidth\"}]"),
+            body,
+        )
         assertTrue(body.contains("\"states\":[\"active\"]"), body)
         listOf("Platform: android-view", "Source: $VIEW_META_PATH", "Components: 3", "Properties: 3", "States: 1")
             .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
@@ -279,6 +282,52 @@ class ComponentsImportApiCliCommandTest {
         assertTrue(result.output.contains("not a View meta"), result.output)
         assertTrue(result.output.contains(META_PATH), result.output)
         assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun printsDeprecationCountersOnlyWhenTheyAreNotZero() {
+        val quiet = run(base())
+        val busy = run(
+            base(),
+            report = """{"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,
+                "unchangedProperties":3,"deprecatedMarked":2,"deprecatedMessageChanged":1,"deprecatedCleared":4,
+                "rejected":[],"typeMismatches":[]}""",
+        )
+
+        assertTrue(!quiet.output.contains("Deprecated"), quiet.output)
+        listOf("Deprecated marked: 2", "Deprecated message changed: 1", "Deprecated cleared: 4")
+            .forEach { assertTrue(busy.output.contains(it), "нет '$it' в выводе:\n${busy.output}") }
+    }
+
+    @Test
+    fun printsTheAbsentListAsInformationAndItNeverFailsStrict() {
+        val result = run(
+            base() + "--strict",
+            report = """{"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,
+                "unchangedProperties":3,"rejected":[],"typeMismatches":[],"absent":["Box","Avatar.size"]}""",
+        )
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("Absent from meta (informational, nothing was removed): 2"), result.output)
+        assertTrue(result.output.contains("  Box") && result.output.contains("  Avatar.size"), result.output)
+    }
+
+    @Test
+    fun noAbsentSectionWhenNothingIsAbsent() {
+        assertTrue(!run(base()).output.contains("Absent from meta"))
+    }
+
+    @Test
+    fun aDeprecatedPropertyInTheMetaReachesTheRequest() {
+        val meta = """[{"componentName":"Box","params":[
+            {"id":"color","type":"color","deprecated":{"message":"Use X"}},
+            {"id":"size","type":"dimension"}]}]"""
+
+        run(base(), files = mapOf(META_PATH to meta))
+
+        val body = requests.single().second
+        assertTrue(body.contains("{\"name\":\"color\",\"deprecated\":{\"message\":\"Use X\"}}"), body)
+        assertTrue(body.contains("\"platformNames\":[{\"name\":\"size\"}]"), body)
     }
 
     private fun base(platform: String = "compose", from: String = META_PATH) = listOf(

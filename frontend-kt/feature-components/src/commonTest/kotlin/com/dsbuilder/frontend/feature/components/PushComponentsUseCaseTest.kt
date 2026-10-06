@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.API_URL_ENV
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
@@ -56,6 +57,7 @@ class PushComponentsUseCaseTest {
         designSystemId = DesignSystemId("ds-a"),
         credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
         configPath = "/work/.sdds/config.json",
+        platforms = listOf(TargetPlatform.COMPOSE),
     )
 
     @Test
@@ -245,6 +247,70 @@ class PushComponentsUseCaseTest {
     }
 
     @Suppress("LongParameterList")
+    private fun readerOf(vararg platforms: TargetPlatform) = object : ProjectContextReader {
+        override fun requireContext(startingDirectory: String?): ProjectContextReadResult =
+            ProjectContextReadResult.Found(context.copy(platforms = platforms.toList()))
+    }
+
+    @Test
+    fun sendsTheProjectPlatformInTheRemoteCommand() = runTest {
+        val commands = mutableListOf<ImportComponentsCommand>()
+
+        val result = execute(onImport = { commands += it })
+
+        val pushed = result as PushComponentsResult.Pushed
+        assertEquals("compose", commands.single().platform)
+        assertEquals(TargetPlatform.COMPOSE, pushed.target.platform)
+    }
+
+    @Test
+    fun anAndroidViewProjectSendsTheXmlPlatform() = runTest {
+        val commands = mutableListOf<ImportComponentsCommand>()
+
+        execute(contextReader = readerOf(TargetPlatform.ANDROID_VIEW), onImport = { commands += it })
+
+        assertEquals("xml", commands.single().platform)
+    }
+
+    @Test
+    fun theExplicitPlatformBeatsTheConfig() = runTest {
+        val commands = mutableListOf<ImportComponentsCommand>()
+
+        execute(
+            contextReader = readerOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW),
+            platformOverride = TargetPlatform.ANDROID_VIEW,
+            onImport = { commands += it },
+        )
+
+        assertEquals("xml", commands.single().platform)
+    }
+
+    @Test
+    fun severalPlatformsWithoutAnOverrideFailBeforeAnythingIsSent() = runTest {
+        val commands = mutableListOf<ImportComponentsCommand>()
+
+        val result = execute(
+            contextReader = readerOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW),
+            onImport = { commands += it },
+        )
+
+        val failed = result as PushComponentsResult.Failed
+        assertTrue(failed.message.contains("compose, android-view"), failed.message)
+        assertTrue(failed.message.contains("--platform"), failed.message)
+        assertTrue(commands.isEmpty())
+    }
+
+    @Test
+    fun aProjectWithoutPlatformsAsksForTheOption() = runTest {
+        val commands = mutableListOf<ImportComponentsCommand>()
+
+        val result = execute(contextReader = readerOf(), onImport = { commands += it })
+
+        val failed = result as PushComponentsResult.Failed
+        assertTrue(failed.message.contains("--platform"), failed.message)
+        assertTrue(commands.isEmpty())
+    }
+
     private suspend fun execute(
         packageName: String = "sdds_sbcom",
         configurations: List<ComponentConfiguration> = defaultConfigurations,
@@ -257,6 +323,7 @@ class PushComponentsUseCaseTest {
             CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
         ),
         dryRun: Boolean = true,
+        platformOverride: TargetPlatform? = null,
         apiUrlOverride: String? = "http://localhost:8080",
         environment: (String) -> String? = { null },
         importResult: ImportComponentsResult = ImportComponentsResult.Imported(REPORT),
@@ -284,6 +351,7 @@ class PushComponentsUseCaseTest {
                 source = ComponentSource(),
                 dryRun = dryRun,
                 apiUrlOverride = apiUrlOverride,
+                platformOverride = platformOverride,
             ),
         )
     }

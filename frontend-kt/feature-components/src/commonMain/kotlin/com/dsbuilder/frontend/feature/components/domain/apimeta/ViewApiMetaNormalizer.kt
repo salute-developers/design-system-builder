@@ -118,11 +118,12 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
         val type = typeMap[param.type] ?: param.type
         val known = properties[param.id]
         if (known == null) {
-            properties[param.id] = MutableProperty(type).also { it.addAttr(param.attrName.ifBlank { param.id }) }
+            properties[param.id] = MutableProperty(type)
+                .also { it.addAttr(param.attrName.ifBlank { param.id }, param.deprecated) }
         } else if (known.type != type) {
             conflicts += "$componentName.${param.id}: kept ${known.type}, ignored $type"
         } else {
-            known.addAttr(param.attrName.ifBlank { param.id })
+            known.addAttr(param.attrName.ifBlank { param.id }, param.deprecated)
         }
     }
 
@@ -138,9 +139,17 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
      */
     private class MutableProperty(val type: String) {
         private val attrNames = LinkedHashSet<String>()
+        private val deprecations = LinkedHashMap<String, ApiMetaDeprecation>()
 
-        fun addAttr(attrName: String) {
+        /**
+         * Устаревание относится к конкретному атрибуту, а не к свойству: `sd_textColor` может быть устаревшим,
+         * а `android:textColor` того же свойства нет. Атрибут помечен, если помечено хотя бы одно его вхождение.
+         */
+        fun addAttr(attrName: String, deprecated: ViewMetaDeprecation?) {
             attrNames += attrName
+            if (deprecated != null && attrName !in deprecations) {
+                deprecations[attrName] = ApiMetaDeprecation(deprecated.message)
+            }
         }
 
         fun toManifest(id: String) = ApiMetaProperty(
@@ -148,6 +157,7 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
             type = type,
             platformNames = attrNames.toList(),
             description = attrNames.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = "attr: "),
+            deprecations = deprecations.toMap(),
         )
     }
 
@@ -176,6 +186,12 @@ private data class ViewMetaParam(
     val id: String = "",
     val type: String = "",
     val attrName: String = "",
+    val deprecated: ViewMetaDeprecation? = null,
+)
+
+@Serializable
+internal data class ViewMetaDeprecation(
+    val message: String = "",
 )
 
 @Serializable

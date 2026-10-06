@@ -32,6 +32,7 @@ internal class HttpComponentConfigRemoteSource(
             ImportRequest.serializer(),
             ImportRequest(
                 designSystemId = command.designSystemId.value,
+                platform = command.platform,
                 meta = ImportMeta(name = command.packageName, source = command.packageOrigin),
                 dryRun = command.dryRun,
                 components = command.components.map { component ->
@@ -56,7 +57,7 @@ internal class HttpComponentConfigRemoteSource(
     override suspend fun export(command: ExportComponentsCommand): ExportComponentsResult {
         val body = json.encodeToString(
             ExportRequest.serializer(),
-            ExportRequest(designSystemId = command.designSystemId.value),
+            ExportRequest(designSystemId = command.designSystemId.value, platform = command.platform),
         )
 
         val path = "/api/projects/${command.projectId.value}/ds/component-config/export"
@@ -103,6 +104,7 @@ internal class HttpComponentConfigRemoteSource(
  *
  * @property designSystemId дизайн-система, в которую грузится пакет. Идентификатора нет в пути:
  * backend адресует дизайн-систему телом запроса.
+ * @property platform платформа компонентов: имя компонента уникально только внутри платформы.
  * @property meta метаданные пакета.
  * @property dryRun признак импорта без сохранения изменений.
  * @property components конфигурации в common-формате.
@@ -110,6 +112,7 @@ internal class HttpComponentConfigRemoteSource(
 @Serializable
 private data class ImportRequest(
     val designSystemId: String,
+    val platform: String,
     val meta: ImportMeta,
     val dryRun: Boolean,
     val components: List<ImportComponent>,
@@ -193,10 +196,12 @@ private data class ImportRejectionResponse(
  * Тело запроса `POST /ds/component-config/export`.
  *
  * @property designSystemId дизайн-система, конфигурации которой выгружаются.
+ * @property platform платформа компонентов.
  */
 @Serializable
 private data class ExportRequest(
     val designSystemId: String,
+    val platform: String,
 )
 
 /**

@@ -36,7 +36,13 @@ internal class HttpApiMetaRemoteSource(
                             ApiMetaImportProperty(
                                 name = property.name,
                                 type = property.type,
-                                platformNames = property.platformNames,
+                                platformNames = property.platformNames.map { name ->
+                                    ApiMetaImportAlias(
+                                        name = name,
+                                        deprecated = property.deprecations[name]
+                                            ?.let { ApiMetaImportDeprecation(it.message) },
+                                    )
+                                },
                                 description = property.description,
                             )
                         },
@@ -103,8 +109,20 @@ private data class ApiMetaImportComponent(
 private data class ApiMetaImportProperty(
     val name: String,
     val type: String,
-    val platformNames: List<String>,
+    val platformNames: List<ApiMetaImportAlias>,
     val description: String? = null,
+)
+
+/** Платформенное имя объектом: объект без `deprecated` явно говорит «не устарело». */
+@Serializable
+private data class ApiMetaImportAlias(
+    val name: String,
+    val deprecated: ApiMetaImportDeprecation? = null,
+)
+
+@Serializable
+private data class ApiMetaImportDeprecation(
+    val message: String,
 )
 
 /**
@@ -117,8 +135,12 @@ private data class ApiMetaImportReportResponse(
     val createdStates: Int = 0,
     val createdAliases: Int = 0,
     val unchangedProperties: Int = 0,
+    val deprecatedMarked: Int = 0,
+    val deprecatedMessageChanged: Int = 0,
+    val deprecatedCleared: Int = 0,
     val rejected: List<ApiMetaRejectionResponse> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
+    val absent: List<String> = emptyList(),
 ) {
     fun toDomain(): ApiMetaImportReport = ApiMetaImportReport(
         createdComponents = createdComponents,
@@ -126,8 +148,12 @@ private data class ApiMetaImportReportResponse(
         createdStates = createdStates,
         createdAliases = createdAliases,
         unchangedProperties = unchangedProperties,
+        deprecatedMarked = deprecatedMarked,
+        deprecatedMessageChanged = deprecatedMessageChanged,
+        deprecatedCleared = deprecatedCleared,
         rejected = rejected.map { ApiMetaRejection(it.component, it.property, it.reason) },
         typeMismatches = typeMismatches,
+        absent = absent,
     )
 }
 

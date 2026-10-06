@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.components
 
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaDeprecation
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizationResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaSkipped
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ViewApiMetaNormalizer
@@ -259,5 +260,52 @@ class ViewApiMetaNormalizerTest {
     @Test
     fun garbageIsInvalid() {
         assertIs<ApiMetaNormalizationResult.Invalid>(normalizer.normalize("not json"))
+    }
+
+    private val textColorMeta = """
+        {"components":[
+          {"componentNames":["Toast"],"styleableName":"Toast","params":[
+            {"id":"textColor","attrName":"sd_textColor","type":"color","deprecated":{"message":"Use android:textColor"}},
+            {"id":"textColor","attrName":"android:textColor","type":"color"}]}]}
+    """
+
+    @Test
+    fun onlyTheMarkedAttributeIsDeprecated() {
+        val property = component("Toast", textColorMeta).properties.single()
+
+        assertEquals(listOf("sd_textColor", "android:textColor"), property.platformNames)
+        assertEquals(mapOf("sd_textColor" to ApiMetaDeprecation("Use android:textColor")), property.deprecations)
+    }
+
+    @Test
+    fun anAttributeMarkedInOneRecordStaysMarkedWhenAnotherRecordOfTheComponentRepeatsIt() {
+        val property = component(
+            "Toast",
+            """{"components":[
+              {"componentNames":["Toast"],"params":[
+                {"id":"size","attrName":"android:minWidth","type":"dimension","deprecated":{"message":"old"}}]},
+              {"componentNames":["Toast"],"params":[
+                {"id":"size","attrName":"android:minWidth","type":"dimension"}]}]}""",
+        ).properties.single()
+
+        assertEquals(mapOf("android:minWidth" to ApiMetaDeprecation("old")), property.deprecations)
+    }
+
+    @Test
+    fun anEmptyMessageStillMarksTheAttribute() {
+        val property = component(
+            "Toast",
+            """{"components":[{"componentNames":["Toast"],"params":[
+                {"id":"icon","attrName":"sd_icon","type":"icon","deprecated":{"message":""}}]}]}""",
+        ).properties.single()
+
+        assertEquals(mapOf("sd_icon" to ApiMetaDeprecation("")), property.deprecations)
+    }
+
+    @Test
+    fun theCorpusWithoutDeprecatedHasNoDeprecations() {
+        normalized().manifest.components.flatMap { it.properties }.forEach { property ->
+            assertTrue(property.deprecations.isEmpty(), "${property.name}: ${property.deprecations}")
+        }
     }
 }
