@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info:
+  title: DS Builder Gateway Authentication API
+  version: 1.0.0
+  description: Public authentication endpoint exposed by the identity gateway.
+servers:
+  - url: /
+paths:
+  /auth/token:
+    post:
+      operationId: obtainAccessToken
+      tags: [Authentication]
+      summary: Obtain or refresh an access token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [grant_type, client_id]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [password, refresh_token]
+                  default: password
+                client_id:
+                  type: string
+                  default: dsbuilder-api
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                refresh_token:
+                  type: string
+                scope:
+                  type: string
+                  default: openid
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Invalid token request
+        '401':
+          description: Invalid credentials
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int32
