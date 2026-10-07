@@ -1,9 +1,9 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { projectsApi, type ProjectMemberDto } from '../../api';
 import { CatalogPage, sortCatalogByName, State } from '../../components/Catalog/Catalog';
-import { StyledSelect } from '../../components/Overlay/Overlay';
+import { StyledSelect, trapDialogTabKey } from '../../components/Overlay/Overlay';
 import { choose, Visible } from '../../components/rendering';
 import { createProjectWithMembers } from '../../modules/projects/application/createProject';
 import type { PendingProjectMember } from '../../modules/projects/domain/project';
@@ -14,6 +14,7 @@ import { ProjectCards } from './ProjectsCatalog';
 
 export const CreateProjectPage = () => {
     const navigate = useNavigate();
+    const dialogRef = useRef<HTMLElement>(null);
     const projects = useLoad(projectsApi.list, [], 'projects');
     const [sort, setSort] = useState('modified');
     const [step, setStep] = useState<'project' | 'team'>('project');
@@ -25,6 +26,14 @@ export const CreateProjectPage = () => {
     const [createdProjectId, setCreatedProjectId] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    useEffect(() => {
+        const frame = requestAnimationFrame(() => {
+            dialogRef.current
+                ?.querySelector<HTMLInputElement>('input:not([type="hidden"]):not([disabled])')
+                ?.focus();
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [projects.data, step]);
     if (projects.error) return <State text="Не удалось загрузить проекты" retry={projects.reload} />;
     if (!projects.data) return <State text="Загружаем проекты…" />;
     const visibleProjects = sortCatalogByName(projects.data, sort);
@@ -77,10 +86,12 @@ export const CreateProjectPage = () => {
             <ProjectCards projects={visibleProjects} />
             <div className="catalog-dialog-scrim">
                 <section
+                    ref={dialogRef}
                     className={`create-project-dialog is-${step} ${choose(Boolean(error), '', 'has-error is-negative')}`}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="create-project-title"
+                    onKeyDownCapture={trapDialogTabKey}
                 >
                     <form onSubmit={submit} noValidate>
                         <div className="create-project-main">

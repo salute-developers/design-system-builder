@@ -27,9 +27,11 @@ export const MemberCandidatePicker = ({
     const [candidates, setCandidates] = useState<ProjectMemberCandidateDto[]>([]);
     const [loading, setLoading] = useState(false);
     const [failed, setFailed] = useState(false);
+    const [selectedIdentifier, setSelectedIdentifier] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
         const query = value.trim();
-        if (query.length < 2) {
+        if (query.length < 2 || query === selectedIdentifier) {
             setCandidates([]);
             setLoading(false);
             setFailed(false);
@@ -57,16 +59,20 @@ export const MemberCandidatePicker = ({
             current = false;
             window.clearTimeout(timer);
         };
-    }, [value]);
+    }, [selectedIdentifier, value]);
     return (
         <div className="member-candidate-picker">
             {name && <input type="hidden" name={name} value={value} />}
             <label>
                 <span>{label}</span>
                 <input
+                    ref={inputRef}
                     type="search"
                     value={value}
-                    onChange={(event) => onChange(event.target.value)}
+                    onChange={(event) => {
+                        setSelectedIdentifier('');
+                        onChange(event.target.value);
+                    }}
                     placeholder="Имя или корпоративная почта"
                     autoComplete="off"
                     aria-autocomplete="list"
@@ -78,7 +84,11 @@ export const MemberCandidatePicker = ({
                     type="button"
                     className="member-candidate-clear"
                     aria-label="Очистить поиск участника"
-                    onClick={() => onChange('')}
+                    onClick={() => {
+                        setSelectedIdentifier('');
+                        onChange('');
+                        requestAnimationFrame(() => inputRef.current?.focus());
+                    }}
                 >
                     ×
                 </button>
@@ -97,8 +107,10 @@ export const MemberCandidatePicker = ({
                                 aria-selected={value === identifier}
                                 key={candidate.userId}
                                 onClick={() => {
+                                    setSelectedIdentifier(identifier);
                                     onChange(identifier);
                                     setCandidates([]);
+                                    requestAnimationFrame(() => inputRef.current?.focus());
                                 }}
                             >
                                 <strong>{candidate.displayName || candidate.username || candidate.email}</strong>

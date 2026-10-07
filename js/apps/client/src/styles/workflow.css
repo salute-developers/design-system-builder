@@ -12,6 +12,43 @@
 * {
     box-sizing: border-box;
 }
+:where(
+        .builder-shell,
+        .catalog-dialog-scrim,
+        .modal,
+        .styled-select-popover,
+        .account-popover,
+        .ps-member-actions-popover
+    )
+    :where(a[href], button, input, textarea, select, [tabindex]):focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+:where(
+        .builder-shell,
+        .catalog-dialog-scrim,
+        .modal,
+        .styled-select-popover,
+        .account-popover,
+        .ps-member-actions-popover
+    )
+    :where(a[href], button, input[type='checkbox'], input[type='radio'], [tabindex]):focus-visible {
+    outline: 1px solid var(--p-accent) !important;
+    outline-offset: 1px;
+    box-shadow: none !important;
+}
+.builder-shell input:not([type='checkbox']):not([type='radio']):focus-visible,
+.builder-shell textarea:focus-visible,
+.builder-shell select:focus-visible,
+.catalog-dialog-scrim input:not([type='checkbox']):not([type='radio']):focus-visible,
+.catalog-dialog-scrim textarea:focus-visible,
+.modal input:not([type='checkbox']):not([type='radio']):focus-visible,
+.modal textarea:focus-visible,
+.modal select:focus-visible {
+    border-color: var(--p-accent);
+    outline: 0;
+    box-shadow: none;
+}
 .builder-shell {
     min-height: 100vh;
     display: grid;
@@ -673,6 +710,9 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+}
+.custom-palette-error {
+    margin-top: 4px;
 }
 .create-theme-footer {
     padding: 12px;
@@ -2102,6 +2142,8 @@ button:disabled {
         height: auto;
         min-height: calc(100vh - 44px);
         grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr);
+        align-content: start;
     }
     .ps-nav {
         display: flex;
@@ -2120,9 +2162,18 @@ button:disabled {
     .ps-header {
         height: auto;
         padding: 12px 16px;
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
+        align-items: center;
+        flex-direction: row;
+        gap: 8px;
+    }
+    .ps-header h1 {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .ps-header > :last-child {
+        flex: 0 0 auto;
     }
     .ps-content {
         padding: 16px;

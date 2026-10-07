@@ -36,10 +36,12 @@ export const themeProfilePreviews: Record<Exclude<ThemeProfile, 'custom'>, Recor
 
 export const normalizeThemeName = (name: string) => name.trim().replace(/\s+/g, ' ');
 
+export const validateCustomThemePalette = (palette: PreviewPalette) =>
+    palette.some((color) => !/^#[0-9A-Fa-f]{6}$/.test(color)) ? 'Введите цвета в формате #RRGGBB.' : '';
+
 export const validateThemeInput = (name: string, profile: ThemeProfile, palette: PreviewPalette) => {
     if (!name) return 'Введите название Theme.';
     if (name.length > 80) return 'Название Theme должно быть не длиннее 80 символов.';
-    if (profile === 'custom' && palette.some((color) => !/^#[0-9A-Fa-f]{6}$/.test(color)))
-        return 'Введите цвета в формате #RRGGBB.';
+    if (profile === 'custom') return validateCustomThemePalette(palette);
     return '';
 };

@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, RefObject } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -52,6 +52,36 @@ export const focusRelativeToTrigger = (trigger: HTMLElement, popover: HTMLElemen
         return;
     }
     const nextIndex = (triggerIndex + (backward ? -1 : 1) + focusable.length) % focusable.length;
+    focusable[nextIndex]?.focus();
+};
+
+export const trapDialogTabKey = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(
+        event.currentTarget.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+    ).filter((element) => {
+        if (element.tabIndex < 0) return false;
+        if (element.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+        let node: HTMLElement | null = element;
+        while (node && node !== event.currentTarget) {
+            const style = getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            node = node.parentElement;
+        }
+        return true;
+    });
+    if (!focusable.length) return;
+    const active = document.activeElement;
+    const activeIndex = focusable.indexOf(active as HTMLElement);
+    const nextIndex =
+        activeIndex < 0
+            ? event.shiftKey
+                ? focusable.length - 1
+                : 0
+            : (activeIndex + (event.shiftKey ? -1 : 1) + focusable.length) % focusable.length;
+    event.preventDefault();
     focusable[nextIndex]?.focus();
 };
 
@@ -182,7 +212,7 @@ export const StyledSelect = ({
                 aria-expanded={open}
                 disabled={disabled}
                 onClick={() => !disabled && setOpen(!open)}
-                onKeyDown={(event) => {
+                onKeyDownCapture={(event) => {
                     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
                     event.preventDefault();
                     if (!disabled) setOpen(true);
@@ -301,22 +331,7 @@ export const Modal = ({
                         onClose();
                         return;
                     }
-                    if (event.key !== 'Tab') return;
-                    const focusable = Array.from(
-                        event.currentTarget.querySelectorAll<HTMLElement>(
-                            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-                        ),
-                    );
-                    if (!focusable.length) return;
-                    const first = focusable[0];
-                    const last = focusable[focusable.length - 1];
-                    if (event.shiftKey && document.activeElement === first) {
-                        event.preventDefault();
-                        last.focus();
-                    } else if (!event.shiftKey && document.activeElement === last) {
-                        event.preventDefault();
-                        first.focus();
-                    }
+                    trapDialogTabKey(event);
                 }}
             >
                 <header>

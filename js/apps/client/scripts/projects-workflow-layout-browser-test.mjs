@@ -115,8 +115,11 @@ const server = createServer(async (req, res) => {
                     localStorage.setItem('auth.access_token', ${JSON.stringify(accessToken)});
                     localStorage.setItem('auth.refresh_token', ${JSON.stringify(accessToken)});
                     localStorage.setItem('auth.expires_at', Date.now() + 3600000);
+                    const requestedColorNavigation = location.search.includes('navigate-colors');
                     setTimeout(() => {
                         const isEditor = location.pathname.includes('/themes/');
+                        const resumesColorNavigation = localStorage.getItem('layout-test-navigate-colors') === '1';
+                        if (resumesColorNavigation) localStorage.removeItem('layout-test-navigate-colors');
                         const expectedSection = isEditor ? location.pathname.split('/').filter(Boolean).at(-1) : null;
                         const checks = { existingTenantRoute: !isEditor || location.pathname.includes('/themes/') };
                         const card = document.querySelector('.catalog-card');
@@ -136,7 +139,7 @@ const server = createServer(async (req, res) => {
                         const menu = document.querySelector('[data-testid="editor-workspace-menu"]');
                         const content = document.querySelector('[data-testid="editor-workspace-content"]');
                         const rail = document.querySelector('[data-testid="editor-rail"]');
-                        const railLogo = rail?.firstElementChild;
+                        const railLogo = rail?.querySelector('.builder-rail-logo');
                         const railButton = rail?.querySelector('[data-testid="editor-nav-colors"]');
                         const railIcon = railButton?.querySelector('svg');
                         const sectionContent = content?.firstElementChild;
@@ -155,7 +158,7 @@ const server = createServer(async (req, res) => {
                             checks.railIconRect = JSON.stringify({ left: railIconRect.left, top: railIconRect.top, width: railIconRect.width, height: railIconRect.height });
                             checks.railGeometry = railRect.left === 0 && railRect.width === 44 && railRect.height === innerHeight;
                             checks.railLogoGeometry = railLogoRect.left === 6 && railLogoRect.top === 6 && railLogoRect.width === 32 && railLogoRect.height === 32;
-                            checks.railButtonGeometry = railButtonRect.left === 6 && railButtonRect.top === 84 && railButtonRect.width === 32 && railButtonRect.height === 32;
+                            checks.railButtonGeometry = railButtonRect.left === 6 && railButtonRect.top === 50 && railButtonRect.width === 32 && railButtonRect.height === 32;
                             checks.railIconGeometry = railIconRect.width === 16 && railIconRect.height === 16 && railIconRect.left === railButtonRect.left + 8 && railIconRect.top === railButtonRect.top + 8;
                         }
                         if (isEditor && rail && railLogo && railButton && menu && content && sectionContent) {
@@ -168,8 +171,8 @@ const server = createServer(async (req, res) => {
                             checks.sectionRect = JSON.stringify({ top: sectionRect.top, bottom: sectionRect.bottom, height: sectionRect.height });
                             checks.menuFollowsRail = menuRect.left === railRect.right;
                             checks.contentFollowsMenu = contentRect.left === menuRect.right;
-                            checks.menuFillsViewport = menuRect.top === 0 && menuRect.bottom === innerHeight && menuRect.height === innerHeight;
-                            checks.contentFillsViewport = contentRect.top === 0 && contentRect.bottom === innerHeight && contentRect.height === innerHeight;
+                            checks.menuFillsViewport = menuRect.top === 44 && menuRect.bottom === innerHeight && menuRect.height === innerHeight - 44;
+                            checks.contentFillsViewport = contentRect.top === 44 && contentRect.bottom === innerHeight && contentRect.height === innerHeight - 44;
                             checks.contentVisible = contentRect.width > 0 && contentRect.height > 0 && getComputedStyle(content).visibility !== 'hidden';
                             checks.sectionInsideViewport = sectionRect.top >= 0 && sectionRect.top < innerHeight && sectionRect.bottom <= innerHeight;
                             checks.sectionVisible = sectionRect.width > 0 && sectionRect.height > 0 && getComputedStyle(sectionContent).visibility !== 'hidden';
@@ -190,11 +193,23 @@ const server = createServer(async (req, res) => {
                                 }
                             }
                         }
-                        if (location.search.includes('navigate-colors')) {
+                        if (resumesColorNavigation) {
+                            checks.sectionNavigation = location.pathname.endsWith('/colors');
+                            emit(checks);
+                            return;
+                        }
+                        if (requestedColorNavigation) {
+                            localStorage.setItem('layout-test-navigate-colors', '1');
                             document.querySelector('[data-testid="editor-nav-colors"]')?.click();
-                            setTimeout(() => {
-                                checks.sectionNavigation = location.pathname.endsWith('/colors');
-                                emit(checks);
+                            let attempts = 0;
+                            const waitForNavigation = setInterval(() => {
+                                attempts += 1;
+                                if (location.pathname.endsWith('/colors') || attempts >= 20) {
+                                    clearInterval(waitForNavigation);
+                                    localStorage.removeItem('layout-test-navigate-colors');
+                                    checks.sectionNavigation = location.pathname.endsWith('/colors');
+                                    emit(checks);
+                                }
                             }, 100);
                             return;
                         }

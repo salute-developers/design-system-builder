@@ -214,7 +214,7 @@ describe('project workflow', () => {
     });
 
     it('shows registered-user suggestions by name and uses the selected identifier', async () => {
-        vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([
+        const search = vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([
             { userId: 'user-2', username: 'alex', email: 'alex@example.com', displayName: 'Alex User' },
         ]);
         at('/projects/new', <CreateProjectPage />);
@@ -227,6 +227,10 @@ describe('project workflow', () => {
         expect(await screen.findByRole('option', { name: /Alex User/ })).toBeInTheDocument();
         fireEvent.click(screen.getByRole('option', { name: /Alex User/ }));
         expect(screen.getByPlaceholderText('Имя или корпоративная почта')).toHaveValue('alex@example.com');
+        await waitFor(() => expect(screen.getByPlaceholderText('Имя или корпоративная почта')).toHaveFocus());
+        await new Promise((resolve) => window.setTimeout(resolve, 300));
+        expect(search).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('listbox', { name: 'Найденные пользователи' })).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Очистить поиск участника' }));
         expect(screen.getByPlaceholderText('Имя или корпоративная почта')).toHaveValue('');
     });
@@ -1105,9 +1109,67 @@ describe('design system and Theme workflow', () => {
         fireEvent.change(await screen.findByLabelText('Название'), { target: { value: 'Custom theme' } });
         fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
         fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#xyz' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Создать и открыть Theme' }));
-        expect(await screen.findByText('Введите цвета в формате #RRGGBB.')).toBeInTheDocument();
+        const createButton = screen.getByRole('button', { name: 'Создать и открыть Theme' });
+        expect(createButton).toBeDisabled();
+        const paletteError = screen.getByText('Введите цвета в формате #RRGGBB.');
+        expect(paletteError).toHaveClass('custom-palette-error');
+        expect(paletteError.previousElementSibling).toHaveClass('custom-fields');
+        fireEvent.change(screen.getByLabelText('Primary'), { target: { value: '#123456' } });
+        expect(screen.queryByText('Введите цвета в формате #RRGGBB.')).not.toBeInTheDocument();
+        expect(createButton).toBeEnabled();
         expect(create).not.toHaveBeenCalled();
+    });
+
+    it('keeps keyboard focus inside the project creation dialog', async () => {
+        at('/projects/new', <CreateProjectPage />);
+        const name = await screen.findByLabelText('Название');
+        await waitFor(() => expect(name).toHaveFocus());
+        fireEvent.change(name, { target: { value: 'Platform' } });
+        const description = screen.getByLabelText('Описание');
+        description.focus();
+        fireEvent.keyDown(description, { key: 'Tab' });
+        expect(screen.getByRole('link', { name: 'Отмена' })).toHaveFocus();
+        fireEvent.keyDown(screen.getByRole('link', { name: 'Отмена' }), { key: 'Tab', shiftKey: true });
+        expect(description).toHaveFocus();
+        fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
+        const first = screen.getByPlaceholderText('Имя или корпоративная почта');
+        await waitFor(() => expect(first).toHaveFocus());
+        const last = screen.getByRole('button', { name: 'Создать проект' });
+        last.focus();
+        fireEvent.keyDown(last, { key: 'Tab' });
+        expect(first).toHaveFocus();
+        fireEvent.keyDown(first, { key: 'Tab', shiftKey: true });
+        expect(last).toHaveFocus();
+    });
+
+    it('moves focus into the project dialog after a delayed catalog load', async () => {
+        let resolveProjects!: (projects: ProjectDto[]) => void;
+        vi.spyOn(projectsApi, 'list').mockReturnValue(
+            new Promise((resolve) => {
+                resolveProjects = resolve;
+            }),
+        );
+        at('/projects/new', <CreateProjectPage />);
+        await new Promise((resolve) => window.setTimeout(resolve, 30));
+        expect(screen.queryByRole('dialog', { name: 'Создать проект' })).not.toBeInTheDocument();
+        resolveProjects([]);
+        const name = await screen.findByLabelText('Название');
+        await waitFor(() => expect(name).toHaveFocus());
+    });
+
+    it('uses one thin global focus ring and keeps compact settings toolbars at narrow widths', () => {
+        expect(workflowCss).toMatch(
+            /:where\([\s\S]*?\.builder-shell,[\s\S]*?\.account-popover,[\s\S]*?\.ps-member-actions-popover[\s\S]*?\)[\s\S]*?:where\(a\[href\], button, input\[type='checkbox'\], input\[type='radio'\], \[tabindex\]\):focus-visible\s*\{[\s\S]*?outline:\s*1px solid var\(--p-accent\) !important;[\s\S]*?box-shadow:\s*none !important;/,
+        );
+        expect(workflowCss).toMatch(
+            /\.builder-shell input:not\(\[type='checkbox'\]\):not\(\[type='radio'\]\):focus-visible[\s\S]*?border-color:\s*var\(--p-accent\);[\s\S]*?outline:\s*0;[\s\S]*?box-shadow:\s*none;/,
+        );
+        expect(workflowCss).toMatch(
+            /@media\s*\(max-width:\s*760px\)[\s\S]*?\.project-settings\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,\s*1fr\);[^}]*align-content:\s*start;/,
+        );
+        expect(workflowCss).toMatch(
+            /@media\s*\(max-width:\s*760px\)[\s\S]*?\.ps-header\s*\{[^}]*align-items:\s*center;[^}]*flex-direction:\s*row;/,
+        );
     });
 
     it('removes transfer UI and fully deletes a design system only after exact-name confirmation', async () => {

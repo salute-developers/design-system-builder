@@ -13,6 +13,7 @@ import {
     themeProfileLabels,
     themeProfilePreviews,
     themeProfileSwatches,
+    validateCustomThemePalette,
 } from '../../modules/themes/domain/themeProfiles';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 import { getCreateThemeError } from './createThemeError';
@@ -32,6 +33,7 @@ export const CreateThemePage = () => {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
+    const customPaletteError = profile === 'custom' ? validateCustomThemePalette(palette) : '';
     if ([project.error, system.error].some(isAccessDenied))
         return (
             <State
@@ -85,6 +87,7 @@ export const CreateThemePage = () => {
         );
     const submit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (customPaletteError) return;
         const rawName = String(new FormData(event.currentTarget).get('name'));
         setBusy(true);
         try {
@@ -128,7 +131,10 @@ export const CreateThemePage = () => {
                             <input
                                 name="name"
                                 value={name}
-                                onChange={(event) => setName(event.target.value)}
+                                onChange={(event) => {
+                                    setName(event.target.value);
+                                    setError('');
+                                }}
                                 required
                                 maxLength={80}
                                 placeholder="Например, Light Theme"
@@ -169,7 +175,14 @@ export const CreateThemePage = () => {
                                 <h2>Custom palette</h2>
                                 <div className="custom-presets">
                                     {Object.entries(customThemePresets).map(([name, value]) => (
-                                        <button type="button" key={name} onClick={() => setPalette(value)}>
+                                        <button
+                                            type="button"
+                                            key={name}
+                                            onClick={() => {
+                                                setPalette(value);
+                                                setError('');
+                                            }}
+                                        >
                                             {name}
                                         </button>
                                     ))}
@@ -181,17 +194,25 @@ export const CreateThemePage = () => {
                                             <input
                                                 required
                                                 value={palette[index]}
-                                                onChange={(e) =>
+                                                aria-invalid={Boolean(customPaletteError)}
+                                                aria-describedby={customPaletteError ? 'custom-palette-error' : undefined}
+                                                onChange={(e) => {
                                                     setPalette(
                                                         palette.map((value, i) =>
                                                             choose(i === index, value, e.target.value),
                                                         ) as PreviewPalette,
-                                                    )
-                                                }
+                                                    );
+                                                    setError('');
+                                                }}
                                             />
                                         </label>
                                     ))}
                                 </div>
+                                <Visible when={Boolean(customPaletteError)}>
+                                    <p className="form-error custom-palette-error" id="custom-palette-error" role="alert">
+                                        {customPaletteError}
+                                    </p>
+                                </Visible>
                                 <p className="catalog-meta">Проверьте соответствие цветов требованиям вашего бренда.</p>
                             </>
                         </Visible>
@@ -200,7 +221,10 @@ export const CreateThemePage = () => {
                         <Link className="builder-button" to={`/projects/${projectId}/design-systems/${designSystemId}`}>
                             Отмена
                         </Link>
-                        <button className="builder-button primary" disabled={busy || !name.trim()}>
+                        <button
+                            className="builder-button primary"
+                            disabled={busy || !name.trim() || Boolean(customPaletteError)}
+                        >
                             {choose(busy, 'Создать и открыть Theme', 'Создаём…')}
                         </button>
                     </footer>
