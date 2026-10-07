@@ -90,7 +90,7 @@ erDiagram
 Миграция `V3` создаёт копию шаблона и пять системных групп для каждого существующего тенанта; для новых
 тенантов это делает `CreateTenantUseCase` в своей транзакции.
 
-DTO совпадают с `add-theme-palette-editor` (`ThemePalette`, `PaletteGroup` с `id`, `kind`, `systemKey`,
+DTO совпадают с `add-theme-palette-editor` (`ThemePalette` с полем `template` — растяжками копии шаблона темы, `PaletteGroup` с `id`, `kind`, `systemKey`,
 `PaletteTokenAssignment`, `PaletteRamp`, `PaletteStep` с `templateValue`, `PaletteLink` с `groupId`).
 Операции изменения отвечают `{ editRevision, value }`. Ошибки — `ErrorResponse` с кодами
 `PALETTE_GROUP_EXISTS`, `PALETTE_GROUP_SYSTEM`, `PALETTE_RAMP_EXISTS`, `PALETTE_RAMP_LINKED`,
@@ -105,7 +105,7 @@ DTO совпадают с `add-theme-palette-editor` (`ThemePalette`, `PaletteGr
 | `PUT /token-groups/{tokenId}` | `{ groupId \| null, editRevision }` | `tenants:write` |
 | `POST /groups/{groupId}/ramps` | `{ type, shade, editRevision }` | `tenants:write` |
 | `PUT /groups/{groupId}/ramps/{type}/{shade}/source` | `{ type, shade, editRevision }` | `tenants:write` |
-| `POST /groups/{groupId}/ramps/{type}/{shade}/rebuild` | `{ anchorStep, value, preview, editRevision }` | `tenants:write` |
+| `POST /groups/{groupId}/ramps/{type}/{shade}/rebuild` | `{ anchorStep, value, preview, editRevision }`; при `preview: true` ответ `{ steps: [{ step, value }] }` | `tenants:write` |
 | `PATCH /groups/{groupId}/ramps/{type}/{shade}/steps/{step}` | `{ value, editRevision }` | `tenants:write` |
 | `DELETE /groups/{groupId}/ramps/{type}/{shade}` | `{ strategy?, replacement?, editRevision }` | `tenants:write` |
 
