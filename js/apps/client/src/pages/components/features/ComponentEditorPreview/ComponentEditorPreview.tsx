@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, Variation } from '../../../../controllers';
 import {
@@ -22,6 +22,7 @@ import {
     StyledStoryScope,
 } from './ComponentEditorPreview.styles';
 import { backgroundList } from './ComponentEditorPreview.utils';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -105,8 +106,10 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
     const switchBackground = useMemo(
         () =>
-            getRestoredColorFromPalette(
+            restorePaletteColor(
                 theme.getTokenValue(`${themeMode.value}.surface.default.accent`, 'color', 'web') || '',
+                0,
+                `${themeMode.value}.surface.default.accent`,
             ),
         [theme, themeMode],
     );

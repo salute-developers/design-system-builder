@@ -16,4 +16,23 @@ export default [
             '@typescript-eslint/no-explicit-any': 'warn',
         },
     },
+    {
+        // Ссылки на палитру в клиенте раскрываются только через restorePaletteColor,
+        // который учитывает палитру открытой темы.
+        files: ['apps/client/src/**/*.{ts,tsx}'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    paths: [
+                        {
+                            name: '@salutejs/plasma-tokens-utils',
+                            importNames: ['getRestoredColorFromPalette'],
+                            message: 'Используйте restorePaletteColor из src/palette/activePalette.',
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ];

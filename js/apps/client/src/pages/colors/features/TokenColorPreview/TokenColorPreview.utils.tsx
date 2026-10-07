@@ -1,11 +1,11 @@
 import { ReactNode } from 'react';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { textNegative } from '@salutejs/plasma-themes/tokens/plasma_infra';
 import { IconInfoCircleOutline } from '@salutejs/plasma-icons';
 
 import { Theme } from '../../../../controllers';
 
 import { StyledWCAGBadStatus } from './TokenColorPreview.styles';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const getColorsTokens = (theme?: Theme) => {
     if (!theme) {
@@ -25,7 +25,7 @@ export const getColorsTokens = (theme?: Theme) => {
         .map((item) => {
             return {
                 label: item.getName(),
-                value: getRestoredColorFromPalette(item.getValue('web')),
+                value: restorePaletteColor(item.getValue('web'), 0, item.getName()),
             };
         });
 

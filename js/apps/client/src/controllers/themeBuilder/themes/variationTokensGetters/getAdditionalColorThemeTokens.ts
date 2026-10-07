@@ -1,10 +1,11 @@
-import { type ThemeMode, getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import type { PlatformType, PlatformsVariations } from '../../types';
 import { getStateColor } from '../../../../utils';
 import { sectionToFormulaMap } from '../../../../types';
 
 import { ColorToken } from '../../tokens';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const getAdditionalColorThemeTokens = (
     token: ColorToken,
@@ -18,7 +19,7 @@ export const getAdditionalColorThemeTokens = (
     }
 
     const value = token.getValue('web');
-    const restoredValue = getRestoredColorFromPalette(value, -1);
+    const restoredValue = restorePaletteColor(value, -1, token.getName());
     const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
 
     return {

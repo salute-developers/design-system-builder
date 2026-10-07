@@ -1,4 +1,4 @@
-import { getRestoredColorFromPalette, upperFirstLetter } from '@salutejs/plasma-tokens-utils';
+import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import {
     Config,
@@ -13,6 +13,7 @@ import {
 } from '../controllers';
 import { kebabToCamel } from './';
 import { Data, DataItems, GroupNode, MenuType } from '../types';
+import { restorePaletteColor } from '../palette/activePalette';
 
 // TODO: Перенести в БД?
 const componentList = [
@@ -193,7 +194,7 @@ const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]
                 let value = '';
 
                 if (token instanceof ColorToken) {
-                    value = getRestoredColorFromPalette(token.getValue('web') as string, -1);
+                    value = restorePaletteColor(token.getValue('web') as string, -1, token.getName());
                 }
                 if (token instanceof GradientToken) {
                     value = token.getValue('web').join(' ');
