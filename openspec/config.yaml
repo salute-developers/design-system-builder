@@ -76,6 +76,10 @@ context: |
     Add data/presentation implementations separately.
   - Prefer explicit DTO/request/response models at API boundaries. Do not serialize domain entities
     or persistence entities directly.
+  - Для каждого публичного API Kotlin-сервиса храните source-of-truth OpenAPI только в
+    `src/main/resources/openapi/documentation.yaml`. При добавлении, изменении или удалении
+    публичного маршрута, параметра, тела запроса, ответа, ошибки или требования авторизации
+    обновляйте этот YAML в том же OpenSpec change и добавляйте/обновляйте контрактную проверку.
   - Keep package names under com.dsbuilder.
   - For new microservices, follow the existing service shape: separate included build or modular
     structure with app and feature-* modules, adding core only when shared infrastructure actually

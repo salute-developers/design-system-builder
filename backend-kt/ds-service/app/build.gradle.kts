@@ -44,11 +44,8 @@ tasks.processResources {
     from("../contracts") {
         into("contracts")
     }
-    from("../../../js/apps/admin/src/api/openapi.json") {
-        into("contracts")
-        rename { "db-service-openapi.json" }
-    }
 }
+
 
 dependencies {
     implementation("com.dsbuilder.authorization:authorization-core")
@@ -66,6 +63,7 @@ dependencies {
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.config.yaml)
+    implementation(libs.snakeyaml)
     implementation(libs.koin.ktor)
     implementation(libs.koin.logger.slf4j)
     implementation(libs.logback.classic)

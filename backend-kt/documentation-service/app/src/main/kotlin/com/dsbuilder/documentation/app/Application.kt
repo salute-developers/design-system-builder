@@ -95,6 +95,7 @@ fun Application.module() {
     }
     install(CallLogging)
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = false }) }
+    configureApiDocs()
     val runtime = ingestionRuntime(environment, evaluator)
     launchBackgroundWorkers(runtime)
     routing {

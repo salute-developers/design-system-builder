@@ -1,7 +1,6 @@
 package com.dsbuilder.ds.app
 
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -10,9 +9,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** Contract tests for the manifest-backed OpenAPI allowlist. */
-class OpenApiDocumentFactoryTest {
-    private val document = OpenApiDocumentFactory(Json).create()
+/** Contract tests for the static OpenAPI allowlist. */
+class OpenApiDocumentResourceTest {
+    private val document = OpenApiDocumentResource(Json).create()
     private val paths = document.getValue("paths").jsonObject
 
     /** Every manifest operation is represented exactly once. */
@@ -55,20 +54,5 @@ class OpenApiDocumentFactoryTest {
                 it.jsonObject.getValue("name").jsonPrimitive.content
             }.toSet(),
         )
-    }
-
-    /** Every included operation keeps the legacy parameters, bodies, responses and schema references exactly. */
-    @Test
-    fun `included operations are differential copies of the legacy contract`() {
-        val legacy = requireNotNull(javaClass.getResourceAsStream("/contracts/db-service-openapi.json"))
-            .bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonObject }
-        val legacyPaths = legacy.getValue("paths").jsonObject
-        paths.forEach { (path, pathItem) ->
-            pathItem.jsonObject.forEach { (method, operation) ->
-                val expected = legacyPaths.getValue(path.replaceFirst("/api/ds", "/ds")).jsonObject
-                    .getValue(method).jsonObject
-                assertEquals(expected, JsonObject(operation.jsonObject - "x-permission"), "$method $path")
-            }
-        }
     }
 }
