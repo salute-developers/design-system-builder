@@ -1,7 +1,8 @@
 import { ChangeEvent, useEffect, useRef } from 'react';
-import { CSSProperties, getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { CSSProperties } from '@salutejs/plasma-tokens-utils';
 
 import { Root, StyledBackground, StyledBorder, TrackInput, Thumb } from './Slider.styles';
+import { restorePaletteColor } from '../../palette/activePalette';
 
 interface SliderProps {
     gradientBackground?: string;
@@ -54,7 +55,7 @@ export const Slider = (props: SliderProps) => {
         onChange(value);
     };
 
-    const solidColor = getRestoredColorFromPalette(`[${solidBackground}]`) ?? solidBackground;
+    const solidColor = restorePaletteColor(`[${solidBackground}]`) ?? solidBackground;
 
     return (
         <Root>
