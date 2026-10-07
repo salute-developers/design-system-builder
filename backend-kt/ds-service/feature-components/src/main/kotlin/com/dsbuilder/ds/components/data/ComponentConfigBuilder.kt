@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.domain.ComponentConfig
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -116,7 +117,10 @@ internal class ComponentConfigBuilder {
                 (InvariantPropertyValuesTable.designSystemId eq appearance.designSystemId) and
                     (InvariantPropertyValuesTable.componentId eq appearance.componentId) and
                     (InvariantPropertyValuesTable.appearanceId eq appearance.id)
-            }.map { valueRow(it, true, stateNames) }
+            }.orderBy(
+                PropertiesTable.name to SortOrder.ASC,
+                InvariantPropertyValuesTable.position to SortOrder.ASC,
+            ).map { valueRow(it, true, stateNames) }
     } else {
         VariationPropertyValuesTable.innerJoin(PropertiesTable)
             .join(
@@ -125,7 +129,11 @@ internal class ComponentConfigBuilder {
                 additionalConstraint = { VariationPropertyValuesTable.tokenId eq ComponentTokensTable.id },
             )
             .selectAll().where { VariationPropertyValuesTable.appearanceId eq appearance.id }
-            .map { valueRow(it, false, stateNames) }
+            .orderBy(
+                PropertiesTable.name to SortOrder.ASC,
+                VariationPropertyValuesTable.styleId to SortOrder.ASC,
+                VariationPropertyValuesTable.position to SortOrder.ASC,
+            ).map { valueRow(it, false, stateNames) }
     }
 
     private fun valueRow(row: ResultRow, invariant: Boolean, states: Map<UUID, List<String>>): ConfigValueRow {
