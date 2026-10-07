@@ -47,6 +47,10 @@
 - связь стартового профиля темы (`sber`, `malachite`, `b2b`, `custom`) с группами палитры;
 - глобальная замена и перестройка растяжки во всех группах, навигатор «вне бренда»;
 - общий доступ к палитре в режиме `local`: она видна только в одном браузере.
+- сохранение значений токенов темы на сервер из редактора новых маршрутов: правки, в том числе сделанные
+  палитрой, остаются в локальном черновике `ds_draft:…`. Сервер (`PUT /tenants/{id}/token-values`) и метод
+  `saveTenantValues` готовы, автосохранение по прототипу (отложенная отправка, ревизия, конфликт) —
+  отдельное изменение; палитра формирует черновик только из библиотечных ссылок и HEX.
 
 ## Архитектура
 
@@ -91,7 +95,9 @@ interface ThemePalette {
   offBrand: boolean;
   groups: PaletteGroup[];
   tokens: PaletteTokenAssignment[];
+  template: PaletteTemplateRamp[];       // копия шаблона темы: для «Добавить палитру» и «Поменять»
 }
+interface PaletteTemplateRamp { type: PaletteType; shade: string; steps: { step: number; value: string }[] }
 interface PaletteGroup {
   id: string;                    // UUID у системных и пользовательских групп
   kind: 'system' | 'custom';
@@ -150,9 +156,11 @@ export function parsePaletteReference(value: unknown): PaletteReference | null;
 export function formatPaletteReference(reference: PaletteReference): string;
 export function defaultGroupForToken(tokenName: string): SystemGroupKey;
 export function rampDisplayName(source: PaletteRampRef, anchor: { value: string } | null): string;
-export function rebuildRamp(source: TemplateRamp, anchorStep: number, anchorHex: string): Record<number, string>;
-export function buildThemePalette(input: ThemePaletteInput): ThemePalette;   // группы, привязки, значения, связи
-export function resolveColorValue(palette: ThemePalette, tokenId: string, value: unknown): string | undefined;
+export function rebuildRamp(source: Record<string, string>, anchorStep: number, anchorHex: string): Record<number, string>;
+export function buildThemePalette(input: ThemePaletteInput): { palette: ThemePalette; links: SlotLink[] };
+export function resolveStepInGroup(palette: ThemePalette, groupId: string, ref: PaletteRampRef & { step: number }): string | undefined;
+export function resolveTokenGroupId(palette: ThemePalette, tokenName: string): string | undefined;
+export function resolvePaletteStep(palette: ThemePalette, value: unknown, tokenName?: string): { hex: string; opacity: number | null } | undefined;
 
 // modules/palette/application
 export interface PaletteRepository {
@@ -168,22 +176,26 @@ export interface PaletteRepository {
   removeRamp(ctx: PaletteContext, groupId: string, slot: PaletteRampRef, input: RemoveRampInput): Promise<PaletteMutation<{ reassigned: number }>>;
 }
 export interface PaletteMutation<T> { editRevision: number; value: T }
+export interface RebuildPreview { steps: { step: number; value: string }[] }   // ответ rebuild при preview: true
 export function createPaletteRepository(source: 'api' | 'local', deps: PaletteRepositoryDeps): PaletteRepository;
 
 // palette/activePalette.ts — палитра открытой темы для резолвера цветов
 export function setActivePalette(palette: ThemePalette | null): void;
-export function restorePaletteColor(value: string, alphaSign?: 0 | -1, tokenId?: string): string;
+export function restorePaletteColor(value: string, alphaSign?: 0 | -1, tokenName?: string): string;
+export function restoreTemplateColor(type: string, shade: string, step: string): string | undefined;  // шаблон local
 ```
 
 `restorePaletteColor` заменяет `getRestoredColorFromPalette` в местах отображения цветов токенов. Без
 активной палитры или без найденной ступени он откатывается к `getRestoredColorFromPalette`, поэтому
-мастер создания и экраны до загрузки палитры работают как раньше. Оформление самого приложения
+мастер создания и экраны до загрузки палитры работают как раньше. Ссылка разрешается по группе токена
+`tokenName`; без имени — по копии шаблона темы. `palette/activePalette.ts` — единственное место прямого
+импорта `getRestoredColorFromPalette`: через него же `restoreTemplateColor` снимает шаблон режима `local`. Оформление самого приложения
 продолжает использовать встроенную палитру.
 
 Страница `pages/palette/Palette.tsx` разбита на `PaletteSidebar`, `PaletteBoard`, `PaletteInspector`,
 `RampPopover`, `StepColorEditor`, `TokenGroupSelect`, `AddRampDialog`, `RemoveRampDialog`,
-`CreateGroupDialog`, `DeleteGroupDialog`; состояние экрана — в хуке `usePaletteEditor`, данные — в
-`useThemePalette`. `TokenGroupSelect` используется и в инспекторе палитры, и в редакторе цветового
+`CreateGroupDialog`, `DeleteGroupDialog`; состояние экрана — в хуке `usePaletteEditor`, палитра
+загружается в `useDesignSystem` вместе с темой и передаётся через контекст `Main`. `TokenGroupSelect` используется и в инспекторе палитры, и в редакторе цветового
 токена.
 
 ## Решения
@@ -274,14 +286,79 @@ export function restorePaletteColor(value: string, alphaSign?: 0 | -1, tokenId?:
 Отвергнуто: собирать экран из компонентов Plasma — расходится с дизайном; подключить `styles.css`
 прототипа целиком — тянет правила других экранов.
 
-Готовность вёрстки подтверждается сверкой скриншотов эталонных состояний клиента и прототипа на
-одинаковых данных при ширине 1440 px и 900 px. Неустранимые расхождения перечисляются здесь с причиной.
+Готовность вёрстки подтверждается сверкой скриншотов эталонных состояний клиента и прототипа при ширине
+1440 px и 900 px. Данные прототипа и клиента различаются (у прототипа свой набор токенов и растяжек),
+поэтому сверяются состояния и вёрстка: сетка, отступы, типографика, поведение поповеров и модалок, а не
+совпадение цветов. Неустранимые расхождения перечисляются здесь с причиной.
+
+#### Расхождения с прототипом
+
+Сверка выполнялась на работающем прототипе (палитра совпадает с `bae288a`) и разделе клиента при ширине
+1440 px и 900 px: пары скриншотов 15 состояний сняты headless Chrome в
+`.agent-workflow/add-theme-palette-editor/prototype/` (там же `compare.html`), вычисленные стили элементов,
+общих для обеих реализаций, сравнены автоматически и совпадают. Данные различаются: у прототипа своя
+дизайн-система (растяжки Gray, Cool Gray и Hue N, 14 ступеней), у клиента — `general` и `additional`.
+Прототип не подключает шрифт Inter и без установленного в системе Inter рисует текст Arial, клиент
+загружает Inter — отсюда возможная разница в переносах строк. Состояние «Только просмотр» в прототипе
+задаётся ролью из демо-данных проекта и не снималось; в клиенте оно проверено отдельно (задача 6.2).
+Расхождения, которые остаются, и их причины:
+
+- Заголовок «Палитра» и метка «Custom · вне брендовой палитры» в разметке есть, но, как и в прототипе, блок
+  `.source-palette-hero` скрыт правилом `.source-palette-v3 > .source-palette-hero`; признак палитры вне
+  бренда виден в боковой панели блоком `.source-palette-brand-status`, сетка раздела подписана «Палитра»
+  для вспомогательных технологий.
+- В тулбаре нет кнопок отмены и повтора и счётчика правок: отслеживание изменений вне изменения. Вместо
+  счётчика у кнопки инспектора — значок панели.
+- У растяжек `general` 15 ступеней (есть 50), у прототипа — 14; минимальная ширина ступени уменьшена с 52
+  до 48 px, сетка превью в окнах — на 15 колонок, чтобы ступень 1000 не обрезалась.
+- Кнопка «Создать группу» в боковой панели: в V3 прототипа она не выведена, оформление взято у кнопки
+  пустого состояния.
+- Правка ступени использует выбор цвета клиента (`ColorConstructor` без прозрачности) внутри поповера
+  `.source-palette-edit-popover`; у поповера снято ограничение высоты 390 px, иначе кнопки не видны.
+- Выбора группы токена в прототипе нет: в инспекторе это метка группы у строки связанного токена,
+  раскрывающая `TokenGroupSelect`, в редакторе цветового токена — поле «Группа палитры».
+- Строки связанных токенов показывают режим и ступень, инспектор — слот и источник растяжки (требования
+  спецификации).
+- Текст пустого состояния связей оформлен как строки инспектора: в прототипе для него есть правило только
+  у кнопки.
+- Пустые группы, в том числе системные (например, Syntax без токенов), показываются на борде и в боковой
+  панели при фильтре «Все» без поиска. В прототипе у системных групп всегда есть растяжки; в клиенте состав
+  группы складывается из ссылок её токенов, и без этого в пустую группу нельзя было бы добавить палитру.
+- Колонка борда сжимается до нуля, а не до 480 px: раздел живёт в рабочей области редактора, а не на всю
+  ширину окна, и сетка прототипа (минимум 1080 px) не помещалась в неё — при прокрутке к элементу инспектора
+  содержимое уезжало влево. Растяжки шире колонки прокручиваются внутри борда; до 900 px сохранено поведение
+  прототипа — сетка с минимальной шириной прокручивается сама.
+- На время переключения «Палитра» ↔ «Цвет» переходы выключены: в прототипе оформление ступеней анимируется
+  при смене режима, и на мгновение вся растяжка выглядит выделенной.
+- Подпись растяжки `general` — «General» (серые семейства — «Neutral», как у прототипа): аналога семейств
+  `general` в прототипе нет. Подпись `additional` на карточке — «Hue130», в боковой панели — «Hue 130»,
+  как в прототипе.
+- Списки выбора растяжки («Поменять», «Добавить палитру», замена при удалении) показывают сначала серые
+  семейства, затем остальные в порядке шаблона; порядок шаблона в контракте API не меняется.
+- Редактор ступени выше поповера прототипа (область действия и кнопки «Отмена» / «Применить»), поэтому,
+  если он не помещается ни под ступенью, ни над ней, он встаёт сбоку от ступени, а не поверх неё.
+- При открытии окна фокус переходит в поле ввода или на кнопку закрытия; в прототипе фокус не управляется.
+- Тексты окна «Создать группу» говорят о палитре темы и явной привязке токенов, а не о палитре
+  дизайн-системы: группа принадлежит палитре темы, токены попадают в неё явной привязкой.
 
 ### Конфликт ревизий в режиме `api`
 
 Операции палитры передают `editRevision` темы и получают новую. Ответ `409 TENANT_EDIT_CONFLICT`
-приводит к перезагрузке палитры и уведомлению; черновик токенов сохраняется. После каждой операции
-клиент обновляет `editRevision`, который использует сохранение значений токенов.
+приводит к перезагрузке темы вместе с палитрой и ревизией (`reload()` в `useDesignSystem`) и уведомлению;
+черновик токенов накладывается заново. Перечитать только палитру недостаточно: ревизия общая со значениями
+токенов, и следующая операция снова получила бы конфликт. После каждой операции клиент обновляет
+`editRevision`, который использует сохранение значений токенов. Ответ на загрузку палитры прежней темы
+отбрасывается по `tenantId`.
+
+### Рост метрик Strictacode клиента
+
+Раздел добавляет в `js/apps/client` около 3,5 тыс. строк прикладной логики (домен палитры, адаптеры, экран).
+Её плотность сложности выше средней по клиенту, где большую долю строк дают истории и разметка, поэтому
+сравнение с baseline `javascript-client` не проходит: score 44 → 45, density 7,51 → 8,10 (с правками по итогам сверки с прототипом), refactoring
+pressure 58 → 59, overengineering pressure 10 → 13. Чистая `origin/feature/ds-service` проходит на пределе
+(density 7,45, OP 11). Уложиться в baseline можно только убрав около 40% ветвлений нового кода, то есть
+функциональность. Решение разработчика: рост принят, baseline `javascript-client` обновлён в этом изменении
+с явным разрешением `strictacode-policy`; baseline `javascript-cli` и `javascript-db-service` не меняются.
 
 ## Риски / Компромиссы
 
@@ -296,6 +373,9 @@ export function restorePaletteColor(value: string, alphaSign?: 0 | -1, tokenId?:
 - [Около 20 вызовов `getRestoredColorFromPalette`] → замена только в местах отображения цветов
   токенов, откат к прежнему поведению без палитры, правило ESLint против новых прямых вызовов.
 - [Прототип продолжает меняться] → эталоном служит закреплённый коммит.
+- [Состояния hover/active цветовых токенов хранятся в теме как HEX, а не ссылки] → операции палитры их
+  не пересчитывают: после «Поменять», «Изменить» или правки ступени hover/active токена остаются
+  прежними до следующей правки самого токена в разделе «Цвета». Пересчёт — вне этого изменения.
 - [Публикация в редакторе темы сейчас скрыта] → раздел не добавляет собственной публикации; правки
   токенов уходят прежним сохранением темы.
 
