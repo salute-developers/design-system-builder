@@ -47,6 +47,16 @@
 опубликованной версией); обмен с Figma; связь стартового профиля темы с группами палитры; глобальная
 замена растяжки во всех группах.
 
+## Порядок реализации
+
+Работа идёт в два этапа, сначала фронт, потом бэк:
+
+1. `add-theme-palette-editor` — клиент. Реализуется, проходит ревью и вливается первым; раздел работает
+   с адаптером `local` и не зависит от сервера.
+2. `add-theme-palette-api` — `ds-service` и CLI. Реализация начинается после слияния клиента и
+   опирается на его контракт DTO и эталон `palette-golden.json`; последняя задача переключает клиент на
+   адаптер `api`.
+
 ## Capabilities
 
 ### New Capabilities
@@ -63,11 +73,13 @@
 - `js/apps/client`:
   - новый модуль `src/modules/palette/{domain,application,data}` и эталон `palette-golden.json`;
   - страница `src/pages/palette/*`, стили `src/styles/palette.css`;
-  - `App.tsx` (маршрут), `pages/Main.tsx` (кнопка раздела, контекст палитры),
-    `layouts/Workspace/Workspace.tsx` (раздел `palette`);
+  - `App.tsx` (маршрут), `pages/Main.tsx` (кнопка раздела, контекст палитры);
+  - `src/palette/*` (активная палитра для резолвера цветов, сессия адаптера `local`, запись правок
+    ссылок в черновик при удалении растяжки);
   - замена `getRestoredColorFromPalette` в местах отображения цветов токенов, `features/ColorPicker`
-    (Library), `hooks/useDesignSystem.ts`, `utils/designSystemDraft.ts` (правки ссылок при удалении
-    растяжки в режиме `local`);
-  - переменная окружения `VITE_PALETTE_SOURCE`.
+    (Library), `hooks/useDesignSystem.ts`, `pages/colors` (переход к токену из инспектора, группа
+    токена в редакторе цвета), `api/themeEditorRepository.ts` (сохранение прозрачности ссылки при
+    загрузке);
+  - переменная окружения `VITE_PALETTE_SOURCE` (описана в `README.md` клиента и `js/docker-compose.dev.yml`).
 - `js/eslint.config.js`: запрет прямого импорта `getRestoredColorFromPalette` в клиенте.
 - `backend-kt`, `frontend-kt`, `js/services/*`: изменений нет.

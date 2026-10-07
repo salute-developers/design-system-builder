@@ -117,10 +117,11 @@ SHALL NOT выбирать пользовательскую группу. Рез
 #### Scenario: Чтение палитры темы
 
 - **WHEN** участник проекта отправляет `GET /api/ds/tenants/{tenantId}/palette`
-- **THEN** `ds-service` MUST вернуть `200` и `ThemePalette { tenantId, editRevision, canEdit, offBrand, groups, tokens }`
+- **THEN** `ds-service` MUST вернуть `200` и `ThemePalette { tenantId, editRevision, canEdit, offBrand, groups, tokens, template }`
 - **THEN** каждая группа MUST содержать `id`, `kind`, `systemKey`, `label` и `ramps`
 - **THEN** каждая растяжка MUST содержать `slot`, `source`, `displayName`, `origin` (`template` или `rebuild`), `anchor`, `added`, `modified`, `linkedCount` и `steps`, а каждая ступень — `step`, `value`, `templateValue`, `overridden` и `linkedCount`
 - **THEN** `tokens` MUST содержать для каждого цветового токена дизайн-системы `tokenId`, `tokenName`, `groupId` и `assignment` (`explicit` или `default`)
+- **THEN** `template` MUST содержать все растяжки копии шаблона темы как `{ type, shade, steps: [{ step, value }] }` в порядке растяжек
 
 #### Scenario: Порядок растяжек
 
@@ -226,7 +227,7 @@ SHALL NOT выбирать пользовательскую группу. Рез
 #### Scenario: Предварительный просмотр
 
 - **WHEN** тело содержит `preview: true`
-- **THEN** `ds-service` MUST вернуть `200` с вычисленными значениями ступеней и MUST NOT изменить данные и ревизию
+- **THEN** `ds-service` MUST вернуть `200` с телом `{ steps: [{ step, value }] }` (вычисленные значения всех ступеней источника, HEX `#RRGGBB`) и MUST NOT изменить данные и ревизию
 
 #### Scenario: Применение
 
