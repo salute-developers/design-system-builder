@@ -39,6 +39,7 @@ export interface ThemeEditorSnapshot {
     parameters: Partial<Parameters>;
     editRevision: number;
     incompleteTokenIds: string[];
+    tokenDefinitions: TokenDefinitionDto[];
 }
 
 const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
@@ -117,8 +118,16 @@ export class ThemeEditorRepository {
                 const storedValue = [unwrapValue(value.value), ([] as unknown[]).concat(value.value as never)][
                     Number(preservesArrayShape)
                 ];
+                // При ссылке через paletteId в value хранится прозрачность ссылки: ["0.56"] → [..][0.56].
+                const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
+                const opacity =
+                    typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
+                        ? Number(rawOpacity)
+                        : NaN;
                 group[value.platform][name] = paletteEntry
-                    ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]`
+                    ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${
+                          Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''
+                      }`
                     : storedValue;
             }
         }
@@ -160,6 +169,7 @@ export class ThemeEditorRepository {
             },
             editRevision: tenant.data.editRevision,
             incompleteTokenIds,
+            tokenDefinitions: tokens.data,
         };
     }
 

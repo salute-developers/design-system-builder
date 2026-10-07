@@ -1,3 +1,4 @@
+import { parsePaletteReference, templateRampName } from '../../../../modules/palette';
 import { ColorToken, GradientToken } from '../../../../controllers';
 import { SubgroupNode } from '../../../../types';
 import { getColorAndOpacity } from '../../../../utils';
@@ -29,8 +30,9 @@ export const typeList = [
 export const getDisplayColor = (value: string | string[]) => {
     const [color, opacity] = getColorAndOpacity(value);
 
-    if (color.startsWith('general')) {
-        return [color.replace(/general\.|\./g, ''), opacity] as const;
+    const reference = parsePaletteReference(`[${color}]`);
+    if (reference) {
+        return [`${templateRampName(reference)} ${reference.step}`, opacity] as const;
     }
 
     if (color.startsWith('radial') || color.startsWith('linear')) {

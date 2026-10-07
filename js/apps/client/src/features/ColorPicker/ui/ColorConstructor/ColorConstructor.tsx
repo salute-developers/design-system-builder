@@ -18,17 +18,21 @@ interface ColorConstructorProps {
     opacity: number;
     onChange: (color: string) => void;
     onOpacityChange: (opacity: number) => void;
+    /** Скрывает регулятор прозрачности: ступени палитры непрозрачны. */
+    hideOpacity?: boolean;
+    /** Токен, для которого показывается цвет: ссылка разрешается по его группе палитры. */
+    tokenName?: string;
 }
 
 export const ColorConstructor = (props: ColorConstructorProps) => {
-    const { color, opacity, onChange, onOpacityChange } = props;
+    const { color, opacity, onChange, onOpacityChange, hideOpacity, tokenName } = props;
 
     const [hue, setHue] = useState(0);
     const [xPos, setXPos] = useState(0);
     const [yPos, setYPos] = useState(0);
 
     const [colorType, setColorType] = useState({ value: 'hex' });
-    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true));
+    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true, tokenName));
     const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
 
     const hueSliderThumbRef = useRef<HTMLDivElement>(null);
@@ -63,7 +67,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
         }
 
         if (value === '') {
-            setInputValue(getNormalizedColor(color, undefined, true));
+            setInputValue(getNormalizedColor(color, undefined, true, tokenName));
             return;
         }
 
@@ -139,7 +143,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
             return;
         }
 
-        const colorValue = getNormalizedColor(color);
+        const colorValue = getNormalizedColor(color, undefined, false, tokenName);
 
         if (!colorValue) {
             return;
@@ -161,7 +165,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
     }, [color]);
 
     useEffect(() => {
-        setInputValue(getNormalizedColor(color, undefined, true));
+        setInputValue(getNormalizedColor(color, undefined, true, tokenName));
     }, [color]);
 
     const hueColor = `hsl(${hue}, 100%, 50%)`;
@@ -195,11 +199,13 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
                 />
             </StyledSaturationValueArea>
             <Slider gradientBackground={hueGradient} value={hue} min={0} max={360} onChange={onChangeValue} />
-            <Slider
-                solidBackground={color}
-                value={Number(((opacity ?? 1) * 100).toFixed(0))}
-                onChange={onOpacityChange}
-            />
+            {!hideOpacity && (
+                <Slider
+                    solidBackground={color}
+                    value={Number(((opacity ?? 1) * 100).toFixed(0))}
+                    onChange={onOpacityChange}
+                />
+            )}
             <StyledColorInput>
                 <SelectButton items={colorTypeList} selected={colorType} onItemSelect={onColorTypeSelect} />
                 <TextField

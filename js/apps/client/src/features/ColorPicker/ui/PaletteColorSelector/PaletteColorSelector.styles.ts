@@ -78,3 +78,10 @@ export const StyledColorPreview = styled.div<{ selected?: boolean }>`
         display: flex;
     }
 `;
+
+export const StyledGroupLabel = styled.div`
+    color: var(--text-general-primary);
+    margin-bottom: 0.75rem;
+
+    ${h6}
+`;
