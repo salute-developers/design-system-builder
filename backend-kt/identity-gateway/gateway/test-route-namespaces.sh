@@ -44,8 +44,21 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   fi
 
   admin_block=$(awk 'index($0, "location ~ ^/api/admin(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  import_meta_block=$(awk 'index($0, "location = /api/admin/component-config/import-api-meta {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   test -n "$admin_block"
+  test -n "$import_meta_block"
+
+  # Импорт API-меты живёт в ds-service: только токен пользователя, служебный проект `global`,
+  # роль системного администратора проверяет сам сервис.
+  printf '%s' "$import_meta_block" | grep -Fq 'auth_request /_auth_user;'
+  ! printf '%s' "$import_meta_block" | grep -Fq 'auth_request /_auth_project;'
+  printf '%s' "$import_meta_block" | grep -Fq 'client_max_body_size 16m;'
+  printf '%s' "$import_meta_block" | grep -Fq 'proxy_set_header X-Project-Id "global";'
+  printf '%s' "$import_meta_block" | grep -Fq 'proxy_set_header X-System-Admin $trusted_system_admin;'
+  printf '%s' "$import_meta_block" | grep -Fq 'rewrite ^/api/admin/component-config/import-api-meta$ /api/ds/admin/component-config/import-api-meta break;'
+  printf '%s' "$import_meta_block" | grep -Fq 'ds_service_api'
+  ! printf '%s' "$import_meta_block" | grep -Fq 'db_service_api'
 
   # Административные маршруты принимают только токен пользователя: ключ проекта отсекается здесь,
   # а лимит тела позволяет отправить манифест API-меты одним запросом.

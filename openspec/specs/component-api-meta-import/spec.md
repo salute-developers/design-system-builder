@@ -1,11 +1,11 @@
 # component-api-meta-import Specification
 
 ## Purpose
-Определяет ручку `import-api-meta` в `db-service`, которой CLI `dsbuilder components import-api` заводит глобальный слой компонентной модели (компоненты, свойства, состояния, платформенные имена и привязку к дизайн-системе) по манифесту API-меты платформы: контракт манифеста, аддитивную запись, проверку типов свойств по схеме БД, dry run и отчёт.
+Определяет ручку `import-api-meta` (обслуживается `ds-service`, публикуется Gateway как `/api/admin/component-config/import-api-meta`), которой CLI `dsbuilder components import-api` заводит глобальный слой компонентной модели (компоненты, свойства, состояния, платформенные имена и привязку к дизайн-системе) по манифесту API-меты платформы: контракт манифеста, аддитивную запись, проверку типов свойств по схеме БД, dry run и отчёт.
 ## Requirements
 ### Requirement: API meta import endpoint
 
-`db-service` SHALL предоставлять endpoint `POST /api/admin/component-config/import-api-meta`, принимающий манифест API-меты компонентов целиком одним запросом и записывающий его в глобальный слой компонентной модели в одной транзакции. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
+`ds-service` SHALL выполнять импорт API-меты, а Gateway SHALL предоставлять его клиентам как `POST /api/admin/component-config/import-api-meta`, принимающий манифест API-меты компонентов целиком одним запросом и записывающий его в глобальный слой компонентной модели в одной транзакции. Gateway MUST переписывать этот путь в `ds-service` как `POST /api/ds/admin/component-config/import-api-meta`; `db-service` MUST NOT обслуживать этот маршрут. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
 
 #### Scenario: Манифест принимается одним запросом
 
@@ -189,7 +189,7 @@ Backend SHALL проверять `type` свойства по значениям
 
 ### Requirement: API meta import is restricted to system administrators
 
-Импорт API-меты SHALL быть доступен только системному администратору. Backend MUST проверять доверенный заголовок `X-System-Admin` и MUST отказывать во всех остальных случаях, включая отсутствие заголовка.
+Импорт API-меты SHALL быть доступен только системному администратору. `ds-service` MUST проверять доверенный контекст (`X-System-Admin: true`) и MUST отказывать во всех остальных случаях, включая отсутствие заголовка. У глобальной операции проекта нет, поэтому Gateway MUST передавать служебный `X-Project-Id: global` только на этом маршруте и только после проверки токена пользователя.
 
 #### Scenario: Системный администратор
 

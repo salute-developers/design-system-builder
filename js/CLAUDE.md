@@ -71,7 +71,7 @@ No other service has tests except `documentation-generator` (jest).
 - The global layer (components, properties, tokens) is **not** created by the config import — it comes
   from the platform API meta file (`uikit-compose-api-meta.json`, `uikit-api-meta.json`) through
   `dsbuilder components import-api --from <file> --platform <p>` and the admin-only
-  `POST /api/admin/component-config/import-api-meta` endpoint (needs `X-System-Admin: true`). A test that loads a configuration must seed that layer inside its
+  `POST /api/admin/component-config/import-api-meta` endpoint (needs `X-System-Admin: true`; served by `ds-service`, not by db-service). A test that loads a configuration must seed that layer inside its
   own transaction first.
 
 ### Sync rules — VERY IMPORTANT

@@ -8982,7 +8982,7 @@ export interface paths {
          *     поэтому отчёт плана совпадает с отчётом применения.
          *
          *     Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из
-         *     API-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta).
+         *     API-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta обслуживается ds-service).
          *     Конфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие
          *     свойства попадают в unknownProperties, остальная часть конфигурации грузится.
          *
@@ -9107,143 +9107,6 @@ export interface paths {
                 };
                 /** @description Дизайн-система не найдена или недоступна проекту */
                 404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Импорт отклонён при записи */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/component-config/import-api-meta": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Импорт API-меты компонентов в глобальный слой одним запросом (только системный администратор)
-         * @description Заводит компоненты платформы запроса, их свойства, состояния и платформенные имена свойств
-         *     (property_platform_params) из манифеста, который строит CLI. Формат исходной меты платформы
-         *     сюда не передаётся. Компонент идентифицируется парой (name, platform): компоненты других
-         *     платформ не читаются и не меняются. К дизайн-системам компоненты не привязываются.
-         *
-         *     Запись аддитивная: существующие строки не меняются и не удаляются, кроме статуса устаревания
-         *     алиаса (deprecated, deprecated_message): пометка ставится, сообщение меняется, пометка
-         *     снимается, если имя пришло объектом {name} без deprecated. Имя строкой статус не трогает.
-         *     Расхождение типа существующего свойства попадает в typeMismatches, тип не меняется. Свойство
-         *     с типом вне property_type попадает в rejected, остальной импорт не отменяется. Список absent
-         *     справочно показывает компоненты платформы и свойства импортируемых компонентов, которые есть
-         *     в базе и отсутствуют в мете; ничего не удаляется.
-         *
-         *     Вся работа выполняется в одной транзакции. При dryRun=true транзакция откатывается,
-         *     поэтому отчёт плана совпадает с отчётом применения. Применённый импорт пишется в
-         *     design_system_changes без дизайн-системы (design_system_id = NULL): пользователь,
-         *     платформа, имя файла и счётчики лежат в data.
-         *
-         *     Платформенные имена свойства передаются списком platformNames (у View их может быть
-         *     несколько: android:minWidth и android:maxWidth); алиас создаётся на каждое имя. Элемент
-         *     списка — строка либо объект {name, deprecated?: {message}}. Прежнее поле platformName
-         *     принимается как список из одного имени; при двух полях действует platformNames, без обоих
-         *     запрос отклоняется статусом 400.
-         *
-         *     Доступно только системному администратору: db-service требует доверенный заголовок
-         *     X-System-Admin: true, а при его отсутствии отвечает 403 до разбора тела. Gateway на маршрутах
-         *     /api/admin принимает только токен пользователя, ключ проекта получает 401.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        platform: "web" | "compose" | "xml" | "ios";
-                        /**
-                         * @default {
-                         *       "source": ""
-                         *     }
-                         */
-                        meta?: {
-                            /** @default  */
-                            source?: string;
-                        };
-                        /** @default true */
-                        dryRun?: boolean;
-                        components: {
-                            name: string;
-                            /** @default [] */
-                            properties?: {
-                                name: string;
-                                type: string;
-                                platformNames?: (string | {
-                                    name: string;
-                                    deprecated?: {
-                                        message: string;
-                                    };
-                                })[];
-                                platformName?: string;
-                                description?: string;
-                            }[];
-                            /** @default [] */
-                            states?: string[];
-                        }[];
-                    };
-                };
-            };
-            responses: {
-                /** @description Отчёт импорта */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ApiMetaImportReport"];
-                    };
-                };
-                /** @description Тело запроса не соответствует формату */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-                /** @description Нужна роль системного администратора */
-                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -10443,23 +10306,6 @@ export interface components {
             gradientOnlyProperties: string[];
             /** @description Конфигурации, чьи идентификаторы вариаций не выводятся из значений осей и потому хранятся. Список информационный: он делает видимой долю, которую приходится хранить */
             underivableVariationIds: string[];
-        };
-        ApiMetaImportReport: {
-            createdComponents: number;
-            createdProperties: number;
-            createdStates: number;
-            createdAliases: number;
-            unchangedProperties: number;
-            deprecatedMarked: number;
-            deprecatedMessageChanged: number;
-            deprecatedCleared: number;
-            rejected: {
-                component: string;
-                property: string;
-                reason: string;
-            }[];
-            typeMismatches: string[];
-            absent: string[];
         };
     };
     responses: never;

@@ -64,6 +64,7 @@ import com.dsbuilder.ds.components.application.GetStyleUseCase
 import com.dsbuilder.ds.components.application.GetVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.GetVariationUseCase
+import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationAxesUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationValuesUseCase
@@ -115,6 +116,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCa
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.di.componentModelModule
 import com.dsbuilder.ds.components.di.componentsModule
+import com.dsbuilder.ds.components.presentation.apiMetaImportRoutes
 import com.dsbuilder.ds.components.presentation.appearanceRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationValueRoutes
@@ -347,6 +349,7 @@ private fun Application.installServiceRoutes(runtime: DsRuntime, json: Json) {
 
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
+    apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>())
     componentConfigRoutes(
         runtime.evaluator,
         koin.get<GetComponentConfigUseCase>(),

@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.di
 
+import com.dsbuilder.ds.components.application.ApiMetaRepository
 import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ComponentDependencyRepository
 import com.dsbuilder.ds.components.application.ComponentRepository
@@ -19,6 +20,7 @@ import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
+import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.ListComponentDependenciesUseCase
 import com.dsbuilder.ds.components.application.ListComponentPropertiesUseCase
@@ -31,6 +33,7 @@ import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentUseCase
+import com.dsbuilder.ds.components.data.ExposedApiMetaRepository
 import com.dsbuilder.ds.components.data.ExposedComponentConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
@@ -45,6 +48,7 @@ val componentsModule = module {
     single<DesignSystemComponentInitializer> { GeneratedDesignSystemComponentInitializer() }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
+    single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }
     single<ComponentReuseConfigRepository> { ExposedComponentReuseConfigRepository() }
@@ -74,4 +78,5 @@ val componentsModule = module {
     factory { GetComponentConfigUseCase(get(), get(), get()) }
     factory { ExportComponentConfigUseCase(get(), get(), get()) }
     factory { ImportComponentConfigUseCase(get(), get(), get()) }
+    factory { ImportApiMetaUseCase(get(), get(), get()) }
 }

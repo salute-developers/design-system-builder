@@ -108,7 +108,7 @@ fun Route.componentConfigRoutes(
     }
 }
 
-private suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
+internal suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
     val channel = receiveChannel()
     val output = ByteArrayOutputStream(minOf(limit, 64 * 1024))
     val buffer = ByteArray(8192)
@@ -121,4 +121,4 @@ private suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
     }
 }
 
-private const val COMPONENT_CONFIG_IMPORT_LIMIT_BYTES = 16 * 1024 * 1024
+internal const val COMPONENT_CONFIG_IMPORT_LIMIT_BYTES = 16 * 1024 * 1024

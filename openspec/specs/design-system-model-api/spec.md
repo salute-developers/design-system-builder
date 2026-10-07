@@ -168,7 +168,7 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 ### Requirement: Исключённые маршруты не входят в Kotlin-сервис
 
-`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**` и `/api/admin/**`, а также операции генерации артефактов.
+`ds-service` MUST NOT реализовывать маршруты `documentation-pages`, `saved-queries`, `/legacy/**` и `/api/admin/**`, а также операции генерации артефактов. Единственное административное исключение — импорт API-меты в глобальный слой компонентов, он выполняется в `ds-service` под внутренним путём `/api/ds/admin/component-config/import-api-meta`.
 
 | Исключённая область | Маршруты, от которых отказывается `ds-service` |
 |---|---|
@@ -193,7 +193,7 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 
 ### Requirement: Gateway compatibility routing для исключённых API
 
-Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/api/projects/{projectId}/ds/saved-queries/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой. `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
+Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/api/projects/{projectId}/ds/saved-queries/**` в `db-service` с существующим project-scoped trusted context. Gateway MUST направлять `/api/admin/**` в `db-service` с существующей user-authentication семантикой, кроме точного маршрута `POST /api/admin/component-config/import-api-meta`: его Gateway MUST направлять в `ds-service` (user-authentication, служебный проект `global`). `documentation-pages` MUST NOT получать fallback внутри `/ds/**`, поскольку принадлежит `documentation-service`.
 
 #### Scenario: Сохранённый запрос остаётся доступен во время миграции
 
@@ -356,4 +356,24 @@ Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/
 
 - **WHEN** в таблице есть строка журнала без дизайн-системы
 - **THEN** `GET /design-system-changes` и `GET /design-system-changes/by-design-system/{id}` MUST ответить `200` и MUST NOT содержать эту строку
+
+### Requirement: Административный импорт API-меты в ds-service
+
+`ds-service` SHALL предоставлять административный маршрут `POST /api/ds/admin/component-config/import-api-meta`, который Gateway публикует как `POST /api/admin/component-config/import-api-meta`. Маршрут MUST быть доступен только доверенному системному администратору, принимать манифест API-меты одним запросом (до 16 MiB), выполнять запись аддитивно в одной транзакции и писать в журнал `design_system_changes` строку с `design_system_id = NULL`. Маршрут не входит в проектный префикс `/api/projects/{projectId}/ds`, не описывается в OpenAPI проектных маршрутов и не требует идентификатора дизайн-системы.
+
+#### Scenario: Системный администратор импортирует мету
+
+- **WHEN** системный администратор отправляет манифест на `POST /api/admin/component-config/import-api-meta`
+- **THEN** Gateway MUST передать запрос в `ds-service` на `/api/ds/admin/component-config/import-api-meta`
+- **AND** `ds-service` MUST вернуть отчёт импорта с теми же полями, что и прежняя реализация в `db-service`
+
+#### Scenario: Пользователь без роли и прямой вызов
+
+- **WHEN** запрос приходит без `X-System-Admin: true`
+- **THEN** `ds-service` MUST ответить `403` до разбора тела и MUST NOT изменить данные
+
+#### Scenario: Роль и права ключа проекта
+
+- **WHEN** запрос на административный маршрут приходит с ключом проекта
+- **THEN** Gateway MUST ответить `401` и MUST NOT передавать запрос в `ds-service`
 
