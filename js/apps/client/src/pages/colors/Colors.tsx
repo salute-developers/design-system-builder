@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useEffect, useMemo, useRef } from 'react';
+import { useLocation, useOutletContext } from 'react-router-dom';
 
 import { getMenuItems } from '../../utils';
 import { useSelectItemInMenu } from '../../hooks';
@@ -27,6 +27,33 @@ export const Colors = () => {
     const data = useMemo(() => getMenuItems(theme, 'color') as GroupNode[] | undefined, [theme, updated]);
 
     const { tokenNode, selectToken } = useTokenNodeSelection({ data, groupIndex, itemIndex, onItemSelect });
+
+    // Переход из инспектора палитры: выбрать токен, имя которого передано в state маршрута.
+    const requestedToken = (useLocation().state as { tokenName?: string } | null)?.tokenName;
+    const handledRequest = useRef<string | null>(null);
+    useEffect(() => {
+        if (!requestedToken || !data || handledRequest.current === requestedToken) return;
+        const visited = new WeakSet<object>();
+        const containsToken = (value: unknown, depth: number): boolean => {
+            if (!value || typeof value !== 'object' || depth > 6 || visited.has(value)) return false;
+            visited.add(value);
+            const item = (value as { item?: { getName?: () => string } }).item;
+            if (item?.getName?.() === requestedToken) return true;
+            const children = (value as { data?: unknown }).data;
+            return Array.isArray(children)
+                ? children.some((child) => containsToken(child, depth + 1))
+                : containsToken(children, depth + 1);
+        };
+        for (const group of data) {
+            const node = group.data.find((candidate) => containsToken(candidate, 0));
+            const anchor = node && getAnchor(node);
+            if (anchor) {
+                handledRequest.current = requestedToken;
+                selectToken(anchor);
+                return;
+            }
+        }
+    }, [requestedToken, data, selectToken]);
 
     const onMenuItemSelect = (nextGroupIndex: number, nextItemIndex: number) => {
         onItemSelect(nextGroupIndex, nextItemIndex);

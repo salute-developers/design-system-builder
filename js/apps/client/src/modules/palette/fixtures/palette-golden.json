@@ -1,0 +1,599 @@
+{
+  "description": "Эталон логики палитры темы. Источник шаблона — @salutejs/plasma-tokens-utils (plasma-colors 0.22). Ожидаемые значения перестройки и имён перестроенных растяжек посчитаны кодом прототипа SDDS Portal bae288a; ожидания сценария палитры выведены из шаблона вручную. Читают тесты клиента и ds-service.",
+  "template": {
+    "general.green": {
+      "50": "#FFFFFF",
+      "100": "#E0FFE9",
+      "150": "#9EFAAF",
+      "200": "#77F38E",
+      "250": "#45E362",
+      "300": "#28D247",
+      "400": "#24B23E",
+      "500": "#1A9E32",
+      "600": "#108E26",
+      "700": "#0D8523",
+      "800": "#095C18",
+      "850": "#0A4014",
+      "900": "#0A2B10",
+      "950": "#071F0C",
+      "1000": "#050A06"
+    },
+    "general.gray": {
+      "50": "#F9F9F9",
+      "100": "#F5F5F5",
+      "150": "#ECECEC",
+      "200": "#DDDDDD",
+      "250": "#C7C7C7",
+      "300": "#B3B3B3",
+      "400": "#949494",
+      "500": "#858585",
+      "600": "#7A7A7A",
+      "700": "#707070",
+      "800": "#4E4E4E",
+      "850": "#363636",
+      "900": "#262626",
+      "950": "#171717",
+      "1000": "#080808"
+    },
+    "general.coolGray": {
+      "50": "#F7F9FB",
+      "100": "#F2F5F8",
+      "150": "#E8EEF2",
+      "200": "#D5DFE6",
+      "250": "#C0CBD3",
+      "300": "#ADB9C2",
+      "400": "#8A959D",
+      "500": "#7B868E",
+      "600": "#707C84",
+      "700": "#657179",
+      "800": "#485056",
+      "850": "#30373C",
+      "900": "#23292D",
+      "950": "#13181B",
+      "1000": "#060A0C"
+    },
+    "additional.h190": {
+      "100": "#E0FAFF",
+      "150": "#ADF1FF",
+      "200": "#85EBFF",
+      "250": "#43DBFA",
+      "300": "#27C6E6",
+      "400": "#08A5C4",
+      "500": "#0497B5",
+      "600": "#038BA6",
+      "700": "#06768C",
+      "800": "#0A5766",
+      "850": "#073B45",
+      "900": "#0A262B",
+      "950": "#09171A",
+      "1000": "#04090A"
+    },
+    "additional.h130": {
+      "100": "#CCFFD5",
+      "150": "#85FF99",
+      "200": "#51FC6D",
+      "250": "#26EB46",
+      "300": "#1DD13B",
+      "400": "#0EB029",
+      "500": "#0DA326",
+      "600": "#0C9423",
+      "700": "#0D8020",
+      "800": "#0B5C18",
+      "850": "#094012",
+      "900": "#08260D",
+      "950": "#08170A",
+      "1000": "#050A06"
+    }
+  },
+  "defaultGroups": [
+    {
+      "tokenName": "data.default.yellow-hover",
+      "group": "data"
+    },
+    {
+      "tokenName": "surface.default.transparent-accent-hover",
+      "group": "accent"
+    },
+    {
+      "tokenName": "text.default.promo",
+      "group": "accent"
+    },
+    {
+      "tokenName": "outline.default.positive-minor",
+      "group": "status"
+    },
+    {
+      "tokenName": "dark.text.default.warning",
+      "group": "status"
+    },
+    {
+      "tokenName": "text.default.primary",
+      "group": "neutral"
+    }
+  ],
+  "displayNames": [
+    {
+      "source": {
+        "type": "general",
+        "shade": "coolGray"
+      },
+      "anchor": null,
+      "expected": "Cool Gray"
+    },
+    {
+      "source": {
+        "type": "general",
+        "shade": "green"
+      },
+      "anchor": null,
+      "expected": "Green"
+    },
+    {
+      "source": {
+        "type": "additional",
+        "shade": "h190"
+      },
+      "anchor": null,
+      "expected": "Azure"
+    },
+    {
+      "source": {
+        "type": "general",
+        "shade": "green"
+      },
+      "anchor": {
+        "step": 500,
+        "value": "#1F8A70"
+      },
+      "expected": "Teal"
+    },
+    {
+      "source": {
+        "type": "general",
+        "shade": "green"
+      },
+      "anchor": {
+        "step": 500,
+        "value": "#3366CC"
+      },
+      "expected": "Cobalt"
+    },
+    {
+      "source": {
+        "type": "general",
+        "shade": "green"
+      },
+      "anchor": {
+        "step": 500,
+        "value": "#808080"
+      },
+      "expected": "Gray"
+    },
+    {
+      "source": {
+        "type": "general",
+        "shade": "green"
+      },
+      "anchor": {
+        "step": 500,
+        "value": "#E8114D"
+      },
+      "expected": "Coral"
+    }
+  ],
+  "rebuild": [
+    {
+      "source": "general.green",
+      "anchorStep": 500,
+      "value": "#1F8A70",
+      "expected": {
+        "50": "#FFFFFF",
+        "100": "#E2FDF9",
+        "150": "#A4F4E0",
+        "200": "#7EECD0",
+        "250": "#4EDAB7",
+        "300": "#32C8A2",
+        "400": "#2DA98A",
+        "500": "#229679",
+        "600": "#188669",
+        "700": "#157F65",
+        "800": "#0E5845",
+        "850": "#0E3F32",
+        "900": "#0C2720",
+        "950": "#081C17",
+        "1000": "#050A09"
+      }
+    },
+    {
+      "source": "additional.h190",
+      "anchorStep": 500,
+      "value": "#7B2FF7",
+      "expected": {
+        "100": "#ECE1FF",
+        "150": "#CDAFFE",
+        "200": "#B486FD",
+        "250": "#8945F7",
+        "300": "#722BE3",
+        "400": "#510BC1",
+        "500": "#4806B1",
+        "600": "#4206A2",
+        "700": "#3B088C",
+        "800": "#2E0C64",
+        "850": "#1F0844",
+        "900": "#150A29",
+        "950": "#10091A",
+        "1000": "#07040B"
+      }
+    },
+    {
+      "source": "general.gray",
+      "anchorStep": 500,
+      "value": "#3366CC",
+      "expected": {
+        "50": "#F7F9FD",
+        "100": "#EFF3FB",
+        "150": "#E2EAF8",
+        "200": "#CAD7F2",
+        "250": "#A5BCE9",
+        "300": "#85A3E0",
+        "400": "#547ED4",
+        "500": "#3B6CCE",
+        "600": "#3162C4",
+        "700": "#2D5AB4",
+        "800": "#203F7E",
+        "850": "#152B56",
+        "900": "#0F1F3D",
+        "950": "#091225",
+        "1000": "#03060C"
+      }
+    }
+  ],
+  "scenario": {
+    "state": {
+      "version": 1,
+      "editRevision": 7,
+      "template": {
+        "general.green": {
+          "50": "#FFFFFF",
+          "100": "#E0FFE9",
+          "150": "#9EFAAF",
+          "200": "#77F38E",
+          "250": "#45E362",
+          "300": "#28D247",
+          "400": "#24B23E",
+          "500": "#1A9E32",
+          "600": "#108E26",
+          "700": "#0D8523",
+          "800": "#095C18",
+          "850": "#0A4014",
+          "900": "#0A2B10",
+          "950": "#071F0C",
+          "1000": "#050A06"
+        },
+        "general.gray": {
+          "50": "#F9F9F9",
+          "100": "#F5F5F5",
+          "150": "#ECECEC",
+          "200": "#DDDDDD",
+          "250": "#C7C7C7",
+          "300": "#B3B3B3",
+          "400": "#949494",
+          "500": "#858585",
+          "600": "#7A7A7A",
+          "700": "#707070",
+          "800": "#4E4E4E",
+          "850": "#363636",
+          "900": "#262626",
+          "950": "#171717",
+          "1000": "#080808"
+        },
+        "general.coolGray": {
+          "50": "#F7F9FB",
+          "100": "#F2F5F8",
+          "150": "#E8EEF2",
+          "200": "#D5DFE6",
+          "250": "#C0CBD3",
+          "300": "#ADB9C2",
+          "400": "#8A959D",
+          "500": "#7B868E",
+          "600": "#707C84",
+          "700": "#657179",
+          "800": "#485056",
+          "850": "#30373C",
+          "900": "#23292D",
+          "950": "#13181B",
+          "1000": "#060A0C"
+        },
+        "additional.h190": {
+          "100": "#E0FAFF",
+          "150": "#ADF1FF",
+          "200": "#85EBFF",
+          "250": "#43DBFA",
+          "300": "#27C6E6",
+          "400": "#08A5C4",
+          "500": "#0497B5",
+          "600": "#038BA6",
+          "700": "#06768C",
+          "800": "#0A5766",
+          "850": "#073B45",
+          "900": "#0A262B",
+          "950": "#09171A",
+          "1000": "#04090A"
+        },
+        "additional.h130": {
+          "100": "#CCFFD5",
+          "150": "#85FF99",
+          "200": "#51FC6D",
+          "250": "#26EB46",
+          "300": "#1DD13B",
+          "400": "#0EB029",
+          "500": "#0DA326",
+          "600": "#0C9423",
+          "700": "#0D8020",
+          "800": "#0B5C18",
+          "850": "#094012",
+          "900": "#08260D",
+          "950": "#08170A",
+          "1000": "#050A06"
+        }
+      },
+      "groups": [
+        {
+          "id": "g-neutral",
+          "kind": "system",
+          "systemKey": "neutral",
+          "label": "Neutral"
+        },
+        {
+          "id": "g-accent",
+          "kind": "system",
+          "systemKey": "accent",
+          "label": "Accent"
+        },
+        {
+          "id": "g-status",
+          "kind": "system",
+          "systemKey": "status",
+          "label": "Статус"
+        },
+        {
+          "id": "g-data",
+          "kind": "system",
+          "systemKey": "data",
+          "label": "Data"
+        },
+        {
+          "id": "g-syntax",
+          "kind": "system",
+          "systemKey": "syntax",
+          "label": "Syntax"
+        },
+        {
+          "id": "g-avatars",
+          "kind": "custom",
+          "systemKey": null,
+          "label": "Avatars"
+        }
+      ],
+      "ramps": [
+        {
+          "groupId": "g-accent",
+          "slot": {
+            "type": "general",
+            "shade": "green"
+          },
+          "source": {
+            "type": "additional",
+            "shade": "h190"
+          },
+          "added": false,
+          "origin": "template",
+          "anchor": null,
+          "steps": {}
+        },
+        {
+          "groupId": "g-avatars",
+          "slot": {
+            "type": "additional",
+            "shade": "h130"
+          },
+          "source": {
+            "type": "additional",
+            "shade": "h130"
+          },
+          "added": false,
+          "origin": "template",
+          "anchor": null,
+          "steps": {
+            "300": "#123456"
+          }
+        }
+      ],
+      "tokenGroups": {
+        "t3": "g-avatars"
+      }
+    },
+    "tokens": [
+      {
+        "id": "t1",
+        "name": "text.default.accent",
+        "displayName": "Accent"
+      },
+      {
+        "id": "t2",
+        "name": "text.default.primary",
+        "displayName": "Primary"
+      },
+      {
+        "id": "t3",
+        "name": "surface.default.avatar-bg",
+        "displayName": "Avatar"
+      }
+    ],
+    "values": [
+      {
+        "tokenId": "t1",
+        "mode": "light",
+        "platform": "web",
+        "value": "[general.green.500]"
+      },
+      {
+        "tokenId": "t1",
+        "mode": "light",
+        "platform": "ios",
+        "value": [
+          "[general.green.500]"
+        ]
+      },
+      {
+        "tokenId": "t1",
+        "mode": "dark",
+        "platform": "web",
+        "value": "[general.green.400][0.5]"
+      },
+      {
+        "tokenId": "t2",
+        "mode": "light",
+        "platform": "web",
+        "value": "[general.green.500]"
+      },
+      {
+        "tokenId": "t2",
+        "mode": "dark",
+        "platform": "web",
+        "value": "[general.gray.900]"
+      },
+      {
+        "tokenId": "t3",
+        "mode": "light",
+        "platform": "web",
+        "value": "[additional.h130.300]"
+      },
+      {
+        "tokenId": "t2",
+        "mode": "light",
+        "platform": "android",
+        "value": "#FFFFFF"
+      }
+    ],
+    "expected": {
+      "offBrand": true,
+      "tokens": [
+        {
+          "tokenId": "t1",
+          "groupId": "g-accent",
+          "assignment": "default"
+        },
+        {
+          "tokenId": "t2",
+          "groupId": "g-neutral",
+          "assignment": "default"
+        },
+        {
+          "tokenId": "t3",
+          "groupId": "g-avatars",
+          "assignment": "explicit"
+        }
+      ],
+      "groups": {
+        "g-neutral": [
+          {
+            "slot": "general.gray",
+            "source": "general.gray",
+            "displayName": "Gray",
+            "linkedCount": 1,
+            "modified": false,
+            "steps": {
+              "900": {
+                "value": "#262626",
+                "overridden": false,
+                "linkedCount": 1
+              }
+            }
+          },
+          {
+            "slot": "general.green",
+            "source": "general.green",
+            "displayName": "Green",
+            "linkedCount": 1,
+            "modified": false,
+            "steps": {
+              "500": {
+                "value": "#1A9E32",
+                "overridden": false,
+                "linkedCount": 1
+              }
+            }
+          }
+        ],
+        "g-accent": [
+          {
+            "slot": "general.green",
+            "source": "additional.h190",
+            "displayName": "Azure",
+            "linkedCount": 2,
+            "modified": false,
+            "steps": {
+              "400": {
+                "value": "#08A5C4",
+                "overridden": false,
+                "linkedCount": 1
+              },
+              "500": {
+                "value": "#0497B5",
+                "overridden": false,
+                "linkedCount": 1
+              }
+            }
+          }
+        ],
+        "g-status": [],
+        "g-data": [],
+        "g-syntax": [],
+        "g-avatars": [
+          {
+            "slot": "additional.h130",
+            "source": "additional.h130",
+            "displayName": "Green",
+            "linkedCount": 1,
+            "modified": true,
+            "steps": {
+              "300": {
+                "value": "#123456",
+                "templateValue": "#1DD13B",
+                "overridden": true,
+                "linkedCount": 1
+              }
+            }
+          }
+        ]
+      },
+      "resolve": [
+        {
+          "tokenName": "light.text.default.accent",
+          "value": "[general.green.500]",
+          "hex": "#0497B5",
+          "opacity": null
+        },
+        {
+          "tokenName": "dark.text.default.accent",
+          "value": "[general.green.400][0.5]",
+          "hex": "#08A5C4",
+          "opacity": 0.5
+        },
+        {
+          "tokenName": "light.text.default.primary",
+          "value": "[general.green.500]",
+          "hex": "#1A9E32",
+          "opacity": null
+        },
+        {
+          "tokenName": "light.surface.default.avatar-bg",
+          "value": "[additional.h130.300]",
+          "hex": "#123456",
+          "opacity": null
+        }
+      ]
+    }
+  }
+}

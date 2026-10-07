@@ -1,7 +1,7 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 import { component, mergeConfig } from '@salutejs/plasma-new-hope/styled-components';
 
 import { Config, DesignSystem, Theme, createThemeConfig, getCoreConfig, toCSSVariables } from '../../../../controllers';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const createThemeVars = (theme: Theme, themeMode: any) => {
     return theme
@@ -13,7 +13,7 @@ export const createThemeVars = (theme: Theme, themeMode: any) => {
 
             return {
                 ...acc,
-                [tokenName]: getRestoredColorFromPalette(token.getValue('web'), -1),
+                [tokenName]: restorePaletteColor(token.getValue('web'), -1, token.getName()),
             };
         }, {});
 };

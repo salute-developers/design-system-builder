@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
@@ -20,6 +19,7 @@ import {
     StyledPreviewSpacingItem,
 } from './TokenShapePreview.styles';
 import { modeList, backgroundList } from './TokenShapePreview.utils';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 interface TokenShapePreviewProps {
     value: string | ShadowType[];
@@ -44,7 +44,7 @@ export const TokenShapePreview = (props: TokenShapePreviewProps) => {
                       ({ offsetX, offsetY, blur, spread, color, opacity }) =>
                           `${parseFloat(offsetX) / 16}rem ${parseFloat(offsetY) / 16}rem ${parseFloat(blur) / 16}rem ${
                               parseFloat(spread) / 16
-                          }rem ${getRestoredColorFromPalette(color)}${getAlphaHex(opacity)}`,
+                          }rem ${restorePaletteColor(color)}${getAlphaHex(opacity)}`,
                   )
                 : value,
         [value],

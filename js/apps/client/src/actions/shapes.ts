@@ -1,5 +1,3 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
-
 import {
     AndroidShadow,
     AndroidShape,
@@ -20,6 +18,7 @@ import {
 import { ShadowType } from '../features';
 import { camelToKebab, getAlphaHex, kebabToCamel, createDraftToken, updateDraftToken } from '../utils';
 import { getTokenValue } from '../pages/shapes/features/TokenShapeEditor/TokenShapeEditor.utils';
+import { restorePaletteColor } from '../palette/activePalette';
 
 interface AddTokenProps {
     tokenName: string;
@@ -204,11 +203,11 @@ export const shapeTokenActions: ShapeTokenActions = {
                 ({ offsetX, offsetY, blur, spread, color, opacity }) =>
                     `${parseFloat(offsetX) / 16}rem ${parseFloat(offsetY) / 16}rem ${parseFloat(blur) / 16}rem ${
                         parseFloat(spread) / 16
-                    }rem ${getRestoredColorFromPalette(color)}${getAlphaHex(opacity)}`,
+                    }rem ${restorePaletteColor(color)}${getAlphaHex(opacity)}`,
             );
 
             const nativeValues = value.map(({ offsetX, offsetY, blur, spread, color, opacity }, index) => ({
-                color: `${getRestoredColorFromPalette(color)}${getAlphaHex(opacity)}`,
+                color: `${restorePaletteColor(color)}${getAlphaHex(opacity)}`,
                 offsetX: parseFloat(offsetX),
                 offsetY: parseFloat(offsetY),
                 blurRadius: parseFloat(blur),

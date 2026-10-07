@@ -1,7 +1,6 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
-
 import { Theme } from '../../../../controllers';
 import { TypographyType } from '../../../../features';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const getColorsTokens = (theme?: Theme) => {
     if (!theme) {
@@ -20,7 +19,7 @@ export const getColorsTokens = (theme?: Theme) => {
         .map((item) => {
             return {
                 label: item.getName(),
-                value: getRestoredColorFromPalette(item.getValue('web'), -1),
+                value: restorePaletteColor(item.getValue('web'), -1, item.getName()),
             };
         });
 };

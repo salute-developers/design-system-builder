@@ -1,4 +1,4 @@
-import { getRestoredColorFromPalette, ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import { AndroidColor, ColorToken, DesignSystem, IOSColor, Theme, Token, WebColor } from '../controllers';
 import { sectionToFormulaMap } from '../types';
@@ -13,8 +13,15 @@ import {
     renameDraftToken,
     isDraftAddedToken,
 } from '../utils';
+import { restorePaletteColor } from '../palette/activePalette';
 
-const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
+const getAdditionalColorValues = (
+    value: string,
+    themeMode: string,
+    groupName: string,
+    subgroupName: string,
+    tokenName?: string,
+) => {
     const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
 
     if (!sectionName) {
@@ -36,7 +43,7 @@ const getAdditionalColorValues = (value: string, themeMode: string, groupName: s
         mode = 'light';
     }
 
-    const restoredValue = getRestoredColorFromPalette(value, -1);
+    const restoredValue = restorePaletteColor(value, -1, tokenName);
     const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
     const activeValue = getDefaultStateToken('active');
     const hoverValue = getDefaultStateToken('hover');
@@ -155,7 +162,13 @@ export const colorTokenActions: ColorTokenActions = {
                 theme.addToken('color', newToken);
                 createDraftToken(dsName, dsVersion, newToken);
 
-                const additionalValues = getAdditionalColorValues(defaultValue, themeMode, groupName, subgroupKebab);
+                const additionalValues = getAdditionalColorValues(
+                    defaultValue,
+                    themeMode,
+                    groupName,
+                    subgroupKebab,
+                    newToken.getName(),
+                );
 
                 if (!additionalValues) {
                     return;
@@ -220,7 +233,7 @@ export const colorTokenActions: ColorTokenActions = {
 
         const platforms = Object.keys(token.getPlatforms());
 
-        const newValue = color.startsWith('general.')
+        const newValue = /^(general|additional)\./.test(color)
             ? `[${color}]${opacity === 1 ? '' : `[${opacity}]`}`
             : getNormalizedColor(color, opacity);
 
@@ -231,7 +244,7 @@ export const colorTokenActions: ColorTokenActions = {
         updateDraftToken(dsName, dsVersion, token, 'save');
 
         const [themeMode, groupName, subgroupName, ..._] = token.getTags();
-        const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName);
+        const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName, token.getName());
 
         if (!additionalValues) {
             return;

@@ -5,13 +5,13 @@ import {
     extractColors,
     getHEXAColor,
     getHSLARawColor,
-    getRestoredColorFromPalette,
 } from '@salutejs/plasma-tokens-utils';
 import type { PlasmaSaturation } from '@salutejs/plasma-colors';
 
 import type { ColorFormats, ComplexValue, FormulaMode, GeneralColor, OperationKind } from '../types';
 import { formulas } from './formulas';
 import { inRange, roundTo } from './other';
+import { restorePaletteColor } from '../palette/activePalette';
 
 export { getHEXAColor, getHSLARawColor };
 
@@ -160,10 +160,11 @@ export const getPaletteColorByValue = (value: ComplexValue) => {
     return [undefined, undefined];
 };
 
-export const getNormalizedColor = (color: string, opacity?: number, preserveFormat?: boolean) => {
-    if (color.startsWith('general.')) {
+/** `tokenName` — токен, для которого показывается цвет: ссылка разрешается по его группе палитры. */
+export const getNormalizedColor = (color: string, opacity?: number, preserveFormat?: boolean, tokenName?: string) => {
+    if (/^(general|additional)\./.test(color)) {
         const value = opacity !== undefined ? `[${color}][${opacity}]` : `[${color}]`;
-        return getRestoredColorFromPalette(value, -1);
+        return restorePaletteColor(value, -1, tokenName);
     }
 
     const baseHex = getHEXAColor(color).slice(0, 7);

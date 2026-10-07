@@ -1,5 +1,4 @@
 import { useState, useEffect, MouseEvent } from 'react';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { DesignSystem, ColorToken, GradientToken, Theme } from '../../../../controllers';
 import {
@@ -25,6 +24,8 @@ import {
     typeList,
 } from './TokenColorEditor.utils';
 import { ContextSection, DeleteTokenDialog, ModesSection, TokenHeader } from './ui';
+import { restorePaletteColor } from '../../../../palette/activePalette';
+import { TokenPaletteGroupField } from '../../../palette/TokenPaletteGroupField';
 
 interface TokenColorEditorProps {
     designSystem: DesignSystem;
@@ -112,7 +113,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
         }
 
         const [, leafOpacity] = getColorAndOpacity(rawValue);
-        const hex = getRestoredColorFromPalette(`[${rawValue.slice(1).split(']')[0]}]`, -1) ?? rawValue;
+        const hex = restorePaletteColor(`[${rawValue.slice(1).split(']')[0]}]`, -1, item.getName()) ?? rawValue;
 
         const wasLinkedBefore = captureLinkedSnapshot(subgroupNodes);
 
@@ -415,6 +416,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
                     onReset={onTokenReset}
                     onDeleteClick={onDeleteClick}
                 />
+                <TokenPaletteGroupField key={token?.getName()} tokenName={token?.getName()} value={token?.getValue('web')} />
                 <ModesSection nodes={modeNodes} {...sectionHandlers} />
                 <ContextSection nodes={contextNodes} isLinked={isSubgroupLinked(subgroupNodes)} {...sectionHandlers} />
                 <ColorPicker
@@ -424,6 +426,7 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
                     opened={opened}
                     anchor={colorPickerAnchor}
                     initialType={pickerInitialType}
+                    tokenName={token?.getName()}
                     onColorChange={onColorChange(token)}
                     onOpacityChange={onOpacityChange(token)}
                     onClose={onColorPickerClose}
@@ -436,7 +439,13 @@ export const TokenColorEditor = (props: TokenColorEditorProps) => {
                     onConfirm={onDeleteConfirm}
                 />
             </StyledSetup>
-            <TokenColorPreview color={currentColor} opacity={currentOpacity} theme={theme} type={type.value} />
+            <TokenColorPreview
+                color={currentColor}
+                opacity={currentOpacity}
+                theme={theme}
+                type={type.value}
+                tokenName={token?.getName()}
+            />
         </Root>
     );
 };
