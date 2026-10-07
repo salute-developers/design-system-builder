@@ -17,7 +17,7 @@ class DsObservabilityConfiguration {
 /** Records request duration and status without retaining request or response bodies. */
 val DsObservability = createApplicationPlugin("DsObservability", ::DsObservabilityConfiguration) {
     val registry = pluginConfig.metrics
-    val operations = OpenApiDocumentFactory(Json.Default).operations().map { operation ->
+    val operations = OpenApiDocumentResource(Json.Default).operations().map { operation ->
         val pattern = operation.path.split('/').joinToString("/") { segment ->
             if (segment.startsWith('{') && segment.endsWith('}')) "[^/]+" else Regex.escape(segment)
         }

@@ -286,7 +286,7 @@ private fun Application.installDependencyGraph(configuration: DsServiceConfigura
 
 private fun Application.installHttpPlugins(json: Json, metrics: DsMetrics) {
     val applicationLog = environment.log
-    val validationErrors = LegacyValidationErrorFactory(OpenApiDocumentFactory(json).create())
+    val validationErrors = LegacyValidationErrorFactory(OpenApiDocumentResource(json).create())
     install(CallId) {
         header("X-Correlation-Id")
         verify(String::isNotBlank)
@@ -333,7 +333,7 @@ private fun Application.installHttpPlugins(json: Json, metrics: DsMetrics) {
 private fun Application.installServiceRoutes(runtime: DsRuntime, json: Json) {
     routing {
         registerHealthRoutes(runtime)
-        get("/openapi.json") { call.respond(OpenApiDocumentFactory(json).create()) }
+        get("/openapi.json") { call.respond(OpenApiDocumentResource(json).create()) }
         get("/metrics") {
             call.respondText(runtime.metrics.render(runtime.databasePool), ContentType.Text.Plain)
         }
@@ -638,7 +638,7 @@ private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Ko
 
 private fun createRuntime(configuration: DsServiceConfiguration): DsRuntime {
     val loadedPolicy = AuthorizationPolicyLoader.load(configuration.authorizationPolicyPath)
-    val manifestPermissions = OpenApiDocumentFactory(Json.Default).permissions()
+    val manifestPermissions = OpenApiDocumentResource(Json.Default).permissions()
     val missingPermissions = manifestPermissions - loadedPolicy.policy.permissions.toSet()
     check(missingPermissions.isEmpty()) {
         "Authorization policy does not define manifest permissions: ${missingPermissions.sorted().joinToString()}"

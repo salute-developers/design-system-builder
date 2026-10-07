@@ -1,0 +1,15 @@
+{
+  "name": "ds-builder-api-reference",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node --check src/catalog.mjs && node --check src/openapi-transform.mjs && node --check src/reference-page.mjs && node --check src/server.mjs",
+    "start": "node src/server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@scalar/api-reference": "1.46.4",
+    "yaml": "2.8.1"
+  }
+}

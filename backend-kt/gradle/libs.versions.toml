@@ -15,6 +15,7 @@ hikari = "6.3.1"
 testcontainers = "1.21.3"
 commonmark = "0.29.0"
 konsist = "0.17.3"
+snakeyaml = "2.3"
 
 staticAnalysis-detekt = "1.22.0"
 staticAnalysis-ktlint = "0.50.0"
@@ -68,6 +69,7 @@ koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref =
 
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 ktor-server-config-yaml = { module = "io.ktor:ktor-server-config-yaml", version.ref = "ktor" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
