@@ -1,8 +1,7 @@
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
-
 import { Config, Theme, ComponentAPI, ComponentVariation, PropType, PropState, PropUnion } from '../../../../controllers';
 
 import { ListItemPreviewWrapper, ListItemColorPreview, ListItemTypographyPreview, ListItemShapePreview, ListItemShadowPreview } from './ComponentEditorProperties.styles';
+import { restorePaletteColor } from '../../../../palette/activePalette';
 
 export const getPropsByVariation = (api: ComponentAPI[], variations: ComponentVariation[], variationID?: string) => {
     if (!variationID) {
@@ -131,8 +130,8 @@ export const getColorsTokens = (theme?: Theme) => {
                 value: name.join('.'),
                 contentRight: (
                     <ListItemPreviewWrapper>
-                        <ListItemColorPreview color={getRestoredColorFromPalette(darkValue)} />
-                        <ListItemColorPreview color={getRestoredColorFromPalette(lightValue)} />
+                        <ListItemColorPreview color={restorePaletteColor(darkValue, 0, item.getName())} />
+                        <ListItemColorPreview color={restorePaletteColor(lightValue, 0, item.getName())} />
                     </ListItemPreviewWrapper>
                 ),
             };
@@ -176,8 +175,8 @@ export const getColorStateTokens = (suffix: string, theme?: Theme) => {
                 value: stateName,
                 contentRight: (
                     <ListItemPreviewWrapper>
-                        <ListItemColorPreview color={getRestoredColorFromPalette(darkValue)} />
-                        <ListItemColorPreview color={getRestoredColorFromPalette(lightValue)} />
+                        <ListItemColorPreview color={restorePaletteColor(darkValue, 0, item.getName())} />
+                        <ListItemColorPreview color={restorePaletteColor(lightValue, 0, item.getName())} />
                     </ListItemPreviewWrapper>
                 ),
             };

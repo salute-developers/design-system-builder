@@ -1,7 +1,8 @@
-import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import type { PlatformTokens, PropConfig, PropState, State, ThemeValues, WebTokenValues } from '../type';
 import { Prop } from './prop';
+import { restorePaletteColor } from '../../../palette/activePalette';
 
 // Суффиксы производных токенов темы для состояний (тема генерирует `<base>-hover` / `<base>-active`).
 const stateSuffixMap: Record<PropState, string> = {
@@ -49,7 +50,7 @@ export class ColorProp extends Prop {
             return undefined;
         }
 
-        return getRestoredColorFromPalette(token, -1);
+        return restorePaletteColor(token, -1, `${themeMode}.${tokenName}`);
     }
 
     public getWebTokenValue(theme?: ThemeValues, themeMode?: ThemeMode): WebTokenValues | undefined {

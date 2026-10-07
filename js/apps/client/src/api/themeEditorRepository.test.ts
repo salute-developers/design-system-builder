@@ -44,6 +44,25 @@ beforeEach(() => {
 });
 
 describe('ThemeEditorRepository', () => {
+    it('keeps the opacity of palette references stored through paletteId', async () => {
+        const repository = new ThemeEditorRepository();
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/tenants/tenant-1/token-values'))
+                return Promise.resolve({
+                    data: [
+                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'dark', paletteId: 'p1', value: ['0.56'] },
+                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'light', paletteId: 'p1', value: null },
+                    ],
+                });
+            if (url.endsWith('/ds/palette'))
+                return Promise.resolve({ data: [{ id: 'p1', type: 'general', shade: 'amber', saturation: 300 }] });
+            return Promise.resolve(reply('tenant-1', '#111111')(url));
+        });
+        const snapshot = await repository.load(context);
+        expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.amber.300][0.56]');
+        expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('[general.amber.300]');
+    });
+
     it('loads only values of the selected tenant and keeps tenant snapshots independent', async () => {
         const repository = new ThemeEditorRepository();
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));

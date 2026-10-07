@@ -14,13 +14,16 @@ interface ColorPickerProps {
     anchor?: HTMLElement;
     tokenType: VariationType;
     initialType?: 'custom' | 'library';
+    /** Имя редактируемого токена: Library показывает значения для его группы палитры. */
+    tokenName?: string;
     onColorChange: (color: string | string[]) => void;
     onOpacityChange: (opacity: number) => void;
     onClose: () => void;
 }
 
 export const ColorPicker = (props: ColorPickerProps) => {
-    const { tokenType, color, opacity, opened, anchor, initialType, onColorChange, onOpacityChange, onClose } = props;
+    const { tokenType, color, opacity, opened, anchor, initialType, tokenName, onColorChange, onOpacityChange, onClose } =
+        props;
 
     const typeList = getTypeList(tokenType);
     const defaultType = typeList.find((item) => item.value === (initialType ?? 'custom')) ?? typeList[0];
@@ -53,13 +56,20 @@ export const ColorPicker = (props: ColorPickerProps) => {
                     tokenType={tokenType}
                     opacity={opacity}
                     color={color}
+                    tokenName={tokenName}
                     onColorChange={onColorChange}
                     onOpacityChange={onOpacityChange}
                 />
             )}
 
             {type.value === 'library' && (
-                <PaletteColorSelector color={color} opacity={opacity} onChange={onColorChange} onClose={onClose} />
+                <PaletteColorSelector
+                    color={color}
+                    opacity={opacity}
+                    tokenName={tokenName}
+                    onChange={onColorChange}
+                    onClose={onClose}
+                />
             )}
         </StyledModal>
     );
