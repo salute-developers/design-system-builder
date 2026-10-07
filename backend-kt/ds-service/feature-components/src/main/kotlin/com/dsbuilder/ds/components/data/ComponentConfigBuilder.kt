@@ -199,7 +199,17 @@ internal class ComponentConfigBuilder {
         val keys = (declared.map { it.first } + byKey.keys.sorted()).distinct()
         return keys.mapNotNull { key ->
             val declaration = declared.firstOrNull { it.first == key }
-            val members = declaration?.third ?: storedMembers[key].orEmpty()
+            val stored = declaration?.third ?: storedMembers[key].orEmpty()
+            // Stored member order follows random style ids; the export orders them by axis, then by name,
+            // so that the same configuration is exported identically whatever ids the rows received.
+            val members = if (exported) {
+                val axisPosition = axes.associate { it.variationId to it.position }
+                stored.sortedWith(
+                    compareBy({ axisPosition[it.variationId] ?: Int.MAX_VALUE }, { it.styleName }),
+                )
+            } else {
+                stored
+            }
             val owner = owner(members, axes, exported) ?: return@mapNotNull null
             ConfigCombination(
                 owner.styleId,
