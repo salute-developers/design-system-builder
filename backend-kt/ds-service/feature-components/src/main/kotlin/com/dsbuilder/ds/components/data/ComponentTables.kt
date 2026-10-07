@@ -104,6 +104,8 @@ internal object ComponentAppearancesTable : Table("appearances") {
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val componentId = reference("component_id", ComponentsTable.id)
     val name = text("name").nullable()
+    val rootVariationId = uuid("root_variation_id").nullable()
+    val colorSchemeVariationId = uuid("color_scheme_variation_id").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)

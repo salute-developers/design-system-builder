@@ -115,7 +115,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
                     )
             }
             .orderBy(AppearanceVariationsTable.position)
-            .map(::appearanceVariation)
+            .let(::appearanceVariations)
             .map { variation ->
                 val values = AppearanceVariationValuesTable.selectAll()
                     .where {
@@ -139,7 +139,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
                 projectId,
                 systemAdmin,
             )
-        }.map(::appearanceVariation)
+        }.let(::appearanceVariations)
 
     override suspend fun findVariation(
         projectId: ProjectId,
@@ -169,14 +169,22 @@ class ExposedAppearanceRepository : AppearanceRepository {
         ) {
             return null
         }
-        return AppearanceVariationsTable.insertReturning {
+        val created = AppearanceVariationsTable.insertReturning {
             it[appearanceId] = command.appearanceId
             it[variationId] = command.variationId
             it[position] = command.position
             it[defaultStyleId] = command.defaultStyleId
-            it[isColorScheme] = command.isColorScheme
+            it[isColorScheme] = false
             it[declaredType] = command.declaredType
-        }.single().let(::appearanceVariation)
+        }.single()
+        AppearanceAxisRoleStore.apply(
+            command.appearanceId,
+            command.variationId,
+            root = command.isRoot.takeIf { it },
+            colorScheme = command.isColorScheme.takeIf { it },
+        )
+        AppearanceAxisRoleStore.ensureRoot(command.appearanceId)
+        return appearanceVariation(created)
     }
 
     @Suppress("ReturnCount")
@@ -192,7 +200,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
         ) {
             return null
         }
-        return AppearanceVariationsTable.updateReturning(where = {
+        val updated = AppearanceVariationsTable.updateReturning(where = {
             (AppearanceVariationsTable.id eq id) and
                 ComponentOwnership.writableAppearance(
                     AppearanceVariationsTable.appearanceId,
@@ -202,15 +210,24 @@ class ExposedAppearanceRepository : AppearanceRepository {
         }) {
             command.position?.let { value -> it[position] = value }
             if (command.defaultStyleIdPresent) it[defaultStyleId] = command.defaultStyleId
-            command.isColorScheme?.let { value -> it[isColorScheme] = value }
             if (command.declaredTypePresent) it[declaredType] = command.declaredType
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::appearanceVariation)
+        }.singleOrNull() ?: return null
+        if (command.isRoot != null || command.isColorScheme != null) {
+            AppearanceAxisRoleStore.apply(
+                updated[AppearanceVariationsTable.appearanceId],
+                updated[AppearanceVariationsTable.variationId],
+                root = command.isRoot,
+                colorScheme = command.isColorScheme,
+            )
+        }
+        return appearanceVariation(updated)
     }
 
     @Suppress("ReturnCount")
     override suspend fun deleteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return AppearanceVariationsTable.deleteWhere {
+        val appearanceId = appearanceVariationRow(id)?.get(AppearanceVariationsTable.appearanceId)
+        val deleted = AppearanceVariationsTable.deleteWhere {
             (AppearanceVariationsTable.id eq id) and
                 ComponentOwnership.writableAppearance(
                     AppearanceVariationsTable.appearanceId,
@@ -218,6 +235,9 @@ class ExposedAppearanceRepository : AppearanceRepository {
                     systemAdmin,
                 )
         } > 0
+        // Внешний ключ уже обнулил роль удалённой оси; потерянный корень назначается заново.
+        if (deleted && appearanceId != null) AppearanceAxisRoleStore.ensureRoot(appearanceId)
+        return deleted
     }
 
     override suspend fun listValues(projectId: ProjectId, systemAdmin: Boolean): List<AppearanceVariationValue> =
@@ -312,13 +332,24 @@ private fun appearance(row: ResultRow) = Appearance(
     row[ComponentAppearancesTable.updatedAt],
 )
 
-private fun appearanceVariation(row: ResultRow) = AppearanceVariation(
-    row[AppearanceVariationsTable.id], row[AppearanceVariationsTable.appearanceId],
-    row[AppearanceVariationsTable.variationId], row[AppearanceVariationsTable.position],
-    row[AppearanceVariationsTable.defaultStyleId], row[AppearanceVariationsTable.isColorScheme],
-    row[AppearanceVariationsTable.declaredType], row[AppearanceVariationsTable.createdAt],
-    row[AppearanceVariationsTable.updatedAt],
-)
+private fun appearanceVariations(rows: Iterable<ResultRow>): List<AppearanceVariation> {
+    val list = rows.toList()
+    val roles = AppearanceAxisRoleStore.load(list.map { it[AppearanceVariationsTable.appearanceId] }.toSet())
+    return list.map { row ->
+        val appearanceRoles = roles[row[AppearanceVariationsTable.appearanceId]]
+        val variationId = row[AppearanceVariationsTable.variationId]
+        AppearanceVariation(
+            row[AppearanceVariationsTable.id], row[AppearanceVariationsTable.appearanceId],
+            variationId, row[AppearanceVariationsTable.position],
+            row[AppearanceVariationsTable.defaultStyleId], appearanceRoles?.colorScheme == variationId,
+            appearanceRoles?.root == variationId,
+            row[AppearanceVariationsTable.declaredType], row[AppearanceVariationsTable.createdAt],
+            row[AppearanceVariationsTable.updatedAt],
+        )
+    }
+}
+
+private fun appearanceVariation(row: ResultRow) = appearanceVariations(listOf(row)).single()
 
 private fun appearanceVariationValue(row: ResultRow) = AppearanceVariationValue(
     row[AppearanceVariationValuesTable.id],

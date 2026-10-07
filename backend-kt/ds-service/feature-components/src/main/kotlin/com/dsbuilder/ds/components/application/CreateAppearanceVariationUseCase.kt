@@ -16,7 +16,7 @@ class CreateAppearanceVariationUseCase(
     suspend fun execute(
         context: DsRequestContext,
         command: AppearanceRepository.VariationCreate,
-    ): DsResult<AppearanceVariation> = modelMutate(policy, transactions, context) {
+    ): DsResult<AppearanceVariation> = modelMutateAxisRoles(policy, transactions, context) {
         repository.createVariation(context.projectId, context.principal.systemAdmin, command)
     }
 }

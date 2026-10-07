@@ -3,6 +3,8 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
+import com.dsbuilder.ds.components.domain.RootCandidate
+import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -45,6 +47,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
 
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
         invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
+        unknownRoot(entry.config)?.let {
+            return context.report.reject(entry, "rootVariationId '$it' names no axis of the configuration")
+        }
         val component = component(entry.componentName, context) ?: return context.report.reject(
             entry,
             "Component '${entry.componentName}' is not present in the global layer for platform " +
@@ -164,7 +169,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 it[variationId] = axes.getValue(axisId)
                 it[AppearanceVariationsTable.position] = position
                 it[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
-                it[isColorScheme] = config.colorSchemeVariationId == axisId
+                it[isColorScheme] = false
                 it[declaredType] = declared?.declaredType
             }.single()[AppearanceVariationsTable.id]
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
@@ -179,7 +184,22 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }.single()
             }
         }
+        storeRoles(id, config, axes)
     }
+
+    /** Сохраняет роли осей; корень, не указанный в конфигурации, выбирается по правилу фолбэка. */
+    private fun storeRoles(id: UUID, config: ComponentConfig, axes: Map<String, UUID>) {
+        val colorScheme = config.colorSchemeVariationId?.let(axes::get)
+        val root = config.rootVariationId?.let(axes::get) ?: fallbackRoot(
+            axes(config).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
+            colorScheme,
+        )
+        AppearanceAxisRoleStore.store(id, root, colorScheme)
+    }
+
+    /** Возвращает указанный в конфигурации корень, если он не совпадает ни с одной осью. */
+    private fun unknownRoot(config: ComponentConfig): String? =
+        config.rootVariationId?.takeIf { root -> axes(config).none { it.first == root } }
 
     private fun properties(component: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) =
         propertyNames(entry.config).mapNotNull { name ->

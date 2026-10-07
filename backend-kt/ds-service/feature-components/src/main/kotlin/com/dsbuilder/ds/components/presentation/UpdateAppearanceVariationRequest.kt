@@ -11,6 +11,8 @@ data class UpdateAppearanceVariationRequest(
     val defaultStyleId: String? = null,
     /** Is color scheme carried by this contract. */
     val isColorScheme: Boolean? = null,
+    /** Назначает ось корневой или снимает с неё роль. */
+    val isRoot: Boolean? = null,
     /** Declared type carried by this contract. */
     val declaredType: String? = null,
 )

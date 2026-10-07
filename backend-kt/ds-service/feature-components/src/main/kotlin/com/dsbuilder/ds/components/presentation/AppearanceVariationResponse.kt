@@ -18,6 +18,8 @@ data class AppearanceVariationResponse(
     val defaultStyleId: String?,
     /** Is color scheme carried by this contract. */
     val isColorScheme: Boolean,
+    /** Является ли ось корневой. */
+    val isRoot: Boolean,
     /** Declared type carried by this contract. */
     val declaredType: String?,
     /** Created at carried by this contract. */
@@ -29,8 +31,8 @@ data class AppearanceVariationResponse(
         /** Performs the from operation. */
         fun from(value: AppearanceVariation) = AppearanceVariationResponse(
             value.id.toString(), value.appearanceId.toString(), value.variationId.toString(), value.position,
-            value.defaultStyleId?.toString(), value.isColorScheme, value.declaredType, value.createdAt.toString(),
-            value.updatedAt.toString(),
+            value.defaultStyleId?.toString(), value.isColorScheme, value.isRoot, value.declaredType,
+            value.createdAt.toString(), value.updatedAt.toString(),
         )
     }
 }

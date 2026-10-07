@@ -100,6 +100,8 @@ interface AppearanceRepository {
         val defaultStyleId: UUID?,
         /** Is color scheme carried by this contract. */
         val isColorScheme: Boolean,
+        /** Назначает ось корневой. */
+        val isRoot: Boolean,
         /** Declared type carried by this contract. */
         val declaredType: String?,
     )
@@ -114,6 +116,8 @@ interface AppearanceRepository {
         val defaultStyleIdPresent: Boolean,
         /** Is color scheme carried by this contract. */
         val isColorScheme: Boolean?,
+        /** Назначает ось корневой (`true`) или снимает с неё роль (`false`). */
+        val isRoot: Boolean?,
         /** Declared type carried by this contract. */
         val declaredType: String?,
         /** Declared type present carried by this contract. */

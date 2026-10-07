@@ -11,7 +11,8 @@ import java.util.UUID
 /** Builds the common component-config model from the normalized legacy schema. */
 internal class ComponentConfigBuilder {
     fun build(appearance: ConfigAppearance, exported: Boolean, underived: MutableSet<String>): ComponentConfig {
-        val axes = axes(appearance.id)
+        val roles = AppearanceAxisRoleStore.load(listOf(appearance.id))[appearance.id]
+        val axes = axes(appearance.id, roles?.colorScheme)
         val stateNames = stateNames()
         val invariants = valueRows(appearance, invariant = true, stateNames = stateNames)
         val variationValues = valueRows(appearance, invariant = false, stateNames = stateNames)
@@ -20,7 +21,7 @@ internal class ComponentConfigBuilder {
         val idOf: (ConfigAxis) -> String = { if (exported) it.name else it.variationId.toString() }
 
         return ComponentConfig(
-            rootVariationId = axes.firstOrNull { it.name == "size" }?.let(idOf),
+            rootVariationId = axes.firstOrNull { it.variationId == roles?.root }?.let(idOf),
             colorSchemeVariationId = axes.firstOrNull { it.colorScheme }?.let(idOf),
             invariants = properties(invariants, where, exported, underived),
             defaults = axes.mapNotNull { axis ->
@@ -65,7 +66,7 @@ internal class ComponentConfigBuilder {
         )
     }
 
-    private fun axes(appearanceId: UUID): List<ConfigAxis> =
+    private fun axes(appearanceId: UUID, colorScheme: UUID?): List<ConfigAxis> =
         AppearanceVariationsTable.innerJoin(VariationsTable).selectAll()
             .where { AppearanceVariationsTable.appearanceId eq appearanceId }
             .orderBy(AppearanceVariationsTable.position)
@@ -75,7 +76,7 @@ internal class ComponentConfigBuilder {
                     row[AppearanceVariationsTable.variationId],
                     row[VariationsTable.name],
                     row[AppearanceVariationsTable.defaultStyleId],
-                    row[AppearanceVariationsTable.isColorScheme],
+                    row[AppearanceVariationsTable.variationId] == colorScheme,
                     row[AppearanceVariationsTable.declaredType],
                     AppearanceVariationValuesTable.innerJoin(ComponentStylesTable).selectAll()
                         .where { AppearanceVariationValuesTable.appearanceVariationId eq axisId }

@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class FlywayPostgresIntegrationTest {
@@ -26,16 +27,18 @@ class FlywayPostgresIntegrationTest {
             val cleanUrl = postgres.jdbcUrl
             val flyway = flyway(cleanUrl, postgres.username, postgres.password)
 
-            assertEquals(2, flyway.migrate().migrationsExecuted)
+            assertEquals(3, flyway.migrate().migrationsExecuted)
             assertEquals(0, flyway.migrate().migrationsExecuted)
             assertTrue(flyway.validateWithResult().validationSuccessful)
-            val expected = connection(cleanUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
-            assertEquals(EXPECTED_SCHEMA_FINGERPRINT, expected)
+            val migrated = connection(cleanUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
             connection(cleanUrl, postgres).use(::assertComponentImportGuards)
             assertFailureRollsBack(cleanUrl, postgres)
 
             val matchingUrl = createDatabase(postgres, "matching_legacy")
             connection(matchingUrl, postgres).use(::applyBaselineWithoutHistory)
+            val expected = connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
+            assertEquals(EXPECTED_SCHEMA_FINGERPRINT, expected)
+            assertNotEquals(expected, migrated)
             connection(matchingUrl, postgres).use { connection ->
                 ExistingDatabaseAdopter(SchemaFingerprintCalculator()).adopt(
                     connection,
@@ -44,6 +47,8 @@ class FlywayPostgresIntegrationTest {
                 )
             }
             connection(matchingUrl, postgres).use { assertTrue(hasHistory(it)) }
+            assertEquals(2, flyway(matchingUrl, postgres.username, postgres.password).migrate().migrationsExecuted)
+            assertEquals(migrated, connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate))
 
             val driftedUrl = createDatabase(postgres, "drifted_legacy")
             connection(driftedUrl, postgres).use { connection ->
