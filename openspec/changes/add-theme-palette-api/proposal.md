@@ -59,16 +59,22 @@
 
 - `cli-themes`: `theme fetch` запрашивает значения токенов с `resolvePalette=true` и записывает цвета,
   вычисленные по палитре темы.
+- `theme-palette-editor`: источник палитры по умолчанию — `api`; в режиме `api` связи и удаление растяжки
+  учитывают значения черновика клиента.
 
 ## Impact
 
 - `backend-kt/ds-service`:
   - `feature-themes`: domain, application, data и presentation палитры темы; создание копии шаблона в
-    `CreateTenantUseCase`; `GetTenantTokenValuesUseCase` и маршрут `token-values` с `resolvePalette`;
-  - `app`: `db/migration/V3__tenant_palette.sql`, регистрация маршрутов, `OpenApiDocumentFactory`;
+    `CreateTenantUseCase` и при первом обращении к теме без палитры; `GetTenantTokenValuesUseCase` и
+    маршрут `token-values` с `resolvePalette`;
+  - `app`: `db/migration/V3__tenant_palette.sql`, регистрация маршрутов, ручной OpenAPI
+    `resources/openapi/documentation.yaml`;
   - `contracts/route-manifest.json`, тесты манифеста, OpenAPI и Flyway.
 - `authorization/policy.json`: без изменений, используются `tenants:read` и `tenants:write`.
 - `frontend-kt/feature-theme`: `HttpRemoteThemeDataSource`, нормализация значений и тесты `theme fetch`.
-- `js/apps/client`: значение по умолчанию `VITE_PALETTE_SOURCE = api`.
-- `js/services/db-service`: изменений нет; новые таблицы ему не видны.
+- `js/apps/client`: значение по умолчанию `VITE_PALETTE_SOURCE = api` (и в `docker-compose.dev.yml`),
+  адаптер `api` с учётом черновика клиента.
+- `js/services/db-service`: код сервиса не меняется, новые таблицы ему не видны; тест манифеста
+  `route-manifest.test.ts` и `src/test/differential-runner.ts` пропускают группы `"origin": "ds-service"`.
 - Gateway: изменений нет, `/api/projects/{id}/ds/tenants/**` уже ведёт в `ds-service`.
