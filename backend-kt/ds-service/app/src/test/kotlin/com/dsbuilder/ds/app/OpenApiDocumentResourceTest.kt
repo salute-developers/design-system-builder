@@ -19,7 +19,7 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(158, operationCount)
+        assertEquals(169, operationCount)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)
         assertTrue("/api/ds/component-config/web-adapter" in paths)

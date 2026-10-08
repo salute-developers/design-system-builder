@@ -27,7 +27,7 @@ class FlywayPostgresIntegrationTest {
             val cleanUrl = postgres.jdbcUrl
             val flyway = flyway(cleanUrl, postgres.username, postgres.password)
 
-            assertEquals(4, flyway.migrate().migrationsExecuted)
+            assertEquals(MIGRATION_COUNT, flyway.migrate().migrationsExecuted)
             assertEquals(0, flyway.migrate().migrationsExecuted)
             assertTrue(flyway.validateWithResult().validationSuccessful)
             val migrated = connection(cleanUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
@@ -39,6 +39,8 @@ class FlywayPostgresIntegrationTest {
             val expected = connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
             assertEquals(BASELINE_SCHEMA_FINGERPRINT, expected)
             assertNotEquals(expected, migrated)
+            // Существующая тема legacy-базы: V5 даёт ей копию общей палитры и системные группы.
+            connection(matchingUrl, postgres).use(::seedLegacyTheme)
             connection(matchingUrl, postgres).use { connection ->
                 ExistingDatabaseAdopter(SchemaFingerprintCalculator()).adopt(
                     connection,
@@ -47,8 +49,10 @@ class FlywayPostgresIntegrationTest {
                 )
             }
             connection(matchingUrl, postgres).use { assertTrue(hasHistory(it)) }
-            assertEquals(3, flyway(matchingUrl, postgres.username, postgres.password).migrate().migrationsExecuted)
+            val adopted = flyway(matchingUrl, postgres.username, postgres.password).migrate()
+            assertEquals(MIGRATION_COUNT - 1, adopted.migrationsExecuted)
             assertEquals(migrated, connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate))
+            connection(matchingUrl, postgres).use(::assertThemePaletteBackfill)
 
             val driftedUrl = createDatabase(postgres, "drifted_legacy")
             connection(driftedUrl, postgres).use { connection ->
@@ -100,6 +104,46 @@ class FlywayPostgresIntegrationTest {
                 }
             }
         }
+    }
+
+    /** Тема и общая палитра в базе db-service до принятия Flyway. */
+    private fun seedLegacyTheme(connection: Connection) {
+        connection.createStatement().use { statement ->
+            statement.execute(
+                "INSERT INTO design_systems (id, name, project_name) " +
+                    "VALUES ('11111111-1111-4111-8111-111111111111', 'legacy', 'legacy')",
+            )
+            statement.execute(
+                "INSERT INTO tenants (id, design_system_id, name) VALUES " +
+                    "('22222222-2222-4222-8222-222222222222', " +
+                    "'11111111-1111-4111-8111-111111111111', 'legacy_default')",
+            )
+            statement.execute(
+                "INSERT INTO palette (type, shade, saturation, value) VALUES " +
+                    "('general', 'green', 500, '#1A9E32'), ('general', 'green', 600, '#108E28'), " +
+                    "('additional', 'h130', 500, '#12A12F')",
+            )
+        }
+    }
+
+    /** V5 даёт существующей теме копию общей палитры и пять системных групп. */
+    private fun assertThemePaletteBackfill(connection: Connection) {
+        fun count(sql: String) = connection.createStatement().use { statement ->
+            statement.executeQuery(sql).use { rows ->
+                rows.next()
+                rows.getInt(1)
+            }
+        }
+        val tenant = "'22222222-2222-4222-8222-222222222222'"
+        assertEquals(3, count("SELECT count(*) FROM tenant_palette_template WHERE tenant_id = $tenant"))
+        assertEquals(
+            5,
+            count("SELECT count(*) FROM tenant_palette_groups WHERE tenant_id = $tenant AND kind = 'system'"),
+        )
+        assertEquals(
+            1,
+            count("SELECT count(*) FROM tenant_palette_groups WHERE system_key = 'status' AND label = 'Статус'"),
+        )
     }
 
     private fun applyBaselineWithoutHistory(connection: Connection) {
@@ -155,12 +199,14 @@ class FlywayPostgresIntegrationTest {
     private fun connection(url: String, postgres: PostgreSQLContainer<Nothing>): Connection =
         DriverManager.getConnection(url, postgres.username, postgres.password)
 
-    private fun flyway(url: String, user: String, password: String): Flyway = Flyway.configure()
-        .dataSource(url, user, password)
-        .locations("classpath:db/migration")
-        .baselineVersion("1")
-        .baselineDescription("verified db-service schema")
-        .load()
+    private fun flyway(url: String, user: String, password: String, target: String = "latest"): Flyway =
+        Flyway.configure()
+            .dataSource(url, user, password)
+            .locations("classpath:db/migration")
+            .baselineVersion("1")
+            .baselineDescription("verified db-service schema")
+            .target(target)
+            .load()
 
     private fun hasHistory(connection: Connection): Boolean =
         connection.prepareStatement("SELECT to_regclass('public.flyway_schema_history') IS NOT NULL").use { statement ->
@@ -169,5 +215,6 @@ class FlywayPostgresIntegrationTest {
 
     private companion object {
         const val BASELINE_SCHEMA_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
+        const val MIGRATION_COUNT = 5
     }
 }
