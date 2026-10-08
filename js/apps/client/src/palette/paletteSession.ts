@@ -2,19 +2,23 @@ import type { DesignSystem, Theme } from '../controllers';
 import {
     buildLocalTemplate,
     DRAFT_TOKEN_ID_PREFIX,
+    createHttpPaletteRepository,
     createPaletteRepository,
+    isDraftTokenId,
     modeOfTokenName,
     paletteOperations,
     paletteSourceFromEnv,
     stripModePrefix,
     type LocalThemeInput,
     type PaletteContext,
+    type PaletteRampRef,
     type PaletteRepository,
     type PaletteTokenRef,
     type TokenReferenceRewrite,
 } from '../modules/palette';
-import { getDraftKey, updateDraftToken } from '../utils/designSystemDraft';
+import { draftTokenNames, getDraftKey, updateDraftToken } from '../utils/designSystemDraft';
 import { restoreTemplateColor } from './activePalette';
+import { withDraftTokens } from './draftAwarePaletteRepository';
 
 /** Открытая в редакторе тема: источник токенов и черновика для адаптера `local`. */
 export interface PaletteSession {
@@ -79,6 +83,7 @@ export const applyRewriteToDraft = (
     current: PaletteSession,
     rewrite: TokenReferenceRewrite,
     resolveHex: (step: number) => string | undefined,
+    shouldRewrite: (tokenName: string, tokenId: string) => boolean = () => true,
 ) => {
     const dsName = current.designSystem.getName() || '';
     const dsVersion = current.designSystem.getVersion() || '';
@@ -95,7 +100,7 @@ export const applyRewriteToDraft = (
     try {
         for (const token of colorTokens(current.theme)) {
             const tokenId = idByName.get(stripModePrefix(token.getName()));
-            if (!tokenId || !tokenIds.has(tokenId)) continue;
+            if (!tokenId || !tokenIds.has(tokenId) || !shouldRewrite(token.getName(), tokenId)) continue;
             let changed = false;
             for (const platform of Object.keys(token.getPlatforms())) {
                 const before = token.getValue(platform as never);
@@ -114,6 +119,22 @@ export const applyRewriteToDraft = (
     return restore;
 };
 
+/** Сохранённые на сервере цветовые токены, у которых в черновике есть запись хотя бы одного режима. */
+const draftedTokenIds = (current: PaletteSession) => {
+    const dsName = current.designSystem.getName() || '';
+    const dsVersion = current.designSystem.getVersion() || '';
+    const idByName = new Map(current.tokens.map((token) => [token.name, token.id]));
+    const drafted = draftTokenNames(dsName, dsVersion);
+    const ids = new Set<string>();
+    for (const token of colorTokens(current.theme)) {
+        const tokenId = idByName.get(stripModePrefix(token.getName()));
+        if (tokenId && drafted.has(token.getName())) ids.add(tokenId);
+    }
+    return ids;
+};
+
+const sessionFor = (context: PaletteContext) => (session && sameContext(session.context, context) ? session : null);
+
 const requireSession = (context: PaletteContext) => {
     if (!session || !sameContext(session.context, context)) throw new Error('Тема палитры не открыта в редакторе');
     return session;
@@ -124,13 +145,54 @@ const newId = () =>
         ? crypto.randomUUID()
         : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 
-export const paletteRepository: PaletteRepository = createPaletteRepository(paletteSourceFromEnv(), {
-    storage: {
-        getItem: (key) => localStorage.getItem(key),
-        setItem: (key, value) => localStorage.setItem(key, value),
-    },
-    newId,
-    template: () => buildLocalTemplate(restoreTemplateColor),
-    theme: (context) => themePaletteInput(requireSession(context)),
-    applyRewrite: (context, rewrite, resolveHex) => applyRewriteToDraft(requireSession(context), rewrite, resolveHex),
-});
+const source = paletteSourceFromEnv();
+
+/** В режиме `api` — адаптер сервера с учётом токенов и записей черновика клиента. */
+const draftAware =
+    source === 'api'
+        ? withDraftTokens(createHttpPaletteRepository(), {
+              theme: (context) => {
+                  const current = sessionFor(context);
+                  return current ? themePaletteInput(current) : null;
+              },
+              drafted: (context) => {
+                  const current = sessionFor(context);
+                  return current ? draftedTokenIds(current) : new Set<string>();
+              },
+              applyRewrite: (context, rewrite, resolveHex) => {
+                  const current = requireSession(context);
+                  const drafted = draftTokenNames(
+                      current.designSystem.getName() || '',
+                      current.designSystem.getVersion() || '',
+                  );
+                  applyRewriteToDraft(
+                      current,
+                      rewrite,
+                      resolveHex,
+                      (tokenName, tokenId) => isDraftTokenId(tokenId) || drafted.has(tokenName),
+                  );
+              },
+          })
+        : null;
+
+export const paletteRepository: PaletteRepository =
+    draftAware?.repository ??
+    createPaletteRepository(source, {
+        storage: {
+            getItem: (key) => localStorage.getItem(key),
+            setItem: (key, value) => localStorage.setItem(key, value),
+        },
+        newId,
+        template: () => buildLocalTemplate(restoreTemplateColor),
+        theme: (context) => themePaletteInput(requireSession(context)),
+        applyRewrite: (context, rewrite, resolveHex) =>
+            applyRewriteToDraft(requireSession(context), rewrite, resolveHex),
+    });
+
+/**
+ * Связи растяжки группы по значениям черновика (режим `api`): `added` — пары «токен, режим» новых токенов, которых
+ * сервер не знает и не учёл в `linkedCount`; `any` — есть ли черновые связи вообще. В режиме `local` черновик уже
+ * учтён в `linkedCount`.
+ */
+export const paletteDraftLinks = (context: PaletteContext, groupId: string, slot: PaletteRampRef) =>
+    draftAware?.draftLinks(context, groupId, slot) ?? { added: 0, any: false };

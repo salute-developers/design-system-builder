@@ -4,9 +4,9 @@ import { createLocalPaletteRepository, type LocalPaletteDeps } from './localPale
 
 export type PaletteSource = 'api' | 'local';
 
-/** Источник палитры из `VITE_PALETTE_SOURCE`; до слияния сервера по умолчанию `local`. */
+/** Источник палитры из `VITE_PALETTE_SOURCE`: по умолчанию `api` (`ds-service`), `local` — палитра в браузере. */
 export const paletteSourceFromEnv = (value: string | undefined = import.meta.env.VITE_PALETTE_SOURCE): PaletteSource =>
-    value === 'api' ? 'api' : 'local';
+    value === 'local' ? 'local' : 'api';
 
 export const createPaletteRepository = (source: PaletteSource, deps: LocalPaletteDeps): PaletteRepository =>
     source === 'api' ? createHttpPaletteRepository() : createLocalPaletteRepository(deps);

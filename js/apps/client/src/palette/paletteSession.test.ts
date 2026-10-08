@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../utils/designSystemDraft', () => ({ updateDraftToken: vi.fn(), getDraftKey: () => 'ds_draft:test' }));
+vi.mock('../utils/designSystemDraft', () => ({
+    updateDraftToken: vi.fn(),
+    getDraftKey: () => 'ds_draft:test',
+    draftTokenNames: () => new Set<string>(),
+}));
 
 import { updateDraftToken } from '../utils/designSystemDraft';
 import type { DesignSystem, Theme } from '../controllers';

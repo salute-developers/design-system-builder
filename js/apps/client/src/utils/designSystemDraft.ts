@@ -107,6 +107,10 @@ const loadDraftChanges = (dsName: string, dsVersion: string): DraftChanges => {
     }
 };
 
+/** Полные имена токенов (с префиксом режима), у которых есть запись в черновике. */
+export const draftTokenNames = (dsName: string, dsVersion: string) =>
+    new Set(Object.keys(loadDraftChanges(dsName, dsVersion)));
+
 const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges) => {
     if (Object.keys(changes).length === 0) {
         localStorage.removeItem(getDraftKey(dsName, dsVersion));
