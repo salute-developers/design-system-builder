@@ -387,6 +387,9 @@ const RampStep = ({
             type="button"
             className={className}
             style={style}
+            data-group={group.id}
+            data-slot={rampKey(ramp.slot)}
+            data-step={step}
             tabIndex={selected || (!editor.selection && step === 500) ? 0 : -1}
             aria-label={`${ramp.displayName}, цвет ${step}${value.overridden ? ', отличается от брендовой палитры' : ''}`}
             onClick={(event) => {

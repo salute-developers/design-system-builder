@@ -1,14 +1,69 @@
-import { rampKey, sameRamp, type PaletteRamp, type ThemePalette } from '../../modules/palette';
+import { useEffect, useRef, useState } from 'react';
+
+import {
+    paletteOperations,
+    rampKey,
+    sameRamp,
+    type PaletteContext,
+    type PaletteRamp,
+    type ThemePalette,
+} from '../../modules/palette';
+import { paletteRepository } from '../../palette/paletteSession';
 import { familyLabel, filterGroups, middleStep, rampMeta, selectionStep, stepOf, type PaletteFilter } from './Palette.utils';
 import { PaletteGlyph } from './PaletteGlyph';
 import type { PaletteEditor } from './usePaletteEditor';
 
 interface PaletteSidebarProps {
+    context: PaletteContext;
     palette: ThemePalette;
     editor: PaletteEditor;
     canEdit: boolean;
     steps: number[];
 }
+
+/** Название новой группы на месте: Enter и потеря фокуса сохраняют, Escape отменяет. */
+const GroupNameInput = ({
+    label,
+    onCommit,
+    onCancel,
+}: {
+    label: string;
+    /** Возвращает `true`, если поле можно закрыть. */
+    onCommit: (label: string) => Promise<boolean>;
+    onCancel: () => void;
+}) => {
+    const [value, setValue] = useState(label);
+    const inputRef = useRef<HTMLInputElement | null>(null);
+    const done = useRef(false);
+    useEffect(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, []);
+    const commit = async () => {
+        if (done.current) return;
+        done.current = true;
+        // После успеха поле закрывается следующим рендером: флаг не сбрасываем, чтобы blur не повторил операцию.
+        if (!(await onCommit(value))) done.current = false;
+    };
+    return (
+        <input
+            ref={inputRef}
+            className="source-palette-group-name-input"
+            aria-label="Название группы"
+            value={value}
+            maxLength={64}
+            onChange={(event) => setValue(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+                if (event.key === 'Enter') commit();
+                if (event.key === 'Escape') {
+                    done.current = true;
+                    onCancel();
+                }
+            }}
+        />
+    );
+};
 
 const FILTERS: Array<[PaletteFilter, string]> = [
     ['all', 'Все'],
@@ -24,7 +79,7 @@ const chip = (ramp: PaletteRamp) => (
 );
 
 /** Боковая панель по `sourcePaletteFamilyMenuV3` и `sourcePaletteColorMenuV3` прототипа. */
-export const PaletteSidebar = ({ palette, editor, canEdit, steps }: PaletteSidebarProps) => {
+export const PaletteSidebar = ({ context, palette, editor, canEdit, steps }: PaletteSidebarProps) => {
     const colorMode = editor.mode === 'color';
     const groups = filterGroups(palette, editor.search, editor.filter);
     const placeholder = colorMode ? 'Найти цвет или палитру' : 'Найти палитру';
@@ -32,6 +87,50 @@ export const PaletteSidebar = ({ palette, editor, canEdit, steps }: PaletteSideb
 
     const selectRamp = (groupId: string, ramp: PaletteRamp) =>
         editor.setSelection({ groupId, slot: ramp.slot, step: selectionStep(ramp, selected?.step) });
+
+    // Как `select-source-color` прототипа: выбор ступени из списка сразу открывает выбор цвета у её свотча на борде.
+    const openStep = (groupId: string, ramp: PaletteRamp, step: number, fallback: HTMLElement) => {
+        const next = { groupId, slot: ramp.slot, step };
+        editor.setSelection(next);
+        if (!canEdit) return;
+        const swatch = document.querySelector<HTMLElement>(
+            `.source-palette-ramp-step[data-group="${CSS.escape(groupId)}"][data-slot="${CSS.escape(rampKey(ramp.slot))}"][data-step="${step}"]`,
+        );
+        swatch?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        editor.setStepEditor({ ...next });
+        editor.setStepAnchor(swatch ?? fallback);
+    };
+
+    // Ревью дизайна (PR #101): группа создаётся сразу, название редактируется на месте.
+    const createGroup = async () => {
+        const group = await editor.run(
+            (editRevision) =>
+                paletteRepository.createGroup(context, paletteOperations.nextGroupLabel(palette.groups), editRevision),
+            (value) => ({ title: 'Группа создана', text: `Группа ${value.label} создана. Добавьте в неё палитры.` }),
+        );
+        if (group) {
+            // Пустая группа видна только без поиска и фильтра — сбрасываем их, чтобы показать поле названия.
+            editor.setSearch('');
+            editor.setFilter('all');
+            editor.expandGroup(group.id);
+            editor.setRenamingGroupId(group.id);
+        }
+    };
+
+    const renameGroup = async (groupId: string, current: string, label: string) => {
+        if (!label.trim() || label.trim() === current) {
+            editor.setRenamingGroupId(null);
+            return true;
+        }
+        if (editor.busy) return false;
+        const renamed = await editor.run(
+            (editRevision) => paletteRepository.renameGroup(context, groupId, label, editRevision),
+            () => ({ title: 'Группа переименована', text: '' }),
+            { silent: true },
+        );
+        if (renamed) editor.setRenamingGroupId(null);
+        return Boolean(renamed);
+    };
 
     const resetFilters = () => {
         editor.setSearch('');
@@ -112,15 +211,26 @@ export const PaletteSidebar = ({ palette, editor, canEdit, steps }: PaletteSideb
                             <div
                                 className={`source-palette-family-category ${group.kind === 'custom' ? 'is-custom' : ''}`}
                             >
-                                <button
-                                    type="button"
-                                    className="source-palette-family-category-toggle"
-                                    aria-expanded={!isCollapsed}
-                                    onClick={() => editor.toggleCollapsed(group.id)}
-                                >
-                                    <span>{isCollapsed ? '›' : '⌄'}</span>
-                                    <strong>{group.label}</strong>
-                                </button>
+                                {editor.renamingGroupId === group.id ? (
+                                    <div className="source-palette-family-category-toggle is-renaming">
+                                        <span>⌄</span>
+                                        <GroupNameInput
+                                            label={group.label}
+                                            onCommit={(label) => renameGroup(group.id, group.label, label)}
+                                            onCancel={() => editor.setRenamingGroupId(null)}
+                                        />
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="source-palette-family-category-toggle"
+                                        aria-expanded={!isCollapsed}
+                                        onClick={() => editor.toggleCollapsed(group.id)}
+                                    >
+                                        <span>{isCollapsed ? '›' : '⌄'}</span>
+                                        <strong>{group.label}</strong>
+                                    </button>
+                                )}
                                 {!colorMode && canEdit && (
                                     <button
                                         type="button"
@@ -194,12 +304,8 @@ export const PaletteSidebar = ({ palette, editor, canEdit, steps }: PaletteSideb
                                                                     className={`source-palette-color-step ${activeStep ? 'is-active' : ''}`}
                                                                     aria-current={activeStep}
                                                                     title={`${ramp.displayName} ${step.step} · ${step.value}`}
-                                                                    onClick={() =>
-                                                                        editor.setSelection({
-                                                                            groupId: group.id,
-                                                                            slot: ramp.slot,
-                                                                            step: step.step,
-                                                                        })
+                                                                    onClick={(event) =>
+                                                                        openStep(group.id, ramp, step.step, event.currentTarget)
                                                                     }
                                                                 >
                                                                     <span
@@ -277,7 +383,8 @@ export const PaletteSidebar = ({ palette, editor, canEdit, steps }: PaletteSideb
                     <button
                         type="button"
                         className="source-palette-group-create"
-                        onClick={() => editor.setDialog({ kind: 'create-group' })}
+                        disabled={editor.busy}
+                        onClick={createGroup}
                     >
                         Создать группу
                     </button>
