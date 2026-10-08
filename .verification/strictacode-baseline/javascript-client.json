@@ -1,12 +1,12 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 38209,
+    "loc": 38316,
     "packages": 125,
     "modules": 334,
     "classes": 48,
     "methods": 170,
-    "functions": 917,
+    "functions": 926,
     "status": {
       "name": "warning",
       "score": 45,
@@ -26,12 +26,12 @@
         "min": 0,
         "max": 26,
         "p50": 5,
-        "p90": 14
+        "p90": 15
       }
     },
     "complexity": {
-      "score": 3105,
-      "density": 8.13,
+      "score": 3132,
+      "density": 8.17,
       "stat(modules)": {
         "avg": 9,
         "min": 1,
