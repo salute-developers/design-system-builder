@@ -67,6 +67,26 @@
       ]
     },
     {
+      "name": "tenant-palette",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/tenants/{tenantId}/palette", null, "ThemePalette", 200, "tenants:read", null],
+        ["GET", "/tenants/{tenantId}/palette/links", "PaletteLinksQuery", "PaletteLink[]", 200, "tenants:read", null],
+        ["POST", "/tenants/{tenantId}/palette/groups", "PaletteGroupLabelRequest", "PaletteGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/tenants/{tenantId}/palette/groups/{groupId}", "PaletteGroupLabelRequest", "PaletteGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/tenants/{tenantId}/palette/groups/{groupId}", "PaletteRevisionRequest", "PaletteEmptyMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/tenants/{tenantId}/palette/token-groups/{tokenId}", "PaletteTokenGroupRequest", "PaletteTokenAssignmentMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/tenants/{tenantId}/palette/groups/{groupId}/ramps", "PaletteRampRequest", "PaletteRampMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source", "PaletteRampRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild", "PaletteRebuildRequest", "PaletteRebuildResponse", 200, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}", "PaletteStepRequest", "PaletteRampMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}", "PaletteRemoveRampRequest", "PaletteRemovedRampMutation", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
       "name": "tokens",
       "router": "src/routes/api/tokens.ts",
       "included": true,

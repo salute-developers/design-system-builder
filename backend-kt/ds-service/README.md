@@ -25,6 +25,8 @@ The fingerprint in `contracts/schema-fingerprint.json` describes the baseline sc
   отсутствующих значений токенов из первой темы дизайн-системы.
 - V3 — роли осей appearance (`root_variation_id`, `color_scheme_variation_id`) и разделение платформ компонентов
   (`V3__component_platform_split_and_axis_roles.sql`, включает Flyway-форму Drizzle `0007`).
+- V4 — палитра темы (`V4__tenant_palette.sql`): у каждой существующей темы копия общей палитры и системные
+  группы; аналога в Drizzle нет.
 
 Это разбиение изменено до первой регистрации прежних Flyway V1/V2 на стендах.
 Не применяйте этот вариант к базе, на которой уже есть история прежнего разбиения:

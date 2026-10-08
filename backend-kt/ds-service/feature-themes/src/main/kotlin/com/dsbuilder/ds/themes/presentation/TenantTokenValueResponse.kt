@@ -1,12 +1,15 @@
 package com.dsbuilder.ds.themes.presentation
 
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 /** External token value returned by the nested tenant lookup. */
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class TenantTokenValueResponse(
     /** Id carried by this contract. */
     val id: String,
@@ -26,6 +29,9 @@ data class TenantTokenValueResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Исходная ссылка на палитру при `resolvePalette=true`, если `value` вычислен по палитре темы. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val paletteRef: String? = null,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -39,6 +45,7 @@ data class TenantTokenValueResponse(
             value.valueJson?.let(Json::parseToJsonElement),
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.paletteRef,
         )
     }
 }

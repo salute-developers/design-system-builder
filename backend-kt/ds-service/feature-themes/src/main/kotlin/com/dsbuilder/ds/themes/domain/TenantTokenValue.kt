@@ -23,4 +23,6 @@ data class TenantTokenValue(
     val createdAt: Instant,
     /** Updated at carried by this contract. */
     val updatedAt: Instant,
+    /** Исходная ссылка на палитру, если [valueJson] вычислен по палитре темы. */
+    val paletteRef: String? = null,
 )
