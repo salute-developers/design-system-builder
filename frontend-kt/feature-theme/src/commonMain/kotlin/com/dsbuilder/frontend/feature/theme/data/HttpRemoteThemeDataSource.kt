@@ -67,7 +67,9 @@ internal class HttpRemoteThemeDataSource(
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
-                "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values",
+                // Цвета по палитре темы: ds-service заменяет ссылки на HEX с учётом групп палитры темы.
+                "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values" +
+                    "?resolvePalette=true",
             ),
             decode = ::decodeTokenValues,
             parseFailureMessage = "Error: Cannot parse token values response for tenant `${command.tenantId}`.",
@@ -194,6 +196,8 @@ private data class TokenValueResponse(
     val value: List<JsonElement>?,
     val createdAt: String,
     val updatedAt: String,
+    /** Исходная ссылка на палитру, если `value` вычислен по палитре темы; только для диагностики. */
+    val paletteRef: String? = null,
 ) {
     fun toDomain(): TokenValue {
         val domainPlatform = Platform.from(platform)
