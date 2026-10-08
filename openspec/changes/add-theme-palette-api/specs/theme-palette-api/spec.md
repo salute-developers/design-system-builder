@@ -61,6 +61,11 @@
 - **WHEN** название совпадает с существующим в теме без учёта регистра, включая названия системных групп
 - **THEN** `ds-service` MUST вернуть `409` с кодом `PALETTE_GROUP_EXISTS`
 
+#### Scenario: Переименование пользовательской группы
+
+- **WHEN** редактор отправляет `PATCH /api/ds/tenants/{tenantId}/palette/groups/{groupId}` с `{ "label": "Icons", "editRevision": 5 }`
+- **THEN** `ds-service` MUST вернуть `200` с `{ editRevision: 6, value }`, где `value` — группа с новым `label`; пустое или длинное название MUST давать `400`, совпадение с другой группой без учёта регистра — `409 PALETTE_GROUP_EXISTS`, системная группа — `409 PALETTE_GROUP_SYSTEM`
+
 #### Scenario: Удаление пользовательской группы
 
 - **WHEN** редактор отправляет `DELETE /api/ds/tenants/{tenantId}/palette/groups/{groupId}` для пользовательской группы
@@ -249,6 +254,8 @@ SHALL NOT выбирать пользовательскую группу. Рез
 
 - **WHEN** ступени `300` задано `#a3d9c5`
 - **THEN** правка MUST сохраниться как `#A3D9C5` только для этой группы, а ступень MUST вернуться с `overridden = true`
+- **WHEN** ступени растяжки с `origin = "template"` задано значение, равное значению источника в копии шаблона без учёта регистра
+- **THEN** правка ступени MUST удаляться, ступень MUST вернуться с `overridden = false`, а `modified` и `offBrand` MUST считаться без неё
 - **WHEN** правится опорная ступень перестроенной растяжки
 - **THEN** `anchor.value` и `displayName` MUST пересчитаться
 - **WHEN** ступени нет у источника
