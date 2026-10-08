@@ -263,6 +263,37 @@ describe('операции палитры', () => {
         ).toThrow(expect.objectContaining({ status: 404 }));
     });
 
+    it('значение источника в правке ступени — это сброс правки, а не новая правка', () => {
+        const state = scenarioState();
+        const avatars = () => build(next).palette.groups.find((group) => group.id === 'g-avatars')!.ramps[0];
+        let next = state;
+        expect(build(next).palette.groups.find((group) => group.id === 'g-avatars')!.ramps[0]).toMatchObject({
+            modified: true,
+        });
+        const templateValue = golden.template['additional.h130']['300'];
+        next = paletteOperations.updateStep(state, 'g-avatars', ref('additional.h130'), 300, templateValue.toLowerCase(), ctx(state)).state;
+        expect(next.ramps.find((ramp) => ramp.groupId === 'g-avatars')!.steps).toEqual({});
+        expect(avatars()).toMatchObject({ modified: false, slot: ref('additional.h130') });
+        expect(avatars().steps.find((step) => step.step === 300)).toMatchObject({ value: templateValue, overridden: false });
+    });
+
+    it('переименование группы', () => {
+        const state = scenarioState();
+        const renamed = paletteOperations.renameGroup(state, 'g-avatars', '  Icons ');
+        expect(renamed.value.label).toBe('Icons');
+        expect(renamed.state.editRevision).toBe(state.editRevision + 1);
+        expect(() => paletteOperations.renameGroup(state, 'g-accent', 'Brand')).toThrow(
+            expect.objectContaining({ code: 'PALETTE_GROUP_SYSTEM' }),
+        );
+        expect(() => paletteOperations.renameGroup(state, 'g-avatars', 'accent')).toThrow(
+            expect.objectContaining({ code: 'PALETTE_GROUP_EXISTS' }),
+        );
+        expect(paletteOperations.renameGroup(state, 'g-avatars', 'avatars').value.label).toBe('avatars');
+        expect(() => paletteOperations.renameGroup(state, 'g-avatars', ' ')).toThrow(expect.objectContaining({ status: 400 }));
+        expect(paletteOperations.nextGroupLabel(state.groups)).toBe('Новая группа');
+        expect(paletteOperations.nextGroupLabel([{ label: 'Новая группа' }, { label: 'новая группа 2' }])).toBe('Новая группа 3');
+    });
+
     it('удаление растяжки: без стратегии, с заменой и с отвязкой', () => {
         const state = scenarioState();
         expect(() => paletteOperations.removeRamp(state, 'g-accent', ref('general.green'), {}, ctx(state))).toThrow(

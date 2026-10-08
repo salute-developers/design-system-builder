@@ -80,7 +80,11 @@ beforeEach(() => {
     state.storage.clear();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    delete (document as { fonts?: unknown }).fonts;
+});
 
 describe('раздел «Палитра»', () => {
     it('показывает группы, растяжки, баннер local и выбирает первую растяжку', async () => {
@@ -93,7 +97,12 @@ describe('раздел «Палитра»', () => {
         // Без явной привязки avatar-bg попадает в Neutral: там general.green и additional.h130 (тоже Green).
         expect(cards('Green', 'Neutral')).toHaveLength(2);
         expect(cards('Green', 'Accent')).toHaveLength(1);
-        expect(within(inspector).getAllByText('general.gray')).toHaveLength(2); // слот и источник
+        // Как в прототипе: в источнике только «Семейство» и «Оттенок», у токенов нет метки группы.
+        expect(within(inspector).queryByText('Слот')).toBeNull();
+        expect(within(inspector).queryByText('Источник')).toBeNull();
+        expect(inspector.querySelector('.source-palette-usage-group')).toBeNull();
+        const names = [...inspector.querySelectorAll('.source-palette-usage-link strong')].map((item) => item.textContent);
+        expect(new Set(names).size).toBe(names.length); // одна строка на токен, режимы объединены
     });
 
     it('режим «Цвет», фильтр и пустой результат поиска', async () => {
@@ -144,16 +153,84 @@ describe('раздел «Палитра»', () => {
         expect(screen.getByRole('button', { name: 'Добавить палитру в Syntax' })).toBeInTheDocument();
     });
 
-    it('создание группы: пустое название не отправляется', async () => {
+    it('«Создать группу» сразу создаёт группу и даёт переименовать её на месте', async () => {
         await renderPalette();
         fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
-        const dialog = await screen.findByRole('dialog');
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать группу' }));
-        expect(screen.getByRole('dialog')).toBeInTheDocument();
-        fireEvent.change(within(dialog).getByPlaceholderText('Например, Avatars'), { target: { value: 'Icons' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать группу' }));
-        expect(await screen.findByText('Группа Icons создана. Добавьте в неё палитры.')).toBeInTheDocument();
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        const input = await screen.findByRole('textbox', { name: 'Название группы' });
+        expect(input).toHaveValue('Новая группа');
+        expect(input).toHaveFocus();
+        expect(screen.queryByRole('dialog')).toBeNull();
+        fireEvent.change(input, { target: { value: 'Icons' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(await screen.findByRole('button', { name: 'Удалить группу Icons' })).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Название группы' })).toBeNull();
+
+        // Вторая группа получает свободное имя; Escape оставляет его как есть.
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        const second = await screen.findByRole('textbox', { name: 'Название группы' });
+        expect(second).toHaveValue('Новая группа');
+        fireEvent.keyDown(second, { key: 'Escape' });
+        expect(await screen.findByRole('button', { name: 'Удалить группу Новая группа' })).toBeInTheDocument();
+    });
+
+    it('переименование в занятое имя показывает ошибку и оставляет поле', async () => {
+        await renderPalette();
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        const input = await screen.findByRole('textbox', { name: 'Название группы' });
+        fireEvent.change(input, { target: { value: 'accent' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(await screen.findByText('Группа «accent» уже есть')).toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: 'Название группы' })).toBeInTheDocument();
+    });
+
+    it('режим «Цвет»: щелчок по ступени в боковой панели открывает выбор цвета', async () => {
+        // Выбору цвета (ColorConstructor и компоненты Plasma) нужны API браузера, которых нет в jsdom.
+        vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+        Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
+        await renderPalette();
+        fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
+        fireEvent.click(screen.getByTitle(/^Gray 900 ·/));
+        expect(await screen.findByText('Custom')).toBeInTheDocument();
+        expect(document.querySelector('.source-palette-step-editor')).not.toBeNull();
+    });
+
+    it('название группы сохраняется по уходу фокуса; пустое оставляет прежнее', async () => {
+        await renderPalette();
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        let input = await screen.findByRole('textbox', { name: 'Название группы' });
+        fireEvent.change(input, { target: { value: 'Brand' } });
+        fireEvent.blur(input);
+        expect(await screen.findByRole('button', { name: 'Удалить группу Brand' })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        input = await screen.findByRole('textbox', { name: 'Название группы' });
+        fireEvent.change(input, { target: { value: '   ' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(await screen.findByRole('button', { name: 'Удалить группу Новая группа' })).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Название группы' })).toBeNull();
+    });
+
+    it('«Создать группу» при активном фильтре сбрасывает его и показывает поле названия', async () => {
+        await renderPalette();
+        fireEvent.click(screen.getByRole('tab', { name: 'Связанные' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        expect(await screen.findByRole('textbox', { name: 'Название группы' })).toHaveFocus();
+        expect(screen.getByRole('tab', { name: 'Все' })).toHaveAttribute('aria-selected', 'true');
+    });
+
+    it('пустая пользовательская группа предлагает перейти в Color tokens; кнопка инспектора считает изменённые растяжки', async () => {
+        await renderPalette();
+        const toggle = screen.getByRole('button', { name: 'Скрыть Inspector' });
+        expect(toggle).toHaveTextContent('0');
+        fireEvent.click(card('Green', 'Neutral'));
+        fireEvent.click(within(await screen.findByRole('dialog', { name: 'Настройка палитры Green' })).getByText('Azure'));
+        await waitFor(() => expect(toggle).toHaveTextContent('1'));
+        fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
+        fireEvent.keyDown(await screen.findByRole('textbox', { name: 'Название группы' }), { key: 'Escape' });
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить палитру в Новая группа' }));
+        const addDialog = await screen.findByRole('dialog', { name: 'Добавить палитру' });
+        fireEvent.click(within(addDialog).getAllByText('Gray', { selector: 'strong' })[0]);
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Добавить палитру' })).toBeNull());
+        expect(await screen.findByRole('button', { name: 'Перейти в Color tokens' })).toBeInTheDocument();
     });
 
     it('только чтение: баннер и нет действий изменения', async () => {
