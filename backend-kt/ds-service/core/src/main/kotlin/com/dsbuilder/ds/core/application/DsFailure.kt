@@ -8,6 +8,8 @@ sealed interface DsFailure {
         val details: Map<String, String> = emptyMap(),
         /** Whether this validation-shaped failure originated at the persistence boundary. */
         val transactionFailure: Boolean = false,
+        /** Текст для пользователя; передаётся в `message` ответа. */
+        val message: String? = null,
     ) : DsFailure
 
     /** Authorization policy denied the operation. */
@@ -23,6 +25,10 @@ sealed interface DsFailure {
         val editRevision: Int? = null,
         /** Whether this conflict originated at the persistence boundary. */
         val transactionFailure: Boolean = false,
+        /** Текст для пользователя; передаётся в `message` ответа. */
+        val message: String? = null,
+        /** Числовые подробности конфликта, например `steps` у `PALETTE_STEP_MISSING`. */
+        val details: Map<String, List<Int>> = emptyMap(),
     ) : DsFailure
 
     /** Valid request whose processing failed with stable [code] and safe public [message]. */

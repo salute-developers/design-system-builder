@@ -51,6 +51,7 @@ internal object ThemeTokensTable : Table("tokens") {
     val id = uuid("id")
     val designSystemId = uuid("design_system_id").nullable()
     val name = text("name")
+    val displayName = text("display_name").nullable()
     val type = postgresEnum("type", "token_type", ThemeTokenType::fromWire, ThemeTokenType::wireValue).nullable()
     override val primaryKey = PrimaryKey(id)
 }
@@ -64,7 +65,7 @@ internal object ThemePaletteTable : Table("palette") {
     override val primaryKey = PrimaryKey(id)
 }
 
-private fun <T : Enum<T>> Table.postgresEnum(
+internal fun <T : Enum<T>> Table.postgresEnum(
     name: String,
     sqlType: String,
     fromWire: (String) -> T?,
