@@ -8,7 +8,6 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
-import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
@@ -20,6 +19,7 @@ import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.UpdateTenant
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.palette.FakeTenantPaletteRepository
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
 import com.dsbuilder.ds.themes.domain.Tenant
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
@@ -57,12 +57,15 @@ class ThemeUseCaseTest {
         val command = CreateTenant(UUID.randomUUID(), "dark", null, ColorConfiguration())
 
         val initializer = RecordingTokenValueInitializer()
-        val result = CreateTenantUseCase(policy, transactions, repository, initializer).execute(ownerContext(), command)
+        val palette = FakeTenantPaletteRepository(null)
+        val result = CreateTenantUseCase(policy, transactions, repository, initializer, palette)
+            .execute(ownerContext(), command)
 
         assertIs<DsResult.Success<Tenant>>(result)
         assertEquals(ProjectId("project-1"), repository.createProject)
         assertEquals(command, repository.createCommand)
         assertEquals(command.designSystemId, initializer.tenant?.designSystemId)
+        assertEquals(initializer.tenant?.id, palette.initializedTenant)
     }
 
     @Test
@@ -126,12 +129,6 @@ class ThemeUseCaseTest {
         ProjectPrincipal(ProjectActorType.USER, "user-1", "project-1", role),
         "correlation-1",
     )
-}
-
-private class ImmediateTransactions : TransactionRunner {
-    override suspend fun <T> required(block: suspend () -> DsResult<T>) = block()
-
-    override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
 }
 
 private class RecordingTenantRepository : TenantRepository {

@@ -9,6 +9,7 @@ type Operation = [string, string, string | null, string, number, string, string 
 
 type RouteGroup = {
   name: string;
+  origin?: "ds-service";
   router: string;
   operations: Operation[];
 };
@@ -43,6 +44,9 @@ const normalizePath = (path: string) =>
   path
     .replace(/:([A-Za-z][A-Za-z0-9_]*)/g, "{$1}")
     .replace(/\/$/, "") || "/";
+
+// Группы с `origin: "ds-service"` реализованы только в ds-service: у db-service их нет.
+const dbServiceGroups = manifest.groups.filter((group) => group.origin !== "ds-service");
 
 const operationKey = (method: string, path: string) => `${method.toUpperCase()} ${normalizePath(path)}`;
 
@@ -79,17 +83,17 @@ const registeredOperations = (sources: string[]) => {
 describe("ds-service route manifest", () => {
   it("matches the included Express route registration exactly", () => {
     const expected = new Set(
-      manifest.groups.flatMap((group) =>
+      dbServiceGroups.flatMap((group) =>
         group.operations.map(([method, suffix]) => operationKey(method, `/ds${suffix}`)),
       ),
     );
-    const actual = registeredOperations(manifest.groups.flatMap((group) => group.router.split(",")));
+    const actual = registeredOperations(dbServiceGroups.flatMap((group) => group.router.split(",")));
 
     expect([...actual].sort()).toEqual([...expected].sort());
   });
 
   it("keeps excluded source groups outside the API contract", () => {
-    const includedSources = new Set(manifest.groups.flatMap((group) => group.router.split(",")));
+    const includedSources = new Set(dbServiceGroups.flatMap((group) => group.router.split(",")));
     const excludedSources = exclusions.groups.flatMap((group) => group.sources);
 
     expect(excludedSources.every((source) => !includedSources.has(source))).toBe(true);
@@ -97,7 +101,7 @@ describe("ds-service route manifest", () => {
   });
 
   it("matches the existing OpenAPI methods and success statuses", () => {
-    for (const group of manifest.groups) {
+    for (const group of dbServiceGroups) {
       for (const [method, suffix, , , successStatus] of group.operations) {
         const path = `${manifest.legacyOpenApiPrefix}${suffix}`;
         const operation = spec.paths?.[path]?.[method.toLowerCase() as "get"];

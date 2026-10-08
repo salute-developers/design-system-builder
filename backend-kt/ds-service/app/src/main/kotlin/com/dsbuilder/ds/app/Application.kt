@@ -177,7 +177,9 @@ import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
 import com.dsbuilder.ds.themes.di.themesModule
+import com.dsbuilder.ds.themes.presentation.palette.tenantPaletteRoutes
 import com.dsbuilder.ds.themes.presentation.tenantRoutes
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
@@ -603,6 +605,7 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
         koin.get<SaveTenantTokenValuesUseCase>(),
         json,
     )
+    tenantPaletteRoutes(runtime.evaluator, koin.get<TenantPaletteUseCases>())
 }
 
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {

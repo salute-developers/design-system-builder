@@ -888,6 +888,12 @@ paths:
           required: true
           name: id
           in: path
+        - schema:
+            type: boolean
+          required: false
+          name: resolvePalette
+          in: query
+          description: Заменить ссылки на палитру HEX по палитре темы и вернуть исходную ссылку в paletteRef
       responses:
         "200":
           description: List of items
@@ -981,6 +987,722 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Tenant edit conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette:
+    get:
+      tags:
+        - Tenant palette
+      summary: Theme palette of a tenant
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      responses:
+        "200":
+          description: Theme palette
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThemePalette"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:read
+  /api/ds/tenants/{tenantId}/palette/links:
+    get:
+      tags:
+        - Tenant palette
+      summary: Token links of a palette slot
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - general
+              - additional
+          required: true
+          name: type
+          in: query
+        - schema:
+            type: string
+          required: true
+          name: shade
+          in: query
+        - schema:
+            type: string
+          required: false
+          name: groupId
+          in: query
+        - schema:
+            type: integer
+          required: false
+          name: step
+          in: query
+      responses:
+        "200":
+          description: Links unique by token and mode
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaletteLink"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:read
+  /api/ds/tenants/{tenantId}/palette/groups:
+    post:
+      tags:
+        - Tenant palette
+      summary: Create a custom palette group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteGroupLabelRequest"
+      responses:
+        "201":
+          description: Created group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteGroupMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}:
+    patch:
+      tags:
+        - Tenant palette
+      summary: Rename a custom palette group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteGroupLabelRequest"
+      responses:
+        "200":
+          description: Renamed group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteGroupMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+    delete:
+      tags:
+        - Tenant palette
+      summary: Delete a custom palette group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteRevisionRequest"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteEmptyMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/token-groups/{tokenId}:
+    put:
+      tags:
+        - Tenant palette
+      summary: Assign a color token to a palette group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteTokenGroupRequest"
+      responses:
+        "200":
+          description: Token group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteTokenAssignmentMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps:
+    post:
+      tags:
+        - Tenant palette
+      summary: Add a template ramp to a group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteRampRequest"
+      responses:
+        "201":
+          description: Added ramp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteRampMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}:
+    delete:
+      tags:
+        - Tenant palette
+      summary: Remove a ramp from a group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - general
+              - additional
+          required: true
+          name: type
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: shade
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteRemoveRampRequest"
+      responses:
+        "200":
+          description: Removed ramp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteRemovedRampMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/source:
+    put:
+      tags:
+        - Tenant palette
+      summary: Replace the ramp source within a group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - general
+              - additional
+          required: true
+          name: type
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: shade
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteRampRequest"
+      responses:
+        "200":
+          description: Ramp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteRampMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/rebuild:
+    post:
+      tags:
+        - Tenant palette
+      summary: Rebuild a ramp from an anchor color or preview it
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - general
+              - additional
+          required: true
+          name: type
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: shade
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteRebuildRequest"
+      responses:
+        "200":
+          description: Ramp, or step values when preview is true
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PaletteRampMutation"
+                  - $ref: "#/components/schemas/PaletteRebuildPreview"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/palette/groups/{groupId}/ramps/{type}/{shade}/steps/{step}:
+    patch:
+      tags:
+        - Tenant palette
+      summary: Edit one step of a ramp in a group
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: groupId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - general
+              - additional
+          required: true
+          name: type
+          in: path
+        - schema:
+            type: string
+          required: true
+          name: shade
+          in: path
+        - schema:
+            type: integer
+          required: true
+          name: step
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaletteStepRequest"
+      responses:
+        "200":
+          description: Ramp
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaletteRampMutation"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, group, token or ramp not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or palette conflict
           content:
             application/json:
               schema:
@@ -5532,11 +6254,19 @@ components:
             - type: object
               additionalProperties:
                 nullable: true
+        message:
+          type: string
         code:
           type: string
         editRevision:
           type: integer
           minimum: 0
+        details:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
       required:
         - error
     ThemePreview:
@@ -6177,6 +6907,9 @@ components:
     TokenValue:
       type: object
       properties:
+        paletteRef:
+          type: string
+          description: Исходная ссылка на палитру при resolvePalette=true
         id:
           type: string
           format: uuid
@@ -7946,4 +8679,388 @@ components:
         - typeMismatches
         - gradientOnlyProperties
         - underivableVariationIds
+    PaletteRampRef:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - general
+            - additional
+        shade:
+          type: string
+      required:
+        - type
+        - shade
+    PaletteStepValue:
+      type: object
+      properties:
+        step:
+          type: integer
+        value:
+          type: string
+      required:
+        - step
+        - value
+    PaletteStep:
+      type: object
+      properties:
+        step:
+          type: integer
+        value:
+          type: string
+        templateValue:
+          type: string
+        overridden:
+          type: boolean
+        linkedCount:
+          type: integer
+      required:
+        - step
+        - value
+        - templateValue
+        - overridden
+        - linkedCount
+    PaletteRamp:
+      type: object
+      properties:
+        slot:
+          $ref: "#/components/schemas/PaletteRampRef"
+        source:
+          $ref: "#/components/schemas/PaletteRampRef"
+        displayName:
+          type: string
+        origin:
+          type: string
+          enum:
+            - template
+            - rebuild
+        anchor:
+          type: object
+          nullable: true
+          properties:
+            step:
+              type: integer
+            value:
+              type: string
+          required:
+            - step
+            - value
+        added:
+          type: boolean
+        modified:
+          type: boolean
+        linkedCount:
+          type: integer
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteStep"
+      required:
+        - slot
+        - source
+        - displayName
+        - origin
+        - anchor
+        - added
+        - modified
+        - linkedCount
+        - steps
+    PaletteGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum:
+            - system
+            - custom
+        systemKey:
+          type: string
+          nullable: true
+          enum:
+            - neutral
+            - accent
+            - status
+            - data
+            - syntax
+            - null
+        label:
+          type: string
+        ramps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteRamp"
+      required:
+        - id
+        - kind
+        - systemKey
+        - label
+        - ramps
+    PaletteTokenAssignment:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        tokenName:
+          type: string
+        groupId:
+          type: string
+        assignment:
+          type: string
+          enum:
+            - explicit
+            - default
+      required:
+        - tokenId
+        - tokenName
+        - groupId
+        - assignment
+    PaletteTemplateRamp:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - general
+            - additional
+        shade:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteStepValue"
+      required:
+        - type
+        - shade
+        - steps
+    ThemePalette:
+      type: object
+      properties:
+        tenantId:
+          type: string
+        editRevision:
+          type: integer
+          minimum: 0
+        canEdit:
+          type: boolean
+        offBrand:
+          type: boolean
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteGroup"
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteTokenAssignment"
+        template:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteTemplateRamp"
+      required:
+        - tenantId
+        - editRevision
+        - canEdit
+        - offBrand
+        - groups
+        - tokens
+        - template
+    PaletteLink:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        tokenName:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        groupId:
+          type: string
+        mode:
+          type: string
+          nullable: true
+        step:
+          type: integer
+        opacity:
+          type: number
+          nullable: true
+        platforms:
+          type: array
+          items:
+            type: string
+      required:
+        - tokenId
+        - tokenName
+        - displayName
+        - groupId
+        - mode
+        - step
+        - opacity
+        - platforms
+    PaletteGroupMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          $ref: "#/components/schemas/PaletteGroup"
+      required:
+        - editRevision
+        - value
+    PaletteRampMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          $ref: "#/components/schemas/PaletteRamp"
+      required:
+        - editRevision
+        - value
+    PaletteTokenAssignmentMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          $ref: "#/components/schemas/PaletteTokenAssignment"
+      required:
+        - editRevision
+        - value
+    PaletteEmptyMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          nullable: true
+      required:
+        - editRevision
+        - value
+    PaletteRemovedRampMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          type: object
+          properties:
+            reassigned:
+              type: integer
+          required:
+            - reassigned
+      required:
+        - editRevision
+        - value
+    PaletteRebuildPreview:
+      type: object
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaletteStepValue"
+      required:
+        - steps
+    PaletteGroupLabelRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - label
+        - editRevision
+    PaletteRevisionRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
+    PaletteTokenGroupRequest:
+      type: object
+      properties:
+        groupId:
+          type: string
+          nullable: true
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - groupId
+        - editRevision
+    PaletteRampRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - general
+            - additional
+        shade:
+          type: string
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - type
+        - shade
+        - editRevision
+    PaletteRebuildRequest:
+      type: object
+      properties:
+        anchorStep:
+          type: integer
+        value:
+          type: string
+          pattern: ^#?[0-9A-Fa-f]{6}$
+        preview:
+          type: boolean
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - anchorStep
+        - value
+        - editRevision
+    PaletteStepRequest:
+      type: object
+      properties:
+        value:
+          type: string
+          pattern: ^#?[0-9A-Fa-f]{6}$
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - value
+        - editRevision
+    PaletteRemoveRampRequest:
+      type: object
+      properties:
+        strategy:
+          type: string
+          enum:
+            - replace
+            - detach
+        replacement:
+          $ref: "#/components/schemas/PaletteRampRef"
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
   parameters: {}

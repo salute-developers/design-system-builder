@@ -75,6 +75,14 @@ tasks.processResources {
     dependsOn(generateTokenValues)
 }
 
+// Эталон логики палитры темы общий с клиентом DS Builder: тесты домена читают его как ресурс.
+tasks.processTestResources {
+    from("../../../js/apps/client/src/modules/palette/fixtures") {
+        include("palette-golden.json")
+        into("palette")
+    }
+}
+
 dependencies {
     implementation("com.dsbuilder.authorization:authorization-core")
     implementation(project(":core"))

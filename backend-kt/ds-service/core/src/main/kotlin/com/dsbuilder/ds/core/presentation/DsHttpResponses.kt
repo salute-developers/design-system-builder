@@ -24,7 +24,8 @@ suspend fun ApplicationCall.respondFailure(failure: DsFailure) {
     }
     respond(
         failure.status(),
-        error?.let { ErrorResponse(it) } ?: failure.toErrorResponse(),
+        error?.let { ErrorResponse(it, message = (failure as? DsFailure.InvalidRequest)?.message) }
+            ?: failure.toErrorResponse(),
     )
 }
 
@@ -100,6 +101,21 @@ private fun DsFailure.publicMessage() = when (this) {
 private fun DsFailure.details() = (this as? DsFailure.Unprocessable)?.message
 
 private fun DsFailure.toErrorResponse() = when (this) {
-    is DsFailure.Conflict -> ErrorResponse(publicMessage(), code = code, editRevision = editRevision)
+    is DsFailure.Conflict -> ErrorResponse(
+        error = JsonPrimitive(publicMessage()),
+        message = message,
+        code = code,
+        editRevision = editRevision,
+        details = details.takeIf { it.isNotEmpty() }?.let { values ->
+            buildJsonObject {
+                values.forEach { (name, numbers) ->
+                    put(
+                        name,
+                        buildJsonArray { numbers.forEach { add(JsonPrimitive(it)) } },
+                    )
+                }
+            }
+        },
+    )
     else -> ErrorResponse(publicMessage(), details())
 }
