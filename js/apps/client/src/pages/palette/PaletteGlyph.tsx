@@ -11,12 +11,6 @@ const GLYPHS = {
     pencil: <path d="M4 20h4L19 9a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5Z" />,
     'chevron-down': <path d="m6 9.5 6 5.5 6-5.5" />,
     'chevron-up': <path d="m6 14.5 6-5.5 6 5.5" />,
-    inspector: (
-        <>
-            <rect x="4" y="5" width="16" height="14" rx="2" />
-            <path d="M14 5v14" />
-        </>
-    ),
 } as const;
 
 export const PaletteGlyph = ({ name }: { name: keyof typeof GLYPHS }) => (

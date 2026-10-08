@@ -29,8 +29,15 @@ export interface LocalPaletteDeps {
     template: () => PaletteTemplate;
     /** Токены и значения открытой темы, включая черновик. */
     theme: (ctx: PaletteContext) => LocalThemeInput;
-    /** Записывает переписанные ссылки токенов в черновик темы. */
-    applyRewrite: (ctx: PaletteContext, rewrite: TokenReferenceRewrite, resolveHex: (step: number) => string | undefined) => void;
+    /**
+     * Записывает переписанные ссылки токенов в черновик темы атомарно: при ошибке ничего не меняет и бросает её,
+     * при успехе возвращает отмену записи.
+     */
+    applyRewrite: (
+        ctx: PaletteContext,
+        rewrite: TokenReferenceRewrite,
+        resolveHex: (step: number) => string | undefined,
+    ) => (() => void) | void;
 }
 
 export const localPaletteKey = ({ projectId, designSystemId, tenantId }: PaletteContext) =>
@@ -63,6 +70,8 @@ export const createLocalPaletteRepository = (deps: LocalPaletteDeps): PaletteRep
         editRevision: number,
         operation: (state: PaletteState, current: ThemePaletteModel) => { state: PaletteState; value: R },
         present: (value: R, next: ThemePaletteModel, current: ThemePaletteModel) => T,
+        /** Побочная запись вне состояния палитры (черновик токенов); возвращает её отмену. */
+        effect?: (value: R, current: ThemePaletteModel) => (() => void) | void,
     ): PaletteMutation<T> => {
         const state = read(ctx);
         const current = model(ctx, state);
@@ -72,7 +81,14 @@ export const createLocalPaletteRepository = (deps: LocalPaletteDeps): PaletteRep
                 editRevision: state.editRevision,
             });
         const result = operation(state, current);
-        deps.storage.setItem(localPaletteKey(ctx), JSON.stringify(result.state));
+        // Сначала черновик, потом палитра: если палитру записать не удалось, запись черновика откатывается.
+        const undo = effect?.(result.value, current);
+        try {
+            deps.storage.setItem(localPaletteKey(ctx), JSON.stringify(result.state));
+        } catch (error) {
+            undo?.();
+            throw error;
+        }
         return { editRevision: result.state.editRevision, value: present(result.value, model(ctx, result.state), current) };
     };
 
@@ -110,6 +126,13 @@ export const createLocalPaletteRepository = (deps: LocalPaletteDeps): PaletteRep
                 ctx,
                 editRevision,
                 (state, current) => paletteOperations.createGroup(state, label, context(current)),
+                (group, next) => findGroup(next, group.id),
+            ),
+        renameGroup: async (ctx, groupId, label, editRevision) =>
+            mutate(
+                ctx,
+                editRevision,
+                (state) => paletteOperations.renameGroup(state, groupId, label),
                 (group, next) => findGroup(next, group.id),
             ),
         deleteGroup: async (ctx, groupId, editRevision) =>
@@ -170,14 +193,13 @@ export const createLocalPaletteRepository = (deps: LocalPaletteDeps): PaletteRep
                 ctx,
                 editRevision,
                 (state, current) => paletteOperations.removeRamp(state, groupId, slot, { strategy, replacement }, context(current)),
-                (result, _next, current) => {
-                    if (result.rewrite) {
-                        const removed = findRamp(current, groupId, slot);
-                        deps.applyRewrite(ctx, result.rewrite, (step) =>
-                            removed.steps.find((item) => item.step === step)?.value,
-                        );
-                    }
-                    return { reassigned: result.reassigned };
+                (result) => ({ reassigned: result.reassigned }),
+                (result, current) => {
+                    if (!result.rewrite) return undefined;
+                    const removed = findRamp(current, groupId, slot);
+                    return deps.applyRewrite(ctx, result.rewrite, (step) =>
+                        removed.steps.find((item) => item.step === step)?.value,
+                    );
                 },
             ),
     };

@@ -50,6 +50,8 @@ export const createHttpPaletteRepository = (): PaletteRepository => ({
             }),
         ),
     createGroup: (ctx, label, editRevision) => call(() => http.post(palettePath(ctx, '/groups'), { label, editRevision })),
+    renameGroup: (ctx, groupId, label, editRevision) =>
+        call(() => http.patch(palettePath(ctx, `/groups/${encodeURIComponent(groupId)}`), { label, editRevision })),
     deleteGroup: (ctx, groupId, editRevision) =>
         call(() =>
             http.delete(palettePath(ctx, `/groups/${encodeURIComponent(groupId)}`), { data: { editRevision } }),

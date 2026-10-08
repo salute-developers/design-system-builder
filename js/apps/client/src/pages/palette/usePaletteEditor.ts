@@ -14,7 +14,6 @@ import type { PaletteFilter, PaletteMode, PaletteSelection } from './Palette.uti
 export type PaletteDialog =
     | { kind: 'add'; groupId: string }
     | { kind: 'remove'; groupId: string; slot: PaletteRampRef }
-    | { kind: 'create-group' }
     | { kind: 'delete-group'; groupId: string };
 
 export interface PaletteToast {
@@ -71,6 +70,7 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
     const [popoverTab, setPopoverTab] = useState<'replace' | 'rebuild'>('replace');
     const [dialog, setDialog] = useState<PaletteDialog | null>(null);
     const [stepEditor, setStepEditor] = useState<PaletteSelection | null>(null);
+    const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
     const [stepAnchor, setStepAnchor] = useState<HTMLElement | null>(null);
     const [toast, setToast] = useState<PaletteToast | null>(null);
     const [busy, setBusy] = useState(false);
@@ -115,7 +115,7 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
         async <T>(
             operation: (editRevision: number) => Promise<PaletteMutation<T>>,
             success: (value: T) => Omit<PaletteToast, 'tone'>,
-            options: { tokensChanged?: boolean } = {},
+            options: { tokensChanged?: boolean; silent?: boolean } = {},
         ) => {
             setBusy(true);
             try {
@@ -132,7 +132,7 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
                 }
                 await refresh();
                 rerender();
-                showToast(notice);
+                if (!options.silent) showToast(notice);
                 return result.value;
             } catch (error) {
                 if (error instanceof PaletteOperationError && error.code === 'TENANT_EDIT_CONFLICT') {
@@ -171,6 +171,7 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
         setFilter,
         collapsed,
         toggleCollapsed: (groupId: string) => setCollapsed((prev) => ({ ...prev, [groupId]: !prev[groupId] })),
+        expandGroup: (groupId: string) => setCollapsed((prev) => ({ ...prev, [groupId]: false })),
         inspectorCollapsed,
         setInspectorCollapsed,
         usageScope,
@@ -183,6 +184,8 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
         setDialog,
         stepEditor,
         setStepEditor,
+        renamingGroupId,
+        setRenamingGroupId,
         stepAnchor,
         setStepAnchor,
         toast,

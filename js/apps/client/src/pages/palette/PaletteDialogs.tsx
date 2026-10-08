@@ -283,62 +283,6 @@ const RemoveRampDialog = ({
     );
 };
 
-/** «Создать группу» по `sourcePaletteGroupModal` прототипа. */
-const CreateGroupDialog = ({ context, editor }: DialogsProps) => {
-    const [label, setLabel] = useState('');
-    const inputRef = useRef<HTMLInputElement | null>(null);
-    useEffect(() => inputRef.current?.focus(), []);
-    const close = () => editor.setDialog(null);
-    const create = async () => {
-        if (!label.trim()) {
-            inputRef.current?.focus();
-            return;
-        }
-        const group = await editor.run(
-            (editRevision) => paletteRepository.createGroup(context, label, editRevision),
-            (value) => ({ title: 'Группа создана', text: `Группа ${value.label} создана. Добавьте в неё палитры.` }),
-        );
-        if (group) close();
-    };
-    return (
-        <Modal
-            eyebrow="Палитра темы"
-            title="Создать группу"
-            titleId="source-palette-group-title"
-            className="source-palette-group-modal"
-            onClose={close}
-            footer={
-                <>
-                    <button type="button" className="secondary" onClick={close}>
-                        Отмена
-                    </button>
-                    <button type="button" disabled={editor.busy} onClick={create}>
-                        Создать группу
-                    </button>
-                </>
-            }
-        >
-            <div className="source-palette-manage-copy">
-                <p>
-                    Соберите палитры для отдельной продуктовой области. Токены попадают в группу явной привязкой в
-                    инспекторе палитры или в разделе цветов.
-                </p>
-                <label className="source-palette-group-field">
-                    <span>Название группы</span>
-                    <input
-                        ref={inputRef}
-                        value={label}
-                        maxLength={64}
-                        placeholder="Например, Avatars"
-                        onChange={(event) => setLabel(event.target.value)}
-                        onKeyDown={(event) => event.key === 'Enter' && create()}
-                    />
-                </label>
-            </div>
-        </Modal>
-    );
-};
-
 /** «Удалить группу» по `sourcePaletteDeleteGroupModal` прототипа. */
 const DeleteGroupDialog = ({ context, palette, editor, groupId }: DialogsProps & { groupId: string }) => {
     const group = palette.groups.find((item) => item.id === groupId);
@@ -399,8 +343,6 @@ export const PaletteDialogs = (props: DialogsProps) => {
             return <AddRampDialog {...props} groupId={dialog.groupId} />;
         case 'remove':
             return <RemoveRampDialog {...props} groupId={dialog.groupId} slot={dialog.slot} />;
-        case 'create-group':
-            return <CreateGroupDialog {...props} />;
         case 'delete-group':
             return <DeleteGroupDialog {...props} groupId={dialog.groupId} />;
     }

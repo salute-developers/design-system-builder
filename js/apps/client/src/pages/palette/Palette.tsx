@@ -11,7 +11,7 @@ import { PaletteDialogs } from './PaletteDialogs';
 import { PaletteInspector } from './PaletteInspector';
 import { PaletteSidebar } from './PaletteSidebar';
 import { StepColorEditor } from './StepColorEditor';
-import { displaySteps, middleStep } from './Palette.utils';
+import { displaySteps, isChanged, middleStep } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
 
 export interface PaletteOutletContext {
@@ -77,6 +77,11 @@ const PaletteScreen = ({
         reload: outlet.reload,
     });
     const steps = useMemo(() => displaySteps(palette), [palette]);
+    // Как `paletteEditCount` прототипа: число правок палитры — изменённые растяжки, как у фильтра «Изменённые».
+    const changedCount = useMemo(
+        () => palette.groups.reduce((total, group) => total + group.ramps.filter(isChanged).length, 0),
+        [palette],
+    );
     const readOnly = outlet.designSystem?.getParameters()?.readOnly === true;
     const canEdit = palette.canEdit && !readOnly;
     const paletteMode = editor.mode === 'palette';
@@ -138,7 +143,7 @@ const PaletteScreen = ({
                 data-mode={paletteMode ? 'palette' : 'color'}
                 aria-label="Палитра"
             >
-                <PaletteSidebar palette={palette} editor={editor} canEdit={canEdit} steps={steps} />
+                <PaletteSidebar context={context} palette={palette} editor={editor} canEdit={canEdit} steps={steps} />
                 <div className="source-palette-canvas-column">
                     <header className="source-palette-canvas-toolbar">
                         <div className="source-palette-mode-tabs" role="tablist" aria-label="Режим редактирования">
@@ -176,10 +181,8 @@ const PaletteScreen = ({
                                 aria-label={editor.inspectorCollapsed ? 'Показать Inspector' : 'Скрыть Inspector'}
                                 onClick={() => editor.setInspectorCollapsed(!editor.inspectorCollapsed)}
                             >
-                                <svg className="ui-glyph" viewBox="0 0 24 24" aria-hidden="true">
-                                    <rect x="4" y="5" width="16" height="14" rx="2" />
-                                    <path d="M14 5v14" />
-                                </svg>
+                                <img src="/catalog/icons/rail-colors.svg" alt="" />
+                                <span>{changedCount}</span>
                             </button>
                         </div>
                     </header>
@@ -197,9 +200,8 @@ const PaletteScreen = ({
                         context={context}
                         palette={palette}
                         editor={editor}
-                        theme={outlet.theme}
-                        canEdit={canEdit}
                         onOpenToken={openToken}
+                        onOpenColors={() => navigate('../colors')}
                     />
                 )}
             </section>
