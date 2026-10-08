@@ -540,10 +540,6 @@
 .source-palette-manage-modal>header h2{margin:0;color:#f3f6fa;font-size:20px;line-height:1.25}
 .source-palette-manage-copy{padding:16px 20px 0}
 .source-palette-manage-copy p{margin:0;color:#aeb7c4;font-size:13px;line-height:1.45}
-.source-palette-group-field{display:grid;gap:7px;margin-top:18px;color:#aeb7c4;font-size:12px}
-.source-palette-group-field input{height:42px;padding:0 12px;border:1px solid #4a5260;border-radius:8px;background:#1e242b;color:#f3f6fa;font:inherit;font-size:14px;outline:none}
-.source-palette-group-field input:focus{border-color:#4284ff;box-shadow:0 0 0 2px rgba(66,132,255,.18)}
-.source-palette-group-modal>footer{gap:8px}
 .source-palette-delete-group-modal>footer{gap:8px}
 .source-palette-delete-group-modal>footer .danger{border-color:#934957;background:#7c3441;color:#fff}
 .source-palette-delete-group-modal>footer .danger:hover{background:#9a3e4f}
@@ -697,39 +693,6 @@
     padding: 0;
 }
 
-/* Строка связанного токена с меткой группы: в прототипе метки нет; метка открывает выбор группы. */
-.source-palette-usage-row {
-    position: relative;
-}
-
-.source-palette-usage-row .source-palette-usage-link {
-    padding-right: 96px;
-}
-
-.source-palette-usage-group {
-    position: absolute;
-    top: 6px;
-    right: 12px;
-    max-width: 88px;
-    height: 20px;
-    padding: 0 6px;
-    overflow: hidden;
-    border: 0;
-    border-radius: 6px;
-    background: #2a2d31;
-    color: #96999f;
-    font-size: 10px;
-    line-height: 20px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.source-palette-usage-group:hover,
-.source-palette-usage-group[aria-expanded='true'] {
-    background: #3d3f42;
-    color: #f0f3f7;
-}
-
 /* У поповера прототипа max-height 390px и overflow hidden; выбор цвета ступени выше — даём ему место. */
 .source-palette-edit-popover.source-palette-step-editor {
     max-height: min(600px, calc(100vh - 80px));
@@ -766,6 +729,17 @@
 .source-palette-family-head-actions{display:flex;align-items:center;gap:4px}
 .source-palette-family-head-actions .ui-glyph{width:16px;height:16px}
 .source-palette-family-tools:not(.is-search-open) .source-palette-family-search{display:none}
+/* Ревью дизайна (PR #101): липкие шапка и фильтры списка получают фон оболочки, чтобы прокручиваемый список под
+   ними не просвечивал; у названия и подписи растяжки в режиме «Цвет» — отступ. */
+.source-palette-family-menu .source-palette-family-head,.source-palette-family-menu .source-palette-family-tools{background:#27282c}
+.source-palette-color-family-select .source-palette-family-label small{margin-left:6px}
+/* Ревью дизайна (PR #101): борд и секции не шире прототипа (948 и 900 px), но сжимаются вместе с колонкой — заголовок
+   секции со счётчиком палитр остаётся видимым, по горизонтали прокручиваются только карточки растяжек. */
+.source-palette-ramp-board{width:auto;min-width:0;max-width:948px}
+.source-palette-ramp-section{width:auto;max-width:900px;min-width:0;grid-template-columns:minmax(0,1fr)}
+/* Ревью дизайна (PR #101): название новой группы редактируется на месте заголовка группы. */
+.source-palette-family-category-toggle.is-renaming{min-width:0}
+.source-palette-group-name-input{min-width:0;flex:1;height:24px;padding:0 6px;border:1px solid #5d87dd;border-radius:6px;background:#252a31;color:#f3f3f3;font:inherit;font-size:12px;font-weight:600;outline:0;box-shadow:0 0 0 1px #2d78ff55}
 .source-palette-editor-grid :is(.source-palette-family-menu,.source-palette-inspector-v3){scrollbar-width:thin;scrollbar-color:#56585c transparent}
 .source-palette-editor-grid :is(.source-palette-family-menu,.source-palette-inspector-v3)::-webkit-scrollbar{width:6px;height:6px}
 .source-palette-editor-grid :is(.source-palette-family-menu,.source-palette-inspector-v3)::-webkit-scrollbar-thumb{border-radius:3px;background:#56585c}

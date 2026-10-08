@@ -1,6 +1,7 @@
 import { isHexColor, toUpperHex } from './color';
 import { rebuildRamp } from './rebuild';
 import { formatPaletteReference, parsePaletteReference, rampKey, sameRamp, withOpacity } from './reference';
+import { isDraftTokenId } from './groups';
 import { PaletteOperationError, systemGroupId, type PaletteState, type StoredGroup, type StoredRamp } from './state';
 import type { SlotLink } from './build';
 import type { PaletteLink, PaletteRampRef, ThemePalette } from './types';
@@ -84,16 +85,41 @@ const missingSteps = (state: PaletteState, source: PaletteRampRef, links: Palett
         });
 };
 
-export const createGroup = (state: PaletteState, label: string, ctx: OperationContext): OperationResult<StoredGroup> => {
+const groupLabel = (state: PaletteState, label: string, exceptId?: string) => {
     const trimmed = label.trim();
     if (!trimmed || trimmed.length > 64)
         throw new PaletteOperationError(400, null, 'Название группы должно содержать от 1 до 64 символов');
-    if (state.groups.some((group) => group.label.toLowerCase() === trimmed.toLowerCase()))
+    if (state.groups.some((group) => group.id !== exceptId && group.label.toLowerCase() === trimmed.toLowerCase()))
         throw new PaletteOperationError(409, 'PALETTE_GROUP_EXISTS', `Группа «${trimmed}» уже есть`);
+    return trimmed;
+};
+
+/** Свободное имя новой группы: «Новая группа», «Новая группа 2», … */
+export const nextGroupLabel = (groups: { label: string }[], base = 'Новая группа') => {
+    const taken = new Set(groups.map((group) => group.label.toLowerCase()));
+    if (!taken.has(base.toLowerCase())) return base;
+    let index = 2;
+    while (taken.has(`${base} ${index}`.toLowerCase())) index += 1;
+    return `${base} ${index}`;
+};
+
+export const createGroup = (state: PaletteState, label: string, ctx: OperationContext): OperationResult<StoredGroup> => {
+    const trimmed = groupLabel(state, label);
     const next = clone(state);
     const group: StoredGroup = { id: ctx.newId(), kind: 'custom', systemKey: null, label: trimmed };
     next.groups.push(group);
     return { state: bump(next), value: group };
+};
+
+export const renameGroup = (state: PaletteState, groupId: string, label: string): OperationResult<StoredGroup> => {
+    const group = findGroup(state, groupId);
+    if (group.kind === 'system')
+        throw new PaletteOperationError(409, 'PALETTE_GROUP_SYSTEM', 'Системную группу нельзя переименовать');
+    const trimmed = groupLabel(state, label, groupId);
+    const next = clone(state);
+    const renamed = findGroup(next, groupId);
+    renamed.label = trimmed;
+    return { state: bump(next), value: renamed };
 };
 
 export const deleteGroup = (state: PaletteState, groupId: string, ctx: OperationContext): OperationResult<void> => {
@@ -123,6 +149,9 @@ export const assignTokenGroup = (
     ctx: OperationContext,
 ): OperationResult<{ tokenId: string; groupId: string | null }> => {
     if (!ctx.palette.tokens.some((token) => token.tokenId === tokenId)) throw notFound('Цветовой токен не найден');
+    // Id токена черновика временный: привязка потерялась бы после сохранения или переименования токена.
+    if (isDraftTokenId(tokenId))
+        throw new PaletteOperationError(400, null, 'Сохраните токен, чтобы задать ему группу палитры');
     if (groupId !== null) findGroup(state, groupId);
     const next = clone(state);
     if (groupId === null) delete next.tokenGroups[tokenId];
@@ -207,8 +236,16 @@ export const updateStep = (
     if (!ramp.steps.some((item) => item.step === step)) throw notFound(`У растяжки нет ступени ${step}`);
     const next = clone(state);
     const stored = storedRamp(next, groupId, slot);
-    stored.steps[String(step)] = toUpperHex(value);
-    if (stored.origin === 'rebuild' && stored.anchor?.step === step) stored.anchor = { step, value: toUpperHex(value) };
+    const hex = toUpperHex(value);
+    const sourceValue = next.template[rampKey(stored.source)]?.[String(step)];
+    if (stored.origin === 'template' && sourceValue && toUpperHex(sourceValue) === hex) {
+        // Значение источника — это сброс правки, а не новая правка: иначе «Изменена» и «вне бренда» не снять.
+        // Запись растяжки остаётся: по ней растяжка может держаться в группе; признаки считаются по правкам.
+        delete stored.steps[String(step)];
+        return { state: bump(next), value: slot };
+    }
+    stored.steps[String(step)] = hex;
+    if (stored.origin === 'rebuild' && stored.anchor?.step === step) stored.anchor = { step, value: hex };
     return { state: bump(next), value: slot };
 };
 

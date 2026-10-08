@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import {
     defaultGroupForToken,
+    isDraftTokenId,
     parsePaletteReference,
     resolvePaletteTokenGroup,
     type ThemePalette,
@@ -52,7 +53,7 @@ export const TokenGroupSelect = ({ palette, tokenName, value, disabled, onAssign
             <select
                 aria-label={`Группа палитры токена ${tokenName}`}
                 value={pending ?? current}
-                disabled={disabled}
+                disabled={disabled || isDraftTokenId(assignment.tokenId)}
                 onChange={(event) => setPending(event.target.value === current ? null : event.target.value)}
             >
                 <option value={DEFAULT}>По умолчанию · {defaultGroup?.label}</option>
