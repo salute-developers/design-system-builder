@@ -210,6 +210,26 @@ describe('адаптер api', () => {
         });
     });
 
+    it('шлёт растяжку только как { type, shade }: сервер не принимает лишних полей', async () => {
+        const repository = createHttpPaletteRepository();
+        const templateRamp = { ...h190, steps: [{ step: 500, value: '#00AACC' }] };
+        mocked.post.mockResolvedValueOnce({ data: { editRevision: 2, value: {} } });
+        await repository.addRamp(ctx, 'g-1', templateRamp, 1);
+        expect(mocked.post).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps', {
+            type: 'additional',
+            shade: 'h190',
+            editRevision: 1,
+        });
+
+        mocked.put.mockResolvedValueOnce({ data: { editRevision: 3, value: {} } });
+        await repository.replaceSource(ctx, 'g-1', green, templateRamp, 2);
+        expect(mocked.put.mock.calls[0][1]).toEqual({ type: 'additional', shade: 'h190', editRevision: 2 });
+
+        mocked.delete.mockResolvedValueOnce({ data: { editRevision: 4, value: { reassigned: 0 } } });
+        await repository.removeRamp(ctx, 'g-1', green, { strategy: 'replace', replacement: templateRamp, editRevision: 3 });
+        expect(mocked.delete.mock.calls[0][1]).toEqual({ data: { strategy: 'replace', replacement: h190, editRevision: 3 } });
+    });
+
     it('rebuild с preview: true возвращает ступени без ревизии', async () => {
         const repository = createHttpPaletteRepository();
         mocked.post.mockResolvedValueOnce({ data: { steps: [{ step: 500, value: '#1F8A70' }] } });
@@ -247,8 +267,8 @@ describe('адаптер api', () => {
         });
     });
 
-    it('источник по умолчанию — local', () => {
-        expect(paletteSourceFromEnv(undefined)).toBe('local');
-        expect(paletteSourceFromEnv('api')).toBe('api');
+    it('источник по умолчанию — api', () => {
+        expect(paletteSourceFromEnv(undefined)).toBe('api');
+        expect(paletteSourceFromEnv('local')).toBe('local');
     });
 });

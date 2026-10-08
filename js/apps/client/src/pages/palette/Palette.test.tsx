@@ -30,7 +30,7 @@ vi.mock('../../palette/paletteSession', () => {
         }),
         applyRewrite: () => undefined,
     });
-    return { paletteRepository: repository };
+    return { paletteRepository: repository, paletteDraftLinks: () => ({ added: 0, any: false }) };
 });
 
 import { paletteRepository } from '../../palette/paletteSession';
