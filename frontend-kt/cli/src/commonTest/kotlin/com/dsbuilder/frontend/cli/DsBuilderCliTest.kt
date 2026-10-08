@@ -671,7 +671,7 @@ class DsBuilderCliTest {
                         """.trimIndent(),
                     ),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -712,7 +712,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
                     AuthenticatedHttpResult.Success(nullableAndNonNullColorValuesResponse()),
             ),
         )
@@ -721,6 +721,48 @@ class DsBuilderCliTest {
 
         assertEquals(0, result.exitCode, result.output)
         assertTrue(fileSystem.readText("/repo/.sdds/tenants/sdds_cs/web/web_color.json").contains("#171717F5"))
+    }
+
+    @Test
+    fun themeFetchWritesColorResolvedByThemePalette() {
+        val fileSystem = initializedFileSystem()
+        val runtime = fakeRuntime(
+            fileSystem = fileSystem,
+            environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
+            httpResults = mapOf(
+                "/api/projects/project-a/ds/design-systems/design-system-a/tenants" to
+                    AuthenticatedHttpResult.Success(tenantsResponse()),
+                "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
+                    AuthenticatedHttpResult.Success(singleColorTokenResponse()),
+                "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                    AuthenticatedHttpResult.Success(
+                        """
+                            [
+                              {
+                                "id": "value-color",
+                                "tokenId": "color-token",
+                                "tenantId": "tenant-a",
+                                "paletteId": null,
+                                "platform": "web",
+                                "mode": "light",
+                                "value": ["#0A8F7ACC"],
+                                "paletteRef": "[general.blue.100][0.8]",
+                                "createdAt": "2026-06-04T07:37:55.526Z",
+                                "updatedAt": "2026-06-04T07:37:55.526Z"
+                              }
+                            ]
+                        """.trimIndent(),
+                    ),
+            ),
+        )
+
+        val result = DsBuilderCli(runtime).execute(listOf("theme", "fetch"))
+
+        assertEquals(0, result.exitCode, result.output)
+        val webColor = fileSystem.readText("/repo/.sdds/tenants/sdds_cs/web/web_color.json")
+        assertTrue(webColor.contains("#0A8F7ACC"), webColor)
+        assertFalse(webColor.contains("general.blue.100"), webColor)
     }
 
     @Test
@@ -784,7 +826,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
                     AuthenticatedHttpResult.Success("[]"),
             ),
         )
@@ -808,7 +850,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
                     AuthenticatedHttpResult.Success(
                         """{"error":"unexpected wrapper","apiKey":"secret-value"}""",
                     ),
@@ -1081,7 +1123,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tenants",
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens",
                 "/api/projects/project-a/ds/palette",
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values",
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true",
             ),
             calls,
         )
@@ -1187,7 +1229,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
                     AuthenticatedHttpResult.Success(""),
             ),
         )
@@ -1261,9 +1303,8 @@ class DsBuilderCliTest {
         "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(
             paletteResponse(),
         ),
-        "/api/projects/project-a/ds/tenants/tenant-a/token-values" to AuthenticatedHttpResult.Success(
-            tokenValuesResponse(),
-        ),
+        "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+            AuthenticatedHttpResult.Success(tokenValuesResponse()),
     )
 
     private fun tenantsResponse(): String = Json.encodeToString(
