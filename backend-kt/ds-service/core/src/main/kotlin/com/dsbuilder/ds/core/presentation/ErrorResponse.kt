@@ -4,6 +4,7 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** Stable legacy-compatible response carrying public [error] and optional [message]. */
@@ -18,6 +19,9 @@ data class ErrorResponse(
     /** Текущая ревизия темы при optimistic-lock конфликте. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val editRevision: Int? = null,
+    /** Подробности предметной ошибки, например `steps` у `PALETTE_STEP_MISSING`. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val details: JsonObject? = null,
 ) {
     constructor(
         error: String,
