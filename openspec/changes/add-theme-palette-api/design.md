@@ -101,6 +101,7 @@ DTO совпадают с `add-theme-palette-editor` (`ThemePalette` с поле
 | `GET` | — | `tenants:read` |
 | `GET /links?type&shade&groupId&step` | — | `tenants:read` |
 | `POST /groups` | `{ label, editRevision }` | `tenants:write` |
+| `PATCH /groups/{groupId}` | `{ label, editRevision }` | `tenants:write` |
 | `DELETE /groups/{groupId}` | `{ editRevision }` | `tenants:write` |
 | `PUT /token-groups/{tokenId}` | `{ groupId \| null, editRevision }` | `tenants:write` |
 | `POST /groups/{groupId}/ramps` | `{ type, shade, editRevision }` | `tenants:write` |
@@ -131,6 +132,7 @@ class ThemePaletteResolver(private val state: TenantPaletteState) {
 class GetTenantPaletteUseCase(...) { suspend fun execute(ctx: DsRequestContext, tenantId: UUID): DsResult<ThemePalette> }
 class ListTenantPaletteLinksUseCase(...)
 class CreateTenantPaletteGroupUseCase(...)
+class RenameTenantPaletteGroupUseCase(...)
 class DeleteTenantPaletteGroupUseCase(...)
 class AssignTenantPaletteTokenGroupUseCase(...)
 class AddTenantPaletteRampUseCase(...)
