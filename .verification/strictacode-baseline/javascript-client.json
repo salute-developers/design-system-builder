@@ -1,15 +1,15 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 38316,
+    "loc": 38571,
     "packages": 125,
-    "modules": 334,
+    "modules": 335,
     "classes": 48,
     "methods": 170,
-    "functions": 926,
+    "functions": 943,
     "status": {
       "name": "warning",
-      "score": 45,
+      "score": 46,
       "reasons": [
         "High RP/OE imbalance - possibly spaghetti code",
         "Increased refactoring pressure"
@@ -20,7 +20,7 @@
       "score": 13
     },
     "refactoring_pressure": {
-      "score": 59,
+      "score": 60,
       "stat(modules)": {
         "avg": 7,
         "min": 0,
@@ -30,14 +30,14 @@
       }
     },
     "complexity": {
-      "score": 3132,
-      "density": 8.17,
+      "score": 3179,
+      "density": 8.24,
       "stat(modules)": {
         "avg": 9,
         "min": 1,
         "max": 408,
         "p50": 4,
-        "p90": 21
+        "p90": 22
       }
     }
   }
