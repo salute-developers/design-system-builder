@@ -26,7 +26,7 @@
 
 - [ ] 5.1 Реализовать DTO запросов и ответов и `TenantPaletteRoutes` под `/api/ds/tenants/{tenantId}/palette`, зарегистрировать маршруты и use case в `ThemesModule` и `Application.kt`
 - [ ] 5.2 Добавить маршруты палитры в `contracts/route-manifest.json` с признаком `"origin": "ds-service"` и правами `tenants:read`/`tenants:write`
-- [ ] 5.3 Научить `OpenApiDocumentFactory` описывать операции с `"origin": "ds-service"` по DTO `ds-service`, обновить `OpenApiDocumentFactoryTest` и число операций в нём и в `DsServiceHttpPostgresIntegrationTest`
+- [ ] 5.3 Описать операции палитры, параметр `resolvePalette` и поле `paletteRef` в `app/src/main/resources/openapi/documentation.yaml` с `x-permission`; пропускать группы с `"origin": "ds-service"` в `js/services/db-service/src/routes/route-manifest.test.ts` и `src/test/differential-runner.ts`; обновить число операций в `OpenApiDocumentResourceTest` и `DsServiceHttpPostgresIntegrationTest`; добавить `details` в `ErrorResponse` для `PALETTE_STEP_MISSING`
 - [ ] 5.4 Написать HTTP-тесты на Testcontainers: копия шаблона при создании темы и неизменность палитры темы после правки общей палитры, адресация групп по `id`, привязка токена и её сброс, переименование группы (в том числе занятое имя и системная группа), сброс правки ступени значением источника, удаление группы с возвратом токенов к группе по умолчанию, чтение, связи, каждая операция, конфликт ревизии, сохранение токенов после операции палитры, права viewer и ключа без `tenants:write`, чужой проект, независимость палитр двух тем, `token-values?resolvePalette=true`
 
 ## 6. CLI
@@ -37,7 +37,7 @@
 ## 7. Клиент
 
 - [ ] 7.1 Сделать `api` значением по умолчанию `VITE_PALETTE_SOURCE` и обновить описание переменной
-- [ ] 7.2 В режиме `api` после `removeRamp` перезагрузить тему и сбросить записи черновика затронутых токенов (сервер уже переписал их ссылки), уведомление показывать после перезагрузки
+- [ ] 7.2 В режиме `api` после `removeRamp` перезагрузить тему и переписать ссылки в записях черновика затронутых токенов (сохранённые значения переписал сервер; записи не сбрасываются, чтобы не терять остальные правки), уведомление показывать после перезагрузки
 - [ ] 7.3 В режиме `api` учитывать токены, которые есть только в черновике клиента: сервер не знает их связей, поэтому перед удалением растяжки и в инспекторе связи нужно дополнять токенами черновика, а при `removeRamp` переписывать и их ссылки (в режиме `local` это сделано в `palette/paletteSession.ts`)
 - [ ] 7.4 Проверить адаптер `api` клиента против реального ответа `ds-service` и привести расхождения DTO, если они есть, в обеих сторонах
 
