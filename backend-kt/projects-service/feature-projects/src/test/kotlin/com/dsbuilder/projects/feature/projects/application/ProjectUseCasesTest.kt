@@ -165,12 +165,41 @@ class ProjectUseCasesTest {
                 ),
             )
 
-            val projects = ListProjectsUseCase(repository, tx).execute(
+            val projects = ListProjectsUseCase(repository, tx, policy).execute(
                 ListProjectsInput(actor = AuthenticatedActor(ActorType.USER, "owner-1", false)),
             )
 
-            assertEquals(listOf("project-1", "project-2"), projects.map { it.id })
-            assertTrue(projects.any { it.status == ProjectStatus.ARCHIVED })
+            assertEquals(listOf("project-1", "project-2"), projects.map { it.project.id })
+            assertEquals(listOf(ProjectRole.OWNER, ProjectRole.VIEWER), projects.map { it.effectiveRole })
+            assertTrue(projects.any { it.project.status == ProjectStatus.ARCHIVED })
+        }
+    }
+
+    @Test
+    fun `list projects returns every effective role and system admin as owner`() {
+        kotlinx.coroutines.runBlocking {
+            val roles = listOf(ProjectRole.MAINTAINER, ProjectRole.EDITOR, ProjectRole.VIEWER)
+            val now = Instant.now(clock)
+            repository.seedProject(Project("owned", "Owned", null, ProjectStatus.ACTIVE, "user-1", now, now))
+            roles.forEachIndexed { index, role ->
+                val id = "member-$index"
+                repository.seedProject(Project(id, id, null, ProjectStatus.ACTIVE, "other-$index", now, now))
+                repository.seedMember(ProjectMember(id, "user-1", role, now, now))
+            }
+            val useCase = ListProjectsUseCase(repository, tx, policy)
+
+            val userProjects = useCase.execute(
+                ListProjectsInput(AuthenticatedActor(ActorType.USER, "user-1", false)),
+            )
+            assertEquals(
+                setOf(ProjectRole.OWNER, ProjectRole.MAINTAINER, ProjectRole.EDITOR, ProjectRole.VIEWER),
+                userProjects.map { it.effectiveRole }.toSet(),
+            )
+
+            val adminProjects = useCase.execute(
+                ListProjectsInput(AuthenticatedActor(ActorType.USER, "admin", true)),
+            )
+            assertTrue(adminProjects.all { it.effectiveRole == ProjectRole.OWNER })
         }
     }
 

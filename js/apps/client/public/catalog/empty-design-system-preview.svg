@@ -1,0 +1,52 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="420" height="260" viewBox="0 0 420 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Preview">
+<circle id="System hub" cx="210" cy="130" r="21.5" fill="white" fill-opacity="0.03" stroke="#2B8CED"/>
+<rect id="Plus H" x="203" y="129" width="14" height="2" rx="1" fill="#2B8CED"/>
+<rect id="Plus V" x="209" y="123" width="2" height="14" rx="1" fill="#2B8CED"/>
+<rect id="Connector" x="209.5" y="78.5" width="1" height="29" rx="0.5" stroke="white" stroke-opacity="0.1"/>
+<rect id="Connector_2" x="209.5" y="152.5" width="1" height="27" rx="0.5" stroke="white" stroke-opacity="0.1"/>
+<rect id="Connector_3" x="152.5" y="129.5" width="35" height="1" rx="0.5" stroke="white" stroke-opacity="0.1"/>
+<rect id="Connector_4" x="232.5" y="129.5" width="35" height="1" rx="0.5" stroke="white" stroke-opacity="0.1"/>
+<g id="Token node">
+<rect x="172" y="38" width="76" height="40" rx="9" fill="white" fill-opacity="0.03"/>
+<rect x="172.5" y="38.5" width="75" height="39" rx="8.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<circle id="Swatch" cx="190" cy="57" r="6" fill="#2B8CED"/>
+<g id="Swatch ghost">
+<circle cx="209" cy="57" r="6" fill="white" fill-opacity="0.03"/>
+<circle cx="209" cy="57" r="5.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Swatch ghost_2">
+<circle cx="228" cy="57" r="6" fill="white" fill-opacity="0.03"/>
+<circle cx="228" cy="57" r="5.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Typography node">
+<rect x="76" y="109" width="76" height="42" rx="9" fill="white" fill-opacity="0.03"/>
+<rect x="76.5" y="109.5" width="75" height="41" rx="8.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar" x="88" y="120" width="45" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<rect id="Ghost bar_2" x="88" y="132" width="30" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<g id="Component node">
+<rect x="268" y="109" width="76" height="42" rx="9" fill="white" fill-opacity="0.03"/>
+<rect x="268.5" y="109.5" width="75" height="41" rx="8.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Component ghost">
+<rect x="280" y="119" width="22" height="22" rx="5" fill="white" fill-opacity="0.03"/>
+<rect x="280.5" y="119.5" width="21" height="21" rx="4.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<rect id="Ghost bar_3" x="309" y="122" width="23" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<rect id="Ghost bar_4" x="309" y="133" width="17" height="5" rx="2.5" fill="white" fill-opacity="0.03"/>
+<g id="Shape node">
+<rect x="172" y="180" width="76" height="42" rx="9" fill="white" fill-opacity="0.03"/>
+<rect x="172.5" y="180.5" width="75" height="41" rx="8.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Radius ghost">
+<rect x="184" y="191" width="20" height="20" rx="4" fill="white" fill-opacity="0.03"/>
+<rect x="184.5" y="191.5" width="19" height="19" rx="3.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+<g id="Radius ghost_2">
+<rect x="216" y="191" width="20" height="20" rx="10" fill="white" fill-opacity="0.03"/>
+<rect x="216.5" y="191.5" width="19" height="19" rx="9.5" stroke="white" stroke-opacity="0.1"/>
+</g>
+</g>
+</svg>

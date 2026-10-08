@@ -71,11 +71,27 @@ interface TokenChange {
 
 type DraftChanges = Record<string, TokenChange>;
 
-const draftAddedTokens = new Set<string>();
+let activeDraftContext: { projectId: string; designSystemId: string; tenantId: string } | null = null;
+const draftAddedTokensByKey = new Map<string, Set<string>>();
 
-export const isDraftAddedToken = (tokenName: string) => draftAddedTokens.has(tokenName);
+export const setActiveDraftContext = (context: typeof activeDraftContext) => {
+    activeDraftContext = context;
+};
 
-export const getDraftKey = (name: string, version: string) => `${DRAFT_PREFIX}${name}:${version}`;
+const activeKey = (name: string, version: string) =>
+    activeDraftContext
+        ? `${DRAFT_PREFIX}${activeDraftContext.projectId}:${activeDraftContext.designSystemId}:${activeDraftContext.tenantId}`
+        : `${DRAFT_PREFIX}${name}:${version}`;
+const draftAddedTokens = () => {
+    const key = activeKey('', '');
+    const existing = draftAddedTokensByKey.get(key) ?? new Set<string>();
+    draftAddedTokensByKey.set(key, existing);
+    return existing;
+};
+
+export const isDraftAddedToken = (tokenName: string) => draftAddedTokens().has(tokenName);
+
+export const getDraftKey = (name: string, version: string) => activeKey(name, version);
 
 const loadDraftChanges = (dsName: string, dsVersion: string): DraftChanges => {
     const raw = localStorage.getItem(getDraftKey(dsName, dsVersion));
@@ -147,9 +163,9 @@ export const renameDraftToken = (dsName: string, dsVersion: string, oldName: str
 
     delete changes[oldName];
 
-    if (draftAddedTokens.has(oldName)) {
-        draftAddedTokens.delete(oldName);
-        draftAddedTokens.add(newName);
+    if (draftAddedTokens().has(oldName)) {
+        draftAddedTokens().delete(oldName);
+        draftAddedTokens().add(newName);
     }
 
     changes[newName] = {
@@ -175,7 +191,7 @@ export const createDraftToken = (dsName: string, dsVersion: string, token: Token
     const tokenName = token.getName();
     const changes = loadDraftChanges(dsName, dsVersion);
 
-    draftAddedTokens.add(tokenName);
+    draftAddedTokens().add(tokenName);
 
     changes[tokenName] = {
         type: token.getType(),
@@ -209,71 +225,50 @@ const restoreDraftToken = (theme: Theme, change: TokenChange) => {
         enabled: change.enabled,
     };
 
-    if (change.type === 'color') {
-        const token = new ColorToken(meta, {
-            web: new WebColor(change.values.web as WebColorToken[string]),
-            ios: new IOSColor(change.values.ios as IOSColorToken[string]),
-            android: new AndroidColor(change.values.android as AndroidColorToken[string]),
-        });
-        theme.addToken('color', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    const factories: Partial<Record<VariationType, () => Token>> = {
+        color: () =>
+            new ColorToken(meta, {
+                web: new WebColor(change.values.web as WebColorToken[string]),
+                ios: new IOSColor(change.values.ios as IOSColorToken[string]),
+                android: new AndroidColor(change.values.android as AndroidColorToken[string]),
+            }),
+        gradient: () =>
+            new GradientToken(meta, {
+                web: new WebGradient(change.values.web as WebGradientToken[string]),
+                ios: new IOSGradient(change.values.ios as IOSGradientToken[string]),
+                android: new AndroidGradient(change.values.android as AndroidGradientToken[string]),
+            }),
+        shape: () =>
+            new ShapeToken(meta, {
+                web: new WebShape(change.values.web as WebShapeToken[string]),
+                ios: new IOSShape(change.values.ios as IOSShapeToken[string]),
+                android: new AndroidShape(change.values.android as AndroidShapeToken[string]),
+            }),
+        spacing: () =>
+            new SpacingToken(meta, {
+                web: new WebSpacing(change.values.web as WebSpacingToken[string]),
+                ios: new IOSSpacing(change.values.ios as IOSSpacingToken[string]),
+                android: new AndroidSpacing(change.values.android as AndroidSpacingToken[string]),
+            }),
+        shadow: () =>
+            new ShadowToken(meta, {
+                web: new WebShadow(change.values.web as WebShadowToken[string]),
+                ios: new IOSShadow(change.values.ios as IOSShadowToken[string]),
+                android: new AndroidShadow(change.values.android as AndroidShadowToken[string]),
+            }),
+        typography: () =>
+            new TypographyToken(meta, {
+                web: new WebTypography(change.values.web as WebTypographyToken[string]),
+                ios: new IOSTypography(change.values.ios as IOSTypographyToken[string]),
+                android: new AndroidTypography(change.values.android as AndroidTypographyToken[string]),
+            }),
+    };
 
-    if (change.type === 'gradient') {
-        const token = new GradientToken(meta, {
-            web: new WebGradient(change.values.web as WebGradientToken[string]),
-            ios: new IOSGradient(change.values.ios as IOSGradientToken[string]),
-            android: new AndroidGradient(change.values.android as AndroidGradientToken[string]),
-        });
-        theme.addToken('gradient', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    const factory = factories[change.type];
+    if (!factory) return;
 
-    if (change.type === 'shape') {
-        const token = new ShapeToken(meta, {
-            web: new WebShape(change.values.web as WebShapeToken[string]),
-            ios: new IOSShape(change.values.ios as IOSShapeToken[string]),
-            android: new AndroidShape(change.values.android as AndroidShapeToken[string]),
-        });
-        theme.addToken('shape', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'spacing') {
-        const token = new SpacingToken(meta, {
-            web: new WebSpacing(change.values.web as WebSpacingToken[string]),
-            ios: new IOSSpacing(change.values.ios as IOSSpacingToken[string]),
-            android: new AndroidSpacing(change.values.android as AndroidSpacingToken[string]),
-        });
-        theme.addToken('spacing', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'shadow') {
-        const token = new ShadowToken(meta, {
-            web: new WebShadow(change.values.web as WebShadowToken[string]),
-            ios: new IOSShadow(change.values.ios as IOSShadowToken[string]),
-            android: new AndroidShadow(change.values.android as AndroidShadowToken[string]),
-        });
-        theme.addToken('shadow', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
-
-    if (change.type === 'typography') {
-        const token = new TypographyToken(meta, {
-            web: new WebTypography(change.values.web as WebTypographyToken[string]),
-            ios: new IOSTypography(change.values.ios as IOSTypographyToken[string]),
-            android: new AndroidTypography(change.values.android as AndroidTypographyToken[string]),
-        });
-        theme.addToken('typography', token);
-        draftAddedTokens.add(change.meta.name);
-        return;
-    }
+    theme.addToken(change.type, factory());
+    draftAddedTokens().add(change.meta.name);
 };
 
 export const clearDraft = (dsName?: string, dsVersion?: string) => {
@@ -282,7 +277,7 @@ export const clearDraft = (dsName?: string, dsVersion?: string) => {
     }
 
     localStorage.removeItem(getDraftKey(dsName, dsVersion));
-    draftAddedTokens.clear();
+    draftAddedTokens().clear();
 };
 
 export const hasDraft = (dsName: string, dsVersion: string) => {

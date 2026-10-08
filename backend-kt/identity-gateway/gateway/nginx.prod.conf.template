@@ -231,7 +231,8 @@ http {
             return 403;
         }
 
-        location = /api/projects {
+        # Collection-level project routes require an authenticated user, not project membership.
+        location ~ ^/api/projects(?:/member-candidates)?$ {
             limit_req zone=project_api burst=20 nodelay;
             auth_request /_auth_user;
             auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
@@ -249,7 +250,7 @@ http {
             proxy_set_header Host $host;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
-            rewrite ^/api(/projects)$ $1 break;
+            rewrite ^/api(/projects(?:/member-candidates)?)$ $1 break;
             proxy_pass http://projects_api;
         }
 

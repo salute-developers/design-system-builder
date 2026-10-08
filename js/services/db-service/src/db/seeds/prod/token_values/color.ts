@@ -1866,6 +1866,10 @@ const VALUES: Record<string, string> = {
   'light.data.inverse.yellow-transparent-active': "#F3A81280",
 };
 
+export const BASE_COLOR_TOKEN_NAMES = new Set(
+  Object.keys(VALUES).map((name) => name.replace(/^(dark|light)\./, '')),
+);
+
 const PALETTE_REFS = new Set(["[general.green.400]","[general.orange.400]","[general.red.400]","[general.blue.400]","[general.green.800]","[general.blue.800]","[general.red.800]","[general.orange.800]","[general.green.600]","[general.orange.600]","[general.red.600]","[general.herbal.300]","[general.blue.600]","[general.blue.300]","[general.red.300]","[general.orange.300]","[general.green.300]","[general.gray.950]","[general.gray.900]","[general.gray.850]","[general.gray.50]","[general.green.500]","[general.orange.500]","[general.red.500]","[general.green.900]","[general.blue.500]","[general.orange.900]","[general.red.900]","[general.blue.900]","[general.gray.100]","[general.gray.150]","[general.gray.200]","[general.gray.1000]","[general.green.150]","[general.red.150]","[general.orange.150]","[general.blue.150]","[general.gray.800]","[general.gray.500]","[general.gray.700]","[general.gray.300]","[general.amber.300]","[general.amber.700]","[general.amber.300][0.56]","[general.amber.200]"]);
 
 function isPaletteRef(val: string): boolean {
@@ -1905,7 +1909,9 @@ export async function seedColorTokenValues(
 ) {
   // Resolve unique palette keys
   const paletteIdCache = new Map<string, string>();
-  for (const val of Object.values(VALUES)) {
+  for (const [name, val] of Object.entries(VALUES)) {
+    const strippedName = name.replace(/^(dark|light)\./, '');
+    if (!tokenMap[strippedName]) continue;
     if (isPaletteRef(val)) {
       const { paletteKey } = parsePaletteRef(val);
       if (!paletteIdCache.has(paletteKey)) {

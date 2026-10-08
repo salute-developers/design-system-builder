@@ -9,7 +9,7 @@ export const Menu = styled.div<{ background?: string }>`
 
     min-width: 17.5rem;
     max-width: 17.5rem;
-    height: 100vh;
+    height: 100%;
 
     border: 0.03125rem solid var(--inverse-outline-transparent-primary);
     border-top: none;
@@ -22,7 +22,7 @@ export const Content = styled.div`
     box-sizing: border-box;
 
     width: 100%;
-    height: 100vh;
+    height: 100%;
     flex: 1;
     min-width: 0;
 `;

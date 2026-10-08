@@ -3,7 +3,7 @@ import { general } from '@salutejs/plasma-colors';
 import { IconArrowDiagRightUp } from '@salutejs/plasma-icons';
 
 import { Config, DesignSystem, Theme } from '../../controllers';
-import { designSystemSave, generatePublish, longPollNpm } from '../../pages/Main.utils';
+import { designSystemSave, generateAndDeployDocumentation, generatePublish, longPollNpm } from '../../pages';
 import { getNpmInstallCommand, getNpmPackageName, getNpmPackageUrl } from '../../api';
 import { clearDraft } from '../../utils';
 import { BasicButton, LinkButton } from '../../components';
@@ -29,6 +29,12 @@ interface PublishProgressProps {
 }
 
 type PublishStage = 'saving' | 'publishing' | 'waiting' | 'success' | 'error';
+
+function ensurePublished(condition: unknown, message: string): asserts condition {
+    if (!condition) {
+        throw new Error(message);
+    }
+}
 
 const stageStatus: Record<PublishStage, string> = {
     saving: 'Сохраняем изменения…',
@@ -73,7 +79,11 @@ export const PublishProgress = (props: PublishProgressProps) => {
 
             // 1. Сохраняем изменения в базу — публикация собирает пакет из данных базы
             setStage('saving');
-            await designSystemSave(designSystem, theme, components);
+            const saveResult = await designSystemSave(designSystem, theme, components);
+            ensurePublished(
+                saveResult && ('editRevision' in saveResult || saveResult.success),
+                'Не удалось сохранить Theme. Публикация не запущена, локальный черновик сохранён.',
+            );
 
             // 2. Генерируем и публикуем пакет
             setStage('publishing');
@@ -91,6 +101,9 @@ export const PublishProgress = (props: PublishProgressProps) => {
             if (!npmResult.success) {
                 throw new Error('Пакет не появился в npm');
             }
+
+            const documentationResult = await generateAndDeployDocumentation(designSystem);
+            ensurePublished(documentationResult, 'Не удалось создать документацию дизайн-системы');
 
             // Черновик чистим только после успешной публикации: если она упала, изменения уже в базе,
             // но кнопка «Опубликовать» остаётся и попытку можно повторить
@@ -116,7 +129,12 @@ export const PublishProgress = (props: PublishProgressProps) => {
                     return;
                 }
 
-                setErrorMessage(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                setErrorMessage(
+                    message.includes('TENANT_EDIT_CONFLICT')
+                        ? 'Не удалось сохранить Theme. Публикация не запущена, локальный черновик сохранён.'
+                        : message,
+                );
                 setStage('error');
             });
 

@@ -1,4 +1,5 @@
 import { ChangeEvent, MouseEvent, useCallback, useState } from 'react';
+import { isAxiosError } from 'axios';
 import styled, { keyframes } from 'styled-components';
 import {
     IconSave,
@@ -88,6 +89,9 @@ export const Debug = (props: DebugProps) => {
     const [loading, setLoading] = useState(false);
     const [isClearDraftDialogOpen, setIsClearDraftDialogOpen] = useState(false);
 
+    const withDesignSystem = <T,>(action: (loadedDesignSystem: DesignSystem) => T) =>
+        designSystem ? action(designSystem) : undefined;
+
     const withLoading = useCallback(
         <T,>(fn: () => Promise<T>) =>
             async () => {
@@ -101,37 +105,17 @@ export const Debug = (props: DebugProps) => {
         [],
     );
 
-    const onDebugDesignSystemDownload = async () => {
-        if (!designSystem) {
-            return;
-        }
+    const onDebugDesignSystemDownload = async () =>
+        withDesignSystem((loadedDesignSystem) => generateDownload(loadedDesignSystem, 'tgz'));
 
-        return await generateDownload(designSystem, 'tgz');
-    };
+    const onThemeDataDownload = async () =>
+        withDesignSystem((loadedDesignSystem) => downloadThemeData(loadedDesignSystem));
 
-    const onThemeDataDownload = async () => {
-        if (!designSystem) {
-            return;
-        }
+    const onDesignSystemPublish = async () =>
+        withDesignSystem((loadedDesignSystem) => generatePublish(loadedDesignSystem, 'tgz'));
 
-        return await downloadThemeData(designSystem);
-    };
-
-    const onDesignSystemPublish = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await generatePublish(designSystem, 'tgz');
-    };
-
-    const onDesignSystemDocs = async () => {
-        if (!designSystem) {
-            return;
-        }
-
-        return await generateAndDeployDocumentation(designSystem);
-    };
+    const onDesignSystemDocs = async () =>
+        withDesignSystem((loadedDesignSystem) => generateAndDeployDocumentation(loadedDesignSystem));
 
     const onClearDraftClick = (event: MouseEvent<HTMLDivElement>) => {
         event.stopPropagation();
@@ -142,12 +126,10 @@ export const Debug = (props: DebugProps) => {
     const onClearDraftConfirm = async () => {
         setIsClearDraftDialogOpen(false);
 
-        if (!designSystem) {
-            return;
-        }
-
-        clearDraft(designSystem.getName(), designSystem.getVersion());
-        reload();
+        withDesignSystem((loadedDesignSystem) => {
+            clearDraft(loadedDesignSystem.getName(), loadedDesignSystem.getVersion());
+            reload();
+        });
     };
 
     const onClearDraftCancel = () => {
@@ -159,7 +141,27 @@ export const Debug = (props: DebugProps) => {
             return;
         }
 
-        return await designSystemSave(designSystem, theme, components);
+        try {
+            const result = await designSystemSave(designSystem, theme, components);
+            clearDraft(designSystem.getName(), designSystem.getVersion());
+            return result;
+        } catch (error) {
+            if (
+                isAxiosError(error) &&
+                error.response?.status === 409 &&
+                error.response.data?.code === 'TENANT_EDIT_CONFLICT'
+            ) {
+                if (
+                    window.confirm(
+                        'Тема уже изменена в другой сессии. Черновик сохранён. Перезагрузить актуальные данные?',
+                    )
+                ) {
+                    reload();
+                }
+                return;
+            }
+            throw error;
+        }
     };
 
     const onImportTokens = async (event: ChangeEvent<HTMLInputElement>) => {

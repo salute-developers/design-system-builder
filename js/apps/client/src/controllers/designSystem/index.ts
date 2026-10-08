@@ -89,6 +89,18 @@ export class DesignSystem {
         return instance;
     }
 
+    public static fromSnapshot({
+        name,
+        parameters,
+        themeData,
+        componentsData,
+    }: DesignSystemProps & { componentsData: Meta[] }) {
+        const instance = new DesignSystem({ name, parameters });
+        instance.themeData = themeData ?? ({} as ThemeSource);
+        instance.componentsData = componentsData;
+        return instance;
+    }
+
     private generateThemeData(parameters?: Partial<Parameters>) {
         if (!parameters) {
             return {

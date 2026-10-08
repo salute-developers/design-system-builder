@@ -196,6 +196,8 @@ export const Overview = () => {
 
     return (
         <Workspace
+            section="overview"
+            readOnly={designSystem.getParameters()?.readOnly}
             menu={
                 <Root>
                     <Header>

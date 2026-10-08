@@ -384,13 +384,14 @@ Table tenants {
   design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
   name text [note: 'например sdds_serv']
   description text
-  color_config jsonb [not null, default: `'{}'::jsonb`, note: '{ grayTone?, accentColor?, light?: { strokeSaturation, fillSaturation }, dark?: { strokeSaturation, fillSaturation } }']
+  color_config jsonb [not null, default: `'{}'::jsonb`, note: '{ profile?: sber | malachite | b2b | custom, customPalette?: { primary, onPrimary, background, text }, grayTone?, accentColor?, light?: { strokeSaturation, fillSaturation }, dark?: { strokeSaturation, fillSaturation } }']
+  edit_revision integer [not null, default: 0, note: 'Technical optimistic-lock counter; not a Theme version']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (design_system_id, name) [unique]
+    (design_system_id, `lower(name)`) [unique, name: 'tenants_design_system_id_name_ci_unique']
   }
 }
 

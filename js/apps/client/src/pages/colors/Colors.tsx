@@ -55,7 +55,7 @@ export const Colors = () => {
             ?.data.find((node) => !existingNames.has(node.name));
 
         const addedToken = addedNode && getAnchor(addedNode);
-        
+
         if (addedToken) {
             selectToken(addedToken);
         }
@@ -82,6 +82,8 @@ export const Colors = () => {
 
     return (
         <Workspace
+            section="colors"
+            readOnly={designSystem.getParameters()?.readOnly}
             menuBackground={'transparent'}
             menu={
                 <Menu

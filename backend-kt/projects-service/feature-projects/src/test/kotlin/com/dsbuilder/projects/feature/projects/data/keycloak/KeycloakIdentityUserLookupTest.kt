@@ -137,4 +137,45 @@ class KeycloakIdentityUserLookupTest {
             }
         }
     }
+
+    @Test
+    fun `reuses service account token until it approaches expiration`() = runBlocking {
+        var tokenRequests = 0
+        val client = HttpClient(
+            MockEngine { request ->
+                when (request.url.encodedPath) {
+                    "/realms/dsbuilder/protocol/openid-connect/token" -> {
+                        tokenRequests += 1
+                        respond(
+                            content = """{"access_token":"token-1","expires_in":60}""",
+                            status = HttpStatusCode.OK,
+                            headers = io.ktor.http.headersOf(
+                                HttpHeaders.ContentType,
+                                ContentType.Application.Json.toString(),
+                            ),
+                        )
+                    }
+                    "/admin/realms/dsbuilder/users" -> respond(
+                        content = "[]",
+                        status = HttpStatusCode.OK,
+                        headers = io.ktor.http.headersOf(
+                            HttpHeaders.ContentType,
+                            ContentType.Application.Json.toString(),
+                        ),
+                    )
+                    else -> error("Unexpected path ${request.url}")
+                }
+            },
+        ) {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+        val lookup = KeycloakIdentityUserLookup(configuration, client)
+
+        lookup.searchRegisteredUsers("alex", 10)
+        lookup.searchRegisteredUsers("user", 10)
+
+        assertEquals(1, tokenRequests)
+    }
 }

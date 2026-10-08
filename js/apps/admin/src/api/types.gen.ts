@@ -279,100 +279,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/ds/design-systems/{id}/components": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get components for design system */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Component"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ds/design-systems/{id}/tokens": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get tokens for design system */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of items */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Token"][];
-                    };
-                };
-                /** @description Server error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/ds/design-systems/{id}/tenants": {
         parameters: {
             query?: never;
@@ -493,6 +399,222 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["DesignSystemChange"][];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/design-systems/{id}/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get tokens for design system
+         * @description Project-scoped authoritative token list. Preserves array response shape and supports optional type/query filters.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    type?: "color" | "gradient" | "typography" | "fontFamily" | "spacing" | "shape" | "shadow";
+                    query?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Token list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Token"][];
+                    };
+                };
+                /** @description Invalid filter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Project key lacks tokens:read */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Design system not found or unavailable to project */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/design-systems/{id}/components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get components for design system
+         * @description Project-scoped authoritative component list. Preserves array response shape and supports optional textual query.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    query?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Component list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Component"][];
+                    };
+                };
+                /** @description Project key lacks components:read */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Design system not found or unavailable to project */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ds/design-systems/{id}/components/{componentId}/styles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get component styles in design system */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    componentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Styles */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Style"][];
+                    };
+                };
+                /** @description Project key lacks components:read */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Component not found in design system */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Server error */
@@ -4534,10 +4656,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** All token values for a token */
+        /** Filtered token values for a token */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    tenantId?: string;
+                    mode?: "light" | "dark";
+                    platform?: "web" | "android" | "ios";
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -4546,13 +4672,40 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description List of items */
+                /** @description Token values */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["TokenValue"][];
+                    };
+                };
+                /** @description Invalid filter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Project key lacks tokens:read */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Token not found or unavailable to project */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Server error */
@@ -4849,7 +5002,75 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** Atomically save token values for one tenant */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        editRevision: number;
+                        values: {
+                            /** Format: uuid */
+                            tokenId: string;
+                            /** @enum {string} */
+                            platform: "web" | "android" | "ios";
+                            /** @enum {string|null} */
+                            mode: "light" | "dark" | null;
+                            /** Format: uuid */
+                            paletteId?: string | null;
+                            value?: unknown;
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            editRevision: number;
+                        };
+                    };
+                };
+                /** @description Invalid batch */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Tenant edit conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -8927,6 +9148,15 @@ export interface components {
             error: string | {
                 [key: string]: unknown;
             };
+            code?: string;
+            editRevision?: number;
+        };
+        ThemePreview: {
+            accentLight: string;
+            onAccentLight: string;
+            surfaceLight: string;
+            accentDark: string;
+            surfaceDark: string;
         };
         DesignSystem: {
             /** Format: uuid */
@@ -8945,6 +9175,16 @@ export interface components {
              * @example 2024-01-01T00:00:00.000Z
              */
             updatedAt: string;
+            tenantCount?: number;
+            themePreviews?: {
+                /**
+                 * Format: uuid
+                 * @example 550e8400-e29b-41d4-a716-446655440000
+                 */
+                tenantId: string;
+                name: string | null;
+                preview: components["schemas"]["ThemePreview"];
+            }[];
         };
         DesignSystemVersion: {
             /** Format: uuid */
@@ -9232,6 +9472,7 @@ export interface components {
             colorConfig: string | number | boolean | unknown | {
                 [key: string]: unknown;
             } | unknown[];
+            editRevision: number;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9242,6 +9483,7 @@ export interface components {
              * @example 2024-01-01T00:00:00.000Z
              */
             updatedAt: string;
+            preview?: components["schemas"]["ThemePreview"];
         };
         TokenValue: {
             /** Format: uuid */
@@ -9757,25 +9999,32 @@ export interface components {
         CreateTenant: {
             /** Format: uuid */
             designSystemId: string;
-            name?: string;
+            name: string;
             description?: string;
-            colorConfig?: {
-                grayTone?: string;
-                accentColor?: string;
-                light?: {
-                    strokeSaturation: number;
-                    fillSaturation: number;
-                };
-                dark?: {
-                    strokeSaturation: number;
-                    fillSaturation: number;
-                };
+            /**
+             * @default malachite
+             * @enum {string}
+             */
+            profile: "sber" | "malachite" | "b2b" | "custom";
+            customPalette?: {
+                primary: string;
+                onPrimary: string;
+                background: string;
+                text: string;
             };
         };
         UpdateTenant: {
             name?: string;
             description?: string;
             colorConfig?: {
+                /** @enum {string} */
+                profile?: "sber" | "malachite" | "b2b" | "custom";
+                customPalette?: {
+                    primary: string;
+                    onPrimary: string;
+                    background: string;
+                    text: string;
+                };
                 grayTone?: string;
                 accentColor?: string;
                 light?: {
@@ -10000,6 +10249,10 @@ export interface components {
              * @description Дизайн-система, конфигурации которой выгружаются
              */
             designSystemId: string;
+            /** @description Optional component names to include in the returned package */
+            components?: string[];
+            /** @description Optional style names to include in the returned package */
+            styles?: string[];
         };
         ComponentExportPackage: {
             meta: {

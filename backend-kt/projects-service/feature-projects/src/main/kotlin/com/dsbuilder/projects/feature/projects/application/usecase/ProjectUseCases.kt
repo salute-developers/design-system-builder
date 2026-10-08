@@ -1,8 +1,10 @@
 package com.dsbuilder.projects.feature.projects.application.usecase
 
+import com.dsbuilder.projects.feature.projects.application.IdentityProviderException
 import com.dsbuilder.projects.feature.projects.application.InvalidProjectRequestException
 import com.dsbuilder.projects.feature.projects.application.ProjectNotFoundException
 import com.dsbuilder.projects.feature.projects.application.RegisteredIdentityUserNotFoundException
+import com.dsbuilder.projects.feature.projects.application.port.IdentityUser
 import com.dsbuilder.projects.feature.projects.application.port.IdentityUserLookup
 import com.dsbuilder.projects.feature.projects.application.port.ProjectRepository
 import com.dsbuilder.projects.feature.projects.application.port.TransactionManager
@@ -55,6 +57,17 @@ internal data class ListProjectsInput(
     val actor: AuthenticatedActor,
 )
 
+internal data class ProjectWithEffectiveRole(
+    val project: Project,
+    val effectiveRole: ProjectRole,
+    val ownerIdentity: IdentityUser? = null,
+)
+
+internal data class ProjectMemberWithIdentity(
+    val member: ProjectMember,
+    val identity: IdentityUser?,
+)
+
 internal class CreateProjectUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
@@ -83,27 +96,48 @@ internal class GetProjectUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
     private val policy: ProjectAccessPolicy,
+    private val identityUserLookup: IdentityUserLookup,
 ) {
-    suspend fun execute(actor: AuthenticatedActor, projectId: String): Project =
-        transactionManager.required {
+    suspend fun execute(actor: AuthenticatedActor, projectId: String): ProjectWithEffectiveRole {
+        val result = transactionManager.required {
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
-            policy.requireProjectAccess(actor, project, member)
+            val effectiveRole = policy.requireProjectAccess(actor, project, member)
             policy.requireProjectKeyScope(actor, ProjectEntity.PROJECTS, AccessKeyAction.READ)
-            project
+            ProjectWithEffectiveRole(project, effectiveRole)
         }
+        return result.copy(
+            ownerIdentity = if (actor.type == ActorType.USER) {
+                identityUserLookup.findRegisteredUserByIdBestEffort(result.project.ownerUserId)
+            } else {
+                null
+            },
+        )
+    }
 }
 
 internal class ListProjectsUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
+    private val policy: ProjectAccessPolicy,
 ) {
-    suspend fun execute(input: ListProjectsInput): List<Project> =
+    suspend fun execute(input: ListProjectsInput): List<ProjectWithEffectiveRole> =
         transactionManager.required {
-            if (input.actor.isSystemAdmin) {
+            val projects = if (input.actor.isSystemAdmin) {
                 repository.listAllProjects()
             } else {
                 repository.listProjectsForUser(input.actor.userId)
+            }
+            projects.map { project ->
+                val member = if (input.actor.isSystemAdmin || project.ownerUserId == input.actor.userId) {
+                    null
+                } else {
+                    repository.getMember(project.id, input.actor.userId)
+                }
+                ProjectWithEffectiveRole(
+                    project = project,
+                    effectiveRole = policy.requireProjectAccess(input.actor, project, member),
+                )
             }
         }
 }
@@ -183,16 +217,28 @@ internal class ListProjectMembersUseCase(
     private val repository: ProjectRepository,
     private val transactionManager: TransactionManager,
     private val policy: ProjectAccessPolicy,
+    private val identityUserLookup: IdentityUserLookup,
 ) {
-    suspend fun execute(actor: AuthenticatedActor, projectId: String): List<ProjectMember> =
-        transactionManager.required {
+    suspend fun execute(actor: AuthenticatedActor, projectId: String): List<ProjectMemberWithIdentity> {
+        val members = transactionManager.required {
             val project = repository.getProject(projectId) ?: throw ProjectNotFoundException(projectId)
             val member = repository.getMember(projectId, actor.userId)
             policy.requireProjectAccess(actor, project, member)
             policy.requireProjectKeyScope(actor, ProjectEntity.MEMBERS, AccessKeyAction.READ)
             repository.listMembers(projectId)
         }
+        return members.map { member ->
+            ProjectMemberWithIdentity(member, identityUserLookup.findRegisteredUserByIdBestEffort(member.userId))
+        }
+    }
 }
+
+private suspend fun IdentityUserLookup.findRegisteredUserByIdBestEffort(userId: String): IdentityUser? =
+    try {
+        findRegisteredUserById(userId)
+    } catch (_: IdentityProviderException) {
+        null
+    }
 
 internal class AddProjectMemberUseCase(
     private val identityUserLookup: IdentityUserLookup,
@@ -213,7 +259,7 @@ internal class AddProjectMemberUseCase(
             val actorRole = policy.requireProjectAccess(input.actor, project, actorMembership)
             policy.requireMutableProject(project)
             policy.requireProjectKeyScope(input.actor, ProjectEntity.MEMBERS, AccessKeyAction.WRITE)
-            val identityUser = identityUserLookup.findRegisteredUserByEmail(normalizedEmail)
+            val identityUser = identityUserLookup.findRegisteredUserByIdentifier(normalizedEmail)
                 ?: throw RegisteredIdentityUserNotFoundException(normalizedEmail)
             policy.requireMemberManagement(
                 actorRole,
@@ -235,6 +281,19 @@ internal class AddProjectMemberUseCase(
             repository.upsertMember(member)
             member
         }
+}
+
+internal class SearchProjectMemberCandidatesUseCase(
+    private val identityUserLookup: IdentityUserLookup,
+) {
+    suspend fun execute(actor: AuthenticatedActor, query: String): List<IdentityUser> {
+        if (actor.type != ActorType.USER) {
+            throw InvalidProjectRequestException("Only authenticated users can search member candidates")
+        }
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.length < 2) return emptyList()
+        return identityUserLookup.searchRegisteredUsers(normalizedQuery, 10)
+    }
 }
 
 internal class UpdateProjectMemberRoleUseCase(

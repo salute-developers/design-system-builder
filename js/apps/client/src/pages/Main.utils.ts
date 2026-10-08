@@ -24,28 +24,39 @@ export const defaultParameters: Parameters = {
     lightStrokeSaturation: 50,
 };
 
+const grayTokenTones = {
+    dark: [150, 300, 800, 500, 150, 950, 950, 800, 300, 50, 100, 800, 1000, 950, 900, 950, 250],
+    light: [950, 800, 400, 600, 150, 950, 150, 150, 600, 1000, 950, 300, 300, 250, 200, 950, 250],
+} as const;
+
+const grayTokenNames = [
+    'text-primary',
+    'text-secondary',
+    'text-tertiary',
+    'text-paragraph',
+    'on-dark-text-primary',
+    'on-light-text-primary',
+    'inverse-text-primary',
+    'surface-solid-card',
+    'surface-solid-default',
+    'surface-transparent-primary',
+    'surface-transparent-secondary',
+    'outline-solid-secondary',
+    'background-primary',
+    'background-secondary',
+    'background-tertiary',
+    'dark-background-secondary',
+    'light-background-secondary',
+] as const;
+const grayTokenAlpha = ['', '', '', '', '', '', '', '', '', '0a', '0f', '', '', '', '', '', ''] as const;
+
 // TODO: Добавить оставшиеся переменные из макетов
-export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) => {
-    return `
-        --text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 950]};
-        --text-secondary: ${general[grayTone][themeMode === 'dark' ? 300 : 800]};
-        --text-tertiary: ${general[grayTone][themeMode === 'dark' ? 800 : 400]};
-        --text-paragraph: ${general[grayTone][themeMode === 'dark' ? 500 : 600]};
-        --on-dark-text-primary: ${general[grayTone][themeMode === 'dark' ? 150 : 150]};
-        --on-light-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
-        --inverse-text-primary: ${general[grayTone][themeMode === 'dark' ? 950 : 150]};
-        --surface-solid-card: ${general[grayTone][themeMode === 'dark' ? 800 : 150]};
-        --surface-solid-default: ${general[grayTone][themeMode === 'dark' ? 300 : 600]};
-        --surface-transparent-primary: ${general[grayTone][themeMode === 'dark' ? 50 : 1000]}0a;
-        --surface-transparent-secondary: ${general[grayTone][themeMode === 'dark' ? 100 : 950]}0f;
-        --outline-solid-secondary: ${general[grayTone][themeMode === 'dark' ? 800 : 300]};
-        --background-primary: ${general[grayTone][themeMode === 'dark' ? 1000 : 300]};
-        --background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 250]};
-        --background-tertiary: ${general[grayTone][themeMode === 'dark' ? 900 : 200]};
-        --dark-background-secondary: ${general[grayTone][themeMode === 'dark' ? 950 : 950]};
-        --light-background-secondary: ${general[grayTone][themeMode === 'dark' ? 250 : 250]};
-    `;
-};
+export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) =>
+    grayTokenNames
+        .map((name, index) => {
+            return `--${name}: ${general[grayTone][grayTokenTones[themeMode][index]]}${grayTokenAlpha[index]};`;
+        })
+        .join('\n');
 
 export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
     const projectId = designSystem.getParameters()?.projectId;
@@ -62,23 +73,11 @@ export const generateDownload = async (designSystem: DesignSystem, exportType: '
 
     const u8 = new Uint8Array(result.data);
 
-    // Находим начало архива (на случай мусора/префикса перед бинарником)
-    let start = 0;
-    for (let i = 0; i < u8.length - 3; i++) {
-        // TGZ
-        if (u8[i] === 0x1f && u8[i + 1] === 0x8b) {
-            start = i;
-            break;
-        }
+    // Находим начало архива (на случай мусора/префикса перед бинарником).
+    const signature = exportType === 'tgz' ? [0x1f, 0x8b] : [0x50, 0x4b, 0x03, 0x04];
+    const start = u8.findIndex((_, index) => signature.every((byte, offset) => byte === u8[index + offset]));
 
-        // ZIP
-        if (u8[i] === 0x50 && u8[i + 1] === 0x4b && u8[i + 2] === 0x03 && u8[i + 3] === 0x04) {
-            start = i;
-            break;
-        }
-    }
-
-    const blob = new Blob([u8.slice(start)]);
+    const blob = new Blob([u8.slice(Math.max(start, 0))]);
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -188,6 +187,52 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
             },
         };
     });
+
+    const parameters = designSystem.getParameters();
+    if (parameters?.tenantId && parameters.designSystemId && parameters.editRevision !== undefined) {
+        const root = `${PROJECTS_URL}/${parameters.projectId}/ds`;
+        const definitions = (
+            await http.get<Array<{ id: string; name: string; type: keyof typeof themeData.variations }>>(
+                `${root}/design-systems/${parameters.designSystemId}/tokens`,
+            )
+        ).data;
+        const ids = new Map(definitions.map((token) => [`${token.type}:${token.name}`, token.id]));
+        const values: Array<{
+            tokenId: string;
+            platform: 'web' | 'ios' | 'android';
+            mode: 'light' | 'dark' | null;
+            paletteId: null;
+            value: unknown;
+        }> = [];
+        for (const [type, platforms] of Object.entries(themeData.variations)) {
+            for (const [platform, entries] of Object.entries(
+                platforms as unknown as Record<string, Record<string, unknown>>,
+            )) {
+                for (const [rawName, value] of Object.entries(entries)) {
+                    const match = /^(light|dark)\.(.+)$/.exec(rawName);
+                    const mode = match?.[1] as 'light' | 'dark' | undefined;
+                    const name = match?.[2] ?? rawName;
+                    const tokenId = ids.get(`${type}:${name}`);
+                    if (!tokenId) throw new Error(`Token '${type}:${name}' is missing from design system`);
+                    values.push({
+                        tokenId,
+                        platform: platform as 'web' | 'ios' | 'android',
+                        mode: mode ?? null,
+                        paletteId: null,
+                        value,
+                    });
+                }
+            }
+        }
+        const saved = (
+            await http.put<{ editRevision: number }>(`${root}/tenants/${parameters.tenantId}/token-values`, {
+                editRevision: parameters.editRevision,
+                values,
+            })
+        ).data;
+        parameters.editRevision = saved.editRevision;
+        return saved;
+    }
 
     return await designSystem.updateDesignSystemData(themeData, componentsData);
 };

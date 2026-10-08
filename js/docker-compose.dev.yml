@@ -96,7 +96,7 @@ services:
       PORT: 3005
       DB_SERVICE_URL: http://db-service:3008/api
       PUBLISHER_URL: http://publisher:3007
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
+      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:-@sddsjs}
     ports:
       - "3005:3005"
     depends_on:
@@ -118,7 +118,8 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3007
-      NPM_TOKEN: ${NPM_TOKEN:?Set NPM_TOKEN}
+      # Optional locally: the legacy npm publishing endpoint reports a clear error when it is not configured.
+      NPM_TOKEN: ${NPM_TOKEN:-}
     ports:
       - "3007:3007"
     networks:
@@ -135,7 +136,7 @@ services:
       NODE_ENV: development
       PORT: 3006
       DB_SERVICE_URL: http://db-service:3008/api
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
+      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:-@sddsjs}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_ENDPOINT: ${AWS_ENDPOINT}
