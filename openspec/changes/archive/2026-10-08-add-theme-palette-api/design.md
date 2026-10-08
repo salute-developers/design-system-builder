@@ -116,46 +116,82 @@ DTO совпадают с `add-theme-palette-editor` (`ThemePalette` с поле
 ## Программное проектирование
 
 ```kotlin
-// domain
-data class PaletteReference(val type: ThemePaletteType, val shade: String, val step: Int, val opacity: Double?)
-object PaletteReferenceParser { fun parse(value: JsonElement?, paletteId: PaletteEntryRef?): PaletteReference? }
+// domain (чистые функции, проверяются эталоном palette-golden.json)
+data class PaletteReference(val ramp: PaletteRampRef, val step: Int, val opacity: Double?) {
+    companion object { fun parse(raw: String?): PaletteReference? }      // строковая форма; palette_id — в data
+}
 object DefaultPaletteGroups { fun groupFor(tokenName: String): SystemPaletteGroup }
-object PaletteRampRebuilder { fun rebuild(source: TemplateRamp, anchorStep: Int, anchorHex: String): Map<Int, String> }
+object PaletteRampRebuilder { fun rebuild(source: Map<Int, String>, anchorStep: Int, anchorHex: String): Map<Int, String>? }
 object PaletteDisplayNames { fun of(source: PaletteRampRef, anchor: PaletteAnchor?): String }
-class ThemePaletteResolver(private val state: TenantPaletteState) {
-    fun groupOf(tokenId: UUID, tokenName: String): PaletteGroupAssignment
-    fun palette(links: List<ColorTokenLink>, canEdit: Boolean): ThemePalette
-    fun resolveColor(tokenId: UUID, tokenName: String, value: JsonElement?, paletteId: PaletteEntryRef?): String?
+object ThemePaletteBuilder { fun build(tenantId, canEdit, state, tokens, values): ThemePalette }
+object ThemePaletteResolver { fun stepInGroup(...); fun groupOf(...); fun resolve(palette, tokenName, reference): String? }
+object PaletteOperations {                                            // (state, ..., palette) -> PaletteOperationResult<T>
+    createGroup, renameGroup, deleteGroup, assignTokenGroup, addRamp, replaceSource,
+    rebuildPreview, rebuild, updateStep, removeRamp
 }
 
 // application: один *UseCase на операцию, единственный execute
-class GetTenantPaletteUseCase(...) { suspend fun execute(ctx: DsRequestContext, tenantId: UUID): DsResult<ThemePalette> }
+class GetTenantPaletteUseCase(...)                  // tenants:read; canEdit = tenants:write и тема своего проекта
 class ListTenantPaletteLinksUseCase(...)
-class CreateTenantPaletteGroupUseCase(...)
-class RenameTenantPaletteGroupUseCase(...)
-class DeleteTenantPaletteGroupUseCase(...)
-class AssignTenantPaletteTokenGroupUseCase(...)
-class AddTenantPaletteRampUseCase(...)
-class ReplaceTenantPaletteRampSourceUseCase(...)
-class RebuildTenantPaletteRampUseCase(...)
-class UpdateTenantPaletteStepUseCase(...)
-class RemoveTenantPaletteRampUseCase(...)
+class CreateTenantPaletteGroupUseCase(...)          // и Rename/Delete/AssignTokenGroup/AddRamp/ReplaceSource/
+class PreviewTenantPaletteRampRebuildUseCase(...)   // Rebuild/UpdateStep/RemoveRamp — через TenantPaletteMutator
+class TenantPaletteMutator(policy, transactions, repository) {
+    // tenants:write до транзакции; в TransactionRunner.required: lock → initializedSnapshot → операция → save → effect
+    suspend fun <T, R> mutate(context, tenantId, editRevision, view, effect, operation): DsResult<TenantPaletteMutation<R>>
+    suspend fun <T> preview(context, tenantId, editRevision, operation): DsResult<T>   // без записи
+}
 
 interface TenantPaletteRepository {
-    fun initialize(tenantId: UUID)                       // копия шаблона и системные группы
-    fun lockTenant(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantLockOutcome
-    fun state(projectId: ProjectId, tenantId: UUID): TenantPaletteState?
-    fun colorLinks(projectId: ProjectId, tenantId: UUID): List<ColorTokenLink>
-    fun saveGroup(...); fun deleteGroup(...); fun saveTokenGroup(...); fun saveRamp(...); fun deleteRamp(...)
-    fun rewriteTokenReferences(changes: List<TokenReferenceChange>): Int
-    fun bumpEditRevision(tenantId: UUID): Int
+    suspend fun initialize(tenantId: UUID)                                   // идемпотентно: копия шаблона и системные группы
+    suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock   // FOR UPDATE OF tenants
+    suspend fun snapshot(projectId: ProjectId, tenantId: UUID): TenantPaletteSnapshot?            // FOR SHARE OF tenants
+    suspend fun save(tenantId: UUID, state: TenantPaletteState)              // группы, растяжки, ступени, привязки, ревизия
+    suspend fun rewriteTokenReferences(tenantId: UUID, rewrite: TokenReferenceRewrite, resolveHex: (Int) -> String?): Int
 }
 ```
 
-Каждая операция изменения выполняется в `TransactionRunner.required`: проверка права, блокировка тенанта
-`forUpdate()` и сравнение `editRevision`, изменение, увеличение `edit_revision`. Переписанные ссылки при
+Право `tenants:write` проверяется до транзакции. Каждая операция изменения выполняется в
+`TransactionRunner.required`: блокировка строки темы `FOR UPDATE OF tenants` и сравнение `editRevision`, снимок
+(с созданием палитры теме без неё), операция, запись состояния с новой `edit_revision` и побочное действие
+(переписывание ссылок токенов) в той же транзакции.
+
+Уточнения по коду `ds-service` (на этапе реализации):
+
+- Операции — те же чистые функции над состоянием палитры, что у клиента (`modules/palette/domain`),
+  перенесённые в `feature-themes/domain` и проверенные эталоном. Хранилище под блокировкой тенанта
+  читает состояние палитры темы (копия шаблона, группы, растяжки, ступени, явные привязки), use case
+  применяет операцию, и хранилище записывает группы, растяжки, ступени и привязки темы целиком; `id` групп
+  сохраняются. Отдельные методы `saveGroup`/`saveRamp` не нужны.
+- Ссылка через `palette_id` разбирается по строке общей палитры `(type, shade, saturation)` и
+  прозрачности из `value` (`null` или `["0.56"]`); строковая — из `value`.
+- OpenAPI `ds-service` — вручную поддерживаемый `app/src/main/resources/openapi/documentation.yaml`
+  (генерации из манифеста нет): операции палитры описываются в нём с `x-permission`, а
+  `OpenApiDocumentResourceTest` и `DsServiceHttpPostgresIntegrationTest` учитывают новое число операций.
+  Соответствие манифеста OpenAPI db-service проверяет JS-тест `route-manifest.test.ts` и
+  дифференциальный прогон; оба пропускают группы манифеста с `"origin": "ds-service"`.
+- `ErrorResponse` получает необязательный объект `details`; `PALETTE_STEP_MISSING` передаёт в нём
+  `steps`. Ошибки проверки (`400`) несут текст в `message`.
+- Общая палитра на чистой базе заполняется при создании первого тенанта
+  (`GeneratedTenantTokenValueInitializer`), поэтому `CreateTenantUseCase` создаёт копию шаблона после
+  инициализации значений токенов. Переписанные ссылки при
 удалении растяжки записываются в той же форме, что пишет `PUT /tenants/{id}/token-values`.
 `CreateTenantUseCase` вызывает `TenantPaletteRepository.initialize` в транзакции создания тенанта.
+- Тема может появиться в обход `ds-service`: клиент создаёт дизайн-систему через db-service
+  `legacy/design-systems/create`, и тот вставляет тенанта без `tenant_palette_*`. Поэтому `initialize`
+  идемпотентна (копия шаблона — только целиком и один раз, системные группы — только недостающие, вставка
+  `ON CONFLICT DO NOTHING`), а чтение палитры, операции и `resolvePalette` создают палитру теме без неё в своей
+  транзакции. Эти чтения изменяющие.
+- Снимок палитры берёт строку темы `FOR SHARE OF tenants` (не строку дизайн-системы): операции палитры и `PUT token-values` берут её `FOR UPDATE`, поэтому
+  все чтения снимка (и значения токенов при `resolvePalette`) видят одно зафиксированное состояние.
+- Ошибки домена палитры вида «некорректно» отдаются как `400 invalid_body` с текстом в `message`; ошибки
+  маршрута (путь, тело, query) тоже несут строковый `message`. Ответы операций — представления после
+  операции: группа с растяжками, растяжка, привязка токена.
+- Превью перестройки — отдельный use case: права и ревизия как у записи, данные и ревизия не меняются.
+- `resolvePalette` убирает `paletteId` у вычисленных значений: HEX самодостаточен, CLI не разрешает его ещё раз.
+- При удалении растяжки «как Custom» HEX ступени берётся как при вычислении цвета токена: растяжка группы,
+  иначе копия шаблона слота.
+- `canEdit` — право `tenants:write` и принадлежность дизайн-системы проекту: общую дизайн-систему
+  (`project_id IS NULL`) проект только читает.
 
 ## Решения
 
@@ -215,16 +251,24 @@ CLI получает HEX и исходную ссылку через `resolvePal
 
 ### Операции, которых нет в db-service
 
-`OpenApiDocumentFactory` сейчас требует, чтобы каждая операция манифеста была в OpenAPI db-service.
-Маршруты палитры темы помечаются в манифесте признаком `"origin": "ds-service"`, и фабрика описывает их
-по DTO `ds-service`; тест фабрики проверяет, что признак есть только у новых маршрутов.
+Маршруты палитры темы помечаются в манифесте признаком `"origin": "ds-service"` и описываются вручную в
+`documentation.yaml` по DTO `ds-service`. JS-тест манифеста и дифференциальный прогон пропускают такие
+группы: в db-service этих маршрутов нет.
+
+### Черновик клиента в режиме `api`
+
+Сервер знает только сохранённые значения токенов, а редактор показывает значения черновика: новые токены
+(`draft:`) и сохранённые токены с записью черновика. Адаптер `api` клиента считает связи таких токенов по
+черновику (в инспекторе и в окне удаления), не убирает растяжку без стратегии при таких связях, а после
+удаления на сервере переписывает их ссылки в черновике и перезагружает тему. Записи черновика сохранённых
+токенов не сбрасываются, а переписываются: так не теряются остальные правки токена.
 
 ## Риски / Компромиссы
 
 - [Миграция `V3` меняет схему и данные, а `FlywayPostgresIntegrationTest` ожидает две миграции и
   отпечаток после `V1`] → тест перестраивается: отпечаток принятой базы сравнивается на цели `1`, число
   миграций — `3`.
-- [Копия шаблона — около 790 строк на тему] → объём мал, вставка одним `INSERT … SELECT`; чтение палитры
+- [Копия шаблона — около 790 строк на тему] → объём мал, вставка одним пакетом в порядке ключа с `ON CONFLICT DO NOTHING`; чтение палитры
   берёт копию одним запросом.
 - [Тема не получает исправлений общей палитры] → так задумано; обновление темы до новой версии шаблона —
   отдельная операция в будущем.
@@ -234,11 +278,16 @@ CLI получает HEX и исходную ссылку через `resolvePal
 - [Удаление растяжки переписывает значения токенов, пока у пользователя есть черновик] → клиент
   перезагружает значения темы; черновик выигрывает при следующем сохранении.
 
+- [Strictacode `javascript-client` растёт: score 45 → 46, complexity density 8.17 → 8.24, refactoring pressure
+  59 → 60] → рост даёт учёт черновика клиента в режиме `api` (`palette/draftAwarePaletteRepository.ts`); baseline
+  обновлён решением разработчика с `--allow-protected strictacode-policy`.
+
 ## Миграция и совместимость
 
 1. `V3__tenant_palette.sql` создаёт enum `palette_ramp_origin`, `palette_group_kind` и пять таблиц, затем
    для каждого существующего тенанта копирует общую палитру в `tenant_palette_template` и создаёт пять
-   системных групп.
+   системных групп. Темы, созданные позже в обход `ds-service` (db-service, откат), получают палитру при
+   первом обращении к ней.
 2. Ответы без `resolvePalette` не меняются.
 3. Порядок развёртывания: `ds-service`, затем CLI и клиент с `VITE_PALETTE_SOURCE = api`. Палитры,
    созданные в режиме `local`, на сервер не переносятся.
