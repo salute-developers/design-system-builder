@@ -129,6 +129,48 @@ describe('адаптер local', () => {
         expect(resolveHex(500)).toBe(golden.template['general.green']['500']);
     });
 
+    it('ошибка записи палитры откатывает переписанные ссылки черновика и не меняет палитру', async () => {
+        const { storage, repository, applyRewrite } = setup();
+        await repository.load(ctx);
+        const saved = storage.items.get(localPaletteKey(ctx));
+        const undo = vi.fn();
+        applyRewrite.mockReturnValue(undo);
+        const original = storage.setItem;
+        storage.setItem = () => {
+            throw new Error('QuotaExceededError');
+        };
+        const accent = (await repository.load(ctx)).groups.find((group) => group.systemKey === 'accent')!;
+        await expect(repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 })).rejects.toThrow(
+            'QuotaExceededError',
+        );
+        expect(applyRewrite).toHaveBeenCalledTimes(1);
+        expect(undo).toHaveBeenCalledTimes(1);
+        storage.setItem = original;
+        expect(storage.items.get(localPaletteKey(ctx))).toBe(saved);
+    });
+
+    it('ошибка переписывания ссылок не меняет палитру', async () => {
+        const { storage, repository, applyRewrite } = setup();
+        await repository.load(ctx);
+        const saved = storage.items.get(localPaletteKey(ctx));
+        applyRewrite.mockImplementation(() => {
+            throw new Error('draft write failed');
+        });
+        const accent = (await repository.load(ctx)).groups.find((group) => group.systemKey === 'accent')!;
+        await expect(repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 })).rejects.toThrow(
+            'draft write failed',
+        );
+        expect(storage.items.get(localPaletteKey(ctx))).toBe(saved);
+    });
+
+    it('переименование группы', async () => {
+        const { repository } = setup();
+        const palette = await repository.load(ctx);
+        const created = await repository.createGroup(ctx, 'Новая группа', palette.editRevision);
+        const renamed = await repository.renameGroup(ctx, created.value.id, 'Icons', created.editRevision);
+        expect(renamed).toMatchObject({ editRevision: 2, value: { id: created.value.id, label: 'Icons', kind: 'custom' } });
+    });
+
     it('без права изменения операции отклоняются', async () => {
         const { repository } = setup(false);
         const palette = await repository.load(ctx);
@@ -178,6 +220,16 @@ describe('адаптер api', () => {
             input,
         );
         expect(isRebuildPreview(result) && result.steps).toEqual([{ step: 500, value: '#1F8A70' }]);
+    });
+
+    it('переименование группы — PATCH /groups/{groupId}', async () => {
+        const repository = createHttpPaletteRepository();
+        mocked.patch.mockResolvedValueOnce({ data: { editRevision: 5, value: { id: 'g-1', label: 'Icons' } } });
+        await repository.renameGroup(ctx, 'g-1', 'Icons', 4);
+        expect(mocked.patch).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette/groups/g-1', {
+            label: 'Icons',
+            editRevision: 4,
+        });
     });
 
     it('переводит ошибки сервера в PaletteOperationError', async () => {

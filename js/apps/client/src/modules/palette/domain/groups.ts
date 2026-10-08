@@ -33,3 +33,8 @@ export const defaultGroupForToken = (tokenName: string): SystemGroupKey => {
 export const stripModePrefix = (tokenName: string) => tokenName.replace(MODE_PREFIX, '');
 
 export const modeOfTokenName = (tokenName: string) => MODE_PREFIX.exec(tokenName)?.[1] ?? null;
+
+/** Префикс id токена, который есть только в черновике темы и ещё не сохранён на сервере. */
+export const DRAFT_TOKEN_ID_PREFIX = 'draft:';
+
+export const isDraftTokenId = (tokenId: string) => tokenId.startsWith(DRAFT_TOKEN_ID_PREFIX);
