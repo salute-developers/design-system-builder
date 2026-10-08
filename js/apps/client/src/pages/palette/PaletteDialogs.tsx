@@ -9,7 +9,7 @@ import {
     type PaletteTemplateRamp,
     type ThemePalette,
 } from '../../modules/palette';
-import { paletteRepository } from '../../palette/paletteSession';
+import { paletteDraftLinks, paletteRepository } from '../../palette/paletteSession';
 import { findRamp, libraryOrder, middleStep, templateLabel } from './Palette.utils';
 import type { PaletteEditor } from './usePaletteEditor';
 
@@ -189,7 +189,11 @@ const RemoveRampDialog = ({
     };
 
     // Вариант окна — по числу связей растяжки, а не по ещё не загруженному списку токенов.
-    if (!ramp.linkedCount)
+    // Сервер не знает связей из черновика клиента: связи новых токенов добавляются к числу связей растяжки, а любые
+    // черновые связи требуют выбора стратегии.
+    const draft = paletteDraftLinks(context, group.id, slot);
+    const linkedCount = ramp.linkedCount + draft.added;
+    if (!linkedCount && !draft.any)
         return (
             <Modal
                 eyebrow={`Группа ${group.label}`}
@@ -231,7 +235,7 @@ const RemoveRampDialog = ({
         >
             <div className="source-palette-remove-warning">
                 <strong>
-                    {tokens.length || ramp.linkedCount} семантических токенов связаны с палитрой в этой группе
+                    {tokens.length || linkedCount} семантических токенов связаны с палитрой в этой группе
                 </strong>
                 <p>Можно переназначить токены или сохранить текущие цвета как Custom.</p>
                 {otherGroups.length > 0 && (

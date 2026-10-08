@@ -7,11 +7,15 @@ import type { PaletteContext, PaletteRepository } from '../application/paletteRe
 const palettePath = ({ projectId, tenantId }: PaletteContext, suffix = '') =>
     `/api/projects/${projectId}/ds/tenants/${tenantId}/palette${suffix}`;
 
+/** Только `{ type, shade }`: сервер не принимает лишних полей, а из UI сюда приходят растяжки шаблона со ступенями. */
+const rampRef = ({ type, shade }: PaletteRampRef): PaletteRampRef => ({ type, shade });
+
 const rampPath = (groupId: string, { type, shade }: PaletteRampRef) =>
     `/groups/${encodeURIComponent(groupId)}/ramps/${type}/${encodeURIComponent(shade)}`;
 
 interface ErrorBody {
-    error?: string;
+    /** Строка или, у 400, объект проверки полей. */
+    error?: unknown;
     message?: string;
     code?: string;
     details?: Record<string, unknown>;
@@ -26,7 +30,10 @@ const toPaletteError = (error: unknown) => {
     return new PaletteOperationError(
         status === 400 || status === 404 || status === 409 ? status : null,
         (body.code as PaletteErrorCode | undefined) ?? null,
-        body.message || body.error || (status ? `Ошибка API (${status})` : 'Сервис недоступен'),
+        // Пользователю — только строковый текст: у 400 `error` бывает объектом проверки полей.
+        (typeof body.message === 'string' && body.message) ||
+            (typeof body.error === 'string' && body.error) ||
+            (status ? `Ошибка API (${status})` : 'Сервис недоступен'),
         details,
     );
 };
@@ -62,14 +69,18 @@ export const createHttpPaletteRepository = (): PaletteRepository => ({
         ),
     addRamp: (ctx, groupId, slot, editRevision) =>
         call(() =>
-            http.post(palettePath(ctx, `/groups/${encodeURIComponent(groupId)}/ramps`), { ...slot, editRevision }),
+            http.post(palettePath(ctx, `/groups/${encodeURIComponent(groupId)}/ramps`), { ...rampRef(slot), editRevision }),
         ),
     replaceSource: (ctx, groupId, slot, source, editRevision) =>
-        call(() => http.put(palettePath(ctx, `${rampPath(groupId, slot)}/source`), { ...source, editRevision })),
+        call(() => http.put(palettePath(ctx, `${rampPath(groupId, slot)}/source`), { ...rampRef(source), editRevision })),
     rebuild: (ctx, groupId, slot, input) =>
         call(() => http.post(palettePath(ctx, `${rampPath(groupId, slot)}/rebuild`), input)),
     updateStep: (ctx, groupId, slot, step, value, editRevision) =>
         call(() => http.patch(palettePath(ctx, `${rampPath(groupId, slot)}/steps/${step}`), { value, editRevision })),
-    removeRamp: (ctx, groupId, slot, input) =>
-        call(() => http.delete(palettePath(ctx, rampPath(groupId, slot)), { data: input })),
+    removeRamp: (ctx, groupId, slot, { strategy, replacement, editRevision }) =>
+        call(() =>
+            http.delete(palettePath(ctx, rampPath(groupId, slot)), {
+                data: { strategy, replacement: replacement && rampRef(replacement), editRevision },
+            }),
+        ),
 });

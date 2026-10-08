@@ -13,7 +13,7 @@ Currently, two official plugins are available:
 |---|---|---|---|
 | `VITE_API_GATEWAY_URL` | URL | `''` | Адрес API gateway |
 | `VITE_CLIENT_ID` | строка | — | OIDC client id |
-| `VITE_PALETTE_SOURCE` | `local` \| `api` | `local` | Источник палитры темы: `local` хранит её в `localStorage` браузера, `api` работает с `ds-service` (`/api/projects/{p}/ds/tenants/{t}/palette`) |
+| `VITE_PALETTE_SOURCE` | `api` \| `local` | `api` | Источник палитры темы: `api` работает с `ds-service` (`/api/projects/{p}/ds/tenants/{t}/palette`), `local` хранит её в `localStorage` браузера (для разработки без сервера) |
 
 ## Expanding the ESLint configuration
 
