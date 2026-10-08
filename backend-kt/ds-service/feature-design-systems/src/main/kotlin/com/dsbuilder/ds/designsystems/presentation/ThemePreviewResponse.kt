@@ -6,11 +6,15 @@ import kotlinx.serialization.Serializable
 /** Preview темы для карточки дизайн-системы. */
 @Serializable
 data class ThemePreviewResponse(
+    /** Идентификатор темы. */
     val tenantId: String,
+    /** Название темы. */
     val name: String,
+    /** Цвета превью. */
     val preview: ThemePreviewColorsResponse,
 ) {
     companion object {
+        /** Ответ по превью темы дизайн-системы. */
         fun from(value: DesignSystemThemePreview) = ThemePreviewResponse(
             value.tenantId.toString(),
             value.name,

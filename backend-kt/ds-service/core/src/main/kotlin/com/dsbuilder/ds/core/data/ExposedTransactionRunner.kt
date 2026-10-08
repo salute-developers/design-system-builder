@@ -18,6 +18,8 @@ class ExposedTransactionRunner(
 ) : TransactionRunner {
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false, block)
 
+    // Любой сбой транзакции отображается в безопасный DsFailure: SQL-исключения не должны утекать наружу.
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun <T> rollback(block: suspend () -> DsResult<T>): DsResult<T> = try {
         withContext(Dispatchers.IO) {
             transaction(database) {
@@ -36,6 +38,8 @@ class ExposedTransactionRunner(
 
     override suspend fun <T> readOnly(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = true, block)
 
+    // Любой сбой транзакции отображается в безопасный DsFailure: SQL-исключения не должны утекать наружу.
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun <T> execute(
         readOnly: Boolean,
         block: suspend () -> DsResult<T>,

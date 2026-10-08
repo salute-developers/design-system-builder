@@ -52,5 +52,6 @@ tasks.register("verifyFull") {
     description = "Runs FAST verification and builds every frontend module."
     dependsOn("verifyFast")
     dependsOn("build")
-    dependsOn(subprojects.map { "${it.path}:build" })
+    // Только модули со своим скриптом сборки: промежуточные проекты-контейнеры (`:plugins`) задачи `build` не имеют.
+    dependsOn(subprojects.filter { it.buildFile.exists() }.map { "${it.path}:build" })
 }
