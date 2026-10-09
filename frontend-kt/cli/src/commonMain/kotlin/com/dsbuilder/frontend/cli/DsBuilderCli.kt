@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.cli.di.platformDelegatesModule
 import com.dsbuilder.frontend.cli.feature.auth.di.authCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.components.di.componentsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.docs.di.docsCliPresentationModule
+import com.dsbuilder.frontend.cli.feature.ds.di.dsCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.init.di.initCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.mcp.di.mcpCliPresentationModule
 import com.dsbuilder.frontend.cli.feature.status.di.statusCliPresentationModule
@@ -19,12 +20,14 @@ import com.dsbuilder.frontend.core.platform.corePlatformModule
 import com.dsbuilder.frontend.feature.auth.authApplicationModule
 import com.dsbuilder.frontend.feature.components.componentsApplicationModule
 import com.dsbuilder.frontend.feature.docs.docsApplicationModule
+import com.dsbuilder.frontend.feature.ds.dsApplicationModule
 import com.dsbuilder.frontend.feature.init.initApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
 import com.dsbuilder.frontend.platform.android.androidPlatformModule
 import com.dsbuilder.frontend.platform.ios.iosPlatformModule
+import com.dsbuilder.frontend.platform.web.webPlatformModule
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.terminal
@@ -87,6 +90,7 @@ public class DsBuilderCli(
                 corePlatformModule(),
                 iosPlatformModule(),
                 androidPlatformModule(),
+                webPlatformModule(),
                 platformDelegatesModule(),
                 authApplicationModule(),
                 authCliPresentationModule(),
@@ -101,6 +105,8 @@ public class DsBuilderCli(
                 themeCliPresentationModule(),
                 componentsApplicationModule(),
                 componentsCliPresentationModule(),
+                dsApplicationModule(),
+                dsCliPresentationModule(),
                 toolchainApplicationModule(),
                 toolchainCliPresentationModule(),
                 cliModule(),
@@ -122,6 +128,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 iosPlatformModule(),
                 androidPlatformModule(),
+                webPlatformModule(),
                 platformDelegatesModule(),
             )
         }.koin.get()
@@ -135,6 +142,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 iosPlatformModule(),
                 androidPlatformModule(),
+                webPlatformModule(),
                 platformDelegatesModule(),
             )
         }.koin.get()

@@ -111,11 +111,74 @@ class PlatformCommandsCliTest {
     }
 
     @Test
+    fun dsHelpListsFetchAndGenerate() {
+        val root = cli().execute(listOf("--help"))
+        val ds = cli().execute(listOf("ds", "--help"))
+
+        assertTrue(root.output.contains("ds"), root.output)
+        assertTrue(ds.output.contains("fetch") && ds.output.contains("generate"), ds.output)
+    }
+
+    @Test
+    fun dsGenerateRunsTheWebDesignSystemScriptOnce() {
+        val fileSystem = RecordingFileSystem(
+            files = mapOf(
+                "/repo/.sdds/config.json" to CONFIG_JSON.replace("swiftui", "react"),
+                "/repo/js/cli/package.json" to "{}",
+                "/usr/bin/npm" to "",
+            ),
+        )
+        val started = mutableListOf<ProcessRequest>()
+
+        val result = cli(
+            fileSystem,
+            ProcessRunner {
+                started += it
+                ProcessResult(0, "")
+            },
+            environment = mapOf("DSBUILDER_WEB_TOOL" to "/repo/js/cli", "PATH" to "/usr/bin"),
+        ).execute(listOf("ds", "generate", "--output", "/repo/web", "--", "--package"))
+
+        assertEquals(0, result.exitCode, result.output)
+        // Тема и компоненты — один запуск: с `--package` он собирает один пакет, а не два.
+        // Первый процесс — проверка инструмента (`npm --version`), второй — сама генерация.
+        assertEquals(
+            listOf("run", "generate:ds", "--", "--sdds", "/repo/.sdds", "--out", "/repo/web", "--package"),
+            started.single { it.args != listOf("--version") }.args,
+        )
+    }
+
+    @Test
+    fun dsGenerateForSwiftUiRunsTheThemeGeneration() {
+        val fileSystem = RecordingFileSystem(
+            files = mapOf(
+                "/repo/.sdds/config.json" to CONFIG_JSON,
+                "/tools/dsbuilder-ios" to "",
+            ),
+        )
+        val started = mutableListOf<ProcessRequest>()
+
+        val result = cli(
+            fileSystem,
+            ProcessRunner {
+                started += it
+                ProcessResult(0, "")
+            },
+            environment = mapOf("DSBUILDER_IOS_TOOL" to "/tools/dsbuilder-ios"),
+        ).execute(listOf("ds", "generate"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertEquals(
+            listOf("theme", "generate", "--sdds", "/repo/.sdds"),
+            started.single { it.args != listOf("--version") }.args,
+        )
+    }
+
+    @Test
     fun compositionRootRegistersTheIosDelegateForSwiftUiOnly() {
         val registry = cli().platformDelegateRegistry()
 
         assertEquals(ToolchainId("ios"), registry.forPlatform(TargetPlatform.SWIFT_UI)?.toolchain)
-        assertNull(registry.forPlatform(TargetPlatform.REACT))
     }
 
     @Test
@@ -123,12 +186,18 @@ class PlatformCommandsCliTest {
         val registry = cli().platformDelegateRegistry()
 
         assertEquals(
-            setOf(ToolchainId("ios"), ToolchainId("android")),
+            setOf(ToolchainId("ios"), ToolchainId("android"), ToolchainId("web")),
             registry.all.map { it.toolchain }.toSet(),
         )
         assertEquals(ToolchainId("android"), registry.forPlatform(TargetPlatform.COMPOSE)?.toolchain)
         assertEquals(ToolchainId("android"), registry.forPlatform(TargetPlatform.ANDROID_VIEW)?.toolchain)
-        assertNull(registry.forPlatform(TargetPlatform.REACT))
+    }
+
+    @Test
+    fun compositionRootRegistersTheWebDelegateForReact() {
+        val registry = cli().platformDelegateRegistry()
+
+        assertEquals(ToolchainId("web"), registry.forPlatform(TargetPlatform.REACT)?.toolchain)
     }
 
     @Test
@@ -168,11 +237,13 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainDoctorRejectsPlatformWithoutToolchain() {
+    fun toolchainDoctorChecksOnlyTheWebToolchainForReact() {
         val result = cli().execute(listOf("toolchain", "doctor", "--platform", "react"))
 
+        // Каталог web-генератора не задан: отказ приходит от doctor'а делегата и подсказывает, как его задать.
         assertEquals(1, result.exitCode)
-        assertTrue(result.output.contains("react"), result.output)
+        assertTrue(result.output.contains("Toolchain: web"), result.output)
+        assertTrue(result.output.contains("DSBUILDER_WEB_TOOL"), result.output)
     }
 
     @Test
@@ -189,10 +260,11 @@ class PlatformCommandsCliTest {
     private fun cli(
         fileSystem: WorkspaceFileSystem = RecordingFileSystem(),
         processRunner: ProcessRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
+        environment: Map<String, String> = emptyMap(),
     ) = DsBuilderCli(
         ClientRuntime(
             fileSystem = fileSystem,
-            environmentReader = EnvironmentReader { null },
+            environmentReader = EnvironmentReader { environment[it] },
             httpClientFactory = object : AuthenticatedHttpClientFactory {
                 override fun create(apiUrl: String, apiKey: String): AuthenticatedHttpClient =
                     object : AuthenticatedHttpClient {

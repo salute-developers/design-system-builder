@@ -12,10 +12,8 @@ import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.DesignSystemId
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotResult
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotSource
-import com.dsbuilder.frontend.feature.components.application.ComponentConfigsSnapshotWriter
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.ComponentDirectoryReadResult
 import com.dsbuilder.frontend.feature.components.application.ComponentPackageDirectoryReader
@@ -28,6 +26,9 @@ import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseC
 import com.dsbuilder.frontend.feature.components.application.ImportComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.ImportComponentsResult
 import com.dsbuilder.frontend.feature.components.application.LocalComponentPackageWriter
+import com.dsbuilder.frontend.feature.components.application.WebAdapterFileResult
+import com.dsbuilder.frontend.feature.components.application.WebAdapterFileSource
+import com.dsbuilder.frontend.feature.components.application.WebAdapterFileWriter
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageMetaEntry
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlan
 import com.dsbuilder.frontend.feature.components.domain.ExistingComponentPackage
@@ -43,6 +44,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -56,31 +58,14 @@ class FetchComponentsUseCaseTest {
     @Test
     fun acceptsBearerForExport() = runTest {
         var selected: BackendCredential? = null
-        var snapshotCredential: BackendCredential? = null
         val result = execute(
             credentialProvider = testCredentialProvider(
                 CredentialResult.Selected(BackendCredential.Bearer("access"), BackendCredentialType.USER_SESSION),
             ),
             onExport = { selected = it.credential },
-            onSnapshot = { snapshotCredential = it.credential },
         )
         assertTrue(result is FetchComponentsResult.Fetched)
         assertEquals(BackendCredential.Bearer("access"), selected)
-        assertEquals(selected, snapshotCredential)
-    }
-
-    @Test
-    fun headlessDestinationReceivesSnapshot() = runTest {
-        var snapshotRequested = false
-        val result = execute(
-            selectedContext = context.copy(configPath = ""),
-            destination = ComponentDestination("/output"),
-            onSnapshot = { snapshotRequested = true },
-        )
-
-        assertTrue(result is FetchComponentsResult.Fetched)
-        assertEquals("/output/component-configs.json", result.snapshotPath)
-        assertTrue(snapshotRequested)
     }
 
     private val context = ProjectContext(
@@ -222,6 +207,76 @@ class FetchComponentsUseCaseTest {
     )
 
     @Suppress("LongParameterList")
+    @Test
+    fun webAdapterIsWrittenForReact() = runTest {
+        val written = mutableListOf<WebAdapterFileResult.Loaded>()
+        val meta = WebAdapterFileResult.Loaded("[]")
+
+        val result =
+            execute(webAdapterResult = meta, onWebAdapterWrite = { written += it }, platform = TargetPlatform.REACT)
+
+        assertEquals("/work/.sdds/web/web-adapter.json", (result as FetchComponentsResult.Fetched).webAdapterPath)
+        assertEquals(listOf(meta), written)
+    }
+
+    @Test
+    fun webAdapterIsNotRequestedWithoutReact() = runTest {
+        for (platform in listOf(null, TargetPlatform.COMPOSE)) {
+            var requested = false
+
+            val result = execute(onWebAdapterFetch = { requested = true }, platform = platform)
+
+            assertEquals(null, (result as FetchComponentsResult.Fetched).webAdapterPath)
+            assertFalse(requested)
+        }
+    }
+
+    @Test
+    fun webAdapterFollowsSoleConfiguredPlatform() = runTest {
+        val cases = mapOf(
+            listOf(TargetPlatform.REACT) to true,
+            listOf(TargetPlatform.COMPOSE) to false,
+            // Платформу выбрать нельзя: fetch не отказывает, а просто не загружает данные.
+            listOf(TargetPlatform.REACT, TargetPlatform.COMPOSE) to false,
+        )
+        for ((platforms, expected) in cases) {
+            var requested = false
+
+            val result =
+                execute(onWebAdapterFetch = { requested = true }, selectedContext = context.copy(platforms = platforms))
+
+            assertTrue(result is FetchComponentsResult.Fetched, platforms.toString())
+            assertEquals(expected, requested, platforms.toString())
+        }
+    }
+
+    @Test
+    fun explicitPlatformOverridesConfiguredOne() = runTest {
+        var requested = false
+
+        execute(
+            onWebAdapterFetch = { requested = true },
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.REACT)),
+            platform = TargetPlatform.COMPOSE,
+        )
+
+        assertFalse(requested)
+    }
+
+    @Test
+    fun webAdapterFailureBlocksWrites() = runTest {
+        var writes = 0
+
+        val result = execute(
+            webAdapterResult = WebAdapterFileResult.Failed("Error: unavailable"),
+            onWrite = { writes += 1 },
+            platform = TargetPlatform.REACT,
+        )
+
+        assertEquals("Error: unavailable", (result as FetchComponentsResult.Failed).message)
+        assertEquals(0, writes)
+    }
+
     private suspend fun execute(
         configurations: List<ExportedComponentConfig> = listOf(exported("avatar", "avatar")),
         underivedTypes: List<String> = emptyList(),
@@ -231,7 +286,10 @@ class FetchComponentsUseCaseTest {
             CredentialResult.Selected(BackendCredential.ProjectKey("secret-key"), BackendCredentialType.PROJECT_KEY),
         ),
         onExport: (ExportComponentsCommand) -> Unit = {},
-        onSnapshot: (ExportComponentsCommand) -> Unit = {},
+        webAdapterResult: WebAdapterFileResult = WebAdapterFileResult.Loaded("[]"),
+        onWebAdapterFetch: () -> Unit = {},
+        onWebAdapterWrite: (WebAdapterFileResult.Loaded) -> Unit = {},
+        platform: TargetPlatform? = null,
         onDirectoryRead: () -> Unit = {},
         onWrite: () -> Unit = {},
         selectedContext: ProjectContext = context,
@@ -263,13 +321,13 @@ class FetchComponentsUseCaseTest {
                 ComponentPackageWriteResult.Written("/work/.sdds/components")
             },
             codec = ConfigCodec(),
-            snapshotSource = ComponentConfigsSnapshotSource { command, _ ->
-                onSnapshot(command)
-                ComponentConfigsSnapshotResult.Loaded("[]")
+            webAdapterSource = WebAdapterFileSource {
+                onWebAdapterFetch()
+                webAdapterResult
             },
-            snapshotWriter = ComponentConfigsSnapshotWriter { selected, target, _ ->
-                val directory = if (selected.configPath.isBlank()) target.directory else "/work/.sdds"
-                ComponentPackageWriteResult.Written("$directory/component-configs.json")
+            webAdapterWriter = WebAdapterFileWriter { _, _, meta ->
+                onWebAdapterWrite(meta)
+                ComponentPackageWriteResult.Written("/work/.sdds/web/web-adapter.json")
             },
         )
 
@@ -277,6 +335,7 @@ class FetchComponentsUseCaseTest {
             FetchComponentsCommand(
                 destination = destination,
                 apiUrlOverride = "http://localhost:8080",
+                platform = platform,
             ),
         )
     }

@@ -26,7 +26,25 @@ class IosCliDelegateTest {
 
         assertEquals(ToolchainId("ios"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.SWIFT_UI), delegate.platforms)
-        assertEquals(setOf(Capability.THEME, Capability.DOCS_AGGREGATE), delegate.capabilities)
+        assertEquals(
+            setOf(Capability.THEME, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM),
+            delegate.capabilities,
+        )
+    }
+
+    @Test
+    fun designSystemRunsTheThemeGeneration() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(invocation(Capability.DESIGN_SYSTEM))
+
+        // Компоненты на iOS генерируются вместе с темой: дизайн-система — та же генерация темы.
+        assertEquals(
+            listOf("theme", "generate", "--sdds", "/repo/Themes/PlasmaHomeDSTheme/.sdds"),
+            requests.single().args,
+        )
+        assertIs<DelegateResult.Completed>(result)
     }
 
     @Test

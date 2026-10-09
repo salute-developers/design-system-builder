@@ -33,8 +33,10 @@ public class IosCliDelegate internal constructor(
     /**
      * Вариации компонентов на iOS генерируются вместе с темой, отдельного входа для них нет:
      * `COMPONENTS` осознанно не поддержан, чтобы команда отказала понятно, а не сгенерировала половину.
+     * По той же причине `DESIGN_SYSTEM` — та же генерация темы.
      */
-    override val capabilities: Set<Capability> = setOf(Capability.THEME, Capability.DOCS_AGGREGATE)
+    override val capabilities: Set<Capability> =
+        setOf(Capability.THEME, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
@@ -97,7 +99,7 @@ public class IosCliDelegate internal constructor(
 
     /** Аргументы инструмента либо `null`, если capability он не умеет. */
     private fun arguments(invocation: DelegateInvocation): List<String>? = when (invocation.capability) {
-        Capability.THEME -> themeArguments(invocation)
+        Capability.THEME, Capability.DESIGN_SYSTEM -> themeArguments(invocation)
         Capability.DOCS_AGGREGATE -> docsArguments(invocation)
         Capability.COMPONENTS -> null
     }
@@ -130,6 +132,7 @@ public class IosCliDelegate internal constructor(
         Capability.THEME -> "Theme generated from ${invocation.workspace.sddsDir}."
         Capability.DOCS_AGGREGATE -> "Documentation tree aggregated from ${invocation.workspace.sddsDir}."
         Capability.COMPONENTS -> "Done."
+        Capability.DESIGN_SYSTEM -> "Design system generated from ${invocation.workspace.sddsDir}."
     }
 
     /** Результат чтения версии инструмента. */
