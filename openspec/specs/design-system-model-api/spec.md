@@ -117,3 +117,13 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 - **WHEN** new read DTOs affect `frontend-kt/cli` or shared frontend application use cases
 - **THEN** the implementation MAY update `frontend-kt/cli` together with the shared use cases
 - **THEN** CLI changes MUST preserve documented command behavior or update CLI documentation in the same change
+
+### Requirement: Tenant token values expose palette references
+
+`GET /tenants/:id/token-values` SHALL return a value bound to the palette as a palette reference string.
+
+#### Scenario: Значение со ссылкой на палитру
+
+- **WHEN** a token value has `paletteId`
+- **THEN** its `value` MUST be `["[type.shade.saturation]"]`, or `["[type.shade.saturation][opacity]"]` when the stored value holds an opacity
+- **THEN** values without `paletteId` MUST be returned unchanged
