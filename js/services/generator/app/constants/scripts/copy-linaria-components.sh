@@ -5,11 +5,17 @@ components=$(grep -R plasma-new-hope src/components | cut -d / -f 3 | sort -u)
 
 mkdir -p src-css/components/
 
-cp -R src/theme src-css/theme
+# Тема необязательна: пакет может состоять из одних компонентов.
+if [ -d src/theme ]; then
+    cp -R src/theme src-css/theme
 
-# Создание и добавление строки экспорта темы
-echo "export * from './theme';" > src-css/index.ts
-echo "export * from './theme';" > src-css/index.d.ts
+    # Создание и добавление строки экспорта темы
+    echo "export * from './theme';" > src-css/index.ts
+    echo "export * from './theme';" > src-css/index.d.ts
+else
+    : > src-css/index.ts
+    : > src-css/index.d.ts
+fi
 
 for component in $components; do
     cp -R src/components/$component src-css/components/;

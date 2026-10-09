@@ -33,6 +33,8 @@ export interface BaseFileStructure {
     packageVersion: string;
     coreVersion: string;
     hasComponents: boolean;
+    /** По умолчанию `true`: сервис всегда собирает пакет с темой. */
+    hasTheme?: boolean;
 }
 
 export interface ComponentsFiles {
