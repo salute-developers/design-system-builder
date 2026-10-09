@@ -361,6 +361,73 @@ const buildConfig = (
 };
 
 /**
+ * Числовые смещения значений, записанные поправками платформенных параметров.
+ *
+ * Значения из web-сидов и legacy-сохранения держат смещение не в колонке `adjustment`
+ * строки, а в поправках по платформам (`round.l` и `-2` у `shape` кнопки). Без этого
+ * источника выгрузка теряла бы смещение, которое legacy-формат отдаёт.
+ *
+ * Отбор тот же, что у legacy: только числа (нечисловые поправки — платформенные строки
+ * или копии значения от старого импорта), не совпадающие со значением строки; при разных
+ * смещениях по платформам приоритет у web, дальше xml, compose, ios.
+ *
+ * TODO: удалить вместе с поддержкой поправок платформенных параметров (`*_platform_param_adjustments`):
+ * когда смещение будет храниться только в колонке `adjustment`, этот источник, поле `id` в выборках
+ * значений и подстановка `offsets` в `loadContext` станут не нужны.
+ */
+const OFFSET_PLATFORM_PRIORITY: Record<string, number> = { web: 0, xml: 1, compose: 2, ios: 3 };
+
+const loadPlatformOffsets = async (
+  db: any,
+  appearanceIds: string[],
+): Promise<{ variation: Map<string, string>; invariant: Map<string, string> }> => {
+  const select = (adjustments: any, values: any, valueId: any) =>
+    db
+      .select({
+        rowId: values.id,
+        rowValue: values.value,
+        tokenName: schema.tokens.name,
+        platform: schema.propertyPlatformParams.platform,
+        offset: adjustments.value,
+      })
+      .from(adjustments)
+      .innerJoin(schema.propertyPlatformParams, eq(adjustments.platformParamId, schema.propertyPlatformParams.id))
+      .innerJoin(values, eq(valueId, values.id))
+      .leftJoin(schema.tokens, eq(values.tokenId, schema.tokens.id))
+      .where(and(inArray(values.appearanceId, appearanceIds), sql`${adjustments.value} IS NOT NULL`));
+
+  const pick = (rows: any[]): Map<string, string> => {
+    const picked = new Map<string, { offset: string; priority: number }>();
+    for (const row of rows) {
+      const offset: string = row.offset;
+      if (offset.trim() === "" || !Number.isFinite(Number(offset))) continue;
+      if (offset === (row.rowValue ?? row.tokenName)) continue;
+      const priority = OFFSET_PLATFORM_PRIORITY[row.platform] ?? 9;
+      const current = picked.get(row.rowId);
+      if (!current || priority < current.priority) picked.set(row.rowId, { offset, priority });
+    }
+    return new Map([...picked].map(([rowId, { offset }]) => [rowId, offset]));
+  };
+
+  return {
+    variation: pick(
+      await select(
+        schema.variationPlatformParamAdjustments,
+        schema.variationPropertyValues,
+        schema.variationPlatformParamAdjustments.vpvId,
+      ),
+    ),
+    invariant: pick(
+      await select(
+        schema.invariantPlatformParamAdjustments,
+        schema.invariantPropertyValues,
+        schema.invariantPlatformParamAdjustments.ipvId,
+      ),
+    ),
+  };
+};
+
+/**
  * Читает всё, что нужно для сборки пакета, пакетными запросами.
  *
  * Запрос на конфигурацию был бы прост, но для полутора сотен конфигураций дал бы полторы
@@ -463,6 +530,7 @@ const loadContext = async (
   // ── Инварианты ───────────────────────────────────────────────────────────────
   const invariantRows = await db
     .select({
+      id: schema.invariantPropertyValues.id,
       appearanceId: schema.invariantPropertyValues.appearanceId,
       propertyName: schema.properties.name,
       propertyType: schema.properties.type,
@@ -479,8 +547,14 @@ const loadContext = async (
     .leftJoin(schema.tokens, eq(schema.invariantPropertyValues.tokenId, schema.tokens.id))
     .where(eq(schema.invariantPropertyValues.designSystemId, designSystemId));
 
+  const offsets = await loadPlatformOffsets(db, appearanceIds);
+
   for (const row of invariantRows) {
-    const entry: ValueRow = { ...row, states: statesOf(row.stateSetId) };
+    const entry: ValueRow = {
+      ...row,
+      adjustment: row.adjustment ?? offsets.invariant.get(row.id) ?? null,
+      states: statesOf(row.stateSetId),
+    };
     context.invariantsByAppearance.set(row.appearanceId, [
       ...(context.invariantsByAppearance.get(row.appearanceId) ?? []),
       entry,
@@ -490,6 +564,7 @@ const loadContext = async (
   // ── Значения вариаций ────────────────────────────────────────────────────────
   const variationRows = await db
     .select({
+      id: schema.variationPropertyValues.id,
       appearanceId: schema.variationPropertyValues.appearanceId,
       styleId: schema.variationPropertyValues.styleId,
       propertyName: schema.properties.name,
@@ -511,7 +586,11 @@ const loadContext = async (
     const key = `${row.appearanceId}:${row.styleId}`;
     context.variationValuesByStyle.set(key, [
       ...(context.variationValuesByStyle.get(key) ?? []),
-      { ...row, states: statesOf(row.stateSetId) },
+      {
+        ...row,
+        adjustment: row.adjustment ?? offsets.variation.get(row.id) ?? null,
+        states: statesOf(row.stateSetId),
+      },
     ]);
   }
 
