@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { ThemeSource as GeneratorThemeSource } from '../../services/generator/app/themeBuilder/types/theme.ts';
@@ -44,24 +44,4 @@ export async function readThemeSource(paths: ThemeSourcePaths): Promise<ThemeSou
     ]);
 
     return { meta, palette, variations };
-}
-
-/** Превращает данные в текст JavaScript-модуля с именованной константой и экспортом по умолчанию. */
-const createJavaScriptModule = (name: string, value: unknown) =>
-    `const ${name} = ${JSON.stringify(value, null, 4)};\n\nexport default ${name};\n`;
-
-/**
- * Сохраняет метаданные и вариации в meta.js и variations.js и возвращает пути к ним.
- * Каталог назначения должен уже существовать; палитра в эти модули не записывается.
- */
-export async function writeThemeSourceModules(source: ThemeSource, outputDirectory: string) {
-    const metaPath = join(outputDirectory, 'meta.js');
-    const variationsPath = join(outputDirectory, 'variations.js');
-
-    await Promise.all([
-        writeFile(metaPath, createJavaScriptModule('meta', source.meta), 'utf8'),
-        writeFile(variationsPath, createJavaScriptModule('variations', source.variations), 'utf8'),
-    ]);
-
-    return [metaPath, variationsPath];
 }

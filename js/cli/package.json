@@ -1,10 +1,10 @@
 {
-    "name": "@design-system-builder/cli",
-    "private": true,
+    "name": "@sdds/design-system-builder-cli",
     "type": "module",
     "scripts": {
-        "generate:theme": "tsx src/index.ts",
-        "generate:components": "tsx src/components.ts",
+        "generate:theme": "tsx --env-file-if-exists=../.env src/theme.ts",
+        "generate:components": "tsx --env-file-if-exists=../.env src/components.ts",
+        "generate:ds": "tsx --env-file-if-exists=../.env src/ds.ts",
         "generate:api-meta": "tsx src/generate-api-meta.ts"
     },
     "devDependencies": {
