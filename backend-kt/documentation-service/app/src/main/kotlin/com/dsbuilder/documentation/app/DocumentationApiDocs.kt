@@ -6,7 +6,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 
-private const val OpenApiFile = "openapi/documentation.yaml"
+private const val OPEN_API_FILE = "openapi/documentation.yaml"
 
 /** Publishes the static OpenAPI contract used by local API Reference. */
 internal fun Application.configureApiDocs() {
@@ -18,6 +18,6 @@ internal fun Application.configureApiDocs() {
 }
 
 private fun loadOpenApiSpec(): String =
-    checkNotNull(Thread.currentThread().contextClassLoader.getResourceAsStream(OpenApiFile)) {
-        "OpenAPI specification '$OpenApiFile' was not found in resources."
+    checkNotNull(Thread.currentThread().contextClassLoader.getResourceAsStream(OPEN_API_FILE)) {
+        "OpenAPI specification '$OPEN_API_FILE' was not found in resources."
     }.bufferedReader().use { it.readText() }
