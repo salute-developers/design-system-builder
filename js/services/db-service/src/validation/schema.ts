@@ -10,7 +10,7 @@ const uuidSchema = z.string().uuid('Must be a valid UUID');
 export const PropertyTypeSchema = z.enum(propertyTypeEnum.enumValues);
 export const TokenTypeSchema = z.enum(['color', 'gradient', 'typography', 'fontFamily', 'spacing', 'shape', 'shadow']);
 export const PlatformSchema = z.enum(['web', 'android', 'ios']);
-export const ComponentPlatformSchema = z.enum(['web', 'compose', 'ios']);
+export const ComponentPlatformSchema = z.enum(['web', 'compose', 'xml', 'ios']);
 export const ModeSchema = z.enum(['light', 'dark']);
 export const PublicationStatusSchema = z.enum(['publishing', 'published', 'failed']);
 export const OperationSchema = z.enum(['created', 'updated', 'deleted', 'moved']);
@@ -63,6 +63,7 @@ export const UpdateDesignSystemVersionSchema = z.object({
 // Components
 export const CreateComponentSchema = z.object({
     name: z.string().trim().min(1).max(255),
+    platform: ComponentPlatformSchema,
     description: z.string().trim().max(1000).optional(),
 });
 export const UpdateComponentSchema = z.object({
@@ -94,26 +95,28 @@ export const CreatePropertySchema = z.object({
     type: PropertyTypeSchema,
     defaultValue: z.string().trim().optional(),
     description: z.string().trim().max(1000).optional(),
-    platform: ComponentPlatformSchema.nullable().optional(),
 });
 export const UpdatePropertySchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
     type: PropertyTypeSchema.optional(),
     defaultValue: z.string().trim().optional(),
     description: z.string().trim().max(1000).optional(),
-    platform: ComponentPlatformSchema.nullable().optional(),
 });
 
 // Property Platform Params
-export const PropertyPlatformSchema = z.enum(['xml', 'compose', 'ios', 'web']);
+export const PropertyPlatformSchema = ComponentPlatformSchema;
 export const CreatePropertyPlatformParamSchema = z.object({
     propertyId: uuidSchema,
     platform: PropertyPlatformSchema,
     name: z.string().trim().min(1).max(255),
+    deprecated: z.boolean().optional(),
+    deprecatedMessage: z.string().nullable().optional(),
 });
 export const UpdatePropertyPlatformParamSchema = z.object({
     platform: PropertyPlatformSchema.optional(),
     name: z.string().trim().min(1).max(255).optional(),
+    deprecated: z.boolean().optional(),
+    deprecatedMessage: z.string().nullable().optional(),
 });
 
 // Variation Platform Param Adjustments
@@ -151,11 +154,9 @@ export const CreateAppearanceSchema = z.object({
     designSystemId: uuidSchema,
     componentId: uuidSchema,
     name: z.string().trim().max(255).optional().default('default'),
-    platform: ComponentPlatformSchema.nullable().optional(),
 });
 export const UpdateAppearanceSchema = z.object({
     name: z.string().trim().min(1).max(255).optional(),
-    platform: ComponentPlatformSchema.nullable().optional(),
 });
 
 // Styles

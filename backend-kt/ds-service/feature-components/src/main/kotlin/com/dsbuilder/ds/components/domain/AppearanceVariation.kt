@@ -17,6 +17,8 @@ data class AppearanceVariation(
     val defaultStyleId: UUID?,
     /** Is color scheme carried by this contract. */
     val isColorScheme: Boolean,
+    /** Является ли ось корневой у своего appearance. */
+    val isRoot: Boolean,
     /** Declared type carried by this contract. */
     val declaredType: String?,
     /** Created at carried by this contract. */

@@ -113,6 +113,9 @@
             "format": "date-time",
             "example": "2024-01-01T00:00:00.000Z"
           },
+          "isTechnical": {
+            "type": "boolean"
+          },
           "tenantCount": {
             "type": "integer",
             "minimum": 0
@@ -240,6 +243,15 @@
             "type": "string",
             "nullable": true
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -255,6 +267,7 @@
           "id",
           "name",
           "description",
+          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -370,16 +383,6 @@
             "type": "string",
             "nullable": true
           },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -398,7 +401,6 @@
           "type",
           "defaultValue",
           "description",
-          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -417,14 +419,21 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           },
           "createdAt": {
             "type": "string",
@@ -442,6 +451,8 @@
           "propertyId",
           "platform",
           "name",
+          "deprecated",
+          "deprecatedMessage",
           "createdAt",
           "updatedAt"
         ]
@@ -587,16 +598,6 @@
             "type": "string",
             "nullable": true
           },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
-          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -613,7 +614,6 @@
           "designSystemId",
           "componentId",
           "name",
-          "platform",
           "createdAt",
           "updatedAt"
         ]
@@ -1551,6 +1551,7 @@
           },
           "designSystemId": {
             "type": "string",
+            "nullable": true,
             "format": "uuid"
           },
           "entityType": {
@@ -1792,13 +1793,23 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
           "description": {
             "type": "string",
             "maxLength": 1000
           }
         },
         "required": [
-          "name"
+          "name",
+          "platform"
         ]
       },
       "UpdateComponent": {
@@ -1902,16 +1913,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         },
         "required": [
@@ -1949,16 +1950,6 @@
           "description": {
             "type": "string",
             "maxLength": 1000
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         }
       },
@@ -1972,16 +1963,23 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -1996,16 +1994,23 @@
           "platform": {
             "type": "string",
             "enum": [
-              "xml",
+              "web",
               "compose",
-              "ios",
-              "web"
+              "xml",
+              "ios"
             ]
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 255
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "deprecatedMessage": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2109,16 +2114,6 @@
             "type": "string",
             "maxLength": 255,
             "default": "default"
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         },
         "required": [
@@ -2133,16 +2128,6 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255
-          },
-          "platform": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "web",
-              "compose",
-              "ios",
-              null
-            ]
           }
         }
       },
@@ -3131,6 +3116,16 @@
             "format": "uuid",
             "description": "Дизайн-система, конфигурации которой выгружаются"
           },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ],
+            "description": "Платформа компонентов: компонент идентифицируется парой (имя, платформа), без неё запрос отклоняется"
+          },
           "components": {
             "type": "array",
             "items": {
@@ -3149,7 +3144,8 @@
           }
         },
         "required": [
-          "designSystemId"
+          "designSystemId",
+          "platform"
         ]
       },
       "ComponentExportPackage": {
@@ -4409,6 +4405,23 @@
             },
             "required": true,
             "name": "component",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "compose",
+                "xml",
+                "ios"
+              ],
+              "example": "compose",
+              "description": "Платформа компонента: имя компонента уникально только внутри платформы"
+            },
+            "required": true,
+            "description": "Платформа компонента: имя компонента уникально только внутри платформы",
+            "name": "platform",
             "in": "query"
           }
         ],
@@ -12965,7 +12978,7 @@
           "Component Config"
         ],
         "summary": "Импорт конфигураций компонентов одним запросом",
-        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nДизайн-система адресуется полем designSystemId тела запроса.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nuikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,\nкоторого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в\nunknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
+        "description": "Загружает пакет конфигураций компонентов в дизайн-систему. Вся работа выполняется\nв одной транзакции: частично применённый импорт компонентной модели хуже отказа.\n\nДизайн-система адресуется полем designSystemId тела запроса.\n\nКлюч upsert — пара (componentName, styleName); styleName соответствует appearance.\nИмпорт авторитетен для appearance: прежние значения удаляются перед записью, поэтому\nсвойство, снятое из конфигурации, исчезает и из базы. Глобальный слой (components,\nvariations, properties) остаётся аддитивным и не переписывается.\n\nПри dryRun=true выполняется та же работа, после чего транзакция откатывается,\nпоэтому отчёт плана совпадает с отчётом применения.\n\nГлобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из\nAPI-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta обслуживается ds-service).\nКонфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие\nсвойства попадают в unknownProperties, остальная часть конфигурации грузится.\n\nТребует scope components:write, если запрос пришёл с ключом проекта.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12976,6 +12989,15 @@
                   "designSystemId": {
                     "type": "string",
                     "format": "uuid"
+                  },
+                  "platform": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "compose",
+                      "xml",
+                      "ios"
+                    ]
                   },
                   "meta": {
                     "type": "object",
@@ -13221,6 +13243,7 @@
                 },
                 "required": [
                   "designSystemId",
+                  "platform",
                   "meta",
                   "components"
                 ]

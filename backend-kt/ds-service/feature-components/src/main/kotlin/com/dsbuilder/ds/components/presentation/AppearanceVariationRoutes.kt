@@ -77,6 +77,7 @@ fun Route.appearanceVariationRoutes(
                 request.position,
                 defaultStyleId,
                 request.isColorScheme,
+                request.isRoot,
                 request.declaredType?.trim(),
             )
             when (val result = create.execute(context, command)) {
@@ -108,6 +109,7 @@ fun Route.appearanceVariationRoutes(
                 defaultStyleId,
                 "defaultStyleId" in payload,
                 request.isColorScheme,
+                request.isRoot,
                 request.declaredType?.trim(),
                 "declaredType" in payload,
             )

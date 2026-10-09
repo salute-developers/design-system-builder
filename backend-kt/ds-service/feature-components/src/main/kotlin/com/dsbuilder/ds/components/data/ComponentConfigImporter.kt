@@ -3,10 +3,13 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
+import com.dsbuilder.ds.components.domain.RootCandidate
+import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -32,6 +35,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         ComponentTokensTable.selectAll().where { ComponentTokensTable.designSystemId eq command.designSystemId }
             .associate { it[ComponentTokensTable.name] to it[ComponentTokensTable.id] },
         command.components,
+        requireNotNull(ComponentPlatformDb.fromWire(command.platform)),
     ).also { context ->
         ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }.forEach {
             context.interactionStates[it[ComponentStatesTable.name].canonical()] = it[ComponentStatesTable.id]
@@ -43,9 +47,13 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
 
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
         invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
+        unknownRoot(entry.config)?.let {
+            return context.report.reject(entry, "rootVariationId '$it' names no axis of the configuration")
+        }
         val component = component(entry.componentName, context) ?: return context.report.reject(
             entry,
-            "Component '${entry.componentName}' is not present in the global layer",
+            "Component '${entry.componentName}' is not present in the global layer for platform " +
+                "'${context.platform.wireValue}'",
         )
         val componentId = component[ComponentsTable.id]
         link(ds, componentId)
@@ -55,7 +63,6 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             it[designSystemId] = ds
             it[ComponentAppearancesTable.componentId] = componentId
             it[name] = entry.styleName
-            it[platform] = null
         }.single()[ComponentAppearancesTable.id]
         val descriptor = ConfigAppearance(
             appearanceId,
@@ -91,9 +98,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         val id = context.componentIds[key]
         if (id != null) return ComponentsTable.selectAll().where { ComponentsTable.id eq id }.single()
         if (context.componentIds.containsKey(key)) return null
-        return ComponentsTable.selectAll().firstOrNull { it[ComponentsTable.name].canonical() == key }.also {
-            context.componentIds[key] = it?.get(ComponentsTable.id)
-        }
+        return ComponentsTable.selectAll().where { ComponentsTable.platform eq context.platform }
+            .firstOrNull { it[ComponentsTable.name].canonical() == key }.also {
+                context.componentIds[key] = it?.get(ComponentsTable.id)
+            }
     }
 
     private fun link(ds: UUID, component: UUID) {
@@ -112,7 +120,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun appearance(ds: UUID, component: UUID, name: String) = ComponentAppearancesTable.selectAll().where {
         (ComponentAppearancesTable.designSystemId eq ds) and
             (ComponentAppearancesTable.componentId eq component) and
-            (ComponentAppearancesTable.name eq name) and ComponentAppearancesTable.platform.isNull()
+            (ComponentAppearancesTable.name eq name)
     }.singleOrNull()
 
     private fun clear(id: UUID) {
@@ -161,7 +169,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 it[variationId] = axes.getValue(axisId)
                 it[AppearanceVariationsTable.position] = position
                 it[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
-                it[isColorScheme] = config.colorSchemeVariationId == axisId
+                it[isColorScheme] = false
                 it[declaredType] = declared?.declaredType
             }.single()[AppearanceVariationsTable.id]
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
@@ -176,7 +184,22 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }.single()
             }
         }
+        storeRoles(id, config, axes)
     }
+
+    /** Сохраняет роли осей; корень, не указанный в конфигурации, выбирается по правилу фолбэка. */
+    private fun storeRoles(id: UUID, config: ComponentConfig, axes: Map<String, UUID>) {
+        val colorScheme = config.colorSchemeVariationId?.let(axes::get)
+        val root = config.rootVariationId?.let(axes::get) ?: fallbackRoot(
+            axes(config).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
+            colorScheme,
+        )
+        AppearanceAxisRoleStore.store(id, root, colorScheme)
+    }
+
+    /** Возвращает указанный в конфигурации корень, если он не совпадает ни с одной осью. */
+    private fun unknownRoot(config: ComponentConfig): String? =
+        config.rootVariationId?.takeIf { root -> axes(config).none { it.first == root } }
 
     private fun properties(component: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) =
         propertyNames(entry.config).mapNotNull { name ->
@@ -379,7 +402,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val target = component?.let { appearance(ds, it, styleName) }
             val available = component?.let { componentId ->
-                ComponentStylesTable.innerJoin(VariationsTable).selectAll().where {
+                ComponentStylesTable.join(
+                    VariationsTable,
+                    JoinType.INNER,
+                    ComponentStylesTable.variationId,
+                    VariationsTable.id,
+                ).selectAll().where {
                     (ComponentStylesTable.designSystemId eq ds) and (VariationsTable.componentId eq componentId)
                 }.associate { it[ComponentStylesTable.name] to it[ComponentStylesTable.id] }
             }.orEmpty()
@@ -447,6 +475,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                         put("source", command.meta.source)
                     },
                 )
+                put("platform", command.platform)
                 put("dryRun", command.dryRun)
                 put("created", context.report.created)
                 put("updated", context.report.updated)
@@ -529,7 +558,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             } == true
         }
     }
-    private fun expand(
+
+    /** One row per state set: a repeated state set in the config is collapsed, the last one wins. */
+    private fun expand(p: ComponentConfig.Property): List<Expanded> =
+        expandAll(p).associateBy { it.states }.values.toList()
+
+    private fun expandAll(
         p: ComponentConfig.Property,
     ) = listOf(
         Expanded(

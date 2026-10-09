@@ -5,7 +5,7 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 // Словарь типов слота API компонента: приходит из кода через
-// scripts/import-uikit-api-meta.sh и совпадает с ApiType/ParameterType в plasma-android.
+// `dsbuilder components import-api` и совпадает с ApiType/ParameterType в plasma-android.
 // gradient сюда не входит — color означает семейство paint, а gradient различает
 // конкретное значение, а не слот. Словарь типов значения отдельный, он шире на gradient
 // и живёт в db/import/componentImport.ts.
@@ -39,19 +39,13 @@ Enum platform {
   ios
 }
 
-// Платформа компонента: веб-импорт из plasma против нативного из theme-converter.
-// NULL — строка не размечена (нативные данные до появления колонки) или свойство общее.
+// Платформа компонента и алиаса платформенного имени. Компонент идентифицируется парой
+// (name, platform): у Avatar[compose] и Avatar[xml] свои свойства, состояния, вариации и конфиги.
 Enum component_platform {
   web
   compose
-  ios
-}
-
-Enum property_platform {
   xml
-  compose
   ios
-  web
 }
 
 Enum mode {
@@ -105,12 +99,13 @@ Table components {
   id uuid [pk]
   name text [not null]
   description text
+  platform component_platform [not null, note: 'часть идентичности: (name, platform) уникально']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (name) [unique]
+    (name, platform) [unique]
   }
 }
 
@@ -153,7 +148,6 @@ Table properties {
   type property_type [not null]
   default_value text
   description text
-  platform component_platform [note: 'NULL — общее для платформ']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
@@ -168,8 +162,10 @@ Table properties {
 Table property_platform_params {
   id uuid [pk]
   property_id uuid [not null, ref: > properties.id, note: 'on delete cascade']
-  platform property_platform [not null]
+  platform component_platform [not null, note: 'равна платформе компонента свойства (триггер)']
   name text [not null, note: 'имя параметра в рамках платформы']
+  deprecated boolean [not null, default: false, note: 'устарел алиас, а не свойство: у View устаревает конкретный атрибут']
+  deprecated_message text [note: 'NULL, если deprecated = false; пустая строка допустима']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
@@ -293,13 +289,12 @@ Table appearances {
   design_system_id  uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
   component_id      uuid [not null, ref: > components.id, note: 'on delete cascade']
   name              text [default: 'default', note: 'например outline']
-  platform          component_platform [note: 'web — импорт из plasma; NULL — нативная строка без разметки']
 
   created_at timestamp [not null, default: `now()`]
   updated_at timestamp [not null, default: `now()`]
 
   indexes {
-    (design_system_id, component_id, name, platform) [unique, note: 'NULLS NOT DISTINCT']
+    (design_system_id, component_id, name) [unique, note: 'NULLS NOT DISTINCT; платформа определяется компонентом']
   }
 }
 
@@ -538,7 +533,7 @@ Table design_system_versions {
 // Аудит-лог: вызывается при каждом изменении и записи в БД
 Table design_system_changes {
   id               uuid [pk]
-  design_system_id uuid [not null, ref: > design_systems.id, note: 'on delete cascade']
+  design_system_id uuid [ref: > design_systems.id, note: 'on delete cascade; null у глобальных операций (импорт API-меты)']
   entity_type      text [not null]
   entity_id        uuid [not null]
   operation        operation [not null]

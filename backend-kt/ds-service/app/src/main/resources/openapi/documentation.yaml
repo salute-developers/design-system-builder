@@ -5103,6 +5103,17 @@ paths:
           required: true
           name: component
           in: query
+        - schema:
+            type: string
+            enum:
+              - web
+              - compose
+              - xml
+              - ios
+            example: compose
+          required: true
+          name: platform
+          in: query
       responses:
         "200":
           description: Component config
@@ -5190,10 +5201,14 @@ paths:
         поэтому отчёт плана совпадает с отчётом применения.
 
 
+        Компонент идентифицируется парой (name, platform); платформа задаётся
+        полем platform тела запроса.
+
+
         Глобальный слой — компоненты и их свойства — импорт не создаёт: он
         наполняется из
 
-        uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh.
+        API-меты платформы командой dsbuilder components import-api.
         Конфигурация компонента,
 
         которого нет в глобальном слое, отклоняется; отсутствующие свойства
@@ -5213,6 +5228,13 @@ paths:
                 designSystemId:
                   type: string
                   format: uuid
+                platform:
+                  type: string
+                  enum:
+                    - web
+                    - compose
+                    - xml
+                    - ios
                 meta:
                   type: object
                   properties:
@@ -5378,6 +5400,7 @@ paths:
                   minItems: 1
               required:
                 - designSystemId
+                - platform
                 - meta
                 - components
       responses:
@@ -5669,6 +5692,13 @@ components:
         description:
           type: string
           nullable: true
+        platform:
+          type: string
+          enum:
+            - web
+            - compose
+            - xml
+            - ios
         createdAt:
           type: string
           format: date-time
@@ -5683,6 +5713,7 @@ components:
         - description
         - createdAt
         - updatedAt
+        - platform
     DesignSystemComponent:
       type: object
       properties:
@@ -5770,14 +5801,6 @@ components:
         description:
           type: string
           nullable: true
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
         createdAt:
           type: string
           format: date-time
@@ -5793,7 +5816,6 @@ components:
         - type
         - defaultValue
         - description
-        - platform
         - createdAt
         - updatedAt
     PropertyPlatformParam:
@@ -5814,6 +5836,11 @@ components:
             - web
         name:
           type: string
+        deprecated:
+          type: boolean
+        deprecatedMessage:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -5829,6 +5856,8 @@ components:
         - name
         - createdAt
         - updatedAt
+        - deprecated
+        - deprecatedMessage
     VariationPlatformParamAdjustment:
       type: object
       properties:
@@ -5938,14 +5967,6 @@ components:
         name:
           type: string
           nullable: true
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
         createdAt:
           type: string
           format: date-time
@@ -5959,7 +5980,6 @@ components:
         - designSystemId
         - componentId
         - name
-        - platform
         - createdAt
         - updatedAt
     Style:
@@ -6844,8 +6864,16 @@ components:
         description:
           type: string
           maxLength: 1000
+        platform:
+          type: string
+          enum:
+            - web
+            - compose
+            - xml
+            - ios
       required:
         - name
+        - platform
     UpdateComponent:
       type: object
       properties:
@@ -6923,14 +6951,6 @@ components:
         description:
           type: string
           maxLength: 1000
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
       required:
         - name
         - type
@@ -6960,14 +6980,6 @@ components:
         description:
           type: string
           maxLength: 1000
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
     CreatePropertyPlatformParam:
       type: object
       properties:
@@ -6985,6 +6997,12 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        deprecated:
+          type: boolean
+        deprecatedMessage:
+          type: string
+          maxLength: 1000
+          nullable: true
       required:
         - propertyId
         - platform
@@ -7003,6 +7021,12 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+        deprecated:
+          type: boolean
+        deprecatedMessage:
+          type: string
+          maxLength: 1000
+          nullable: true
     CreateVariationPlatformParamAdjustment:
       type: object
       properties:
@@ -7074,14 +7098,6 @@ components:
           type: string
           maxLength: 255
           default: default
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
       required:
         - designSystemId
         - componentId
@@ -7092,14 +7108,6 @@ components:
           type: string
           minLength: 1
           maxLength: 255
-        platform:
-          type: string
-          nullable: true
-          enum:
-            - web
-            - compose
-            - ios
-            - null
     CreateStyle:
       type: object
       properties:
@@ -7807,6 +7815,14 @@ components:
           type: string
           format: uuid
           description: Дизайн-система, конфигурации которой выгружаются
+        platform:
+          type: string
+          enum:
+            - web
+            - compose
+            - xml
+            - ios
+          description: Платформа выгружаемых компонентов
         components:
           type: array
           items:
@@ -7821,6 +7837,7 @@ components:
           description: Optional style names to include in the returned package
       required:
         - designSystemId
+        - platform
     ComponentExportPackage:
       type: object
       properties:

@@ -39,7 +39,7 @@ router.post("/export", requireScope(READ_SCOPE), validateBody(ExportRequestSchem
       return;
     }
 
-    const result = await buildComponentPackage(db, designSystem);
+    const result = await buildComponentPackage(db, designSystem, request.platform);
     if (!result.ok) {
       res.status(422).json({ error: "Export failed", message: result.reason });
       return;

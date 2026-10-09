@@ -153,6 +153,31 @@ class ConfigCodecTest {
     }
 
     @Test
+    fun decodeTakesSizeAsRootEvenWhenItIsNotFirst() {
+        val common = decodeOrFail(nativeWithBindings("shape:enum", "size:enum", "state:enum"))
+
+        assertEquals("size", common.rootVariationId)
+    }
+
+    @Test
+    fun decodeTakesFirstAxisAsRootWhenThereIsNoSize() {
+        val common = decodeOrFail(nativeWithBindings("shape:enum", "state:enum"))
+
+        assertEquals("shape", common.rootVariationId)
+    }
+
+    @Test
+    fun decodeNeverTakesColorSchemeAxisAsRoot() {
+        val withView = decodeOrFail(nativeWithBindings("view:view", "shape:enum"))
+        assertEquals("view", withView.colorSchemeVariationId)
+        assertEquals("shape", withView.rootVariationId)
+
+        val viewOnly = decodeOrFail(nativeWithBindings("view:view"))
+        assertEquals("view", viewOnly.colorSchemeVariationId)
+        assertNull(viewOnly.rootVariationId)
+    }
+
+    @Test
     fun decodeAcceptsConfigurationWithoutVariationsAndBindings() {
         val common = decodeOrFail(NativeConfigCorpus.plasmaHomedsRectSkeleton)
 
@@ -623,6 +648,15 @@ class ConfigCodecTest {
             setOf("mode-primary"),
             native.variations.single { it.id?.content == "m.bg-no" }.view.keys,
         )
+    }
+
+    /** Native-конфигурация только с объявлением осей вида `имя:тип`, без вариаций. */
+    private fun nativeWithBindings(vararg axes: String): String {
+        val bindings = axes.joinToString(",") { axis ->
+            val (name, type) = axis.split(":")
+            """{"name":"$name","type":"$type","values":["a"]}"""
+        }
+        return """{"view":{},"props":{},"bindings":[$bindings],"variations":[]}"""
     }
 
     /**

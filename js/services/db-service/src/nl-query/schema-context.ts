@@ -27,7 +27,7 @@ const ENUM_DESCRIPTIONS = `Enums:
 - property_type: color, typography, shape, shadow, dimension, float
 - token_type: color, gradient, typography, fontFamily, spacing, shape, shadow
 - platform: web, android, ios
-- property_platform: xml, compose, ios, web
+- component_platform: web, compose, xml, ios (platform of a component and of a property alias)
 - publication_status: publishing, published, failed
 - operation: created, updated, deleted, moved
 - relation_type: reuse, compose
@@ -39,8 +39,9 @@ Key relationships (foreign keys):
 - design_system_components: design_system_id -> design_systems.id, component_id -> components.id
 - design_system_versions: design_system_id -> design_systems.id
 - variations: component_id -> components.id
-- properties: component_id -> components.id
-- property_platform_params: property_id -> properties.id, platform (enum: xml, compose, ios, web), name (the platform-specific param name)
+- components: unique by (name, platform); a component exists separately per platform (web, compose, xml, ios)
+- properties: component_id -> components.id (platform comes from the component)
+- property_platform_params: property_id -> properties.id, platform (enum: web, compose, xml, ios; equals the component's platform), name (the platform-specific param name), deprecated (boolean), deprecated_message (text, NULL when not deprecated)
 - property_variations: property_id -> properties.id, variation_id -> variations.id
 - appearances: design_system_id -> design_systems.id, component_id -> components.id
 - styles: design_system_id -> design_systems.id, variation_id -> variations.id
@@ -54,7 +55,7 @@ Key relationships (foreign keys):
 - component_reuse_configs: component_dep_id -> component_deps.id, design_system_id -> design_systems.id, appearance_id -> appearances.id, variation_id -> variations.id, style_id -> styles.id
 - style_combinations: property_id -> properties.id, appearance_id -> appearances.id
 - style_combination_members: combination_id -> style_combinations.id, style_id -> styles.id
-- design_system_changes: design_system_id -> design_systems.id
+- design_system_changes: design_system_id -> design_systems.id (NULL у глобальных операций, например импорта API-меты)
 - saved_queries: standalone table (id, label, sql, created_at)
 - palette: standalone table (id, type, shade, saturation, value); unique on (type, shade, saturation).
   IMPORTANT: shade = color name in English, saturation = numeric level (50..1000), value = hex color code (e.g. '#FF293E'). When user asks about a color by name, filter by shade column (NOT value).

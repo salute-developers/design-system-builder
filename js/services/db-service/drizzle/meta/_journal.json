@@ -50,6 +50,13 @@
       "when": 1790345863208,
       "tag": "0006_military_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791291206039,
+      "tag": "0007_component_platform_split",
+      "breakpoints": true
     }
   ]
 }

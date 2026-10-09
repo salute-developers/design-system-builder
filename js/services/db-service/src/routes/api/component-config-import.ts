@@ -43,7 +43,7 @@ router.post("/import", requireScope(WRITE_SCOPE), validateBody(ImportRequestSche
 
     try {
       const report = await db.transaction(async (tx) => {
-        const result = await importComponents(tx, designSystem.id, request.components);
+        const result = await importComponents(tx, designSystem.id, request.platform, request.components);
 
         await tx.insert(designSystemChanges).values({
           designSystemId: designSystem.id,
@@ -52,6 +52,7 @@ router.post("/import", requireScope(WRITE_SCOPE), validateBody(ImportRequestSche
           operation: result.created > 0 ? "created" : "updated",
           data: {
             meta: request.meta,
+            platform: request.platform,
             dryRun: request.dryRun,
             created: result.created,
             updated: result.updated,
@@ -76,6 +77,7 @@ router.post("/import", requireScope(WRITE_SCOPE), validateBody(ImportRequestSche
       // на сервере: клиент получает только статус и краткое сообщение.
       console.error("[component-config:import] failed", {
         designSystemId: designSystem.id,
+        platform: request.platform,
         meta: request.meta,
         components: request.components.length,
         error,

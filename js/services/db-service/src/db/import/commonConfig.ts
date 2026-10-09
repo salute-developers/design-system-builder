@@ -1,3 +1,4 @@
+import * as schema from "../schema";
 import { z } from "zod";
 
 /**
@@ -69,10 +70,15 @@ export const ImportComponentSchema = z.object({
   config: CommonConfigSchema,
 });
 
+// Платформа компонентов запроса. Компонент идентифицируется парой (имя, платформа), поэтому
+// без платформы выбрать компонент нельзя, и значение по умолчанию backend не подставляет.
+const ComponentPlatformSchema = z.enum(schema.componentPlatformEnum.enumValues);
+
 export const ImportRequestSchema = z.object({
   // Дизайн-система адресуется телом, а не путём: так же принимают designSystemId
   // остальные POST-ручки этого API, и идентификатор проверяется до запроса в базу.
   designSystemId: z.string().uuid(),
+  platform: ComponentPlatformSchema,
   meta: z.object({
     name: z.string(),
     source: z.string().default(""),
@@ -85,6 +91,7 @@ export const ExportRequestSchema = z.object({
   // Дизайн-система адресуется телом так же, как у `/import`: путь остаётся без параметров,
   // а идентификатор проверяется на uuid вместе с остальным телом.
   designSystemId: z.string().uuid(),
+  platform: ComponentPlatformSchema,
   components: z.array(z.string().min(1)).optional(),
   styles: z.array(z.string().min(1)).optional(),
 });

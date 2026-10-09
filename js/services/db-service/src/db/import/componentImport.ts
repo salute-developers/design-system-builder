@@ -12,6 +12,8 @@ import {
 
 type Tx = Parameters<Parameters<typeof import("../index").db.transaction>[0]>[0];
 
+export type ComponentPlatform = (typeof schema.componentPlatformEnum.enumValues)[number];
+
 const COMPONENT_STYLE = "component_style";
 
 /**
@@ -130,6 +132,7 @@ type ValueSignature = string;
 export const importComponents = async (
   tx: Tx,
   designSystemId: string,
+  platform: ComponentPlatform,
   components: ImportComponent[],
 ): Promise<ImportReport> => {
   const report: ImportReport = {
@@ -175,6 +178,7 @@ export const importComponents = async (
     }
 
     const outcome = await importOne(tx, designSystemId, entry, {
+      platform,
       tokenByName,
       styleNameToComponentName,
       unresolvedTokens,
@@ -193,7 +197,7 @@ export const importComponents = async (
       report.rejected.push({
         componentName: entry.componentName,
         styleName: entry.styleName,
-        reason: `Component '${entry.componentName}' is not present in the global layer`,
+        reason: `Component '${entry.componentName}' is not present in the global layer for platform '${platform}'`,
       });
     } else {
       report[outcome] += 1;
@@ -204,6 +208,7 @@ export const importComponents = async (
   }
 
   await resolveReferences(tx, designSystemId, {
+    platform,
     tokenByName,
     styleNameToComponentName,
     unresolvedTokens,
@@ -290,6 +295,8 @@ const allProperties = (config: CommonConfig): PropertyValue[] => [
 ];
 
 interface ImportContext {
+  /** Платформа импорта: компонент ищется только среди компонентов этой платформы. */
+  platform: ComponentPlatform;
   tokenByName: Map<string, string>;
   styleNameToComponentName: Map<string, string>;
   unresolvedTokens: Set<string>;
@@ -478,8 +485,6 @@ const resolveTargetAppearance = async (
         eq(schema.appearances.designSystemId, designSystemId),
         eq(schema.appearances.componentId, componentId),
         eq(schema.appearances.name, styleName),
-        // Веб-appearances того же имени принадлежат веб-импорту и здесь не видны.
-        isNull(schema.appearances.platform),
       ),
     );
   const id = row?.id ?? null;
@@ -645,7 +650,12 @@ const findComponent = async (
   const [row] = await tx
     .select({ id: schema.components.id })
     .from(schema.components)
-    .where(eq(sql`lower(regexp_replace(${schema.components.name}, '[^a-zA-Z0-9]', '', 'g'))`, key));
+    .where(
+      and(
+        eq(schema.components.platform, context.platform),
+        eq(sql`lower(regexp_replace(${schema.components.name}, '[^a-zA-Z0-9]', '', 'g'))`, key),
+      ),
+    );
   const id = row?.id ?? null;
   context.componentIdByName.set(key, id);
   return id;
@@ -681,7 +691,6 @@ const upsertAppearance = async (
         eq(schema.appearances.designSystemId, designSystemId),
         eq(schema.appearances.componentId, componentId),
         eq(schema.appearances.name, name),
-        isNull(schema.appearances.platform),
       ),
     );
   if (existing) return { appearanceId: existing.id, existed: true };

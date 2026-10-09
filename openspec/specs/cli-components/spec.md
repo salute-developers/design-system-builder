@@ -181,13 +181,14 @@ CLI `components push` SHALL convert every native component configuration into th
 
 ### Requirement: Components push backend contract
 
-CLI `components push` SHALL upload the whole package in a single request to the component-config import endpoint, addressing the design system by `designSystemId` in the request body.
+CLI `components push` SHALL upload the whole package in a single request to the component-config import endpoint, addressing the design system by `designSystemId` and the component platform by `platform` in the request body.
 
 #### Scenario: Push отправляет один запрос
 
 - **WHEN** CLI has converted the package
 - **THEN** CLI MUST send `POST /api/projects/{projectId}/ds/component-config/import`
 - **THEN** the request body MUST contain `designSystemId` taken from the project config
+- **THEN** the request body MUST contain `platform` resolved from the project config
 - **THEN** the request body MUST contain the package metadata and all converted component configurations
 - **THEN** CLI MUST NOT send one request per component
 
@@ -251,13 +252,14 @@ CLI `dsbuilder` SHALL предоставлять project-scoped команду `
 ### Requirement: Components fetch backend contract
 
 CLI `components fetch` SHALL download the whole package in a single request to the component-config
-export endpoint, addressing the design system by `designSystemId` in the request body.
+export endpoint, addressing the design system by `designSystemId` and the component platform by `platform` in the request body.
 
 #### Scenario: Fetch отправляет один запрос
 
 - **WHEN** CLI performs a fetch
 - **THEN** CLI MUST send `POST /api/projects/{projectId}/ds/component-config/export`
 - **THEN** the request body MUST contain `designSystemId` taken from the project config
+- **THEN** the request body MUST contain `platform` resolved from the project config
 - **THEN** CLI MUST NOT send one request per component
 
 #### Scenario: Путь запроса не содержит идентификатор дизайн-системы
@@ -434,3 +436,356 @@ project context, API URL and credentials as package export.
 - **THEN** CLI MUST write the component package to the selected directory
 - **THEN** CLI MUST request the legacy snapshot with the same context and credential as package export
 - **THEN** CLI MUST write `component-configs.json` into the selected directory
+
+### Requirement: CLI components import-api command
+
+CLI `dsbuilder` SHALL предоставлять команду `components import-api`, заводящую компоненты, свойства, состояния и платформенные имена в глобальном слое DS Builder по файлу API-меты платформы. Команда MUST быть доступна только системному администратору и MUST NOT зависеть от проекта или дизайн-системы.
+
+#### Scenario: Команда не использует project context
+
+- **WHEN** разработчик запускает `dsbuilder components import-api` в любой директории
+- **THEN** CLI MUST NOT искать `.sdds/config.json` и MUST NOT требовать `projectId` или `designSystemId`
+- **THEN** CLI MUST NOT выводить raw credential
+
+#### Scenario: Help не требует ничего
+
+- **WHEN** разработчик запускает `dsbuilder components import-api --help`
+- **THEN** CLI MUST показать deterministic help
+- **THEN** CLI MUST NOT требовать backend, credential, файл или private URL
+
+#### Scenario: Команда не требует plasma-android и Gradle
+
+- **WHEN** команда запущена
+- **THEN** CLI MUST NOT запускать Gradle и платформенные инструменты
+- **THEN** CLI MUST NOT требовать рабочей копии plasma-android, `jq` или `curl`
+
+### Requirement: API meta import platform
+
+Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose` и `android-view`.
+
+#### Scenario: Платформа обязательна
+
+- **WHEN** `--platform` не указан
+- **THEN** CLI MUST завершиться ошибкой использования до чтения файла и обращения к backend
+
+#### Scenario: Платформа android-view
+
+- **WHEN** платформа — `android-view`
+- **THEN** CLI MUST нормализовать мету View и отправить её одним запросом
+- **THEN** CLI MUST передать backend `platform` со значением `xml`
+
+#### Scenario: Неподдержанная платформа
+
+- **WHEN** платформа — `swiftui` или `react`
+- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что платформа пока не поддержана
+- **THEN** CLI MUST NOT читать файл и MUST NOT обращаться к backend
+
+#### Scenario: Соответствие платформы значению backend
+
+- **WHEN** CLI формирует запрос
+- **THEN** он MUST передать `compose` для `compose`, `xml` для `android-view`, `ios` для `swiftui`, `web` для `react`
+
+### Requirement: API meta normalization
+
+CLI SHALL преобразовывать API-мету Compose в манифест по фиксированным правилам до отправки.
+
+#### Scenario: Дублирующиеся параметры сводятся
+
+- **WHEN** один `id` повторяется у компонента, потому что билдер принимает слот в нескольких перегрузках
+- **THEN** манифест MUST содержать одно свойство `(component, id)`
+- **THEN** описание свойства MUST NOT содержать `group`
+
+#### Scenario: Описание свойства
+
+- **WHEN** у параметра заданы `methodName` и `paramSimpleType`
+- **THEN** описание MUST иметь вид `method: <methodName>; param: <paramSimpleType>`
+
+#### Scenario: Описание свойства с несколькими типами параметра
+
+- **WHEN** один `id` встречается несколько раз с разными `paramSimpleType`
+- **THEN** описание MUST перечислять все встреченные типы через `/` в порядке появления, без повторов
+- **THEN** описание MUST NOT содержать `group`
+
+#### Scenario: Платформенное имя
+
+- **WHEN** платформа — `compose`
+- **THEN** `platformName` свойства MUST быть равен `id`
+
+#### Scenario: Состояния компонента
+
+- **WHEN** компонент содержит `stateEnum.values`
+- **THEN** имя состояния MUST быть `configName`, если оно задано, иначе `name` в kebab-case нижнего регистра
+- **THEN** манифест MUST NOT содержать повторяющихся состояний одного компонента
+
+#### Scenario: Подмена типа
+
+- **WHEN** передан `--map-type from:to`
+- **THEN** CLI MUST заменить тип `from` на `to` до отправки
+
+### Requirement: API meta import is dry run by default
+
+Команда SHALL по умолчанию выполнять dry run и записывать данные только с `--apply`, требовать явный backend API URL и печатать цель запроса до отправки.
+
+#### Scenario: Dry run по умолчанию
+
+- **WHEN** команда запущена без `--apply`
+- **THEN** CLI MUST отправить запрос с `dryRun: true`
+- **THEN** CLI MUST сообщить, что изменения не применены
+
+#### Scenario: Конфликт режимов
+
+- **WHEN** указаны `--apply` и `--dry-run` вместе
+- **THEN** CLI MUST завершиться ошибкой использования до какого-либо чтения файла или запроса
+
+#### Scenario: Явный API URL
+
+- **WHEN** ни `--api-url`, ни `DSBUILDER_API_URL` не заданы
+- **THEN** CLI MUST отказать и MUST NOT использовать публичное умолчание для записи
+
+#### Scenario: Печать цели
+
+- **WHEN** манифест готов
+- **THEN** CLI MUST напечатать API URL и его источник, платформу, путь файла меты, число компонентов, свойств и состояний до отправки
+- **THEN** CLI MUST NOT печатать `projectId` и `designSystemId`
+
+### Requirement: API meta import backend contract
+
+CLI SHALL отправлять весь манифест одним запросом на административный маршрут `import-api-meta`.
+
+#### Scenario: Один запрос
+
+- **WHEN** манифест готов
+- **THEN** CLI MUST отправить `POST /api/admin/component-config/import-api-meta`
+- **THEN** тело MUST содержать `platform`, метаданные источника, `dryRun` и все компоненты
+- **THEN** тело MUST NOT содержать `designSystemId`
+- **THEN** CLI MUST NOT отправлять по запросу на компонент или свойство
+
+#### Scenario: Источник — имя файла
+
+- **WHEN** CLI формирует метаданные источника
+- **THEN** он MUST передать имя файла без директорий
+
+#### Scenario: Платформенные имена с устареванием
+
+- **WHEN** CLI формирует свойство манифеста
+- **THEN** каждый элемент `platformNames` MUST быть объектом `{ name }` и MUST содержать `deprecated: { message }` только если соответствующая запись меты помечена как устаревшая
+
+#### Scenario: Печать отчёта
+
+- **WHEN** backend вернул успешный ответ
+- **THEN** CLI MUST напечатать счётчики созданных компонентов, свойств, состояний и платформенных имён и число неизменённых свойств
+- **THEN** CLI MUST напечатать счётчики `deprecatedMarked`, `deprecatedMessageChanged` и `deprecatedCleared`, если хотя бы один из них не равен нулю
+- **THEN** CLI MUST NOT печатать строку о привязках к дизайн-системе
+- **THEN** CLI MUST напечатать `rejected` и `typeMismatches`, если они не пусты, каждый с причиной
+- **THEN** CLI MUST напечатать справочный раздел `Absent from meta` со списком `absent`, если он не пуст
+
+#### Scenario: Строгий режим
+
+- **WHEN** передан `--strict` и `rejected` не пуст
+- **THEN** CLI MUST завершиться кодом `1`
+- **THEN** непустой `absent` и ненулевые счётчики `deprecated*` MUST NOT влиять на код выхода
+
+#### Scenario: Ошибка backend
+
+- **WHEN** backend вернул неуспешный статус
+- **THEN** CLI MUST обработать его общим HTTP error handling CLI core
+- **THEN** CLI MUST NOT выводить raw credential
+
+#### Scenario: Отчёт не разбирается
+
+- **WHEN** backend вернул успех с телом, которое не разбирается как отчёт
+- **THEN** CLI MUST вернуть deterministic failure и MUST NOT печатать частичный отчёт
+
+### Requirement: API meta normalization of Android View
+
+CLI SHALL преобразовывать API-мету View в тот же манифест, что и мету Compose, по фиксированным правилам до отправки. Нормализатор MUST читать мету в форме, которую оставляет плагин `dsBuilder`: поля со значениями по умолчанию в ней могут отсутствовать.
+
+#### Scenario: Запись с несколькими именами разворачивается
+
+- **WHEN** запись содержит несколько `componentNames`
+- **THEN** манифест MUST содержать каждый из этих компонентов
+- **THEN** параметры записи MUST быть у каждого из них
+
+#### Scenario: Записи одного компонента сливаются
+
+- **WHEN** один компонент описан в нескольких записях
+- **THEN** манифест MUST содержать одно свойство на каждую пару `(component, id)`
+- **THEN** при противоречии типа MUST побеждать первое вхождение, а противоречие MUST быть передано в результат нормализации
+
+#### Scenario: Параметры без темизируемого значения пропускаются
+
+- **WHEN** параметр имеет тип `unknown`
+- **THEN** манифест MUST NOT содержать это свойство
+- **THEN** пропуск MUST учитываться в сводке пропущенного
+
+#### Scenario: Записи вложенных стилей пропускаются
+
+- **WHEN** запись содержит `subStyle`
+- **THEN** манифест MUST NOT содержать её параметры
+- **THEN** пропуск MUST учитываться в сводке пропущенного
+
+#### Scenario: Платформенные имена из атрибутов
+
+- **WHEN** у свойства один или несколько `attrName` (после слияния записей)
+- **THEN** `platformNames` свойства MUST содержать все `attrName` в порядке появления без повторов
+
+#### Scenario: Описание свойства View
+
+- **WHEN** свойство получено из меты View
+- **THEN** описание MUST иметь вид `attr: <attrName>`
+- **THEN** при нескольких `attrName` описание MUST перечислять их через `/`
+- **THEN** описание MUST NOT содержать полей меты, которых у View нет (`method`, `param`)
+
+#### Scenario: Состояния из наборов состояний
+
+- **WHEN** запись содержит `stateSets`
+- **THEN** состояниями компонента MUST быть `configName` состояний наборов, уникальные в пределах компонента
+- **THEN** `stateValues` параметров и `sharedStates` MUST NOT становиться состояниями компонента
+
+#### Scenario: Подмена типа
+
+- **WHEN** передан `--map-type from:to`
+- **THEN** CLI MUST заменить тип `from` на `to` до отправки
+
+#### Scenario: Пустая мета
+
+- **WHEN** мета не содержит ни одного компонента с параметрами
+- **THEN** нормализатор MUST сообщить, что мета пуста, и манифест MUST NOT быть построен
+
+### Requirement: API meta import reports skipped entries
+
+CLI SHALL сообщать, что нормализатор пропустил, и MUST NOT скрывать пропуски.
+
+#### Scenario: Сводка пропущенного
+
+- **WHEN** нормализатор пропустил параметры или записи
+- **THEN** CLI MUST напечатать после отчёта одну строку на каждую категорию пропусков с числом пропущенных элементов
+- **THEN** пропущенное MUST NOT попадать в `rejected` backend
+
+#### Scenario: Нет пропусков
+
+- **WHEN** нормализатор ничего не пропустил
+- **THEN** CLI MUST NOT печатать сводку пропущенного
+
+### Requirement: API meta import reads the meta from a file
+
+CLI SHALL читать API-мету из локального файла, путь которого задан обязательной опцией `--from`, и MUST NOT получать её через платформенные инструменты.
+
+#### Scenario: Файл из --from
+
+- **WHEN** задан `--from <путь>`
+- **THEN** CLI MUST прочитать файл по этому пути; относительный путь MUST быть приведён к абсолютному относительно текущей директории
+
+#### Scenario: Оба вида файла
+
+- **WHEN** файл — сырой вывод генератора меты либо вывод плагина `dsBuilder` с опущенными значениями по умолчанию
+- **THEN** CLI MUST нормализовать оба вида одинаково
+
+#### Scenario: --from обязателен
+
+- **WHEN** `--from` не указан
+- **THEN** CLI MUST завершиться ошибкой использования до обращения к backend
+
+#### Scenario: Файл не найден
+
+- **WHEN** файл по `--from` отсутствует или не читается
+- **THEN** CLI MUST завершиться ненулевым кодом, назвать путь и MUST NOT обращаться к backend
+
+#### Scenario: Файл пуст
+
+- **WHEN** файл не содержит ни одного компонента с параметрами
+- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что мета пуста, и назвать путь
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Файл другой платформы
+
+- **WHEN** содержимое файла не соответствует формату выбранной платформы
+- **THEN** CLI MUST завершиться ненулевым кодом, назвать файл и причину
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Опции удалённого способа не принимаются
+
+- **WHEN** команда запущена с `--tool` или `--api-key`
+- **THEN** CLI MUST завершиться ошибкой использования
+
+### Requirement: API meta import requires a user session
+
+CLI SHALL выполнять запрос только с user session и MUST NOT использовать ключи проекта для этой команды.
+
+#### Scenario: User session
+
+- **WHEN** для указанного API URL сохранена user session
+- **THEN** CLI MUST отправить запрос с токеном пользователя (`Authorization: Bearer`)
+
+#### Scenario: Ключ проекта игнорируется
+
+- **WHEN** в окружении задан ключ проекта
+- **THEN** CLI MUST NOT использовать его для этой команды
+
+#### Scenario: Нет user session
+
+- **WHEN** для указанного API URL нет user session
+- **THEN** CLI MUST завершиться ненулевым кодом с указанием выполнить `dsbuilder auth login` для этого API URL
+- **THEN** CLI MUST NOT отправлять запрос на backend
+
+#### Scenario: Роль проверяет сервер
+
+- **WHEN** пользователь не системный администратор
+- **THEN** CLI MUST показать отказ backend с его причиной и завершиться ненулевым кодом
+- **THEN** CLI MUST NOT проверять роль самостоятельно до запроса
+
+### Requirement: Components commands resolve the platform from the project config
+
+CLI `components push` и `components fetch` SHALL определять платформу компонентов по `platforms` из `.sdds/config.json` и передавать её backend значением словаря backend (`compose` для `compose`, `xml` для `android-view`, `ios` для `swiftui`, `web` для `react`). Если в конфигурации одна платформа, CLI MUST использовать её; если несколько, опция `--platform` MUST быть обязательной. Опция `--platform` MUST переопределять конфигурацию.
+
+#### Scenario: Одна платформа в конфигурации
+
+- **WHEN** `platforms` содержит одну платформу
+- **THEN** CLI MUST передать её backend без дополнительных опций
+
+#### Scenario: Несколько платформ
+
+- **WHEN** `platforms` содержит несколько платформ и `--platform` не указан
+- **THEN** CLI MUST завершиться ошибкой использования, перечислив доступные платформы, до обращения к backend
+
+#### Scenario: Явная платформа
+
+- **WHEN** передан `--platform`
+- **THEN** CLI MUST использовать указанную платформу вместо конфигурации
+- **THEN** CLI MUST завершиться ошибкой, если платформы нет в словаре backend
+
+#### Scenario: Платформа неизвестна
+
+- **WHEN** в конфигурации нет платформ и `--platform` не указан
+- **THEN** CLI MUST завершиться ошибкой использования и MUST NOT обращаться к backend
+
+### Requirement: API meta normalization reads deprecation
+
+Нормализаторы Compose и Android View SHALL читать поле `deprecated` свойств меты и передавать его в манифест на уровне платформенного имени. Нормализатор Compose MUST помечать устаревшим имя свойства, если устаревшим помечена хотя бы одна запись с этим `id`, и брать сообщение первой помеченной записи. Нормализатор View MUST помечать устаревшим только имя, соответствующее помеченному `attrName`, и MUST NOT распространять статус на другие `attrName` с тем же `id`. Пустое сообщение MUST сохраняться как пустая строка и MUST NOT приравниваться к отсутствию пометки. Мета без поля `deprecated` MUST разбираться без ошибки.
+
+#### Scenario: Compose, одна перегрузка помечена
+
+- **WHEN** две записи с одним `id`, и `deprecated` есть только у одной
+- **THEN** имя свойства в манифесте MUST содержать `deprecated` с сообщением помеченной записи
+
+#### Scenario: View, помечен один атрибут
+
+- **WHEN** у свойства два `attrName`, и `deprecated` есть только у `sd_textColor`
+- **THEN** `sd_textColor` MUST быть передан с `deprecated`, а `android:textColor` MUST быть передан без него
+
+#### Scenario: Пустое сообщение
+
+- **WHEN** `deprecated` имеет `message` равный пустой строке
+- **THEN** имя в манифесте MUST содержать `deprecated` с пустым `message`
+
+#### Scenario: Мета без deprecated
+
+- **WHEN** ни одна запись меты не содержит `deprecated`
+- **THEN** все имена MUST быть переданы без `deprecated`
+- **THEN** разбор MUST завершиться без ошибки
+
+#### Scenario: Слияние записей View одного компонента
+
+- **WHEN** один `attrName` встречается в нескольких записях компонента и помечен хотя бы в одной
+- **THEN** имя MUST быть передано с `deprecated` первой помеченной записи
+

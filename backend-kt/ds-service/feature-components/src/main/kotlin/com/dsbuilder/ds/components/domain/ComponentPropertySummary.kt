@@ -17,8 +17,6 @@ data class ComponentPropertySummary(
     val defaultValue: String?,
     /** Description carried by this contract. */
     val description: String?,
-    /** Platform carried by this contract. */
-    val platform: String?,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

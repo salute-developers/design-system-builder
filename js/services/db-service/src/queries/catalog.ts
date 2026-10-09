@@ -39,6 +39,7 @@ const componentNameContext = {
       await db
         .select({ name: schema.components.name })
         .from(schema.components)
+        .where(eq(schema.components.platform, "web"))
     ).map((r) => ({ value: r.name, label: r.name })),
 };
 
@@ -246,6 +247,7 @@ export const queryCatalog: CatalogQuery[] = [
         .where(
           and(
             eq(schema.components.name, componentName),
+            eq(schema.components.platform, "web"),
             eq(schema.designSystems.name, dsName),
             eq(schema.appearances.name, appearanceName),
             eq(schema.tenants.name, tenantName),
@@ -295,7 +297,7 @@ export const queryCatalog: CatalogQuery[] = [
           schema.components,
           eq(schema.properties.componentId, schema.components.id),
         )
-        .where(eq(schema.components.name, componentName));
+        .where(and(eq(schema.components.name, componentName), eq(schema.components.platform, "web")));
     },
   },
 
@@ -575,6 +577,7 @@ export const queryCatalog: CatalogQuery[] = [
         .where(
           and(
             eq(schema.components.name, componentName),
+            eq(schema.components.platform, "web"),
             eq(schema.designSystems.name, dsName),
           ),
         );
@@ -994,6 +997,7 @@ export const queryCatalog: CatalogQuery[] = [
         .where(
           and(
             eq(schema.components.name, componentName),
+            eq(schema.components.platform, "web"),
             isNotNull(schema.variationPropertyValues.tokenId),
           ),
         );
@@ -1755,7 +1759,7 @@ export const queryCatalog: CatalogQuery[] = [
           schema.components,
           eq(schema.properties.componentId, schema.components.id),
         )
-        .where(eq(schema.components.name, componentName));
+        .where(and(eq(schema.components.name, componentName), eq(schema.components.platform, "web")));
 
       // 2. Properties from reused children via component_reuse_configs
       const parent = alias(schema.components, "parent");

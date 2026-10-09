@@ -28,7 +28,8 @@ class ExposedComponentConfigRepository internal constructor(
             .singleOrNull() ?: return null
         val designSystemId = designSystem[ComponentDesignSystemsTable.id]
         if (!ComponentOwnership.canReadDesignSystem(projectId, systemAdmin, designSystemId)) return null
-        val appearance = appearances(designSystemId, platformAgnosticOnly = true).firstOrNull {
+        val platform = requireNotNull(ComponentPlatformDb.fromWire(query.platform))
+        val appearance = appearances(designSystemId, platform).firstOrNull {
             it.componentName == query.componentName && it.name == query.appearanceName
         } ?: return null
         return builder.build(appearance, exported = false, linkedSetOf())
@@ -60,7 +61,8 @@ class ExposedComponentConfigRepository internal constructor(
         val styleFilter = normalized(query.styles)
         val underived = linkedSetOf<String>()
         val entries = mutableListOf<ComponentConfigPackage.Entry>()
-        for (appearance in appearances(query.designSystemId, platformAgnosticOnly = false)) {
+        val platform = requireNotNull(ComponentPlatformDb.fromWire(query.platform))
+        for (appearance in appearances(query.designSystemId, platform)) {
             val componentName = camelToKebab(appearance.componentName)
             if (techToCamelCase(componentName) != appearance.componentName) {
                 val restoredName = techToCamelCase(componentName)
@@ -102,11 +104,14 @@ class ExposedComponentConfigRepository internal constructor(
 
     private fun appearances(
         designSystemId: java.util.UUID,
-        platformAgnosticOnly: Boolean,
+        platform: ComponentPlatformDb,
     ): List<ConfigAppearance> {
         val query = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
-            .where { ComponentAppearancesTable.designSystemId eq designSystemId }
-        return query.filter { !platformAgnosticOnly || it[ComponentAppearancesTable.platform] == null }.map {
+            .where {
+                (ComponentAppearancesTable.designSystemId eq designSystemId) and
+                    (ComponentsTable.platform eq platform)
+            }
+        return query.map {
             ConfigAppearance(
                 it[ComponentAppearancesTable.id],
                 it[ComponentAppearancesTable.designSystemId],

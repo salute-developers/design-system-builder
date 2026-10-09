@@ -80,18 +80,12 @@ interface AppearanceRepository {
         val componentId: UUID,
         /** Name carried by this contract. */
         val name: String?,
-        /** Platform carried by this contract. */
-        val platform: String?,
     )
 
     /** Public model for appearance update. */
     data class AppearanceUpdate(
         /** Name carried by this contract. */
         val name: String?,
-        /** Platform carried by this contract. */
-        val platform: String?,
-        /** Platform present carried by this contract. */
-        val platformPresent: Boolean,
     )
 
     /** Public model for variation create. */
@@ -106,6 +100,8 @@ interface AppearanceRepository {
         val defaultStyleId: UUID?,
         /** Is color scheme carried by this contract. */
         val isColorScheme: Boolean,
+        /** Назначает ось корневой. */
+        val isRoot: Boolean,
         /** Declared type carried by this contract. */
         val declaredType: String?,
     )
@@ -120,6 +116,8 @@ interface AppearanceRepository {
         val defaultStyleIdPresent: Boolean,
         /** Is color scheme carried by this contract. */
         val isColorScheme: Boolean?,
+        /** Назначает ось корневой (`true`) или снимает с неё роль (`false`). */
+        val isRoot: Boolean?,
         /** Declared type carried by this contract. */
         val declaredType: String?,
         /** Declared type present carried by this contract. */

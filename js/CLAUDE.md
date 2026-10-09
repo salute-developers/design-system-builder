@@ -68,9 +68,11 @@ No other service has tests except `documentation-generator` (jest).
   tests see the same schema the running service gets, triggers included.
 - Every test body runs inside `withRollback` from [services/db-service/src/test/database.ts](services/db-service/src/test/database.ts)
   and is rolled back, so the database is never cleaned by hand and test order does not matter.
-- The global layer (components, properties, tokens) is **not** created by the import — it comes from
-  `uikit-api-meta.json`. A test that loads a configuration must seed that layer inside its own
-  transaction first.
+- The global layer (components, properties, tokens) is **not** created by the config import — it comes
+  from the platform API meta file (`uikit-compose-api-meta.json`, `uikit-api-meta.json`) through
+  `dsbuilder components import-api --from <file> --platform <p>` and the admin-only
+  `POST /api/admin/component-config/import-api-meta` endpoint (needs `X-System-Admin: true`; served by `ds-service`, not by db-service). A test that loads a configuration must seed that layer inside its
+  own transaction first.
 
 ### Sync rules — VERY IMPORTANT
 Whenever you touch certain files in `db-service`, generated artifacts must be regenerated via the `/sync-*` skills. These skills exist specifically for this and you should use them proactively — do not hand-edit the generated files.

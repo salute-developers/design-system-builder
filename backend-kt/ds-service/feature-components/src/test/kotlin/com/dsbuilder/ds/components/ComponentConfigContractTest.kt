@@ -50,6 +50,7 @@ class ComponentConfigContractTest {
             """
             {
               "designSystemId":"2df66b98-13b7-46d9-b611-43459e4f4367",
+              "platform":"compose",
               "meta":{"name":"fixture"},
               "components":[{
                 "componentName":"button",

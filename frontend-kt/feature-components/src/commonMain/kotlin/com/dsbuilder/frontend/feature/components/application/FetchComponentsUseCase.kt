@@ -7,12 +7,14 @@ import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
 import com.dsbuilder.frontend.core.domain.ProjectContext
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanResult
 import com.dsbuilder.frontend.feature.components.domain.ExportedComponentPackage
 import com.dsbuilder.frontend.feature.components.domain.RenderedComponentConfig
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodecResult
 
@@ -43,7 +45,7 @@ public class FetchComponentsUseCase internal constructor(
      * директории, потому что неконвертируемая конфигурация — отказ всей выгрузки, и трогать
      * из-за неё файлы незачем.
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
     public suspend fun execute(command: FetchComponentsCommand): FetchComponentsResult {
         val found = when (
             val read = projectContextReader.requireContext(null, command.designSystemUri, command.projectKeyEnvName)
@@ -54,6 +56,12 @@ public class FetchComponentsUseCase internal constructor(
         val context = found.context
         if (context.configPath.isBlank() && command.destination.directory == null) {
             return FetchComponentsResult.Failed("--to is required with --design-system.")
+        }
+        val platform = when (
+            val resolved = ComponentPlatformResolver.resolve(context.platforms, command.platformOverride)
+        ) {
+            is ComponentPlatformResolution.Failed -> return FetchComponentsResult.Failed(resolved.message)
+            is ComponentPlatformResolution.Resolved -> resolved.platform
         }
         val apiUrl = apiUrlResolver.resolve(command.apiUrlOverride, found.projectEnvironment)
 
@@ -77,6 +85,7 @@ public class FetchComponentsUseCase internal constructor(
             credential = credential,
             projectId = context.projectId,
             designSystemId = context.designSystemId,
+            platform = platform.toApiMetaPlatform(),
         )
         val exported = when (val result = remoteSource.export(remoteCommand)) {
             is ExportComponentsResult.Failed -> return FetchComponentsResult.Failed(result.message)
@@ -84,6 +93,7 @@ public class FetchComponentsUseCase internal constructor(
         }
 
         val source = FetchSource(
+            platform = platform,
             apiUrl = apiUrl,
             projectId = context.projectId.value,
             designSystemId = context.designSystemId.value,
@@ -193,6 +203,7 @@ private sealed interface RenderResult {
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property designSystemUri явная ссылка на дизайн-систему.
  * @property projectKeyEnvName env-переменная ключа для явной ссылки.
+ * @property platformOverride платформа компонентов из `--platform`; побеждает конфигурацию проекта.
  */
 public data class FetchComponentsCommand(
     public val destination: ComponentDestination,
@@ -200,11 +211,13 @@ public data class FetchComponentsCommand(
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
     public val projectKeyEnvName: String? = null,
+    public val platformOverride: TargetPlatform? = null,
 )
 
 /**
  * Источник пакета и его состав, печатаемые перед записью.
  *
+ * @property platform платформа компонентов, определённая по конфигурации или `--platform`.
  * @property apiUrl разрешённый backend API URL вместе с источником.
  * @property projectId идентификатор проекта.
  * @property designSystemId идентификатор дизайн-системы.
@@ -213,6 +226,7 @@ public data class FetchComponentsCommand(
  * @property configurationCount число выгруженных конфигураций.
  */
 public data class FetchSource(
+    public val platform: TargetPlatform,
     public val apiUrl: ResolvedApiUrl,
     public val projectId: String,
     public val designSystemId: String,

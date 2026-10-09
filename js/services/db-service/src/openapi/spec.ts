@@ -647,6 +647,10 @@ registry.registerPath({
             version: z.string().openapi({ example: '0.1.0' }),
             appearance: z.string().openapi({ example: 'default' }),
             component: z.string().openapi({ example: 'Button' }),
+            platform: z.enum(tables.componentPlatformEnum.enumValues).openapi({
+                example: 'compose',
+                description: 'Платформа компонента: имя компонента уникально только внутри платформы',
+            }),
         }),
     },
     responses: {
@@ -1309,6 +1313,10 @@ const ExportRequestSchema = registry.register(
                 .string()
                 .uuid()
                 .openapi({ description: 'Дизайн-система, конфигурации которой выгружаются' }),
+            platform: z.enum(tables.componentPlatformEnum.enumValues).openapi({
+                description:
+                    'Платформа компонентов: компонент идентифицируется парой (имя, платформа), без неё запрос отклоняется',
+            }),
             components: z.array(z.string().min(1)).optional().openapi({
                 description: 'Optional component names to include in the returned package',
             }),
@@ -1464,9 +1472,9 @@ registry.registerPath({
         'поэтому отчёт плана совпадает с отчётом применения.',
         '',
         'Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из',
-        'uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,',
-        'которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в',
-        'unknownProperties, остальная часть конфигурации грузится.',
+        'API-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta обслуживается ds-service).',
+        'Конфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие',
+        'свойства попадают в unknownProperties, остальная часть конфигурации грузится.',
         '',
         'Требует scope components:write, если запрос пришёл с ключом проекта.',
     ].join('\n'),

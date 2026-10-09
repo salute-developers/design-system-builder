@@ -1010,6 +1010,8 @@ export interface paths {
                     version: string;
                     appearance: string;
                     component: string;
+                    /** @description Платформа компонента: имя компонента уникально только внутри платформы */
+                    platform: "web" | "compose" | "xml" | "ios";
                 };
                 header?: never;
                 path?: never;
@@ -8980,9 +8982,9 @@ export interface paths {
          *     поэтому отчёт плана совпадает с отчётом применения.
          *
          *     Глобальный слой — компоненты и их свойства — импорт не создаёт: он наполняется из
-         *     uikit-api-meta.json скриптом scripts/import-uikit-api-meta.sh. Конфигурация компонента,
-         *     которого нет в глобальном слое, отклоняется; отсутствующие свойства попадают в
-         *     unknownProperties, остальная часть конфигурации грузится.
+         *     API-меты компонентов командой `dsbuilder components import-api` (ручка import-api-meta обслуживается ds-service).
+         *     Конфигурация компонента, которого нет в глобальном слое, отклоняется; отсутствующие
+         *     свойства попадают в unknownProperties, остальная часть конфигурации грузится.
          *
          *     Требует scope components:write, если запрос пришёл с ключом проекта.
          */
@@ -8998,6 +9000,8 @@ export interface paths {
                     "application/json": {
                         /** Format: uuid */
                         designSystemId: string;
+                        /** @enum {string} */
+                        platform: "web" | "compose" | "xml" | "ios";
                         meta: {
                             name: string;
                             /** @default  */
@@ -9175,6 +9179,7 @@ export interface components {
              * @example 2024-01-01T00:00:00.000Z
              */
             updatedAt: string;
+            isTechnical?: boolean;
             tenantCount?: number;
             themePreviews?: {
                 /**
@@ -9209,6 +9214,8 @@ export interface components {
             id: string;
             name: string;
             description: string | null;
+            /** @enum {string} */
+            platform: "web" | "compose" | "xml" | "ios";
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9266,8 +9273,6 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue: string | null;
             description: string | null;
-            /** @enum {string|null} */
-            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9285,8 +9290,10 @@ export interface components {
             /** Format: uuid */
             propertyId: string;
             /** @enum {string} */
-            platform: "xml" | "compose" | "ios" | "web";
+            platform: "web" | "compose" | "xml" | "ios";
             name: string;
+            deprecated: boolean;
+            deprecatedMessage: string | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9364,8 +9371,6 @@ export interface components {
             /** Format: uuid */
             componentId: string;
             name: string | null;
-            /** @enum {string|null} */
-            platform: "web" | "compose" | "ios" | null;
             /**
              * Format: date-time
              * @example 2024-01-01T00:00:00.000Z
@@ -9759,7 +9764,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** Format: uuid */
-            designSystemId: string;
+            designSystemId: string | null;
             entityType: string;
             /** Format: uuid */
             entityId: string;
@@ -9836,6 +9841,8 @@ export interface components {
         };
         CreateComponent: {
             name: string;
+            /** @enum {string} */
+            platform: "web" | "compose" | "xml" | "ios";
             description?: string;
         };
         UpdateComponent: {
@@ -9866,8 +9873,6 @@ export interface components {
             type: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateProperty: {
             name?: string;
@@ -9875,20 +9880,22 @@ export interface components {
             type?: "color" | "typography" | "shape" | "shadow" | "dimension" | "float" | "component_style" | "value" | "icon" | "boolean" | "integer";
             defaultValue?: string;
             description?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         CreatePropertyPlatformParam: {
             /** Format: uuid */
             propertyId: string;
             /** @enum {string} */
-            platform: "xml" | "compose" | "ios" | "web";
+            platform: "web" | "compose" | "xml" | "ios";
             name: string;
+            deprecated?: boolean;
+            deprecatedMessage?: string | null;
         };
         UpdatePropertyPlatformParam: {
             /** @enum {string} */
-            platform?: "xml" | "compose" | "ios" | "web";
+            platform?: "web" | "compose" | "xml" | "ios";
             name?: string;
+            deprecated?: boolean;
+            deprecatedMessage?: string | null;
         };
         CreateVariationPlatformParamAdjustment: {
             /** Format: uuid */
@@ -9927,13 +9934,9 @@ export interface components {
             componentId: string;
             /** @default default */
             name: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         UpdateAppearance: {
             name?: string;
-            /** @enum {string|null} */
-            platform?: "web" | "compose" | "ios" | null;
         };
         CreateStyle: {
             /** Format: uuid */
@@ -10249,6 +10252,11 @@ export interface components {
              * @description Дизайн-система, конфигурации которой выгружаются
              */
             designSystemId: string;
+            /**
+             * @description Платформа компонентов: компонент идентифицируется парой (имя, платформа), без неё запрос отклоняется
+             * @enum {string}
+             */
+            platform: "web" | "compose" | "xml" | "ios";
             /** @description Optional component names to include in the returned package */
             components?: string[];
             /** @description Optional style names to include in the returned package */

@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.domain.ComponentConfig
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -11,7 +12,8 @@ import java.util.UUID
 /** Builds the common component-config model from the normalized legacy schema. */
 internal class ComponentConfigBuilder {
     fun build(appearance: ConfigAppearance, exported: Boolean, underived: MutableSet<String>): ComponentConfig {
-        val axes = axes(appearance.id)
+        val roles = AppearanceAxisRoleStore.load(listOf(appearance.id))[appearance.id]
+        val axes = axes(appearance.id, roles?.colorScheme)
         val stateNames = stateNames()
         val invariants = valueRows(appearance, invariant = true, stateNames = stateNames)
         val variationValues = valueRows(appearance, invariant = false, stateNames = stateNames)
@@ -20,7 +22,7 @@ internal class ComponentConfigBuilder {
         val idOf: (ConfigAxis) -> String = { if (exported) it.name else it.variationId.toString() }
 
         return ComponentConfig(
-            rootVariationId = axes.firstOrNull { it.name == "size" }?.let(idOf),
+            rootVariationId = axes.firstOrNull { it.variationId == roles?.root }?.let(idOf),
             colorSchemeVariationId = axes.firstOrNull { it.colorScheme }?.let(idOf),
             invariants = properties(invariants, where, exported, underived),
             defaults = axes.mapNotNull { axis ->
@@ -65,7 +67,7 @@ internal class ComponentConfigBuilder {
         )
     }
 
-    private fun axes(appearanceId: UUID): List<ConfigAxis> =
+    private fun axes(appearanceId: UUID, colorScheme: UUID?): List<ConfigAxis> =
         AppearanceVariationsTable.innerJoin(VariationsTable).selectAll()
             .where { AppearanceVariationsTable.appearanceId eq appearanceId }
             .orderBy(AppearanceVariationsTable.position)
@@ -75,7 +77,7 @@ internal class ComponentConfigBuilder {
                     row[AppearanceVariationsTable.variationId],
                     row[VariationsTable.name],
                     row[AppearanceVariationsTable.defaultStyleId],
-                    row[AppearanceVariationsTable.isColorScheme],
+                    row[AppearanceVariationsTable.variationId] == colorScheme,
                     row[AppearanceVariationsTable.declaredType],
                     AppearanceVariationValuesTable.innerJoin(ComponentStylesTable).selectAll()
                         .where { AppearanceVariationValuesTable.appearanceVariationId eq axisId }
@@ -115,7 +117,10 @@ internal class ComponentConfigBuilder {
                 (InvariantPropertyValuesTable.designSystemId eq appearance.designSystemId) and
                     (InvariantPropertyValuesTable.componentId eq appearance.componentId) and
                     (InvariantPropertyValuesTable.appearanceId eq appearance.id)
-            }.map { valueRow(it, true, stateNames) }
+            }.orderBy(
+                PropertiesTable.name to SortOrder.ASC,
+                InvariantPropertyValuesTable.position to SortOrder.ASC,
+            ).map { valueRow(it, true, stateNames) }
     } else {
         VariationPropertyValuesTable.innerJoin(PropertiesTable)
             .join(
@@ -124,7 +129,11 @@ internal class ComponentConfigBuilder {
                 additionalConstraint = { VariationPropertyValuesTable.tokenId eq ComponentTokensTable.id },
             )
             .selectAll().where { VariationPropertyValuesTable.appearanceId eq appearance.id }
-            .map { valueRow(it, false, stateNames) }
+            .orderBy(
+                PropertiesTable.name to SortOrder.ASC,
+                VariationPropertyValuesTable.styleId to SortOrder.ASC,
+                VariationPropertyValuesTable.position to SortOrder.ASC,
+            ).map { valueRow(it, false, stateNames) }
     }
 
     private fun valueRow(row: ResultRow, invariant: Boolean, states: Map<UUID, List<String>>): ConfigValueRow {
@@ -186,15 +195,28 @@ internal class ComponentConfigBuilder {
                     members,
                 )
             }
-        val keys = (byKey.keys + declared.map { it.first }).distinct()
+        // Declared order first; undeclared keys sorted so the export does not depend on physical row order.
+        val keys = (declared.map { it.first } + byKey.keys.sorted()).distinct()
         return keys.mapNotNull { key ->
             val declaration = declared.firstOrNull { it.first == key }
-            val members = declaration?.third ?: storedMembers[key].orEmpty()
+            val stored = declaration?.third ?: storedMembers[key].orEmpty()
+            // Stored member order follows random style ids; the export orders them by axis, then by name,
+            // so that the same configuration is exported identically whatever ids the rows received.
+            val members = if (exported) {
+                val axisPosition = axes.associate { it.variationId to it.position }
+                stored.sortedWith(
+                    compareBy({ axisPosition[it.variationId] ?: Int.MAX_VALUE }, { it.styleName }),
+                )
+            } else {
+                stored
+            }
             val owner = owner(members, axes, exported) ?: return@mapNotNull null
             ConfigCombination(
                 owner.styleId,
                 members,
-                byKey[key].orEmpty().map { row ->
+                byKey[key].orEmpty().sortedWith(
+                    compareBy({ it[PropertiesTable.name] }, { it[StyleCombinationsTable.position] }),
+                ).map { row ->
                     ConfigValueRow(
                         row[PropertiesTable.id], row[PropertiesTable.name], row[PropertiesTable.type].wireValue, null,
                         row[StyleCombinationsTable.value], row[StyleCombinationsTable.alpha],

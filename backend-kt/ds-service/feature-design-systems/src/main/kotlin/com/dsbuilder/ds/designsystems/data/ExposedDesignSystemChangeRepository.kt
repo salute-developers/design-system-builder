@@ -65,7 +65,8 @@ class ExposedDesignSystemChangeRepository : DesignSystemChangeRepository {
 
     private fun toDomain(row: ResultRow) = DesignSystemChange(
         id = row[DesignSystemChangesTable.id],
-        designSystemId = DesignSystemId(row[DesignSystemChangesTable.designSystemId]),
+        // Lists join design_systems (or filter by design system), so rows without one never reach this mapping.
+        designSystemId = DesignSystemId(requireNotNull(row[DesignSystemChangesTable.designSystemId])),
         entityType = row[DesignSystemChangesTable.entityType],
         entityId = row[DesignSystemChangesTable.entityId],
         operation = row[DesignSystemChangesTable.operation],

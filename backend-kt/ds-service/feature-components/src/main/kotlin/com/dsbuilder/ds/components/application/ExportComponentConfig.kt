@@ -6,6 +6,8 @@ import java.util.UUID
 data class ExportComponentConfig(
     /** Design system id carried by this contract. */
     val designSystemId: UUID,
+    /** Platform of the exported components. */
+    val platform: String,
     /** Components carried by this contract. */
     val components: List<String>?,
     /** Styles carried by this contract. */

@@ -106,3 +106,4 @@ its theme generation task, without generating anything and without relying on a 
 - **WHEN** `doctor` reports a ready toolchain
 - **THEN** a subsequent `run` MAY still fail if the specific requested capability/platform task is not
   configured for the module or the tool's own generation fails
+

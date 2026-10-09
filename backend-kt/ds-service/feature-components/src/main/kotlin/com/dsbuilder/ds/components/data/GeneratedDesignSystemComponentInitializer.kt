@@ -28,7 +28,9 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
     }
 
     private fun validate(designSystemId: UUID): SeedContext? {
-        val components = ComponentsTable.selectAll().associate { it[ComponentsTable.name] to it[ComponentsTable.id] }
+        // Seeds describe the web layer: components of other platforms share names but not identity.
+        val components = ComponentsTable.selectAll().where { ComponentsTable.platform eq ComponentPlatformDb.WEB }
+            .associate { it[ComponentsTable.name] to it[ComponentsTable.id] }
         val requiredComponents = buildSet {
             addAll(seeds.components.map(ComponentSeed::name))
             seeds.dependencies.forEach { dependency ->
@@ -285,7 +287,6 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
             it[ComponentAppearancesTable.designSystemId] = designSystemId
             it[ComponentAppearancesTable.componentId] = componentId
             it[name] = appearance.name
-            it[platform] = ComponentPlatformDb.WEB
         }.single()[ComponentAppearancesTable.id]
         val declared = appearance.variations ?: seed.variations.map(VariationSeed::name)
         declared.forEachIndexed { position, axis ->
