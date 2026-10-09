@@ -33,6 +33,7 @@ import legacyRouter from "./api/legacy";
 import componentConfigRouter from "./api/component-config";
 import componentConfigImportRouter from "./api/component-config-import";
 import componentConfigExportRouter from "./api/component-config-export";
+import componentConfigWebAdapterRouter from "./api/component-config-web-adapter";
 
 // Misc (legacy utility routes)
 import tablesRouter from "./misc/tables";
@@ -84,6 +85,7 @@ router.use("/ds/legacy/design-systems", legacyRouter);
 router.use("/ds/component-config", componentConfigRouter);
 router.use("/ds/component-config", componentConfigImportRouter);
 router.use("/ds/component-config", componentConfigExportRouter);
+router.use("/ds/component-config", componentConfigWebAdapterRouter);
 
 // Misc utility routes
 router.use("/admin/tables", tablesRouter);
