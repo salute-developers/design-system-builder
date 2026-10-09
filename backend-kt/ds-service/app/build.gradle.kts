@@ -16,31 +16,7 @@ tasks.shadowJar {
     mergeServiceFiles()
 }
 
-val generatedMigrationDirectory = layout.buildDirectory.dir("generated/flyway")
-val drizzleMigrations = fileTree("../../../js/services/db-service/drizzle") {
-    include("000*.sql")
-}.files.sortedBy { it.name }
-
-val generateFlywayBaseline by tasks.registering {
-    inputs.files(drizzleMigrations)
-    outputs.dir(generatedMigrationDirectory)
-    doLast {
-        val target = generatedMigrationDirectory.get().file("db/migration/V1__db_service_baseline.sql").asFile
-        target.parentFile.mkdirs()
-        target.writeText(
-            drizzleMigrations.joinToString("\n\n") { migration ->
-                "-- Source: ${migration.name}\n${migration.readText()}"
-            },
-        )
-    }
-}
-
-sourceSets.main {
-    resources.srcDir(generatedMigrationDirectory)
-}
-
 tasks.processResources {
-    dependsOn(generateFlywayBaseline)
     from("../contracts") {
         into("contracts")
     }

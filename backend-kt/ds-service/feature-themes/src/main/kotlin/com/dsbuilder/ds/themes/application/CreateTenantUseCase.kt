@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.application
 
 import com.dsbuilder.authorization.ProjectScope
+import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -13,6 +14,7 @@ class CreateTenantUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: TenantRepository,
+    private val componentInitializer: DesignSystemComponentInitializer,
     private val tokenValueInitializer: TenantTokenValueInitializer,
 ) {
     /** Performs the execute operation. */
@@ -22,6 +24,7 @@ class CreateTenantUseCase(
         is DsResult.Failure -> allowed
         is DsResult.Success -> transactions.required {
             repository.createOwned(context.projectId, command)?.let { tenant ->
+                componentInitializer.initialize(tenant.designSystemId)
                 tokenValueInitializer.initialize(tenant)
                 DsResult.Success(tenant)
             }

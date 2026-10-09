@@ -36,10 +36,13 @@ import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
+import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
+import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import org.koin.dsl.module
 
 /** Dependency bindings owned by the component feature. */
 val componentsModule = module {
+    single<DesignSystemComponentInitializer> { GeneratedDesignSystemComponentInitializer() }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }

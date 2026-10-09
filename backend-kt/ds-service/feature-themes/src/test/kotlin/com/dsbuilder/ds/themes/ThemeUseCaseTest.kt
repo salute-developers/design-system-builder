@@ -4,6 +4,7 @@ import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.authorization.ProjectActorType
 import com.dsbuilder.authorization.ProjectPrincipal
+import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -56,12 +57,20 @@ class ThemeUseCaseTest {
         val repository = RecordingTenantRepository()
         val command = CreateTenant(UUID.randomUUID(), "dark", null, ColorConfiguration())
 
+        val componentInitializer = RecordingComponentInitializer()
         val initializer = RecordingTokenValueInitializer()
-        val result = CreateTenantUseCase(policy, transactions, repository, initializer).execute(ownerContext(), command)
+        val result = CreateTenantUseCase(
+            policy,
+            transactions,
+            repository,
+            componentInitializer,
+            initializer,
+        ).execute(ownerContext(), command)
 
         assertIs<DsResult.Success<Tenant>>(result)
         assertEquals(ProjectId("project-1"), repository.createProject)
         assertEquals(command, repository.createCommand)
+        assertEquals(command.designSystemId, componentInitializer.designSystemId)
         assertEquals(command.designSystemId, initializer.tenant?.designSystemId)
     }
 
@@ -175,6 +184,14 @@ private class RecordingTokenValueInitializer : TenantTokenValueInitializer {
 
     override suspend fun initialize(tenant: Tenant) {
         this.tenant = tenant
+    }
+}
+
+private class RecordingComponentInitializer : DesignSystemComponentInitializer {
+    var designSystemId: UUID? = null
+
+    override suspend fun initialize(designSystemId: UUID) {
+        this.designSystemId = designSystemId
     }
 }
 

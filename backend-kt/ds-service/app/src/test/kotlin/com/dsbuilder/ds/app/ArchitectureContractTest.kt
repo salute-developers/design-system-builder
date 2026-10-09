@@ -93,6 +93,27 @@ class ArchitectureContractTest {
         }
     }
 
+    @Test
+    fun `production build is independent from db service sources`() {
+        val buildInputs = Files.walk(root).use { stream ->
+            stream.filter { path ->
+                val normalized = path.toString().replace('\\', '/')
+                !path.isDirectory() && "/build/" !in normalized && "/src/test/" !in normalized &&
+                    (
+                        path.name.endsWith(".gradle.kts") || path.name.endsWith(".sh") ||
+                            path.name.endsWith(".yaml") || path.name.endsWith(".yml") || path.name == "Dockerfile"
+                        )
+            }.toList()
+        }
+        val forbiddenMarkers = setOf("js/services/db-service", "node_modules", "tsx", "esbuild")
+        buildInputs.forEach { input ->
+            val text = input.readText()
+            forbiddenMarkers.forEach { marker ->
+                assertFalse(text.contains(marker), "$input contains forbidden build dependency '$marker'")
+            }
+        }
+    }
+
     private fun featureDirectories(): List<Path> = Files.list(root).use { stream ->
         stream.filter { it.isDirectory() && it.name.startsWith("feature-") }.toList()
     }

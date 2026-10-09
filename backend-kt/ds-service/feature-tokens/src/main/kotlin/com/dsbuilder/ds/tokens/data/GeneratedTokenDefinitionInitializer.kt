@@ -11,7 +11,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
-/** Создаёт определения токенов из build-time ресурса исходного db-service. */
+/** Создаёт определения токенов из канонического ресурса ds-service. */
 class GeneratedTokenDefinitionInitializer : DesignSystemTokenInitializer {
     override suspend fun initialize(designSystemId: UUID) {
         if (TokensTable.selectAll().where { TokensTable.designSystemId eq designSystemId }.limit(1).any()) return

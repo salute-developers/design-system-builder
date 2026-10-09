@@ -19,7 +19,7 @@ val themesModule = module {
     single<TenantTokenValueInitializer> { GeneratedTenantTokenValueInitializer() }
     factory { ListTenantsUseCase(get(), get(), get()) }
     factory { GetTenantUseCase(get(), get(), get()) }
-    factory { CreateTenantUseCase(get(), get(), get(), get()) }
+    factory { CreateTenantUseCase(get(), get(), get(), get(), get()) }
     factory { UpdateTenantUseCase(get(), get(), get()) }
     factory { DeleteTenantUseCase(get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get()) }
