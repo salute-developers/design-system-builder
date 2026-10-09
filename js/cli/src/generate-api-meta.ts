@@ -154,9 +154,9 @@ async function findOwningPackage(from: string): Promise<string> {
     }
 }
 
-async function resolveSource({ source, packageName }: Options): Promise<Source> {
+async function resolveSource({ source, packageName }: Options, from = process.cwd()): Promise<Source> {
     if (packageName) {
-        const packageDirectory = await findInstalledPackage(packageName, process.cwd());
+        const packageDirectory = await findInstalledPackage(packageName, from);
         const typesDirectory = join(packageDirectory, 'types');
         if (!(await exists(typesDirectory))) {
             throw new Error(`Style API meta: package "${packageName}" has no types directory.`);
@@ -284,74 +284,105 @@ function toParam({ key, styleType, styleProp = key, stylePart, styleState, depre
     };
 }
 
-const options = parseArgs(process.argv.slice(2));
-const source = await resolveSource(options);
-const components: ComponentMeta[] = [];
-const fileByComponent = new Map<string, string>();
-const duplicates = new Map<string, string[]>();
-let skipped = 0;
+/** Маппинги Style API пакета компонентов и сведения об источнике. */
+export interface ApiMetaResult {
+    metadata: ComponentMeta[];
+    source: Source;
+    skipped: number;
+}
 
-for (const file of await findTokenFiles(source.directory)) {
-    const location = relative(process.cwd(), file);
-    const sourceFile = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
-    const members = findDictionaryMembers(sourceFile, location) ?? [];
-    const annotations = members.map((property) => {
-        const key = propertyKey(property, sourceFile);
-        return readAnnotation(property, key);
-    });
+/**
+ * Собирает маппинги Style API из установленного пакета компонентов или из исходников.
+ *
+ * Используется и этим скриптом, и генерацией компонентов: та вызывает его на каждый запуск, чтобы
+ * маппинги всегда соответствовали установленной версии пакета.
+ *
+ * @param from каталог, от которого ищется установленный пакет (как это делает Node).
+ */
+export async function buildApiMeta(options: { packageName?: string; source?: string }, from = process.cwd()): Promise<ApiMetaResult> {
+    const source = await resolveSource(options as Options, from);
+    const components: ComponentMeta[] = [];
+    const fileByComponent = new Map<string, string>();
+    const duplicates = new Map<string, string[]>();
+    let skipped = 0;
 
-    // A dictionary without a single annotation is not annotated yet; a file without tokens is still listed.
-    if (annotations.length > 0 && !annotations.some(({ styleType }) => styleType)) {
-        skipped += 1;
-        continue;
-    }
+    for (const file of await findTokenFiles(source.directory)) {
+        const location = relative(process.cwd(), file);
+        const sourceFile = ts.createSourceFile(file, await readFile(file, 'utf8'), ts.ScriptTarget.Latest, true);
+        const members = findDictionaryMembers(sourceFile, location) ?? [];
+        const annotations = members.map((property) => {
+            const key = propertyKey(property, sourceFile);
+            return readAnnotation(property, key);
+        });
 
-    const unannotated = annotations.filter(({ styleType }) => !styleType).map(({ key }) => key);
-    if (unannotated.length > 0) {
-        throw new Error(`${location}: tokens without @styleType: ${unannotated.join(', ')}.`);
-    }
-
-    // A token belongs to the components from @styleComponent, otherwise to the component of the file.
-    const fallback = defaultComponent(file);
-    const paramsByComponent = new Map<string, Param[]>(annotations.length === 0 ? [[fallback, []]] : []);
-    for (const annotation of annotations) {
-        for (const componentName of annotation.styleComponent ?? [fallback]) {
-            paramsByComponent.set(componentName, [
-                ...(paramsByComponent.get(componentName) ?? []),
-                toParam(annotation),
-            ]);
-        }
-    }
-
-    for (const [componentName, params] of paramsByComponent) {
-        if (fileByComponent.has(componentName)) {
-            duplicates.set(componentName, [
-                ...(duplicates.get(componentName) ?? [relative(process.cwd(), fileByComponent.get(componentName)!)]),
-                location,
-            ]);
+        // A dictionary without a single annotation is not annotated yet; a file without tokens is still listed.
+        if (annotations.length > 0 && !annotations.some(({ styleType }) => styleType)) {
+            skipped += 1;
             continue;
         }
-        fileByComponent.set(componentName, file);
-        components.push({
-            componentName,
-            params: params.sort((left, right) => byName(left.paramName, right.paramName)),
-        });
+
+        const unannotated = annotations.filter(({ styleType }) => !styleType).map(({ key }) => key);
+        if (unannotated.length > 0) {
+            throw new Error(`${location}: tokens without @styleType: ${unannotated.join(', ')}.`);
+        }
+
+        // A token belongs to the components from @styleComponent, otherwise to the component of the file.
+        const fallback = defaultComponent(file);
+        const paramsByComponent = new Map<string, Param[]>(annotations.length === 0 ? [[fallback, []]] : []);
+        for (const annotation of annotations) {
+            for (const componentName of annotation.styleComponent ?? [fallback]) {
+                paramsByComponent.set(componentName, [
+                    ...(paramsByComponent.get(componentName) ?? []),
+                    toParam(annotation),
+                ]);
+            }
+        }
+
+        for (const [componentName, params] of paramsByComponent) {
+            if (fileByComponent.has(componentName)) {
+                duplicates.set(componentName, [
+                    ...(duplicates.get(componentName) ?? [relative(process.cwd(), fileByComponent.get(componentName)!)]),
+                    location,
+                ]);
+                continue;
+            }
+            fileByComponent.set(componentName, file);
+            components.push({
+                componentName,
+                params: params.sort((left, right) => byName(left.paramName, right.paramName)),
+            });
+        }
     }
+
+    if (duplicates.size > 0) {
+        throw new Error(
+            `Style API meta: component names must be unique:\n${[...duplicates]
+                .map(([name, files]) => `  ${name}: ${files.join(', ')}`)
+                .join('\n')}`,
+        );
+    }
+
+    return {
+        metadata: components.sort((left, right) => byName(left.componentName, right.componentName)),
+        source,
+        skipped,
+    };
 }
 
-if (duplicates.size > 0) {
-    throw new Error(
-        `Style API meta: component names must be unique:\n${[...duplicates]
-            .map(([name, files]) => `  ${name}: ${files.join(', ')}`)
-            .join('\n')}`,
-    );
+/** Пишет маппинги в файл: `--out` или `<sdds>/web/web-api-meta.json`. */
+async function main() {
+    const options = parseArgs(process.argv.slice(2));
+    const { metadata, source, skipped } = await buildApiMeta(options);
+    const summary = `${metadata.length} Style API declarations from ${source.name}@${source.version} (${skipped} token files without annotations skipped)`;
+
+    const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+    const out = resolve(options.out ?? join(options.sdds ?? join(cliDirectory, '.sdds'), 'web', 'web-api-meta.json'));
+    await mkdir(dirname(out), { recursive: true });
+    await writeFile(out, `${JSON.stringify(metadata, null, 2)}\n`);
+    process.stdout.write(`Generated ${summary} at ${out}\n`);
 }
 
-const metadata = components.sort((left, right) => byName(left.componentName, right.componentName));
-const summary = `${metadata.length} Style API declarations from ${source.name}@${source.version} (${skipped} token files without annotations skipped)`;
-
-const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const out = resolve(options.out ?? join(options.sdds ?? join(cliDirectory, '.sdds'), 'web', 'web-api-meta.json'));
-await mkdir(dirname(out), { recursive: true });
-await writeFile(out, `${JSON.stringify(metadata, null, 2)}\n`);
-process.stdout.write(`Generated ${summary} at ${out}\n`);
+// Скрипт запускается напрямую (`npm run generate:api-meta`) и подключается генерацией компонентов как модуль.
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    await main();
+}
