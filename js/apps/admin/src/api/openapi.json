@@ -3026,6 +3026,22 @@
             "type": "string",
             "format": "uuid",
             "description": "Дизайн-система, конфигурации которой выгружаются"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional component names to include in the returned package"
+          },
+          "styles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Optional style names to include in the returned package"
           }
         },
         "required": [
@@ -3089,6 +3105,73 @@
           "components",
           "underivedTypes"
         ]
+      },
+      "ComponentWebAdapterRequest": {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Дизайн-система, данные которой выгружаются"
+          }
+        },
+        "required": [
+          "designSystemId"
+        ]
+      },
+      "ComponentWebAdapter": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "componentName": {
+              "type": "string",
+              "description": "Имя компонента в написании meta.json"
+            },
+            "name": {
+              "type": "string",
+              "description": "Имя компонента в коде, как в базе"
+            },
+            "description": {
+              "type": "string",
+              "description": "Описание для JSDoc обёртки"
+            },
+            "compose": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Дочерние компоненты compose в написании meta.json, в порядке связи; только компоненты пакета"
+            },
+            "styles": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "templates": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "description": "Свойство -> web-параметр -> шаблон значения, например `0 $1`"
+                  }
+                },
+                "required": [
+                  "templates"
+                ]
+              },
+              "description": "Шаблоны по стилям (appearance), только у стилей, где они есть"
+            }
+          },
+          "required": [
+            "componentName",
+            "name"
+          ]
+        },
+        "description": "Компоненты пакета по componentName; пустые поля не пишутся"
       },
       "ComponentImportReport": {
         "type": "object",
@@ -3479,96 +3562,6 @@
         }
       }
     },
-    "/ds/design-systems/{id}/components": {
-      "get": {
-        "tags": [
-          "Design Systems"
-        ],
-        "summary": "Get components for design system",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Component"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/ds/design-systems/{id}/tokens": {
-      "get": {
-        "tags": [
-          "Design Systems"
-        ],
-        "summary": "Get tokens for design system",
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "example": "550e8400-e29b-41d4-a716-446655440000"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of items",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Token"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/ds/design-systems/{id}/tenants": {
       "get": {
         "tags": [
@@ -3687,6 +3680,256 @@
                   "items": {
                     "$ref": "#/components/schemas/DesignSystemChange"
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/tokens": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get tokens for design system",
+        "description": "Project-scoped authoritative token list. Preserves array response shape and supports optional type/query filters.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "color",
+                "gradient",
+                "typography",
+                "fontFamily",
+                "spacing",
+                "shape",
+                "shadow"
+              ]
+            },
+            "required": false,
+            "name": "type",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "query",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Token"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks tokens:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Design system not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/components": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get components for design system",
+        "description": "Project-scoped authoritative component list. Preserves array response shape and supports optional textual query.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "query",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Component list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Component"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Design system not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/design-systems/{id}/components/{componentId}/styles": {
+      "get": {
+        "tags": [
+          "Design Systems"
+        ],
+        "summary": "Get component styles in design system",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "componentId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Styles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Style"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Component not found in design system",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -8006,7 +8249,7 @@
         "tags": [
           "Tokens"
         ],
-        "summary": "All token values for a token",
+        "summary": "Filtered token values for a token",
         "parameters": [
           {
             "schema": {
@@ -8017,11 +8260,46 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": false,
+            "name": "tenantId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "light",
+                "dark"
+              ]
+            },
+            "required": false,
+            "name": "mode",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "android",
+                "ios"
+              ]
+            },
+            "required": false,
+            "name": "platform",
+            "in": "query"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of items",
+            "description": "Token values",
             "content": {
               "application/json": {
                 "schema": {
@@ -8029,6 +8307,36 @@
                   "items": {
                     "$ref": "#/components/schemas/TokenValue"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Project key lacks tokens:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Token not found or unavailable to project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -12408,7 +12716,7 @@
           "Component Config"
         ],
         "summary": "Выгрузка конфигураций компонентов одним ответом",
-        "description": "Зеркало /import: тот же путь, POST, адресация телом. Существующий\nGET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.\n\nmeta.version берётся из последней опубликованной версии. Дизайн-система без версий\nотклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы\nв собранную тему.\n\nТип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен\nзначения градиентный, иначе тип свойства. properties.type описывает слот API компонента,\nгде color означает семейство paint. Значение типа color или gradient кладётся в default,\nостальные — в value; states[].type пишется только при расхождении с базовым значением.\n\nПорядок ответа детерминирован: компоненты по componentName, затем styleName,\nсвойства по имени.\n\nСвойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,\nи о них сообщает отчёт /import.\n\nТребует scope components:read, если запрос пришёл с ключом проекта.",
+        "description": "Зеркало /import: тот же путь, POST, адресация телом. Существующий\nGET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.\n\nmeta.version берётся из последней опубликованной версии. Дизайн-система без версий\nотклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы\nв собранную тему.\n\nТип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен\nзначения градиентный, иначе тип свойства. properties.type описывает слот API компонента,\nгде color означает семейство paint. Значение типа color или gradient кладётся в default,\nостальные — в value; states[].type пишется только при расхождении с базовым значением.\n\nСмещение значения (adjustment) берётся из колонки строки, а если она пуста — из числовых\nпоправок платформенных параметров с приоритетом web, как в legacy-выгрузке.\n\nПорядок ответа детерминирован: компоненты по componentName, затем styleName,\nсвойства по имени.\n\nСвойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,\nи о них сообщает отчёт /import.\n\nТребует scope components:read, если запрос пришёл с ключом проекта.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12462,6 +12770,77 @@
           },
           "422": {
             "description": "Нет опубликованной версии или имя компонента не восстанавливается обратно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ds/component-config/web-adapter": {
+      "post": {
+        "tags": [
+          "Component Config"
+        ],
+        "summary": "Web-адаптер: шаблоны web-параметров, compose-связи, имена и описания компонентов",
+        "description": "Временная ручка для локальной web-генерации: CLI сохраняет ответ как есть в\n.sdds/web/web-adapter.json. В ответ /export эти данные не входят: формат конфигураций\nобщий для платформ.\n\nТребует scope components:read, если запрос пришёл с ключом проекта.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentWebAdapterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Web-адаптер",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComponentWebAdapter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "designSystemId не является uuid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "У ключа нет scope components:read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Дизайн-система не найдена или недоступна проекту",
             "content": {
               "application/json": {
                 "schema": {

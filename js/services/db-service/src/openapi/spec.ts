@@ -1114,6 +1114,9 @@ registry.registerPath({
     "где color означает семейство paint. Значение типа color или gradient кладётся в default,",
     "остальные — в value; states[].type пишется только при расхождении с базовым значением.",
     "",
+    "Смещение значения (adjustment) берётся из колонки строки, а если она пуста — из числовых",
+    "поправок платформенных параметров с приоритетом web, как в legacy-выгрузке.",
+    "",
     "Порядок ответа детерминирован: компоненты по componentName, затем styleName,",
     "свойства по имени.",
     "",
@@ -1131,6 +1134,67 @@ registry.registerPath({
     403: { description: "У ключа нет scope components:read", ...json(ErrorResponseSchema) },
     404: { description: "Дизайн-система не найдена или недоступна проекту", ...json(ErrorResponseSchema) },
     422: { description: "Нет опубликованной версии или имя компонента не восстанавливается обратно", ...json(ErrorResponseSchema) },
+    500: { description: "Server error", ...json(ErrorResponseSchema) },
+  },
+});
+
+const WebAdapterRequestSchema = registry.register(
+  "ComponentWebAdapterRequest",
+  z
+    .object({
+      designSystemId: z.string().uuid().openapi({ description: "Дизайн-система, данные которой выгружаются" }),
+    })
+    .openapi("ComponentWebAdapterRequest"),
+);
+
+const WebAdapterSchema = registry.register(
+  "ComponentWebAdapter",
+  z
+    .array(
+      z.object({
+        componentName: z.string().openapi({ description: "Имя компонента в написании meta.json" }),
+        name: z.string().openapi({ description: "Имя компонента в коде, как в базе" }),
+        description: z.string().optional().openapi({ description: "Описание для JSDoc обёртки" }),
+        compose: z.array(z.string()).optional().openapi({
+          description: "Дочерние компоненты compose в написании meta.json, в порядке связи; только компоненты пакета",
+        }),
+        styles: z
+          .record(
+            z.string(),
+            z.object({
+              templates: z.record(z.string(), z.record(z.string(), z.string())).openapi({
+                description: "Свойство -> web-параметр -> шаблон значения, например `0 $1`",
+              }),
+            }),
+          )
+          .optional()
+          .openapi({ description: "Шаблоны по стилям (appearance), только у стилей, где они есть" }),
+      }),
+    )
+    .openapi({ description: "Компоненты пакета по componentName; пустые поля не пишутся" })
+    .openapi("ComponentWebAdapter"),
+);
+
+registry.registerPath({
+  method: "post",
+  path: `${DS_PREFIX}/component-config/web-adapter`,
+  tags: ["Component Config"],
+  summary: "Web-адаптер: шаблоны web-параметров, compose-связи, имена и описания компонентов",
+  description: [
+    "Временная ручка для локальной web-генерации: CLI сохраняет ответ как есть в",
+    ".sdds/web/web-adapter.json. В ответ /export эти данные не входят: формат конфигураций",
+    "общий для платформ.",
+    "",
+    "Требует scope components:read, если запрос пришёл с ключом проекта.",
+  ].join("\n"),
+  request: {
+    body: { required: true, ...json(WebAdapterRequestSchema) },
+  },
+  responses: {
+    200: { description: "Web-адаптер", ...json(WebAdapterSchema) },
+    400: { description: "designSystemId не является uuid", ...json(ErrorResponseSchema) },
+    403: { description: "У ключа нет scope components:read", ...json(ErrorResponseSchema) },
+    404: { description: "Дизайн-система не найдена или недоступна проекту", ...json(ErrorResponseSchema) },
     500: { description: "Server error", ...json(ErrorResponseSchema) },
   },
 });

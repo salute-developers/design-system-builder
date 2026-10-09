@@ -487,4 +487,65 @@ describe("buildComponentPackage", () => {
       });
     });
   });
+
+  describe("смещения из поправок платформенных параметров", () => {
+    /** Заводит web-параметр свойства и поправку на строку инварианта. */
+    const adjustInvariant = async (
+      tx: TestTx,
+      fixture: Fixture,
+      property: string,
+      param: { platform: "web" | "xml"; name: string },
+      adjustment: { value?: string; template?: string },
+    ) => {
+      const [prop] = await tx
+        .select({ id: schema.properties.id })
+        .from(schema.properties)
+        .where(eq(schema.properties.name, property));
+      const [ppp] = await tx
+        .insert(schema.propertyPlatformParams)
+        .values({ propertyId: prop.id, platform: param.platform, name: param.name })
+        .returning();
+      const [ipv] = await tx
+        .select({ id: schema.invariantPropertyValues.id })
+        .from(schema.invariantPropertyValues)
+        .where(eq(schema.invariantPropertyValues.propertyId, prop.id));
+      await tx.insert(schema.invariantPlatformParamAdjustments).values({
+        ipvId: ipv.id,
+        platformParamId: ppp.id,
+        value: adjustment.value ?? null,
+        template: adjustment.template ?? null,
+      });
+    };
+
+    it("берёт смещение из поправки, если у строки его нет, с приоритетом web", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "radius", type: "dimension" }]);
+        await publishVersion(tx, fixture.designSystemId);
+        await exportOf(tx, fixture, [configWith({ radius: { type: "dimension", value: 12 } })]);
+
+        await adjustInvariant(tx, fixture, "radius", { platform: "xml", name: "sd_radius" }, { value: "-4" });
+        await adjustInvariant(tx, fixture, "radius", { platform: "web", name: "testButtonRadius" }, { value: "-2" });
+
+        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" });
+        if (!result.ok) throw new Error(result.reason);
+        expect((result.package.components[0].config as any).invariants.radius.adjustment).toBe(-2);
+      });
+    });
+
+    it("не считает смещением копию значения и нечисловую поправку", async () => {
+      await withRollback(async (tx) => {
+        const fixture = await seedGlobalLayer(tx, [{ name: "radius", type: "dimension" }]);
+        await publishVersion(tx, fixture.designSystemId);
+        await exportOf(tx, fixture, [configWith({ radius: { type: "dimension", value: 12 } })]);
+
+        await adjustInvariant(tx, fixture, "radius", { platform: "web", name: "testButtonRadius" }, { value: "12" });
+        await adjustInvariant(tx, fixture, "radius", { platform: "xml", name: "sd_radius" }, { value: "round.l" });
+
+        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" });
+        if (!result.ok) throw new Error(result.reason);
+        expect((result.package.components[0].config as any).invariants.radius).not.toHaveProperty("adjustment");
+      });
+    });
+
+  });
 });
