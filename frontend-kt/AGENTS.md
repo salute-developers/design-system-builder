@@ -22,10 +22,10 @@ core-domain, core-network, core-auth, core-workspace, core-process
                     core-platform ─────────────┐
                           │                    │
     ┌─────────┬───────────┼──────────┬─────────┬────────────┐
-feature-init feature-auth feature-status feature-theme feature-docs feature-components feature-toolchain
+feature-init feature-auth feature-status feature-theme feature-docs feature-components feature-toolchain feature-ds
     │         │            │              │            │                   │
     └─────────┴─────┬──────┴──────────────┴────────────┴───────────────────┘
-                    │                    platform-ios (адаптер платформы)
+                    │                    platform-ios, platform-android, platform-web (адаптеры платформ)
                     └────────────┬───────────────┘
                     :cli (presentation + composition root)
                      │
@@ -45,8 +45,10 @@ feature-init feature-auth feature-status feature-theme feature-docs feature-comp
 - `core-process` — порт запуска внешних процессов (`ProcessRunner`, `ProcessRequest`, `ProcessResult`). Без зависимостей на другие `core-*`: платформенные реализации живут в composition root клиента и приезжают через `ClientRuntime`.
 - `core-application` — порты разрешения контекста/credentials/API URL (`ProjectContextReader`, `ProjectApiKeyProvider`, `ProjectApiUrlProvider`) и их runtime-адаптеры, плюс `ClientRuntime` — контейнер платформенных зависимостей клиента. Зависит от всех четырёх модулей выше.
 - `core-platform` — делегирование платформам: порт `PlatformDelegate`, реестр `PlatformDelegateRegistry`, выбор платформы `PlatformResolver`, общий сценарий запуска `PlatformCapabilityRunner` и порт установки инструментов `ToolchainInstaller` с реестром `ToolchainInstallerRegistry`. Зависит от `core-domain` и `core-application`. Адаптеры конкретных платформ живут в отдельных модулях `platform-<toolchain>` и в `core-platform` не попадают.
-- `feature-init`, `feature-auth`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain` — по одному модулю на пользовательскую возможность. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
+- `feature-init`, `feature-auth`, `feature-status`, `feature-theme`, `feature-docs`, `feature-components`, `feature-toolchain`, `feature-ds` — по одному модулю на пользовательскую возможность. Каждый зависит только от тех `core-*`, которые реально использует (например, `feature-init` не использует `core-network`, `feature-status` не использует `core-workspace`) — зависимость не добавляется «про запас».
+- `feature-ds` — дизайн-система целиком: `GenerateDesignSystemUseCase` (capability `DESIGN_SYSTEM`). Зависит только от `core-*`; `ds fetch` своего use case не имеет и склеивает загрузки `theme` и `components` в presentation `:cli`, потому что фичи не зависят друг от друга.
 - `platform-ios` — адаптер платформы iOS: переводит capability в вызовы `dsbuilder-ios` и ищет этот инструмент на машине. Зависит от `core-platform` и `core-process`; ни один `feature-*` от него не зависит.
+- `platform-web` — адаптер платформы React: переводит `THEME`/`COMPONENTS` в `npm run generate:theme`/`generate:components` web-генератора `js/cli`, каталог которого задаётся `--tool` или `DSBUILDER_WEB_TOOL`. Зависимости те же, что у `platform-ios`.
 - `mcp-server-core` — shared MCP tool registry и protocol/domain DTO поверх `core-application`, `feature-status` и общего `ContextResolver`; JVM/macOS source sets содержат bridge к официальному MCP SDK, а common API не протаскивает SDK-типы в `core-*`/`feature-*`.
 - `:cli` — тонкая presentation-обёртка и composition root для команды `dsbuilder`, включая launcher `dsbuilder mcp serve`. Смотри [`cli/AGENTS.md`](cli/AGENTS.md).
 - `:mcp-node` — Kotlin/JS Node.js executable и npm package `dsbuilder-mcp`; это отдельный presentation/composition root для MCP и auth-команд, а не библиотека бизнес-логики.
