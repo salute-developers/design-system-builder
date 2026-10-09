@@ -3,17 +3,20 @@ export const createPackageJSON = ({
     packageVersion,
     coreVersion,
     hasComponents = true,
+    hasTheme = true,
     packageScope,
 }: {
     packageName: string;
     packageVersion: string;
     coreVersion: string;
     hasComponents?: boolean;
+    /** Без темы нет `src/theme/css`: шаг `copy-css-files` и каталог `css` в пакете пропускаются. */
+    hasTheme?: boolean;
     packageScope: string;
 }) => {
     // Без компонентов нет `src/components`, и babel на нём падает — собираем только тему через rollup.
     const buildSteps = [
-        'CSS_BUILD_PATH=css npm run copy-css-files',
+        ...(hasTheme ? ['CSS_BUILD_PATH=css npm run copy-css-files'] : []),
         'npm run lint -- --fix',
         ...(hasComponents ? ['npm run build:styled-components'] : []),
         'npm run build:css',
@@ -39,7 +42,7 @@ export const createPackageJSON = ({
                 'components',
                 'es',
                 'theme',
-                'css',
+                ...(hasTheme ? ['css'] : []),
                 'index.css',
                 'index.d.ts',
                 'index.js',

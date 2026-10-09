@@ -30,6 +30,7 @@ export const generateBaseFileStructure = async ({
     packageVersion,
     coreVersion,
     hasComponents,
+    hasTheme = true,
 }: BaseFileStructure) => {
     // const __filename = fileURLToPath(import.meta.url);
     // const __dirname = dirname(__filename);
@@ -47,6 +48,7 @@ export const generateBaseFileStructure = async ({
         packageVersion,
         coreVersion,
         hasComponents,
+        hasTheme,
         packageScope: NPM_PACKAGE_SCOPE,
     });
     await fs.writeFile(`${pathToDir}/package.json`, packageJSON);
