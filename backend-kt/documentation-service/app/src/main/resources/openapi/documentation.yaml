@@ -1,0 +1,125 @@
+openapi: 3.0.3
+info:
+  title: DS Builder Documentation API
+  version: 1.0.0
+  description: Project-scoped documentation ingestion, publication, and search API.
+servers:
+  - url: /
+paths:
+  /documentation/bundles:
+    post:
+      tags: [Ingestion]
+      summary: Upload a documentation bundle
+      requestBody:
+        required: true
+        content:
+          application/gzip:
+            schema: { type: string, format: binary }
+      responses:
+        '202': { description: Bundle accepted }
+        '400': { description: Invalid bundle }
+        '403': { description: Insufficient scope }
+  /documentation/ingestion-jobs/{jobId}:
+    get:
+      tags: [Ingestion]
+      summary: Get ingestion job
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200': { description: Ingestion job, content: { application/json: { schema: { type: object } } } }
+        '404': { description: Job not found }
+  /documentation/publications/active:
+    get:
+      tags: [Publications]
+      summary: Get the active documentation publication
+      parameters:
+        - $ref: '#/components/parameters/DesignSystemId'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Platform'
+      responses:
+        '200': { description: Active publication, content: { application/json: { schema: { type: object } } } }
+        '404': { description: Publication not found }
+  /documentation/publications/{publicationId}/navigation:
+    get:
+      tags: [Publications]
+      summary: Get publication navigation
+      parameters: [ { $ref: '#/components/parameters/PublicationId' } ]
+      responses: { '200': { description: Navigation, content: { application/json: { schema: { type: object } } } } }
+  /documentation/publications/{publicationId}/pages/{path}:
+    get:
+      tags: [Publications]
+      summary: Get a publication page
+      parameters:
+        - $ref: '#/components/parameters/PublicationId'
+        - name: path
+          in: path
+          required: true
+          schema: { type: string }
+      responses: { '200': { description: Page, content: { application/json: { schema: { type: object } } } } }
+  /documentation/publications/{publicationId}/bindings:
+    get:
+      tags: [Publications]
+      summary: List publication code bindings
+      parameters: [ { $ref: '#/components/parameters/PublicationId' } ]
+      responses: { '200': { description: Bindings, content: { application/json: { schema: { type: array, items: { type: object } } } } } }
+  /documentation/publications/{publicationId}/bindings/{bindingId}:
+    get:
+      tags: [Publications]
+      summary: Get a publication code binding
+      parameters:
+        - $ref: '#/components/parameters/PublicationId'
+        - name: bindingId
+          in: path
+          required: true
+          schema: { type: string }
+      responses: { '200': { description: Binding, content: { application/json: { schema: { type: object } } } } }
+  /documentation/publications/{publicationId}/assets/{assetId}:
+    get:
+      tags: [Publications]
+      summary: Download a publication asset
+      parameters:
+        - $ref: '#/components/parameters/PublicationId'
+        - name: assetId
+          in: path
+          required: true
+          schema: { type: string }
+      responses: { '200': { description: Asset } }
+  /documentation/search:
+    get:
+      tags: [Search]
+      summary: Search active documentation
+      parameters:
+        - $ref: '#/components/parameters/DesignSystemId'
+        - $ref: '#/components/parameters/Version'
+        - $ref: '#/components/parameters/Platform'
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: subject
+          in: query
+          schema: { type: string }
+        - name: cursor
+          in: query
+          schema: { type: integer, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses: { '200': { description: Search results, content: { application/json: { schema: { type: object } } } } }
+  /documentation/kb/fetch:
+    get:
+      tags: [Search]
+      summary: Fetch a documentation knowledge-base chunk
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string }
+      responses: { '200': { description: Knowledge-base chunk, content: { application/json: { schema: { type: object } } } } }
+components:
+  parameters:
+    JobId: { name: jobId, in: path, required: true, schema: { type: string } }
+    PublicationId: { name: publicationId, in: path, required: true, schema: { type: string } }
+    DesignSystemId: { name: designSystemId, in: query, required: true, schema: { type: string } }
+    Version: { name: version, in: query, required: true, schema: { type: string } }
+    Platform: { name: platform, in: query, required: true, schema: { type: string } }

@@ -44,6 +44,10 @@ http {
         server ${DB_SERVICE_UPSTREAM_HOST}:${DB_SERVICE_UPSTREAM_PORT};
     }
 
+    upstream ds_service_api {
+        server ${DS_SERVICE_UPSTREAM_HOST}:${DS_SERVICE_UPSTREAM_PORT};
+    }
+
     upstream docs_service_api {
         server ${DOCS_SERVICE_UPSTREAM_HOST}:${DOCS_SERVICE_UPSTREAM_PORT};
     }
@@ -282,6 +286,32 @@ http {
             proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
         }
 
+        # Compatibility routes excluded from ds-service remain on the legacy service.
+        location ~ ^/api/projects/([^/]+)/ds/(?:legacy|saved-queries)(/.*)?$ {
+            set $project_id $1;
+            limit_req zone=project_api burst=20 nodelay;
+            auth_request /_auth_project;
+            auth_request_set $trusted_actor_type $upstream_http_x_actor_type;
+            auth_request_set $trusted_user_id $upstream_http_x_user_id;
+            auth_request_set $trusted_project_id $upstream_http_x_project_id;
+            auth_request_set $trusted_project_role $upstream_http_x_project_role;
+            auth_request_set $trusted_project_key_id $upstream_http_x_project_key_id;
+            auth_request_set $trusted_project_scopes $upstream_http_x_project_scopes;
+            auth_request_set $trusted_system_admin $upstream_http_x_system_admin;
+            proxy_set_header X-Actor-Type $trusted_actor_type;
+            proxy_set_header X-User-Id $trusted_user_id;
+            proxy_set_header X-Project-Id $trusted_project_id;
+            proxy_set_header X-Project-Role $trusted_project_role;
+            proxy_set_header X-Project-Key-Id $trusted_project_key_id;
+            proxy_set_header X-Project-Scopes $trusted_project_scopes;
+            proxy_set_header X-System-Admin $trusted_system_admin;
+            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;
+            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
+        }
+
         location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {
             set $project_id $1;
 
@@ -308,13 +338,11 @@ http {
             proxy_set_header X-Project-Scopes $trusted_project_scopes;
             proxy_set_header X-System-Admin $trusted_system_admin;
 
-            proxy_set_header Host ${DB_SERVICE_UPSTREAM_HOST};
+            proxy_set_header Host ${DS_SERVICE_UPSTREAM_HOST};
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
             rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;
-            proxy_ssl_server_name on;
-            proxy_ssl_name ${DB_SERVICE_UPSTREAM_HOST};
-            proxy_pass ${DB_SERVICE_UPSTREAM_SCHEME}://db_service_api;
+            proxy_pass ${DS_SERVICE_UPSTREAM_SCHEME}://ds_service_api;
         }
 
         location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {

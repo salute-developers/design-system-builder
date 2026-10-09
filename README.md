@@ -179,6 +179,41 @@ cp js/.env.example js/.env
 ./backend-kt/start-local.sh --detach
 ```
 
+### Проверка API через Scalar
+
+Локальный API Reference на базе Scalar объединяет публичные контракты Authentication,
+Projects, Design systems и Documentation. Он отправляет запросы через Gateway, поэтому
+пути и авторизация соответствуют реальному клиентскому API, а не внутренним адресам
+микросервисов.
+
+Сначала поднимите локальный контур, затем в отдельном терминале выполните:
+
+```bash
+./backend-kt/scripts/start-api-reference.sh
+```
+
+Откройте [http://127.0.0.1:8090](http://127.0.0.1:8090). Для другого порта передайте
+`--port <port>`. При необходимости Dev и Production gateway добавляются только при
+явной передаче `DS_API_REFERENCE_DEV_GATEWAY` и `DS_API_REFERENCE_PROD_GATEWAY` перед
+запуском скрипта.
+
+Базовый сценарий проверки project-scoped API:
+
+1. В источнике **Projects** откройте `List available projects for the actor` и нажмите
+   **Test Request**.
+2. В блоке **Authentication** выберите `GatewayOAuth`, укажите учётные данные локального
+   пользователя и нажмите **Authorize**. Затем отправьте запрос и сохраните `id` нужного
+   проекта из ответа.
+3. В верхней панели самой страницы API Reference укажите этот идентификатор в поле
+   **Project ID** и нажмите **Apply**. Значение сохраняется только в local storage браузера
+   и подставляется во все Design systems и Documentation запросы.
+4. Откройте требуемую операцию в **Design systems** или **Documentation**, при необходимости
+   авторизуйте этот источник через его `GatewayOAuth`, и выполните **Test Request**.
+
+Не используйте кнопку внешнего Scalar API Client: локальная страница уже содержит Project ID
+и отправляет запросы через настроенный gateway. Нажмите **Clear** рядом с Project ID, чтобы
+удалить выбранный проект из браузера.
+
 ## Backend E2E
 
 Сквозные backend-сценарии используют обычный общий локальный контур из `setup-local.sh`, обращаются к нему через

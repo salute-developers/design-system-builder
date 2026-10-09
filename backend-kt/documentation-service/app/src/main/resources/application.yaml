@@ -56,8 +56,8 @@ documentation:
     englishWeight: "$DOCUMENTATION_SEARCH_ENGLISH_WEIGHT:0.95"
     snippetLength: "$DOCUMENTATION_SEARCH_SNIPPET_LENGTH:300"
     snippetContext: "$DOCUMENTATION_SEARCH_SNIPPET_CONTEXT:120"
-  dbService:
-    baseUrl: "$DB_SERVICE_BASE_URL:http://db-service:3008"
+  dsService:
+    baseUrl: "$DS_SERVICE_BASE_URL:http://ds-service:8085"
     connectTimeoutMs: "$DB_SERVICE_CONNECT_TIMEOUT_MS:1500"
     requestTimeoutMs: "$DB_SERVICE_REQUEST_TIMEOUT_MS:3000"
   s3:

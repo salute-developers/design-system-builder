@@ -1,0 +1,391 @@
+{
+  "schemaVersion": 1,
+  "publicPrefix": "/api/projects/{projectId}/ds",
+  "internalPrefix": "/api/ds",
+  "legacyOpenApiPrefix": "/ds",
+  "operationFields": ["method", "suffix", "requestDto", "responseDto", "successStatus", "permission", "ownershipOverride"],
+  "defaultErrorStatuses": [400, 403, 404, 409, 422, 500],
+  "groups": [
+    {
+      "name": "design-systems",
+      "router": "src/routes/api/design-systems.ts",
+      "included": true,
+      "ownership": "design-system-project-or-global",
+      "operations": [
+        ["GET", "/design-systems", null, "DesignSystem[]", 200, "design-systems:read", null],
+        ["GET", "/design-systems/{id}", null, "DesignSystem", 200, "design-systems:read", null],
+        ["POST", "/design-systems", "CreateDesignSystemRequest", "DesignSystem", 201, "design-systems:write", "project-owned-create"],
+        ["PATCH", "/design-systems/{id}", "UpdateDesignSystemRequest", "DesignSystem", 200, "design-systems:write", null],
+        ["DELETE", "/design-systems/{id}", null, "OkResponse", 200, "design-systems:delete", null],
+        ["GET", "/design-systems/{id}/components", "DesignSystemComponentsQuery", "ComponentSummary[]", 200, "components:read", null],
+        ["GET", "/design-systems/{id}/tokens", "DesignSystemTokensQuery", "Token[]", 200, "tokens:read", null],
+        ["GET", "/design-systems/{id}/components/{componentId}/styles", null, "Style[]", 200, "components:read", "design-system-and-component-link"],
+        ["GET", "/design-systems/{id}/tenants", null, "Tenant[]", 200, "tenants:read", null],
+        ["GET", "/design-systems/{id}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
+        ["GET", "/design-systems/{id}/changes", null, "DesignSystemChange[]", 200, "design-systems:read", null]
+      ]
+    },
+    {
+      "name": "design-system-versions",
+      "router": "src/routes/api/design-system-versions.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/design-system-versions", null, "DesignSystemVersion[]", 200, "design-systems:read", null],
+        ["GET", "/design-system-versions/{id}", null, "DesignSystemVersion", 200, "design-systems:read", null],
+        ["GET", "/design-system-versions/by-design-system/{designSystemId}", null, "DesignSystemVersion[]", 200, "design-systems:read", null],
+        ["POST", "/design-system-versions", "CreateDesignSystemVersionRequest", "DesignSystemVersion", 201, "design-systems:write", null],
+        ["PATCH", "/design-system-versions/{id}", "UpdateDesignSystemVersionRequest", "DesignSystemVersion", 200, "design-systems:write", null],
+        ["DELETE", "/design-system-versions/{id}", null, "OkResponse", 200, "design-systems:delete", null]
+      ]
+    },
+    {
+      "name": "design-system-changes",
+      "router": "src/routes/api/design-system-changes.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/design-system-changes", null, "DesignSystemChange[]", 200, "design-systems:read", null],
+        ["GET", "/design-system-changes/{id}", null, "DesignSystemChange", 200, "design-systems:read", null],
+        ["GET", "/design-system-changes/by-design-system/{designSystemId}", null, "DesignSystemChange[]", 200, "design-systems:read", null],
+        ["POST", "/design-system-changes", "CreateDesignSystemChangeRequest", "DesignSystemChange", 201, "design-systems:write", null]
+      ]
+    },
+    {
+      "name": "tenants",
+      "router": "src/routes/api/tenants.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/tenants", null, "Tenant[]", 200, "tenants:read", null],
+        ["GET", "/tenants/{id}", null, "Tenant", 200, "tenants:read", null],
+        ["POST", "/tenants", "CreateTenantRequest", "Tenant", 201, "tenants:write", null],
+        ["PATCH", "/tenants/{id}", "UpdateTenantRequest", "Tenant", 200, "tenants:write", null],
+        ["DELETE", "/tenants/{id}", null, "OkResponse", 200, "tenants:delete", null],
+        ["GET", "/tenants/{id}/token-values", null, "TokenValue[]", 200, "tenants:read", null],
+        ["PUT", "/tenants/{id}/token-values", "BatchSaveTenantTokenValuesRequest", "TenantTokenValuesSaveResponse", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
+      "name": "tokens",
+      "router": "src/routes/api/tokens.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/tokens", null, "Token[]", 200, "tokens:read", null],
+        ["GET", "/tokens/{id}", null, "Token", 200, "tokens:read", null],
+        ["POST", "/tokens", "CreateTokenRequest", "Token", 201, "tokens:write", null],
+        ["PATCH", "/tokens/{id}", "UpdateTokenRequest", "Token", 200, "tokens:write", null],
+        ["DELETE", "/tokens/{id}", null, "OkResponse", 200, "tokens:delete", null],
+        ["GET", "/tokens/{id}/values", "TokenValuesQuery", "TokenValue[]", 200, "tokens:read", null]
+      ]
+    },
+    {
+      "name": "token-values",
+      "router": "src/routes/api/token-values.ts",
+      "included": true,
+      "ownership": "via-token-design-system",
+      "operations": [
+        ["GET", "/token-values", null, "TokenValue[]", 200, "tokens:read", null],
+        ["GET", "/token-values/{id}", null, "TokenValue", 200, "tokens:read", null],
+        ["POST", "/token-values", "CreateTokenValueRequest", "TokenValue", 201, "tokens:write", null],
+        ["PATCH", "/token-values/{id}", "UpdateTokenValueRequest", "TokenValue", 200, "tokens:write", null],
+        ["DELETE", "/token-values/{id}", null, "OkResponse", 200, "tokens:delete", null]
+      ]
+    },
+    {
+      "name": "palette",
+      "router": "src/routes/api/palette.ts",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/palette", null, "Palette[]", 200, "tokens:read", null],
+        ["GET", "/palette/{id}", null, "Palette", 200, "tokens:read", null],
+        ["GET", "/palette/by-type/{type}", null, "Palette[]", 200, "tokens:read", null],
+        ["POST", "/palette", "CreatePaletteRequest", "Palette", 201, "tokens:write", null],
+        ["PATCH", "/palette/{id}", "UpdatePaletteRequest", "Palette", 200, "tokens:write", null],
+        ["DELETE", "/palette/{id}", null, "OkResponse", 200, "tokens:delete", null]
+      ]
+    },
+    {
+      "name": "components",
+      "router": "src/routes/api/components.ts",
+      "included": true,
+      "ownership": "via-design-system-component-link",
+      "operations": [
+        ["GET", "/components", null, "Component[]", 200, "components:read", null],
+        ["GET", "/components/{id}", null, "Component", 200, "components:read", null],
+        ["POST", "/components", "CreateComponentRequest", "Component", 201, "components:write", "system-admin-or-project-component-create"],
+        ["PATCH", "/components/{id}", "UpdateComponentRequest", "Component", 200, "components:write", null],
+        ["DELETE", "/components/{id}", null, "OkResponse", 200, "components:delete", null],
+        ["GET", "/components/{id}/variations", null, "Variation[]", 200, "components:variations:read", null],
+        ["GET", "/components/{id}/properties", null, "Property[]", 200, "components:variations:read", null],
+        ["GET", "/components/{id}/deps", null, "ComponentDep[]", 200, "components:read", null]
+      ]
+    },
+    {
+      "name": "design-system-components",
+      "router": "src/routes/api/design-system-components.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/design-system-components", null, "DesignSystemComponent[]", 200, "components:read", null],
+        ["GET", "/design-system-components/{id}", null, "DesignSystemComponent", 200, "components:read", null],
+        ["POST", "/design-system-components", "CreateDesignSystemComponentRequest", "DesignSystemComponent", 201, "components:write", null],
+        ["DELETE", "/design-system-components/{id}", null, "OkResponse", 200, "components:delete", null]
+      ]
+    },
+    {
+      "name": "component-deps",
+      "router": "src/routes/api/component-deps.ts",
+      "included": true,
+      "ownership": "via-component-design-system",
+      "operations": [
+        ["GET", "/component-deps", null, "ComponentDep[]", 200, "components:read", null],
+        ["GET", "/component-deps/{id}", null, "ComponentDep", 200, "components:read", null],
+        ["POST", "/component-deps", "CreateComponentDepRequest", "ComponentDep", 201, "components:write", null],
+        ["PATCH", "/component-deps/{id}", "UpdateComponentDepRequest", "ComponentDep", 200, "components:write", null],
+        ["DELETE", "/component-deps/{id}", null, "OkResponse", 200, "components:delete", null]
+      ]
+    },
+    {
+      "name": "component-reuse-configs",
+      "router": "src/routes/api/component-reuse-configs.ts",
+      "included": true,
+      "ownership": "via-component-dependency-design-system",
+      "operations": [
+        ["GET", "/component-reuse-configs", null, "ComponentReuseConfig[]", 200, "components:read", null],
+        ["GET", "/component-reuse-configs/{id}", null, "ComponentReuseConfig", 200, "components:read", null],
+        ["GET", "/component-reuse-configs/by-dep/{componentDepId}", null, "ComponentReuseConfig[]", 200, "components:read", null],
+        ["POST", "/component-reuse-configs", "CreateComponentReuseConfigRequest", "ComponentReuseConfig", 201, "components:write", null],
+        ["PATCH", "/component-reuse-configs/{id}", "UpdateComponentReuseConfigRequest", "ComponentReuseConfig", 200, "components:write", null],
+        ["DELETE", "/component-reuse-configs/{id}", null, "OkResponse", 200, "components:delete", null]
+      ]
+    },
+    {
+      "name": "variations",
+      "router": "src/routes/api/variations.ts",
+      "included": true,
+      "ownership": "via-component-design-system",
+      "operations": [
+        ["GET", "/variations", null, "Variation[]", 200, "components:variations:read", null],
+        ["GET", "/variations/{id}", null, "Variation", 200, "components:variations:read", null],
+        ["POST", "/variations", "CreateVariationRequest", "Variation", 201, "components:variations:write", null],
+        ["PATCH", "/variations/{id}", "UpdateVariationRequest", "Variation", 200, "components:variations:write", null],
+        ["DELETE", "/variations/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/variations/{id}/styles", null, "Style[]", 200, "components:variations:read", null],
+        ["GET", "/variations/{id}/properties", null, "Property[]", 200, "components:variations:read", null]
+      ]
+    },
+    {
+      "name": "properties",
+      "router": "src/routes/api/properties.ts",
+      "included": true,
+      "ownership": "via-component-design-system",
+      "operations": [
+        ["GET", "/properties", null, "Property[]", 200, "components:variations:read", null],
+        ["GET", "/properties/{id}", null, "Property", 200, "components:variations:read", null],
+        ["POST", "/properties", "CreatePropertyRequest", "Property", 201, "components:variations:write", null],
+        ["PATCH", "/properties/{id}", "UpdatePropertyRequest", "Property", 200, "components:variations:write", null],
+        ["DELETE", "/properties/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "property-platform-params",
+      "router": "src/routes/api/property-platform-params.ts",
+      "included": true,
+      "ownership": "via-property-component-design-system",
+      "operations": [
+        ["GET", "/property-platform-params", null, "PropertyPlatformParam[]", 200, "components:variations:read", null],
+        ["GET", "/property-platform-params/{id}", null, "PropertyPlatformParam", 200, "components:variations:read", null],
+        ["POST", "/property-platform-params", "CreatePropertyPlatformParamRequest", "PropertyPlatformParam", 201, "components:variations:write", null],
+        ["PATCH", "/property-platform-params/{id}", "UpdatePropertyPlatformParamRequest", "PropertyPlatformParam", 200, "components:variations:write", null],
+        ["DELETE", "/property-platform-params/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "property-variations",
+      "router": "src/routes/api/property-variations.ts",
+      "included": true,
+      "ownership": "via-property-and-variation-component-design-system",
+      "operations": [
+        ["GET", "/property-variations", null, "PropertyVariation[]", 200, "components:variations:read", null],
+        ["GET", "/property-variations/{id}", null, "PropertyVariation", 200, "components:variations:read", null],
+        ["POST", "/property-variations", "CreatePropertyVariationRequest", "PropertyVariation", 201, "components:variations:write", null],
+        ["DELETE", "/property-variations/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "variation-platform-param-adjustments",
+      "router": "src/routes/api/variation-platform-param-adjustments.ts",
+      "included": true,
+      "ownership": "via-variation-component-design-system",
+      "operations": [
+        ["GET", "/variation-platform-param-adjustments", null, "VariationPlatformParamAdjustment[]", 200, "components:variations:read", null],
+        ["GET", "/variation-platform-param-adjustments/{id}", null, "VariationPlatformParamAdjustment", 200, "components:variations:read", null],
+        ["POST", "/variation-platform-param-adjustments", "CreateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 201, "components:variations:write", null],
+        ["PATCH", "/variation-platform-param-adjustments/{id}", "UpdateVariationPlatformParamAdjustmentRequest", "VariationPlatformParamAdjustment", 200, "components:variations:write", null],
+        ["DELETE", "/variation-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "invariant-platform-param-adjustments",
+      "router": "src/routes/api/invariant-platform-param-adjustments.ts",
+      "included": true,
+      "ownership": "via-property-component-design-system",
+      "operations": [
+        ["GET", "/invariant-platform-param-adjustments", null, "InvariantPlatformParamAdjustment[]", 200, "components:variations:read", null],
+        ["GET", "/invariant-platform-param-adjustments/{id}", null, "InvariantPlatformParamAdjustment", 200, "components:variations:read", null],
+        ["POST", "/invariant-platform-param-adjustments", "CreateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 201, "components:variations:write", null],
+        ["PATCH", "/invariant-platform-param-adjustments/{id}", "UpdateInvariantPlatformParamAdjustmentRequest", "InvariantPlatformParamAdjustment", 200, "components:variations:write", null],
+        ["DELETE", "/invariant-platform-param-adjustments/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "appearances",
+      "router": "src/routes/api/appearances.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/appearances", null, "Appearance[]", 200, "components:variations:read", null],
+        ["GET", "/appearances/{id}", null, "Appearance", 200, "components:variations:read", null],
+        ["POST", "/appearances", "CreateAppearanceRequest", "Appearance", 201, "components:variations:write", null],
+        ["PATCH", "/appearances/{id}", "UpdateAppearanceRequest", "Appearance", 200, "components:variations:write", null],
+        ["DELETE", "/appearances/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/appearances/{id}/variations", null, "AppearanceVariation[]", 200, "components:variations:read", null]
+      ]
+    },
+    {
+      "name": "appearance-variations",
+      "router": "src/routes/api/appearance-variations.ts",
+      "included": true,
+      "ownership": "via-appearance-design-system",
+      "operations": [
+        ["GET", "/appearance-variations", null, "AppearanceVariation[]", 200, "components:variations:read", null],
+        ["GET", "/appearance-variations/{id}", null, "AppearanceVariation", 200, "components:variations:read", null],
+        ["POST", "/appearance-variations", "CreateAppearanceVariationRequest", "AppearanceVariation", 201, "components:variations:write", null],
+        ["PATCH", "/appearance-variations/{id}", "UpdateAppearanceVariationRequest", "AppearanceVariation", 200, "components:variations:write", null],
+        ["DELETE", "/appearance-variations/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "appearance-variation-values",
+      "router": "src/routes/api/appearance-variation-values.ts",
+      "included": true,
+      "ownership": "via-appearance-variation-design-system",
+      "operations": [
+        ["GET", "/appearance-variation-values", null, "AppearanceVariationValue[]", 200, "components:variations:read", null],
+        ["GET", "/appearance-variation-values/{id}", null, "AppearanceVariationValue", 200, "components:variations:read", null],
+        ["POST", "/appearance-variation-values", "CreateAppearanceVariationValueRequest", "AppearanceVariationValue", 201, "components:variations:write", null],
+        ["PATCH", "/appearance-variation-values/{id}", "UpdateAppearanceVariationValueRequest", "AppearanceVariationValue", 200, "components:variations:write", null],
+        ["DELETE", "/appearance-variation-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "styles",
+      "router": "src/routes/api/styles.ts",
+      "included": true,
+      "ownership": "via-design-system-and-variation",
+      "operations": [
+        ["GET", "/styles", null, "Style[]", 200, "components:variations:read", null],
+        ["GET", "/styles/{id}", null, "Style", 200, "components:variations:read", null],
+        ["GET", "/styles/by-variation/{variationId}/by-design-system/{designSystemId}", null, "Style[]", 200, "components:variations:read", null],
+        ["POST", "/styles", "CreateStyleRequest", "Style", 201, "components:variations:write", null],
+        ["PATCH", "/styles/{id}", "UpdateStyleRequest", "Style", 200, "components:variations:write", null],
+        ["DELETE", "/styles/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "variation-property-values",
+      "router": "src/routes/api/variation-property-values.ts",
+      "included": true,
+      "ownership": "via-style-or-appearance-design-system",
+      "operations": [
+        ["GET", "/variation-property-values", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/variation-property-values/{id}", null, "VariationPropertyValue", 200, "components:variations:read", null],
+        ["GET", "/variation-property-values/by-style/{styleId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/variation-property-values/by-appearance/{appearanceId}", null, "VariationPropertyValue[]", 200, "components:variations:read", null],
+        ["POST", "/variation-property-values", "CreateVariationPropertyValueRequest", "VariationPropertyValue", 201, "components:variations:write", null],
+        ["PATCH", "/variation-property-values/{id}", "UpdateVariationPropertyValueRequest", "VariationPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/variation-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "invariant-property-values",
+      "router": "src/routes/api/invariant-property-values.ts",
+      "included": true,
+      "ownership": "via-component-and-design-system",
+      "operations": [
+        ["GET", "/invariant-property-values", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
+        ["GET", "/invariant-property-values/{id}", null, "InvariantPropertyValue", 200, "components:variations:read", null],
+        ["GET", "/invariant-property-values/by-component/{componentId}/by-design-system/{designSystemId}", null, "InvariantPropertyValue[]", 200, "components:variations:read", null],
+        ["POST", "/invariant-property-values", "CreateInvariantPropertyValueRequest", "InvariantPropertyValue", 201, "components:variations:write", null],
+        ["PATCH", "/invariant-property-values/{id}", "UpdateInvariantPropertyValueRequest", "InvariantPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/invariant-property-values/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "states",
+      "router": "src/routes/api/states.ts",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/states", "StatesQuery", "State[]", 200, "components:variations:read", null],
+        ["GET", "/states/{id}", null, "State", 200, "components:variations:read", null],
+        ["POST", "/states", "CreateStateRequest", "State", 201, "components:variations:write", null],
+        ["PATCH", "/states/{id}", "UpdateStateRequest", "State", 200, "components:variations:write", null],
+        ["DELETE", "/states/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/states/{id}/impact", null, "StateImpact", 200, "components:variations:read", null]
+      ]
+    },
+    {
+      "name": "state-sets",
+      "router": "src/routes/api/state-sets.ts",
+      "included": true,
+      "ownership": "global-read-system-admin-write",
+      "operations": [
+        ["GET", "/state-sets", null, "StateSet[]", 200, "components:variations:read", null],
+        ["GET", "/state-sets/{id}", null, "StateSet", 200, "components:variations:read", null],
+        ["POST", "/state-sets/resolve", "ResolveStateSetRequest", "StateSet", 200, "components:variations:write", null]
+      ]
+    },
+    {
+      "name": "style-combinations",
+      "router": "src/routes/api/style-combinations.ts",
+      "included": true,
+      "ownership": "via-component-design-system",
+      "operations": [
+        ["GET", "/style-combinations", null, "StyleCombination[]", 200, "components:variations:read", null],
+        ["GET", "/style-combinations/{id}", null, "StyleCombination", 200, "components:variations:read", null],
+        ["POST", "/style-combinations", "CreateStyleCombinationRequest", "StyleCombination", 201, "components:variations:write", null],
+        ["PATCH", "/style-combinations/{id}", "UpdateStyleCombinationRequest", "StyleCombination", 200, "components:variations:write", null],
+        ["DELETE", "/style-combinations/{id}", null, "OkResponse", 200, "components:variations:delete", null],
+        ["GET", "/style-combinations/{id}/members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
+        ["POST", "/style-combinations/{id}/members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null]
+      ]
+    },
+    {
+      "name": "style-combination-members",
+      "router": "src/routes/api/style-combination-members.ts",
+      "included": true,
+      "ownership": "via-style-combination-design-system",
+      "operations": [
+        ["GET", "/style-combination-members", null, "StyleCombinationMember[]", 200, "components:variations:read", null],
+        ["GET", "/style-combination-members/{id}", null, "StyleCombinationMember", 200, "components:variations:read", null],
+        ["POST", "/style-combination-members", "CreateStyleCombinationMemberRequest", "StyleCombinationMember", 201, "components:variations:write", null],
+        ["DELETE", "/style-combination-members/{id}", null, "OkResponse", 200, "components:variations:delete", null]
+      ]
+    },
+    {
+      "name": "component-config",
+      "router": "src/routes/api/component-config.ts,src/routes/api/component-config-import.ts,src/routes/api/component-config-export.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/component-config", "ComponentConfigQuery", "ComponentConfig", 200, "components:read", null],
+        ["POST", "/component-config/import", "ImportComponentConfigRequest", "ComponentConfigImportReport", 200, "components:write", null],
+        ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null]
+      ]
+    }
+  ]
+}

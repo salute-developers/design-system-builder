@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "routeSource": "route-manifest.json",
+  "fixtureSource": "http-fixtures.json",
+  "operationSelection": "all",
+  "execution": {
+    "reads": "Run both implementations against the same restored fixture database.",
+    "mutations": "Restore an isolated copy before each implementation and compare response plus resulting database state.",
+    "componentConfig": "Compare GET, import and export recursively, including version, filtering, sentinel guards and transaction rollback."
+  },
+  "cases": {
+    "everyOperation": ["success", "missing-trusted-context", "permission-denied"],
+    "entityLookup": ["owned", "global-when-supported", "foreign-hidden-as-not-found", "missing"],
+    "mutation": ["valid", "invalid-body", "invalid-reference", "constraint-conflict"],
+    "tenantTokenValuesSave": ["valid", "duplicate-token-platform-mode", "foreign-token", "stale-edit-revision", "atomic-rollback"],
+    "collection": ["empty", "multiple-items", "project-filtered", "stable-order"],
+    "componentConfigImport": ["valid", "invalid-version", "invalid-reference", "rollback-on-failure", "body-at-16-mib", "body-over-limit"],
+    "componentConfigExport": ["unfiltered", "component-filter", "platform-filter", "empty-result"]
+  },
+  "comparison": {
+    "httpStatus": "exact",
+    "jsonObjectFieldPresence": "exact",
+    "jsonNulls": "exact",
+    "jsonArrayOrder": "exact",
+    "databaseRows": "exact-after-normalization",
+    "normalization": {
+      "generatedUuid": "map by fixture insertion order only when the request omitted id",
+      "timestamps": "replace valid generated timestamps with <timestamp>; preserve null versus absent",
+      "binary": "compare sha256 and content-type"
+    }
+  },
+  "failurePolicy": "Any difference not explicitly listed in the OpenSpec change fails the migration gate."
+}
