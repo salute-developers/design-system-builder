@@ -1,5 +1,7 @@
 package com.dsbuilder.frontend.cli.feature.components.presentation
 
+import com.dsbuilder.frontend.cli.presentation.targetPlatform
+import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.FetchComponentsResult
@@ -8,6 +10,7 @@ import com.dsbuilder.frontend.feature.components.application.FetchSource
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
+import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import kotlinx.coroutines.runBlocking
 
@@ -24,6 +27,11 @@ internal class ComponentsFetchCliCommand(
     private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
+    private val platform: TargetPlatform? by option("--platform").targetPlatform()
+        .help(
+            "Target platform; taken from .sdds/config.json when omitted. " +
+                "react also fetches the web adapter into .sdds/web/web-adapter.json.",
+        )
 
     override fun run() {
         val result = runBlocking {
@@ -34,6 +42,7 @@ internal class ComponentsFetchCliCommand(
                     apiUrlOverride = apiUrl,
                     designSystemUri = designSystem,
                     projectKeyEnvName = projectKeyEnv,
+                    platform = platform,
                 ),
             )
         }
@@ -58,7 +67,7 @@ internal class ComponentsFetchCliCommand(
  *
  * API key не выводится ни в каком виде.
  */
-private fun FetchSource.render(): String = """
+internal fun FetchSource.render(): String = """
     Package: $packageName
     Version: $packageVersion
     Configurations: $configurationCount
@@ -74,10 +83,10 @@ private fun FetchSource.render(): String = """
  * нельзя, потому что оба означают расхождение между тем, что лежит в директории, и тем, что
  * из неё соберётся.
  */
-private fun FetchComponentsResult.Fetched.render(): String = buildString {
+internal fun FetchComponentsResult.Fetched.render(): String = buildString {
     appendLine("Written to: $path")
     appendLine("Files: ${fileNames.size}")
-    snapshotPath?.let { appendLine("Component configs: $it") }
+    webAdapterPath?.let { appendLine("Web adapter: $it") }
 
     appendSection(
         "Values whose paint kind could not be derived (written with the property type)",

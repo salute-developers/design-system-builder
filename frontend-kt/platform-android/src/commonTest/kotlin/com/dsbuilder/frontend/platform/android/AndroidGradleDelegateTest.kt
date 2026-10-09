@@ -27,8 +27,26 @@ class AndroidGradleDelegateTest {
         assertEquals(ToolchainId("android"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW), delegate.platforms)
         assertEquals(
-            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE),
+            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM),
             delegate.capabilities,
+        )
+    }
+
+    @Test
+    fun designSystemRunsThemeAndComponentsTasksInOneGradleCall() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        delegate.run(invocation(Capability.DESIGN_SYSTEM, TargetPlatform.COMPOSE))
+        delegate.run(invocation(Capability.DESIGN_SYSTEM, TargetPlatform.ANDROID_VIEW))
+
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "generateComposeTheme", "generateComposeComponents"),
+            requests[0].args,
+        )
+        assertEquals(
+            listOf("-p", "/repo/tokens/theme-module", "generateViewTheme", "generateViewComponents"),
+            requests[1].args,
         )
     }
 

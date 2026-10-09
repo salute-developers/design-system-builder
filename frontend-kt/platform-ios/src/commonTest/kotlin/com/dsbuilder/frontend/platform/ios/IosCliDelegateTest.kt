@@ -27,9 +27,42 @@ class IosCliDelegateTest {
         assertEquals(ToolchainId("ios"), delegate.toolchain)
         assertEquals(setOf(TargetPlatform.SWIFT_UI), delegate.platforms)
         assertEquals(
-            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE),
+            setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM),
             delegate.capabilities,
         )
+    }
+
+    @Test
+    fun designSystemRunsThemeThenComponentsGeneration() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(runner = recording(requests))
+
+        val result = delegate.run(invocation(Capability.DESIGN_SYSTEM))
+
+        assertEquals(
+            listOf(
+                listOf("theme", "generate", "--sdds", "/repo/Themes/PlasmaHomeDSTheme/.sdds"),
+                listOf("components", "generate", "--sdds", "/repo/Themes/PlasmaHomeDSTheme/.sdds"),
+            ),
+            requests.map { it.args },
+        )
+        assertIs<DelegateResult.Completed>(result)
+    }
+
+    @Test
+    fun designSystemStopsAfterFailedThemeGeneration() {
+        val requests = mutableListOf<ProcessRequest>()
+        val delegate = delegate(
+            runner = { request ->
+                requests += request
+                ProcessResult(exitCode = 3, output = "")
+            },
+        )
+
+        val failure = assertIs<DelegateResult.Failed>(delegate.run(invocation(Capability.DESIGN_SYSTEM)))
+
+        assertEquals(3, failure.exitCode)
+        assertEquals(listOf("theme"), requests.map { it.args.first() })
     }
 
     @Test

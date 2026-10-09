@@ -46,7 +46,8 @@ CLI SHALL register a platform delegate with toolchain id `ios` that serves the `
 #### Scenario: Дизайн-система целиком
 
 - **WHEN** the delegate runs the `DESIGN_SYSTEM` capability
-- **THEN** it MUST run the same theme generation as for `THEME`, because component variations are generated together with the theme
+- **THEN** it MUST invoke the tool as `theme generate` and then as `components generate`, with the same arguments as the separate capabilities
+- **THEN** it MUST NOT run the components generation when the theme generation exits with a non-zero code, and MUST report failure carrying that exit code
 
 ### Requirement: iOS tool discovery
 
