@@ -52,7 +52,7 @@ class AppearanceAxisRolesMigrationPostgresIntegrationTest {
         update(connection, "INSERT INTO design_systems(id, name, project_name) VALUES ('${fixture.ds}', 'ds', 'p')")
         update(
             connection,
-            "INSERT INTO components(id, name, platform) VALUES ('${fixture.component}', 'Button', 'web')",
+            "INSERT INTO components(id, name) VALUES ('${fixture.component}', 'Button')",
         )
         listOf(fixture.size to "size", fixture.shape to "shape", fixture.view to "view", fixture.state to "state")
             .forEach { (id, name) ->
@@ -94,8 +94,8 @@ class AppearanceAxisRolesMigrationPostgresIntegrationTest {
         }
         update(
             connection,
-            "INSERT INTO appearances(id, design_system_id, component_id, name) " +
-                "VALUES ('$appearance', '$fixtureDs', '$component', '$name')",
+            "INSERT INTO appearances(id, design_system_id, component_id, name, platform) " +
+                "VALUES ('$appearance', '$fixtureDs', '$component', '$name', 'web')",
         )
         axes.forEachIndexed { position, (variation, scheme) ->
             update(

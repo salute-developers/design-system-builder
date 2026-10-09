@@ -152,19 +152,19 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 - **THEN** сервис MUST увеличить отдельный счётчик соответствующего класса
 - **AND** MUST предоставлять метрики длительности запросов и состояния пула БД
 
-### Requirement: Отпечаток схемы соответствует модели с платформами
+### Requirement: Разделение платформ применяется отдельной миграцией поверх baseline
 
-Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL соответствовать схеме, которую создаёт baseline Flyway из Drizzle-миграций, включая миграцию платформ компонентов. Baseline MUST выполняться и вне транзакции, поэтому миграции, входящие в него, MUST NOT опираться на временные таблицы, удаляемые при commit.
+Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов. Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V4__component_platform_split.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
 
 #### Scenario: Пустая база
 
-- **WHEN** Flyway поднимает пустую базу из baseline
-- **THEN** отпечаток схемы MUST совпадать с контрактным
+- **WHEN** Flyway поднимает пустую базу
+- **THEN** MUST быть применены `V1`–`V4`, а схема MUST содержать `components.platform` и `property_platform_params.deprecated`
 
 #### Scenario: Существующая база
 
-- **WHEN** принимается база, приведённая Drizzle-миграциями до последней
-- **THEN** отпечаток MUST совпасть и baseline MUST быть принят
+- **WHEN** принимается база, приведённая Drizzle-миграциями до `0006` включительно
+- **THEN** отпечаток MUST совпасть с контрактным, baseline MUST быть принят, а затем MUST быть применены `V2`–`V4`
 
 #### Scenario: Дрейф схемы
 

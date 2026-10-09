@@ -210,7 +210,9 @@ class DsServiceHttpPostgresIntegrationTest {
                 }
                 assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
                 val report = json.parseToJsonElement(imported.bodyAsText()).jsonObject
-                assertEquals("1", report.getValue("created").jsonPrimitive.content)
+                // The seeded design system already owns the web "default" appearance of Button: the import updates it.
+                assertEquals("0", report.getValue("created").jsonPrimitive.content, imported.bodyAsText())
+                assertEquals("1", report.getValue("updated").jsonPrimitive.content, imported.bodyAsText())
                 assertEquals("[]", report.getValue("unknownStates").toString())
 
                 val single = client.get(
@@ -388,7 +390,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 val component = element.jsonObject
                 val componentName = component.getValue("name").jsonPrimitive.content
                 val componentId = connection.prepareStatement(
-                    "INSERT INTO components (name, description) VALUES (?, '') RETURNING id",
+                    "INSERT INTO components (name, description, platform) VALUES (?, '', 'web') RETURNING id",
                 ).use { statement ->
                     statement.setString(1, componentName)
                     statement.executeQuery().use { rows ->
@@ -419,7 +421,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     params.forEach { (platform, name) ->
                         connection.prepareStatement(
                             "INSERT INTO property_platform_params (property_id, platform, name) " +
-                                "VALUES (?, ?::property_platform, ?)",
+                                "VALUES (?, ?::component_platform, ?)",
                         ).use { statement ->
                             statement.setObject(1, propertyId)
                             statement.setString(2, platform)
