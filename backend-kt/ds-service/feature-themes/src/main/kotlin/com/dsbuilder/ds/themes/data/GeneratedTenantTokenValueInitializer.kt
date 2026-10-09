@@ -25,7 +25,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
-/** Записывает эталонные значения токенов из production seed db-service, извлечённые при сборке. */
+/** Записывает эталонные значения токенов из канонического ресурса ds-service. */
 internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitializer {
     override suspend fun initialize(tenant: Tenant) {
         initialize(tenant.id, tenant.designSystemId, tenant.colorConfiguration)

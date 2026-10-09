@@ -78,3 +78,13 @@
 - [x] 10.5 Реализовать отдельный `SaveTenantTokenValuesUseCase`, DTO и `PUT /tenants/{id}/token-values` с блокировкой темы, проверкой принадлежности токенов, заменой значений и optimistic concurrency.
 - [x] 10.6 Добавить unit, repository/PostgreSQL и Ktor route-тесты профилей, preview, инициализации, `TENANT_NAME_CONFLICT`, `TENANT_EDIT_CONFLICT`, ownership и отсутствия частичной записи.
 - [x] 10.7 Выполнить дифференциальные тесты и релевантные Gradle/JS проверки актуального контракта, затем FAST, независимое review и FULL по workflow.
+
+## 11. Автономные ресурсы ds-service
+
+- [x] 11.1 Однократно зафиксировать результаты генерации `token-definitions.json`, `token-initial-values.json`, `component-seeds.json` и `V1__db_service_baseline.sql` в `src/main/resources` соответствующих модулей `ds-service`.
+- [x] 11.2 Удалить из Gradle задачи `generateTokenDefinitions`, `generateTokenValues` и `generateFlywayBaseline` и все production-ссылки `ds-service` на `js/services/db-service`, Node.js, `tsx`, `esbuild` и `node_modules`.
+- [x] 11.3 Перевести Flyway и проверки начальных данных на самостоятельные ресурсы `ds-service`, сохранив схему, определения токенов, значения тем, палитры и конфигурации компонентов.
+- [x] 11.4 Добавить автоматическую проверку, запрещающую возвращение build-time зависимостей `ds-service` на `js/services/db-service`.
+- [x] 11.5 Идемпотентно инициализировать DS-scoped конфигурации компонентов в транзакции создания темы до её начальных значений, разрешая импортированные компоненты, свойства и platform parameters по именам без сидинга props и выполняя полный no-op при неполных метаданных.
+- [x] 11.6 Добавить проверки снимка компонентов, порядка инициализации, ссылочной целостности, успешного создания темы с пустым списком компонентов и PostgreSQL-сценария автоматической привязки после импорта метаданных.
+- [ ] 11.7 Выполнить узкие тесты ресурсов и миграций, затем FAST, независимое review и FULL по workflow.

@@ -4,7 +4,6 @@ FROM gradle:9.1.0-jdk17 AS builder
 USER root
 WORKDIR /workspace
 COPY ./authorization ./authorization
-COPY ./js/services/db-service/drizzle ./js/services/db-service/drizzle
 COPY ./backend-kt/gradle ./backend-kt/gradle
 COPY ./backend-kt/build-system ./backend-kt/build-system
 COPY ./backend-kt/authorization-core ./backend-kt/authorization-core
