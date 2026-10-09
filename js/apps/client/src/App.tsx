@@ -12,7 +12,7 @@ import {
     useParams,
 } from 'react-router-dom';
 
-import { Home, Colors, Shapes, Typography, Components, Main, Login } from './pages';
+import { Home, Colors, Palette, Shapes, Typography, Components, Main, Login } from './pages';
 
 import { authService, designSystemsApi } from './api';
 import { getBaseName } from './utils/baseName';
@@ -110,6 +110,7 @@ function App() {
                     >
                         <Route index element={<Navigate to="colors" replace />} />
                         <Route path="overview" element={<Navigate to="../colors" replace />} />
+                        <Route path="palette" element={<Palette />} />
                         <Route path="colors" element={<Colors />} />
                         <Route path="shapes" element={<Shapes />} />
                         <Route path="typography" element={<Typography />} />

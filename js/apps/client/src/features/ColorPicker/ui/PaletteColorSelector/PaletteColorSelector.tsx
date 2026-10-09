@@ -15,15 +15,25 @@ import {
     StyledColorPreview,
 } from './PaletteColorSelector.styles';
 import { accentColors, saturationColors } from './PaletteColorSelector.utils';
+import { ThemePaletteSelector } from './ThemePaletteSelector';
+import { useActivePalette } from '../../../../palette/useActivePalette';
 
 interface PaletteColorSelectorProps {
     color: string;
     opacity?: number;
+    tokenName?: string;
     onChange?: (color: string) => void;
     onClose?: () => void;
 }
 
+/** Вкладка Library: палитра открытой темы, без неё (мастер создания) — встроенная `general`. */
 export const PaletteColorSelector = (props: PaletteColorSelectorProps) => {
+    const palette = useActivePalette();
+    if (palette) return <ThemePaletteSelector palette={palette} {...props} />;
+    return <GeneralPaletteSelector {...props} />;
+};
+
+const GeneralPaletteSelector = (props: PaletteColorSelectorProps) => {
     const { color, onChange, onClose } = props;
 
     const [innerColor, setInnerColor] = useState(color);

@@ -73,6 +73,8 @@ services:
     environment:
       VITE_API_GATEWAY_URL: http://localhost:8080
       VITE_CLIENT_ID: dsbuilder-api
+      # Источник палитры темы: api (ds-service, по умолчанию) или local (браузер, без сервера)
+      VITE_PALETTE_SOURCE: api
     ports:
       - "3002:5173"
     depends_on:

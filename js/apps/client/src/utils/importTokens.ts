@@ -11,10 +11,11 @@ import {
 } from '../controllers';
 
 import { general } from '@salutejs/plasma-colors';
-import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
+import { type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import { getColorAndOpacity, getNormalizedColor, getStateColor } from './color';
 import { sectionToFormulaMap } from '../types';
+import { restorePaletteColor } from '../palette/activePalette';
 
 const buildPaletteMap = (): Map<string, string> => {
     const map = new Map<string, string>();
@@ -252,7 +253,13 @@ const createGradientToken = (style: ImportLocalStyle, paints: ImportPaintGradien
     );
 };
 
-const getAdditionalColorValues = (value: string, themeMode: string, groupName: string, subgroupName: string) => {
+const getAdditionalColorValues = (
+    value: string,
+    themeMode: string,
+    groupName: string,
+    subgroupName: string,
+    tokenName?: string,
+) => {
     const sectionName = sectionToFormulaMap[groupName.toLocaleLowerCase()];
 
     if (!sectionName) {
@@ -274,7 +281,7 @@ const getAdditionalColorValues = (value: string, themeMode: string, groupName: s
         mode = 'light';
     }
 
-    const restoredValue = getRestoredColorFromPalette(value, -1);
+    const restoredValue = restorePaletteColor(value, -1, tokenName);
     const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
     const activeValue = getDefaultStateToken('active');
     const hoverValue = getDefaultStateToken('hover');
@@ -288,7 +295,7 @@ const isStateToken = (name: string): boolean => {
 
 const generateStateTokens = (name: string, value: string, theme: Theme): void => {
     const [themeMode, groupName, subgroupName] = name.split('.');
-    const additionalValues = getAdditionalColorValues(value, themeMode, groupName, subgroupName);
+    const additionalValues = getAdditionalColorValues(value, themeMode, groupName, subgroupName, name);
 
     if (!additionalValues) {
         return;

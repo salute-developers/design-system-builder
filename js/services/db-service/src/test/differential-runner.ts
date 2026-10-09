@@ -7,7 +7,7 @@ import postgres from "postgres";
 type Operation = [string, string, string | null, string, number, string, string | null];
 type Manifest = {
   internalPrefix: string;
-  groups: Array<{ operations: Operation[] }>;
+  groups: Array<{ origin?: "ds-service"; operations: Operation[] }>;
 };
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
@@ -415,7 +415,10 @@ const main = async () => {
     waitFor(`http://127.0.0.1:${kotlinPort}/ready`, kotlin),
   ]);
 
-  const operations = manifest.groups.flatMap((group) => group.operations);
+  // Группы с `origin: "ds-service"` есть только в ds-service: сравнивать с db-service нечего.
+  const operations = manifest.groups
+    .filter((group) => group.origin !== "ds-service")
+    .flatMap((group) => group.operations);
   for (const operation of operations.filter(([method]) => method === "GET")) {
     assertSame(`${operation[0]} ${operation[1]}`, await invoke(`http://127.0.0.1:${legacyPort}`, operation), await invoke(`http://127.0.0.1:${kotlinPort}`, operation));
   }

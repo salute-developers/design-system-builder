@@ -62,8 +62,14 @@ CLI `theme fetch` SHALL load remote data through the DS Builder project-scoped b
 #### Scenario: Theme fetch загружает token values для каждого tenant
 
 - **WHEN** tenants response contains tenant with `id = tenant-a`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/tenants/tenant-a/token-values`
-- **THEN** CLI MUST parse the response as a JSON array of `TokenValue` objects with fields `id`, `tokenId`, `tenantId`, `paletteId`, `platform`, `mode`, `value`, `createdAt`, and `updatedAt`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/ds/tenants/tenant-a/token-values?resolvePalette=true`
+- **THEN** CLI MUST parse the response as a JSON array of `TokenValue` objects with fields `id`, `tokenId`, `tenantId`, `paletteId`, `platform`, `mode`, `value`, `createdAt`, and `updatedAt` and optional field `paletteRef`
+
+#### Scenario: Цвет токена вычислен по палитре темы
+
+- **WHEN** backend возвращает цветовое значение с `value = ["#0A8F7ACC"]` и `paletteRef = "[general.green.500][0.8]"`
+- **THEN** CLI MUST записать `"#0A8F7ACC"` как значение токена
+- **THEN** CLI MUST NOT заменять это значение по `.sdds/tenants/palette.json`
 
 #### Scenario: Backend response cannot be parsed
 
@@ -258,6 +264,7 @@ CLI `theme fetch` SHALL group token values by tenant, platform and token type us
 - **WHEN** tenant token values do not contain a value for that token
 - **THEN** CLI MUST return deterministic failure output
 - **THEN** CLI MUST NOT write partial theme files
+
 ### Requirement: Theme fetch normalizes token values
 
 CLI `theme fetch` SHALL convert backend `TokenValue.value` arrays into local JSON values according to token type.
@@ -304,3 +311,4 @@ CLI `theme fetch` SHALL convert backend `TokenValue.value` arrays into local JSO
 - **WHEN** `TokenValue.value` does not match the expected JSON shape for the token type
 - **THEN** CLI MUST return deterministic failure output
 - **THEN** CLI MUST NOT write partial theme files
+
