@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.sql.SQLException
 
 /** Executes application work in one JDBC transaction without leaking SQL failures. */
 class ExposedTransactionRunner(
@@ -30,7 +31,7 @@ class ExposedTransactionRunner(
         throw cancelled
     } catch (failure: ExposedSQLException) {
         DsResult.Failure(failureMapper.map(failure))
-    } catch (failure: Exception) {
+    } catch (failure: SQLException) {
         DsResult.Failure(failureMapper.map(failure))
     }
 
@@ -52,7 +53,7 @@ class ExposedTransactionRunner(
         throw cancelled
     } catch (failure: ExposedSQLException) {
         DsResult.Failure(failureMapper.map(failure))
-    } catch (failure: Exception) {
+    } catch (failure: SQLException) {
         DsResult.Failure(failureMapper.map(failure))
     }
 }

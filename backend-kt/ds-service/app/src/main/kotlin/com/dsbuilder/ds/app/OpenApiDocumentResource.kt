@@ -10,7 +10,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.yaml.snakeyaml.Yaml
 
-/** Reads the reviewed static OpenAPI contract bundled with the service. */
+/** Loads the reviewed static OpenAPI contract bundled with the service. */
 class OpenApiDocumentResource(private val json: Json) {
     /** Stable operation metadata used by OpenAPI, readiness and bounded telemetry. */
     fun operations(): List<PublishedOperation> {
