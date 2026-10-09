@@ -402,35 +402,75 @@ discovers them.
 - **THEN** CLI MUST still write the package
 - **THEN** CLI MUST exit with a success status
 
-### Requirement: Components fetch saves legacy snapshot
+### Requirement: Export restores offsets from platform parameter adjustments
 
-`components fetch` SHALL load the legacy component configs in `feature-components` using the same
-project context, API URL and credentials as package export.
-`theme fetch` SHALL NOT load or modify this snapshot.
+`POST /ds/component-config/export` SHALL return `adjustment` from platform parameter adjustments when the
+value row has none.
 
-#### Scenario: Snapshot is saved beside project config
+#### Scenario: Смещение из поправок платформенных параметров
 
-- **WHEN** package export succeeds
-- **THEN** CLI MUST take the design-system name from the export metadata
-- **THEN** CLI MUST request `GET /api/projects/{projectId}/ds/legacy/design-systems/{name}/component-configs`, encoding the name as one path segment
-- **THEN** CLI MUST validate the response as a JSON array and save the original response text in `.sdds/component-configs.json` beside the discovered project config
-- **THEN** `--to` MUST affect only the component package directory, not the snapshot path
-- **THEN** a successful repeat fetch MUST replace the snapshot, including with an empty array
+- **WHEN** a value row has no `adjustment` but a numeric platform parameter adjustment differing from the value
+- **THEN** export MUST return that offset as `adjustment`, preferring web, then xml, compose, ios
 
-#### Scenario: Snapshot cannot be loaded
+### Requirement: Components fetch saves web adapter
 
-- **WHEN** the snapshot request fails or its response is not a valid JSON array
-- **THEN** CLI MUST return a nonzero exit code without writing the package or snapshot
-- **THEN** CLI MUST NOT expose response bodies or credentials
+`components fetch` for the React platform SHALL load the web adapter from a dedicated endpoint before writing
+any file and save the response as is to `.sdds/web/web-adapter.json`. This is a temporary contract
+for local web generation and SHALL NOT change the component package model, `meta.json` or configuration
+files.
 
-#### Scenario: Snapshot cannot be written
+#### Scenario: Web-адаптер сохраняется в .sdds/web
 
-- **WHEN** writing the snapshot fails
-- **THEN** CLI MUST report failure with a nonzero exit code
+- **WHEN** the platform resolves to `react` (explicit `--platform`, otherwise the single platform of project config) and package export succeeds
+- **THEN** CLI MUST request `POST /api/projects/{projectId}/ds/component-config/web-adapter` with `designSystemId` in the body before writing any file
+- **THEN** CLI MUST write the response to `web/web-adapter.json` beside the discovered project config, or to `<to>/web/web-adapter.json` without local project config
+- **THEN** a repeated fetch MUST replace the file
 
-#### Scenario: Explicit link without local config
+#### Scenario: Без React адаптер не загружается
 
-- **WHEN** `components fetch --design-system <uri> --to <directory>` runs without a local `.sdds/config.json`
-- **THEN** CLI MUST write the component package to the selected directory
-- **THEN** CLI MUST request the legacy snapshot with the same context and credential as package export
-- **THEN** CLI MUST write `component-configs.json` into the selected directory
+- **WHEN** the platform resolves to another platform, or cannot be resolved because project config declares none or several
+- **THEN** fetch MUST NOT fail because of it
+- **THEN** CLI MUST NOT request the web adapter and MUST NOT write `.sdds/web`
+
+#### Scenario: Ошибка загрузки останавливает fetch до записи
+
+- **WHEN** the platform resolves to `react` and the request fails or the response is not a JSON array
+- **THEN** CLI MUST return a failure and MUST NOT write any file
+
+#### Scenario: Push не читает web-адаптер
+
+- **WHEN** developer runs `dsbuilder components push`
+- **THEN** CLI MUST NOT read or send `web-adapter.json`
+
+### Requirement: Web adapter endpoint
+
+`POST /ds/component-config/web-adapter` SHALL return a JSON array with one entry per component that has a
+configuration in the design system, ordered by `componentName` (the component name in the `meta.json` spelling).
+
+#### Scenario: Имя и описание из базы
+
+- **WHEN** a component of the package is returned
+- **THEN** `name` MUST be the component name from the database
+- **THEN** `description` MUST be the component description from the database and MUST be omitted when empty
+
+#### Scenario: Шаблоны по стилю
+
+- **WHEN** a value of a configuration has a web parameter adjustment with a template
+- **THEN** `styles.<styleName>.templates` MUST map the property name to the parameter name and the template
+- **THEN** styles without templates MUST NOT be listed
+
+#### Scenario: Compose-связи между компонентами пакета
+
+- **WHEN** components of the package have `compose` dependencies
+- **THEN** `compose` of the parent MUST list its children in dependency order
+- **THEN** a child absent from the package and `reuse` dependencies MUST NOT be listed
+
+### Requirement: Components fetch does not use the legacy endpoint
+
+`components fetch` SHALL NOT request the legacy component configs endpoint.
+
+#### Scenario: Нет запроса legacy-ручки
+
+- **WHEN** developer runs `dsbuilder components fetch` or `dsbuilder ds fetch`
+- **THEN** CLI MUST NOT request `GET /api/projects/{projectId}/ds/legacy/design-systems/{name}/component-configs`
+- **THEN** CLI MUST NOT write or delete `.sdds/component-configs.json`

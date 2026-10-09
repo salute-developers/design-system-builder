@@ -287,21 +287,26 @@ components:write
 dsbuilder components fetch
 ```
 
-Команда записывает пакет в `.sdds/components` и исходный JSON-массив legacy endpoint
-в `.sdds/component-configs.json` рядом с найденным `config.json`. Имя дизайн-системы
-берётся из метаданных экспорта; используются те же настройки API URL и ключа проекта.
-Параметр `--to` меняет только директорию пакета, путь исходного JSON остаётся прежним.
-Повторный запуск обновляет файл, включая пустой массив `[]`. Ошибка запроса или
-некорректный JSON останавливает загрузку до записи файлов.
-Команда `theme fetch` этот файл не загружает и не изменяет.
-При вызове `components fetch --design-system <uri> --to <directory>` без локальной `.sdds`
-snapshot сохраняется как `<directory>/component-configs.json`; оба backend-запроса используют
-выбранный контекст и credential.
+Команда записывает пакет в `.sdds/components`; `--to` задаёт другую директорию пакета.
+Legacy-снимок `component-configs.json` команда больше не загружает; ранее скачанный файл
+не трогается, его можно удалить. При вызове `components fetch --design-system <uri> --to <directory>`
+без локальной `.sdds` все backend-запросы используют выбранный контекст и credential.
+
+Для платформы React команда дополнительно загружает web-адаптер для локальной web-генерации —
+ответ `POST /ds/component-config/web-adapter` как есть: имена и описания компонентов, дочерние
+компоненты `compose` и шаблоны web-параметров по стилям — и пишет его в `.sdds/web/web-adapter.json`
+рядом с найденным `config.json` (без локальной `.sdds` — в `<directory>/web` из `--to`).
+Платформа выбирается как у `components generate`: `--platform`, иначе единственная
+платформа из `platforms` в `config.json`. Для других платформ или если платформу выбрать нельзя,
+запрос не выполняется и fetch не отказывает. Это временное решение до постоянных источников:
+файл не входит в состав пакета, push его не читает, а ошибка запроса останавливает загрузку
+до записи файлов.
 
 ## Генерация кода дизайн-системы
 
 Код темы и компонентов генерирует инструмент платформы: Swift CLI для iOS, Gradle-плагин для
-Android. CLI выбирает его по целевой платформе и передаёт пути рабочей копии.
+Android, web-генератор `js/cli` репозитория DS Builder для React. CLI выбирает его по целевой
+платформе и передаёт пути рабочей копии.
 
 ```bash
 dsbuilder theme generate
@@ -326,6 +331,40 @@ dsbuilder theme generate --output ./Themes --tool ~/.dsbuilder/toolchains/ios/ds
 ```bash
 dsbuilder theme generate -- --standalone --components
 ```
+
+### React
+
+Web-генератор — npm-пакет `js/cli` внутри репозитория DS Builder, установщика у него нет. Путь к
+каталогу задаётся переменной `DSBUILDER_WEB_TOOL` или `--tool`; нужны Node.js и `npm` в `PATH`.
+Тема и компоненты генерируются раздельно (`npm run generate:theme` и `npm run generate:components`),
+`--output` становится `--out` генератора, остальное после `--` передаётся как есть:
+
+```bash
+export DSBUILDER_WEB_TOOL=<путь к репозиторию>/design-system-builder/js/cli
+dsbuilder theme generate --platform react --output ./web
+dsbuilder components generate --platform react --output ./web
+dsbuilder components generate --platform react -- --package --name base
+```
+
+Без `--package` каждая команда заменяет только свою часть `src`; с `--package` собирается архив
+одной части. Подробности — в README `js/cli`.
+
+### Дизайн-система целиком
+
+```bash
+dsbuilder ds fetch
+dsbuilder ds generate --platform react --output ./web
+dsbuilder ds generate --platform react -- --package --name base
+```
+
+`ds fetch` выполняет `theme fetch`, затем `components fetch` с теми же опциями контекста и ключа
+(`--destination` уходит загрузке темы, `--to` и `--platform` — загрузке компонентов). Если тема не
+загрузилась, компоненты не загружаются, код возврата 1.
+
+`ds generate` один раз вызывает инструмент платформы с генерацией дизайн-системы целиком; склейку
+темы и компонентов делает сам инструмент. Для React это `npm run generate:ds` — с `--package` он
+собирает один пакет с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
+вызовом `gradlew`, для iOS — генерация темы (компоненты на iOS генерируются вместе с ней).
 
 ### Какие инструменты доступны
 
