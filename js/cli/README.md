@@ -8,26 +8,22 @@ CLI читает локальные данные, раскрывает ссыл�
 в обработке отсутствующих значений, старых токенов Plasma и форматировании.
 Нужны установленные зависимости этого сервиса (`npm ci` в `js/services/generator`)
 и самого CLI (`npm ci` в `js/cli`).
+`generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть: генератору нужен
+`NPM_PACKAGE_SCOPE` (scope пакета). `generate:api-meta` переменных окружения не требует.
+
+Тема и компоненты генерируются раздельно, как у Android: `generate:theme` — только тема,
+`generate:components` — только компоненты; `generate:ds` — обе части одним запуском, а с `--package` —
+один полный пакет `<scope>-<name>-<version>.tgz`, как у сервиса генерации (`dsbuilder ds generate`). Из общего CLI их запускает
+`dsbuilder theme generate --platform react` и `dsbuilder components generate --platform react`:
+делегат платформы `web` ищет этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`.
 
 Из `js/cli`:
 
 ```sh
 dsbuilder components fetch --platform react
-npm run generate:api-meta -- --package @salutejs/plasma-new-hope
+npm run generate:theme
 npm run generate:components
 ```
-
-Для отдельной генерации темы:
-
-```sh
-npm run generate:theme
-npm run generate:theme -- --sdds ./.sdds --tenant qwe_default
-```
-
-Команда сохраняет тему в `js/cli/output/theme`, а исходные модули `meta.js` и
-`variations.js` — в `js/cli/output`. Выгрузка компонентов ей не нужна.
-Tenant выбирается из `config.json` по тем же правилам, что и для компонентов.
-Справка: `npm run generate:theme -- --help`.
 
 Входные данные:
 
@@ -37,33 +33,50 @@ Tenant выбирается из `config.json` по тем же правилам
   компоненты `compose` (по ним раскладываются папки пакета) и шаблоны web-параметров по стилям
   (свойство → параметр → шаблон вроде `0 $1`). Пишет `dsbuilder components fetch` для платформы
   React (`--platform react` или `"platforms": ["react"]` в `config.json`).
-- `.sdds/web/web-api-meta.json` — web-параметры свойств из аннотаций токенов, собирается
-  `generate:api-meta` из установленной версии пакета компонентов (см. ниже).
+- Web-параметры свойств — из аннотаций токенов `@salutejs/plasma-new-hope`, установленного в
+  `js/cli`. `generate:components` собирает их на каждый запуск тем же кодом, что и
+  `generate:api-meta` (см. ниже), поэтому они всегда соответствуют установленной версии; файл
+  `web-api-meta.json` для генерации не нужен. Версия печатается в начале запуска.
 - `.sdds/config.json` — список tenants, пути к теме (`directoryPath`) и палитре (`palettePath`).
 - `.sdds/tenants/<tenant>/meta.json` и `web/*.json` — тема.
 - `.sdds/tenants/palette.json` — палитра.
 
 CLI собирает из них прежнюю модель генератора: свойство — ключ в конфиге, его web-параметры —
-записи `web-api-meta.json` с тем же `id` без `state` (имена состояний генератор выводит сам),
+записи маппингов с тем же `id` без `state` (имена состояний генератор выводит сам),
 шаблон, имя и описание компонента — из `web-adapter.json`. Тип свойства берётся из выгрузки, а не из аннотации:
 аннотация описывает CSS-значение целиком (`itemPadding: 0 8px` — `value`), а выгрузка — то, что
 лежит в модели (`dimension`, раскладываемый шаблоном `0 $1`).
 
 Можно указать другой каталог `.sdds`, каталог выгрузки (`--components`), каталог web-данных
-(`--web`), tenant, имя и версию пакета:
+(`--web`), tenant темы (`--tenant`, у `generate:theme` и `generate:ds`), имя и версию пакета:
 
 ```sh
-npm run generate:components -- --sdds ../../cli/.sdds --tenant plasma_homeds_default --ds-name my-ds --ds-version 0.1.0
+npm run generate:ds -- --sdds ../../cli/.sdds --tenant plasma_homeds_default --package --name my-ds --ds-version 0.1.0
 ```
 
-По умолчанию выбирается единственный tenant из `.sdds/config.json`.
-Если их несколько, нужно указать `--tenant`. Имя пакета берётся из метаданных темы,
-версия — `0.1.0`. `--core-version` задаёт версию `@salutejs/plasma-new-hope`.
+По умолчанию выбирается единственный tenant из `.sdds/config.json`; если их несколько, нужно указать
+`--tenant`. Имя пакета задаёт `--name`: оно обязательно только с `--package` — на исходники `src` имя
+не влияет. Версия — `0.1.0`, `--core-version` задаёт версию `@salutejs/plasma-new-hope`.
 
-Исходники пакета, тема и конфигурация сборки сохраняются рядом в
-`js/cli/output/components`; этот каталог перезаписывается при следующем запуске.
-CLI не обращается к бэкенду, не устанавливает зависимости сгенерированного пакета
-и не публикует его. Для компиляции можно отдельно запустить команды сборки пакета.
+Результат пишется в `--out` (по умолчанию `js/cli/output`); каждая команда заменяет только свою часть:
+
+- без флагов — исходники `src/theme` или `src/components`; `src/index.ts` экспортирует то, что
+  лежит в `src` (компоненты верхнего уровня и тему, если она есть);
+- с `--package` — собранный пакет из одной части: `<scope>-<name>-<version>-theme.tgz` или
+  `…-components.tgz` (например, `sddsjs-base-0.1.0-components.tgz` при `--name base`). Имя самого пакета у
+  обеих частей одно, суффикс только у файла, чтобы архивы не перезаписывали друг друга. В пакете
+  компонентов нет темы: её CSS-переменные приложение подключает пакетом темы.
+
+```sh
+npm run generate:theme -- --package --name base
+npm run generate:components -- --package --name base
+npm run generate:ds -- --package --name base
+```
+
+Пакет собирается во временном каталоге `services/generator/result-cli-*` — там же, где его
+собирает сервис генерации: скрипты пакета берут eslint из `../node_modules` генератора. С `--package`
+устанавливаются зависимости пакета и запускается его `npm run build` (через pacote, как в сервисе),
+поэтому нужна сеть до npm registry. CLI не обращается к бэкенду и не публикует пакет.
 `component-configs.json` генерацией не используется.
 
 # Метаданные Style API
@@ -131,7 +144,7 @@ npm run generate:api-meta -- --source ../../../plasma/packages/plasma-new-hope/s
 | --- | --- |
 | `--package <name>` | Установленный пакет, из которого читаются `.d.ts`. |
 | `--source <dir>` | Папка с `*.tokens.ts` или `*.tokens.d.ts`, например исходники в монорепозитории. |
-| `--out <file>` | Куда записать метаданные. По умолчанию `<sdds>/web/web-api-meta.json`, где их читает генерация компонентов. |
+| `--out <file>` | Куда записать метаданные. По умолчанию `<sdds>/web/web-api-meta.json`. Генерации компонентов файл не нужен: она собирает маппинги сама. |
 | `--sdds <dir>` | Каталог `.sdds` для пути по умолчанию (по умолчанию `js/cli/.sdds`). |
 
 Генератор находит пакет в `node_modules` текущей папки или её родителей и читает
