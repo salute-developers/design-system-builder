@@ -30,8 +30,12 @@ public class IosCliDelegate internal constructor(
      */
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.SWIFT_UI)
 
+    /**
+     * `DESIGN_SYSTEM` — генерация темы, затем компонентов: у инструмента нет общей команды,
+     * поэтому делегат запускает обе по очереди и останавливается на первой неудаче.
+     */
     override val capabilities: Set<Capability> =
-        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE)
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
@@ -66,33 +70,39 @@ public class IosCliDelegate internal constructor(
     }
 
     override fun run(invocation: DelegateInvocation): DelegateResult {
-        val arguments = arguments(invocation)
+        val commands = commands(invocation)
         val executable = locator.locate(invocation.toolOverride)
             ?: return DelegateResult.ToolchainMissing(missingHint(invocation.toolOverride))
 
         return try {
-            val result = processRunner.run(
-                ProcessRequest(
-                    executable = executable,
-                    args = arguments,
-                    workingDirectory = invocation.workspace.workspaceDir,
-                ),
-            )
-            if (result.exitCode == 0) {
+            val failed = commands.firstNotNullOfOrNull { arguments ->
+                processRunner.run(
+                    ProcessRequest(
+                        executable = executable,
+                        args = arguments,
+                        workingDirectory = invocation.workspace.workspaceDir,
+                    ),
+                ).exitCode.takeIf { it != 0 }
+            }
+            if (failed == null) {
                 DelegateResult.Completed(summary = completedSummary(invocation))
             } else {
-                DelegateResult.Failed(exitCode = result.exitCode, message = "see the output of $executable above")
+                DelegateResult.Failed(exitCode = failed, message = "see the output of $executable above")
             }
         } catch (error: ProcessLaunchException) {
             DelegateResult.ToolchainMissing("$executable cannot be started: ${error.message}")
         }
     }
 
-    /** Аргументы инструмента для capability; поддержаны все объявленные в [capabilities]. */
-    private fun arguments(invocation: DelegateInvocation): List<String> = when (invocation.capability) {
-        Capability.THEME -> generationArguments("theme", invocation)
-        Capability.COMPONENTS -> generationArguments("components", invocation)
-        Capability.DOCS_AGGREGATE -> docsArguments(invocation)
+    /** Запуски инструмента для capability по порядку; поддержаны все объявленные в [capabilities]. */
+    private fun commands(invocation: DelegateInvocation): List<List<String>> = when (invocation.capability) {
+        Capability.THEME -> listOf(generationArguments("theme", invocation))
+        Capability.COMPONENTS -> listOf(generationArguments("components", invocation))
+        Capability.DESIGN_SYSTEM -> listOf(
+            generationArguments("theme", invocation),
+            generationArguments("components", invocation),
+        )
+        Capability.DOCS_AGGREGATE -> listOf(docsArguments(invocation))
     }
 
     /**
@@ -127,6 +137,7 @@ public class IosCliDelegate internal constructor(
         Capability.THEME -> "Theme generated from ${invocation.workspace.sddsDir}."
         Capability.COMPONENTS -> "Component variations generated from ${invocation.workspace.sddsDir}."
         Capability.DOCS_AGGREGATE -> "Documentation tree aggregated from ${invocation.workspace.sddsDir}."
+        Capability.DESIGN_SYSTEM -> "Design system generated from ${invocation.workspace.sddsDir}."
     }
 
     /** Результат чтения версии инструмента. */

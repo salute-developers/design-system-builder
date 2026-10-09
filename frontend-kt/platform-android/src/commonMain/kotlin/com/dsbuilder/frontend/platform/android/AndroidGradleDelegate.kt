@@ -21,11 +21,12 @@ import com.dsbuilder.frontend.core.process.ProcessRunner
  * таски. Какая именно платформа (Compose, View) вообще сконфигурирована в модуле, решает
  * build.gradle.kts самого модуля — задача делегата только выбрать имя таски и запустить её.
  *
- * Все три capability (`THEME`, `COMPONENTS`, `DOCS_AGGREGATE`) используют пер-платформенные таски
+ * Все capability (`THEME`, `COMPONENTS`, `DOCS_AGGREGATE`, `DESIGN_SYSTEM`) используют пер-платформенные таски
  * (`generateComposeTheme`/`generateViewTheme`, `generateComposeComponents`/`generateViewComponents`,
  * `aggregateComposeDocumentation`/`aggregateViewDocumentation`): если платформа не сконфигурирована,
  * соответствующей таски не существует, и Gradle сам сообщает об этом понятной ошибкой вместо тихой
- * генерации/агрегации не той платформы.
+ * генерации/агрегации не той платформы. `DESIGN_SYSTEM` запускает таски темы и компонентов платформы
+ * одним вызовом `gradlew`.
  */
 public class AndroidGradleDelegate internal constructor(
     private val processRunner: ProcessRunner,
@@ -36,7 +37,7 @@ public class AndroidGradleDelegate internal constructor(
     override val platforms: Set<TargetPlatform> = setOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)
 
     override val capabilities: Set<Capability> =
-        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE)
+        setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
     override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val gradlew = locator.locate(workspace.workspaceDir, toolOverride)
@@ -63,12 +64,12 @@ public class AndroidGradleDelegate internal constructor(
     override fun run(invocation: DelegateInvocation): DelegateResult {
         unsupportedResult(invocation)?.let { return it }
 
-        val task = TASK_NAMES.getValue(invocation.capability to invocation.platform)
+        val tasks = TASK_NAMES.getValue(invocation.capability to invocation.platform)
         val workspace = invocation.workspace
         val gradlew = locator.locate(workspace.workspaceDir, invocation.toolOverride)
             ?: return DelegateResult.ToolchainMissing(missingHint(workspace, invocation.toolOverride))
 
-        return runGradleTask(gradlew, workspace, task, invocation.passthrough)
+        return runGradleTasks(gradlew, workspace, tasks, invocation.passthrough)
     }
 
     /** `null`, если invocation можно выполнить; иначе объясняет, почему нет — не запуская процесс. */
@@ -86,21 +87,21 @@ public class AndroidGradleDelegate internal constructor(
         else -> null
     }
 
-    private fun runGradleTask(
+    private fun runGradleTasks(
         gradlew: String,
         workspace: WorkspacePaths,
-        task: String,
+        tasks: List<String>,
         passthrough: List<String>,
     ): DelegateResult = try {
         val result = processRunner.run(
             ProcessRequest(
                 executable = gradlew,
-                args = listOf("-p", workspace.workspaceDir, task) + passthrough,
+                args = listOf("-p", workspace.workspaceDir) + tasks + passthrough,
                 workingDirectory = workspace.workspaceDir,
             ),
         )
         if (result.exitCode == 0) {
-            DelegateResult.Completed(summary = "$task completed for ${workspace.workspaceDir}.")
+            DelegateResult.Completed(summary = "${tasks.joinToString(" ")} completed for ${workspace.workspaceDir}.")
         } else {
             DelegateResult.Failed(exitCode = result.exitCode, message = "see the output of $gradlew above")
         }
@@ -134,13 +135,18 @@ public class AndroidGradleDelegate internal constructor(
          * платформу — запрос платформы, которую модуль не настраивал, честно возвращает "task not
          * found" вместо тихой генерации/агрегации не той платформы (см. KDoc класса).
          */
-        val TASK_NAMES: Map<Pair<Capability, TargetPlatform>, String> = mapOf(
-            (Capability.THEME to TargetPlatform.COMPOSE) to "generateComposeTheme",
-            (Capability.THEME to TargetPlatform.ANDROID_VIEW) to "generateViewTheme",
-            (Capability.COMPONENTS to TargetPlatform.COMPOSE) to "generateComposeComponents",
-            (Capability.COMPONENTS to TargetPlatform.ANDROID_VIEW) to "generateViewComponents",
-            (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to "aggregateComposeDocumentation",
-            (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to "aggregateViewDocumentation",
+        val TASK_NAMES: Map<Pair<Capability, TargetPlatform>, List<String>> = mapOf(
+            (Capability.THEME to TargetPlatform.COMPOSE) to listOf("generateComposeTheme"),
+            (Capability.THEME to TargetPlatform.ANDROID_VIEW) to listOf("generateViewTheme"),
+            (Capability.COMPONENTS to TargetPlatform.COMPOSE) to listOf("generateComposeComponents"),
+            (Capability.COMPONENTS to TargetPlatform.ANDROID_VIEW) to listOf("generateViewComponents"),
+            (Capability.DOCS_AGGREGATE to TargetPlatform.COMPOSE) to listOf("aggregateComposeDocumentation"),
+            (Capability.DOCS_AGGREGATE to TargetPlatform.ANDROID_VIEW) to listOf("aggregateViewDocumentation"),
+            // Тема перед компонентами — в том же порядке, что и раздельные команды.
+            (Capability.DESIGN_SYSTEM to TargetPlatform.COMPOSE) to
+                listOf("generateComposeTheme", "generateComposeComponents"),
+            (Capability.DESIGN_SYSTEM to TargetPlatform.ANDROID_VIEW) to
+                listOf("generateViewTheme", "generateViewComponents"),
         )
 
         /** `doctor` не получает capability/platform — проверяет обе THEME-таски, готовность значит «хотя бы одна». */
