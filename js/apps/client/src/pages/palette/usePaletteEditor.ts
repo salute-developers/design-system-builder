@@ -9,7 +9,7 @@ import {
     type ThemePalette,
 } from '../../modules/palette';
 import { paletteRepository } from '../../palette/paletteSession';
-import type { PaletteFilter, PaletteMode, PaletteSelection } from './Palette.utils';
+import { stepSwatch, type PaletteFilter, type PaletteMode, type PaletteSelection } from './Palette.utils';
 
 export type PaletteDialog =
     | { kind: 'add'; groupId: string }
@@ -106,6 +106,22 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
 
     const revision = paletteRevision(palette, designSystem);
 
+    // Ревью дизайна (PR #101): щелчок по ступени только выбирает её, выбор цвета открывается двойным щелчком
+    // по свотчу или кнопкой «Изменить цвет» в инспекторе.
+    const selectStep = useCallback((next: PaletteSelection) => {
+        setSelection(next);
+        setStepEditor(null);
+        stepSwatch(next)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    }, []);
+
+    const openStepEditor = useCallback((next: PaletteSelection, fallback: HTMLElement) => {
+        const swatch = stepSwatch(next);
+        swatch?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        setSelection(next);
+        setStepEditor({ ...next });
+        setStepAnchor(swatch ?? fallback);
+    }, []);
+
     /**
      * Выполняет операцию с текущей ревизией палитры. В режиме `api` ревизия общая с сохранением
      * значений токенов темы, поэтому после операции она переносится в параметры дизайн-системы, а при
@@ -184,6 +200,8 @@ export const usePaletteEditor = ({ context, palette, designSystem, setPalette, r
         setDialog,
         stepEditor,
         setStepEditor,
+        selectStep,
+        openStepEditor,
         renamingGroupId,
         setRenamingGroupId,
         stepAnchor,

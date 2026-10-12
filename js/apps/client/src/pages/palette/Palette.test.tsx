@@ -183,15 +183,39 @@ describe('раздел «Палитра»', () => {
         expect(screen.getByRole('textbox', { name: 'Название группы' })).toBeInTheDocument();
     });
 
-    it('режим «Цвет»: щелчок по ступени в боковой панели открывает выбор цвета', async () => {
+    it('режим «Цвет»: щелчок выбирает ступень, выбор цвета открывают двойной щелчок и «Изменить цвет»', async () => {
         // Выбору цвета (ColorConstructor и компоненты Plasma) нужны API браузера, которых нет в jsdom.
         vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
         Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
         await renderPalette();
         fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
+        const editorOpen = () => document.querySelector('.source-palette-step-editor') !== null;
+
         fireEvent.click(screen.getByTitle(/^Gray 900 ·/));
-        expect(await screen.findByText('Custom')).toBeInTheDocument();
-        expect(document.querySelector('.source-palette-step-editor')).not.toBeNull();
+        expect(await screen.findByRole('button', { name: 'Изменить цвет' })).toBeInTheDocument();
+        expect(editorOpen()).toBe(false);
+        fireEvent.doubleClick(screen.getByTitle(/^Gray 900 ·/));
+        expect(await screen.findByRole('dialog', { name: 'Цвет Gray 900' })).toBeInTheDocument();
+
+        const swatch = screen.getByRole('button', { name: 'Gray, цвет 800' });
+        fireEvent.click(swatch);
+        expect(editorOpen()).toBe(false);
+        fireEvent.doubleClick(swatch);
+        expect(await screen.findByRole('dialog', { name: 'Цвет Gray 800' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Gray, цвет 500' }));
+        expect(editorOpen()).toBe(false);
+        fireEvent.click(screen.getByRole('button', { name: 'Изменить цвет' }));
+        expect(await screen.findByRole('dialog', { name: 'Цвет Gray 500' })).toBeInTheDocument();
+    });
+
+    it('режим «Цвет»: без прав на правку в инспекторе нет «Изменить цвет»', async () => {
+        state.canEdit = false;
+        await renderPalette();
+        fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
+        fireEvent.click(screen.getByTitle(/^Gray 900 ·/));
+        expect(await screen.findByText('ЦВЕТ')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Изменить цвет' })).toBeNull();
     });
 
     it('«Изменить»: свотч опорного цвета открывает тот же выбор цвета, что и правка ступени', async () => {

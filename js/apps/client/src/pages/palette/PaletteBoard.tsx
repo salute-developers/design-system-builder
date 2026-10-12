@@ -408,12 +408,8 @@ const RampStep = ({
             data-step={step}
             tabIndex={selected || (!editor.selection && step === 500) ? 0 : -1}
             aria-label={`${ramp.displayName}, цвет ${step}${value.overridden ? ', отличается от брендовой палитры' : ''}`}
-            onClick={(event) => {
-                const next = { groupId: group.id, slot: ramp.slot, step };
-                editor.setSelection(next);
-                editor.setStepEditor({ ...next });
-                editor.setStepAnchor(event.currentTarget);
-            }}
+            onClick={() => editor.selectStep({ groupId: group.id, slot: ramp.slot, step })}
+            onDoubleClick={(event) => editor.openStepEditor({ groupId: group.id, slot: ramp.slot, step }, event.currentTarget)}
         >
             {content}
         </button>
