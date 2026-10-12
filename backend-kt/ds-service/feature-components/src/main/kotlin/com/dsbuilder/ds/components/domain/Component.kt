@@ -9,6 +9,8 @@ data class Component(
     val id: UUID,
     /** Name carried by this contract. */
     val name: String,
+    /** Platform the component belongs to: `web`, `compose`, `xml` or `ios`. */
+    val platform: String,
     /** Description carried by this contract. */
     val description: String?,
     /** Created at carried by this contract. */

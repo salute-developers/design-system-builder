@@ -29,7 +29,7 @@
   "compatibilityFallbacks": [
     "/api/projects/{projectId}/ds/legacy/**",
     "/api/projects/{projectId}/ds/saved-queries/**",
-    "/api/admin/**"
+    "/api/admin/** (except POST /api/admin/component-config/import-api-meta, served by ds-service)"
   ],
-  "decision": "Keep authenticated legacy and saved-query project routes plus user-authenticated admin routes on db-service; no consumer contract changes are required for included routes."
+  "decision": "Keep authenticated legacy and saved-query project routes plus user-authenticated admin routes on db-service, except the administrative API-meta import which ds-service serves; no consumer contract changes are required for included routes."
 }

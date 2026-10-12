@@ -30,9 +30,10 @@ internal object DesignSystemVersionsTable : Table("design_system_versions") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// `design_system_id` is NULL for global operations (API-meta import): such rows belong to no design system.
 internal object DesignSystemChangesTable : Table("design_system_changes") {
     val id = uuid("id")
-    val designSystemId = reference("design_system_id", DesignSystemsTable.id)
+    val designSystemId = reference("design_system_id", DesignSystemsTable.id).nullable()
     val entityType = text("entity_type")
     val entityId = uuid("entity_id")
     val operation = customEnumeration(

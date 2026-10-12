@@ -13,6 +13,10 @@ data class PropertyPlatformParam(
     val platform: String,
     /** Name carried by this contract. */
     val name: String,
+    /** Whether this platform name is deprecated. */
+    val deprecated: Boolean,
+    /** Deprecation message; empty when deprecated without text, `null` when not deprecated. */
+    val deprecatedMessage: String?,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

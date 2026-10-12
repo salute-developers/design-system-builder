@@ -205,8 +205,6 @@ interface ComponentModelRepository {
         val defaultValue: String?,
         /** Description carried by this contract. */
         val description: String?,
-        /** Platform carried by this contract. */
-        val platform: String?,
     )
 
     /** Public model for property update. */
@@ -223,10 +221,6 @@ interface ComponentModelRepository {
         val description: String?,
         /** Description present carried by this contract. */
         val descriptionPresent: Boolean,
-        /** Platform carried by this contract. */
-        val platform: String?,
-        /** Platform present carried by this contract. */
-        val platformPresent: Boolean,
     )
 
     /** Public model for platform param create. */
@@ -237,6 +231,10 @@ interface ComponentModelRepository {
         val platform: String,
         /** Name carried by this contract. */
         val name: String,
+        /** Deprecation flag; `null` keeps the column default (`false`). */
+        val deprecated: Boolean?,
+        /** Deprecation message; `null` when absent. */
+        val deprecatedMessage: String?,
     )
 
     /** Public model for platform param update. */
@@ -245,6 +243,12 @@ interface ComponentModelRepository {
         val platform: String?,
         /** Name carried by this contract. */
         val name: String?,
+        /** New deprecation flag; `null` leaves it unchanged. */
+        val deprecated: Boolean?,
+        /** New deprecation message, applied when [deprecatedMessagePresent]. */
+        val deprecatedMessage: String?,
+        /** Whether the request carried `deprecatedMessage` (an explicit `null` clears it). */
+        val deprecatedMessagePresent: Boolean,
     )
 
     /** Public model for property variation create. */

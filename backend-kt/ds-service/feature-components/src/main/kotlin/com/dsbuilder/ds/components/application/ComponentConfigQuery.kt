@@ -10,4 +10,6 @@ data class ComponentConfigQuery(
     val appearanceName: String,
     /** Component name carried by this contract. */
     val componentName: String,
+    /** Platform of the component; a component is identified by its name and platform. */
+    val platform: String,
 )

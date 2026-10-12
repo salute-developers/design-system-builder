@@ -12,6 +12,8 @@ data class ComponentResponse(
     val name: String,
     /** Description carried by this contract. */
     val description: String?,
+    /** Platform of the component: `web`, `compose`, `xml` or `ios`. */
+    val platform: String,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -23,6 +25,7 @@ data class ComponentResponse(
             value.id.toString(),
             value.name,
             value.description,
+            value.platform,
             value.createdAt.toString(),
             value.updatedAt.toString(),
         )

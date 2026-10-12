@@ -210,18 +210,20 @@ class DsServiceHttpPostgresIntegrationTest {
                 }
                 assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
                 val report = json.parseToJsonElement(imported.bodyAsText()).jsonObject
-                assertEquals("1", report.getValue("created").jsonPrimitive.content)
+                // The seeded design system already owns the web "default" appearance of Button: the import updates it.
+                assertEquals("0", report.getValue("created").jsonPrimitive.content, imported.bodyAsText())
+                assertEquals("1", report.getValue("updated").jsonPrimitive.content, imported.bodyAsText())
                 assertEquals("[]", report.getValue("unknownStates").toString())
 
                 val single = client.get(
-                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Button",
+                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Button&platform=web",
                 ) { trusted("project-a", "viewer") }
                 assertEquals(HttpStatusCode.OK, single.status, single.bodyAsText())
                 assertTrue(single.bodyAsText().contains("pressed"))
 
                 val exported = client.post("/api/ds/component-config/export") {
                     trusted("project-a", "viewer")
-                    jsonBody("""{"designSystemId":"$designSystemId","components":["button"]}""")
+                    jsonBody("""{"designSystemId":"$designSystemId","platform":"web","components":["button"]}""")
                 }
                 assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
                 assertTrue(exported.bodyAsText().contains("\"version\":\"1.0.0\""))
@@ -235,7 +237,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 assertEquals(countsBeforeDryRun, counts(postgres))
 
                 val absentPreview = client.get(
-                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=preview&component=Button",
+                    "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=preview&component=Button&platform=web",
                 ) { trusted("project-a", "viewer") }
                 assertEquals(HttpStatusCode.NotFound, absentPreview.status)
 
@@ -274,7 +276,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                 val foreignOnlyComponent = client.post("/api/ds/components") {
                     trustedSystemAdmin()
-                    jsonBody("""{"name":"ForeignOnly"}""")
+                    jsonBody("""{"name":"ForeignOnly","platform":"web"}""")
                 }
                 val foreignOnlyComponentId = id(foreignOnlyComponent.bodyAsText())
                 assertEquals(
@@ -331,7 +333,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                 val privateComponent = client.post("/api/ds/components") {
                     trustedSystemAdmin()
-                    jsonBody("""{"name":"PrivateButton"}""")
+                    jsonBody("""{"name":"PrivateButton","platform":"web"}""")
                 }
                 assertEquals(HttpStatusCode.Created, privateComponent.status)
                 val privateComponentId = id(privateComponent.bodyAsText())
@@ -388,7 +390,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 val component = element.jsonObject
                 val componentName = component.getValue("name").jsonPrimitive.content
                 val componentId = connection.prepareStatement(
-                    "INSERT INTO components (name, description) VALUES (?, '') RETURNING id",
+                    "INSERT INTO components (name, description, platform) VALUES (?, '', 'web') RETURNING id",
                 ).use { statement ->
                     statement.setString(1, componentName)
                     statement.executeQuery().use { rows ->
@@ -419,7 +421,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     params.forEach { (platform, name) ->
                         connection.prepareStatement(
                             "INSERT INTO property_platform_params (property_id, platform, name) " +
-                                "VALUES (?, ?::property_platform, ?)",
+                                "VALUES (?, ?::component_platform, ?)",
                         ).use { statement ->
                             statement.setObject(1, propertyId)
                             statement.setString(2, platform)
@@ -535,6 +537,7 @@ class DsServiceHttpPostgresIntegrationTest {
         """
         {
           "designSystemId":"$designSystemId",
+          "platform":"web",
           "meta":{"name":"integration-fixture","source":"kotlin-test"},
           "dryRun":$dryRun,
           "components":[{

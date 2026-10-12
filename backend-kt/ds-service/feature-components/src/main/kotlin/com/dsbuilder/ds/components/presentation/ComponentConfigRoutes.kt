@@ -41,13 +41,17 @@ fun Route.componentConfigRoutes(
             val version = query["version"]
             val appearance = query["appearance"]
             val component = query["component"]
-            if (designSystem == null || version == null || appearance == null || component == null) {
+            val platform = query["platform"]
+            if (
+                designSystem == null || version == null || appearance == null || component == null ||
+                platform == null || platform !in componentPlatforms
+            ) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_query"))
             }
             when (
                 val result = getConfig.execute(
                     context,
-                    ComponentConfigQuery(designSystem, version, appearance, component),
+                    ComponentConfigQuery(designSystem, version, appearance, component, platform),
                 )
             ) {
                 is DsResult.Success -> call.respond(ComponentConfigResponse.single(result.value))
@@ -61,13 +65,16 @@ fun Route.componentConfigRoutes(
             val request = call.receive<ExportComponentConfigRequest>()
             val id = request.designSystemId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            if (request.components.orEmpty().any(String::isEmpty) || request.styles.orEmpty().any(String::isEmpty)) {
+            if (
+                request.platform !in componentPlatforms ||
+                request.components.orEmpty().any(String::isEmpty) || request.styles.orEmpty().any(String::isEmpty)
+            ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             when (
                 val result = exportConfig.execute(
                     context,
-                    ExportComponentConfig(id, request.components, request.styles),
+                    ExportComponentConfig(id, request.platform, request.components, request.styles),
                 )
             ) {
                 is DsResult.Success -> call.respond(ExportComponentConfigResponse.from(result.value))
@@ -88,7 +95,7 @@ fun Route.componentConfigRoutes(
             val id = request.designSystemId.toUuidOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
-                request.components.isEmpty() ||
+                request.platform !in componentPlatforms || request.components.isEmpty() ||
                 request.components.any { it.componentName.isEmpty() || it.styleName.isEmpty() }
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
@@ -101,7 +108,7 @@ fun Route.componentConfigRoutes(
     }
 }
 
-private suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
+internal suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
     val channel = receiveChannel()
     val output = ByteArrayOutputStream(minOf(limit, 64 * 1024))
     val buffer = ByteArray(8192)
@@ -114,4 +121,4 @@ private suspend fun ApplicationCall.receiveAtMost(limit: Int): ByteArray? {
     }
 }
 
-private const val COMPONENT_CONFIG_IMPORT_LIMIT_BYTES = 16 * 1024 * 1024
+internal const val COMPONENT_CONFIG_IMPORT_LIMIT_BYTES = 16 * 1024 * 1024

@@ -14,8 +14,6 @@ data class AppearanceResponse(
     val componentId: String,
     /** Name carried by this contract. */
     val name: String?,
-    /** Platform carried by this contract. */
-    val platform: String?,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -28,7 +26,6 @@ data class AppearanceResponse(
             value.designSystemId.toString(),
             value.componentId.toString(),
             value.name,
-            value.platform,
             value.createdAt.toString(),
             value.updatedAt.toString(),
         )

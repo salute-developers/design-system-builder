@@ -49,7 +49,7 @@ class OpenApiDocumentResourceTest {
         val queryParameters = paths.getValue("/api/ds/component-config").jsonObject
             .getValue("get").jsonObject.getValue("parameters").jsonArray
         assertEquals(
-            setOf("ds", "version", "appearance", "component"),
+            setOf("ds", "version", "appearance", "component", "platform"),
             queryParameters.map {
                 it.jsonObject.getValue("name").jsonPrimitive.content
             }.toSet(),

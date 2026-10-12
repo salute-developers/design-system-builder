@@ -13,8 +13,6 @@ data class DesignSystemAppearanceSummary(
     val componentId: UUID,
     /** Name carried by this contract. */
     val name: String?,
-    /** Platform carried by this contract. */
-    val platform: String?,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

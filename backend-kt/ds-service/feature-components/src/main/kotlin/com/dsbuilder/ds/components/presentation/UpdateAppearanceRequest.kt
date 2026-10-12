@@ -7,6 +7,6 @@ import kotlinx.serialization.Serializable
 data class UpdateAppearanceRequest(
     /** Name carried by this contract. */
     val name: String? = null,
-    /** Platform carried by this contract. */
+    /** Accepted for compatibility and ignored: the platform is defined by the component. */
     val platform: String? = null,
 )

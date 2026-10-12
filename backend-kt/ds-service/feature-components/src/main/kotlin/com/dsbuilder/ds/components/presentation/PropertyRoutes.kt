@@ -69,16 +69,12 @@ fun Route.propertyRoutes(
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            if (request.platform != null && request.platform !in componentPlatforms) {
-                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
             val command = ComponentModelRepository.PropertyCreate(
                 componentId,
                 request.name.trim(),
                 request.type,
                 request.defaultValue?.trim(),
                 request.description?.trim(),
-                request.platform,
             )
             when (val result = create.execute(context, command)) {
                 is DsResult.Success -> call.respond(
@@ -100,8 +96,7 @@ fun Route.propertyRoutes(
                 payload.hasInvalidNull("name", "type", "defaultValue", "description") ||
                 (request.name != null && !request.name.validName()) ||
                 (request.type != null && request.type !in propertyTypes) ||
-                !request.description.validDescription() ||
-                (request.platform != null && request.platform !in componentPlatforms)
+                !request.description.validDescription()
             ) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
@@ -112,8 +107,6 @@ fun Route.propertyRoutes(
                 "defaultValue" in payload,
                 request.description?.trim(),
                 "description" in payload,
-                request.platform,
-                "platform" in payload,
             )
             when (val result = update.execute(context, id, command)) {
                 is DsResult.Success -> call.respond(ComponentPropertySummaryResponse.from(result.value))

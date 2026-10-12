@@ -43,7 +43,7 @@ class ComponentUseCaseTest {
     fun `global component creation requires system admin`() = runBlocking {
         val result = CreateComponentUseCase(policy, ImmediateTransactions(), RecordingComponentRepository()).execute(
             ownerContext(),
-            ComponentRepository.Create("button", null),
+            ComponentRepository.Create("button", "web", null),
         )
 
         assertEquals(DsFailure.Forbidden, assertIs<DsResult.Failure>(result).error)
