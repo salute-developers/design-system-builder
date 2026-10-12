@@ -88,17 +88,9 @@ export const PaletteSidebar = ({ context, palette, editor, canEdit, steps }: Pal
     const selectRamp = (groupId: string, ramp: PaletteRamp) =>
         editor.setSelection({ groupId, slot: ramp.slot, step: selectionStep(ramp, selected?.step) });
 
-    // Как `select-source-color` прототипа: выбор ступени из списка сразу открывает выбор цвета у её свотча на борде.
+    // Как на борде: щелчок выбирает ступень, двойной щелчок открывает выбор цвета у её свотча.
     const openStep = (groupId: string, ramp: PaletteRamp, step: number, fallback: HTMLElement) => {
-        const next = { groupId, slot: ramp.slot, step };
-        editor.setSelection(next);
-        if (!canEdit) return;
-        const swatch = document.querySelector<HTMLElement>(
-            `.source-palette-ramp-step[data-group="${CSS.escape(groupId)}"][data-slot="${CSS.escape(rampKey(ramp.slot))}"][data-step="${step}"]`,
-        );
-        swatch?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-        editor.setStepEditor({ ...next });
-        editor.setStepAnchor(swatch ?? fallback);
+        if (canEdit) editor.openStepEditor({ groupId, slot: ramp.slot, step }, fallback);
     };
 
     // Ревью дизайна (PR #101): группа создаётся сразу, название редактируется на месте.
@@ -304,7 +296,10 @@ export const PaletteSidebar = ({ context, palette, editor, canEdit, steps }: Pal
                                                                     className={`source-palette-color-step ${activeStep ? 'is-active' : ''}`}
                                                                     aria-current={activeStep}
                                                                     title={`${ramp.displayName} ${step.step} · ${step.value}`}
-                                                                    onClick={(event) =>
+                                                                    onClick={() =>
+                                                                        editor.selectStep({ groupId: group.id, slot: ramp.slot, step: step.step })
+                                                                    }
+                                                                    onDoubleClick={(event) =>
                                                                         openStep(group.id, ramp, step.step, event.currentTarget)
                                                                     }
                                                                 >

@@ -765,3 +765,19 @@
   .source-palette-editor-grid{grid-template-columns:280px minmax(480px,1fr) 320px}
   .source-palette-editor-grid.is-inspector-collapsed{grid-template-columns:280px minmax(480px,1fr)}
 }
+
+/* Строка цвета ступени в инспекторе режима «Цвет»: в прототипе её нет, добавлена по ревью дизайна (PR #101). */
+.source-palette-step-color {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    color: #c7c9cd;
+    font-size: 12px;
+}
+
+.source-palette-step-color .source-palette-inline-apply {
+    margin-left: auto;
+    height: 28px;
+}

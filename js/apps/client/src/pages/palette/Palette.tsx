@@ -200,6 +200,7 @@ const PaletteScreen = ({
                         context={context}
                         palette={palette}
                         editor={editor}
+                        canEdit={canEdit}
                         onOpenToken={openToken}
                         onOpenColors={() => navigate('../colors')}
                     />

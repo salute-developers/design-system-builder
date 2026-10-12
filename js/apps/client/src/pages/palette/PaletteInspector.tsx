@@ -17,6 +17,7 @@ interface PaletteInspectorProps {
     context: PaletteContext;
     palette: ThemePalette;
     editor: PaletteEditor;
+    canEdit: boolean;
     onOpenToken: (tokenName: string, mode: string | null) => void;
     onOpenColors: () => void;
 }
@@ -29,7 +30,7 @@ const byToken = (links: PaletteLink[]) => {
 };
 
 /** Инспектор по `sourcePaletteSelectedPanelV3` прототипа: источник палитры и связанные токены. */
-export const PaletteInspector = ({ context, palette, editor, onOpenToken, onOpenColors }: PaletteInspectorProps) => {
+export const PaletteInspector = ({ context, palette, editor, canEdit, onOpenToken, onOpenColors }: PaletteInspectorProps) => {
     const selection = editor.selection;
     const group = palette.groups.find((item) => item.id === selection?.groupId);
     const ramp = selection ? findRamp(palette, selection.groupId, selection.slot) : undefined;
@@ -92,6 +93,25 @@ export const PaletteInspector = ({ context, palette, editor, onOpenToken, onOpen
             <header className="source-palette-inspector-header">
                 {paletteMode ? group.label : `${ramp.displayName} ${selection.step}`}
             </header>
+            {!paletteMode && (
+                // Ревью дизайна (PR #101): выбор цвета ступени открывается отсюда или двойным щелчком по свотчу.
+                <section className="source-palette-inspector-section source-palette-step-color-section">
+                    <h2>ЦВЕТ</h2>
+                    <div className="source-palette-step-color">
+                        <span className="source-palette-usage-swatch" style={{ background: stepValue }} />
+                        <span>{stepValue}</span>
+                        {canEdit && (
+                            <button
+                                type="button"
+                                className="source-palette-inline-apply"
+                                onClick={(event) => editor.openStepEditor(selection, event.currentTarget)}
+                            >
+                                Изменить цвет
+                            </button>
+                        )}
+                    </div>
+                </section>
+            )}
             <section className="source-palette-inspector-section source-palette-source-section">
                 <h2>ИСТОЧНИК ПАЛИТРЫ</h2>
                 <dl>

@@ -119,3 +119,9 @@ export const valueInGroup = (palette: ThemePalette, groupId: string, reference: 
 
 export const findRamp = (palette: ThemePalette, groupId: string, slot: PaletteRampRef) =>
     palette.groups.find((group) => group.id === groupId)?.ramps.find((ramp) => sameRamp(ramp.slot, slot));
+
+/** Свотч ступени на борде режима «Цвет»: к нему привязан выбор цвета. */
+export const stepSwatch = ({ groupId, slot, step }: PaletteSelection) =>
+    document.querySelector<HTMLElement>(
+        `.source-palette-ramp-step[data-group="${CSS.escape(groupId)}"][data-slot="${CSS.escape(rampKey(slot))}"][data-step="${step}"]`,
+    );
