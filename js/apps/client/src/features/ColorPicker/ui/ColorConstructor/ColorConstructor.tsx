@@ -4,12 +4,16 @@ import { getNormalizedColor, isValidColorValue } from '../../../../utils';
 import { SelectButton, SelectButtonItem, Slider, TextField } from '../../../../components';
 import { ColorValueEditButton } from '../ColorValueEditButton';
 
+import { EyeDropperButton } from './EyeDropperButton';
+
 import {
     Root,
     StyledColorFormats,
     StyledColorInput,
     StyledSaturationValueArea,
     StyledSaturationValueAreaThumb,
+    StyledSliders,
+    StyledSliderStack,
 } from './ColorConstructor.styles';
 import { colorTypeList, getCustomColor, getMousePosition, colorToHsv } from './ColorConstructor.utils';
 
@@ -198,14 +202,19 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
                     ref={saturationValueThumbRef}
                 />
             </StyledSaturationValueArea>
-            <Slider gradientBackground={hueGradient} value={hue} min={0} max={360} onChange={onChangeValue} />
-            {!hideOpacity && (
-                <Slider
-                    solidBackground={color}
-                    value={Number(((opacity ?? 1) * 100).toFixed(0))}
-                    onChange={onOpacityChange}
-                />
-            )}
+            <StyledSliders>
+                <EyeDropperButton onPick={onChange} />
+                <StyledSliderStack>
+                    <Slider gradientBackground={hueGradient} value={hue} min={0} max={360} onChange={onChangeValue} />
+                    {!hideOpacity && (
+                        <Slider
+                            solidBackground={color}
+                            value={Number(((opacity ?? 1) * 100).toFixed(0))}
+                            onChange={onOpacityChange}
+                        />
+                    )}
+                </StyledSliderStack>
+            </StyledSliders>
             <StyledColorInput>
                 <SelectButton items={colorTypeList} selected={colorType} onItemSelect={onColorTypeSelect} />
                 <TextField
