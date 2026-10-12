@@ -11,9 +11,10 @@ internal class ComponentsCliCommand(
     pushCommand: ComponentsPushCliCommand,
     fetchCommand: ComponentsFetchCliCommand,
     generateCommand: ComponentsGenerateCliCommand,
+    importApiCommand: ComponentsImportApiCliCommand,
 ) : CliktCommand(name = "components") {
     init {
-        subcommands(pushCommand, fetchCommand, generateCommand)
+        subcommands(pushCommand, fetchCommand, generateCommand, importApiCommand)
     }
 
     override fun help(context: Context): String = "Manage design system components."

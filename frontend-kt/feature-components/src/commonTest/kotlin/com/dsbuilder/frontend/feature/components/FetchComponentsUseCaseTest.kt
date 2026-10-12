@@ -73,6 +73,7 @@ class FetchComponentsUseCaseTest {
         designSystemId = DesignSystemId("ds-a"),
         credentialEnvName = CredentialEnvName("DSBUILDER_API_KEY"),
         configPath = "/work/.sdds/config.json",
+        platforms = listOf(TargetPlatform.COMPOSE),
     )
 
     @Test
@@ -236,8 +237,6 @@ class FetchComponentsUseCaseTest {
         val cases = mapOf(
             listOf(TargetPlatform.REACT) to true,
             listOf(TargetPlatform.COMPOSE) to false,
-            // Платформу выбрать нельзя: fetch не отказывает, а просто не загружает данные.
-            listOf(TargetPlatform.REACT, TargetPlatform.COMPOSE) to false,
         )
         for ((platforms, expected) in cases) {
             var requested = false
@@ -275,6 +274,57 @@ class FetchComponentsUseCaseTest {
 
         assertEquals("Error: unavailable", (result as FetchComponentsResult.Failed).message)
         assertEquals(0, writes)
+    }
+
+    @Test
+    fun exportsTheProjectPlatform() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        val result = execute(onExport = { commands += it })
+
+        assertEquals("compose", commands.single().platform)
+        assertEquals(TargetPlatform.COMPOSE, (result as FetchComponentsResult.Fetched).source.platform)
+    }
+
+    @Test
+    fun anAndroidViewProjectExportsTheXmlPlatform() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.ANDROID_VIEW)),
+            onExport = { commands += it },
+        )
+
+        assertEquals("xml", commands.single().platform)
+    }
+
+    @Test
+    fun theExplicitPlatformBeatsTheConfig() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+
+        execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)),
+            platform = TargetPlatform.COMPOSE,
+            onExport = { commands += it },
+        )
+
+        assertEquals("compose", commands.single().platform)
+    }
+
+    @Test
+    fun severalPlatformsWithoutAnOverrideFailBeforeAnythingIsRequested() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+        var written = false
+
+        val result = execute(
+            selectedContext = context.copy(platforms = listOf(TargetPlatform.COMPOSE, TargetPlatform.ANDROID_VIEW)),
+            onExport = { commands += it },
+            onWrite = { written = true },
+        )
+
+        val failed = result as FetchComponentsResult.Failed
+        assertTrue(failed.message.contains("--platform"), failed.message)
+        assertTrue(commands.isEmpty() && !written)
     }
 
     private suspend fun execute(

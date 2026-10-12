@@ -24,14 +24,12 @@ internal class ComponentsFetchCliCommand(
 
     private val apiKey: String? by option("--api-key")
 
+    private val platform: TargetPlatform? by option("--platform").targetPlatform()
+        .help("$PLATFORM_COMPONENTS_HELP react also fetches the web adapter into .sdds/web/web-adapter.json.")
+
     private val apiUrl: String? by option("--api-url")
     private val designSystem: String? by option("--design-system")
     private val projectKeyEnv: String? by option("--project-key-env")
-    private val platform: TargetPlatform? by option("--platform").targetPlatform()
-        .help(
-            "Target platform; taken from .sdds/config.json when omitted. " +
-                "react also fetches the web adapter into .sdds/web/web-adapter.json.",
-        )
 
     override fun run() {
         val result = runBlocking {
@@ -68,6 +66,7 @@ internal class ComponentsFetchCliCommand(
  * API key не выводится ни в каком виде.
  */
 internal fun FetchSource.render(): String = """
+    Platform: ${platform.cliValue}
     Package: $packageName
     Version: $packageVersion
     Configurations: $configurationCount
