@@ -281,7 +281,15 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }
             }
         }
-        declarations.values.forEachIndexed { position, (members, authored) ->
+        // Declared coordinates are stored in a canonical order (axis, then value, in the order of the axes), not in
+        // the order of the entries in the file, so a config and its own export produce the same stored state.
+        val rank = canonicalRank(config, styles)
+        val unranked = Int.MAX_VALUE to Int.MAX_VALUE
+        fun ranks(members: List<UUID>) = members.map { rank[it] ?: unranked }.sortedWith(RANK)
+        val ordered = declarations.values.sortedWith { left, right ->
+            compareRanks(ranks(left.first), ranks(right.first))
+        }
+        ordered.forEachIndexed { position, (members, authored) ->
             val id = AppearanceCombinationsTable.insertReturning {
                 it[appearanceId] = appearance
                 it[combinationKey] = members.joinToString(",")
@@ -296,6 +304,24 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }.single()
             }
         }
+    }
+
+    /** Position of every style as (axis index, value index), the same positions that [declareAxes] stores. */
+    private fun canonicalRank(config: ComponentConfig, styles: Map<String, UUID>): Map<UUID, Pair<Int, Int>> {
+        val values = axisValues(config).groupBy({ it.first }, { it.second })
+        return buildMap {
+            axes(config).forEachIndexed { axisIndex, (axisId, _) ->
+                val declared = config.variations.firstOrNull { it.id == axisId }?.values?.map { it.name }.orEmpty()
+                (declared + values[axisId].orEmpty()).distinct().forEachIndexed { valueIndex, value ->
+                    styles[styleKey(axisId, value)]?.let { put(it, axisIndex to valueIndex) }
+                }
+            }
+        }
+    }
+
+    private fun compareRanks(left: List<Pair<Int, Int>>, right: List<Pair<Int, Int>>): Int {
+        left.zip(right).forEach { (l, r) -> RANK.compare(l, r).takeIf { it != 0 }?.let { return it } }
+        return left.size.compareTo(right.size)
     }
 
     private fun direct(
@@ -643,3 +669,5 @@ private fun ComponentConfig.Scalar.json() = if (this is ComponentConfig.Scalar.T
 } else {
     raw().orEmpty()
 }
+
+private val RANK: Comparator<Pair<Int, Int>> = compareBy({ it.first }, { it.second })

@@ -212,6 +212,41 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `declared cross-axis coordinates are stored in a canonical order whatever the order of the entries`() =
+        withService {
+            val designSystem = id(
+                post("/api/ds/design-systems", """{"name":"gamma","projectName":"gamma"}""", owner = true).bodyAsText(),
+            )
+            val component =
+                id(post("/api/ds/components", """{"name":"Button","platform":"compose"}""", admin = true).bodyAsText())
+            post("/api/ds/properties", """{"componentId":"$component","name":"gap","type":"value"}""", admin = true)
+            fun entry(
+                size: String,
+            ) = """{"name":"default","targets":[{"properties":[{"id":"size","value":"$size"}]}],""" +
+                """"properties":{"gap":{"type":"value","value":1}}}"""
+
+            fun body(first: String, second: String) = importBody(designSystem, platform = "compose").replace(
+                """"config":{"invariants":{"shape":{"type":"value","value":{"radius":8}}}}""",
+                """"config":{"variations":[{"id":"size","name":"size","values":[{"name":"l"},{"name":"m"}]},""" +
+                    """{"id":"view","name":"view","values":[${entry(first)},${entry(second)}]}]}""",
+            )
+
+            val members = "SELECT string_agg(k, ';' ORDER BY p) FROM (SELECT ac.position AS p, " +
+                "(SELECT string_agg(s.name, '+' ORDER BY m.position) FROM appearance_combination_members m " +
+                "JOIN styles s ON s.id = m.style_id WHERE m.appearance_combination_id = ac.id) AS k " +
+                "FROM appearance_combinations ac) x"
+
+            val first = post("/api/ds/component-config/import", body("l", "m"), editor = true)
+            assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+            assertTrue(count("appearance_combinations") > 0, first.bodyAsText())
+            val stored = query(members)
+            val again = post("/api/ds/component-config/import", body("m", "l"), editor = true)
+
+            assertEquals("1", field(again.bodyAsText(), "unchanged"), again.bodyAsText())
+            assertEquals(stored, query(members))
+        }
+
+    @Test
     fun `journal rows without a design system never reach the project feeds`() = withService {
         val designSystem =
             id(post("/api/ds/design-systems", """{"name":"beta","projectName":"beta"}""", owner = true).bodyAsText())
