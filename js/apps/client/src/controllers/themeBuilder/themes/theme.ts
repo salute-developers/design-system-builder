@@ -10,6 +10,7 @@ export class Theme {
     private name: string;
     private version: string;
     private tokens: VariationsClasses;
+    private revision = 0;
 
     constructor(name: string, version: string, tokens: VariationsClasses) {
         this.name = name;
@@ -29,8 +30,13 @@ export class Theme {
         return this.version;
     }
 
+    public getRevision() {
+        return this.revision;
+    }
+
     public setVersion(value: string) {
         this.version = value;
+        this.revision += 1;
     }
 
     public getTokens(): VariationsClasses;
@@ -45,12 +51,14 @@ export class Theme {
 
     public addToken<U extends keyof VariationsClasses, K extends VariationsClasses[U][number]>(type: U, token: K): K {
         (this.tokens[type] as Array<K>).push(token);
+        this.revision += 1;
 
         return token;
     }
 
     public removeToken<U extends keyof PlatformsVariations, K extends VariationsClasses[U]>(name: string, type: U) {
         this.tokens[type] = this.tokens[type].filter((item) => item.getName() !== name) as K;
+        this.revision += 1;
     }
 
     public getToken<U extends keyof PlatformsVariations>(name: string, type: U): TokenVariations[U] | undefined {
@@ -123,6 +131,7 @@ export class Theme {
 
         if (typeof platform === 'string') {
             token.setValue<T, PlatformsVariations[U]>(platform, value);
+            this.revision += 1;
             return;
         }
 
@@ -130,6 +139,7 @@ export class Theme {
             Object.entries(platform).forEach(([key, value]) => {
                 token.setValue<T, PlatformsVariations[U]>(key, value);
             });
+            this.revision += 1;
         }
     }
 

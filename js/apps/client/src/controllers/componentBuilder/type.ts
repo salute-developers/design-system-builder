@@ -119,6 +119,12 @@ export interface Meta {
     name: string;
     description: string;
     deps?: ComponentDep[];
+    preview?: {
+        compose?: {
+            componentId: string;
+            storyId: string;
+        };
+    };
     sources: Sources;
 }
 

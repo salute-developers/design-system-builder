@@ -7,6 +7,7 @@
     "dev:services": "npm run dev:db-service",
     "dev:db-service": "cd services/db-service && npm run dev",
     "dev:client": "cd apps/client && npm run dev",
+    "dev:compose-plugin": "cd apps/client && npm run dev:compose-plugin",
     "dev:admin": "cd apps/admin && npm run dev",
     "build": "concurrently --kill-others-on-fail --names services,client,admin -c auto \"npm run build:services\" \"npm run build:client\" \"npm run build:admin\"",
     "build:services": "npm run build:db-service",
