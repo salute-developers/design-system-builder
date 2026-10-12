@@ -4,13 +4,13 @@ export async function seedComponents(db: any) {
   const rows = await db
     .insert(schema.components)
     .values([
-      { name: 'Button', description: 'Компонент кнопка.' },
-      { name: 'Text', description: 'Компонент текст.' },
-      { name: 'Link', description: 'Компонент ссылка.' },
-      { name: 'TextField', description: 'Компонент поле для ввода.' },
-      { name: 'Cell', description: 'Компонент ячейка.' },
-      { name: 'CellLabel', description: 'Лейбл ячейки.' },
-      { name: 'CellTitle', description: 'Заголовок ячейки.' },
+      { name: 'Button', platform: 'web', description: 'Компонент кнопка.' },
+      { name: 'Text', platform: 'web', description: 'Компонент текст.' },
+      { name: 'Link', platform: 'web', description: 'Компонент ссылка.' },
+      { name: 'TextField', platform: 'web', description: 'Компонент поле для ввода.' },
+      { name: 'Cell', platform: 'web', description: 'Компонент ячейка.' },
+      { name: 'CellLabel', platform: 'web', description: 'Лейбл ячейки.' },
+      { name: 'CellTitle', platform: 'web', description: 'Заголовок ячейки.' },
     ])
     .returning();
 

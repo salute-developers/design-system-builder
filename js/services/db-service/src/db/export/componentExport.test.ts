@@ -15,13 +15,13 @@ import type { ImportComponent } from "../import/commonConfig";
  */
 
 const exportOf = async (tx: TestTx, fixture: Fixture, configs: ImportComponent[]) => {
-  const report = await importComponents(tx, fixture.designSystemId, configs);
+  const report = await importComponents(tx, fixture.designSystemId, "web", configs);
   expect(report.rejected).toEqual([]);
 
   const result = await buildComponentPackage(tx, {
     id: fixture.designSystemId,
     name: "import-test-ds",
-  });
+  }, "web");
   if (!result.ok) throw new Error(`export refused: ${result.reason}`);
   return result.package;
 };
@@ -47,7 +47,7 @@ describe("buildComponentPackage", () => {
         const result = await buildComponentPackage(tx, {
           id: fixture.designSystemId,
           name: "import-test-ds",
-        });
+        }, "web");
 
         // Поле version обязательно в модели плагина: заглушка уехала бы в собранную тему.
         expect(result.ok).toBe(false);
@@ -82,7 +82,7 @@ describe("buildComponentPackage", () => {
         const result = await buildComponentPackage(tx, {
           id: fixture.designSystemId,
           name: "import-test-ds",
-        });
+        }, "web");
         expect(result.ok).toBe(false);
         if (!result.ok) expect(result.reason).toContain("iconButton");
       });
@@ -517,16 +517,16 @@ describe("buildComponentPackage", () => {
       });
     };
 
-    it("берёт смещение из поправки, если у строки его нет, с приоритетом web", async () => {
+    it("берёт смещение из поправки, если у строки его нет", async () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "radius", type: "dimension" }]);
         await publishVersion(tx, fixture.designSystemId);
         await exportOf(tx, fixture, [configWith({ radius: { type: "dimension", value: 12 } })]);
 
-        await adjustInvariant(tx, fixture, "radius", { platform: "xml", name: "sd_radius" }, { value: "-4" });
+        // У компонента платформы web бывают только web-параметры: алиас другой платформы запрещён триггером.
         await adjustInvariant(tx, fixture, "radius", { platform: "web", name: "testButtonRadius" }, { value: "-2" });
 
-        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" });
+        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" }, "web");
         if (!result.ok) throw new Error(result.reason);
         expect((result.package.components[0].config as any).invariants.radius.adjustment).toBe(-2);
       });
@@ -539,13 +539,38 @@ describe("buildComponentPackage", () => {
         await exportOf(tx, fixture, [configWith({ radius: { type: "dimension", value: 12 } })]);
 
         await adjustInvariant(tx, fixture, "radius", { platform: "web", name: "testButtonRadius" }, { value: "12" });
-        await adjustInvariant(tx, fixture, "radius", { platform: "xml", name: "sd_radius" }, { value: "round.l" });
+        await adjustInvariant(tx, fixture, "radius", { platform: "web", name: "testButtonShape" }, { value: "round.l" });
 
-        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" });
+        const result = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" }, "web");
         if (!result.ok) throw new Error(result.reason);
         expect((result.package.components[0].config as any).invariants.radius).not.toHaveProperty("adjustment");
       });
     });
 
+  });
+});
+
+describe("buildComponentPackage: платформы", () => {
+  it("выгружает только компоненты запрошенной платформы", async () => {
+    await withRollback(async (tx) => {
+      const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
+      await publishVersion(tx, fixture.designSystemId);
+      const [compose] = await tx
+        .insert(schema.components)
+        .values({ name: "TestButton", platform: "compose" })
+        .returning();
+      await tx.insert(schema.properties).values({ componentId: compose.id, name: "background", type: "color" });
+      const config = configWith({ background: { type: "color", default: fixture.colorToken } });
+      await importComponents(tx, fixture.designSystemId, "web", [config]);
+      await importComponents(tx, fixture.designSystemId, "compose", [config]);
+
+      const web = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" }, "web");
+      const native = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" }, "compose");
+      const none = await buildComponentPackage(tx, { id: fixture.designSystemId, name: "import-test-ds" }, "xml");
+
+      expect(web.ok && web.package.components).toHaveLength(1);
+      expect(native.ok && native.package.components).toHaveLength(1);
+      expect(none.ok && none.package.components).toHaveLength(0);
+    });
   });
 });

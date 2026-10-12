@@ -119,7 +119,7 @@ beforeAll(async () => {
 
     const [component] = await testDb
         .insert(components)
-        .values({ name: `button-${randomUUID()}` })
+        .values({ name: `button-${randomUUID()}`, platform: 'web' })
         .returning();
     componentId = component.id;
     await testDb.insert(designSystemComponents).values({ designSystemId: designSystemA, componentId });

@@ -36,7 +36,7 @@ export const propertyTypeEnum = pgEnum('property_type', [
     'value',
     'icon',
     'boolean',
-    // Тип из uikit-api-meta.json: счётчики и длительности (PaginationDots.edgeCount,
+    // Тип из uikit-compose-api-meta.json: счётчики и длительности (PaginationDots.edgeCount,
     // Wheel.visibleItemsCount, RectSkeleton.duration). В конфигурациях оформления те же
     // свойства записаны как value или float — глобальный слой берёт тип из кода.
     'integer',
@@ -54,14 +54,14 @@ export const tokenTypeEnum = pgEnum('token_type', [
 
 export const platformEnum = pgEnum('platform', ['web', 'android', 'ios']);
 
-// Платформа, для которой описан компонент: конфиг оформления (`appearances`) и свойство
-// (`properties`). Разводит веб-импорт из plasma и нативный импорт из theme-converter,
-// которые иначе пишут в одни и те же строки (ДС, компонент, `default`) и затирают друг
-// друга. NULL у свойства — общее для платформ; NULL у appearance — строка, загруженная
-// до появления колонки, платформа не размечена.
-export const componentPlatformEnum = pgEnum('component_platform', ['web', 'compose', 'ios']);
+// Платформа компонента. Компонент идентифицируется парой (имя, платформа): у `Avatar` для
+// `compose` и у `Avatar` для `xml` свои свойства, состояния, вариации, конфиги оформления и
+// значения. Тот же словарь используется для алиасов платформенных имён свойств. Платформа
+// значений токенов (`platform`) — отдельный словарь.
+export const componentPlatformEnum = pgEnum('component_platform', ['web', 'compose', 'xml', 'ios']);
 
-export const propertyPlatformEnum = pgEnum('property_platform', ['xml', 'compose', 'ios', 'web']);
+// Прежнее имя словаря платформ алиасов: теперь это тот же `component_platform`.
+export const propertyPlatformEnum = componentPlatformEnum;
 
 export const modeEnum = pgEnum('mode', ['light', 'dark']);
 
@@ -115,13 +115,17 @@ export const components = pgTable(
         id: uuid('id').primaryKey().defaultRandom(),
         name: text('name').notNull(),
         description: text('description'),
+        // Платформа входит в идентичность компонента: `Avatar[compose]` и `Avatar[xml]` — разные
+        // строки. Дочерние сущности (свойства, состояния, вариации, appearances) висят на
+        // `component_id`, поэтому разделяются вместе с компонентом.
+        platform: componentPlatformEnum('platform').notNull(),
         createdAt: timestamp('created_at').defaultNow().notNull(),
         updatedAt: timestamp('updated_at')
             .defaultNow()
             .notNull()
             .$onUpdateFn(() => new Date()),
     },
-    (t) => [uniqueIndex('components_name_unique').on(t.name)],
+    (t) => [uniqueIndex('components_name_platform_unique').on(t.name, t.platform)],
 );
 
 export const designSystemComponents = pgTable(
@@ -170,7 +174,6 @@ export const properties = pgTable(
         type: propertyTypeEnum('type').notNull(),
         defaultValue: text('default_value'),
         description: text('description'),
-        platform: componentPlatformEnum('platform'),
         createdAt: timestamp('created_at').defaultNow().notNull(),
         updatedAt: timestamp('updated_at')
             .defaultNow()
@@ -187,7 +190,7 @@ export const properties = pgTable(
 // `selected`, `activated`, `readonly`, `disabled`. Семь таких засеиваются миграцией
 // детерминированными идентификаторами, чтобы код мог ссылаться на них без справочника.
 //
-// `component_id NOT NULL` — состояние, объявленное кодом компонента: в `uikit-api-meta.json`
+// `component_id NOT NULL` — состояние, объявленное кодом компонента: в `uikit-compose-api-meta.json`
 // у него есть поле `stateEnum` с перечислением. `CheckBoxStates` даёт `checked` и
 // `indeterminate`, `CollapsingNavigationBarStates` — `collapsed` и `expanded`.
 //
@@ -264,15 +267,24 @@ export const propertyPlatformParams = pgTable(
         propertyId: uuid('property_id')
             .notNull()
             .references(() => properties.id, { onDelete: 'cascade' }),
-        platform: propertyPlatformEnum('platform').notNull(),
+        // Равна платформе компонента свойства (следит триггер из миграции 0007).
+        platform: componentPlatformEnum('platform').notNull(),
         name: text('name').notNull(),
+        // Устаревание относится к алиасу, а не к свойству: у View устаревает конкретный атрибут
+        // (`sd_textColor`), а `android:textColor` того же свойства может остаться актуальным.
+        // Пустая строка в `deprecated_message` допустима и означает «устарело без сообщения».
+        deprecated: boolean('deprecated').notNull().default(false),
+        deprecatedMessage: text('deprecated_message'),
         createdAt: timestamp('created_at').defaultNow().notNull(),
         updatedAt: timestamp('updated_at')
             .defaultNow()
             .notNull()
             .$onUpdateFn(() => new Date()),
     },
-    (t) => [uniqueIndex('ppp_property_id_platform_name_unique').on(t.propertyId, t.platform, t.name)],
+    (t) => [
+        uniqueIndex('ppp_property_id_platform_name_unique').on(t.propertyId, t.platform, t.name),
+        check('ppp_deprecated_message_requires_deprecated', sql`${t.deprecated} or ${t.deprecatedMessage} is null`),
+    ],
 );
 
 export const propertyVariations = pgTable(
@@ -305,7 +317,6 @@ export const appearances = pgTable(
             .notNull()
             .references(() => components.id, { onDelete: 'cascade' }),
         name: text('name').default('default'),
-        platform: componentPlatformEnum('platform'),
         createdAt: timestamp('created_at').defaultNow().notNull(),
         updatedAt: timestamp('updated_at')
             .defaultNow()
@@ -313,10 +324,8 @@ export const appearances = pgTable(
             .$onUpdateFn(() => new Date()),
     },
     (t) => [
-        // NULLS NOT DISTINCT: неразмеченные строки тоже не дублируются по (ДС, компонент, имя).
-        unique('appearances_ds_component_name_platform_unique')
-            .on(t.designSystemId, t.componentId, t.name, t.platform)
-            .nullsNotDistinct(),
+        // Платформа определяется компонентом, поэтому в ключ она не входит.
+        unique('appearances_ds_component_name_unique').on(t.designSystemId, t.componentId, t.name).nullsNotDistinct(),
     ],
 );
 
@@ -945,9 +954,10 @@ export const designSystemChanges = pgTable(
     'design_system_changes',
     {
         id: uuid('id').primaryKey().defaultRandom(),
-        designSystemId: uuid('design_system_id')
-            .notNull()
-            .references(() => designSystems.id, { onDelete: 'cascade' }),
+        // NULL у записей о глобальных операциях, которые не принадлежат ни одной дизайн-системе
+        // (импорт API-меты: он меняет слой, общий для всех). Ленты дизайн-систем фильтруют по
+        // идентификатору, поэтому такие записи в них не попадают.
+        designSystemId: uuid('design_system_id').references(() => designSystems.id, { onDelete: 'cascade' }),
         // userId: uuid("user_id").references(() => users.id), // TODO Забирать из контекста аутентификации
         entityType: text('entity_type').notNull(),
         entityId: uuid('entity_id').notNull(),

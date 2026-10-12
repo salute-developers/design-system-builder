@@ -6,7 +6,7 @@ import type { TestTx } from "./database";
  * Общие фикстуры тестов компонентной модели.
  *
  * Глобальный слой — компоненты, свойства, токены — импорт не создаёт: он приходит из кода
- * через `scripts/import-uikit-api-meta.sh`. Поэтому тест сначала заводит минимальный
+ * командой `dsbuilder components import-api`. Поэтому тест сначала заводит минимальный
  * глобальный слой внутри своей транзакции, а потом грузит конфигурацию.
  */
 
@@ -31,7 +31,7 @@ export const seedGlobalLayer = async (
 
   const [component] = await tx
     .insert(schema.components)
-    .values({ name: "TestButton", description: "fixture" })
+    .values({ name: "TestButton", platform: "web", description: "fixture" })
     .returning();
 
   await tx.insert(schema.designSystemComponents).values({
