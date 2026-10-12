@@ -13,14 +13,16 @@ export class Config {
     private variations: Variation[] = [];
 
     private invariants: Props;
+    private revision = 0;
+    private readonly previewMetadata?: Meta['preview'];
 
     constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
 
         this.name = name;
         this.description = description;
-
         const { api, configs, variations } = sources;
+        this.previewMetadata = meta.preview;
 
         const config = (configID ? configs.find((item) => item.id === configID) : configs[0])?.config;
 
@@ -66,6 +68,17 @@ export class Config {
 
     public getInvariants() {
         return this.invariants;
+    }
+
+    public getPreviewMetadata() {
+        return {
+            componentId: this.previewMetadata?.compose?.componentId,
+            storyId: this.previewMetadata?.compose?.storyId,
+        };
+    }
+
+    public getRevision() {
+        return this.revision;
     }
 
     public getVariation(variationID?: string) {
@@ -120,6 +133,7 @@ export class Config {
         const prop = props?.getProp(tokenID);
 
         prop?.setValue(value);
+        this.revision += 1;
     }
 
     public addToken(
@@ -132,22 +146,26 @@ export class Config {
         const props = this.getProps(variationID, styleID);
 
         props?.addProp(tokenID, value, api);
+        this.revision += 1;
     }
 
     public removeToken(id: string, variationID?: string, styleID?: string) {
         if (!variationID || !styleID) {
             this.invariants?.removeProp(id);
+            this.revision += 1;
             return;
         }
 
         const item = this.getStyleByVariation(variationID, styleID);
         item?.getProps().removeProp(id);
+        this.revision += 1;
     }
 
     public addVariationStyle(api: ComponentAPI[], variationID: string, styleName: string) {
         const item = this.variations.find((item) => item.getID() === variationID);
 
         item?.addStyle(styleName, api);
+        this.revision += 1;
     }
 
     public removeVariationStyle(variationID?: string, styleID?: string) {
@@ -158,6 +176,7 @@ export class Config {
         const item = this.variations.find((item) => item.getID() === variationID);
 
         item?.removeStyle(styleID);
+        this.revision += 1;
     }
 
     public addTokenState(tokenID: string, value: State, variationID?: string, styleID?: string) {
@@ -165,6 +184,7 @@ export class Config {
         const prop = props?.getProp(tokenID);
 
         prop?.addState(value);
+        this.revision += 1;
     }
 
     public updateTokenState(tokenID: string, name: string, value: State, variationID?: string, styleID?: string) {
@@ -172,6 +192,7 @@ export class Config {
         const prop = props?.getProp(tokenID);
 
         prop?.setState(name, value);
+        this.revision += 1;
     }
 
     public removeTokenState(tokenID: string, name: string, variationID?: string, styleID?: string) {
@@ -179,6 +200,7 @@ export class Config {
         const prop = props?.getProp(tokenID);
 
         prop?.removeState(name);
+        this.revision += 1;
     }
 
     public updateTokenAdjustment(
@@ -191,6 +213,7 @@ export class Config {
         const prop = props?.getProp(tokenID);
 
         prop?.setAdjustment(value);
+        this.revision += 1;
     }
 
     public getMeta() {

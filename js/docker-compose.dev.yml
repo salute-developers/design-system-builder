@@ -73,6 +73,7 @@ services:
     environment:
       VITE_API_GATEWAY_URL: http://localhost:8080
       VITE_CLIENT_ID: dsbuilder-api
+      VITE_COMPOSE_PREVIEW_PLUGIN_URL: ${VITE_COMPOSE_PREVIEW_PLUGIN_URL:-http://localhost:8081/}
     ports:
       - "3002:5173"
     depends_on:

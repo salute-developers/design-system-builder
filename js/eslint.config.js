@@ -4,7 +4,14 @@ import tseslint from 'typescript-eslint';
 
 export default [
     {
-        ignores: ['cli/.sdds/**', 'cli/output/**'],
+        ignores: [
+            'cli/.sdds/**',
+            'cli/output/**',
+            '**/dist/**',
+            '**/coverage/**',
+            '**/test-results/**',
+            '**/playwright-report/**',
+        ],
     },
     js.configs.recommended,
     ...tseslint.configs.recommended,
