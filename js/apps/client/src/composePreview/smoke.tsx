@@ -110,11 +110,12 @@ const SmokeApp = () => {
                 data-shape={assembled.payload.theme['shape.button']?.type === 'shape'
                     ? assembled.payload.theme['shape.button'].cornerRadii[0]
                     : ''}
-                data-pressed={
-                    assembled.payload.component.properties.backgroundColor.states?.pressed?.type === 'tokenRef'
-                        ? assembled.payload.component.properties.backgroundColor.states.pressed.tokenId
-                        : ''
-                }
+                data-pressed={(() => {
+                    const pressed = assembled.payload.component.properties.backgroundColor.states?.find(
+                        (entry) => entry.when.length === 1 && entry.when[0] === 'pressed',
+                    )?.source;
+                    return pressed?.type === 'tokenRef' ? pressed.tokenId : '';
+                })()}
                 data-variation={assembled.payload.component.variations.customAxis}
                 data-label={String(assembled.payload.example.props.label)}
                 data-loading={String(assembled.payload.example.props.loading)}

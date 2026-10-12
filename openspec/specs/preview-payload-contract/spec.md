@@ -1,5 +1,8 @@
-## ADDED Requirements
+# preview-payload-contract Specification
 
+## Purpose
+TBD - created by archiving change extend-preview-payload. Update Purpose after archive.
+## Requirements
 ### Requirement: Единый владелец схемы Preview Protocol
 
 Каноническая JSON Schema Preview Protocol v1 SHALL храниться в
@@ -95,7 +98,7 @@ Payload SHALL содержать необязательный словарь в�
 ### Requirement: Тема содержит gradient и shadow со spread
 
 Токен темы `gradient` SHALL иметь вид `{type: "gradient", layers}`, где каждый слой это
-`{kind: "linear", angle, stops}`, `angle` в градусах, а `stops` содержит не менее двух
+`{kind: "linear", angle, stops}`, `angle` в градусах по соглашению CSS (0° снизу вверх, 90° слева направо, 180° сверху вниз), а `stops` содержит не менее двух
 элементов `{color, position}` с цветом `#RRGGBBAA` и позицией от 0 до 1. Слой токена `shadow`
 SHALL содержать `x`, `y`, `blur`, `spread` и `color`; `spread` обязателен, допустимы
 отрицательные значения.
@@ -158,3 +161,4 @@ PNG в painter в этот протокол не входит: плагин, н�
 
 - **WHEN** набор файлов либо содержимое копии отличается от канонического каталога
 - **THEN** проверка идентичности MUST завершиться ошибкой.
+

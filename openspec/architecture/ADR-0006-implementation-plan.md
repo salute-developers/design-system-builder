@@ -31,7 +31,7 @@ Preview выпущенных версий дизайн-системы в пер�
 | № | Изменение | Репозиторий | Статус | Зависит от |
 | --- | --- | --- | --- | --- |
 | 1 | `ship-compose-preview-on-web` | оба | Выполнено, заархивировано 2026-10-12 (проверки в Edge, Firefox и настоящем редакторе отложены) | — |
-| 2 | `extend-preview-payload` | оба | Не начато | 1 |
+| 2 | `extend-preview-payload` | оба | Выполнено, заархивировано 2026-10-12 (FULL: известное падение `javascript-cli`) | 1 |
 | 3 | `compose-preview-core-components` | plasma-android | Не начато | 2 |
 
 ### 1. `ship-compose-preview-on-web`
