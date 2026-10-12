@@ -71,21 +71,6 @@ export const StyledSaturationValueAreaThumb = styled.div`
         0 1px 4px rgba(0, 0, 0, 0.08);
 `;
 
-export const StyledSliders = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-`;
-
-export const StyledSliderStack = styled.div`
-    flex: 1;
-    min-width: 0;
-
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-`;
-
 export const StyledColorInput = styled.div`
     display: flex;
     align-items: center;
