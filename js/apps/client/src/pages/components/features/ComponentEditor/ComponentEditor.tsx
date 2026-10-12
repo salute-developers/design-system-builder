@@ -79,11 +79,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
             return;
         }
 
-        // TODO: Подумать уйти от хардкода свойств
-        if (name === 'size' || name === 'view' || name === 'shape') {
-            delete componentProps[name];
-        }
-
         // INFO: Выключенный флаг (`pilled`) — отсутствие аргумента, а не значение.
         if (value === undefined) {
             const { [name]: _removed, ...rest } = componentProps;

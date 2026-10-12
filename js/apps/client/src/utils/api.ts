@@ -35,6 +35,20 @@ const logApiError = (scope: string, error: unknown): void => {
     }
 };
 
+const LEGACY_COMPOSE_PREVIEW_BINDINGS: Readonly<Record<string, NonNullable<Meta['preview']>['compose']>> = {
+    Button: {
+        componentId: 'BasicButton',
+        storyId: 'BasicButton',
+    },
+};
+
+export const addLegacyPreviewBindings = (components: Meta[]): Meta[] =>
+    components.map((component) => {
+        if (component.preview?.compose) return component;
+        const compose = LEGACY_COMPOSE_PREVIEW_BINDINGS[component.name];
+        return compose ? { ...component, preview: { ...component.preview, compose } } : component;
+    });
+
 export const saveDesignSystem = async (data: {
     name: string;
     version: string;
@@ -98,7 +112,7 @@ export const loadDesignSystem = async (data: {
 
         return {
             themeData,
-            componentsData,
+            componentsData: addLegacyPreviewBindings(componentsData),
             parameters,
         };
     } catch (error) {
