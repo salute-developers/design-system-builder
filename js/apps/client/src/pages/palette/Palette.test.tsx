@@ -194,6 +194,28 @@ describe('раздел «Палитра»', () => {
         expect(document.querySelector('.source-palette-step-editor')).not.toBeNull();
     });
 
+    it('«Изменить»: свотч опорного цвета открывает тот же выбор цвета, что и правка ступени', async () => {
+        vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+        Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
+        await renderPalette();
+        fireEvent.click(card('Green', 'Neutral'));
+        const dialog = await screen.findByRole('dialog', { name: 'Настройка палитры Green' });
+        fireEvent.click(within(dialog).getByRole('tab', { name: 'Изменить' }));
+        expect(dialog.querySelector('input[type="color"]')).toBeNull();
+
+        const swatch = within(dialog).getByRole('button', { name: 'Выбрать опорный цвет' });
+        fireEvent.click(swatch);
+        expect(swatch).toHaveAttribute('aria-expanded', 'true');
+        const picker = dialog.querySelector<HTMLElement>('.source-palette-rebuild-picker')!;
+        const field = within(picker).getByRole('textbox');
+        fireEvent.change(field, { target: { value: '#1f8a70' } });
+        fireEvent.blur(field);
+        expect(within(dialog).getByRole('textbox', { name: 'HEX опорного цвета' })).toHaveValue('1F8A70');
+
+        fireEvent.click(swatch);
+        expect(dialog.querySelector('.source-palette-rebuild-picker')).toBeNull();
+    });
+
     it('название группы сохраняется по уходу фокуса; пустое оставляет прежнее', async () => {
         await renderPalette();
         fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));

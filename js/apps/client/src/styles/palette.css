@@ -693,10 +693,15 @@
     padding: 0;
 }
 
-/* У поповера прототипа max-height 390px и overflow hidden; выбор цвета ступени выше — даём ему место. */
-.source-palette-edit-popover.source-palette-step-editor {
+/* У поповера прототипа max-height 390px и overflow hidden; выбор цвета ступени и опорного цвета выше — даём им место. */
+.source-palette-edit-popover.source-palette-step-editor,
+.source-palette-edit-popover:has(.source-palette-rebuild-picker) {
     max-height: min(600px, calc(100vh - 80px));
     overflow-y: auto;
+}
+
+.source-palette-rebuild-picker {
+    margin: -6px -10px 0;
 }
 
 /* Пустое состояние связей: в прототипе стилизована только кнопка; текст — как строки инспектора. */
