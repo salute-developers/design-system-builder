@@ -24,7 +24,7 @@
 
 ## Impact
 
-- **js/apps/client**: перенос `src/composePreview`, правки `ComponentEditorPreview`, конфигурации `vitest`/`vite`/`tsconfig`, скрипты `serve-compose-plugin` и `sync-preview-payload-schema`, `playwright`-проверка, `.env.example`, README.
+- **js/apps/client**: перенос `src/composePreview`, правки `ComponentEditorPreview`, конфигурации `vitest`/`vite`/`tsconfig`, скрипты `serve-compose-plugin` и `sync-preview-payload-schema`, `playwright`-проверка, README.
 - **js**: `docker-compose.dev.yml`, `setup-docker.sh`, `package.json` (переменная адреса плагина и команда локальной раздачи), `eslint.config.js`.
 - **openspec**: перенос архива изменений и спецификации прототипа; обновление `ADR-0006-implementation-plan.md`.
 - **plasma-android** (`integration-core`): перенос четырёх коммитов прототипа (`preview-contract`, `preview-sdk-compose`, `preview-compose-plugin`) на `develop` без изменения их содержимого.
