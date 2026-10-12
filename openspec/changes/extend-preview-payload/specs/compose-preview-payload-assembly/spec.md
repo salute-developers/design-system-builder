@@ -20,7 +20,7 @@ Assembler MUST NOT интерпретировать Compose parameter names ка
 
 #### Scenario: Property содержит adjustment
 
-- **WHEN** effective property использует поддержанный adjustment, который Preview Protocol v2
+- **WHEN** effective property использует поддержанный adjustment, который Preview Protocol v1
   не моделирует отдельно
 - **THEN** assembler MUST применить adjustment до сериализации
 - **AND** property source MUST стать нормализованным effective literal.
@@ -45,29 +45,6 @@ Assembler MUST NOT интерпретировать Compose parameter names ка
 - **THEN** assembler MUST применить более позднее значение в порядке variations из config
 - **AND** это MUST NOT считаться конфликтом component properties
 - **AND** theme closure MUST содержать только token references итогового значения property.
-
-### Requirement: Assembled payload input соответствует Preview Protocol v2
-
-Успешный результат assembler SHALL быть typed
-`PreviewPayloadInput = Omit<PreviewPayload, "requestId">`. `ComposePreviewSession` SHALL добавить
-уникальный `requestId`, после чего полный wire payload SHALL проходить canonical Preview
-Protocol v2 JSON Schema.
-
-#### Scenario: Полный Button payload собран
-
-- **WHEN** Button draft содержит валидные component properties, theme references, example и
-  surface
-- **THEN** payload input MUST содержать protocol version 2, platform `COMPOSE`, component ID,
-  variation context, effective properties, normalized theme, assets, example и surface
-- **AND** после добавления session `requestId` wire payload MUST пройти canonical schema
-  validation.
-
-#### Scenario: Request correlation назначает host
-
-- **WHEN** assembled payload input передаётся `ComposePreviewFrame`
-- **THEN** `ComposePreviewSession` MUST назначить новый `requestId`
-- **AND** session MUST сформировать полный typed `PreviewPayload`
-- **AND** assembler MUST NOT управлять pending requests или iframe lifecycle.
 
 ## ADDED Requirements
 
