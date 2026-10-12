@@ -87,6 +87,9 @@ jobs:
           - image: projects-service
             context: .
             file: backend-kt/projects-service/app/Dockerfile
+          - image: ds-service
+            context: .
+            file: backend-kt/ds-service/app/Dockerfile
           - image: documentation-service
             context: .
             file: backend-kt/documentation-service/app/Dockerfile
