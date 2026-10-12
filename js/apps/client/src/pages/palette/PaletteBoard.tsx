@@ -12,7 +12,9 @@ import {
     type PaletteRamp,
     type ThemePalette,
 } from '../../modules/palette';
+import { ColorConstructor } from '../../features/ColorPicker/ui';
 import { paletteRepository } from '../../palette/paletteSession';
+import { getNormalizedColor } from '../../utils';
 import { countLabel, filterGroups, groupHelper, libraryOrder, middleStep, rampMeta, selectionStep, stepOf, templateLabel } from './Palette.utils';
 import { PaletteGlyph } from './PaletteGlyph';
 import { followAnchor } from './positionPopover';
@@ -73,6 +75,7 @@ const RampPopover = ({
     const [query, setQuery] = useState('');
     const [hex, setHex] = useState((ramp.anchor?.value ?? stepOf(ramp, anchorStep)?.value ?? '#000000').toUpperCase());
     const [preview, setPreview] = useState<Record<number, string> | null>(null);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const { setPopover, revision } = editor;
     const valid = isHexColor(hex);
@@ -261,15 +264,17 @@ const RampPopover = ({
                 </div>
             ) : (
                 <div className="source-palette-edit-rebuild">
-                    <label className="source-palette-hex-field">
+                    {/* Выбор цвета — ColorConstructor клиента, как в правке ступени (в прототипе здесь нативный
+                        input type="color"): один пикер во всём разделе. */}
+                    <div className="source-palette-hex-field">
                         <span>Опорный цвет · #{anchorStep}</span>
                         <div>
                             <span className="source-palette-swatch-picker" style={{ background: valid ? toUpperHex(hex) : '#25282d' }}>
-                                <input
-                                    type="color"
-                                    value={valid ? toUpperHex(hex).toLowerCase() : '#000000'}
+                                <button
+                                    type="button"
                                     aria-label="Выбрать опорный цвет"
-                                    onChange={(event) => setHex(event.target.value.toUpperCase())}
+                                    aria-expanded={pickerOpen}
+                                    onClick={() => setPickerOpen((open) => !open)}
                                 />
                             </span>
                             <input
@@ -285,7 +290,18 @@ const RampPopover = ({
                                 {previewError}
                             </small>
                         )}
-                    </label>
+                    </div>
+                    {pickerOpen && (
+                        <div className="source-palette-rebuild-picker">
+                            <ColorConstructor
+                                color={valid ? toUpperHex(hex) : '#000000'}
+                                opacity={1}
+                                hideOpacity
+                                onChange={(value) => setHex(toUpperHex(getNormalizedColor(value).slice(0, 7)))}
+                                onOpacityChange={() => undefined}
+                            />
+                        </div>
+                    )}
                     <div className="source-palette-inline-preview">
                         <div>
                             <span>Сейчас</span>
