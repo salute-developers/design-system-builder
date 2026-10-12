@@ -2,7 +2,8 @@
 
 ### Requirement: Значения цветовых токенов проверяются при записи
 
-`ds-service` SHALL проверять значения токенов типа `color` в `POST /tenants/{id}/token-changes` и
+`ds-service` SHALL проверять значения токенов типа `color` в операциях цветового токена
+(`POST /tenants/{id}/color-tokens`, `PUT /tenants/{id}/color-tokens/{tokenId}/values`) и
 `PUT /tenants/{id}/token-values` и SHALL отклонять весь запрос с `400 INVALID_TOKEN_VALUE` при первом
 недопустимом значении.
 
@@ -21,7 +22,7 @@
 
 - **WHEN** ступени ссылки нет в копии шаблона палитры темы
 - **THEN** API MUST вернуть `400` с кодом `INVALID_TOKEN_VALUE` и адресом значения
-  `<tokenId или имя>:<platform>:<mode>` в `message`
+  `<tokenId или имя>:<platform>:<mode>` в `details.address`
 
 #### Scenario: Форма `paletteId`
 
@@ -33,7 +34,7 @@
 
 - **WHEN** значение цветового токена не HEX, не ссылка и не форма `paletteId`
 - **THEN** API MUST вернуть `400` с кодом `INVALID_TOKEN_VALUE`
-- **THEN** API MUST NOT изменять значения темы
+- **THEN** API MUST NOT изменять данные
 
 ### Requirement: Значения градиентных токенов проверяются при записи
 
