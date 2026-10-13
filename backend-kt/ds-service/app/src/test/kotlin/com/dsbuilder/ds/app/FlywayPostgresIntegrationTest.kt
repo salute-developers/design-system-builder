@@ -37,7 +37,7 @@ class FlywayPostgresIntegrationTest {
             val matchingUrl = createDatabase(postgres, "matching_legacy")
             connection(matchingUrl, postgres).use(::applyBaselineWithoutHistory)
             val expected = connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
-            assertEquals(EXPECTED_SCHEMA_FINGERPRINT, expected)
+            assertEquals(BASELINE_SCHEMA_FINGERPRINT, expected)
             assertNotEquals(expected, migrated)
             connection(matchingUrl, postgres).use { connection ->
                 ExistingDatabaseAdopter(SchemaFingerprintCalculator()).adopt(
@@ -169,6 +169,5 @@ class FlywayPostgresIntegrationTest {
 
     private companion object {
         const val BASELINE_SCHEMA_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val EXPECTED_SCHEMA_FINGERPRINT = "fc9cf035f37ce722f42955c5d2f831731cf1eca707bf011306e43e934ec811ee"
     }
 }
