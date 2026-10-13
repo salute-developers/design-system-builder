@@ -6,6 +6,12 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
+import com.dsbuilder.ds.themes.application.colortokens.invalidTokenValue
+import com.dsbuilder.ds.themes.application.colortokens.valueRule
+import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
+import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import java.util.UUID
 
 /** Атомарно сохраняет полный набор platform-specific значений темы. */
@@ -13,6 +19,8 @@ class SaveTenantTokenValuesUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: TenantRepository,
+    private val tokens: ColorTokenRepository,
+    private val palette: TenantPaletteRepository,
 ) {
     /** Выполняет сохранение для trusted project. */
     suspend fun execute(
@@ -31,7 +39,10 @@ class SaveTenantTokenValuesUseCase(
         } else {
             transactions.required {
                 when (val outcome = repository.saveTokenValues(context.projectId, id, command)) {
-                    is TenantTokenValuesSaveOutcome.Saved -> DsResult.Success(outcome)
+                    // Тема уже заблокирована сохранением; отказ проверки откатывает транзакцию целиком.
+                    is TenantTokenValuesSaveOutcome.Saved -> colorViolation(context, id, command.values)
+                        ?.let { DsResult.Failure(it) }
+                        ?: DsResult.Success(outcome)
                     is TenantTokenValuesSaveOutcome.RevisionConflict -> DsResult.Failure(
                         DsFailure.Conflict("TENANT_EDIT_CONFLICT", editRevision = outcome.editRevision),
                     )
@@ -43,7 +54,27 @@ class SaveTenantTokenValuesUseCase(
             }
         }
     }
+
+    /** Первое недопустимое значение цветового или градиентного токена или `null`. */
+    private suspend fun colorViolation(
+        context: DsRequestContext,
+        tenantId: UUID,
+        values: List<TenantTokenValueInput>,
+    ): DsFailure? {
+        val types = tokens.tokenTypes(values.map { it.tokenId }.distinct())
+            .filterValues { it in ColorTokenFamily.TYPES }
+        val checked = values.filter { it.tokenId in types }
+        if (checked.isEmpty()) return null
+        val rule = palette.valueRule(tenantId)
+        return checked.firstNotNullOfOrNull { value ->
+            rule.validate(types.getValue(value.tokenId), value.platform, value.paletteId != null, value.value)
+                ?.let { reason ->
+                    val mode = value.mode?.wireValue.orEmpty()
+                    invalidTokenValue("${value.tokenId}:${value.platform.wireValue}:$mode", reason)
+                }
+        }
+    }
 }
 
-private fun List<com.dsbuilder.ds.themes.domain.TenantTokenValueInput>.duplicateKey(): Boolean =
+private fun List<TenantTokenValueInput>.duplicateKey(): Boolean =
     map { "${it.tokenId}:${it.platform.wireValue}:${it.mode?.wireValue}" }.let { it.size != it.toSet().size }

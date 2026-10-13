@@ -976,7 +976,7 @@ paths:
                 required:
                   - editRevision
         "400":
-          description: Invalid batch
+          description: Invalid batch or color token value (code INVALID_TOKEN_VALUE with details.address)
           content:
             application/json:
               schema:
@@ -1699,6 +1699,189 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Tenant edit conflict or palette conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/color-tokens:
+    post:
+      tags:
+        - Color tokens
+      summary: Create a color token with its family, values in every theme and palette group
+      description: Requires tenants:write and tokens:write. Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateColorTokenRequest"
+      responses:
+        "201":
+          description: Created color token family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColorTokenMutation"
+        "400":
+          description: Invalid request, token name (INVALID_TOKEN_NAME), token family (INVALID_TOKEN_FAMILY), token value (INVALID_TOKEN_VALUE) or unknown paletteId (invalid_reference)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, token or palette group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or token name conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/values:
+    put:
+      tags:
+        - Color tokens
+      summary: Replace values of color token family members in the theme
+      description: Requires tenants:write. Every member needs values for web, ios and android in light and dark.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateColorTokenValuesRequest"
+      responses:
+        "200":
+          description: New theme revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColorTokenRevision"
+        "400":
+          description: Invalid request, token family (INVALID_TOKEN_FAMILY), token value (INVALID_TOKEN_VALUE) or unknown paletteId (invalid_reference)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}:
+    delete:
+      tags:
+        - Color tokens
+      summary: Delete a color token family with values in every theme
+      description: Requires tenants:write and tokens:delete. Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteColorTokenRequest"
+      responses:
+        "200":
+          description: New theme revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColorTokenRevision"
+        "400":
+          description: Invalid request or token outside of a color token family (INVALID_TOKEN_FAMILY)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict
           content:
             application/json:
               schema:
@@ -6344,9 +6527,11 @@ components:
         details:
           type: object
           additionalProperties:
-            type: array
-            items:
-              type: integer
+            anyOf:
+              - type: array
+                items:
+                  type: integer
+              - type: string
       required:
         - error
     ThemePreview:
@@ -9002,6 +9187,159 @@ components:
       required:
         - editRevision
         - value
+    ColorTokenValueItem:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum:
+            - web
+            - ios
+            - android
+        mode:
+          type: string
+          enum:
+            - light
+            - dark
+        paletteId:
+          type: string
+          format: uuid
+          nullable: true
+        value:
+          nullable: true
+      required:
+        - platform
+        - mode
+        - value
+    ColorTokenMemberValues:
+      type: object
+      properties:
+        name:
+          type: string
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColorTokenValueItem"
+      required:
+        - name
+        - values
+    ColorTokenMemberValuesById:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColorTokenValueItem"
+      required:
+        - tokenId
+        - values
+    CreateColorTokenRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        type:
+          type: string
+          enum:
+            - color
+            - gradient
+        group:
+          type: string
+        name:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        paletteGroupId:
+          type: string
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColorTokenMemberValues"
+      required:
+        - editRevision
+        - type
+        - group
+        - name
+        - members
+    UpdateColorTokenValuesRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColorTokenMemberValuesById"
+      required:
+        - editRevision
+        - members
+    DeleteColorTokenRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
+    ColorTokenFamily:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - color
+            - gradient
+        group:
+          type: string
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+            properties:
+              tokenId:
+                type: string
+                format: uuid
+              name:
+                type: string
+            required:
+              - tokenId
+              - name
+      required:
+        - type
+        - group
+        - name
+        - members
+    ColorTokenMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          $ref: "#/components/schemas/ColorTokenFamily"
+      required:
+        - editRevision
+        - value
+    ColorTokenRevision:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
     PaletteTokenAssignmentMutation:
       type: object
       properties:

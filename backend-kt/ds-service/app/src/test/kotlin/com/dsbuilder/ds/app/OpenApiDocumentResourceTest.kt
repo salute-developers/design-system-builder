@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -19,10 +20,33 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        assertEquals(169, operationCount)
+        assertEquals(172, operationCount)
         assertTrue("/api/ds/design-systems" in paths)
         assertTrue("/api/ds/component-config/import" in paths)
         assertTrue("/api/ds/component-config/web-adapter" in paths)
+    }
+
+    /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */
+    @Test
+    fun `ds-service operations of the manifest match the document`() {
+        val manifest = Json.parseToJsonElement(File("../contracts/route-manifest.json").readText()).jsonObject
+        val prefix = manifest.getValue("internalPrefix").jsonPrimitive.content
+        val expected = manifest.getValue("groups").jsonArray
+            .map { it.jsonObject }
+            .filter { it["origin"]?.jsonPrimitive?.content == "ds-service" }
+            .flatMap { group -> group.getValue("operations").jsonArray.map { it.jsonArray } }
+            .map { operation ->
+                Triple(
+                    operation[0].jsonPrimitive.content.lowercase(),
+                    prefix + operation[1].jsonPrimitive.content,
+                    operation[5].jsonPrimitive.content,
+                )
+            }
+        assertTrue(expected.any { (_, path) -> path == "/api/ds/tenants/{tenantId}/color-tokens" })
+        expected.forEach { (method, path, permission) ->
+            val operation = paths[path]?.jsonObject?.get(method)?.jsonObject
+            assertEquals(permission, operation?.get("x-permission")?.jsonPrimitive?.content, "$method $path")
+        }
     }
 
     /** Excluded route families cannot leak into the ds-service contract. */

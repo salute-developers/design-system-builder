@@ -106,9 +106,13 @@ data class ColorTokenRevisionResponse(val editRevision: Int)
 | `PUT /tenants/{tenantId}/color-tokens/{tokenId}/values` | `200 ColorTokenRevisionResponse` | `tenants:write` |
 | `DELETE /tenants/{tenantId}/color-tokens/{tokenId}` | `200 ColorTokenRevisionResponse` | `tenants:write`, `tokens:delete` |
 
-При создании у каждого члена должны быть значения для `web`, `ios`, `android` в режимах `light` и `dark`.
-При изменении значения переданного члена в текущей теме заменяются переданными; члены, которых нет в
-запросе, не меняются.
+При создании и изменении у каждого переданного члена должны быть значения для `web`, `ios`, `android` в
+режимах `light` и `dark`. При изменении значения переданного члена в текущей теме заменяются переданными;
+члены, которых нет в запросе, не меняются.
+
+Дубль имени при создании отсекает проверка `takenNames` под блокировкой всех тем дизайн-системы: два создания
+в одной дизайн-системе выполняются по очереди. Нарушение уникальности на уровне БД отдельно не отображается,
+чтобы не менять ответы `POST` и `PATCH /tokens`.
 
 Ошибки — `ErrorResponse { error, code, message, details? }`:
 
@@ -116,8 +120,9 @@ data class ColorTokenRevisionResponse(val editRevision: Int)
 | --- | --- | --- |
 | `TENANT_EDIT_CONFLICT` | 409 | ревизия текущей темы устарела; ответ несёт актуальный `editRevision` |
 | `TOKEN_NAME_CONFLICT` | 409 | определение с именем члена уже есть в дизайн-системе |
-| `INVALID_TOKEN_NAME` | 400 | пустое имя, префикс режима, символы вне `a-z`, `0-9`, `-`, `.` |
-| `INVALID_TOKEN_FAMILY` | 400 | член не из семейства, нет члена `default`, неполный набор значений при создании, член чужого семейства при изменении |
+| `INVALID_TOKEN_NAME` | 400 | пустое имя, префикс режима, символы вне `a-z`, `0-9`, `-`, `.`, имя токена с окончанием состояния `-hover`, `-active`, `-brightness` |
+| `INVALID_TOKEN_FAMILY` | 400 | член не из семейства, нет члена `default`, неполный набор значений члена, член чужого семейства при изменении, токен из пути вне правила семейства, `paletteGroupId` у градиентного токена |
+| `invalid_reference` | 400 | `paletteId` значения не найден в общей палитре (нарушение внешнего ключа) |
 | `INVALID_TOKEN_VALUE` | 400 | значение не проходит проверку; `details.address` — `<tokenId или имя>:<platform>:<mode>` |
 | `NotFound` | 404 | темы, токена или группы палитры нет в проекте |
 
@@ -136,39 +141,61 @@ data class ColorTokenRevisionResponse(val editRevision: Int)
 ```kotlin
 // feature-themes/domain/colortokens
 data class ColorTokenFamily(val type: ThemeTokenType, val group: String, val name: String) {
-    fun memberOf(fullName: String): Boolean
     fun defaultMember(): String
-    companion object { fun of(type: ThemeTokenType, fullName: String): ColorTokenFamily? }
+    fun memberOf(definitionType: ThemeTokenType, fullName: String): Boolean
+    companion object {
+        val TYPES: Set<ThemeTokenType>
+        fun of(type: ThemeTokenType, fullName: String): ColorTokenFamily?
+    }
 }
-object TokenNameRule { fun validate(fullName: String): String? }
-class TokenValueRule(private val paletteSteps: Set<PaletteStepKey>) {
-    fun validate(type: ThemeTokenType, platform: ThemeTokenPlatform, value: TenantTokenValueInput): String?
+object TokenNameRule {
+    fun validate(fullName: String): String?
+    fun validSegment(segment: String): Boolean
 }
-data class PaletteStepKey(val type: ThemePaletteType, val shade: String, val step: Int)
+class TokenValueRule(private val template: Map<PaletteRampRef, Map<Int, String>>) {
+    fun validate(type: ThemeTokenType, platform: ThemeTokenPlatform, hasPaletteId: Boolean, value: JsonElement): String?
+}
 
 // feature-themes/application/colortokens
+data class ColorTokenValue(val platform: ThemeTokenPlatform, val mode: ThemeTokenMode, val paletteId: UUID?, val value: JsonElement)
 data class CreateColorToken(
     val editRevision: Int, val family: ColorTokenFamily, val displayName: String?, val description: String?,
-    val paletteGroupId: String?, val members: Map<String, List<TenantTokenValueInput>>,
+    val paletteGroupId: String?, val members: Map<String, List<ColorTokenValue>>,
 )
-data class UpdateColorTokenValues(val editRevision: Int, val members: Map<UUID, List<TenantTokenValueInput>>)
+data class UpdateColorTokenValues(val editRevision: Int, val members: Map<UUID, List<ColorTokenValue>>)
+data class StoredColorTokenFamily(val family: ColorTokenFamily, val members: Map<String, UUID>)
+data class ColorTokenMutation<T>(val editRevision: Int, val value: T)
 
 sealed interface ColorTokenLock {
-    data class Locked(val designSystemId: UUID, val tenantIds: List<UUID>) : ColorTokenLock
+    data class Locked(val designSystemId: UUID, val tenantIds: List<UUID>, val editRevision: Int) : ColorTokenLock
     data object NotFound : ColorTokenLock
     data class RevisionConflict(val editRevision: Int) : ColorTokenLock
+}
+sealed interface ColorTokenLookup {
+    data class Found(val stored: StoredColorTokenFamily) : ColorTokenLookup
+    data object OutsideFamily : ColorTokenLookup          // токен есть, но не цветовой или имя вне правила
+    data object Missing : ColorTokenLookup
 }
 
 interface ColorTokenRepository {
     /** Блокирует текущую тему, а при [allThemes] — все темы её дизайн-системы в порядке `id`; сверяет ревизию. */
     suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int, allThemes: Boolean): ColorTokenLock
-    suspend fun family(designSystemId: UUID, tokenId: UUID): Pair<ColorTokenFamily, Map<String, UUID>>?
-    suspend fun namesTaken(designSystemId: UUID, names: Collection<String>): Set<String>
-    suspend fun insertFamily(designSystemId: UUID, command: CreateColorToken): Map<String, UUID>
-    suspend fun insertValues(tenantIds: List<UUID>, values: Map<UUID, List<TenantTokenValueInput>>)
-    suspend fun replaceValues(tenantId: UUID, values: Map<UUID, List<TenantTokenValueInput>>)
-    suspend fun deleteFamily(tokenIds: Collection<UUID>)
+    suspend fun family(designSystemId: UUID, tokenId: UUID): ColorTokenLookup
+    suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String>
+    suspend fun tokenTypes(tokenIds: Collection<UUID>): Map<UUID, ThemeTokenType>
+    suspend fun insertDefinitions(
+        designSystemId: UUID, family: ColorTokenFamily, names: List<String>, displayName: String?, description: String?,
+    ): Map<String, UUID>
+    suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>)
+    suspend fun replaceValues(tenantId: UUID, values: Map<UUID, List<ColorTokenValue>>)
+    suspend fun deleteDefinitions(tokenIds: Collection<UUID>)
     suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int>
+}
+
+// feature-themes/application/palette — добавленный метод порта палитры
+interface TenantPaletteRepository {
+    /** Копия шаблона палитры темы; пустая, если тему ещё не инициализировали. */
+    suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>>
 }
 
 class CreateColorTokenUseCase(
@@ -176,9 +203,12 @@ class CreateColorTokenUseCase(
     private val transactions: TransactionRunner,
     private val tokens: ColorTokenRepository,
     private val palette: TenantPaletteRepository,
-) { suspend fun execute(context: DsRequestContext, tenantId: UUID, command: CreateColorToken): DsResult<CreatedColorToken> }
+) {
+    suspend fun execute(context: DsRequestContext, tenantId: UUID, command: CreateColorToken):
+        DsResult<ColorTokenMutation<StoredColorTokenFamily>>
+}
 
-class UpdateColorTokenValuesUseCase(/* те же зависимости */) {
+class UpdateColorTokenValuesUseCase(/* policy, transactions, tokens, palette */) {
     suspend fun execute(context: DsRequestContext, tenantId: UUID, tokenId: UUID, command: UpdateColorTokenValues): DsResult<Int>
 }
 
@@ -186,6 +216,10 @@ class DeleteColorTokenUseCase(/* policy, transactions, tokens */) {
     suspend fun execute(context: DsRequestContext, tenantId: UUID, tokenId: UUID, editRevision: Int): DsResult<Int>
 }
 ```
+
+Отказ `400` с предметным кодом (`INVALID_TOKEN_NAME`, `INVALID_TOKEN_FAMILY`, `INVALID_TOKEN_VALUE`) в ядре
+`ds-service` отвечает `{ error, code, message, details }`; коды проверки полей вида `invalid_*` сохраняют прежний
+ответ `{ formErrors, fieldErrors }`.
 
 ```mermaid
 sequenceDiagram
@@ -196,9 +230,10 @@ sequenceDiagram
   C->>U: POST /tenants/{t}/color-tokens
   U->>U: права, TokenNameRule, ColorTokenFamily
   U->>T: lock(все темы дизайн-системы, ревизия текущей)
-  U->>P: initialize, snapshot → ступени шаблона
+  U->>P: template (initialize, если копии нет) → ступени шаблона
   U->>U: TokenValueRule по ступеням
-  U->>T: insertFamily, insertValues(все темы)
+  U->>T: takenNames
+  U->>T: insertDefinitions, insertValues(все темы)
   U->>P: snapshot, assignTokenGroup, save
   U->>T: bumpRevisions(все темы)
   U-->>C: editRevision текущей темы, семейство
@@ -246,9 +281,9 @@ token-values` и операции палитры. Создание и удале
 
 ### Проверка значений
 
-Проверка — чистое правило `TokenValueRule` в domain. Ступени берутся из копии шаблона в снимке
-`TenantPaletteRepository` после `initialize`, поэтому тема, созданная в обход `ds-service`, получает копию
-до проверки. Та же проверка подключается к `PUT token-values` для цветовых и градиентных токенов.
+Проверка — чистое правило `TokenValueRule` в domain. Ступени берутся лёгким чтением копии шаблона
+`TenantPaletteRepository.template`, без полного снимка палитры: проверка выполняется при каждом автосохранении.
+Если копии нет (тема создана в обход `ds-service`), она создаётся `initialize` до проверки. Та же проверка подключается к `PUT token-values` для цветовых и градиентных токенов.
 Существующие данные не перепроверяются.
 
 ### Описание в контракте
@@ -261,6 +296,10 @@ tenants:write`, схемами запросов и ответов и кодам�
 
 - [Общая ревизия даёт конфликт при параллельной правке разных токенов] → принятое ограничение этапа; клиент
   перезагружает тему и предлагает повторить правку.
+- [Тема, создаваемая одновременно с токеном, может не получить его значения: создание темы не ждёт
+  блокировки тем дизайн-системы и инициализирует значения по токенам, видимым до фиксации создания токена] →
+  принятое ограничение: окно — доли секунды; клиент показывает такой токен неполным и даёт заполнить значения.
+  Блокировка строки дизайн-системы отвергнута: порядок блокировок с `PUT token-values` грозит взаимоблокировкой.
 - [Создание и удаление блокируют все темы дизайн-системы] → блокировка короткая, тем у дизайн-системы
   единицы; изменение значений блокирует только текущую тему.
 - [**BREAKING** проверка значений в `PUT token-values`] → выборка некорректных значений на стенде до

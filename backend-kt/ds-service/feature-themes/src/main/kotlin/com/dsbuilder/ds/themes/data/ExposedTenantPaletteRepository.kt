@@ -205,13 +205,14 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             }
     }
 
-    private fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>> = TenantPaletteTemplateTable.selectAll()
-        .where { TenantPaletteTemplateTable.tenantId eq tenantId }
-        .groupBy(
-            { PaletteRampRef(it[TenantPaletteTemplateTable.type], it[TenantPaletteTemplateTable.shade]) },
-            { it[TenantPaletteTemplateTable.step] to it[TenantPaletteTemplateTable.value] },
-        )
-        .mapValues { (_, steps) -> steps.toMap() }
+    override suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>> =
+        TenantPaletteTemplateTable.selectAll()
+            .where { TenantPaletteTemplateTable.tenantId eq tenantId }
+            .groupBy(
+                { PaletteRampRef(it[TenantPaletteTemplateTable.type], it[TenantPaletteTemplateTable.shade]) },
+                { it[TenantPaletteTemplateTable.step] to it[TenantPaletteTemplateTable.value] },
+            )
+            .mapValues { (_, steps) -> steps.toMap() }
 
     private fun groups(tenantId: UUID): List<StoredPaletteGroup> = TenantPaletteGroupsTable.selectAll()
         .where { TenantPaletteGroupsTable.tenantId eq tenantId }

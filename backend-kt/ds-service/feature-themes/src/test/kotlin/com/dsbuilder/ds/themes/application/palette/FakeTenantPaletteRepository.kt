@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.application.palette
 
 import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
 import com.dsbuilder.ds.themes.domain.palette.TenantPaletteState
 import com.dsbuilder.ds.themes.domain.palette.TokenReferenceRewrite
 import java.util.UUID
@@ -22,6 +23,9 @@ internal class FakeTenantPaletteRepository(
         initializedTenant = tenantId
         initialized?.let { snapshot = it }
     }
+
+    override suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>> =
+        snapshot?.state?.template.orEmpty()
 
     override suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock {
         // Как в базе: изменять можно только тему дизайн-системы своего проекта.
