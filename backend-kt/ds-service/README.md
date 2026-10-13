@@ -13,7 +13,7 @@ Required production configuration:
 
 The fingerprint in `contracts/schema-fingerprint.json` describes the baseline schema (Flyway version `1`) that adoption accepts; later migrations, such as `V3__persist_appearance_axis_roles.sql` and `V4__component_platform_split.sql`, are applied on top of it and do not change the fingerprint. `V4` is the Flyway form of Drizzle `0007_component_platform_split.sql`: components are identified by `(name, platform)` and platform names carry `deprecated`; a database that already ran Drizzle `0007` no longer matches the baseline fingerprint and must be rebuilt from the baseline. `V3` stores the root and colour-scheme axes on `appearances` (`root_variation_id`, `color_scheme_variation_id`); `appearance_variations.is_color_scheme` is kept equal to the colour-scheme reference so that `db-service` and an earlier `ds-service` keep reading the same role.
 
-`db-service` remains available for HTTP rollback, but it must not run a Drizzle migration job after Flyway adoption. Runtime `db-service` does not invoke Drizzle migrations; its migration command is an operator-only compatibility tool. Run the shared local contour with `DS_SCHEMA_MIGRATION_OWNER=flyway` after adoption so `js/setup-docker.sh` starts `db-service` without invoking the Drizzle runner. The default remains `drizzle` only for the standalone legacy JS contour before adoption.
+`db-service` remains available for HTTP rollback, but it must not run a Drizzle migration job after Flyway adoption. Runtime `db-service` does not invoke Drizzle migrations; its migration command is an operator-only compatibility tool. The shared local contour (`./setup-local.sh`) does not adopt a Drizzle database at all: it starts the JavaScript stack with `DS_SCHEMA_MIGRATION_OWNER=flyway` (no Drizzle runner), starts `ds-service` with `DS_FLYWAY_ADOPT_EXISTING=false` so that Flyway creates the whole schema (`V1`–`V4`) in the empty database, and only then seeds it. A database already migrated by the Drizzle runner through `0007` matches neither the baseline fingerprint nor Flyway history: recreate it with `./setup-local.sh --reset`. The default remains `drizzle` only for the standalone legacy JS contour before adoption.
 
 ## Переход существующей базы Drizzle на Flyway
 
@@ -23,6 +23,8 @@ The fingerprint in `contracts/schema-fingerprint.json` describes the baseline sc
 - V2 — изменения `0006_military_mephisto.sql`: `tenants.edit_revision`, нормализация
   пробелов в именах и уникальность имён тем без учёта регистра; затем заполнение
   отсутствующих значений токенов из первой темы дизайн-системы.
+- V3 — роли осей appearance (`root_variation_id`, `color_scheme_variation_id`).
+- V4 — разделение платформ компонентов (`V4__component_platform_split.sql`, форма Drizzle `0007`).
 
 Это разбиение изменено до первой регистрации прежних Flyway V1/V2 на стендах.
 Не применяйте этот вариант к базе, на которой уже есть история прежнего разбиения:

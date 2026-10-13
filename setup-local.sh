@@ -8,14 +8,18 @@ usage() {
   cat <<'USAGE'
 Usage:
   ./setup-local.sh
+  ./setup-local.sh --reset
   ./setup-local.sh --down
 
 Options:
-  --down  Stop both local Docker stacks without deleting their volumes.
-  --help  Show this help.
+  --reset  Delete the data of both local Docker stacks (all volumes) before the setup.
+           Without it the existing data is kept.
+  --down   Stop both local Docker stacks without deleting their volumes.
+  --help   Show this help.
 
-The default setup recreates the JavaScript stack volumes, runs its migrations
-and seed, and then starts the Kotlin backend in detached mode.
+The setup starts the JavaScript stack without a schema, starts the Kotlin backend,
+whose ds-service creates the shared database schema with Flyway, and then seeds the
+database and binds the design system 'base' to the user's project.
 USAGE
 }
 
@@ -31,11 +35,16 @@ require() {
 }
 
 ACTION="setup"
+RESET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --down)
       ACTION="down"
+      shift
+      ;;
+    --reset)
+      RESET=1
       shift
       ;;
     --help)
@@ -72,14 +81,50 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
-log "Setting up JavaScript stack"
+js_compose() {
+  docker compose \
+    --project-name "$JS_COMPOSE_PROJECT_NAME" \
+    --project-directory "$ROOT_DIR/js" \
+    -f "$ROOT_DIR/js/docker-compose.dev.yml" \
+    "$@"
+}
+
+# The shared schema is owned by Flyway in ds-service, so a database that was filled by the Drizzle
+# runner (tables without Flyway history) cannot be reused: say so instead of failing inside ds-service.
+check_schema_owner() {
+  local tables history
+  tables="$(js_compose exec -T postgres-registry psql -U postgres -d ds_registry -qAt \
+    -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'" 2>/dev/null || echo 0)"
+  history="$(js_compose exec -T postgres-registry psql -U postgres -d ds_registry -qAt \
+    -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'flyway_schema_history'" 2>/dev/null || echo 0)"
+  if [[ "${tables:-0}" != "0" && "${history:-0}" == "0" ]]; then
+    echo "[local-setup] The database 'ds_registry' has a schema that Flyway does not manage (created by the" >&2
+    echo "[local-setup] Drizzle runner). Run './setup-local.sh --reset' to recreate it; this deletes local data." >&2
+    exit 1
+  fi
+}
+
+if [[ "$RESET" == "1" ]]; then
+  log "Resetting local data: removing the volumes of both stacks"
+  docker compose -f "$ROOT_DIR/backend-kt/docker-compose.local.yml" down -v
+fi
+
+log "Setting up JavaScript stack (without a schema: Flyway creates it)"
 (
   cd "$ROOT_DIR/js"
-  ./setup-docker.sh
+  DS_SCHEMA_MIGRATION_OWNER=flyway DSBUILDER_RESET_VOLUMES="$RESET" ./setup-docker.sh
 )
 
+check_schema_owner
+
 log "Starting Kotlin backend"
-"$ROOT_DIR/backend-kt/start-local.sh" --detach
+DS_FLYWAY_ADOPT_EXISTING=false "$ROOT_DIR/backend-kt/start-local.sh" --detach
+
+log "Seeding the database and binding the design system 'base'"
+(
+  cd "$ROOT_DIR/js"
+  DS_SCHEMA_MIGRATION_OWNER=flyway ./setup-docker.sh --seed-only
+)
 
 log "Local setup is ready"
 log "API gateway: http://localhost:8080"
