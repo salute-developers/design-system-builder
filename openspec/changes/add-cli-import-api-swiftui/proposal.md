@@ -27,6 +27,7 @@
 ## Impact
 
 - `frontend-kt/feature-components`: нормализатор в `domain/apimeta`, регистрация в `ComponentsApplicationModule`, корпус и тесты.
-- `frontend-kt/cli`: сквозной тест команды и раздел про импорт меты SwiftUI в `USAGE.md`.
+- `frontend-kt/cli`: справка `--platform` у `import-api`, сквозной тест команды и раздел про импорт меты SwiftUI в `USAGE.md`.
+- Документация платформ: перечень поддержанных платформ в `USAGE.md` и раздел 7 `API_META_NORMALIZERS.md`, где решения по iOS теперь приняты.
 - Backend, схема базы и формат манифеста не меняются.
 - `ios-api-meta.json` менять не требуется: форма, на которую опирается нормализатор, уже закреплена инвариантами на стороне iOS.
