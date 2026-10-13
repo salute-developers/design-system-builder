@@ -14,7 +14,7 @@ import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import java.util.UUID
 
-/** Reads token values only for an accessible theme, optionally with colors resolved by the theme palette. */
+/** Reads token values only for an accessible theme, with colors resolved by the theme palette. */
 class GetTenantTokenValuesUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
@@ -22,27 +22,21 @@ class GetTenantTokenValuesUseCase(
     private val paletteRepository: TenantPaletteRepository,
 ) {
     /**
-     * Читает значения токенов темы; с [resolvePalette] ссылки цветовых значений заменяются HEX по палитре темы и
-     * группе токена без `paletteId`, а исходная ссылка возвращается в `paletteRef`.
+     * Читает значения токенов темы: ссылки цветовых значений заменяются HEX по палитре темы и группе токена без
+     * `paletteId`, а исходная ссылка возвращается в `paletteRef`. Ссылка, которую палитра темы не раскрывает,
+     * остаётся как есть. Ревью PR #101: раскрытие по общей палитре давало неверные цвета, поэтому другого режима нет.
      */
-    suspend fun execute(
-        context: DsRequestContext,
-        id: UUID,
-        resolvePalette: Boolean = false,
-    ): DsResult<List<TenantTokenValue>> = when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
-        is DsResult.Failure -> allowed
-        is DsResult.Success -> if (resolvePalette) {
+    suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<TenantTokenValue>> =
+        when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
+            is DsResult.Failure -> allowed
             // Снимок палитры берёт тему FOR SHARE до чтения значений: оба чтения видят одно состояние, и сопоставление
             // значений по `id` не теряется из-за параллельного `PUT token-values`. Транзакция изменяющая — теме без
             // палитры копия шаблона создаётся здесь же.
-            transactions.required {
+            is DsResult.Success -> transactions.required {
                 val snapshot = paletteRepository.initializedSnapshot(context.projectId, id)
                 values(context, id) { values -> snapshot?.let { resolved(id, it, values) } ?: values }
             }
-        } else {
-            transactions.readOnly { values(context, id) { it } }
         }
-    }
 
     private suspend fun values(
         context: DsRequestContext,

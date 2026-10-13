@@ -705,7 +705,7 @@ class DsBuilderCliTest {
                         """.trimIndent(),
                     ),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -746,7 +746,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(nullableAndNonNullColorValuesResponse()),
             ),
         )
@@ -769,7 +769,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success(singleColorTokenResponse()),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """
                             [
@@ -860,7 +860,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success("[]"),
             ),
         )
@@ -884,7 +884,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(
                         """{"error":"unexpected wrapper","apiKey":"secret-value"}""",
                     ),
@@ -1181,7 +1181,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tenants",
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens",
                 "/api/projects/project-a/ds/palette",
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true",
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values",
             ),
             calls,
         )
@@ -1287,7 +1287,7 @@ class DsBuilderCliTest {
                 "/api/projects/project-a/ds/design-systems/design-system-a/tokens" to
                     AuthenticatedHttpResult.Success("[]"),
                 "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(paletteResponse()),
-                "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+                "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
                     AuthenticatedHttpResult.Success(""),
             ),
         )
@@ -1362,7 +1362,7 @@ class DsBuilderCliTest {
         "/api/projects/project-a/ds/palette" to AuthenticatedHttpResult.Success(
             paletteResponse(),
         ),
-        "/api/projects/project-a/ds/tenants/tenant-a/token-values?resolvePalette=true" to
+        "/api/projects/project-a/ds/tenants/tenant-a/token-values" to
             AuthenticatedHttpResult.Success(tokenValuesResponse()),
     )
 
