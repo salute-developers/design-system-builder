@@ -880,6 +880,8 @@ paths:
       tags:
         - Tenants
       summary: All token values for a tenant
+      description: Ссылки цветовых значений заменены HEX по палитре темы и группе токена (paletteId = null), исходная
+        ссылка — в paletteRef. Ссылка, которую палитра темы не раскрывает, возвращается как есть.
       parameters:
         - schema:
             type: string
@@ -888,12 +890,6 @@ paths:
           required: true
           name: id
           in: path
-        - schema:
-            type: boolean
-          required: false
-          name: resolvePalette
-          in: query
-          description: Заменить ссылки на палитру HEX по палитре темы и вернуть исходную ссылку в paletteRef
       responses:
         "200":
           description: List of items
@@ -6990,7 +6986,7 @@ components:
       properties:
         paletteRef:
           type: string
-          description: Исходная ссылка на палитру при resolvePalette=true
+          description: Исходная ссылка на палитру, если value вычислен по палитре темы (GET /api/ds/tenants/{id}/token-values)
         id:
           type: string
           format: uuid

@@ -72,8 +72,7 @@ fun Route.tenantRoutes(
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            val resolvePalette = call.request.queryParameters["resolvePalette"] == "true"
-            when (val result = getTokenValues.execute(context, id, resolvePalette)) {
+            when (val result = getTokenValues.execute(context, id)) {
                 is DsResult.Success -> call.respond(result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

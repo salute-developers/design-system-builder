@@ -23,6 +23,8 @@ export interface TenantTokenValueDto {
     platform: 'web' | 'ios' | 'android' | null;
     mode: 'light' | 'dark' | null;
     paletteId?: string | null;
+    /** Исходная ссылка на палитру: ds-service отдаёт в `value` цвет по палитре темы, а ссылку — здесь. */
+    paletteRef?: string | null;
     value: unknown;
 }
 interface PaletteDto {
@@ -124,11 +126,15 @@ export class ThemeEditorRepository {
                     typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
                         ? Number(rawOpacity)
                         : NaN;
-                group[value.platform][name] = paletteEntry
-                    ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${
-                          Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''
-                      }`
-                    : storedValue;
+                // Редактор работает со ссылками: раскрытый сервером цвет заменяется исходной ссылкой. Ссылка, которую
+                // палитра темы не раскрыла, приходит прежней формой — через paletteId.
+                group[value.platform][name] =
+                    value.paletteRef ??
+                    (paletteEntry
+                        ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${
+                              Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''
+                          }`
+                        : storedValue);
             }
         }
         const emptyMeta = {

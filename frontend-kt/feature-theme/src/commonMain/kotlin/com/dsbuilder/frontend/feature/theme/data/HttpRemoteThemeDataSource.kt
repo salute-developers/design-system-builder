@@ -68,8 +68,7 @@ internal class HttpRemoteThemeDataSource(
         return getDecoded(
             result = client.get(
                 // Цвета по палитре темы: ds-service заменяет ссылки на HEX с учётом групп палитры темы.
-                "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values" +
-                    "?resolvePalette=true",
+                "/api/projects/${command.context.projectId.value}/ds/tenants/${command.tenantId}/token-values",
             ),
             decode = ::decodeTokenValues,
             parseFailureMessage = "Error: Cannot parse token values response for tenant `${command.tenantId}`.",
