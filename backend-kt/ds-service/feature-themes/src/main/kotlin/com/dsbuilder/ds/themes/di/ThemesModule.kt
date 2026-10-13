@@ -9,6 +9,11 @@ import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.TenantRepository
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
+import com.dsbuilder.ds.themes.application.colortokens.CreateColorTokenUseCase
+import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenUseCase
+import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.palette.AddTenantPaletteRampUseCase
 import com.dsbuilder.ds.themes.application.palette.AssignTenantPaletteTokenGroupUseCase
 import com.dsbuilder.ds.themes.application.palette.CreateTenantPaletteGroupUseCase
@@ -24,6 +29,7 @@ import com.dsbuilder.ds.themes.application.palette.TenantPaletteMutator
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
 import com.dsbuilder.ds.themes.application.palette.UpdateTenantPaletteStepUseCase
+import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
 import com.dsbuilder.ds.themes.data.GeneratedTenantTokenValueInitializer
@@ -39,7 +45,7 @@ val themesModule = module {
     factory { UpdateTenantUseCase(get(), get(), get()) }
     factory { DeleteTenantUseCase(get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get(), get()) }
-    factory { SaveTenantTokenValuesUseCase(get(), get(), get()) }
+    factory { SaveTenantTokenValuesUseCase(get(), get(), get(), get(), get()) }
     single<TenantPaletteRepository> { ExposedTenantPaletteRepository() }
     factory { TenantPaletteMutator(get(), get(), get()) }
     factory { GetTenantPaletteUseCase(get(), get(), get()) }
@@ -57,4 +63,9 @@ val themesModule = module {
     factory {
         TenantPaletteUseCases(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
+    single<ColorTokenRepository> { ExposedColorTokenRepository() }
+    factory { CreateColorTokenUseCase(get(), get(), get(), get()) }
+    factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get()) }
+    factory { DeleteColorTokenUseCase(get(), get(), get()) }
+    factory { ColorTokenUseCases(get(), get(), get()) }
 }

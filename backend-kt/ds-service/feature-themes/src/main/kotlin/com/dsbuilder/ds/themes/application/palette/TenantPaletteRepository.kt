@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.application.palette
 
 import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
 import com.dsbuilder.ds.themes.domain.palette.TenantPaletteState
 import com.dsbuilder.ds.themes.domain.palette.TokenReferenceRewrite
 import java.util.UUID
@@ -12,6 +13,9 @@ interface TenantPaletteRepository {
      * Нужна и для тем, созданных в обход `ds-service` (db-service `legacy/design-systems/create`).
      */
     suspend fun initialize(tenantId: UUID)
+
+    /** Копия шаблона палитры темы; пустая, если темы ещё не инициализировали. Доступ к теме проверяет вызывающий. */
+    suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>>
 
     /** Блокирует тему проекта `forUpdate` и сверяет ревизию. */
     suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock

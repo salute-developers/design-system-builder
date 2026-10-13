@@ -10,7 +10,9 @@
       "/component-config/export"
     ],
     "js/apps/client": [
-      "/design-systems"
+      "/design-systems/**",
+      "/tenants/**",
+      "/palette"
     ]
   },
   "excludedButUsed": {

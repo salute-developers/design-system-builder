@@ -87,6 +87,18 @@
       ]
     },
     {
+      "name": "color-tokens",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["POST", "/tenants/{tenantId}/color-tokens", "CreateColorTokenRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PUT", "/tenants/{tenantId}/color-tokens/{tokenId}/values", "UpdateColorTokenValuesRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
       "name": "tokens",
       "router": "src/routes/api/tokens.ts",
       "included": true,

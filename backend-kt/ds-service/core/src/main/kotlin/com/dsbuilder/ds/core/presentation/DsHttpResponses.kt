@@ -13,7 +13,7 @@ import kotlinx.serialization.json.put
 /** Maps typed application failures to the stable JSON error envelope. */
 suspend fun ApplicationCall.respondFailure(failure: DsFailure) {
     attributes.put(DsFailureOutcome, failure.telemetryOutcome())
-    val error = if (failure is DsFailure.InvalidRequest) {
+    val error = if (failure is DsFailure.InvalidRequest && !failure.isDomainCode()) {
         if (failure.code == "invalid_body") {
             legacyValidationError()?.invoke() ?: failure.validationError()
         } else {
@@ -100,6 +100,11 @@ private fun DsFailure.publicMessage() = when (this) {
 
 private fun DsFailure.details() = (this as? DsFailure.Unprocessable)?.message
 
+/** Предметный код отказа (`INVALID_TOKEN_VALUE`) — в отличие от legacy-кодов проверки полей (`invalid_body`). */
+private fun DsFailure.InvalidRequest.isDomainCode() = DOMAIN_CODE.matches(code)
+
+private val DOMAIN_CODE = Regex("^[A-Z][A-Z0-9_]+$")
+
 private fun DsFailure.toErrorResponse() = when (this) {
     is DsFailure.Conflict -> ErrorResponse(
         error = JsonPrimitive(publicMessage()),
@@ -115,6 +120,14 @@ private fun DsFailure.toErrorResponse() = when (this) {
                     )
                 }
             }
+        },
+    )
+    is DsFailure.InvalidRequest -> ErrorResponse(
+        error = JsonPrimitive(code),
+        message = message,
+        code = code,
+        details = details.takeIf { it.isNotEmpty() }?.let { values ->
+            buildJsonObject { values.forEach { (name, value) -> put(name, value) } }
         },
     )
     else -> ErrorResponse(publicMessage(), details())

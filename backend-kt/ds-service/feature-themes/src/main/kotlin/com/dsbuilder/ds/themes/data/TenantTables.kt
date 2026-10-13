@@ -52,6 +52,7 @@ internal object ThemeTokensTable : Table("tokens") {
     val designSystemId = uuid("design_system_id").nullable()
     val name = text("name")
     val displayName = text("display_name").nullable()
+    val description = text("description").nullable()
     val type = postgresEnum("type", "token_type", ThemeTokenType::fromWire, ThemeTokenType::wireValue).nullable()
     override val primaryKey = PrimaryKey(id)
 }

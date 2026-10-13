@@ -25,11 +25,13 @@ data class PaletteReference(
             val match = raw?.trim()?.let(pattern::matchEntire) ?: return null
             val opacity = match.groupValues[4].takeIf { it.isNotEmpty() }?.toDouble()
             val type = ThemePaletteType.fromWire(match.groupValues[1])
-            val valid = type != null && (opacity == null || opacity in 0.0..1.0)
+            // Слишком длинная ступень не помещается в Int: это некорректная ссылка, а не ошибка сервера.
+            val step = match.groupValues[3].toIntOrNull()
+            val valid = type != null && step != null && (opacity == null || opacity in 0.0..1.0)
             return if (!valid) {
                 null
             } else {
-                PaletteReference(PaletteRampRef(type!!, match.groupValues[2]), match.groupValues[3].toInt(), opacity)
+                PaletteReference(PaletteRampRef(type!!, match.groupValues[2]), step!!, opacity)
             }
         }
 

@@ -20,6 +20,7 @@ import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.UpdateTenant
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.FakeColorTokenRepository
 import com.dsbuilder.ds.themes.application.palette.FakeTenantPaletteRepository
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
 import com.dsbuilder.ds.themes.domain.Tenant
@@ -101,7 +102,7 @@ class ThemeUseCaseTest {
             JsonPrimitive("#ffffff"),
         )
 
-        val result = SaveTenantTokenValuesUseCase(policy, transactions, repository).execute(
+        val result = saveValues(repository).execute(
             ownerContext(),
             UUID.randomUUID(),
             SaveTenantTokenValues(0, listOf(input, input)),
@@ -117,7 +118,7 @@ class ThemeUseCaseTest {
             saveOutcome = TenantTokenValuesSaveOutcome.RevisionConflict(7)
         }
 
-        val result = SaveTenantTokenValuesUseCase(policy, transactions, repository).execute(
+        val result = saveValues(repository).execute(
             ownerContext(),
             UUID.randomUUID(),
             SaveTenantTokenValues(5, emptyList()),
@@ -129,6 +130,14 @@ class ThemeUseCaseTest {
         )
         assertEquals(ProjectId("project-1"), repository.saveProject)
     }
+
+    private fun saveValues(repository: TenantRepository) = SaveTenantTokenValuesUseCase(
+        policy,
+        transactions,
+        repository,
+        FakeColorTokenRepository(),
+        FakeTenantPaletteRepository(null),
+    )
 
     private fun ownerContext() = context("owner")
 
