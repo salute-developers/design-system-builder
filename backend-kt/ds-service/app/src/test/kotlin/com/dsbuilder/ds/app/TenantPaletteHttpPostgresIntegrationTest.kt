@@ -32,7 +32,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Палитра темы через HTTP на реальном PostgreSQL: копия шаблона, операции, ревизия, права и `resolvePalette`. */
+/** Палитра темы через HTTP на реальном PostgreSQL: копия шаблона, операции, ревизия, права и цвета значений токенов. */
 class TenantPaletteHttpPostgresIntegrationTest {
     private val json = Json { ignoreUnknownKeys = false }
 
@@ -109,13 +109,12 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 api.saveValues(values, accentToken to "[general.green.400]", neutralToken)
                 assertEquals("h190", api.edit("PUT", "$green/source", h190).obj("value").obj("source").text("shade"))
 
-                // resolvePalette: Accent берёт ступень h190, Neutral — копию шаблона green; прозрачность — альфа-канал.
-                val resolved = api.read("$values?resolvePalette=true").jsonArray
+                // Цвета по палитре темы: Accent берёт ступень h190, Neutral — копию шаблона green; прозрачность — альфа.
+                val resolved = api.read(values).jsonArray
                 val alpha = (OPACITY * 255).roundToInt().toString(16).uppercase()
                 assertEquals("[\"$h190Template$alpha\"]", webValue(resolved, accentToken, "light").value())
                 assertEquals(REFERENCE, webValue(resolved, accentToken, "light").text("paletteRef"))
                 assertEquals("[\"$greenTemplate$alpha\"]", webValue(resolved, neutralToken, "light").value())
-                assertTrue(api.read(values).jsonArray.none { it.jsonObject.containsKey("paletteRef") })
 
                 // Правка ступени и её сброс значением источника; ступени нет у источника — 404.
                 val edited = step(api.edit("PATCH", "$green/steps/300", """"value":"#a3d9c5"""").obj("value"), 300)
@@ -159,7 +158,9 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val detachedHex = light.getValue("value").jsonArray.single().jsonPrimitive.content
                 assertTrue(detachedHex.matches(Regex("#[0-9A-F]{6}$alpha")), detachedHex)
                 assertEquals(JsonNull, light.getValue("paletteId"))
-                assertEquals("[\"$REFERENCE\"]", webValue(detached, neutralToken, "light").value())
+                // Ссылка Accent стала хранимым HEX, а у Neutral ссылка осталась: значение вычислено, ссылка — в paletteRef.
+                assertTrue("paletteRef" !in light)
+                assertEquals(REFERENCE, webValue(detached, neutralToken, "light").text("paletteRef"))
 
                 // Удаление групп: системная — 409, пользовательская удаляется.
                 api.reject("DELETE", "$base/groups/$accent", "", code = "PALETTE_GROUP_SYSTEM")
@@ -198,11 +199,11 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 assertEquals(5, legacyPalette.array("groups").size)
                 assertTrue(legacyPalette.array("template").isNotEmpty())
                 assertEquals(count(postgres, "SELECT count(*) FROM palette"), count(postgres, templateCount(legacy)))
-                api.read("/api/ds/tenants/$legacy/token-values?resolvePalette=true")
+                api.read("/api/ds/tenants/$legacy/token-values")
                 api.read("/api/ds/tenants/$legacy/palette")
                 assertEquals(count(postgres, "SELECT count(*) FROM palette"), count(postgres, templateCount(legacy)))
 
-                // Сгенерированные значения ссылаются через palette_id: связи считаются, resolvePalette вычисляет HEX.
+                // Сгенерированные значения ссылаются через palette_id: связи считаются, чтение значений отдаёт HEX.
                 val paletteIdRows = "SELECT count(*) FROM token_values " +
                     "WHERE tenant_id = '$tenant' AND palette_id IS NOT NULL"
                 assertTrue(count(postgres, paletteIdRows) > 0)
@@ -210,7 +211,7 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 val accent = initial.array("groups").single { it.text("systemKey") == "accent" }
                 val slot = accent.array("ramps").maxBy { it.number("linkedCount") }.obj("slot")
                 assertTrue(accent.array("ramps").first { it.obj("slot") == slot }.number("linkedCount") > 0)
-                val resolved = api.read("/api/ds/tenants/$tenant/token-values?resolvePalette=true").jsonArray
+                val resolved = api.read("/api/ds/tenants/$tenant/token-values").jsonArray
                 val referenced = resolved.filter { it.jsonObject.containsKey("paletteRef") }
                 assertTrue(referenced.isNotEmpty())
                 assertTrue(referenced.all { it.jsonObject.getValue("paletteId") == JsonNull })
@@ -271,9 +272,9 @@ class TenantPaletteHttpPostgresIntegrationTest {
                 assertEquals("custom", created.obj("value").text("kind"))
                 assertEquals(paletteRows, count(postgres, templateCount(first)))
 
-                // Первым обращением может быть resolvePalette.
+                // Первым обращением может быть чтение значений токенов.
                 val resolved = insertTenant(postgres, designSystemId, "first-resolve")
-                api.read("/api/ds/tenants/$resolved/token-values?resolvePalette=true")
+                api.read("/api/ds/tenants/$resolved/token-values")
                 assertEquals(paletteRows, count(postgres, templateCount(resolved)))
                 assertEquals(SYSTEM_GROUPS, count(postgres, systemGroupCount(resolved)))
 

@@ -63,6 +63,32 @@ describe('ThemeEditorRepository', () => {
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('[general.amber.300]');
     });
 
+    it('edits the palette reference of a color resolved by the theme palette', async () => {
+        const repository = new ThemeEditorRepository();
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/tenants/tenant-1/token-values'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            tokenId: 'token-1',
+                            tenantId: 'tenant-1',
+                            platform: 'web',
+                            mode: 'dark',
+                            paletteId: null,
+                            paletteRef: '[general.green.500][0.8]',
+                            value: ['#1F8A70CC'],
+                        },
+                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'light', value: ['#FFFFFF'] },
+                    ],
+                });
+            return Promise.resolve(reply('tenant-1', '#111111')(url));
+        });
+        const snapshot = await repository.load(context);
+        expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.green.500][0.8]');
+        expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#FFFFFF');
+        expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
+    });
+
     it('loads only values of the selected tenant and keeps tenant snapshots independent', async () => {
         const repository = new ThemeEditorRepository();
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));

@@ -29,7 +29,7 @@ data class TenantTokenValueResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
-    /** Исходная ссылка на палитру при `resolvePalette=true`, если `value` вычислен по палитре темы. */
+    /** Исходная ссылка на палитру, если `value` вычислен по палитре темы. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val paletteRef: String? = null,
 ) {
