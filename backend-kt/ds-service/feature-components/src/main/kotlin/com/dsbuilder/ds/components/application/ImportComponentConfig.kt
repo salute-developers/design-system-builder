@@ -7,6 +7,8 @@ import java.util.UUID
 data class ImportComponentConfig(
     /** Design system id carried by this contract. */
     val designSystemId: UUID,
+    /** Platform of the components: a component is identified by its name and platform. */
+    val platform: String,
     /** Meta carried by this contract. */
     val meta: Meta,
     /** Dry run carried by this contract. */

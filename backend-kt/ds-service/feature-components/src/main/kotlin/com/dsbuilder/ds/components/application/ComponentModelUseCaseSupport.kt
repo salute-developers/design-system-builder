@@ -50,6 +50,22 @@ internal suspend fun <T : Any> modelMutate(
     transactions.required { block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound) }
 }
 
+/** Как [modelMutate], но пересечение ролей осей превращает в конфликт и откатывает транзакцию. */
+internal suspend fun <T : Any> modelMutateAxisRoles(
+    policy: DsAccessPolicy,
+    transactions: TransactionRunner,
+    context: DsRequestContext,
+    block: suspend () -> T?,
+): DsResult<T> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
+    transactions.required {
+        try {
+            block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
+        } catch (conflict: AxisRoleConflictException) {
+            DsResult.Failure(DsFailure.Conflict(conflict.message.orEmpty()))
+        }
+    }
+}
+
 internal suspend fun modelDelete(
     policy: DsAccessPolicy,
     transactions: TransactionRunner,

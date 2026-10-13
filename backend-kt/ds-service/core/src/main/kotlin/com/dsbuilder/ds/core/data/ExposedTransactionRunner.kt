@@ -13,6 +13,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.sql.SQLException
 
 /** Executes application work in one JDBC transaction without leaking SQL failures. */
+@Suppress("TooGenericExceptionCaught") // any failure of a transaction body is mapped to a closed DsFailure
 class ExposedTransactionRunner(
     private val database: Database,
     private val failureMapper: TransactionFailureMapper,

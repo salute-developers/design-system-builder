@@ -13,6 +13,11 @@ import { makeStateSetResolver, SENTINEL_STATE_SET_ID } from '../state-sets';
  */
 
 export type PropertyType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography' | 'value';
+// Сид описывает веб-компоненты. Сопоставления с нативными платформами (xml, compose, ios) и поправки
+// к ним в данных сида остаются, но не записываются: алиас принадлежит платформе своего компонента,
+// а нативные компоненты создаёт `dsbuilder components import-api` по метам платформ.
+const ownPlatform = (platform: string) => platform === SEED_PLATFORM;
+
 export type PropertyPlatform = 'web' | 'xml' | 'compose' | 'ios';
 export type State = 'pressed' | 'hovered' | 'focused' | 'selected' | 'activated' | 'readonly' | 'disabled';
 
@@ -119,8 +124,11 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
 
         const [component] = await db
             .insert(schema.components)
-            .values([{ name: seed.name, description: seed.description ?? '' }])
-            .onConflictDoUpdate({ target: schema.components.name, set: { description: sql`excluded.description` } })
+            .values([{ name: seed.name, platform: SEED_PLATFORM, description: seed.description ?? '' }])
+            .onConflictDoUpdate({
+                target: [schema.components.name, schema.components.platform],
+                set: { description: sql`excluded.description` },
+            })
             .returning();
 
         await db
@@ -163,7 +171,6 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                             type: p.type,
                             defaultValue: p.defaultValue ?? '',
                             description: p.description ?? '',
-                            platform: SEED_PLATFORM,
                         })),
                     )
                     .onConflictDoUpdate({
@@ -172,7 +179,6 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                             type: sql`excluded.type`,
                             defaultValue: sql`excluded.default_value`,
                             description: sql`excluded.description`,
-                            platform: sql`excluded.platform`,
                         },
                     })
                     .returning()),
@@ -185,7 +191,9 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
         };
 
         const paramRows = seed.properties.flatMap((p) =>
-            Object.entries(p.params ?? {}).flatMap(([platform, names]) =>
+            Object.entries(p.params ?? {})
+                .filter(([platform]) => ownPlatform(platform))
+                .flatMap(([platform, names]) =>
                 (names ?? []).map((name) => ({ propertyId: propertyId(p.name), platform, name })),
             ),
         );
@@ -267,7 +275,6 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                         designSystemId: ctx.designSystem.id,
                         componentId: component.id,
                         name: appearanceSeed.name,
-                        platform: SEED_PLATFORM,
                     },
                 ])
                 .onConflictDoNothing();
@@ -279,7 +286,6 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                         eq(schema.appearances.designSystemId, ctx.designSystem.id),
                         eq(schema.appearances.componentId, component.id),
                         eq(schema.appearances.name, appearanceSeed.name),
-                        eq(schema.appearances.platform, SEED_PLATFORM),
                     ),
                 );
             totals.appearances += 1;
@@ -342,10 +348,10 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                             stateSetId: await stateSetId(value),
                         };
                         valueRows.push(row);
-                        if (value.adjust?.length) {
+                        if (value.adjust?.some((a) => ownPlatform(a.platform))) {
                             pendingAdjust.push({
                                 key: `${row.propertyId}:${row.styleId}:${row.stateSetId}`,
-                                adjust: value.adjust,
+                                adjust: value.adjust.filter((a) => ownPlatform(a.platform)),
                                 prop: value.prop,
                             });
                         }
@@ -395,11 +401,11 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                     .onConflictDoNothing()
                     .returning();
                 totals.invariants += 1;
-                if (ipv && value.adjust?.length) {
+                if (ipv && value.adjust?.some((a) => ownPlatform(a.platform))) {
                     await db
                         .insert(schema.invariantPlatformParamAdjustments)
                         .values(
-                            value.adjust.map((a) => ({
+                            value.adjust.filter((a) => ownPlatform(a.platform)).map((a) => ({
                                 ipvId: ipv.id,
                                 platformParamId: paramId(value.prop, a),
                                 value: a.value ?? null,

@@ -19,11 +19,12 @@ OpenSpec Change и сохраняют краткий результат в ло�
 ./tools/e2e list
 ```
 
-Runner сначала вызывает обычный `./setup-local.sh`. Используются те же общие Docker images, build cache, контейнеры,
+Runner сначала вызывает обычный `./setup-local.sh --reset`. Используются те же общие Docker images, build cache, контейнеры,
 порты и volumes, что при ручном локальном запуске. Отдельные Compose projects для E2E не создаются, а запущенный контур
 после тестов не останавливается.
 
-`setup-local.sh` пересоздаёт volumes JavaScript-контура, выполняет миграции и общий seed. После этого
+`setup-local.sh --reset` пересоздаёт volumes обоих контуров, `ds-service` создаёт схему Flyway-миграциями, затем
+выполняется общий seed. После этого
 `e2e/seed/common.sh` создаёт через Gateway данные, общие для E2E-сценариев, и записывает только идентификаторы и имена
 пользователей в `e2e/artifacts/<run-id>/context.env`. Токены и пароли туда не записываются.
 

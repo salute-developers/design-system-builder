@@ -113,8 +113,19 @@ Codec SHALL derive the common configuration axis metadata from the native `bindi
 #### Scenario: Корневая ось берётся из bindings
 
 - **WHEN** native `bindings` declares the axes of the configuration
-- **THEN** the produced common configuration `rootVariationId` MUST equal the `name` of the first declared axis
-- **THEN** codec MUST NOT use a hardcoded axis name
+- **THEN** the produced common configuration `rootVariationId` MUST equal the `name` of the axis named `size` when the configuration declares it
+- **THEN** otherwise `rootVariationId` MUST equal the `name` of the first declared axis other than the colour scheme axis
+- **THEN** codec MUST NOT use an axis name other than `size` to choose the root
+
+#### Scenario: Корень не уходит на ось цветовой схемы
+
+- **WHEN** the first declared axis is the colour scheme axis and another axis is declared
+- **THEN** `rootVariationId` MUST equal the `name` of the first axis that is not the colour scheme axis
+
+#### Scenario: Единственная ось — цветовая схема
+
+- **WHEN** the only declared axis is the colour scheme axis
+- **THEN** the produced common configuration MUST carry `rootVariationId` as absent
 
 #### Scenario: Дефолты вариаций переносятся
 
@@ -353,4 +364,3 @@ six different names and the key differs from the value in 67 cases of 70.
 
 - **WHEN** a rule is derived from the corpus
 - **THEN** the rule MUST hold on every design system in the corpus, not only on one
-

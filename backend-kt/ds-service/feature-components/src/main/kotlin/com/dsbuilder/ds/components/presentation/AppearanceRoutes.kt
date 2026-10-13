@@ -63,8 +63,7 @@ fun Route.appearanceRoutes(
             val designSystemId = request.designSystemId.toUuidOrNull()
             val componentId = request.componentId.toUuidOrNull()
             if (
-                designSystemId == null || componentId == null || request.name.trim().length > 255 ||
-                (request.platform != null && request.platform !in componentPlatforms)
+                designSystemId == null || componentId == null || request.name.trim().length > 255
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
@@ -72,7 +71,6 @@ fun Route.appearanceRoutes(
                 designSystemId,
                 componentId,
                 request.name.trim(),
-                request.platform,
             )
             when (val result = create.execute(context, command)) {
                 is DsResult.Success -> call.respond(HttpStatusCode.Created, AppearanceResponse.from(result.value))
@@ -88,16 +86,11 @@ fun Route.appearanceRoutes(
             val request = runCatching { json.decodeFromJsonElement(UpdateAppearanceRequest.serializer(), payload) }
                 .getOrNull() ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
-                payload.hasInvalidNull("name") || (request.name != null && !request.name.validName()) ||
-                (request.platform != null && request.platform !in componentPlatforms)
+                payload.hasInvalidNull("name") || (request.name != null && !request.name.validName())
             ) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            val command = AppearanceRepository.AppearanceUpdate(
-                request.name?.trim(),
-                request.platform,
-                "platform" in payload,
-            )
+            val command = AppearanceRepository.AppearanceUpdate(request.name?.trim())
             when (val result = update.execute(context, id, command)) {
                 is DsResult.Success -> call.respond(AppearanceResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)

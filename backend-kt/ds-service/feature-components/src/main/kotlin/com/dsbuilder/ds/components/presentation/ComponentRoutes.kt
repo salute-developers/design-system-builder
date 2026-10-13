@@ -67,10 +67,15 @@ fun Route.componentRoutes(
             val request = call.receive<CreateComponentRequest>()
             val name = request.name.trim()
             val description = request.description?.trim()
-            if (name.isEmpty() || name.length > 255 || (description?.length ?: 0) > 1000) {
+            if (
+                name.isEmpty() || name.length > 255 || (description?.length ?: 0) > 1000 ||
+                request.platform !in componentPlatforms
+            ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            when (val result = create.execute(context, ComponentRepository.Create(name, description))) {
+            when (
+                val result = create.execute(context, ComponentRepository.Create(name, request.platform, description))
+            ) {
                 is DsResult.Success -> call.respond(HttpStatusCode.Created, ComponentResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

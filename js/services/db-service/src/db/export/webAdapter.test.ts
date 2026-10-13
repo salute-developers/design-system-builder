@@ -9,7 +9,7 @@ import { configOf, seedGlobalLayer, type Fixture } from "../../test/fixtures";
 /** Данные web-генерации строятся по состоянию, которое кладёт импорт, как и в тестах выгрузки. */
 
 const importConfig = async (tx: TestTx, fixture: Fixture, invariants: Record<string, unknown>) => {
-  const report = await importComponents(tx, fixture.designSystemId, [
+  const report = await importComponents(tx, fixture.designSystemId, "web", [
     configOf({ rootVariationId: null, colorSchemeVariationId: null, invariants, defaults: [], variations: [] } as never),
   ]);
   expect(report.rejected).toEqual([]);
@@ -21,7 +21,7 @@ describe("buildWebAdapter", () => {
       tx: TestTx,
       fixture: Fixture,
       property: string,
-      param: { platform: "web" | "xml"; name: string },
+      param: { platform: "web"; name: string },
       adjustment: { value?: string; template?: string },
     ) => {
       const [prop] = await tx
@@ -50,8 +50,13 @@ describe("buildWebAdapter", () => {
         await importConfig(tx, fixture, { padding: { type: "dimension", value: 8 } });
 
         await adjustInvariant(tx, fixture, "padding", { platform: "web", name: "testButtonPadding" }, { template: "0 $1" });
-        // Шаблон другой платформы в web-маппинг не попадает.
-        await adjustInvariant(tx, fixture, "padding", { platform: "xml", name: "paddings" }, { template: "$1dp" });
+        // Компонент другой платформы в web-адаптер не попадает, даже если у него есть конфигурация.
+        const [native] = await tx.insert(schema.components).values({ name: "TestButton", platform: "xml" }).returning();
+        await tx.insert(schema.appearances).values({
+          designSystemId: fixture.designSystemId,
+          componentId: native.id,
+          name: "default",
+        });
 
         const adapter = await buildWebAdapter(tx, fixture.designSystemId);
         // Имя и описание — из базы, шаблоны — по стилю, пустые поля не пишутся.
@@ -71,8 +76,8 @@ describe("buildWebAdapter", () => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
         await importConfig(tx, fixture, {});
 
-        const [item] = await tx.insert(schema.components).values({ name: "TestItem" }).returning();
-        const [absent] = await tx.insert(schema.components).values({ name: "TestAbsent" }).returning();
+        const [item] = await tx.insert(schema.components).values({ name: "TestItem", platform: "web" }).returning();
+        const [absent] = await tx.insert(schema.components).values({ name: "TestAbsent", platform: "web" }).returning();
         await tx.insert(schema.appearances).values({
           designSystemId: fixture.designSystemId,
           componentId: item.id,

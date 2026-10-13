@@ -62,6 +62,7 @@ type Database = {
 export const buildComponentPackage = async (
   db: any,
   designSystem: { id: string; name: string },
+  platform: (typeof schema.componentPlatformEnum.enumValues)[number],
 ): Promise<ExportResult> => {
   const [version] = await db
     .select({ version: schema.designSystemVersions.version })
@@ -92,7 +93,9 @@ export const buildComponentPackage = async (
     })
     .from(schema.appearances)
     .innerJoin(schema.components, eq(schema.appearances.componentId, schema.components.id))
-    .where(eq(schema.appearances.designSystemId, designSystem.id));
+    .where(
+      and(eq(schema.appearances.designSystemId, designSystem.id), eq(schema.components.platform, platform)),
+    );
 
   if (appearances.length === 0) {
     return {

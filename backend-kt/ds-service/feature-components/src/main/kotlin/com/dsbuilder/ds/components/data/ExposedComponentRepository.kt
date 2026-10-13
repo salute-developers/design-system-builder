@@ -33,6 +33,7 @@ class ExposedComponentRepository : ComponentRepository {
     override suspend fun createGlobal(command: ComponentRepository.Create): Component =
         ComponentsTable.insertReturning {
             it[name] = command.name
+            it[platform] = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
             it[description] = command.description
         }.single().let(::component)
 
@@ -101,6 +102,7 @@ class ExposedComponentRepository : ComponentRepository {
 internal fun component(row: ResultRow) = Component(
     row[ComponentsTable.id],
     row[ComponentsTable.name],
+    row[ComponentsTable.platform].wireValue,
     row[ComponentsTable.description],
     row[ComponentsTable.createdAt],
     row[ComponentsTable.updatedAt],
@@ -127,7 +129,6 @@ private fun property(row: ResultRow) = ComponentPropertySummary(
     row[PropertiesTable.type].wireValue,
     row[PropertiesTable.defaultValue],
     row[PropertiesTable.description],
-    row[PropertiesTable.platform]?.wireValue,
     row[PropertiesTable.createdAt],
     row[PropertiesTable.updatedAt],
 )

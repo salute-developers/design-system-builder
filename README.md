@@ -140,8 +140,21 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
-Скрипт сначала настраивает и запускает JavaScript-контур, а затем запускает Kotlin backend в detached-режиме. Такой порядок
-нужен, потому что `documentation-service` использует JS `db-service` по адресу `host.docker.internal:3008`.
+Скрипт сначала поднимает JavaScript-контур без схемы БД, затем запускает Kotlin backend в detached-режиме, а потом наполняет
+базу и привязывает дизайн-систему `base` к проекту пользователя. Схему общей базы `ds_registry` создаёт Flyway в `ds-service`
+(`V1`–`V3`), Drizzle-миграции в этом контуре не запускаются: иначе схема не совпадёт с baseline Flyway и `ds-service`
+остановится с `Schema fingerprint mismatch`. Порядок нужен ещё и потому, что `documentation-service` использует JS
+`db-service` по адресу `host.docker.internal:3008`.
+
+По умолчанию локальные данные сохраняются. Чтобы удалить данные обоих контуров (все Docker volumes) и начать с чистой базы,
+запустите с явной опцией:
+
+```bash
+./setup-local.sh --reset
+```
+
+Если в `ds_registry` лежит схема, созданная Drizzle (например, после запуска `js/setup-docker.sh` без Flyway), скрипт
+остановится с подсказкой выполнить `./setup-local.sh --reset`.
 
 Для сборки Kotlin backend нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
 `DSBUILDER_JAVA_HOME`, `JAVA_HOME`, `PATH` или стандартных системных установок. JetBrains IDE для запуска не требуется.
@@ -229,6 +242,8 @@ E2E запускает разработчик, CI или главный аген
 архивирования OpenSpec Change. Структура сценариев и правила тестовых данных
 описаны в [`e2e/README.md`](./e2e/README.md).
 
-`js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes, собирает контейнеры,
-запускает миграции и seed базы, а затем поднимает Node.js-сервисы, client и admin. Поэтому локальные данные JS-базы при
-таком запуске будут сброшены.
+`js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes (отключается
+`DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает Node.js-сервисы,
+client и admin. Поэтому при таком запуске по умолчанию локальные данные JS-базы будут сброшены. Автономный запуск
+подходит только для JS-контура: общий контур поднимайте через `./setup-local.sh`, где схему создаёт `ds-service`
+(`DS_SCHEMA_MIGRATION_OWNER=flyway`, затем `./setup-docker.sh --seed-only`).

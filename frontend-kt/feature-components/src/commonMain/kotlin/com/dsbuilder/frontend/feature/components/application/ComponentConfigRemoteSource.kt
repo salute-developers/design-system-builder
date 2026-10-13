@@ -36,12 +36,14 @@ internal interface ComponentConfigRemoteSource {
  * @property apiKey API key, авторизующий чтение.
  * @property projectId идентификатор проекта.
  * @property designSystemId дизайн-система, конфигурации которой выгружаются.
+ * @property platform платформа компонентов в словаре backend (`compose`, `xml`, `ios`, `web`).
  */
 internal data class ExportComponentsCommand(
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
     val projectId: ProjectId,
     val designSystemId: DesignSystemId,
+    val platform: String,
 )
 
 /**
@@ -74,6 +76,7 @@ internal sealed interface ExportComponentsResult {
  * @property apiKey API key, авторизующий запись.
  * @property projectId идентификатор проекта.
  * @property designSystemId дизайн-система, в которую грузится пакет.
+ * @property platform платформа компонентов в словаре backend (`compose`, `xml`, `ios`, `web`).
  * @property packageName имя из `meta.json`.
  * @property packageOrigin разрешённый источник пакета.
  * @property dryRun выполнять ли импорт без сохранения изменений.
@@ -84,6 +87,7 @@ internal data class ImportComponentsCommand(
     val credential: BackendCredential,
     val projectId: ProjectId,
     val designSystemId: DesignSystemId,
+    val platform: String,
     val packageName: String,
     val packageOrigin: String,
     val dryRun: Boolean,

@@ -11,4 +11,8 @@ data class CreatePropertyPlatformParamRequest(
     val platform: String,
     /** Name carried by this contract. */
     val name: String,
+    /** Whether the platform name is deprecated; defaults to `false`. */
+    val deprecated: Boolean? = null,
+    /** Deprecation message; an empty string means deprecated without text. */
+    val deprecatedMessage: String? = null,
 )

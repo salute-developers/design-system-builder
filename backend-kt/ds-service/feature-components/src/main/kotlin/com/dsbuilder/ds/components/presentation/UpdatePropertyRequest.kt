@@ -13,6 +13,6 @@ data class UpdatePropertyRequest(
     val defaultValue: String? = null,
     /** Description carried by this contract. */
     val description: String? = null,
-    /** Platform carried by this contract. */
+    /** Accepted for compatibility and ignored: the platform is defined by the component. */
     val platform: String? = null,
 )

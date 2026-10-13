@@ -7,6 +7,8 @@ import java.util.UUID
 internal class ComponentConfigImportContext(
     val tokens: Map<String, UUID>,
     entries: List<ImportComponentConfig.Entry>,
+    /** Platform of the import: components are looked up only among components of this platform. */
+    val platform: ComponentPlatformDb,
 ) {
     val report = ComponentConfigImportReport()
     val styleToComponent = entries.associate { it.styleName to it.componentName }

@@ -118,7 +118,7 @@ if [[ "$uses_publication_cleanup" == "true" ]]; then
   export DOCUMENTATION_CLEANUP_POLLING_MS="${DSBUILDER_E2E_CLEANUP_POLLING_MS:-200}"
 fi
 
-"$ROOT/setup-local.sh"
+"$ROOT/setup-local.sh" --reset
 
 uses_cli="false"
 for scenario in "${selected_scenarios[@]}"; do

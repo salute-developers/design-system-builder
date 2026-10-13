@@ -139,7 +139,6 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             it[type] = requireNotNull(PropertyTypeDb.fromWire(command.type))
             it[defaultValue] = command.defaultValue
             it[description] = command.description
-            it[platform] = command.platform?.let { value -> requireNotNull(ComponentPlatformDb.fromWire(value)) }
         }.single().let(::propertyModel)
     }
 
@@ -157,9 +156,6 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             command.type?.let { value -> it[type] = requireNotNull(PropertyTypeDb.fromWire(value)) }
             if (command.defaultValuePresent) it[defaultValue] = command.defaultValue
             if (command.descriptionPresent) it[description] = command.description
-            if (command.platformPresent) {
-                it[platform] = command.platform?.let { value -> requireNotNull(ComponentPlatformDb.fromWire(value)) }
-            }
             it[updatedAt] = Instant.now()
         }.singleOrNull()?.let(::propertyModel)
     }
@@ -194,8 +190,10 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         if (!ComponentOwnership.canWriteProperty(projectId, systemAdmin, command.propertyId)) return null
         return PropertyPlatformParamsTable.insertReturning {
             it[propertyId] = command.propertyId
-            it[platform] = requireNotNull(PropertyPlatformDb.fromWire(command.platform))
+            it[platform] = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
             it[name] = command.name
+            command.deprecated?.let { value -> it[deprecated] = value }
+            it[deprecatedMessage] = command.deprecatedMessage
         }.single().let(::platformParam)
     }
 
@@ -209,8 +207,10 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             (PropertyPlatformParamsTable.id eq id) and
                 ComponentOwnership.writableProperty(PropertyPlatformParamsTable.propertyId, projectId, systemAdmin)
         }) {
-            command.platform?.let { value -> it[platform] = requireNotNull(PropertyPlatformDb.fromWire(value)) }
+            command.platform?.let { value -> it[platform] = requireNotNull(ComponentPlatformDb.fromWire(value)) }
             command.name?.let { value -> it[name] = value }
+            command.deprecated?.let { value -> it[deprecated] = value }
+            if (command.deprecatedMessagePresent) it[deprecatedMessage] = command.deprecatedMessage
             it[updatedAt] = Instant.now()
         }.singleOrNull()?.let(::platformParam)
     }
@@ -465,10 +465,14 @@ private fun variationModel(row: ResultRow) = ComponentVariationSummary(
 )
 
 private fun propertyModel(row: ResultRow) = ComponentPropertySummary(
-    row[PropertiesTable.id], row[PropertiesTable.componentId], row[PropertiesTable.name],
+    row[PropertiesTable.id],
+    row[PropertiesTable.componentId],
+    row[PropertiesTable.name],
     row[PropertiesTable.type].wireValue,
-    row[PropertiesTable.defaultValue], row[PropertiesTable.description], row[PropertiesTable.platform]?.wireValue,
-    row[PropertiesTable.createdAt], row[PropertiesTable.updatedAt],
+    row[PropertiesTable.defaultValue],
+    row[PropertiesTable.description],
+    row[PropertiesTable.createdAt],
+    row[PropertiesTable.updatedAt],
 )
 
 private fun componentStyle(row: ResultRow) = ComponentStyleSummary(
@@ -486,6 +490,8 @@ private fun platformParam(row: ResultRow) = PropertyPlatformParam(
     row[PropertyPlatformParamsTable.propertyId],
     row[PropertyPlatformParamsTable.platform].wireValue,
     row[PropertyPlatformParamsTable.name],
+    row[PropertyPlatformParamsTable.deprecated],
+    row[PropertyPlatformParamsTable.deprecatedMessage],
     row[PropertyPlatformParamsTable.createdAt],
     row[PropertyPlatformParamsTable.updatedAt],
 )

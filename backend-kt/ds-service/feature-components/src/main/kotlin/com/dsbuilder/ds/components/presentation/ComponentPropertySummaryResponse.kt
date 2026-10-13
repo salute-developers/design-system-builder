@@ -18,8 +18,6 @@ data class ComponentPropertySummaryResponse(
     val defaultValue: String?,
     /** Description carried by this contract. */
     val description: String?,
-    /** Platform carried by this contract. */
-    val platform: String?,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -28,8 +26,14 @@ data class ComponentPropertySummaryResponse(
     companion object {
         /** Performs the from operation. */
         fun from(value: ComponentPropertySummary) = ComponentPropertySummaryResponse(
-            value.id.toString(), value.componentId?.toString(), value.name, value.type, value.defaultValue,
-            value.description, value.platform, value.createdAt.toString(), value.updatedAt.toString(),
+            value.id.toString(),
+            value.componentId?.toString(),
+            value.name,
+            value.type,
+            value.defaultValue,
+            value.description,
+            value.createdAt.toString(),
+            value.updatedAt.toString(),
         )
     }
 }

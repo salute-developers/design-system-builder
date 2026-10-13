@@ -18,6 +18,8 @@ data class AppearanceVariationAxisResponse(
     val defaultStyleId: String?,
     /** Is color scheme carried by this contract. */
     val isColorScheme: Boolean,
+    /** Является ли ось корневой. */
+    val isRoot: Boolean,
     /** Declared type carried by this contract. */
     val declaredType: String?,
     /** Created at carried by this contract. */
@@ -33,8 +35,11 @@ data class AppearanceVariationAxisResponse(
             val axis = value.variation
             return AppearanceVariationAxisResponse(
                 axis.id.toString(), axis.appearanceId.toString(), axis.variationId.toString(), axis.position,
-                axis.defaultStyleId?.toString(), axis.isColorScheme, axis.declaredType, axis.createdAt.toString(),
-                axis.updatedAt.toString(), value.values.map(AppearanceVariationValueResponse::from),
+                axis.defaultStyleId?.toString(), axis.isColorScheme, axis.isRoot, axis.declaredType,
+                axis.createdAt.toString(), axis.updatedAt.toString(),
+                value.values.map(
+                    AppearanceVariationValueResponse::from,
+                ),
             )
         }
     }

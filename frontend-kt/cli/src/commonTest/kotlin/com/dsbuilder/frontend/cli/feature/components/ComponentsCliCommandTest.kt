@@ -31,6 +31,31 @@ class ComponentsCliCommandTest {
     }
 
     @Test
+    fun componentsHelpListsImportApi() {
+        val result = cli().execute(listOf("components", "--help"))
+
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(result.output.contains("import-api"), result.output)
+    }
+
+    @Test
+    fun importApiHelpListsOptionsWithoutTouchingFilesOrBackend() {
+        val fileSystem = RecordingFileSystem()
+        var backendCalls = 0
+
+        val result = cli(fileSystem) { backendCalls++ }.execute(listOf("components", "import-api", "--help"))
+
+        assertEquals(0, result.exitCode, result.output)
+        listOf("--from", "--platform", "--api-url", "--map-type", "--apply", "--dry-run", "--strict")
+            .forEach { assertTrue(result.output.contains(it), "$it отсутствует в help:\n${result.output}") }
+        listOf("--api-key", "--tool")
+            .forEach { assertTrue(!result.output.contains(it), "$it остался в help:\n${result.output}") }
+        assertTrue(result.output.contains("administrator only"), result.output)
+        assertEquals(0, backendCalls)
+        assertTrue(fileSystem.reads.isEmpty(), "help прочитал файлы: ${fileSystem.reads}")
+    }
+
+    @Test
     fun componentsHelpListsFetch() {
         val result = cli().execute(listOf("components", "--help"))
 

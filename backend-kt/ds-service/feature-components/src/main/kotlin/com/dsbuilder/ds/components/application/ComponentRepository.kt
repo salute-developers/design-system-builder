@@ -37,6 +37,8 @@ interface ComponentRepository {
     data class Create(
         /** Name carried by this contract. */
         val name: String,
+        /** Platform of the component. */
+        val platform: String,
         /** Description carried by this contract. */
         val description: String?,
     )

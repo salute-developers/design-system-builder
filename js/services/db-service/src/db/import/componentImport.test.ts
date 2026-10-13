@@ -38,7 +38,7 @@ describe("importComponents", () => {
         { name: "shape", type: "shape" },
       ]);
 
-      const report = await importComponents(tx, fixture.designSystemId, [
+      const report = await importComponents(tx, fixture.designSystemId, "web", [
         configOf({
           rootVariationId: null,
           colorSchemeVariationId: null,
@@ -65,7 +65,7 @@ describe("importComponents", () => {
     await withRollback(async (tx) => {
       const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-      const report = await importComponents(tx, fixture.designSystemId, [
+      const report = await importComponents(tx, fixture.designSystemId, "web", [
         configOf({
           rootVariationId: null,
           colorSchemeVariationId: null,
@@ -101,7 +101,7 @@ describe("importComponents", () => {
     await withRollback(async (tx) => {
       const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-      await importComponents(tx, fixture.designSystemId, [
+      await importComponents(tx, fixture.designSystemId, "web", [
         configOf({
           rootVariationId: null,
           colorSchemeVariationId: null,
@@ -137,7 +137,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -159,7 +159,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -179,7 +179,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -205,7 +205,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -224,7 +224,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "size", type: "dimension" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -251,7 +251,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -270,7 +270,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "count", type: "integer" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -289,7 +289,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: "size",
             colorSchemeVariationId: null,
@@ -320,7 +320,7 @@ describe("importComponents", () => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
         // Ось `gap` со значением `none` даёт сегмент `no-gap`: вывести его неоткуда.
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: "gap",
             colorSchemeVariationId: null,
@@ -352,7 +352,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf(
             {
               rootVariationId: null,
@@ -383,7 +383,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf(
             {
               rootVariationId: null,
@@ -418,7 +418,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -442,7 +442,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "shape", type: "shape" }]);
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -478,7 +478,7 @@ describe("importComponents", () => {
 
         const before = await snapshot();
 
-        const report = await importComponents(tx, fixture.designSystemId, [
+        const report = await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -529,8 +529,8 @@ describe("importComponents", () => {
             variations: [],
           });
 
-        await importComponents(tx, fixture.designSystemId, [config(fixture.colorToken, "color")]);
-        await importComponents(tx, other.id, [config(otherGradient.name, "gradient")]);
+        await importComponents(tx, fixture.designSystemId, "web", [config(fixture.colorToken, "color")]);
+        await importComponents(tx, other.id, "web", [config(otherGradient.name, "gradient")]);
 
         const [property] = await tx
           .select({ type: schema.properties.type })
@@ -547,7 +547,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        await importComponents(tx, fixture.designSystemId, [
+        await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: "view",
@@ -584,7 +584,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        await importComponents(tx, fixture.designSystemId, [
+        await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: null,
             colorSchemeVariationId: null,
@@ -643,7 +643,7 @@ describe("importComponents", () => {
             styleName,
           );
 
-        await importComponents(tx, fixture.designSystemId, [
+        await importComponents(tx, fixture.designSystemId, "web", [
           sizeConfig("l", "chip"),
           sizeConfig("xl", "embedded-chip"),
         ]);
@@ -668,7 +668,7 @@ describe("importComponents", () => {
       await withRollback(async (tx) => {
         const fixture = await seedGlobalLayer(tx, [{ name: "background", type: "color" }]);
 
-        await importComponents(tx, fixture.designSystemId, [
+        await importComponents(tx, fixture.designSystemId, "web", [
           configOf({
             rootVariationId: "size",
             colorSchemeVariationId: null,
@@ -716,6 +716,63 @@ describe("importComponents", () => {
           },
         ]);
       });
+    });
+  });
+});
+
+describe("importComponents: платформы", () => {
+  const config = (token: string) =>
+    configOf({
+      rootVariationId: null,
+      colorSchemeVariationId: null,
+      invariants: { backgroundColor: { type: "color", default: token } },
+      defaults: [],
+      variations: [],
+    });
+
+  it("грузит конфигурацию в компонент своей платформы и не трогает одноимённый компонент другой", async () => {
+    await withRollback(async (tx) => {
+      const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
+      const [compose] = await tx
+        .insert(schema.components)
+        .values({ name: "TestButton", platform: "compose" })
+        .returning();
+      await tx.insert(schema.properties).values({ componentId: compose.id, name: "backgroundColor", type: "color" });
+
+      const report = await importComponents(tx, fixture.designSystemId, "compose", [config(fixture.colorToken)]);
+
+      expect(report.rejected).toEqual([]);
+      const appearances = await tx.select().from(schema.appearances).where(eq(schema.appearances.designSystemId, fixture.designSystemId));
+      expect(appearances.map((row) => row.componentId)).toEqual([compose.id]);
+      expect(appearances.some((row) => row.componentId === fixture.componentId)).toBe(false);
+    });
+  });
+
+  it("отклоняет конфигурацию, если компонента нет на запрошенной платформе", async () => {
+    await withRollback(async (tx) => {
+      const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
+
+      const report = await importComponents(tx, fixture.designSystemId, "xml", [config(fixture.colorToken)]);
+
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain("platform 'xml'");
+    });
+  });
+
+  it("веб-appearance и нативный appearance одного имени сосуществуют", async () => {
+    await withRollback(async (tx) => {
+      const fixture = await seedGlobalLayer(tx, [{ name: "backgroundColor", type: "color" }]);
+      const [compose] = await tx
+        .insert(schema.components)
+        .values({ name: "TestButton", platform: "compose" })
+        .returning();
+      await tx.insert(schema.properties).values({ componentId: compose.id, name: "backgroundColor", type: "color" });
+
+      await importComponents(tx, fixture.designSystemId, "web", [config(fixture.colorToken)]);
+      await importComponents(tx, fixture.designSystemId, "compose", [config(fixture.colorToken)]);
+
+      const rows = await tx.select().from(schema.appearances).where(eq(schema.appearances.designSystemId, fixture.designSystemId));
+      expect(rows.map((row) => row.componentId).sort()).toEqual([fixture.componentId, compose.id].sort());
     });
   });
 });

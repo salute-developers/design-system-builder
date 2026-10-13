@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonPrimitive
 private const val COLOR_SCHEME_BINDING_TYPE = "view"
 private const val ENUM_BINDING_TYPE = "enum"
 private const val BOOLEAN_BINDING_TYPE = "boolean"
+private const val FALLBACK_ROOT_AXIS = "size"
 
 /**
  * Преобразует конфигурацию компонента между native и common форматами.
@@ -44,7 +45,7 @@ internal class ConfigCodec(
             .map { values -> values.withDeclaredValues(bindings) }
             .map { values ->
                 CommonConfig(
-                    rootVariationId = axisNames.firstOrNull(),
+                    rootVariationId = rootAxisOf(axisNames, colorSchemeAxis),
                     colorSchemeVariationId = colorSchemeAxis,
                     invariants = config.props,
                     defaults = bindings.mapNotNull { binding ->
@@ -526,6 +527,18 @@ private fun parentOf(id: String, allIds: Set<String>): String? {
         if (candidate in allIds) return candidate
     }
     return null
+}
+
+/**
+ * Корневая ось конфигурации.
+ *
+ * Среди осей, кроме оси цветовой схемы, берётся ось `size`, иначе первая по порядку объявления.
+ * Правило совпадает с тем, по которому сервис выбирает корень, когда конфигурация его не указала.
+ * Если подходящих осей нет, корня нет.
+ */
+private fun rootAxisOf(axisNames: List<String>, colorSchemeAxis: String?): String? {
+    val candidates = axisNames.filter { it != colorSchemeAxis }
+    return candidates.firstOrNull { it == FALLBACK_ROOT_AXIS } ?: candidates.firstOrNull()
 }
 
 /**

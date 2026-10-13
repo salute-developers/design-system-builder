@@ -57,7 +57,7 @@ type Appearance = {
 
 /** Собирает web-адаптер по конфигурациям дизайн-системы. */
 export const buildWebAdapter = async (db: any, designSystemId: string): Promise<WebAdapter> => {
-  // Состав тот же, что у выгрузки: компоненты, у которых в дизайн-системе есть appearance.
+  // Состав тот же, что у выгрузки web: компоненты платформы web, у которых в дизайн-системе есть appearance.
   const appearances: Appearance[] = await db
     .select({
       appearanceId: schema.appearances.id,
@@ -68,7 +68,7 @@ export const buildWebAdapter = async (db: any, designSystemId: string): Promise<
     })
     .from(schema.appearances)
     .innerJoin(schema.components, eq(schema.appearances.componentId, schema.components.id))
-    .where(eq(schema.appearances.designSystemId, designSystemId));
+    .where(and(eq(schema.appearances.designSystemId, designSystemId), eq(schema.components.platform, "web")));
 
   if (appearances.length === 0) {
     return [];

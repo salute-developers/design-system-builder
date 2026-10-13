@@ -126,6 +126,71 @@ class CliCoreWriteSupportTest {
     }
 
     @Test
+    fun aDenialCarriesTheReasonFromTheErrorField() = runTest {
+        val client = client {
+            respond(
+                content = """{"error":"System administrator role is required"}""",
+                status = HttpStatusCode.Forbidden,
+            )
+        }
+
+        val failure = assertNotNull(client.post("/api/admin/x", "{}") as? AuthenticatedHttpResult.Failure)
+
+        assertTrue(failure.message.contains("forbidden"), failure.message)
+        assertTrue(failure.message.endsWith("Server: System administrator role is required"), failure.message)
+    }
+
+    @Test
+    fun aDenialCarriesTheReasonFromTheMessageField() = runTest {
+        val client =
+            client { respond(content = """{"message":"Invalid bearer token"}""", status = HttpStatusCode.Unauthorized) }
+
+        val failure = assertNotNull(client.get("/api/x") as? AuthenticatedHttpResult.Failure)
+
+        assertTrue(failure.message.contains("unauthorized"), failure.message)
+        assertTrue(failure.message.endsWith("Server: Invalid bearer token"), failure.message)
+    }
+
+    @Test
+    fun aDenialWithoutAReasonKeepsTheMessage() = runTest {
+        val bodies = listOf("", "{}", "not json", """{"error":{"formErrors":[]}}""", """{"error":""}""", "[]")
+
+        bodies.forEach { body ->
+            val client = client { respond(content = body, status = HttpStatusCode.Forbidden) }
+
+            val failure = assertNotNull(client.get("/api/x") as? AuthenticatedHttpResult.Failure)
+
+            assertEquals(
+                "Status: forbidden. Credential has no access to this project.",
+                failure.message,
+                "тело '$body'",
+            )
+        }
+    }
+
+    @Test
+    fun aLongMultilineReasonIsTruncatedToTheFirstLine() = runTest {
+        val long = "x".repeat(500)
+        val client =
+            client { respond(content = """{"error":"$long\nsecond line"}""", status = HttpStatusCode.Forbidden) }
+
+        val failure = assertNotNull(client.get("/api/x") as? AuthenticatedHttpResult.Failure)
+
+        val reason = failure.message.substringAfter("Server: ")
+        assertEquals(200, reason.length)
+        assertTrue(!failure.message.contains("second line"), failure.message)
+    }
+
+    @Test
+    fun aNotFoundOrServerErrorIsNotAffected() = runTest {
+        val client = client { respond(content = """{"error":"boom"}""", status = HttpStatusCode.NotFound) }
+
+        val failure = assertNotNull(client.get("/api/x") as? AuthenticatedHttpResult.Failure)
+
+        assertEquals("Status: not found. Project or resource was not found.", failure.message)
+    }
+
+    @Test
     fun postAndGetShareErrorMapping() = runTest {
         val client = client { respond(content = "", status = HttpStatusCode.Forbidden) }
 

@@ -11,6 +11,6 @@ data class CreateAppearanceRequest(
     val componentId: String,
     /** Name carried by this contract. */
     val name: String = "default",
-    /** Platform carried by this contract. */
+    /** Accepted for compatibility and ignored: the platform is defined by the component. */
     val platform: String? = null,
 )

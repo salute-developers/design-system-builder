@@ -17,24 +17,15 @@ type DesignSystemComponent = components['schemas']['DesignSystemComponent'];
 type Section = 'design-systems' | 'components';
 type ComponentTab = 'properties' | 'deps' | 'variations' | 'prop-variations' | 'design-systems';
 
-// Платформа компонента. У самой таблицы components колонки platform нет, она есть у
-// properties.platform и appearances.platform, поэтому платформы компонента выводятся из его данных.
-// `none` — строки без разметки: на проде это нативные компоненты из theme-converter, они остаются NULL.
-type ComponentPlatform = NonNullable<Property['platform']>;
-type PlatformTab = ComponentPlatform | 'none';
+// Платформа компонента входит в его идентичность: у Avatar[compose] и Avatar[xml] свои свойства,
+// вариации и конфиги, поэтому вкладка платформы просто фильтрует компоненты по `components.platform`.
+type PlatformTab = Comp['platform'];
 const PLATFORM_TABS: { id: PlatformTab; label: string }[] = [
   { id: 'web', label: 'Web' },
   { id: 'compose', label: 'Compose' },
+  { id: 'xml', label: 'Android View' },
   { id: 'ios', label: 'iOS' },
-  { id: 'none', label: 'No platform' },
 ];
-
-function platformOf(p: { platform: ComponentPlatform | null }): PlatformTab {
-  return p.platform ?? 'none';
-}
-function platformValue(tab: PlatformTab): ComponentPlatform | null {
-  return tab === 'none' ? null : tab;
-}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -294,7 +285,6 @@ function PropertiesTab({ componentId, componentName, platform, onChanged }: {
         name: pName,
         type: pType,
         defaultValue: pDefault || undefined,
-        platform: platformValue(platform),
       },
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
@@ -323,7 +313,7 @@ function PropertiesTab({ componentId, componentName, platform, onChanged }: {
 
       for (const prop of toCreate) {
         const { data, error } = await api.POST('/ds/properties', {
-          body: { componentId, name: prop.name, type: prop.type, platform: 'web' },
+          body: { componentId, name: prop.name, type: prop.type },
         });
 
         if (error || !data) {
@@ -424,7 +414,9 @@ function PropertiesTab({ componentId, componentName, platform, onChanged }: {
 
   if (loading) return <p className="page-hint">Loading…</p>;
 
-  const visibleProps = props.filter((p) => platformOf(p) === platform);
+  // Алиас принадлежит платформе компонента: поля других платформ не показываются.
+  const aliasPlatforms = PLATFORMS.filter((p) => p === platform);
+  const visibleProps = props;
 
   return (
     <div>
@@ -455,7 +447,7 @@ function PropertiesTab({ componentId, componentName, platform, onChanged }: {
             <input className="adm-input" placeholder="Default value (optional)" value={pDefault} onChange={(e) => setPDefault(e.target.value)} />
           </div>
           <div className="adm-platform-grid">
-            {PLATFORMS.map((p) => (
+            {aliasPlatforms.map((p) => (
               <label key={p} className="adm-platform-field">
                 <span className="adm-platform-label">{p}</span>
                 <input
@@ -508,7 +500,7 @@ function PropertiesTab({ componentId, componentName, platform, onChanged }: {
                         </td>
                         <td colSpan={2}>
                           <div className="adm-platform-grid adm-platform-grid--sm">
-                            {PLATFORMS.map((pl) => (
+                            {aliasPlatforms.map((pl) => (
                               <label key={pl} className="adm-platform-field">
                                 <span className="adm-platform-label">{pl}</span>
                                 <input
@@ -860,8 +852,8 @@ function PropVariationsTab({ componentId, platform }: { componentId: string; pla
 
   if (loading) return <p className="page-hint">Loading…</p>;
 
-  // filter to only this component's props (of the selected platform) and variations
-  const props = allProps.filter((p) => platformOf(p) === platform);
+  // свойства и вариации компонента (платформа определяется самим компонентом)
+  const props = allProps;
   const compPropIds = new Set(props.map((p) => p.id));
   const compVarIds = new Set(variations.map((v) => v.id));
   const filtered = pvList.filter((pv) => compPropIds.has(pv.propertyId) && compVarIds.has(pv.variationId));
@@ -1324,7 +1316,6 @@ function ComponentDetail({ component, allComponents, platform, onChanged }: {
 
 function ComponentsSection() {
   const [components, setComponents] = useState<Comp[]>([]);
-  const [platformsByComponent, setPlatformsByComponent] = useState<Record<string, Set<PlatformTab>>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [platform, setPlatform] = useState<PlatformTab>('web');
@@ -1334,36 +1325,15 @@ function ComponentsSection() {
   const [addErr, setAddErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  // Платформы компонента выводим из его свойств и appearances (см. комментарий у PlatformTab).
-  const loadPlatforms = useCallback(async () => {
-    const [propsRes, appRes] = await Promise.all([
-      api.GET('/ds/properties'),
-      api.GET('/ds/appearances'),
-    ]);
-    const map: Record<string, Set<PlatformTab>> = {};
-    const mark = (componentId: string | null, p: PlatformTab) => {
-      if (!componentId) return;
-      (map[componentId] ??= new Set()).add(p);
-    };
-    for (const p of propsRes.data ?? []) mark(p.componentId, platformOf(p));
-    for (const a of appRes.data ?? []) mark(a.componentId, platformOf(a));
-    setPlatformsByComponent(map);
-  }, []);
-
   const load = useCallback(async () => {
-    const [{ data }] = await Promise.all([api.GET('/ds/components'), loadPlatforms()]);
+    const { data } = await api.GET('/ds/components');
     if (data) setComponents(data);
     setLoading(false);
-  }, [loadPlatforms]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Компонент виден на вкладке платформы, если у него есть данные этой платформы.
-  // Компонент без данных вообще (только что созданный) виден на всех вкладках.
-  const isOnPlatform = (c: Comp, p: PlatformTab) => {
-    const set = platformsByComponent[c.id];
-    return !set || set.size === 0 || set.has(p);
-  };
+  const isOnPlatform = (c: Comp, p: PlatformTab) => c.platform === p;
   const visibleComponents = components.filter((c) => isOnPlatform(c, platform));
   const countOn = (p: PlatformTab) => components.filter((c) => isOnPlatform(c, p)).length;
 
@@ -1378,7 +1348,7 @@ function ComponentsSection() {
     setAddErr(null);
     setAdding(true);
     const { data, error } = await api.POST('/ds/components', {
-      body: { name: cName, description: cDesc || undefined },
+      body: { name: cName, platform, description: cDesc || undefined },
     });
     if (error) { setAdding(false); setAddErr(typeof error === 'string' ? error : JSON.stringify(error)); return; }
 
@@ -1477,7 +1447,7 @@ function ComponentsSection() {
                 <span className="adm-comp-detail-name">{selectedComp.name}</span>
                 {selectedComp.description && <span className="adm-muted"> — {selectedComp.description}</span>}
               </div>
-              <ComponentDetail component={selectedComp} allComponents={components} platform={platform} onChanged={loadPlatforms} />
+              <ComponentDetail component={selectedComp} allComponents={components} platform={platform} onChanged={load} />
             </>
           ) : (
             <p className="page-hint">Select a component to manage its properties, dependencies, variations and more.</p>

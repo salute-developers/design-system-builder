@@ -21,6 +21,8 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 
 /** Registers property platform-param CRUD routes. */
 @Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "LongParameterList")
@@ -31,6 +33,7 @@ fun Route.propertyPlatformParamRoutes(
     create: CreatePropertyPlatformParamUseCase,
     update: UpdatePropertyPlatformParamUseCase,
     delete: DeletePropertyPlatformParamUseCase,
+    json: Json,
 ) {
     route("/api/ds/property-platform-params") {
         get {
@@ -63,6 +66,8 @@ fun Route.propertyPlatformParamRoutes(
                 propertyId,
                 request.platform,
                 request.name.trim(),
+                request.deprecated,
+                request.deprecatedMessage,
             )
             when (val result = create.execute(context, command)) {
                 is DsResult.Success -> call.respond(
@@ -77,14 +82,23 @@ fun Route.propertyPlatformParamRoutes(
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            val request = call.receive<UpdatePropertyPlatformParamRequest>()
+            val payload = call.receive<JsonObject>()
+            val request = runCatching {
+                json.decodeFromJsonElement(UpdatePropertyPlatformParamRequest.serializer(), payload)
+            }.getOrNull() ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             if (
                 (request.platform != null && request.platform !in propertyPlatforms) ||
                 (request.name != null && !request.name.validName())
             ) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
-            val command = ComponentModelRepository.PlatformParamUpdate(request.platform, request.name?.trim())
+            val command = ComponentModelRepository.PlatformParamUpdate(
+                request.platform,
+                request.name?.trim(),
+                request.deprecated,
+                request.deprecatedMessage,
+                "deprecatedMessage" in payload,
+            )
             when (val result = update.execute(context, id, command)) {
                 is DsResult.Success -> call.respond(PropertyPlatformParamResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)

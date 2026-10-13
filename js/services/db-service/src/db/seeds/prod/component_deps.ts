@@ -1,4 +1,4 @@
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import * as schema from '../../schema';
 
 /**
@@ -41,7 +41,7 @@ export async function seedComponentDeps(db: any) {
     const rows: { id: string; name: string }[] = await db
         .select({ id: schema.components.id, name: schema.components.name })
         .from(schema.components)
-        .where(inArray(schema.components.name, names));
+        .where(and(eq(schema.components.platform, 'web'), inArray(schema.components.name, names)));
     const idByName = new Map(rows.map((row) => [row.name, row.id]));
 
     const values = componentDeps

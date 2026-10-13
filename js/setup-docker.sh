@@ -12,7 +12,10 @@
 #   and binding the 'base' design system to it
 # - Comprehensive health checks for all services
 #
-# Usage: ./setup-docker.sh
+# Usage: ./setup-docker.sh [--seed-only]
+#   --seed-only  only seed the database and bind design system 'base' to the user's project;
+#                the stack must be running and the schema must already exist (DS_SCHEMA_MIGRATION_OWNER=flyway
+#                flow: ds-service creates the schema, then this step fills it)
 #
 # Project bootstrap env (all optional):
 #   DSBUILDER_GATEWAY_URL       gateway of backend-kt stack, default http://localhost:8080
@@ -21,7 +24,10 @@
 #   DSBUILDER_PROJECT_NAME      name for a newly created project, default "Base"
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   Keycloak realm/client, default dsbuilder / dsbuilder-api
 #   DSBUILDER_SKIP_PROJECT=1    skip the project bootstrap step entirely
-#   DS_SCHEMA_MIGRATION_OWNER   drizzle (default) or flyway; flyway disables the Drizzle runner
+#   DS_SCHEMA_MIGRATION_OWNER   drizzle (default) or flyway. flyway: ds-service owns the shared schema, so the
+#                               Drizzle runner, the seed and the project binding are skipped here and run later
+#                               with --seed-only, after ds-service has created the schema
+#   DSBUILDER_RESET_VOLUMES     1 (default) recreates the Docker volumes of this stack, 0 keeps the data
 # =============================================================================
 
 # Colors for better output
@@ -80,6 +86,18 @@ REALM="${DSBUILDER_REALM:-dsbuilder}"
 CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
 SKIP_PROJECT="${DSBUILDER_SKIP_PROJECT:-0}"
 SCHEMA_MIGRATION_OWNER="${DS_SCHEMA_MIGRATION_OWNER:-drizzle}"
+RESET_VOLUMES="${DSBUILDER_RESET_VOLUMES:-1}"
+SEED_ONLY=0
+
+for arg in "$@"; do
+    case "$arg" in
+        --seed-only) SEED_ONLY=1 ;;
+        *)
+            echo "Unknown option: $arg (supported: --seed-only)" >&2
+            exit 2
+            ;;
+    esac
+done
 
 if [ "$SCHEMA_MIGRATION_OWNER" != "drizzle" ] && [ "$SCHEMA_MIGRATION_OWNER" != "flyway" ]; then
     echo_error "DS_SCHEMA_MIGRATION_OWNER must be either 'drizzle' or 'flyway'"
@@ -146,6 +164,18 @@ bootstrap_user_project() {
     fi
     user_id="$(jwt_sub "$access_token")"
 
+    # The gateway answers /health before projects-service and auth-helper are ready: wait for the projects API.
+    local attempt status
+    for attempt in $(seq 1 45); do
+        status="$(curl -s -o /dev/null -w '%{http_code}' "$GATEWAY_URL/api/projects" -H "Authorization: Bearer $access_token" || true)"
+        [ "$status" = "200" ] && break
+        sleep 2
+    done
+    if [ "$status" != "200" ]; then
+        echo_warning "Projects API did not become ready (last HTTP status: ${status:-none})" >&2
+        return 1
+    fi
+
     # Existing project owned by this user?
     project_id="$(curl -sf "$GATEWAY_URL/api/projects" -H "Authorization: Bearer $access_token" | \
         python3 -c '
@@ -179,6 +209,45 @@ for project in json.load(sys.stdin):
     printf '%s' "$project_id"
 }
 
+# Seeds the database and binds design system 'base' to the user's project.
+# Seeding is skipped when the database already holds 'base', so repeated runs do not duplicate data.
+seed_and_bind() {
+    local seeded
+    seeded="$(run_psql -c "SELECT count(*) FROM design_systems WHERE name = 'base';" 2>/dev/null || echo 0)"
+    if [ "$seeded" != "0" ]; then
+        echo_info "Seeding skipped: design system 'base' already exists"
+    else
+        echo_step "Seeding db-service database (prod)..."
+        if run_compose exec -T db-service npx tsx src/db/seed-prod.ts; then
+            echo_success "db-service database seeding (prod) completed"
+        else
+            echo_error "db-service database seeding (prod) failed"
+            exit 1
+        fi
+    fi
+
+    # --- User project → design system 'base' ---
+    echo ""
+    echo_header "👤 Binding design system 'base' to the user's project..."
+    if [ "$SKIP_PROJECT" = "1" ]; then
+        echo_info "Skipped (DSBUILDER_SKIP_PROJECT=1)"
+    elif project_id="$(bootstrap_user_project)"; then
+        if ! printf '%s' "$project_id" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
+            echo_error "Unexpected project id: $project_id"
+            exit 1
+        fi
+        if run_psql -c "UPDATE design_systems SET project_id = '$project_id' WHERE name = 'base';" > /dev/null; then
+            echo_success "Design system 'base' bound to project $project_id"
+        else
+            echo_error "Failed to set project_id on design system 'base'"
+            exit 1
+        fi
+    else
+        echo_warning "Project bootstrap skipped: design system 'base' stays without project_id (visible to every project)"
+    fi
+
+}
+
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
 echo "======================================================"
 
@@ -196,6 +265,11 @@ if ! docker compose version > /dev/null 2>&1; then
 fi
 echo_success "Docker Compose is available"
 
+if [ "$SEED_ONLY" = "1" ]; then
+    seed_and_bind
+    exit 0
+fi
+
 echo ""
 echo_header "🚀 Setting up development environment..."
 echo "   📦 Services: postgres-registry, db-service, admin, client, generator, publisher, docs-generator"
@@ -204,8 +278,13 @@ echo "   👤 Project: find/create user project via $GATEWAY_URL and bind it to 
 echo "   🔍 Health checks: all services"
 
 # Stop any existing containers
-echo_step "Stopping existing containers..."
-run_compose down -v
+if [ "$RESET_VOLUMES" = "1" ]; then
+    echo_step "Stopping existing containers and recreating volumes..."
+    run_compose down -v
+else
+    echo_step "Stopping existing containers (volumes are kept)..."
+    run_compose down
+fi
 
 # Build and start services
 echo_step "Building and starting services..."
@@ -263,33 +342,11 @@ else
     echo_info "Skipping Drizzle migrations: Flyway owns the shared schema"
 fi
 
-# --- Seeding ---
-echo_step "Seeding db-service database (prod)..."
-if run_compose exec -T db-service npx tsx src/db/seed-prod.ts; then
-    echo_success "db-service database seeding (prod) completed"
+# --- Seeding and project binding ---
+if [ "$SCHEMA_MIGRATION_OWNER" = "flyway" ]; then
+    echo_info "Seed and project binding are deferred: ds-service creates the schema first (run ./setup-docker.sh --seed-only afterwards)"
 else
-    echo_error "db-service database seeding (prod) failed"
-    exit 1
-fi
-
-# --- User project → design system 'base' ---
-echo ""
-echo_header "👤 Binding design system 'base' to the user's project..."
-if [ "$SKIP_PROJECT" = "1" ]; then
-    echo_info "Skipped (DSBUILDER_SKIP_PROJECT=1)"
-elif project_id="$(bootstrap_user_project)"; then
-    if ! printf '%s' "$project_id" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
-        echo_error "Unexpected project id: $project_id"
-        exit 1
-    fi
-    if run_psql -c "UPDATE design_systems SET project_id = '$project_id' WHERE name = 'base';" > /dev/null; then
-        echo_success "Design system 'base' bound to project $project_id"
-    else
-        echo_error "Failed to set project_id on design system 'base'"
-        exit 1
-    fi
-else
-    echo_warning "Project bootstrap skipped: design system 'base' stays without project_id (visible to every project)"
+    seed_and_bind
 fi
 
 # Now start the remaining services (client, admin, generator, etc.)
