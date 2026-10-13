@@ -28,3 +28,7 @@ cd frontend-kt && ./gradlew build
 ```
 
 Не переносить в Git локальные `.env`, `.gradle`, `.kotlin`, `build`, `node_modules` и `.sdds`.
+
+## Pull requests
+
+Описание PR составлять по шаблону из `.agents/skills/pr-description/SKILL.md`.
