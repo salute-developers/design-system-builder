@@ -76,6 +76,7 @@ design_system_versions
   sequence_number
   revision
   changelog
+  snapshot: null для новой модели, прежнее значение для архивной строки
   created_at
   published_at
 ```
@@ -88,10 +89,17 @@ design_system_versions
 состояние определяется последними предметными редакциями, начавшими действовать не позднее её `sequence_number`.
 Для этого не нужен родительский идентификатор, рекурсивный обход или существование предыдущей версии.
 
-`BASELINE` используется только при миграции существующей дизайн-системы без опубликованной версии. Он содержит
-исходные предметные редакции, имеет `sequence_number = 0`, не имеет продуктового номера и не показывается как
-опубликованная версия. Активный черновик получает следующий номер. После первой публикации техническая исходная
-граница остаётся частью временной истории, но не является зависимостью опубликованной версии.
+`BASELINE` создаётся при миграции из текущего состояния предметных таблиц. Он содержит исходные предметные редакции,
+имеет `sequence_number = 0`, не имеет продуктового номера и не показывается как опубликованная версия. Активный
+черновик получает следующий номер. После первой публикации техническая исходная граница остаётся частью временной
+истории, но не является зависимостью опубликованной версии.
+
+Существующие до миграции строки со `snapshot` не преобразуются в предметные редакции и не включаются в новую временную
+шкалу. Они сохраняются в `design_system_versions` как архивные записи: `snapshot` остаётся заполненным, а
+`sequence_number` отсутствует. Для новой модели `snapshot` допускает `NULL`; у `BASELINE`, `DRAFT` и новых
+`PUBLISHED` он всегда равен `NULL`. Новые записи никогда не записывают снимок. Архивные строки не возвращаются новым
+списком версий, не принимаются как `versionId` предметными методами и не открываются редакторами. Отдельный API для
+чтения или восстановления архивных снимков не создаётся.
 
 ### Устойчивые сущности и предметные редакции
 
@@ -100,7 +108,8 @@ design_system_versions
 1. Таблица устойчивой сущности хранит идентификатор и неизменяемую принадлежность.
 2. Таблица `*_revisions` хранит изменяемое состояние только для тех версий, где сущность действительно менялась.
 
-Пример токена:
+Существующая предметная таблица после миграции становится таблицей устойчивой сущности. Из неё удаляются изменяемые
+поля: они переносятся в новую таблицу редакций и больше не записываются в двух местах. Например:
 
 ```text
 tokens
@@ -111,73 +120,143 @@ token_revisions
   version_sequence_number
   name, description, token_type, enabled, deleted
 
+token_values
+  id, design_system_id, token_id, tenant_id, platform, mode, created_at
+
 token_value_revisions
-  id, token_id, design_system_version_id
+  id, token_value_id, design_system_version_id
   version_sequence_number
-  tenant_id, platform, mode, value, deleted
+  palette_id, value, deleted
 ```
 
 Изменение одного токена создаёт редакции только этого токена. Остальные данные не копируются. Общая таблица
 `design_system_entities` не вводится: токены, темы и компоненты сохраняют независимое владение данными и типизированные
 внешние ключи внутри своих модулей.
 
-Таблицы редакций проектируются по границам логических сущностей, а не механически для каждой служебной таблицы.
-Каждая предметная редакция хранит номер границы из своей версии. Согласованность пары
+`platform` и `mode` являются неизменяемой частью идентичности значения: для другой платформы или режима создаётся
+другое значение. `token_values` имеет уникальный ключ `(token_id, tenant_id, platform, mode)`. Изменяющий метод значения
+больше не принимает `platform` и `mode`; для переноса данных между комбинациями клиент удаляет прежнее и создаёт новое
+значение существующими предметными методами. Повторное создание ранее удалённой комбинации использует прежний
+`token_values.id` и добавляет редакцию с `deleted = false`, поэтому историческая строка не мешает понятному созданию.
+
+`token_values` после миграции больше не хранит `palette_id`, `value` и `updated_at`. `token_value_revisions` является
+единственным источником этих значений. Временное наличие значений в обеих таблицах
+допустимо только внутри управляемого перехода: создать редакции, сверить данные, переключить чтение и запись, удалить
+старые изменяемые столбцы. Постоянная двойная запись запрещена.
+
+Таблицы редакций следуют существующим предметным таблицам `ds-service`. Отдельная редакция нужна и таблицам связей,
+если принадлежность, порядок или содержимое связи меняется в черновике. Каждая предметная редакция хранит номер
+границы из своей версии. Согласованность пары
 `(design_system_version_id, version_sequence_number)` обеспечивается внешним ключом на уникальную пару таблицы
 версий. Это позволяет использовать предметный индекс без соединения с таблицей версий при каждом чтении.
+
+Каждая таблица редакций имеет уникальность `(stable_entity_id, design_system_version_id)`: в одной версии существует
+не более одной редакции устойчивой сущности. Запись выполняется атомарным обновлением или вставкой после блокировки
+`entity_edit_states`, поэтому выбор последней редакции детерминирован.
+
+Принадлежность одной дизайн-системе обеспечивается в БД, а не только кодом. Версия, устойчивые сущности и редакции
+содержат `design_system_id` и альтернативные уникальные ключи с ним. Составные внешние ключи редакции одновременно
+проверяют `(stable_entity_id, design_system_id)` и
+`(design_system_version_id, version_sequence_number, design_system_id)`. Изменяемые ссылки на токен, appearance,
+style и другие сущности также используют составной внешний ключ с `design_system_id`. Ссылка между разными
+дизайн-системами должна отклоняться PostgreSQL.
+
+#### Преобразование существующих таблиц `ds-service`
+
+Таблицы ядра, тем и токенов преобразуются следующим образом:
+
+| Существующая таблица | Целевое изменение |
+|---|---|
+| `design_systems` | Оставить `id`, `project_id`, неизменяемый совместимый `project_name` и `created_at`; изменяемые `name` и `description` перенести в `design_system_revisions`. `updated_at` вычислять по последней редакции, а не хранить вторым источником. Удаление всей дизайн-системы остаётся отдельной операцией над корнем. |
+| `design_system_versions` | Добавить `status`, `sequence_number`, `revision`, `created_at`; сделать `snapshot` допускающим `NULL`. Старые строки со снимком сохранить как архивные вне новой временной шкалы, новые строки создавать только без снимка. |
+| `design_system_changes` | Удалить после переключения на вычисляемый журнал. |
+| `tenants` | Оставить `id`, `design_system_id`, `created_at`; `name`, `description`, `color_config` и признак удаления перенести в `tenant_revisions`. `edit_revision` заменить общим техническим механизмом редактирования. |
+| `tokens` | Оставить `id`, `design_system_id`, `created_at`; `name`, `type`, `display_name`, `description`, `enabled` и признак удаления перенести в `token_revisions`. |
+| `token_values` | Оставить `id`, добавить явный `design_system_id`, сохранить неизменяемые `token_id`, `tenant_id`, `platform`, `mode`, `created_at`; `palette_id`, `value` и признак удаления перенести в `token_value_revisions`. |
+| `palette` | Не менять в этом изменении; версионность палитры проектируется отдельно. |
+| `documentation_pages`, `saved_queries` | Не менять: они не являются публикуемым предметным состоянием дизайн-системы в рамках этого решения. |
+
+Общие сведения API компонентов остаются общими для всех дизайн-систем и не получают редакций:
+`components`, `component_deps`, `properties`, `variations`, `property_platform_params`, `property_variations`, `states`,
+`state_sets`. Компонент сохраняет обязательную платформу и устойчивую идентичность `(name, platform)`. Признаки
+`deprecated` и `deprecated_message` остаются текущими общими свойствами платформенного имени
+`property_platform_params`; они не входят в версии и журнал отдельной дизайн-системы.
+
+Эти общие сведения не удаляются через публичный API. Импорт API-меты дополняет общий каталог и меняет признаки
+устаревания платформенных имён, но не удаляет отсутствующие в очередном файле компоненты, свойства, состояния или
+вариации. Публичные `DELETE` для перечисленных общих ресурсов удаляются. Внешние ключи от конфигурации
+дизайн-системы и её редакций к общему каталогу используют `RESTRICT`, поэтому физическое удаление не может повредить
+активное или историческое состояние. Отдельная служебная очистка допустима только после проверки отсутствия всех
+таких зависимостей и не является пользовательским маршрутом.
+
+Изменения общего каталога сразу видны всем дизайн-системам, в том числе при чтении опубликованных версий: сам каталог
+осознанно не версионируется этим решением. Импорт API-меты не создаёт запись в журнале дизайн-системы и после удаления
+`design_system_changes` не получает отдельного продуктового журнала в рамках этого изменения.
+
+Существующие таблицы конфигурации компонентов принадлежат конкретной дизайн-системе и получают парные таблицы
+редакций. В исходной таблице остаются идентификатор, неизменяемая принадлежность и время создания; перечисленные
+изменяемые поля переходят в редакции:
+
+| Существующая таблица → новая таблица редакций | Поля, переходящие в редакцию |
+|---|---|
+| `design_system_components` → `design_system_component_revisions` | `deleted` |
+| `appearances` → `appearance_revisions` | `name`, `root_variation_id`, `color_scheme_variation_id`, `deleted` |
+| `styles` → `style_revisions` | `name`, `description`, `deleted` |
+| `component_reuse_configs` → `component_reuse_config_revisions` | `appearance_id`, `variation_id`, `style_id`, `deleted` |
+| `appearance_variations` → `appearance_variation_revisions` | `position`, `default_style_id`, `declared_type`, `deleted` |
+| `appearance_variation_values` → `appearance_variation_value_revisions` | `style_id`, `position`, `authored_id`, `deleted` |
+| `appearance_combinations` → `appearance_combination_revisions` | `combination_key`, `position`, `authored_id`, `deleted` |
+| `appearance_combination_members` → `appearance_combination_member_revisions` | `style_id`, `position`, `deleted` |
+| `invariant_property_values` → `invariant_property_value_revisions` | `token_id`, `value`, `alpha`, `adjustment`, `position`, `state_set_id`, `deleted` |
+| `invariant_platform_param_adjustments` → `invariant_platform_param_adjustment_revisions` | `value`, `template`, `deleted` |
+| `variation_property_values` → `variation_property_value_revisions` | `token_id`, `value`, `alpha`, `adjustment`, `position`, `state_set_id`, `deleted` |
+| `variation_platform_param_adjustments` → `variation_platform_param_adjustment_revisions` | `value`, `template`, `deleted` |
+| `style_combinations` → `style_combination_revisions` | `combination_key`, `value`, `token_id`, `alpha`, `adjustment`, `position`, `state_set_id`, `deleted` |
+| `style_combination_members` → `style_combination_member_revisions` | `style_id`, `deleted` |
+| `component_style_references` → `component_style_reference_revisions` | ссылка на исходное значение, `target_appearance_id`, `reference`, `deleted` |
+| `component_style_reference_styles` → `component_style_reference_style_revisions` | `style_id`, `deleted` |
+
+Каждая новая таблица из правого столбца дополнительно содержит собственный `id`, ссылку на строку устойчивой
+таблицы, `design_system_version_id` и `version_sequence_number`. Не перечисленные внешние ключи остаются в устойчивой
+таблице и задают неизменяемую принадлежность. Если реализация существующей операции позволяет менять такой ключ,
+миграция должна перенести его в редакцию, а не вводить двойную запись.
+
+Платформа конфигурации внешнего вида определяется через `appearances.component_id → components.platform` и не
+дублируется в `appearance_revisions`. Роли корневой оси и оси цветовой схемы принадлежат конкретной дизайн-системе,
+поэтому хранятся в `appearance_revisions`. Поле совместимости `appearance_variations.is_color_scheme` не является
+вторым историческим источником: при чтении выбранной версии значение ответа выводится из
+`appearance_revisions.color_scheme_variation_id`. Его удаление из исходной схемы либо техническая синхронизация на
+переходный период выполняются миграцией без отдельной предметной редакции.
+
+Существующий `PATCH /api/ds/appearance-variations/{id}` сохраняется. Поля `position`, `defaultStyleId` и
+`declaredType` изменяют `appearance_variation_revisions`, а `isRoot` и `isColorScheme` изменяют ссылки ролей в
+`appearance_revisions`. Если один запрос содержит обе группы полей, он блокирует обе логические сущности в общем
+порядке, создаёт две предметные редакции и фиксирует их одной транзакцией. Удаление оси, которая выполняет одну из
+ролей, также одновременно очищает соответствующую ссылку в редакции внешнего вида. Так контракт API остаётся
+совместимым, но исторический источник ролей остаётся единственным.
 
 ### ER-схема целевой модели
 
 ```mermaid
 erDiagram
-    PROJECTS ||--o{ DESIGN_SYSTEMS : contains
-    PROJECTS ||--o{ IDEMPOTENT_REQUESTS : protects
-
     DESIGN_SYSTEMS ||--o{ DESIGN_SYSTEM_VERSIONS : has
+    DESIGN_SYSTEMS ||--o{ DESIGN_SYSTEM_REVISIONS : changes
+    DESIGN_SYSTEM_VERSIONS ||--o{ DESIGN_SYSTEM_REVISIONS : contains
     DESIGN_SYSTEMS ||--o{ TENANTS : owns
     TENANTS ||--o{ TENANT_REVISIONS : changes
     DESIGN_SYSTEM_VERSIONS ||--o{ TENANT_REVISIONS : contains
-
     DESIGN_SYSTEMS ||--o{ TOKENS : owns
     TOKENS ||--o{ TOKEN_REVISIONS : changes
-    TOKENS ||--o{ TOKEN_VALUE_REVISIONS : has_values
+    TOKENS ||--o{ TOKEN_VALUES : has
+    TOKEN_VALUES ||--o{ TOKEN_VALUE_REVISIONS : changes
     DESIGN_SYSTEM_VERSIONS ||--o{ TOKEN_REVISIONS : contains
     DESIGN_SYSTEM_VERSIONS ||--o{ TOKEN_VALUE_REVISIONS : contains
-
-    COMPONENTS ||--o{ PROPERTIES : defines
-    COMPONENTS ||--o{ COMPONENT_STATES : defines
-
-    DESIGN_SYSTEMS ||--o{ DESIGN_SYSTEM_COMPONENTS : connects
-    COMPONENTS ||--o{ DESIGN_SYSTEM_COMPONENTS : used_by
-    DESIGN_SYSTEM_COMPONENTS ||--o{ DS_COMPONENT_REVISIONS : changes
-    DESIGN_SYSTEM_VERSIONS ||--o{ DS_COMPONENT_REVISIONS : contains
-
-    DESIGN_SYSTEM_COMPONENTS ||--o{ COMPONENT_CONFIGURATIONS : owns
-    COMPONENT_CONFIGURATIONS ||--o{ CONFIGURATION_REVISIONS : changes
-    DESIGN_SYSTEM_VERSIONS ||--o{ CONFIGURATION_REVISIONS : contains
-
-    COMPONENT_CONFIGURATIONS ||--o{ CONFIGURATION_AXES : owns
-    CONFIGURATION_AXES ||--o{ AXIS_REVISIONS : changes
-    DESIGN_SYSTEM_VERSIONS ||--o{ AXIS_REVISIONS : contains
-
-    CONFIGURATION_AXES ||--o{ VARIATION_VALUES : owns
-    VARIATION_VALUES ||--o{ VARIATION_VALUE_REVISIONS : changes
-    DESIGN_SYSTEM_VERSIONS ||--o{ VARIATION_VALUE_REVISIONS : contains
-
-    DESIGN_SYSTEM_COMPONENTS ||--o{ DESIGN_SYSTEM_STYLES : owns
-    DESIGN_SYSTEM_STYLES ||--o{ STYLE_REVISIONS : changes
-    DESIGN_SYSTEM_VERSIONS ||--o{ STYLE_REVISIONS : contains
-
     DESIGN_SYSTEM_VERSIONS ||--o{ ENTITY_EDIT_STATES : tracks
     ENTITY_EDIT_STATES ||--o{ ENTITY_EDIT_PATHS : tracks
-
-    PROJECTS {
-        string id PK
-    }
     DESIGN_SYSTEMS {
         uuid id PK
-        string project_id FK
-        string name
+        string project_id
+        timestamp created_at
     }
     DESIGN_SYSTEM_VERSIONS {
         uuid id PK
@@ -187,8 +266,16 @@ erDiagram
         bigint sequence_number
         bigint revision
         string changelog
+        jsonb snapshot "только архивные строки"
         timestamp created_at
         timestamp published_at
+    }
+    DESIGN_SYSTEM_REVISIONS {
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        string name
+        string description
     }
     TENANTS {
         uuid id PK
@@ -216,94 +303,21 @@ erDiagram
         boolean enabled
         boolean deleted
     }
-    TOKEN_VALUE_REVISIONS {
+    TOKEN_VALUES {
         uuid id PK
+        uuid design_system_id FK
         uuid token_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
         uuid tenant_id FK
         string platform
         string mode
+        timestamp created_at
+    }
+    TOKEN_VALUE_REVISIONS {
+        uuid token_value_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        uuid palette_id FK
         jsonb value
-        boolean deleted
-    }
-    COMPONENTS {
-        uuid id PK
-        string name
-    }
-    PROPERTIES {
-        uuid id PK
-        uuid component_id FK
-        string name
-    }
-    COMPONENT_STATES {
-        uuid id PK
-        uuid component_id FK
-        string name
-    }
-    DESIGN_SYSTEM_COMPONENTS {
-        uuid id PK
-        uuid design_system_id FK
-        uuid component_id FK
-    }
-    DS_COMPONENT_REVISIONS {
-        uuid id PK
-        uuid design_system_component_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
-        boolean deleted
-    }
-    COMPONENT_CONFIGURATIONS {
-        uuid id PK
-        uuid design_system_component_id FK
-    }
-    CONFIGURATION_REVISIONS {
-        uuid id PK
-        uuid configuration_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
-        string name
-        int position
-        boolean deleted
-    }
-    CONFIGURATION_AXES {
-        uuid id PK
-        uuid configuration_id FK
-    }
-    AXIS_REVISIONS {
-        uuid id PK
-        uuid axis_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
-        string name
-        int position
-        boolean deleted
-    }
-    VARIATION_VALUES {
-        uuid id PK
-        uuid axis_id FK
-    }
-    VARIATION_VALUE_REVISIONS {
-        uuid id PK
-        uuid variation_value_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
-        string value
-        int position
-        boolean deleted
-    }
-    DESIGN_SYSTEM_STYLES {
-        uuid id PK
-        uuid design_system_component_id FK
-    }
-    STYLE_REVISIONS {
-        uuid id PK
-        uuid style_id FK
-        uuid design_system_version_id FK
-        bigint version_sequence_number
-        string role
-        string size
-        uuid sdds_style_id
         boolean deleted
     }
     ENTITY_EDIT_STATES {
@@ -324,7 +338,7 @@ erDiagram
         timestamp updated_at
     }
     IDEMPOTENT_REQUESTS {
-        string project_id FK
+        string project_id
         string idempotency_key
         uuid actor_id
         string operation
@@ -333,9 +347,124 @@ erDiagram
         jsonb response_body
         timestamp created_at
     }
+
+    COMPONENTS {
+        uuid id PK
+        string name
+        string platform
+        string description
+    }
+    PROPERTY_PLATFORM_PARAMS {
+        uuid id PK
+        uuid property_id FK
+        string platform
+        string name
+        boolean deprecated
+        string deprecated_message
+    }
+    APPEARANCES {
+        uuid id PK
+        uuid design_system_id FK
+        uuid component_id FK
+    }
+    APPEARANCE_REVISIONS {
+        uuid appearance_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        string name
+        uuid root_variation_id FK
+        uuid color_scheme_variation_id FK
+        boolean deleted
+    }
+    APPEARANCE_VARIATIONS {
+        uuid id PK
+        uuid appearance_id FK
+        uuid variation_id FK
+    }
+    APPEARANCE_VARIATION_REVISIONS {
+        uuid appearance_variation_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        int position
+        uuid default_style_id FK
+        string declared_type
+        boolean deleted
+    }
+
+    COMPONENTS ||--o{ COMPONENT_DEPS : defines
+    COMPONENTS ||--o{ PROPERTIES : defines
+    COMPONENTS ||--o{ VARIATIONS : defines
+    COMPONENTS ||--o{ STATES : defines
+    PROPERTIES ||--o{ PROPERTY_PLATFORM_PARAMS : defines
+    PROPERTIES ||--o{ PROPERTY_VARIATIONS : connects
+    COMPONENTS ||--o{ STATE_SETS : owns
+
+    DESIGN_SYSTEMS ||--o{ DESIGN_SYSTEM_COMPONENTS : owns
+    COMPONENTS ||--o{ DESIGN_SYSTEM_COMPONENTS : selects
+    DESIGN_SYSTEMS ||--o{ APPEARANCES : owns
+    COMPONENTS ||--o{ APPEARANCES : configures
+    DESIGN_SYSTEMS ||--o{ STYLES : owns
+    VARIATIONS ||--o{ STYLES : classifies
+    DESIGN_SYSTEMS ||--o{ COMPONENT_REUSE_CONFIGS : owns
+    COMPONENT_DEPS ||--o{ COMPONENT_REUSE_CONFIGS : configures
+    APPEARANCES ||--o{ APPEARANCE_VARIATIONS : has
+    VARIATIONS ||--o{ APPEARANCE_VARIATIONS : selects
+    APPEARANCE_VARIATIONS ||--o{ APPEARANCE_VARIATION_VALUES : has
+    APPEARANCES ||--o{ APPEARANCE_COMBINATIONS : has
+    APPEARANCE_COMBINATIONS ||--o{ APPEARANCE_COMBINATION_MEMBERS : has
+    PROPERTIES ||--o{ INVARIANT_PROPERTY_VALUES : values
+    INVARIANT_PROPERTY_VALUES ||--o{ INVARIANT_PLATFORM_PARAM_ADJUSTMENTS : adjusts
+    PROPERTIES ||--o{ VARIATION_PROPERTY_VALUES : values
+    VARIATION_PROPERTY_VALUES ||--o{ VARIATION_PLATFORM_PARAM_ADJUSTMENTS : adjusts
+    PROPERTIES ||--o{ STYLE_COMBINATIONS : values
+    STYLE_COMBINATIONS ||--o{ STYLE_COMBINATION_MEMBERS : has
+    DESIGN_SYSTEMS ||--o{ COMPONENT_STYLE_REFERENCES : owns
+    COMPONENT_STYLE_REFERENCES ||--o{ COMPONENT_STYLE_REFERENCE_STYLES : has
+
+    DESIGN_SYSTEM_COMPONENTS ||--o{ DESIGN_SYSTEM_COMPONENT_REVISIONS : changes
+    APPEARANCES ||--o{ APPEARANCE_REVISIONS : changes
+    STYLES ||--o{ STYLE_REVISIONS : changes
+    COMPONENT_REUSE_CONFIGS ||--o{ COMPONENT_REUSE_CONFIG_REVISIONS : changes
+    APPEARANCE_VARIATIONS ||--o{ APPEARANCE_VARIATION_REVISIONS : changes
+    APPEARANCE_VARIATION_VALUES ||--o{ APPEARANCE_VARIATION_VALUE_REVISIONS : changes
+    APPEARANCE_COMBINATIONS ||--o{ APPEARANCE_COMBINATION_REVISIONS : changes
+    APPEARANCE_COMBINATION_MEMBERS ||--o{ APPEARANCE_COMBINATION_MEMBER_REVISIONS : changes
+    INVARIANT_PROPERTY_VALUES ||--o{ INVARIANT_PROPERTY_VALUE_REVISIONS : changes
+    INVARIANT_PLATFORM_PARAM_ADJUSTMENTS ||--o{ INVARIANT_PLATFORM_PARAM_ADJUSTMENT_REVISIONS : changes
+    VARIATION_PROPERTY_VALUES ||--o{ VARIATION_PROPERTY_VALUE_REVISIONS : changes
+    VARIATION_PLATFORM_PARAM_ADJUSTMENTS ||--o{ VARIATION_PLATFORM_PARAM_ADJUSTMENT_REVISIONS : changes
+    STYLE_COMBINATIONS ||--o{ STYLE_COMBINATION_REVISIONS : changes
+    STYLE_COMBINATION_MEMBERS ||--o{ STYLE_COMBINATION_MEMBER_REVISIONS : changes
+    COMPONENT_STYLE_REFERENCES ||--o{ COMPONENT_STYLE_REFERENCE_REVISIONS : changes
+    COMPONENT_STYLE_REFERENCE_STYLES ||--o{ COMPONENT_STYLE_REFERENCE_STYLE_REVISIONS : changes
+
+    DESIGN_SYSTEM_VERSIONS ||--o{ DESIGN_SYSTEM_COMPONENT_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ APPEARANCE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ STYLE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ COMPONENT_REUSE_CONFIG_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ APPEARANCE_VARIATION_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ APPEARANCE_VARIATION_VALUE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ APPEARANCE_COMBINATION_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ APPEARANCE_COMBINATION_MEMBER_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ INVARIANT_PROPERTY_VALUE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ INVARIANT_PLATFORM_PARAM_ADJUSTMENT_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ VARIATION_PROPERTY_VALUE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ VARIATION_PLATFORM_PARAM_ADJUSTMENT_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ STYLE_COMBINATION_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ STYLE_COMBINATION_MEMBER_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ COMPONENT_STYLE_REFERENCE_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ COMPONENT_STYLE_REFERENCE_STYLE_REVISIONS : contains
 ```
 
-Палитра не показана, поскольку её версионная модель относится к отдельному изменению.
+На единой схеме показаны существующие общие таблицы API компонентов, основные внешние ключи конфигурации конкретной
+дизайн-системы, пары исходных таблиц с новыми таблицами редакций и принадлежность редакций версии. Общие таблицы API
+компонентов не получают редакций; в них сохраняются платформа компонента и признаки устаревания платформенного имени.
+Дополнительные ссылки значений на стили, состояния и токены сохраняются согласно таблице преобразований выше.
+`state_sets.state_ids` остаётся массивом UUID без внешнего ключа; линия от `components` к `state_sets` показывает
+фактический `owner_component_id`, а не несуществующую таблицу связи состояний. Внешние ключи от конфигурации и её
+редакций к общим сущностям используют `RESTRICT`, а не каскадное удаление.
+
+Палитра не включена в ER-схему, поскольку её версионная модель относится к отдельному изменению.
 
 ### Чтение состояния
 
@@ -393,16 +522,41 @@ selected_sequence = 12
 | Данные | Ключ логической сущности |
 | --- | --- |
 | Метаданные токена | `token:{id}` |
-| Логический токен темы | `theme-token:{tenantId}:{familyKey}` |
+| Значение токена темы | `token-value:{id}`; создание до получения `id` блокирует нормализованный ключ `tokenId + tenantId + platform + mode` |
 | Тема | `tenant:{id}` |
 | Связь компонента с дизайн-системой | `design-system-component:{id}` |
-| Конфигурация | `component-configuration:{id}` |
-| Ось | `component-axis:{id}` |
-| Значение варианта | `component-variation-value:{id}` |
-| Стиль дизайн-системы | `design-system-style:{id}` |
+| Appearance | `appearance:{id}` |
+| Стиль | `style:{id}` |
+| Настройка переиспользования | `component-reuse-config:{id}` |
+| Вариант appearance | `appearance-variation:{id}` |
+| Значение варианта appearance | `appearance-variation-value:{id}` |
+| Комбинация appearance | `appearance-combination:{id}` |
+| Участник комбинации appearance | `appearance-combination-member:{id}` |
+| Неизменяемое значение свойства | `invariant-property-value:{id}` |
+| Поправка платформенного параметра неизменяемого значения | `invariant-platform-param-adjustment:{id}` |
+| Значение свойства варианта | `variation-property-value:{id}` |
+| Поправка платформенного параметра значения варианта | `variation-platform-param-adjustment:{id}` |
+| Комбинация стилей | `style-combination:{id}` |
+| Участник комбинации стилей | `style-combination-member:{id}` |
+| Ссылка на стиль компонента | `component-style-reference:{id}` |
+| Стиль ссылки компонента | `component-style-reference-style:{id}` |
 
-Общее описание API компонента, его свойства и состояния также получают собственные ревизии, но не входят в версии
-конкретной дизайн-системы.
+Единица конкурентности, запись журнала и обработчик отката совпадают с существующим ресурсом API и устойчивой строкой.
+Изменяемые пути равны полям соответствующей таблицы редакций из раздела преобразования схемы. Поэтому изменение двух
+разных значений или связей одного компонента не создаёт общий конфликт на весь компонент.
+
+Операция, затрагивающая несколько ресурсов конкретной дизайн-системы, например импорт её конфигурации, создаёт или
+обновляет несколько независимых записей журнала, но фиксирует их одной транзакцией. Глобальный импорт API-меты сюда
+не относится. Технические состояния блокируются в порядке `(entity_type, entity_id)`.
+Откат `UPDATE` или `DELETE` восстанавливает предыдущую предметную редакцию конкретного ресурса. Откат `CREATE`
+удаляет его черновую редакцию и устойчивую строку только при отсутствии действующих зависимых ресурсов. Если
+зависимость появилась позже, сервер возвращает `409 REVERT_DEPENDENCY_CONFLICT`; автоматический каскадный откат графа
+и группировка изменений в аналог коммита не вводятся.
+
+Общее описание API компонента, его свойства и состояния не получают редакций в рамках этого решения и не входят в
+версии конкретной дизайн-системы. Их публичные операции удаления убираются, импорт остаётся дополняющим, а внешние
+ключи `RESTRICT` сохраняют ссылки активных и опубликованных версий. Физическая служебная очистка возможна только при
+отсутствии зависимостей.
 
 Запрос передаёт:
 
@@ -430,23 +584,42 @@ X-DS-Base-Revision: 17
 
 ## Граница компонентов
 
-Общими для всех дизайн-систем остаются только описание API компонента, его свойства и состояния:
+Общими для всех дизайн-систем остаются описание API компонента, его свойства, варианты и состояния:
 
 ```text
 components
+component_deps
 properties
-component_states
+variations
+property_platform_params
+property_variations
+states
+state_sets
 ```
 
-Они не получают редакции конкретной дизайн-системы и не входят в её журнал.
+Они не получают редакции конкретной дизайн-системы и не входят в её журнал. Импорт API-меты дополняет этот каталог и
+может менять признаки устаревания платформенных имён, но не удаляет отсутствующие элементы и не пишет запись
+`components:import-api-meta` в журнал дизайн-системы.
 
-Данные, принадлежащие дизайн-системе, версионируются и входят в журнал:
+Из публичного API удаляются операции:
 
-- связь `design_system_components`;
-- конфигурации компонента;
-- оси конфигурации;
-- значения вариантов;
-- роли, размеры и привязки стилей SDDS.
+```http
+DELETE /api/ds/components/{id}
+DELETE /api/ds/component-deps/{id}
+DELETE /api/ds/properties/{id}
+DELETE /api/ds/variations/{id}
+DELETE /api/ds/property-platform-params/{id}
+DELETE /api/ds/property-variations/{id}
+DELETE /api/ds/states/{id}
+```
+
+У `state_sets` публичной операции удаления уже нет. Ссылки данных дизайн-системы и их редакций на общий каталог
+используют `RESTRICT`. Поэтому служебное физическое удаление возможно только для общего ресурса без активных и
+исторических зависимостей.
+
+Данные, принадлежащие дизайн-системе, версионируются и входят в журнал. Это перечисленные выше фактические таблицы от
+`design_system_components`, `appearances` и `styles` до таблиц значений, комбинаций, поправок и ссылок на стили.
+В журнал попадает изменение логической сущности, а не отдельная техническая строка каждой таблицы редакций.
 
 Демонстрационные свойства Storybook (`Props`) и состояние интерфейса не сохраняются в версиях.
 
@@ -544,42 +717,57 @@ Idempotency-Key: release:...
 ```
 
 Клиент не передаёт `snapshot`, `changesSnapshot`, `publicationStatus` и `publishedAt`. Поле `snapshot` удаляется из
-целевого контракта и таблицы версий. Номер имеет формат `major.minor.patch` и уникален внутри дизайн-системы.
+целевого контракта публикации, но сохраняется допускающим `NULL` в таблице только для прежних архивных строк. Новые
+версии всегда создаются со `snapshot = NULL`. Номер имеет формат `major.minor.patch` и уникален внутри дизайн-системы.
 
 ```mermaid
 sequenceDiagram
     participant P as Публикация
     participant M as Параллельное изменение
     participant DB as PostgreSQL
-    P->>DB: блокировка активного DRAFT
+    P->>DB: блокировка активного DRAFT, draftRevision = 42
     M->>DB: ожидание блокировки
-    P->>DB: DRAFT → PUBLISHED, version = 1.5.0
-    P->>DB: создание пустого DRAFT со следующим sequence_number
-    P->>DB: COMMIT
-    DB-->>M: продолжение в новом DRAFT
+    alt текущая revision = 42
+        P->>DB: DRAFT → PUBLISHED, version = 1.5.0
+        P->>DB: создание пустого DRAFT со следующим sequence_number
+        P->>DB: COMMIT
+        DB-->>M: продолжение в новом DRAFT
+    else текущая revision ≠ 42
+        DB-->>P: 409 DRAFT_STALE и актуальная revision
+        P->>DB: ROLLBACK без публикации
+    end
 ```
 
 Транзакция публикации:
 
 1. Блокирует активный `DRAFT`.
-2. Проверяет право публикации, непустую вычисляемую разницу, формат и уникальность номера.
-3. Назначает черновику номер, `published_at`, `changelog` и статус `PUBLISHED`.
-4. Делает все его предметные редакции неизменяемыми.
-5. Создаёт пустой `DRAFT` со следующим `sequence_number` без ссылки на опубликованную версию.
-6. Сохраняет результат запроса публикации и фиксирует транзакцию.
+2. Сравнивает переданные `draftId` и `draftRevision` с заблокированным активным черновиком.
+3. При несовпадении возвращает `409 DRAFT_STALE` с актуальными `draftId` и `draftRevision`, ничего не публикует.
+4. Проверяет право публикации, непустую вычисляемую разницу, формат и уникальность номера.
+5. Назначает черновику номер, `published_at`, `changelog` и статус `PUBLISHED`.
+6. Делает все его предметные редакции неизменяемыми.
+7. Создаёт пустой `DRAFT` со следующим `sequence_number` без ссылки на опубликованную версию.
+8. Сохраняет результат запроса публикации и фиксирует транзакцию.
 
-Запись, завершённая до блокировки, входит в публикацию. Запись, пришедшая после блокировки, ждёт и выполняется уже в
-новом черновике. Переданная `draftRevision` используется для диагностики, но не исключает изменения других
-участников, зафиксированные до границы публикации.
+Если другая запись завершилась после чтения журнала, но до блокировки публикации, она увеличивает редакцию черновика,
+и публикация отклоняется с `409 DRAFT_STALE`. Клиент обновляет журнал и данные черновика; пользователь явно повторяет
+публикацию новым запросом и ключом повторяемости. Это гарантирует, что опубликован именно просмотренный пользователем
+набор изменений.
+
+Запись, пришедшая после успешной блокировки публикации, ждёт и выполняется уже в новом черновике. Обычное
+автосохранение по-прежнему объединяет непересекающиеся поля и не получает `409 DRAFT_STALE`.
 
 Опубликованная версия не изменяется и не удаляется отдельными `PATCH` или `DELETE`. Соответствующие существующие
 маршруты удаляются из публичного API. Чтение версий сохраняется.
 
-## Чтение старых версий
+## Чтение опубликованных версий новой модели
 
 Предметные методы чтения принимают необязательный `versionId`. Без него возвращается разрешённое состояние активного
-черновика; с ним — состояние указанной опубликованной версии. Те же модели используются редакторами токенов и
-компонентов в режиме только для чтения.
+черновика; с ним — состояние указанной опубликованной границы новой модели. Те же модели используются редакторами
+токенов и компонентов в режиме только для чтения.
+
+Прежние версии со `snapshot` не входят в этот контракт: они скрыты из нового списка версий, не разрешаются через
+предметные методы и не имеют отдельного маршрута чтения. Их строки сохраняются в БД только как архивные данные.
 
 Примеры целевого вида маршрутов:
 
@@ -603,7 +791,9 @@ idempotent_requests
 ```
 
 Действует `unique (project_id, idempotency_key)`. Повтор с тем же ключом возвращает сохранённый ответ; тот же ключ с
-другим `request_hash` отклоняется. Записи хранятся весь срок жизни проекта и удаляются каскадно вместе с ним.
+другим `request_hash` отклоняется. `project_id` является значением области ключа, а не внешним ключом: таблица проектов
+находится в другом сервисе. В первой реализации записи сохраняются без каскадного удаления; политика очистки по сроку
+хранения выносится в отдельное эксплуатационное решение.
 
 ## Изменения по слоям
 
@@ -634,24 +824,27 @@ PostgreSQL
 
 ## Последовательность внедрения
 
-1. Расширить `design_system_versions`: статус, порядковый номер и ревизия; убрать `snapshot` и зависимость от другой
-   версии.
+1. Расширить `design_system_versions`: статус, порядковый номер и ревизия; сделать `snapshot` допускающим `NULL` и
+   сохранить его только в прежних архивных строках.
 2. Добавить устойчивые сущности и предметные `*_revisions` для данных дизайн-системы.
 3. Создать технический `BASELINE` и активный `DRAFT` для существующих дизайн-систем.
 4. Реализовать разрешение состояния выбранной версии в предметных репозиториях.
 5. Перевести существующие изменяющие сценарии на запись редакций активного черновика.
 6. Добавить `ENTITY_EDIT_STATES`, `ENTITY_EDIT_PATHS` и метаданные ответов.
-7. Реализовать вычисляемый журнал и удалить `/api/ds/design-system-changes`.
-8. Добавить типизированный откат через вложенный маршрут дизайн-системы.
-9. Изменить публикацию на перевод `DRAFT → PUBLISHED` без копирования предметных данных.
-10. Добавить чтение опубликованных версий и режим редакторов только для чтения.
-11. Перевести клиент с хранения предметных данных в `localStorage` на серверное автосохранение.
+7. Заменить каскадные внешние ключи от конфигурации дизайн-системы к общему каталогу компонентов на `RESTRICT` и
+   удалить публичные операции удаления общих компонентных сущностей.
+8. Реализовать вычисляемый журнал, прекратить запись импорта API-меты в него и удалить
+   `/api/ds/design-system-changes`.
+9. Добавить типизированный откат через вложенный маршрут дизайн-системы.
+10. Изменить публикацию на перевод `DRAFT → PUBLISHED` без копирования предметных данных.
+11. Добавить чтение опубликованных версий и режим редакторов только для чтения.
+12. Перевести клиент с хранения предметных данных в `localStorage` на серверное автосохранение.
 
 ## Последствия
 
 Положительные:
 
-- старые версии доступны обычным предметным запросам;
+- опубликованные версии новой модели доступны обычным предметным запросам;
 - версии не зависят друг от друга через родительские ссылки;
 - чтение не выполняет рекурсивный обход истории, а использует номер временной границы;
 - не требуется предотвращать разрывы и циклы в графе версий;
@@ -667,17 +860,24 @@ PostgreSQL
 
 Ограничения и стоимость:
 
+- прежние версии со `snapshot` сохраняются в БД, но не показываются и не читаются через новый предметный API;
+- до отдельного изменения палитры историческое чтение не гарантирует прежнее содержимое изменяемой записи `palette`,
+  на которую ссылается `palette_id`;
+- общий каталог API компонентов не версионируется: старая версия дизайн-системы использует актуальные описания,
+  платформы и признаки устаревания общих сущностей;
 - чтение должно выбирать последнюю предметную редакцию на заданной временной границе;
 - каждый версионируемый предметный модуль получает собственные таблицы редакций;
 - уникальность активного состояния проверяется с учётом редакций, действующих на временной границе;
-- связи и каскады должны различать устойчивую сущность и её редакцию;
+- связи должны различать устойчивую сущность и её редакцию; внешние ключи к общему каталогу запрещают физическое
+  удаление при наличии активной или исторической зависимости;
 - объём истории растёт пропорционально числу фактических изменений и требует предметных индексов и контроля планов
   запросов;
 - точный состав предметных таблиц редакций проектируется отдельно в каждом модуле.
+- `idempotent_requests` в первой реализации не очищаются автоматически и требуют последующей политики хранения.
 
 ## Отклонённые альтернативы
 
-- единый JSON опубликованной дизайн-системы — затрудняет предметные запросы и режим редактора старой версии;
+- единый JSON опубликованной дизайн-системы — затрудняет предметные запросы и режим редактора опубликованной версии;
 - полное копирование всех предметных строк при публикации — дублирует неизменившиеся данные;
 - зависимые версии с `base_version_id` — требуют поддерживать цепочку и создают ошибочное впечатление, что чтение
   должно последовательно обходить предыдущие версии;
@@ -685,7 +885,7 @@ PostgreSQL
   представления одних данных и усложняют публикацию и откат;
 - общая `design_system_entities` — связывает все предметные модули общей таблицей типов и идентификаторов;
 - отдельные таблицы продуктового журнала — дублируют разницу, уже выраженную предметными редакциями;
-- физическое удаление опубликованных данных — делает старые версии неполными;
+- физическое удаление опубликованных данных — делает более ранние версии новой модели неполными;
 - одна ревизия на всю тему или компонент — создаёт ложные столкновения;
 - `409` для любой устаревшей записи — мешает объединению разных путей;
 - CRDT и блокировка на всё время редактирования — избыточны для первой версии.
