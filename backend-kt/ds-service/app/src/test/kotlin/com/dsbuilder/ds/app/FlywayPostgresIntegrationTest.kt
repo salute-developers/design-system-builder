@@ -27,7 +27,7 @@ class FlywayPostgresIntegrationTest {
             val cleanUrl = postgres.jdbcUrl
             val flyway = flyway(cleanUrl, postgres.username, postgres.password)
 
-            assertEquals(4, flyway.migrate().migrationsExecuted)
+            assertEquals(3, flyway.migrate().migrationsExecuted)
             assertEquals(0, flyway.migrate().migrationsExecuted)
             assertTrue(flyway.validateWithResult().validationSuccessful)
             val migrated = connection(cleanUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
@@ -47,7 +47,7 @@ class FlywayPostgresIntegrationTest {
                 )
             }
             connection(matchingUrl, postgres).use { assertTrue(hasHistory(it)) }
-            assertEquals(3, flyway(matchingUrl, postgres.username, postgres.password).migrate().migrationsExecuted)
+            assertEquals(2, flyway(matchingUrl, postgres.username, postgres.password).migrate().migrationsExecuted)
             assertEquals(migrated, connection(matchingUrl, postgres).use(SchemaFingerprintCalculator()::calculate))
 
             val driftedUrl = createDatabase(postgres, "drifted_legacy")

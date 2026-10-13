@@ -117,7 +117,7 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 #### Scenario: Схему общей базы создаёт Flyway
 
 - **WHEN** `./setup-local.sh` готовит общую базу `ds_registry`
-- **THEN** Drizzle-миграции MUST NOT запускаться, а `ds-service` MUST создать схему Flyway-миграциями `V1`–`V4` в пустой базе без принятия существующей
+- **THEN** Drizzle-миграции MUST NOT запускаться, а `ds-service` MUST создать схему Flyway-миграциями `V1`–`V3` в пустой базе без принятия существующей
 - **AND** seed и привязка дизайн-системы `base` к проекту MUST выполняться после того, как `ds-service` создал схему
 
 #### Scenario: Данные удаляются только явно
@@ -169,19 +169,19 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 - **THEN** сервис MUST увеличить отдельный счётчик соответствующего класса
 - **AND** MUST предоставлять метрики длительности запросов и состояния пула БД
 
-### Requirement: Разделение платформ применяется отдельной миграцией поверх baseline
+### Requirement: Разделение платформ применяется миграцией поверх baseline
 
-Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов. Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V4__component_platform_split.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
+Контрактный отпечаток схемы (`contracts/schema-fingerprint.json`) и ожидаемый отпечаток локального контура SHALL описывать схему замороженного baseline Flyway (версия `1`), то есть состояние до разделения платформ компонентов. Разделение платформ и пометка устаревших алиасов (`component_platform`, `components.platform`, `deprecated`, `deprecated_message`) SHALL применяться Flyway-миграцией `V3__component_platform_split_and_axis_roles.sql` поверх baseline и не менять отпечаток baseline. Миграция MUST NOT опираться на временные таблицы, удаляемые при commit, и MUST останавливаться, если находит нативные данные, которые нельзя потерять.
 
 #### Scenario: Пустая база
 
 - **WHEN** Flyway поднимает пустую базу
-- **THEN** MUST быть применены `V1`–`V4`, а схема MUST содержать `components.platform` и `property_platform_params.deprecated`
+- **THEN** MUST быть применены `V1`–`V3`, а схема MUST содержать `components.platform` и `property_platform_params.deprecated`
 
 #### Scenario: Существующая база
 
 - **WHEN** принимается база, приведённая Drizzle-миграциями до `0006` включительно
-- **THEN** отпечаток MUST совпасть с контрактным, baseline MUST быть принят, а затем MUST быть применены `V2`–`V4`
+- **THEN** отпечаток MUST совпасть с контрактным, baseline MUST быть принят, а затем MUST быть применены `V2`–`V3`
 
 #### Scenario: Дрейф схемы
 
