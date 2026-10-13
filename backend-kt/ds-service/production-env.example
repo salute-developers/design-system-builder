@@ -1,0 +1,7 @@
+# Same PostgreSQL database used by JS db-service; JDBC URL without credentials.
+DS_DATABASE_URL=jdbc:postgresql://replace-with-postgres-host:5432/ds_registry
+DS_DATABASE_USER=db_service
+DS_DATABASE_PASSWORD=replace-with-database-password
+# Enable only for the first adoption of a checked database after Drizzle 0005.
+DS_FLYWAY_ADOPT_EXISTING=false
+DS_EXPECTED_SCHEMA_SHA256=7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55

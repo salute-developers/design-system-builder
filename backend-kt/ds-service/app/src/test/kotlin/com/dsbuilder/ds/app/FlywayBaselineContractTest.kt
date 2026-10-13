@@ -3,6 +3,7 @@ package com.dsbuilder.ds.app
 import java.security.MessageDigest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class FlywayBaselineContractTest {
@@ -12,12 +13,28 @@ class FlywayBaselineContractTest {
             .use { it.readBytes() }
         val actual = bytes.decodeToString()
 
-        assertEquals("b54adff3873aebd4605ab78e19245217d40f8116970ab78cb64cc0f309277e73", bytes.sha256())
+        assertEquals("61c787e3e031bc1457acbc41f559583158fc07d98ba5b247681cb6d7c2f4f890", bytes.sha256())
         assertTrue(actual.contains("CREATE OR REPLACE FUNCTION \"state_sets_canonicalize\""))
         assertTrue(actual.contains("CREATE TRIGGER"))
         assertTrue(actual.contains("CREATE TABLE \"design_systems\""))
-        assertTrue(actual.contains("ADD COLUMN \"edit_revision\" integer DEFAULT 0 NOT NULL"))
-        assertTrue(actual.contains("tenants_design_system_id_name_ci_unique"))
+        assertFalse(actual.contains("ADD COLUMN \"edit_revision\" integer DEFAULT 0 NOT NULL"))
+        assertFalse(actual.contains("tenants_design_system_id_name_ci_unique"))
+    }
+
+    @Test
+    fun `tenant upgrade and token backfill form one migration`() {
+        val upgrade = requireNotNull(
+            javaClass.getResource("/db/migration/V2__complete_legacy_transition.sql"),
+        ).readText()
+        assertTrue(upgrade.contains("LOCK TABLE"))
+        assertTrue(upgrade.contains("Conflicting normalized tenant names"))
+        assertTrue(upgrade.contains("edit_revision"))
+        assertTrue(upgrade.contains("tenants_design_system_id_name_ci_unique"))
+        val backfill = upgrade.substringAfter("-- Copy values for custom tokens")
+        assertEquals(
+            "2ec5024c14ecd6834b55bb3f5099287f38a3744143d15071587bf1d399021327",
+            ("-- Copy values for custom tokens" + backfill).encodeToByteArray().sha256(),
+        )
     }
 
     private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
