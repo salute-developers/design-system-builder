@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.application.ComponentConfigRepository
 import com.dsbuilder.ds.components.application.ComponentDependencyRepository
 import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.ComponentReuseConfigRepository
+import com.dsbuilder.ds.components.application.ComponentWebAdapterRepository
 import com.dsbuilder.ds.components.application.CreateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.CreateComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.CreateComponentUseCase
@@ -19,6 +20,7 @@ import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
+import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.ImportApiMetaUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
@@ -38,6 +40,7 @@ import com.dsbuilder.ds.components.data.ExposedComponentConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
+import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
@@ -49,6 +52,7 @@ val componentsModule = module {
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
+    single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }
     single<ComponentReuseConfigRepository> { ExposedComponentReuseConfigRepository() }
@@ -79,4 +83,5 @@ val componentsModule = module {
     factory { ExportComponentConfigUseCase(get(), get(), get()) }
     factory { ImportComponentConfigUseCase(get(), get(), get()) }
     factory { ImportApiMetaUseCase(get(), get(), get()) }
+    factory { GetComponentWebAdapterUseCase(get(), get(), get()) }
 }

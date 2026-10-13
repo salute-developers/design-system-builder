@@ -17,7 +17,7 @@ class ComponentSeedsResourceTest {
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val components = root.getValue("components").jsonArray
 
-        assertEquals("779429beecae381cc05df39c8c19d0dcc2397344c69f2acffbaca4954d8e5c38", bytes.sha256())
+        assertEquals("1f4bf2832a86c2820343da6d1ebbbe1d11531a02ad96466a46dc37739e97df30", bytes.sha256())
         assertEquals(63, components.size)
         assertEquals(21, root.getValue("dependencies").jsonArray.size)
         assertEquals(66, components.sumOf { it.jsonObject.getValue("appearances").jsonArray.size })
@@ -28,6 +28,19 @@ class ComponentSeedsResourceTest {
             },
         )
         assertFalse(components.flatMap { it.jsonObject.getValue("propertyVariations").jsonArray }.isEmpty())
+    }
+
+    @Test
+    fun `list divider property follows the global metadata name`() {
+        val text = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json")).use { it.readBytes() }
+            .decodeToString()
+        val list = Json.parseToJsonElement(text).jsonObject.getValue("components").jsonArray
+            .single { it.jsonObject.getValue("name").jsonPrimitive.content == "List" }.jsonObject
+        val bound = list.getValue("propertyVariations").jsonArray
+            .map { it.jsonObject.getValue("property").jsonPrimitive.content }
+
+        assertTrue("listItemDividerHeight" in bound)
+        assertFalse("listItemDividerWidth" in text)
     }
 
     private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")

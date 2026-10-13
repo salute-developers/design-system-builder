@@ -7,7 +7,8 @@
       "/palette/**",
       "/components/**",
       "/component-config/import",
-      "/component-config/export"
+      "/component-config/export",
+      "/component-config/web-adapter"
     ],
     "js/apps/client": [
       "/design-systems"
