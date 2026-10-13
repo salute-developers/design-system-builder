@@ -1,15 +1,15 @@
 import { createRequire } from 'node:module';
 import { rm } from 'node:fs/promises';
 
-import type { ThemeSource } from './theme-source.ts';
+import type { Palette, ThemeSetSource, ThemeSource } from './theme-source.ts';
 
 // Сервис генерации использует CommonJS, поэтому подключаем его через require из ES-модуля CLI.
 const require = createRequire(import.meta.url);
-const { generate } = require('../../services/generator/app/themeBuilder/index.ts') as
+const { generateThemeSet } = require('../../services/generator/app/themeBuilder/index.ts') as
     typeof import('../../services/generator/app/themeBuilder/index.ts');
 
 /** Раскрывает ссылку на локальную палитру в цвет, понятный исходному генератору сервиса. */
-function resolvePaletteColor(value: string, palette: ThemeSource['palette']): string {
+function resolvePaletteColor(value: string, palette: Palette): string {
     const match = value.match(/^\[([^.]+)\.([^.]+)\.([^\]]+)\](?:\[([^\]]+)\])?$/);
     if (!match) {
         return value;
@@ -27,17 +27,20 @@ function resolvePaletteColor(value: string, palette: ThemeSource['palette']): st
 }
 
 /** Преобразует только ссылки на палитру; исходные данные для meta.js и variations.js не изменяет. */
-export function toGeneratorThemeSource(source: ThemeSource) {
+export function toGeneratorThemeSource(source: ThemeSource, palette: Palette) {
     const color = Object.fromEntries(
         Object.entries(source.variations.color as Record<string, string>)
-            .map(([name, value]) => [name, resolvePaletteColor(value, source.palette)]),
+            .map(([name, value]) => [name, resolvePaletteColor(value, palette)]),
     );
     return { meta: source.meta, variations: { ...source.variations, color } };
 }
 
-/** Очищает прежний результат и вызывает исходный генератор сервиса с локальными данными, без загрузки темы. */
-export async function generateTheme(source: ThemeSource, outputDirectory: string) {
-    const themeSource = toGeneratorThemeSource(source);
+/**
+ * Очищает прежний результат и вызывает исходный генератор сервиса с локальными данными всех тем,
+ * без загрузки темы. Ссылки на палитру раскрываются до очистки: ошибка в данных не стирает результат.
+ */
+export async function generateThemes(source: ThemeSetSource, outputDirectory: string) {
+    const themeSources = source.themes.map((theme) => toGeneratorThemeSource(theme, source.palette));
     await rm(outputDirectory, { recursive: true, force: true });
-    await generate([source.meta], themeSource, outputDirectory);
+    await generateThemeSet(themeSources, outputDirectory, { defaultThemeName: source.defaultThemeName });
 }

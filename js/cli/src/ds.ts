@@ -3,10 +3,10 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { COMPONENTS_PACKAGE, readComponentsForGeneration } from './components-input.ts';
-import { generateTheme } from './generate-theme.ts';
+import { generateThemes } from './generate-theme.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
-import { readThemeSource } from './theme-source.ts';
-import { resolveLocalThemePaths } from './local-theme-source.ts';
+import { readThemeSetSource } from './theme-source.ts';
+import { resolveLocalThemes } from './local-theme-source.ts';
 
 // Генератор использует CommonJS: подключаем его из ES-модуля через require с обработчиком TypeScript от tsx.
 const require = createRequire(import.meta.url);
@@ -25,6 +25,7 @@ async function main() {
             components: { type: 'string' },
             web: { type: 'string' },
             tenant: { type: 'string' },
+            'default-tenant': { type: 'string' },
             out: { type: 'string', default: join(cliDirectory, 'output') },
             name: { type: 'string' },
             'ds-version': { type: 'string', default: '0.1.0' },
@@ -41,14 +42,17 @@ Usage: npm run generate:ds -- [options]
   --sdds <directory>       Local data directory (default: js/cli/.sdds)
   --components <directory> Fetched components (default: <sdds>/components)
   --web <directory>        Web data: web-adapter.json (default: <sdds>/web)
-  --tenant <name>          Theme tenant (default: sole tenant in .sdds/config.json)
+  --tenant <name>          Generate one theme: a tenant name from .sdds/config.json, otherwise
+                           a directory name in .sdds/tenants (default: every theme)
+  --default-tenant <name>  Theme whose values become the fallbacks in tokens (default: the first
+                           generated theme by directory name); looked up like --tenant
   --out <directory>        Output directory (default: js/cli/output)
   --name <name>            Package name; required with --package
   --ds-version <version>   Package version (default: 0.1.0)
   --core-version <version> Plasma core version (default: ${CORE_VERSION})
   --package                Build the full package and write a .tgz instead of the sources
 
-Combines generate:theme and generate:components: the theme from tenants/<tenant>, the components from
+Combines generate:theme and generate:components: every theme from .sdds/tenants, the components from
 the components directory and web-adapter.json, web token mappings from ${COMPONENTS_PACKAGE}.
 Replaces src/theme, src/components and src/index.ts in the output directory, or writes
 <scope>-<name>-<version>.tgz with --package.`);
@@ -61,7 +65,12 @@ Replaces src/theme, src/components and src/index.ts in the output directory, or 
         components: values.components,
         web: values.web,
     });
-    const source = await readThemeSource(await resolveLocalThemePaths(sddsDirectory, values.tenant));
+    const source = await readThemeSetSource(
+        await resolveLocalThemes(sddsDirectory, {
+            tenant: values.tenant,
+            defaultTenant: values['default-tenant'],
+        }),
+    );
 
     const result = await writePackagePart({
         parts: ['theme', 'components'],
@@ -71,7 +80,7 @@ Replaces src/theme, src/components and src/index.ts in the output directory, or 
         coreVersion: values['core-version'],
         pack: values.package,
         fill: async (pathToDir) => {
-            await generateTheme(source, join(pathToDir, 'src', 'theme'));
+            await generateThemes(source, join(pathToDir, 'src', 'theme'));
             await generateComponentsFiles({ pathToDir, componentsMeta });
         },
     });
