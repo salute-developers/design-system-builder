@@ -1,6 +1,11 @@
 {
-  "schemaVersion": 1,
-  "postgresMajor": 16,
+  "schemaVersion": 2,
+  "algorithm": "logical-columns-v2",
+  "postgresMajors": [
+    16,
+    17
+  ],
   "flywayBaselineVersion": "1",
-  "sha256": "b704ff11490fc5a432807ff2450d4a104d61b76e6d2b38da7411338edfae86d3"
+  "drizzleBaselineVersion": "0005",
+  "sha256": "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
 }

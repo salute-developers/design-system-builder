@@ -4,9 +4,9 @@ import java.security.MessageDigest
 import java.sql.Connection
 import java.sql.ResultSet
 
-/** Computes a deterministic fingerprint of the public PostgreSQL schema. */
+/** Вычисляет отпечаток логической структуры схемы public без физических номеров колонок. */
 class SchemaFingerprintCalculator {
-    /** Returns a SHA-256 hash of the relevant PostgreSQL catalog rows. */
+    /** Возвращает SHA-256 определений объектов схемы public. */
     fun calculate(connection: Connection): String {
         val digest = MessageDigest.getInstance("SHA-256")
         QUERIES.forEach { query ->
@@ -39,11 +39,11 @@ class SchemaFingerprintCalculator {
         const val NULL_VALUE = "<null>"
         val QUERIES = listOf(
             """
-            SELECT table_name, column_name, ordinal_position::text, data_type, udt_name,
+            SELECT table_name, column_name, data_type, udt_name,
                    is_nullable, COALESCE(column_default, '<null>')
             FROM information_schema.columns
             WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
-            ORDER BY table_name, ordinal_position
+            ORDER BY table_name, column_name
             """.trimIndent(),
             """
             SELECT c.relname, con.conname, con.contype::text, pg_get_constraintdef(con.oid, true)
