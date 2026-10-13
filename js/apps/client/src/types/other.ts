@@ -27,6 +27,8 @@ export interface Parameters {
     tenantId?: string;
     editRevision?: number;
     readOnly?: boolean;
+    /** Роль пользователя в проекте: от неё зависят действия, например удаление токена (`maintainer`, `owner`). */
+    effectiveRole?: string;
     grayTone: GrayTone;
     accentColor: GeneralColor;
     lightStrokeSaturation: PlasmaSaturation;

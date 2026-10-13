@@ -75,6 +75,7 @@ export const Main = () => {
         theme,
         components,
         incompleteTokenIds,
+        tokenDefinitions,
         loadError,
         reload,
         palette,
@@ -337,6 +338,8 @@ export const Main = () => {
                                 palette,
                                 paletteError,
                                 setPalette,
+                                tokenDefinitions,
+                                incompleteTokenIds,
                                 onDesignSystemCreate,
                             }}
                         />

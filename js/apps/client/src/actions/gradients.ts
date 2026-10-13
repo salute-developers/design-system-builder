@@ -57,6 +57,8 @@ interface UpdateTokenProps {
     token?: GradientToken;
     theme?: Theme;
     designSystem?: DesignSystem;
+    /** Сохранение изменённого токена; по умолчанию — запись в черновик темы. */
+    persist?: (token: GradientToken) => void;
 }
 
 interface RenameTokenGroupProps {
@@ -173,7 +175,7 @@ export const gradientTokenActions: GradientTokenActions = {
             updateDraftToken(dsName, dsVersion, token, 'toggle');
         });
     },
-    updateToken: ({ gradient, token, theme, designSystem }: UpdateTokenProps) => {
+    updateToken: ({ gradient, token, theme, designSystem, persist }: UpdateTokenProps) => {
         if (!token || !designSystem || !theme || !(token instanceof GradientToken)) {
             return;
         }
@@ -185,7 +187,8 @@ export const gradientTokenActions: GradientTokenActions = {
         token.setValue('ios', parseGradient(gradient, 'ios'));
         token.setValue('android', parseGradient(gradient, 'android'));
 
-        updateDraftToken(dsName, dsVersion, token, 'save');
+        if (persist) persist(token);
+        else updateDraftToken(dsName, dsVersion, token, 'save');
     },
     renameTokenGroup: ({ defaultToken, newDisplayName, theme, designSystem }) => {
         if (!defaultToken || !theme || !designSystem || !newDisplayName) {

@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 
 import { DesignSystem, Config, Theme } from '../controllers';
 import { applyDraftChanges, setActiveDraftContext } from '../utils';
-import { ThemeEditorRepository, type EditorContextKey } from '../api/themeEditorRepository';
+import { ThemeEditorRepository, type EditorContextKey, type TokenDefinitionDto } from '../api/themeEditorRepository';
 import type { ThemePalette } from '../modules/palette';
 import { setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
@@ -20,6 +20,7 @@ export const useDesignSystem = (
     const [theme, setTheme] = useState<Theme | null>(null);
     const [components, setComponents] = useState<Config[] | null>(null);
     const [incompleteTokenIds, setIncompleteTokenIds] = useState<string[]>([]);
+    const [tokenDefinitions, setTokenDefinitions] = useState<TokenDefinitionDto[]>([]);
     const [loadError, setLoadError] = useState<'forbidden' | 'not-found' | 'failed' | null>(null);
     const [reloadTrigger, setReloadTrigger] = useState<object>({});
     const [palette, setPaletteState] = useState<ThemePalette | null>(null);
@@ -60,6 +61,7 @@ export const useDesignSystem = (
                     });
                     setDesignSystem(ds);
                     setIncompleteTokenIds(snapshot.incompleteTokenIds);
+                    setTokenDefinitions(snapshot.tokenDefinitions);
                     const selectedTheme = ds.createThemeInstance({ includeExtraTokens });
                     applyDraftChanges(selectedTheme, snapshot.designSystem.name, '0.1.0');
                     setPaletteSession({
@@ -154,6 +156,7 @@ export const useDesignSystem = (
         theme,
         components,
         incompleteTokenIds,
+        tokenDefinitions,
         loadError,
         reload,
         palette,

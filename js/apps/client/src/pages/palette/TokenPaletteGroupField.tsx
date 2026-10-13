@@ -15,8 +15,24 @@ const CONFLICT_NOTICE = 'Тема изменена в другом месте и
 /** Конфликт, после которого перечитана тема: поле размонтируется, сообщение показывает новое поле. */
 let conflictAfterReload = false;
 
-/** Поле «Группа палитры» в редакторе цветового токена. */
-export const TokenPaletteGroupField = ({ tokenName, value }: { tokenName?: string; value: unknown }) => {
+/** Очередь операций темы: операция выполняется после уже начатых и получает актуальную ревизию. */
+export type ThemeOperationRunner = <T>(
+    operation: (editRevision: number) => Promise<{ editRevision: number; value: T }>,
+) => Promise<T>;
+
+/**
+ * Поле «Группа палитры» в редакторе цветового токена. С `run` привязка идёт в общей очереди с автосохранением
+ * токенов экрана, чтобы правка значения и смена группы не отправлялись с одной ревизией.
+ */
+export const TokenPaletteGroupField = ({
+    tokenName,
+    value,
+    run,
+}: {
+    tokenName?: string;
+    value: unknown;
+    run?: ThemeOperationRunner;
+}) => {
     const { projectId, designSystemId, tenantId } = useParams();
     const outlet = useOutletContext<Partial<PaletteOutletContext> | undefined>();
     const [error, setError] = useState<string | null>(null);
@@ -32,14 +48,20 @@ export const TokenPaletteGroupField = ({ tokenName, value }: { tokenName?: strin
 
     const assign = async (tokenId: string, groupId: string | null) => {
         try {
-            const result = await paletteRepository.assignTokenGroup(
-                context,
-                tokenId,
-                groupId,
-                paletteRevision(palette, outlet.designSystem),
-            );
-            const parameters = outlet.designSystem?.getParameters();
-            if (paletteRepository.source === 'api' && parameters) parameters.editRevision = result.editRevision;
+            if (run && paletteRepository.source === 'api') {
+                await run((editRevision) =>
+                    paletteRepository.assignTokenGroup(context, tokenId, groupId, editRevision),
+                );
+            } else {
+                const result = await paletteRepository.assignTokenGroup(
+                    context,
+                    tokenId,
+                    groupId,
+                    paletteRevision(palette, outlet.designSystem),
+                );
+                const parameters = outlet.designSystem?.getParameters();
+                if (paletteRepository.source === 'api' && parameters) parameters.editRevision = result.editRevision;
+            }
             outlet.setPalette!(await paletteRepository.load(context));
             outlet.rerender?.();
             setError(null);
@@ -58,7 +80,13 @@ export const TokenPaletteGroupField = ({ tokenName, value }: { tokenName?: strin
     return (
         <div className="source-palette-token-group-field" data-testid="token-palette-group">
             <span>Группа палитры</span>
-            <TokenGroupSelect palette={palette} tokenName={tokenName} value={value} disabled={!canEdit} onAssign={assign} />
+            <TokenGroupSelect
+                palette={palette}
+                tokenName={tokenName}
+                value={value}
+                disabled={!canEdit}
+                onAssign={assign}
+            />
             {error && (
                 <span className="source-palette-hex-error" role="alert">
                     {error}
