@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.application.ComponentConfigQuery
 import com.dsbuilder.ds.components.application.ExportComponentConfig
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.ImportComponentConfigUseCase
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
@@ -24,13 +25,14 @@ import io.ktor.utils.io.readAvailable
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
 
-/** Registers the legacy-compatible single, import, and export component-config routes. */
+/** Registers the legacy-compatible single, import, export and web-adapter component-config routes. */
 @Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod")
 fun Route.componentConfigRoutes(
     evaluator: PolicyEvaluator,
     getConfig: GetComponentConfigUseCase,
     importConfig: ImportComponentConfigUseCase,
     exportConfig: ExportComponentConfigUseCase,
+    getWebAdapter: GetComponentWebAdapterUseCase,
 ) {
     route("/api/ds/component-config") {
         get {
@@ -78,6 +80,20 @@ fun Route.componentConfigRoutes(
                 )
             ) {
                 is DsResult.Success -> call.respond(ExportComponentConfigResponse.from(result.value))
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
+        }
+
+        // Временная ручка рядом с `/export`: адресация та же, а ответ CLI сохраняет как есть
+        // в `.sdds/web/web-adapter.json`.
+        post("/web-adapter") {
+            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+                ?: return@post call.respondFailure(DsFailure.Forbidden)
+            val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
+                ?.designSystemId?.toUuidOrNull()
+                ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            when (val result = getWebAdapter.execute(context, id)) {
+                is DsResult.Success -> call.respond(result.value.map(ComponentWebAdapterEntryResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

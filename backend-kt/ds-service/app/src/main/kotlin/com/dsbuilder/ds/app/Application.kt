@@ -49,6 +49,7 @@ import com.dsbuilder.ds.components.application.GetComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
+import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPropertyValueUseCase
@@ -355,6 +356,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetComponentConfigUseCase>(),
         koin.get<ImportComponentConfigUseCase>(),
         koin.get<ExportComponentConfigUseCase>(),
+        koin.get<GetComponentWebAdapterUseCase>(),
     )
     componentRoutes(
         runtime.evaluator,

@@ -10,13 +10,24 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Builds the common component-config model from the normalized legacy schema. */
-internal class ComponentConfigBuilder {
-    fun build(appearance: ConfigAppearance, exported: Boolean, underived: MutableSet<String>): ComponentConfig {
+internal class ComponentConfigBuilder(
+    private val platformOffsets: PlatformParamOffsets = PlatformParamOffsets(),
+) {
+    fun build(
+        appearance: ConfigAppearance,
+        exported: Boolean,
+        underived: MutableSet<String>,
+        withPlatformOffsets: Boolean = false,
+    ): ComponentConfig {
         val roles = AppearanceAxisRoleStore.load(listOf(appearance.id))[appearance.id]
         val axes = axes(appearance.id, roles?.colorScheme)
         val stateNames = stateNames()
-        val invariants = valueRows(appearance, invariant = true, stateNames = stateNames)
-        val variationValues = valueRows(appearance, invariant = false, stateNames = stateNames)
+        // Смещения из поправок отдаёт только выгрузка: чтение одного конфига и сравнение в импорте их не видят.
+        val offsets =
+            if (withPlatformOffsets) platformOffsets.load(appearance.id) else PlatformParamOffsets.Offsets.EMPTY
+        val invariants = valueRows(appearance, invariant = true, stateNames = stateNames, offsets = offsets.invariant)
+        val variationValues =
+            valueRows(appearance, invariant = false, stateNames = stateNames, offsets = offsets.variation)
         val combinations = combinations(appearance, axes, stateNames, exported)
         val where = "${camelToKebab(appearance.componentName)}.${appearance.name ?: "default"}"
         val idOf: (ConfigAxis) -> String = { if (exported) it.name else it.variationId.toString() }
@@ -106,6 +117,7 @@ internal class ComponentConfigBuilder {
         appearance: ConfigAppearance,
         invariant: Boolean,
         stateNames: Map<UUID, List<String>>,
+        offsets: Map<UUID, String>,
     ): List<ConfigValueRow> = if (invariant) {
         InvariantPropertyValuesTable.innerJoin(PropertiesTable)
             .join(
@@ -120,7 +132,7 @@ internal class ComponentConfigBuilder {
             }.orderBy(
                 PropertiesTable.name to SortOrder.ASC,
                 InvariantPropertyValuesTable.position to SortOrder.ASC,
-            ).map { valueRow(it, true, stateNames) }
+            ).map { valueRow(it, true, stateNames, offsets) }
     } else {
         VariationPropertyValuesTable.innerJoin(PropertiesTable)
             .join(
@@ -133,11 +145,17 @@ internal class ComponentConfigBuilder {
                 PropertiesTable.name to SortOrder.ASC,
                 VariationPropertyValuesTable.styleId to SortOrder.ASC,
                 VariationPropertyValuesTable.position to SortOrder.ASC,
-            ).map { valueRow(it, false, stateNames) }
+            ).map { valueRow(it, false, stateNames, offsets) }
     }
 
-    private fun valueRow(row: ResultRow, invariant: Boolean, states: Map<UUID, List<String>>): ConfigValueRow {
+    private fun valueRow(
+        row: ResultRow,
+        invariant: Boolean,
+        states: Map<UUID, List<String>>,
+        offsets: Map<UUID, String>,
+    ): ConfigValueRow {
         val propertyId = row[PropertiesTable.id]
+        val rowId = if (invariant) row[InvariantPropertyValuesTable.id] else row[VariationPropertyValuesTable.id]
         val stateSetId = if (invariant) {
             row[InvariantPropertyValuesTable.stateSetId]
         } else {
@@ -154,7 +172,7 @@ internal class ComponentConfigBuilder {
                 row[InvariantPropertyValuesTable.adjustment]
             } else {
                 row[VariationPropertyValuesTable.adjustment]
-            },
+            } ?: offsets[rowId],
             if (invariant) row[InvariantPropertyValuesTable.position] else row[VariationPropertyValuesTable.position],
             row.getOrNull(ComponentTokensTable.name),
             row.getOrNull(ComponentTokensTable.type),

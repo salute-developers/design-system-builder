@@ -378,13 +378,14 @@
     },
     {
       "name": "component-config",
-      "router": "src/routes/api/component-config.ts,src/routes/api/component-config-import.ts,src/routes/api/component-config-export.ts",
+      "router": "src/routes/api/component-config.ts,src/routes/api/component-config-import.ts,src/routes/api/component-config-export.ts,src/routes/api/component-config-web-adapter.ts",
       "included": true,
       "ownership": "via-design-system",
       "operations": [
         ["GET", "/component-config", "ComponentConfigQuery", "ComponentConfig", 200, "components:read", null],
         ["POST", "/component-config/import", "ImportComponentConfigRequest", "ComponentConfigImportReport", 200, "components:write", null],
-        ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null]
+        ["POST", "/component-config/export", "ExportComponentConfigRequest", "ComponentConfigPackage", 200, "components:read", null],
+        ["POST", "/component-config/web-adapter", "ComponentWebAdapterRequest", "ComponentWebAdapter", 200, "components:read", null]
       ]
     }
   ]
