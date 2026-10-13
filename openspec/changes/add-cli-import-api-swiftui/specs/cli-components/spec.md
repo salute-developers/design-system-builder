@@ -49,10 +49,28 @@ CLI SHALL преобразовывать API-мету SwiftUI в тот же м�
 - **WHEN** у параметра задан `methodName`
 - **THEN** `platformNames` свойства MUST содержать `methodName`
 
+#### Scenario: Имена повторов одного типа объединяются
+
+- **WHEN** один `id` повторяется у компонента с тем же типом, но с разными `methodName`, потому что состояние или уточнение вынесено в отдельное свойство кода (`toggleIconColor` даёт `toggleColorChecked` и `toggleColorIndeterminate`)
+- **THEN** `platformNames` свойства MUST содержать все встреченные `methodName` в порядке появления без повторов
+- **THEN** манифест MUST NOT терять имена, кроме первого
+
 #### Scenario: Описание свойства
 
 - **WHEN** у параметра заданы `group`, `methodName` и `paramSimpleType`
 - **THEN** описание MUST иметь вид `group: <group>; method: <methodName>; param: <paramSimpleType>`
+
+#### Scenario: Описание объединённого свойства
+
+- **WHEN** у повторов одного `id` различаются `group`, `methodName` или `paramSimpleType`
+- **THEN** описание MUST перечислять встреченные значения каждого поля через `/` в порядке появления, без повторов
+- **THEN** поле с единственным значением MUST остаться без разделителя
+
+#### Scenario: Состояние параметра не делит свойство
+
+- **WHEN** повторы одного `id` различаются полем `state`
+- **THEN** манифест MUST содержать одно свойство с объединёнными именами
+- **THEN** `state` MUST NOT попадать ни в имя свойства, ни в его описание
 
 #### Scenario: Параметры без кода на платформе пропускаются
 
