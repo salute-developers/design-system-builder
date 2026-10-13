@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Token } from '../controllers';
-import { getDraftKey, setActiveDraftContext, updateDraftToken } from './designSystemDraft';
+import {
+    draftEntriesOfTypes,
+    getDraftKey,
+    removeDraftEntries,
+    setActiveDraftContext,
+    updateDraftToken,
+} from './designSystemDraft';
 
 const token = {
     getName: () => 'accent',
@@ -23,5 +29,33 @@ describe('tenant-aware drafts', () => {
         expect(second).toBe('ds_draft:project-1:ds-1:tenant-2');
         expect(localStorage.getItem(first)).toContain('#123456');
         expect(localStorage.getItem(second)).toBeNull();
+    });
+});
+
+describe('цветовые записи прежнего черновика', () => {
+    const named = (name: string, type: string) => ({ ...token, getName: () => name, getType: () => type }) as unknown as Token;
+
+    it('находит записи цветов и градиентов и удаляет только их', () => {
+        setActiveDraftContext({ projectId: 'p', designSystemId: 'ds', tenantId: 't' });
+        updateDraftToken('', '', named('dark.text.default.accent', 'color'));
+        updateDraftToken('', '', named('light.surface.default.accent-gradient', 'gradient'));
+        updateDraftToken('', '', named('screen-s.body.m', 'typography'));
+
+        const entries = draftEntriesOfTypes('', '', ['color', 'gradient']);
+        expect(entries).toEqual([
+            { name: 'dark.text.default.accent', type: 'color' },
+            { name: 'light.surface.default.accent-gradient', type: 'gradient' },
+        ]);
+
+        removeDraftEntries('', '', entries.map((entry) => entry.name));
+        expect(draftEntriesOfTypes('', '', ['color', 'gradient'])).toEqual([]);
+        expect(localStorage.getItem(getDraftKey('', ''))).toContain('screen-s.body.m');
+    });
+
+    it('удаляет черновик целиком, когда записей не осталось', () => {
+        setActiveDraftContext({ projectId: 'p', designSystemId: 'ds', tenantId: 't2' });
+        updateDraftToken('', '', named('dark.text.default.accent', 'color'));
+        removeDraftEntries('', '', ['dark.text.default.accent']);
+        expect(localStorage.getItem(getDraftKey('', ''))).toBeNull();
     });
 });

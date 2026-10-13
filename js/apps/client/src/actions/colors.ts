@@ -15,7 +15,8 @@ import {
 } from '../utils';
 import { restorePaletteColor } from '../palette/activePalette';
 
-const getAdditionalColorValues = (
+/** Значения состояний `-active` и `-hover` для значения токена — `undefined`, если группа их не пересчитывает. */
+export const getAdditionalColorValues = (
     value: string,
     themeMode: string,
     groupName: string,
@@ -71,6 +72,11 @@ interface UpdateTokenProps {
     token?: ColorToken;
     theme?: Theme;
     designSystem?: DesignSystem;
+    /**
+     * Сохранение изменённого токена после пересчёта его состояний `-hover` и `-active`; по умолчанию — запись
+     * токена и состояний в черновик темы.
+     */
+    persist?: (token: ColorToken) => void;
 }
 
 interface RenameTokenGroupProps {
@@ -222,7 +228,7 @@ export const colorTokenActions: ColorTokenActions = {
             });
         });
     },
-    updateToken: ({ color, opacity, token, theme, designSystem }: UpdateTokenProps) => {
+    updateToken: ({ color, opacity, token, theme, designSystem, persist }: UpdateTokenProps) => {
         // TODO: Пока только для сплошных цветов
         if (!token || !designSystem || !theme || !(token instanceof ColorToken)) {
             return;
@@ -241,31 +247,30 @@ export const colorTokenActions: ColorTokenActions = {
             token.setValue(platform, newValue);
         }
 
-        updateDraftToken(dsName, dsVersion, token, 'save');
+        const save = persist ?? ((changed: ColorToken) => updateDraftToken(dsName, dsVersion, changed, 'save'));
+        const saveStates = (states: ColorToken[]) => (persist ? persist(token) : states.forEach(save));
+
+        if (!persist) save(token);
 
         const [themeMode, groupName, subgroupName, ..._] = token.getTags();
         const additionalValues = getAdditionalColorValues(newValue, themeMode, groupName, subgroupName, token.getName());
 
-        if (!additionalValues) {
+        const activeToken = additionalValues && theme.getToken(`${token.getName()}-active`, 'color');
+        const hoverToken = additionalValues && theme.getToken(`${token.getName()}-hover`, 'color');
+
+        if (!additionalValues || !activeToken || !hoverToken) {
+            if (persist) persist(token);
             return;
         }
-
-        const activeToken = theme.getToken(`${token.getName()}-active`, 'color');
-        const hoverToken = theme.getToken(`${token.getName()}-hover`, 'color');
 
         const [activeValue, hoverValue] = additionalValues;
-
-        if (!activeToken || !hoverToken) {
-            return;
-        }
 
         for (const platform of platforms) {
             activeToken.setValue(platform, activeValue);
             hoverToken.setValue(platform, hoverValue);
         }
 
-        updateDraftToken(dsName, dsVersion, activeToken, 'save');
-        updateDraftToken(dsName, dsVersion, hoverToken, 'save');
+        saveStates([activeToken as ColorToken, hoverToken as ColorToken]);
     },
     renameTokenGroup: ({ defaultToken, newDisplayName, theme, designSystem }) => {
         if (!defaultToken || !theme || !designSystem || !newDisplayName) {

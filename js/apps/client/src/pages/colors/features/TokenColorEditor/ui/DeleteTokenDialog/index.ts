@@ -1,1 +1,0 @@
-export { DeleteTokenDialog } from './DeleteTokenDialog';

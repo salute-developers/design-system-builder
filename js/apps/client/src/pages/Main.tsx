@@ -70,7 +70,18 @@ export const Main = () => {
             }),
         [projectId, designSystemId, tenantId],
     );
-    const { designSystem, theme, components, incompleteTokenIds, loadError, reload, palette, paletteError, setPalette } =
+    const {
+        designSystem,
+        theme,
+        components,
+        incompleteTokenIds,
+        tokenDefinitions,
+        loadError,
+        reload,
+        palette,
+        paletteError,
+        setPalette,
+    } =
         useDesignSystem(
         choose<string | NonNullable<typeof editorContext> | undefined>(
             Boolean(editorContext),
@@ -324,6 +335,8 @@ export const Main = () => {
                             palette,
                             paletteError,
                             setPalette,
+                            tokenDefinitions,
+                            incompleteTokenIds,
                             onDesignSystemCreate,
                         }}
                     />
