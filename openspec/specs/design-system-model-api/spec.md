@@ -162,7 +162,7 @@ Model read API changes SHALL preserve existing `js/apps/client` behavior unless 
 | Наборы состояний | `GET /state-sets`, `GET /state-sets/{id}`, `POST /state-sets/resolve` |
 | Комбинации стилей | `GET /style-combinations`, `GET /style-combinations/{id}`, `POST /style-combinations`, `PATCH /style-combinations/{id}`, `DELETE /style-combinations/{id}`, `GET /style-combinations/{id}/members`, `POST /style-combinations/{id}/members` |
 | Элементы комбинаций стилей | `GET /style-combination-members`, `GET /style-combination-members/{id}`, `POST /style-combination-members`, `DELETE /style-combination-members/{id}` |
-| Конфигурация компонента | `GET /component-config?ds={ds}&version={version}&appearance={appearance}&component={component}`, `POST /component-config/import`, `POST /component-config/export` |
+| Конфигурация компонента | `GET /component-config?ds={ds}&version={version}&appearance={appearance}&component={component}`, `POST /component-config/import`, `POST /component-config/export`, `POST /component-config/web-adapter` |
 
 #### Scenario: Проверка route manifest
 
@@ -386,4 +386,97 @@ Gateway MUST направлять `/api/projects/{projectId}/ds/legacy/**` и `/
 
 - **WHEN** запрос на административный маршрут приходит с ключом проекта
 - **THEN** Gateway MUST ответить `401` и MUST NOT передавать запрос в `ds-service`
+
+### Requirement: ds-service обслуживает web-адаптер
+
+`ds-service` SHALL обслуживать `POST /api/ds/component-config/web-adapter` с телом `{ "designSystemId": "<uuid>" }`
+и возвращать JSON-массив по контракту требования `Web adapter endpoint` из `cli-components`: по одной записи на
+компонент, у которого в дизайн-системе есть конфигурация, с полями `componentName`, `name` и необязательными
+`description`, `compose`, `styles`. Необязательное поле без данных MUST отсутствовать в ответе, а не равняться `null`.
+
+#### Scenario: Ответ совпадает с эталонной реализацией
+
+- **GIVEN** одна и та же база с конфигурациями компонентов, шаблонами web-параметров и compose-связями
+- **WHEN** клиент с permission `components:read` запрашивает web-адаптер доступной дизайн-системы у `ds-service`
+- **THEN** сервис MUST вернуть `200` и массив с теми же записями, полями и значениями, что возвращает `db-service`
+- **AND** `componentName` MUST быть именем компонента в написании `meta.json`, а `name` — именем из базы
+
+#### Scenario: Шаблоны собираются по стилям
+
+- **WHEN** у значения конфигурации есть поправка web-параметра с шаблоном
+- **THEN** `styles.<styleName>.templates` MUST сопоставлять имя свойства с именем параметра и шаблоном
+- **AND** стиль без шаблонов MUST отсутствовать в `styles`
+- **AND** при расходящихся шаблонах одной пары свойства и параметра внутри стиля MUST выбираться наименьший по строковому сравнению
+
+#### Scenario: Compose-связи только между компонентами пакета
+
+- **WHEN** у компонентов дизайн-системы есть зависимости типа `compose`
+- **THEN** `compose` родителя MUST перечислять детей в порядке связи
+- **AND** ребёнок без конфигурации в этой дизайн-системе и зависимости типа `reuse` MUST отсутствовать
+
+#### Scenario: Дизайн-система без конфигураций
+
+- **WHEN** у доступной дизайн-системы нет ни одной конфигурации компонента
+- **THEN** сервис MUST вернуть `200` и пустой массив
+
+#### Scenario: Повторный запрос не даёт расхождений
+
+- **WHEN** клиент дважды запрашивает web-адаптер без изменения данных
+- **THEN** оба ответа MUST совпадать побайтно: записи упорядочены по `componentName`, ключи `styles` и `templates` — по имени
+
+#### Scenario: Недостаточно прав или чужая дизайн-система
+
+- **WHEN** у субъекта запроса нет permission `components:read`
+- **THEN** сервис MUST вернуть `403` и MUST NOT читать данные дизайн-системы
+- **WHEN** `designSystemId` принадлежит другому проекту или не существует
+- **THEN** сервис MUST вернуть `404` без признаков существования чужой дизайн-системы
+
+#### Scenario: Некорректное тело запроса
+
+- **WHEN** `designSystemId` отсутствует или не является UUID
+- **THEN** сервис MUST вернуть `400` и MUST NOT обращаться к базе
+
+### Requirement: Выгрузка компонентов ds-service восстанавливает смещения
+
+`POST /api/ds/component-config/export` в `ds-service` SHALL возвращать `adjustment` значения из поправок
+платформенных параметров, когда у строки значения собственное смещение не задано, по правилам требования
+`Export restores offsets from platform parameter adjustments` из `cli-components`.
+
+#### Scenario: Смещение берётся из поправки
+
+- **WHEN** у строки значения нет `adjustment`, но есть числовая поправка платформенного параметра, отличная от значения строки
+- **THEN** выгрузка MUST вернуть эту поправку как `adjustment`
+- **AND** при разных поправках по платформам MUST выбираться web, затем xml, compose, ios
+
+#### Scenario: Собственное смещение строки имеет приоритет
+
+- **WHEN** у строки значения задан `adjustment` и есть числовая поправка платформенного параметра
+- **THEN** выгрузка MUST вернуть `adjustment` строки
+
+#### Scenario: Нечисловая поправка и копия значения не считаются смещением
+
+- **WHEN** поправка не является числом, пуста либо совпадает со значением строки или именем её токена
+- **THEN** выгрузка MUST NOT подставлять её в `adjustment`
+
+#### Scenario: Чтение одного конфига не меняется
+
+- **WHEN** клиент читает `GET /api/ds/component-config`
+- **THEN** ответ MUST формироваться как до изменения, без подстановки смещений из поправок
+
+### Requirement: Снимок конфигураций компонентов согласован с глобальными свойствами
+
+Снимок конфигураций компонентов `ds-service` SHALL ссылаться на свойства по именам, принятым в глобальном слое
+метаданных после PLASMABLDR-186.
+
+#### Scenario: Свойство разделителя списка
+
+- **WHEN** загружается снимок `component-seeds.json`
+- **THEN** компонент `List` MUST ссылаться на свойство `listItemDividerHeight`
+- **AND** имя `listItemDividerWidth` MUST отсутствовать в снимке
+
+#### Scenario: Инициализация на актуальных метаданных
+
+- **GIVEN** глобальные метаданные содержат свойство `List.listItemDividerHeight` и не содержат `listItemDividerWidth`
+- **WHEN** проверяется полнота метаданных перед инициализацией конфигураций компонентов
+- **THEN** свойство разделителя списка MUST NOT попадать в число отсутствующих метаданных
 
