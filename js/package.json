@@ -19,7 +19,8 @@
     "build:client": "cd apps/client && npm run build",
     "build:admin": "cd apps/admin && npm run build",
     "test:services": "npm --prefix services/db-service test",
-    "verify:fast": "npm run build && npm run test:services",
+    "test:cli": "npm --prefix cli test",
+    "verify:fast": "npm run build && npm run test:services && npm run test:cli",
     "verify:full": "npm run verify:fast",
     "prepare": "cd .. && husky js/.husky"
   },
