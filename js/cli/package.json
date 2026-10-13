@@ -5,10 +5,11 @@
         "generate:theme": "tsx --env-file-if-exists=../.env src/theme.ts",
         "generate:components": "tsx --env-file-if-exists=../.env src/components.ts",
         "generate:ds": "tsx --env-file-if-exists=../.env src/ds.ts",
-        "generate:api-meta": "tsx src/generate-api-meta.ts"
+        "generate:api-meta": "tsx src/generate-api-meta.ts",
+        "test": "tsx --test src/*.test.ts"
     },
     "devDependencies": {
-        "@salutejs/plasma-new-hope": "latest",
+        "@salutejs/plasma-new-hope": "^0.384.0-dev.0",
         "@types/node": "^22.20.5",
         "tsx": "^4.23.15",
         "typescript": "^5.9.3"

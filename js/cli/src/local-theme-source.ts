@@ -1,30 +1,66 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 interface LocalConfig {
-    tenants: { name: string; directoryPath?: string }[];
+    tenants?: { name: string; directoryPath?: string }[];
     palettePath?: string;
 }
 
-/**
- * Читает config.json и возвращает абсолютные пути к метаданным темы, палитре и web-вариациям.
- * Без tenantName выбирает единственный tenant; при нескольких требует явного выбора.
- */
-export async function resolveLocalThemePaths(sddsDirectory: string, tenantName?: string) {
+/** Расположение данных одной темы. */
+export interface LocalThemePaths {
+    /** Имя темы для сообщений: имя из config.json или имя каталога. */
+    tenant: string;
+    directory: string;
+    meta: string;
+    variations: string;
+}
+
+export interface LocalThemeSet {
+    palette: string;
+    /** Темы в порядке генерации: по имени каталога. */
+    themes: LocalThemePaths[];
+    /** Тема, из которой берутся запасные значения токенов; без `defaultTenant` — первая. */
+    defaultTheme: LocalThemePaths;
+}
+
+const META_FILE_NAME = 'meta.json';
+
+const exists = async (path: string) => (await stat(path).catch(() => null)) !== null;
+
+/** config.json необязателен: набор тем определяют каталоги, а не список в нём. */
+async function readConfig(sddsDirectory: string): Promise<LocalConfig | null> {
     const configPath = join(sddsDirectory, 'config.json');
-    const config = JSON.parse(await readFile(configPath, 'utf8')) as LocalConfig;
-    if (!Array.isArray(config.tenants) || config.tenants.length === 0) {
-        throw new Error(`No tenants configured in ${configPath}.`);
+    if (!(await exists(configPath))) {
+        return null;
     }
-    if (!tenantName && config.tenants.length > 1) {
-        throw new Error(`Choose --tenant from: ${config.tenants.map(({ name }) => name).join(', ')}.`);
+    try {
+        const config = JSON.parse(await readFile(configPath, 'utf8')) as LocalConfig;
+        return { ...config, tenants: Array.isArray(config.tenants) ? config.tenants : [] };
+    } catch (error) {
+        throw new Error(`Cannot read ${configPath}: ${(error as Error).message}`);
     }
-    const tenant = tenantName
-        ? config.tenants.find(({ name }) => name === tenantName)
-        : config.tenants[0];
-    if (!tenant) {
-        throw new Error(`Unknown tenant "${tenantName}" in ${configPath}.`);
-    }
+}
+
+/** Каталог нормализуется, чтобы темы можно было сравнивать по нему. */
+const themePaths = (tenant: string, path: string): LocalThemePaths => {
+    const directory = resolve(path);
+    return { tenant, directory, meta: join(directory, META_FILE_NAME), variations: join(directory, 'web') };
+};
+
+/**
+ * Находит темы для генерации.
+ *
+ * Без `tenant` — все темы из `<sdds>/tenants`: темой считается каталог с `meta.json`, остальное
+ * (пустой каталог удалённой темы, скрытый каталог, `palette.json`) пропускается. С `tenant` — одна тема: сначала
+ * по имени в config.json с её `directoryPath`, затем по имени каталога в `<sdds>/tenants`.
+ * `defaultTenant` ищется так же и должен входить в набор.
+ */
+export async function resolveLocalThemes(
+    sddsDirectory: string,
+    { tenant, defaultTenant }: { tenant?: string; defaultTenant?: string } = {},
+): Promise<LocalThemeSet> {
+    const config = await readConfig(sddsDirectory);
+    const tenantsDirectory = join(sddsDirectory, 'tenants');
 
     // Пути с префиксом .sdds/ привязываем к выбранному каталогу --sdds, чтобы данные
     // можно было переносить. Остальные относительные пути считаем от его родителя.
@@ -34,14 +70,65 @@ export async function resolveLocalThemePaths(sddsDirectory: string, tenantName?:
             ? resolve(sddsDirectory, portablePath.slice('.sdds/'.length))
             : resolve(dirname(sddsDirectory), path);
     };
-    const tenantDirectory = tenant.directoryPath
-        ? resolveConfigPath(tenant.directoryPath)
-        : join(sddsDirectory, 'tenants', tenant.name);
+
+    const findTheme = async (name: string, option: string): Promise<LocalThemePaths> => {
+        if (name === '') {
+            throw new Error(`${option} requires a theme name.`);
+        }
+        const configured = config?.tenants?.find((candidate) => candidate.name === name);
+        if (configured) {
+            return themePaths(
+                name,
+                configured.directoryPath ? resolveConfigPath(configured.directoryPath) : join(tenantsDirectory, name),
+            );
+        }
+        const directory = join(tenantsDirectory, name);
+        if (!(await exists(join(directory, META_FILE_NAME)))) {
+            throw new Error(
+                `Unknown ${option} "${name}": it is neither a tenant in config.json nor a theme directory in ${tenantsDirectory}.`,
+            );
+        }
+        return themePaths(name, directory);
+    };
+
+    const findAllThemes = async (): Promise<LocalThemePaths[]> => {
+        const entries = await readdir(tenantsDirectory, { withFileTypes: true }).catch(() => []);
+        // Скрытые каталоги темами не считаются: от порядка имён зависит тема по умолчанию.
+        const names = entries
+            .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+            .map((entry) => entry.name)
+            .sort();
+        const themes: LocalThemePaths[] = [];
+        for (const name of names) {
+            if (await exists(join(tenantsDirectory, name, META_FILE_NAME))) {
+                themes.push(themePaths(name, join(tenantsDirectory, name)));
+            }
+        }
+        if (themes.length === 0) {
+            throw new Error(`No themes found in ${tenantsDirectory}: a theme is a directory with ${META_FILE_NAME}.`);
+        }
+        return themes;
+    };
+
+    const themes = tenant === undefined ? await findAllThemes() : [await findTheme(tenant, '--tenant')];
+
+    let defaultTheme = themes[0];
+    if (defaultTenant !== undefined) {
+        const requested = await findTheme(defaultTenant, '--default-tenant');
+        const generated = themes.find(({ directory }) => directory === requested.directory);
+        if (!generated) {
+            throw new Error(
+                `--default-tenant "${defaultTenant}" is not among the generated themes: ${themes
+                    .map((theme) => theme.tenant)
+                    .join(', ')}.`,
+            );
+        }
+        defaultTheme = generated;
+    }
+
     return {
-        meta: join(tenantDirectory, 'meta.json'),
-        palette: config.palettePath
-            ? resolveConfigPath(config.palettePath)
-            : join(sddsDirectory, 'tenants', 'palette.json'),
-        variations: join(tenantDirectory, 'web'),
+        palette: config?.palettePath ? resolveConfigPath(config.palettePath) : join(tenantsDirectory, 'palette.json'),
+        themes,
+        defaultTheme,
     };
 }
