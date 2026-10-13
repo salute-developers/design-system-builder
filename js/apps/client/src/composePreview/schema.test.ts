@@ -11,6 +11,26 @@ const schema = { ...schemaDocument, $schema: undefined };
 const ajv = new Ajv({ allErrors: true, jsonPointers: true });
 const validate = ajv.compile(schema);
 
+const fixtures = (kind: 'valid' | 'invalid') => {
+    const files = import.meta.glob<unknown>('./schema/fixtures/*/*.json', { eager: true, import: 'default' });
+    return Object.entries(files)
+        .filter(([path]) => path.includes(`/${kind}/`))
+        .map(([path, content]) => [path.split('/').pop()!, content] as const);
+};
+
+describe('Preview Protocol v1 shared fixtures', () => {
+    it('has fixtures in both groups', () => {
+        expect(fixtures('valid').length).toBeGreaterThan(0);
+        expect(fixtures('invalid').length).toBeGreaterThan(0);
+    });
+    it.each(fixtures('valid'))('accepts valid fixture %s', (_name, payload) => {
+        expect(validate(payload), ajv.errorsText(validate.errors)).toBe(true);
+    });
+    it.each(fixtures('invalid'))('rejects invalid fixture %s', (_name, payload) => {
+        expect(validate(payload)).toBe(false);
+    });
+});
+
 describe('Preview Protocol v1 schema', () => {
     it('accepts the assembled wire payload after the session adds requestId', () => {
         const controllerDraft = createControllerDraftFixture();

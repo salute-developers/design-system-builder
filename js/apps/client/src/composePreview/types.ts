@@ -16,15 +16,27 @@ export const PREVIEW_MESSAGE_TYPES = {
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 export type PreviewPlatform = 'COMPOSE';
 export type PreviewPropertySource =
-    | { type: 'literal'; value: JsonValue }
-    | { type: 'tokenRef'; tokenId: string };
+    | { type: 'literal'; value: JsonValue; alpha?: number }
+    | { type: 'tokenRef'; tokenId: string; alpha?: number }
+    | { type: 'styleRef'; styleId: string }
+    | { type: 'assetRef'; assetId: string };
+/** Значение для набора одновременно активных состояний. */
+export interface PreviewStateEntry {
+    when: string[];
+    source: PreviewPropertySource;
+}
 export interface PreviewPropertyValue {
     base: PreviewPropertySource;
-    states?: Record<string, PreviewPropertySource>;
+    states?: PreviewStateEntry[];
+}
+/** Вложенный стиль, на который ссылается `styleRef`. */
+export interface PreviewStyle {
+    component: string;
+    properties: Record<string, PreviewPropertyValue>;
 }
 export type PreviewAsset = {
     id: string;
-    type: 'TTF' | 'OTF';
+    type: 'TTF' | 'OTF' | 'SVG' | 'PNG';
     url: string;
     digest?: string;
 };
@@ -33,7 +45,25 @@ export interface PreviewFontFace {
     weight: number;
     style?: 'NORMAL' | 'ITALIC';
 }
+export interface PreviewShadowLayer {
+    x: number;
+    y: number;
+    blur: number;
+    spread: number;
+    color: string;
+}
+export interface PreviewGradientStop {
+    color: string;
+    position: number;
+}
+export interface PreviewGradientLayer {
+    kind: 'linear';
+    angle: number;
+    stops: PreviewGradientStop[];
+}
 export type PreviewThemeValue =
+    | { type: 'shadow'; layers: PreviewShadowLayer[] }
+    | { type: 'gradient'; layers: PreviewGradientLayer[] }
     | { type: 'color'; value: string }
     | { type: 'dimension'; value: number }
     | { type: 'shape'; cornerRadii: [number, number, number, number] }
@@ -67,6 +97,8 @@ export interface PreviewPayload {
     assets: PreviewAsset[];
     theme: Record<string, PreviewThemeValue>;
     component: PreviewComponent;
+    /** Вложенные стили; присутствует, только если на них есть `styleRef`. */
+    styles?: Record<string, PreviewStyle>;
     example: PreviewExample;
     surface: PreviewSurface;
 }
@@ -118,9 +150,15 @@ export interface PreviewPayloadEnvelope {
     requestId: string;
     payload: PreviewPayload;
 }
+export interface PreviewWarning {
+    code: string;
+    message: string;
+    path?: string;
+}
 export interface PreviewResultSuccess {
     type: 'success';
     requestId: string;
+    warnings?: PreviewWarning[];
 }
 export interface PreviewResultFailure {
     type: 'failure';

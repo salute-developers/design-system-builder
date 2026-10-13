@@ -11,12 +11,24 @@ export interface PreviewPropertyDraft {
     composeParameters: string[];
     hasNonComposeMappings?: boolean;
     value?: string | number;
-    states: Array<{ names: string[]; value?: string | number }>;
+    states: Array<{ names: string[]; value?: string | number; alpha?: number }>;
     adjustment?: string | number;
+    /** Прозрачность 0..1 для literal/token значения; задаётся, только если редактор её поддерживает. */
+    alpha?: number;
+    /** Идентификатор вложенного стиля из `ComponentPreviewDraft.styles` вместо значения. */
+    styleRef?: string;
+    /** Идентификатор ресурса из `ComponentPreviewDraft.assets` вместо значения. */
+    assetRef?: string;
+}
+/** Вложенный стиль компонента, на который ссылаются свойства через `styleRef`. */
+export interface PreviewStyleDraft {
+    id: string;
+    componentId: string;
+    properties: PreviewPropertyDraft[];
 }
 export interface PreviewThemeTokenDraft {
     id: string;
-    type: 'color' | 'dimension' | 'shape' | 'typography' | 'fontFamily';
+    type: 'color' | 'dimension' | 'shape' | 'typography' | 'fontFamily' | 'gradient' | 'shadow';
     enabled: boolean;
     values: Partial<Record<ThemeValuePlatform, JsonValue>>;
 }
@@ -33,6 +45,8 @@ export interface ComponentPreviewDraft {
     selectedStyleProperties: PreviewPropertyDraft[];
     themeTokens: PreviewThemeTokenDraft[];
     assets: PreviewAsset[];
+    /** Вложенные стили; пусто, пока редактор не умеет ссылок на стили. */
+    styles?: PreviewStyleDraft[];
     example: { id: string; props: Record<string, JsonValue> };
     surface: PreviewSurface;
 }
