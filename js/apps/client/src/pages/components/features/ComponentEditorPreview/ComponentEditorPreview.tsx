@@ -110,6 +110,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         componentId: string;
         storyId: string;
     }>();
+    // Манифест загружен, а компонента в нём нет: плагин такой компонент не нарисует.
+    const [missingFromPlugin, setMissingFromPlugin] = useState(false);
     const [composeDescription, setComposeDescription] = useState<PreviewComponentDescription>();
     const [composeDescriptionError, setComposeDescriptionError] = useState<string>();
     const [composeExampleProps, setComposeExampleProps] = useState<Record<string, string | number | boolean>>({});
@@ -166,12 +168,14 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         composeAssembly.ok ? ('payload' in composeAssembly ? composeAssembly.payload : undefined) : undefined,
     );
     if (composeAssembly.ok && 'payload' in composeAssembly) lastComposePayload.current = composeAssembly.payload;
-    const composeDiagnostic =
-        composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
+    const composeDiagnostic = missingFromPlugin
+        ? `Компонент ${componentName} не зарегистрирован в Compose-плагине`
+        : composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
 
     useEffect(() => {
         let cancelled = false;
         setComposePreviewMetadata(undefined);
+        setMissingFromPlugin(false);
         setComposeDescription(undefined);
         setComposeExampleProps({});
         setComposeDescriptionError(undefined);
@@ -192,6 +196,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 setComposePreviewMetadata(
                     componentId ? { componentId, storyId: storedMetadata.storyId! } : undefined,
                 );
+                setMissingFromPlugin(isComposeComponent && !componentId);
             })
             .catch(() => {
                 if (!cancelled) setComposePreviewMetadata(undefined);
@@ -414,7 +419,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
                     {activeRenderer === 'compose' && composePluginUrl && composeEnvironmentSupported ? (
                         <>
-                            {lastComposePayload.current ? (
+                            {lastComposePayload.current && !missingFromPlugin ? (
                                 <ComposePreviewFrame
                                     pluginUrl={composePluginUrl}
                                     payload={lastComposePayload.current}

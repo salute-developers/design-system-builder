@@ -112,6 +112,15 @@ describe('ComponentEditorPreview Compose rollout', () => {
         expect(screen.queryByText('React story')).not.toBeInTheDocument();
     });
 
+    it('opens a Compose component missing from the plugin manifest with a diagnostic and without a frame', async () => {
+        pluginState.loadManifest = vi.fn().mockResolvedValue({ manifest: { components: ['Other'] } });
+
+        render(previewElement(composeConfig));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('BasicButton не зарегистрирован в Compose-плагине');
+        expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
+    });
+
     it('explains an unsupported browser for a Compose component without suggesting React', async () => {
         pluginState.supported = false;
 
