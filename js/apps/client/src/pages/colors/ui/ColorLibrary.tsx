@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 
 import {
+    groupRampName,
     resolveStepInGroup,
     resolveTokenGroupId,
-    templateRampName,
     type PaletteType,
     type ThemePalette,
 } from '../../../modules/palette';
@@ -30,11 +30,14 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
         const groupId = resolveTokenGroupId(palette, tokenName);
         return palette.template.map((ramp) => ({
             ramp,
-            name: templateRampName(ramp),
-            steps: ramp.steps.map(({ step }) => ({
-                step,
-                hex: (groupId ? resolveStepInGroup(palette, groupId, { ...ramp, step }) : undefined) ?? null,
-            })),
+            name: groupRampName(palette, groupId, ramp),
+            // Как в прототипе (`SDDS_ADDITIONAL_PALETTE.steps`): от тёмных ступеней к светлым.
+            steps: [...ramp.steps]
+                .sort((a, b) => b.step - a.step)
+                .map(({ step }) => ({
+                    step,
+                    hex: (groupId ? resolveStepInGroup(palette, groupId, { ...ramp, step }) : undefined) ?? null,
+                })),
         }));
     }, [palette, tokenName]);
     const needle = query.trim().toLowerCase();
@@ -42,13 +45,16 @@ export const ColorLibrary = ({ palette, tokenName, active, onPick }: LibraryProp
     return (
         <div className="cp-library cp-source-library">
             <div className="cp-library-search">
-                <span>⌕</span>
-                <input
-                    value={query}
-                    placeholder="Найти"
-                    aria-label="Найти цвет в библиотеке"
-                    onChange={(event) => setQuery(event.target.value)}
-                />
+                {/* Поле как поиск раздела «Палитра» и дерева токенов (`.source-palette-family-search`). */}
+                <label className="source-palette-family-search cp-library-search-field">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                        value={query}
+                        placeholder="Найти"
+                        aria-label="Найти цвет в библиотеке"
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                </label>
             </div>
             <div className="cp-library-list">
                 {visible.map(({ ramp, name, steps }) => (

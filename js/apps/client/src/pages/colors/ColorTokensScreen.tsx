@@ -121,6 +121,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         null,
     );
     const [deleting, setDeleting] = useState<{ busy: boolean; error: string | null } | null>(null);
+    const [removing, setRemoving] = useState(false);
     const [legacy, setLegacy] = useState(() => editor.legacyDraft());
     const legacyFamilies = useMemo(() => legacyDraftFamilies(legacy).length, [legacy]);
     const [legacyBusy, setLegacyBusy] = useState(false);
@@ -239,9 +240,14 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    const remove = async () => {
-        if (!selected) return;
-        setDeleting({ busy: true, error: null });
+    /**
+     * Удаление токена: с подтверждением — ошибка остаётся в окне, без подтверждения (у токена нет связей с
+     * компонентами) — показывается баннером инспектора.
+     */
+    const remove = async (confirmed: boolean) => {
+        if (!selected || removing) return;
+        setRemoving(true);
+        if (confirmed) setDeleting({ busy: true, error: null });
         try {
             await editor.remove(selected);
             await refreshPalette();
@@ -249,8 +255,18 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             setSelectedId(null);
             rerender();
         } catch (error) {
-            setDeleting({ busy: false, error: errorText(error) });
+            if (confirmed) setDeleting({ busy: false, error: errorText(error) });
+            else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
+        } finally {
+            setRemoving(false);
         }
+    };
+
+    /** Подтверждение нужно, только если токен используется в компонентах дизайн-системы. */
+    const requestDelete = () => {
+        if (!selected) return;
+        if (componentsUsingToken(components, selected.key).length) setDeleting({ busy: false, error: null });
+        else void remove(false);
     };
 
     /** Адрес отказа `<tokenId>:<platform>:<mode>` в терминах инспектора: подтема, платформа, режим. */
@@ -563,7 +579,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onOpacity={(field, percent) => edit(() => editor.setOpacity(selected, field, percent))}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
-                            onDelete={() => setDeleting({ busy: false, error: null })}
+                            onDelete={requestDelete}
                             onFill={() => edit(() => editor.fill(selected, sectionDefaults(selected.section)))}
                             onRetry={() => editor.retry(selected.id)}
                             run={(operation) => session.autosave.run(operation)}
@@ -624,7 +640,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     busy={deleting.busy}
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
-                    onConfirm={remove}
+                    onConfirm={() => void remove(true)}
                 />
             )}
         </div>

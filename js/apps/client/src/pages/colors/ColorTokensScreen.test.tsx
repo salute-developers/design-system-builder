@@ -7,7 +7,7 @@ const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '/api/projects' }));
 
 import { ThemeEditorRepository } from '../../api/themeEditorRepository';
-import { DesignSystem } from '../../controllers';
+import { DesignSystem, type Config, type Theme } from '../../controllers';
 import { ColorTokenOperationError, type ColorTokenRepository } from '../../modules/colorTokens';
 import { setColorTokenRepository } from './colorTokenEditor';
 import { ColorTokensScreen } from './ColorTokensScreen';
@@ -71,7 +71,25 @@ const repository = {
 };
 
 /** Загружает тему через репозиторий редактора, как `useDesignSystem`, и рендерит экран. */
-const renderScreen = async (role = 'maintainer', missing: string[] = []) => {
+/** Компонент, общее свойство которого ссылается на токен [token] — связь токена с компонентом. */
+const componentUsing = (name: string, token: string) =>
+    ({
+        getName: () => name,
+        getVariations: () => [],
+        getInvariants: () => ({
+            getList: () => [
+                {
+                    getName: () => 'color',
+                    getType: () => 'color',
+                    getValue: () => token,
+                    getStates: () => [],
+                    getWebTokens: () => [],
+                },
+            ],
+        }),
+    }) as unknown as Config;
+
+const renderScreen = async (role = 'maintainer', missing: string[] = [], components: Config[] = []) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
     const snapshot = await new ThemeEditorRepository().load(context);
     const designSystem = DesignSystem.fromSnapshot({
@@ -83,17 +101,21 @@ const renderScreen = async (role = 'maintainer', missing: string[] = []) => {
     const theme = designSystem.createThemeInstance({ includeExtraTokens: true });
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
     const screenContext = { ...context, tenantId: `tenant-${++tenantSeq}` };
-    let swapTheme: () => void = () => undefined;
+    let swapTheme: (change?: (theme: Theme) => void) => void = () => undefined;
     const Host = () => {
         const [updated, rerender] = useReducer((value: number) => value + 1, 0);
         const [current, setCurrent] = useState(theme);
-        swapTheme = () => setCurrent(designSystem.createThemeInstance({ includeExtraTokens: true }));
+        swapTheme = (change) => {
+            const next = designSystem.createThemeInstance({ includeExtraTokens: true });
+            change?.(next);
+            setCurrent(next);
+        };
         return (
             <ColorTokensScreen
                 context={screenContext}
                 designSystem={designSystem}
                 theme={current}
-                components={[]}
+                components={components}
                 palette={null}
                 tokenDefinitions={snapshot.tokenDefinitions}
                 incompleteTokenIds={snapshot.incompleteTokenIds}
@@ -108,7 +130,7 @@ const renderScreen = async (role = 'maintainer', missing: string[] = []) => {
             <Host />
         </MemoryRouter>,
     );
-    return { designSystem, reloadTheme: () => act(() => swapTheme()) };
+    return { designSystem, reloadTheme: (change?: (theme: Theme) => void) => act(() => swapTheme(change)) };
 };
 
 const inspector = () => document.querySelector('.properties-panel') as HTMLElement;
@@ -243,6 +265,27 @@ describe('ColorTokensScreen', () => {
         expect(repository.create).not.toHaveBeenCalled();
     });
 
+    it('после перезагрузки темы накладывает только свои правки и не затирает чужие', async () => {
+        repository.updateValues
+            .mockRejectedValueOnce(new ColorTokenOperationError('network', 'Сервис недоступен'))
+            .mockResolvedValueOnce({ editRevision: 5 });
+        const { reloadTheme } = await renderScreen();
+
+        const dark = within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0];
+        fireEvent.change(dark, { target: { value: '#123456' } });
+        fireEvent.keyDown(dark, { key: 'Enter' });
+        await waitFor(() => expect(screen.getByTestId('color-tokens-save-status')).toHaveTextContent('Не сохранено'));
+
+        // Light изменён в другой вкладке: новая загрузка темы приносит его значение.
+        await reloadTheme((theme) =>
+            ['web', 'ios', 'android'].forEach((platform) =>
+                theme.getToken('light.text.default.accent', 'color')?.setValue(platform as never, '#ABCDEF' as never),
+            ),
+        );
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('ABCDEF');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveValue('123456');
+    });
+
     it('создаёт токен в разделе со значениями всех подтем', async () => {
         repository.create.mockImplementation(async (_context, input) => ({
             editRevision: 4,
@@ -272,12 +315,26 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('color-token-row-color:text.highlight')).toBeInTheDocument();
     });
 
-    it('удаляет токен после подтверждения', async () => {
+    it('удаляет токен без связей с компонентами без подтверждения', async () => {
         repository.delete.mockResolvedValue({ editRevision: 4 });
         await renderScreen();
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
-        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить токен' }));
+
+        expect(screen.queryByRole('dialog')).toBeNull();
+        await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+    });
+
+    it('удаляет токен, используемый в компонентах, после подтверждения со списком компонентов', async () => {
+        repository.delete.mockResolvedValue({ editRevision: 4 });
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
+        const dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Button');
+        expect(repository.delete).not.toHaveBeenCalled();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
 
         await waitFor(() => expect(repository.delete).toHaveBeenCalledWith(expect.anything(), 'accent-0', 3));
         await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());

@@ -36,8 +36,9 @@ export const ColorTokenTree = (props: TreeProps) => {
         <aside className="token-browser">
             <div className={`token-panel-header token-menu-header sidebar-header ${searching ? 'is-searching' : ''}`}>
                 {searching ? (
-                    <label className="sidebar-search-field">
-                        <CtGlyph name="search" />
+                    // Поле как поиск раздела «Палитра» (`.source-palette-family-search`), чтобы поиск выглядел одинаково.
+                    <label className="source-palette-family-search token-search-field">
+                        <span aria-hidden="true">⌕</span>
                         <input
                             autoFocus
                             value={query}
