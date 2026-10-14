@@ -320,13 +320,15 @@ dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --pla
 ```
 
 Команде не нужны проект, `.sdds/config.json`, Gradle и дизайн-система: только файл, платформа и API URL.
-`--from` и `--platform` обязательны. Поддержаны `compose`, `android-view` и `swiftui`; остальные
+`--from` и `--platform` обязательны. Поддержаны `compose`, `android-view`, `swiftui` и `react`; остальные
 платформы команда отклоняет до чтения файла и обращения к backend.
 
 Файл меты — вывод генератора меты платформы (`uikit-compose-api-meta.json`, `uikit-api-meta.json`,
-`ios-api-meta.json`) или вывод плагина `dsBuilder`; нормализатор читает эти формы. Платформа должна
-совпадать с файлом: меты платформ разные, и файл другой платформы команда отклоняет с указанием пути.
-Версию меты определяет выбранный файл, поэтому проверяйте, что он от нужного релиза библиотеки.
+`ios-api-meta.json`) или вывод плагина `dsBuilder`; нормализатор читает эти формы. Для `react` это
+`web-api-meta.json`, который строит `npm run generate:api-meta -- --package @salutejs/plasma-new-hope` в `js/cli`
+(см. `js/cli/README.md`). Платформа должна совпадать с файлом: меты платформ разные, и файл другой платформы
+команда отклоняет с указанием пути. Версию меты определяет выбранный файл, поэтому проверяйте, что он от нужного
+релиза библиотеки или пакета компонентов.
 
 Мету iOS собирает генератор репозитория plasma-ios (`scripts/generate_api_meta.sh`), результат лежит
 в `DesignSystemBuilder/.sdds/ios-api-meta.json`. В базу из неё не идут параметры без кода на платформе:
@@ -334,9 +336,19 @@ dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --pla
 их число строкой `Skipped: N properties without platform code`.
 
 Платформенные имена свойств попадают в базу под платформой запроса: `compose` для Compose, `xml` для
-Android View (XML-атрибуты вроде `sd_labelColor`) и `ios` для SwiftUI (имена свойств в коде). У одного
-свойства имён может быть несколько: на iOS один ключ конфигурации раскладывается по нескольким
-свойствам кода (`toggleIconColor` → `toggleColorChecked`, `toggleColorIndeterminate`).
+Android View (XML-атрибуты вроде `sd_labelColor`), `ios` для SwiftUI (имена свойств в коде) и `web` для web
+(ключи CSS-токенов вроде `buttonColor`). У одного свойства имён может быть несколько: на iOS один ключ
+конфигурации раскладывается по нескольким свойствам кода (`toggleIconColor` → `toggleColorChecked`,
+`toggleColorIndeterminate`).
+
+Особенности веб-меты: запись в ней — токен, и токены сводятся в свойство по `id` (`@styleProp`). Части
+типографики дают несколько имён одного свойства (`buttonFontFamily`, `buttonFontSize`, …). Токены с
+`@styleState` несут значение свойства в состоянии и именами не становятся; свойство только из таких
+токенов пропускается (`Skipped: N properties with state tokens only`). Состояния взаимодействия
+(`hovered`, `pressed`, `focused` и др.) общие для всех компонентов и состояниями компонента не заводятся.
+Компонент без токенов (файл токенов без словаря, например `AvatarGroup`) заводится в базе без свойств.
+Веб-компоненты в базе уже есть из сидов: начинайте с dry run и сверяйте `Created components` и
+`Property type mismatches`, чтобы имена из меты не завели дубли.
 
 Перед отправкой команда печатает платформу, путь файла меты, число компонентов, свойств и состояний
 и API URL. На backend уходит одно имя файла без каталогов. Данные идут одним запросом.
