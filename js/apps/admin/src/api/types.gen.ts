@@ -707,7 +707,10 @@ export interface paths {
         /** Get components with full sources (api, variations, configs) for a design system (legacy) */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Component platform; web when omitted */
+                    platform?: "web" | "compose";
+                };
                 header?: never;
                 path: {
                     name: string;
@@ -723,6 +726,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": unknown[];
+                    };
+                };
+                /** @description Unknown platform */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description Not found */

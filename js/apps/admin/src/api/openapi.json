@@ -4069,6 +4069,21 @@
             "required": true,
             "name": "name",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "compose"
+              ],
+              "description": "Component platform; web when omitted",
+              "example": "compose"
+            },
+            "required": false,
+            "description": "Component platform; web when omitted",
+            "name": "platform",
+            "in": "query"
           }
         ],
         "responses": {
@@ -4081,6 +4096,16 @@
                   "items": {
                     "nullable": true
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
