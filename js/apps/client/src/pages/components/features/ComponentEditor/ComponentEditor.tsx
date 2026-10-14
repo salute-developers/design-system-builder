@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useComponentData, useStory } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
@@ -29,7 +29,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const config = configs?.[0];
 
-    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getName());
+    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getPlatform() === 'web' ? config.getName() : undefined);
 
     const [
         selectedVariation,
@@ -41,6 +41,11 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     ] = useComponentData(config, storyArgs);
 
     const [themeMode, setThemeMode] = useState<SegmentButtonItem>(modeList[0]);
+    // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
+    const resolveStyleReference = useCallback(
+        (reference: string) => designSystem.resolveComposeStyleReference(reference),
+        [designSystem],
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const relatedConfigs = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
 
@@ -151,6 +156,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 onStorySelect={setSelectedStory}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
+                resolveStyleReference={resolveStyleReference}
             />
         </Root>
     );

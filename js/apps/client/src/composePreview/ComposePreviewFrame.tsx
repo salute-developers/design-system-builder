@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadComposePreviewManifest } from './manifest';
-import { ComposePreviewSession } from './session';
+import { ComposePreviewResultError, ComposePreviewSession, ComposePreviewTimeoutError } from './session';
 import { PreviewComponentDescription, PreviewPayloadInput } from './types';
 import type { LoadedComposePreviewManifest } from './types';
 import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
@@ -22,6 +22,20 @@ interface ComposePreviewFrameProps {
 
 type FrameStatus = 'loading' | 'ready' | 'rendering' | 'success' | 'failure';
 
+const PLUGIN_CRASH_CODES = ['render_crashed', 'plugin_crashed'];
+
+const crashReason = (error: unknown, message: string) =>
+    error instanceof ComposePreviewTimeoutError
+        ? 'Компонент не отрисовался: плагин перестал отвечать.'
+        : `Плагин остановился: ${message.replace(/^Compose preview stopped:\s*/, '')}.`;
+
+/** Плагин перестал рисовать: исключение остановило Compose либо кадр не состоялся за отведённое время. */
+const isPluginCrash = (error: unknown) =>
+    error instanceof ComposePreviewTimeoutError ||
+    (error instanceof ComposePreviewResultError &&
+        error.result.type === 'failure' &&
+        PLUGIN_CRASH_CODES.includes(error.result.code));
+
 const defaultCreateSession: NonNullable<ComposePreviewFrameProps['createSession']> = (plugin, targetWindow, timeoutMs) =>
     new ComposePreviewSession(plugin, { targetWindow, timeoutMs });
 
@@ -41,6 +55,15 @@ export const ComposePreviewFrame = ({
     const [status, setStatus] = useState<FrameStatus>('loading');
     const [failure, setFailure] = useState<string>();
     const [readyVersion, setReadyVersion] = useState(0);
+    const [revealed, setRevealed] = useState(false);
+    // Остановленный Compose оживает только перезагрузкой iframe; payload, который его остановил, повторно не шлём.
+    const [generation, setGeneration] = useState(0);
+    const crashedPayloadRef = useRef<string>();
+    const payloadKey = useMemo(() => JSON.stringify(payload), [payload]);
+    // У скрытой страницы браузер останавливает кадры, и плагин не может подтвердить отрисовку: это не сбой.
+    const stalledWhileHiddenRef = useRef(false);
+    const [resendTick, setResendTick] = useState(0);
+    const [crashNotice, setCrashNotice] = useState<{ key: string; message: string }>();
 
     useEffect(() => {
         let cancelled = false;
@@ -49,6 +72,7 @@ export const ComposePreviewFrame = ({
 
         setStatus('loading');
         setFailure(undefined);
+        setRevealed(false);
 
         void loadManifest(pluginUrl)
             .then((plugin) => {
@@ -76,7 +100,7 @@ export const ComposePreviewFrame = ({
             latestRequestRef.current = undefined;
             latestDescriptionRef.current = undefined;
         };
-    }, [pluginUrl, timeoutMs, loadManifest, createSession]);
+    }, [pluginUrl, timeoutMs, loadManifest, createSession, generation]);
 
     useEffect(() => {
         const session = sessionRef.current;
@@ -95,8 +119,22 @@ export const ComposePreviewFrame = ({
     }, [payload.component.id, readyVersion, onDescription, onDescriptionError]);
 
     useEffect(() => {
+        const onVisible = () => {
+            if (document.visibilityState !== 'visible' || !stalledWhileHiddenRef.current) return;
+            stalledWhileHiddenRef.current = false;
+            setResendTick((value) => value + 1);
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => document.removeEventListener('visibilitychange', onVisible);
+    }, []);
+
+    useEffect(() => {
         const session = sessionRef.current;
         if (!session || !readyVersion) return;
+        // Сравнение по содержимому: payload пересобирается при каждом изменении редактора, но тот же самый
+        // payload, остановивший плагин, повторно слать нельзя, иначе плагин перезапускается бесконечно.
+        if (crashedPayloadRef.current === payloadKey) return;
 
         setStatus('rendering');
         setFailure(undefined);
@@ -109,16 +147,43 @@ export const ComposePreviewFrame = ({
             })
             .catch((error) => {
                 if (latestRequestRef.current !== requestId) return;
-                setFailure(error instanceof Error ? error.message : String(error));
+                const message = error instanceof Error ? error.message : String(error);
+                if (error instanceof ComposePreviewTimeoutError && document.visibilityState === 'hidden') {
+                    stalledWhileHiddenRef.current = true;
+                    return;
+                }
+                if (isPluginCrash(error)) {
+                    crashedPayloadRef.current = payloadKey;
+                    setCrashNotice({ key: payloadKey, message: `${crashReason(error, message)} Превью перезапущено.` });
+                    setGeneration((value) => value + 1);
+                    return;
+                }
+                setFailure(message);
                 setStatus('failure');
             });
-    }, [payload, readyVersion]);
+    }, [payload, readyVersion, resendTick]);
+
+    // Iframe скрыт до первого успешного render: пока Compose/Wasm поднимается, он рисует белый кадр.
+    // Показываем после двух кадров, чтобы нарисованный результат уже был на экране.
+    useEffect(() => {
+        if (status !== 'success' || revealed) return;
+        let second = 0;
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(() => setRevealed(true));
+        });
+
+        return () => {
+            cancelAnimationFrame(first);
+            cancelAnimationFrame(second);
+        };
+    }, [status, revealed]);
 
     return (
         <FrameRoot data-status={status}>
             <PreviewIframe
                 ref={iframeRef}
                 title="Compose component preview"
+                $hidden={!revealed && status !== 'failure'}
                 sandbox="allow-scripts allow-same-origin"
                 onLoad={() => {
                     const session = sessionRef.current;
@@ -129,6 +194,7 @@ export const ComposePreviewFrame = ({
                     latestDescriptionRef.current = undefined;
                     setFailure(undefined);
                     setStatus('loading');
+                    setRevealed(false);
                     void session
                         .waitUntilReady()
                         .then(() => {
@@ -145,7 +211,9 @@ export const ComposePreviewFrame = ({
             />
             {status === 'loading' && <Status>Loading Compose preview…</Status>}
             {status === 'rendering' && <Status>Rendering Compose preview…</Status>}
-            {failure && <Status role="alert">{failure}</Status>}
+            {(failure ?? (crashNotice?.key === payloadKey ? crashNotice.message : undefined)) && (
+                <Status role="alert">{failure ?? crashNotice?.message}</Status>
+            )}
         </FrameRoot>
     );
 };

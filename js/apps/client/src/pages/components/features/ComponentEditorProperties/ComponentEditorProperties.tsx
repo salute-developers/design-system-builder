@@ -119,6 +119,19 @@ const renderComponentProp = ({ prop, theme, onChange, onStateChange }: RenderCom
         );
     }
 
+    // Ссылка на стиль другого компонента пока не редактируется: показываем её как есть.
+    if (propType === 'component_style') {
+        return (
+            <TextField
+                stretched
+                hasBackground
+                readOnly
+                label={<StyledPropLabel>{propName}</StyledPropLabel>}
+                value={String(propValue ?? '')}
+            />
+        );
+    }
+
     if (propType === 'float' || propType === 'dimension') {
         return (
             <TextField

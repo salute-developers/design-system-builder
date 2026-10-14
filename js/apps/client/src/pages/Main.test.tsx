@@ -20,6 +20,7 @@ vi.mock('../hooks', () => ({
               },
         theme: hookState.loading ? null : { getName: () => 'Brand' },
         components: hookState.loading ? null : [],
+        composeComponents: [],
         incompleteTokenIds: [],
         loadError: null,
         reload,

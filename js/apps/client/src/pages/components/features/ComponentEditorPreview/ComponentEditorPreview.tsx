@@ -19,6 +19,7 @@ import {
     loadComposePreviewManifest,
     PreviewComponentDescription,
     PreviewExamplePropertyDescription,
+    StyleReferenceResolver,
 } from '../../../../composePreview';
 
 import {
@@ -51,6 +52,8 @@ interface ComponentEditorPreviewProps {
     onStorySelect: (value: SelectButtonItem) => void;
     onUpdateThemeMode: (value: SegmentButtonItem) => void;
     onChange: (name: string, value: unknown) => void;
+    /** Разворачивает ссылки на стили других Compose-компонентов; без него вложенные стили не передаются. */
+    resolveStyleReference?: StyleReferenceResolver;
 }
 
 export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
@@ -70,6 +73,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         themeModeList,
         onUpdateThemeMode,
         onChange,
+        resolveStyleReference,
     } = props;
 
     const variations = config.getVariations();
@@ -111,6 +115,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const [composeExampleProps, setComposeExampleProps] = useState<Record<string, string | number | boolean>>({});
     const composePluginUrl = getComposePreviewPluginUrl();
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
+    // Compose-компонент существует только в плагине: React-preview у него нет.
+    const isComposeComponent = config.getPlatform() === 'compose';
     const supportsCompose = Boolean(composePreviewMetadata);
     const hasComposeMetadata = Boolean(config.getPreviewMetadata().componentId);
     const rendererModes = useMemo(
@@ -122,8 +128,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     );
     // Режим Compose «залипает» в состоянии, когда пользователь переходит к компоненту без Compose:
     // тогда эффективным остаётся React.
-    const activeRenderer = supportsCompose ? rendererMode.value : 'react';
-    const activeRendererItem = supportsCompose ? rendererMode : rendererModes[0];
+    const activeRenderer = isComposeComponent || supportsCompose ? rendererMode.value : 'react';
+    const activeRendererItem = isComposeComponent || supportsCompose ? rendererMode : rendererModes[0];
     const composeAssembly = useMemo(() => {
         const surfaceToken = getBackgroundTokenName(String(themeMode.value), String(background.label));
         const surfaceColor = restorePaletteColor(
@@ -137,6 +143,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             previewMetadata: composePreviewMetadata,
             args,
             variationSelections: args,
+            resolveStyleReference,
             exampleProps: composeExampleProps,
             themeMode: String(themeMode.value),
             themeValuePlatform: 'android',
@@ -150,6 +157,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         composeExampleProps,
         config,
         config.getRevision(),
+        resolveStyleReference,
         theme,
         theme.getRevision(),
         themeMode,
@@ -167,7 +175,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         setComposeDescription(undefined);
         setComposeExampleProps({});
         setComposeDescriptionError(undefined);
-        setRendererMode({ label: 'React', value: 'react' });
+        setRendererMode(isComposeComponent ? { label: 'Compose', value: 'compose' } : { label: 'React', value: 'react' });
         lastComposePayload.current = undefined;
         if (!composePluginUrl || !composeEnvironmentSupported) return;
 
@@ -192,7 +200,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         return () => {
             cancelled = true;
         };
-    }, [componentName, composePluginUrl, composeEnvironmentSupported, config]);
+    }, [componentName, composePluginUrl, composeEnvironmentSupported, config, isComposeComponent]);
     const switchBackground = useMemo(
         () =>
             restorePaletteColor(
@@ -374,14 +382,20 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         <Root>
             <StyledPreviewShadow>
                 <StyledPreviewBackgroundEditor>
-                    <SegmentButton
-                        label="Renderer"
-                        items={rendererModes}
-                        selected={activeRendererItem}
-                        onSelect={setRendererMode}
-                    />
+                    {!isComposeComponent && (
+                        <SegmentButton
+                            label="Renderer"
+                            items={rendererModes}
+                            selected={activeRendererItem}
+                            onSelect={setRendererMode}
+                        />
+                    )}
                     {composePluginUrl && hasComposeMetadata && !composeEnvironmentSupported && (
-                        <div role="status">Compose-preview недоступен в этом браузере. Используйте React-preview.</div>
+                        <div role="status">
+                            {isComposeComponent
+                                ? 'Compose-preview недоступен в этом браузере.'
+                                : 'Compose-preview недоступен в этом браузере. Используйте React-preview.'}
+                        </div>
                     )}
                     <SegmentButton
                         label="Режим"
@@ -398,7 +412,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                     />
                 </StyledPreviewBackgroundEditor>
                 <StyledComponentWrapper background={background.value} style={{ ...componentVars, ...themeVars }}>
-                    {activeRenderer === 'compose' && composePluginUrl ? (
+                    {activeRenderer === 'compose' && composePluginUrl && composeEnvironmentSupported ? (
                         <>
                             {lastComposePayload.current ? (
                                 <ComposePreviewFrame

@@ -1,4 +1,13 @@
-import type { ColorProp, DimensionProp, FloatProp, ShadowProp, ShapeProp, TypographyProp, ValueProp } from './props';
+import type {
+    ColorProp,
+    DimensionProp,
+    FloatProp,
+    ShadowProp,
+    ShapeProp,
+    StyleReferenceProp,
+    TypographyProp,
+    ValueProp,
+} from './props';
 
 export const DEFAULT_FONT_SIZE = 16;
 
@@ -20,13 +29,30 @@ export const DEFAULT_FONT_SIZE = 16;
 
 // ТИПЫ ПО ФАЙЛАМ
 
-export type PropType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography' | 'value';
+export type PropType =
+    | 'color'
+    | 'dimension'
+    | 'float'
+    | 'shadow'
+    | 'shape'
+    | 'typography'
+    | 'value'
+    /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
+    | 'component_style';
 
 export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
 
 export type Intersections = Record<string, string[]>;
 
-export type PropUnion = ColorProp | FloatProp | ShadowProp | ShapeProp | DimensionProp | TypographyProp | ValueProp;
+export type PropUnion =
+    | ColorProp
+    | FloatProp
+    | ShadowProp
+    | ShapeProp
+    | DimensionProp
+    | TypographyProp
+    | ValueProp
+    | StyleReferenceProp;
 
 export interface WebToken {
     name: string;
@@ -115,9 +141,13 @@ export interface Sources {
     configs: Config[];
 }
 
+export type ComponentPlatform = 'web' | 'compose';
+
 export interface Meta {
     name: string;
     description: string;
+    /** Платформа компонента; без значения — `web`. Проставляется клиентом при загрузке. */
+    platform?: ComponentPlatform;
     deps?: ComponentDep[];
     preview?: {
         compose?: {

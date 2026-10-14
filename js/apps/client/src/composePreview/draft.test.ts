@@ -4,6 +4,8 @@ import { Config } from '../controllers/componentBuilder';
 import type { Meta } from '../controllers/componentBuilder/type';
 import { buildMockTheme } from '../controllers/themeBuilder/themes/builders';
 import { createComponentPreviewDraft } from './draft';
+import { resolveStyleReference } from '../controllers/componentBuilder';
+import { buttonMeta, groupMeta } from './nestedStyleFixture';
 
 const componentMeta = (): Meta => ({
     name: 'Button',
@@ -106,6 +108,22 @@ describe('createComponentPreviewDraft', () => {
             }),
         ]);
         expect(() => JSON.stringify(result.draft)).not.toThrow();
+    });
+
+    it('passes gradient and shadow theme tokens to the draft', () => {
+        const result = createComponentPreviewDraft({
+            config: new Config(componentMeta()),
+            theme: buildMockTheme(),
+            args: {},
+            themeMode: 'light',
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+        });
+
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        const types = new Set(result.draft.themeTokens.map((token) => token.type));
+        expect(types.has('gradient') || types.has('shadow')).toBe(true);
     });
 
     it('uses configured defaults and reports unavailable stable metadata', () => {
@@ -232,5 +250,60 @@ describe('createComponentPreviewDraft', () => {
                 example: { props: { shape: 'Story shape value' } },
             },
         });
+    });
+});
+
+describe('createComponentPreviewDraft: combinations and nested styles', () => {
+    const draftOf = (selections: Record<string, string>, withResolver = true) => {
+        const metas = [groupMeta(), buttonMeta()];
+        const result = createComponentPreviewDraft({
+            config: new Config(groupMeta()),
+            theme: buildMockTheme(),
+            previewMetadata: { componentId: 'ButtonGroup', storyId: 'ButtonGroup' },
+            args: {},
+            variationSelections: selections,
+            themeMode: 'light',
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+            resolveStyleReference: withResolver ? (reference) => resolveStyleReference(metas, reference) : undefined,
+        });
+        if (!result.ok) throw new Error('draft failed');
+        return result.draft;
+    };
+
+    it('applies the value of the combination whose styles are all selected', () => {
+        const wide = draftOf({ size: 'group-xxs', gap: 'gap-wide', shape: 'shape-default' });
+        const dense = draftOf({ size: 'group-xxs', gap: 'gap-dense', shape: 'shape-default' });
+
+        expect(wide.selectedStyleProperties.find((item) => item.id === 'spacing')?.value).toBe('8');
+        expect(dense.selectedStyleProperties.find((item) => item.id === 'spacing')?.value).toBe('2');
+        expect(wide.selectedStyleProperties.find((item) => item.id === 'shape')?.value).toBe('12');
+    });
+
+    it('ignores a combination with an unselected style', () => {
+        const draft = draftOf({ size: 'group-xxs' });
+
+        expect(draft.selectedStyleProperties.find((item) => item.id === 'spacing')).toBeUndefined();
+    });
+
+    it('turns a style reference into a nested style with the target properties', () => {
+        const draft = draftOf({ size: 'group-xxs', gap: 'gap-wide', shape: 'shape-default' });
+
+        const reference = draft.selectedStyleProperties.find((item) => item.id === 'buttonStyle');
+        expect(reference).toMatchObject({ styleRef: 'basic-button.xxs.default', value: undefined });
+        expect(draft.styles).toEqual([
+            {
+                id: 'basic-button.xxs.default',
+                componentId: 'BasicButton',
+                properties: [expect.objectContaining({ id: 'height', value: '24' })],
+            },
+        ]);
+    });
+
+    it('skips a reference that cannot be resolved instead of sending it as a token', () => {
+        const draft = draftOf({ size: 'group-xxs' }, false);
+
+        expect(draft.selectedStyleProperties.find((item) => item.id === 'buttonStyle')).toBeUndefined();
+        expect(draft.styles).toBeUndefined();
     });
 });

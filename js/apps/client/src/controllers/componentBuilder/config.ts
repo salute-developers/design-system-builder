@@ -1,7 +1,13 @@
-import type { ComponentAPI, ComponentVariation, Meta, State } from './type';
+import type { ComponentAPI, ComponentPlatform, ComponentVariation, Meta, State } from './type';
 import { Props } from './props';
 import { Variation } from './variation';
 import { Default } from './default';
+
+/** Значения свойств, действующие, когда выбраны все стили из `styleIDs`. */
+export interface Combination {
+    styleIDs: string[];
+    props: Props;
+}
 
 export class Config {
     private name: string;
@@ -13,8 +19,11 @@ export class Config {
     private variations: Variation[] = [];
 
     private invariants: Props;
+    private combinations: Combination[] = [];
+    private appearanceName = '';
     private revision = 0;
     private readonly previewMetadata?: Meta['preview'];
+    private readonly platform: ComponentPlatform;
 
     constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
@@ -23,8 +32,11 @@ export class Config {
         this.description = description;
         const { api, configs, variations } = sources;
         this.previewMetadata = meta.preview;
+        this.platform = meta.platform ?? 'web';
 
-        const config = (configID ? configs.find((item) => item.id === configID) : configs[0])?.config;
+        const appearance = configID ? configs.find((item) => item.id === configID) : configs[0];
+        const config = appearance?.config;
+        this.appearanceName = appearance?.name ?? '';
 
         if (!config) {
             this.variations = variations.map(({ id, name }) => new Variation(name, { id, styles: [] }, api));
@@ -41,6 +53,10 @@ export class Config {
         });
 
         this.invariants = new Props(config.invariantProps, api);
+        this.combinations = (config.combinations ?? []).map((item) => ({
+            styleIDs: item.styleIDs,
+            props: new Props(item.props, api),
+        }));
 
         this.defaults = config.defaultVariations.map((item) => {
             const variation = this.getVariationName(variations, item.variationID);
@@ -66,8 +82,22 @@ export class Config {
         return this.variations;
     }
 
+    /** Значения свойств для сочетаний стилей нескольких вариаций (например, `size` и `gap`). */
+    public getCombinations() {
+        return this.combinations;
+    }
+
+    /** Имя конфигурации (appearance): на неё ссылаются свойства-ссылки других компонентов. */
+    public getAppearanceName() {
+        return this.appearanceName;
+    }
+
     public getInvariants() {
         return this.invariants;
+    }
+
+    public getPlatform() {
+        return this.platform;
     }
 
     public getPreviewMetadata() {

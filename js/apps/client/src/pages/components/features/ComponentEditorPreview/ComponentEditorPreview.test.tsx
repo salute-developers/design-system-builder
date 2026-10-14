@@ -71,6 +71,7 @@ const config = {
     getName: () => 'Button',
     getVariations: () => [],
     getRevision: () => 1,
+    getPlatform: () => 'web',
     getPreviewMetadata: () => ({ componentId: 'BasicButton', storyId: 'BasicButton' }),
 };
 const theme = {

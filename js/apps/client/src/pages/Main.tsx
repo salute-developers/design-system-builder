@@ -74,6 +74,7 @@ export const Main = () => {
         designSystem,
         theme,
         components,
+        composeComponents,
         incompleteTokenIds,
         loadError,
         reload,
@@ -94,7 +95,7 @@ export const Main = () => {
     const isEditingDesignSystem = any(editorContext, all(designSystemName, designSystemVersion));
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = Boolean(components?.length);
+    const hasComponents = Boolean(components?.length || composeComponents.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = all(!isPopupOpen, !isEditingDesignSystem);
     const hasUnpublishedChanges = Boolean(
@@ -331,6 +332,7 @@ export const Main = () => {
                                 designSystem,
                                 theme,
                                 components,
+                                composeComponents,
                                 updated,
                                 rerender,
                                 reload,
