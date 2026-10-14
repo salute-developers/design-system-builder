@@ -1,6 +1,6 @@
 # Как написать нормализатор API-меты для новой платформы
 
-Инструкция для разработчиков iOS и web. Нужна, чтобы команда `dsbuilder components import-api` начала
+Инструкция для разработчиков web. Нужна, чтобы команда `dsbuilder components import-api` начала
 принимать мету вашей платформы. Backend менять не нужно, всё делается в `frontend-kt`.
 
 ## 1. Как это работает
@@ -15,12 +15,13 @@
 Backend ничего не знает о форматах мет. Он получает **манифест**: компоненты, их свойства, состояния и
 платформенные имена свойств. Ваша задача — научить CLI превращать файл меты вашей платформы в этот манифест.
 
-Сейчас есть два готовых образца, на которые стоит опираться:
+Сейчас есть три готовых образца, на которые стоит опираться:
 
 | Платформа | Нормализатор | Тесты | Корпус |
 |---|---|---|---|
 | `compose` | `ComposeApiMetaNormalizer` | `ComposeApiMetaNormalizerTest` | `ComposeApiMetaCorpus.kt` |
 | `android-view` | `ViewApiMetaNormalizer` | `ViewApiMetaNormalizerTest` | `ViewApiMetaCorpus.kt` |
+| `swiftui` | `SwiftUiApiMetaNormalizer` | `SwiftUiApiMetaNormalizerTest` | `SwiftUiApiMetaCorpus.kt` |
 
 Все пути ниже относительно `frontend-kt/feature-components/src/`:
 `commonMain/kotlin/com/dsbuilder/frontend/feature/components/domain/apimeta/` (код) и
@@ -208,37 +209,34 @@ select c.platform, count(*) from components c group by 1;
 
 Веб-компоненты и компоненты других платформ импорт не меняет: проверьте, что их числа не изменились.
 
-## 7. iOS: что нужно решить
+## 7. iOS: как решено
 
-Файл `ios-api-meta.json` (генератор в iOS-репозитории) по форме близок к Compose:
+Платформа `swiftui` уже поддержана: нормализатор — `SwiftUiApiMetaNormalizer`, тесты —
+`SwiftUiApiMetaNormalizerTest`, корпус — `SwiftUiApiMetaCorpus.kt`. Раздел оставлен как образец того,
+какие решения платформа принимает перед тем, как заводить нормализатор.
 
-- корень — массив `[{ "componentName", "params": [...], "qualifiedName", ... }]`;
-- у параметра: `id`, `type`, `group`, `methodName`, `paramName`, `paramQualifiedType`, `paramSimpleType`,
-  `valueQualifiedType`, а также необязательные `unmapped`, `state`, `stateOnly`, `copyOf`, `fromVariation`,
-  `sizeFromIcon`, `valueEnum`, `markupValue`, `markupZero`, `rawNumber`, `alwaysEmit`;
-- блока `stateEnum`, как у Compose, нет.
+Файл `ios-api-meta.json` (генератор в репозитории plasma-ios) по форме близок к Compose: корень —
+массив `[{ "componentName", "params": [...], "stateEnum"?, ... }]`; у параметра есть `id`, `type`,
+`group`, `methodName`, `paramName`, `paramSimpleType`, а также необязательные `unmapped`, `state`,
+`stateOnly`, `copyOf`, `fromVariation`, `sizeFromIconId`, `valueEnum`, `markupValue`, `markupZero`,
+`rawNumber`, `alwaysEmit`.
 
-Решения, которые нужно принять и записать в `design.md` (предложения в скобках):
+| Вопрос | Решение |
+|---|---|
+| Откуда состояния | из `stateEnum`: `configName`, иначе `name` в kebab-case. Поле `state` у параметра состоянием компонента не считается — оно говорит, из какого состояния ключа брать значение, и среди таких состояний есть состояния взаимодействия, чей словарь в базе общий |
+| `unmapped` | пропускаются с категорией `properties without platform code`: у свойства нет кода на платформе, темизировать его на iOS нечем |
+| Повторы `id` | при одном типе сливаются, имена складываются в `platformNames` в порядке появления; первое вхождение побеждает только при конфликте типа |
+| Имя на платформе | `methodName` — имя свойства в коде. `id` не годится: он отличается от имени в коде у 290 свойств из 903 |
+| Описание | `group: <group>; method: <methodName>; param: <paramSimpleType>`; значения, различающиеся у повторов, перечисляются через `/`. `group` входит в описание, потому что на iOS она различает свойство appearance (`root`) и свойство конфигурации размеров (`size`) |
+| Регистр имён | имя компонента — как в мете; iOS привёл его к `CheckBox`, `RadioBox`, `ScrollBar`, `ToolBar` |
+| `copyOf`, `fromVariation`, `valueEnum`, `markupValue` | в манифест не передаются: это то, как генератор добывает значение, а не свойство компонента |
+| `deprecated` | мета iOS поля не отдаёт: свойства, которых нет в конфигурациях оформления, из неё убраны на стороне генератора, и помечать нечего |
 
-| Вопрос | Факты | Предложение |
-|---|---|---|
-| Откуда состояния | у 13 параметров `state` (`checked`, `indeterminate`, `collapsed`, `activated`), у 4 `stateOnly` | собирать из `state` на параметрах; состояние `stateOnly` самостоятельным свойством не считать |
-| `unmapped` | 62 параметра без прямого соответствия в коде | пропускать в `skipped` с категорией «unmapped» или включать, если они темизируемые: решить с владельцем генератора |
-| Дубли `id` с разным типом | 9 пар, например `Drawer.closeIcon` (`icon` и `dimension`), всегда первый вхождение из группы `root` | брать первое вхождение, в `conflicts` не шуметь; лучше, чтобы генератор не дублировал |
-| Имя на платформе | `methodName` отличается от `id` у 363 из 965 параметров | решить явно; для Compose это `id`, для iOS, вероятно, имя параметра в коде (`methodName`/`paramName`) |
-| Регистр имён | в iOS `Checkbox`, `Radiobox`, `Scrollbar`, `Toolbar`; в конфигах и Compose `CheckBox`, `RadioBox`, `ScrollBar`, `ToolBar` | имя компонента — как в мете платформы; для сопоставления с конфигурациями отвечает импорт `components push` (канонизация без регистра), на импорт API это не влияет |
-| `copyOf`, `fromVariation`, `valueEnum`, `markupValue` | служебные признаки генератора | в манифест не передаются; решить, нужны ли `valueEnum` как типы |
-
-Отдельно, ошибки самой меты, которые стоит исправить в генераторе до импорта, иначе они попадут в базу
-(это не задача нормализатора):
-
-- `*Alpha` (`disableAlpha`, `loadingAlpha`) отдаются как `dimension`, а в остальных платформах это `float`;
-- `RectSkeleton.duration`, `TextSkeleton.duration` — `dimension`, должно быть `integer`;
-- `TextField.counterStyle`, `placeholderStyle`, `optionalStyle` — `value`, должно быть `typography`;
-- опечатки: `ChipGroup.funcinsets`, `Segment.disabledAlpha` (везде `disableAlpha`);
-- `Radiobox` содержит набор `toggleIndeterminate*` (похоже на копию `Checkbox`).
-
-В `TargetPlatform` iOS называется `SWIFT_UI` (`--platform swiftui`), на backend уходит `ios`.
+Ошибки меты, о которых говорил прежний вариант раздела, закрыты на стороне генератора: дублей `id`
+с разным типом нет, `*Alpha` отдаются как `float`, `duration` — как `integer`, стили `TextField` —
+как `typography`, `ChipGroup.funcinsets` и `Segment.disabledAlpha` убраны, у `RadioBox` больше нет
+набора `toggleIndeterminate*`. Форма закреплена тестами-инвариантами в репозитории iOS, поэтому
+нормализатор на неё опирается.
 
 ## 8. Web: что нужно выяснить сначала
 
