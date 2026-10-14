@@ -19,6 +19,7 @@ import {
     takeDraftSnapshot,
     clearDraftIfUnchanged,
     isDebugMode,
+    isComponentEditorEnabled,
 } from '../utils';
 import { IconColorSwatchOutline, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
@@ -102,7 +103,7 @@ export const Main = () => {
     const isEditingDesignSystem = any(editorContext, all(designSystemName, designSystemVersion));
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = Boolean(components?.length || composeComponents.length);
+    const hasComponents = isComponentEditorEnabled() && Boolean(components?.length || composeComponents.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = all(!isPopupOpen, !isEditingDesignSystem);
     // Ключ черновика задаёт контекст tenant, а без него — имя и версия ДС; в URL темы их нет, берём из ДС

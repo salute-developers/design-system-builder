@@ -62,6 +62,23 @@ export default tseslint.config({
 ```
 # DS Builder client
 
+## Feature flags
+
+The component editor section ("Компоненты") is switched at build time by `VITE_COMPONENT_EDITOR_ENABLED`:
+
+| Value | Result |
+| --- | --- |
+| `true` | the section is available |
+| any other value | the section is off |
+| not set | on in the dev server (`npm run dev`), off in a production build |
+
+When the section is off, the navigation button is not shown, `.../components[/<name>]` redirects to `colors`, and the client
+does not request component configs. The other editors work as usual.
+
+DEV (`deploy-front-apps-dev.yml`) builds with `true`, PROM (`deploy-front-apps-prom.yml`) with `false`.
+`js/docker-compose.dev.yml` defaults to `true`; override it with `VITE_COMPONENT_EDITOR_ENABLED=false` in the
+environment. To turn the section off in the local dev server, set the variable in `.env.local`.
+
 ## Compose preview plugin
 
 Compose preview is an optional pilot renderer for the `Button` component. The plugin is **not part

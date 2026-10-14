@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios';
 import { type Meta, type ThemeSource } from '../controllers';
 import { Parameters } from '../types';
 import { PROJECTS_URL, http } from '../api';
+import { isComponentEditorEnabled } from './featureFlags';
 
 export interface BackendDesignSystem {
     id: number;
@@ -88,9 +89,14 @@ export const loadDesignSystem = async (data: {
             await http.get(`${PROJECTS_URL}/${data.projectId}/ds/legacy/design-systems/${data.name}/theme-data`)
         ).data as unknown as ThemeSource;
 
-        const componentsData = (
-            await http.get(`${PROJECTS_URL}/${data.projectId}/ds/legacy/design-systems/${data.name}/component-configs`)
-        ).data as unknown as Meta[];
+        // Раздел компонентов выключен сборкой: его данные никому не нужны, запрос не выполняется.
+        const componentsData = isComponentEditorEnabled()
+            ? ((
+                  await http.get(
+                      `${PROJECTS_URL}/${data.projectId}/ds/legacy/design-systems/${data.name}/component-configs`,
+                  )
+              ).data as unknown as Meta[])
+            : [];
 
         const parameters = (
             await http.get(`${PROJECTS_URL}/${data.projectId}/ds/legacy/design-systems/${data.name}/tenant-params`)
