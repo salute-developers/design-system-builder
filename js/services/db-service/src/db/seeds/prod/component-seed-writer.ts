@@ -80,10 +80,7 @@ export function renderComponentSeed(seed: ComponentSeed): Record<string, string>
         if (p.description) parts.push(`description: ${str(p.description)}`);
         if (p.defaultValue) parts.push(`defaultValue: ${str(p.defaultValue)}`);
         if (p.variations?.length) parts.push(`variations: [${p.variations.map(str).join(', ')}]`);
-        const params = Object.entries(p.params ?? {}).filter(([, names]) => names?.length);
-        if (params.length) {
-            parts.push(`params: { ${params.map(([platform, names]) => `${platform}: [${names!.map(str).join(', ')}]`).join(', ')} }`);
-        }
+        parts.push(`params: { web: [${p.params.web.map(str).join(', ')}] }`);
         return `    { ${parts.join(', ')} },`;
     });
 
