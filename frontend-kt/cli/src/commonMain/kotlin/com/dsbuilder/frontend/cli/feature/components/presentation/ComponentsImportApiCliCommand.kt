@@ -29,7 +29,7 @@ internal class ComponentsImportApiCliCommand(
         .help("API meta file of the platform: the output of the meta generator or of the dsBuilder plugin.")
 
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
-        .help("Platform of the API meta file.")
+        .help(platformImportApiHelp(importApiMetaUseCase.supportedPlatforms))
 
     private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")

@@ -34,6 +34,14 @@ public class ImportApiMetaUseCase internal constructor(
     private val normalizers: Map<TargetPlatform, ApiMetaNormalizer>,
 ) {
     /**
+     * Платформы, мету которых команда умеет читать, в порядке объявления нормализаторов.
+     *
+     * Список один на справку команды и на отказ: иначе он расходится с набором нормализаторов,
+     * как только появляется новая платформа.
+     */
+    public val supportedPlatforms: List<String> get() = normalizers.keys.map { it.cliValue }
+
+    /**
      * Выполняет импорт и возвращает результат для вывода команды.
      *
      * Локальные отказы (платформа, URL, файл, формат) стоят до обращения к сети: так администратор узнаёт о
@@ -51,7 +59,7 @@ public class ImportApiMetaUseCase internal constructor(
         val normalizer = normalizers[command.platform]
             ?: return ImportApiMetaResult.Failed(
                 "Error: components import-api does not support platform '${command.platform.cliValue}' yet. " +
-                    "Supported: ${normalizers.keys.joinToString { it.cliValue }}.",
+                    "Supported: ${supportedPlatforms.joinToString()}.",
             )
 
         val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
