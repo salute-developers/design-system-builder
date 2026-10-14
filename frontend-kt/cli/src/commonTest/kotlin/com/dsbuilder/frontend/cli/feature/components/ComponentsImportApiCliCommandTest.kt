@@ -188,11 +188,11 @@ class ComponentsImportApiCliCommandTest {
 
     @Test
     fun anUnsupportedPlatformIsRefusedBeforeAnythingIsSent() {
-        val result = run(base(platform = "swiftui"))
+        val result = run(base(platform = "react"))
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("does not support platform 'swiftui'"), result.output)
-        assertTrue(result.output.contains("Supported: compose, android-view"), result.output)
+        assertTrue(result.output.contains("does not support platform 'react'"), result.output)
+        assertTrue(result.output.contains("Supported: compose, android-view, swiftui"), result.output)
         assertTrue(requests.isEmpty())
     }
 
@@ -253,6 +253,34 @@ class ComponentsImportApiCliCommandTest {
         assertTrue(body.contains("\"states\":[\"active\"]"), body)
         listOf("Platform: android-view", "Source: $VIEW_META_PATH", "Components: 3", "Properties: 3", "States: 1")
             .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
+    }
+
+    @Test
+    fun aSwiftUiMetaGoesWithTheIosPlatform() {
+        val result =
+            run(base(platform = "swiftui", from = IOS_META_PATH), files = mapOf(IOS_META_PATH to IOS_META))
+
+        assertEquals(0, result.exitCode, result.output)
+        val (path, body) = requests.single()
+        assertEquals("/api/admin/component-config/import-api-meta", path)
+        assertTrue(body.contains("\"platform\":\"ios\""), body)
+        assertTrue(
+            body.contains(
+                "\"platformNames\":[{\"name\":\"toggleColorChecked\"},{\"name\":\"toggleColorIndeterminate\"}]",
+            ),
+            body,
+        )
+        assertTrue(body.contains("\"states\":[\"checked\"]"), body)
+        listOf("Platform: swiftui", "Source: $IOS_META_PATH", "Components: 1", "Properties: 1", "States: 1")
+            .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
+    }
+
+    @Test
+    fun whatTheSwiftUiNormalizerSkippedIsPrinted() {
+        val result =
+            run(base(platform = "swiftui", from = IOS_META_PATH), files = mapOf(IOS_META_PATH to IOS_META))
+
+        assertTrue(result.output.contains("Skipped: 1 properties without platform code"), result.output)
     }
 
     @Test
@@ -387,6 +415,7 @@ class ComponentsImportApiCliCommandTest {
     private companion object {
         const val META_PATH = "/work/meta/uikit-compose-api-meta.json"
         const val VIEW_META_PATH = "/work/meta/uikit-api-meta.json"
+        const val IOS_META_PATH = "/work/meta/ios-api-meta.json"
 
         /** Мета View в форме вывода плагина: поля со значениями по умолчанию опущены. */
         const val VIEW_META = """
@@ -411,6 +440,17 @@ class ComponentsImportApiCliCommandTest {
              {"componentName":"Badge","params":[
                {"id":"size","type":"dimension","group":"dimensions"},
                {"id":"size","type":"dimension","group":"dimensionValues"}]}]
+        """
+
+        /** Мета iOS: повтор `id` с разными именами в коде и параметр без кода на платформе. */
+        const val IOS_META = """
+            [{"componentName":"CheckBox","params":[
+               {"id":"toggleIconWidth","type":"dimension","group":"root","methodName":"","unmapped":true},
+               {"id":"toggleIconColor","type":"color","group":"root","methodName":"toggleColorChecked",
+                "paramSimpleType":"StatefulFillStyle"},
+               {"id":"toggleIconColor","type":"color","group":"root","methodName":"toggleColorIndeterminate",
+                "paramSimpleType":"StatefulFillStyle"}],
+              "stateEnum":{"values":[{"name":"checked","configName":"checked"}]}}]
         """
 
         const val REPORT = """

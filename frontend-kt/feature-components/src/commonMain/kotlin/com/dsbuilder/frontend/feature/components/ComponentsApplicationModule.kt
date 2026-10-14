@@ -32,6 +32,7 @@ import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileW
 import com.dsbuilder.frontend.feature.components.data.LocalWebAdapterFileWriter
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
+import com.dsbuilder.frontend.feature.components.domain.apimeta.SwiftUiApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ViewApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
 import org.koin.core.module.Module
@@ -93,6 +94,7 @@ public fun componentsApplicationModule(): Module = module {
 private fun Module.apiMetaBindings() {
     single { ComposeApiMetaNormalizer() }
     single { ViewApiMetaNormalizer() }
+    single { SwiftUiApiMetaNormalizer() }
     single<ApiMetaSource> { LocalApiMetaFileSource(fileSystem = get<WorkspaceFileSystem>()) }
     single<ApiMetaRemoteSource> { HttpApiMetaRemoteSource(get<AuthenticatedHttpClientFactory>()) }
     single {
@@ -104,6 +106,7 @@ private fun Module.apiMetaBindings() {
             normalizers = mapOf(
                 TargetPlatform.COMPOSE to get<ComposeApiMetaNormalizer>(),
                 TargetPlatform.ANDROID_VIEW to get<ViewApiMetaNormalizer>(),
+                TargetPlatform.SWIFT_UI to get<SwiftUiApiMetaNormalizer>(),
             ),
         )
     }
