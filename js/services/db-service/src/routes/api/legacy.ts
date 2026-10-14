@@ -128,14 +128,21 @@ router.get("/:name/component-configs", (req, res) =>
     if (!assertFound(ds, res)) return;
     if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
+    // Без `platform` выдача прежняя (web): её читают генератор и веб-клиент.
+    const requestedPlatform = req.query.platform ?? "web";
+    if (requestedPlatform !== "web" && requestedPlatform !== "compose") {
+      res.status(400).json({ error: "platform must be 'web' or 'compose'" });
+      return;
+    }
+
     const dsId = ds.id;
 
     const dscRows = await db.query.designSystemComponents.findMany({
       where: eq(designSystemComponents.designSystemId, dsId),
       with: { component: true },
     });
-    // Legacy-формат обслуживает веб-клиент и генератор: компоненты других платформ в выдачу не попадают.
-    const componentList = dscRows.map((r) => r.component).filter((c) => c.platform === "web");
+    // Legacy-формат обслуживает веб-клиент и генератор: в выдачу попадают компоненты одной платформы.
+    const componentList = dscRows.map((r) => r.component).filter((c) => c.platform === requestedPlatform);
     const componentIds = componentList.map((c) => c.id);
 
     if (componentIds.length === 0) { res.json([]); return; }

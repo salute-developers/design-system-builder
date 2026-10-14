@@ -547,12 +547,21 @@ registry.registerPath({
     path: `${DS_PREFIX}/legacy/design-systems/{name}/component-configs`,
     tags: ['Legacy'],
     summary: 'Get components with full sources (api, variations, configs) for a design system (legacy)',
-    request: { params: z.object({ name: z.string().openapi({ example: 'plasma_test' }) }) },
+    request: {
+        params: z.object({ name: z.string().openapi({ example: 'plasma_test' }) }),
+        query: z.object({
+            platform: z
+                .enum(['web', 'compose'])
+                .optional()
+                .openapi({ description: 'Component platform; web when omitted', example: 'compose' }),
+        }),
+    },
     responses: {
         200: {
             description: 'Components sources',
             ...json(z.array(z.any())),
         },
+        400: { description: 'Unknown platform', ...json(ErrorResponseSchema) },
         404: { description: 'Not found', ...json(ErrorResponseSchema) },
         500: { description: 'Server error', ...json(ErrorResponseSchema) },
     },
