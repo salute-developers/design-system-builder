@@ -4,6 +4,7 @@ import { DimensionProp } from './dimension';
 import { FloatProp } from './float';
 import { ShadowProp } from './shadow';
 import { ShapeProp } from './shape';
+import { StyleReferenceProp } from './style-reference';
 import { TypographyProp } from './typography';
 import { ValueProp } from './value';
 
@@ -107,6 +108,10 @@ export class Props {
 
         if (type === 'value') {
             return new ValueProp(name, item, platformMappings);
+        }
+
+        if (type === 'component_style') {
+            return new StyleReferenceProp(name, item, platformMappings);
         }
 
         return null;

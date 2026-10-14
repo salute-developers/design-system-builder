@@ -19,6 +19,7 @@ export const useDesignSystem = (
     const [designSystem, setDesignSystem] = useState<DesignSystem | null>(null);
     const [theme, setTheme] = useState<Theme | null>(null);
     const [components, setComponents] = useState<Config[] | null>(null);
+    const [composeComponents, setComposeComponents] = useState<Config[]>([]);
     const [incompleteTokenIds, setIncompleteTokenIds] = useState<string[]>([]);
     const [tokenDefinitions, setTokenDefinitions] = useState<TokenDefinitionDto[]>([]);
     const [loadError, setLoadError] = useState<'forbidden' | 'not-found' | 'failed' | null>(null);
@@ -50,6 +51,7 @@ export const useDesignSystem = (
                               (error: unknown) => ({ error }),
                           )
                         : null;
+                setComposeComponents([]);
                 try {
                     const snapshot = await themeEditorRepository.load(designSystemProjectId, controller.signal);
                     if (controller.signal.aborted) return;
@@ -58,6 +60,7 @@ export const useDesignSystem = (
                         parameters: snapshot.parameters,
                         themeData: snapshot.themeData,
                         componentsData: snapshot.componentsData,
+                        composeComponentsData: snapshot.composeComponentsData,
                     });
                     setDesignSystem(ds);
                     setIncompleteTokenIds(snapshot.incompleteTokenIds);
@@ -89,6 +92,7 @@ export const useDesignSystem = (
                     }
                     setTheme(selectedTheme);
                     setComponents(ds.createAllComponentInstances());
+                    setComposeComponents(ds.createAllComposeComponentInstances());
                 } catch (error) {
                     if (!controller.signal.aborted) {
                         setLoadError(
@@ -155,6 +159,7 @@ export const useDesignSystem = (
         designSystem,
         theme,
         components,
+        composeComponents,
         incompleteTokenIds,
         tokenDefinitions,
         loadError,

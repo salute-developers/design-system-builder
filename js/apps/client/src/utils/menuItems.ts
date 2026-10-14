@@ -165,6 +165,121 @@ const generateComponentMap = (componentConfigs: Config[]) => {
     return data;
 };
 
+const OTHER_COMPONENTS_GROUP = 'Other';
+
+/**
+ * Группы Compose-компонентов. Имена Compose-платформы частично отличаются от web (`BasicButton` и
+ * `Button`, `CheckBox` и `Checkbox`) и включают собственные компоненты, поэтому соответствие задано явно.
+ * Компонент без записи ищется в каталоге web по имени, иначе попадает в «Other».
+ */
+const composeComponentGroups: Record<string, string[]> = {
+    'Data Display': [
+        'Accordion',
+        'AccordionItem',
+        'Avatar',
+        'AvatarGroup',
+        'Badge',
+        'Card',
+        'Cell',
+        'Chip',
+        'ChipGroup',
+        'Counter',
+        'Divider',
+        'IconBadge',
+        'Image',
+        'Indicator',
+        'List',
+        'ListItem',
+        'Note',
+        'NoteCompact',
+        'RectSkeleton',
+        'Spinner',
+        'TextSkeleton',
+    ],
+    'Data Entry': [
+        'Autocomplete',
+        'BasicButton',
+        'ButtonGroup',
+        'CheckBox',
+        'CheckBoxGroup',
+        'CodeField',
+        'CodeInput',
+        'ComboBox',
+        'DropdownEmptyState',
+        'DropdownLoadingState',
+        'DropdownMenu',
+        'DropZone',
+        'Editable',
+        'File',
+        'FormItem',
+        'IconButton',
+        'LinkButton',
+        'RadioBox',
+        'RadioBoxGroup',
+        'Segment',
+        'SegmentItem',
+        'Select',
+        'SelectItem',
+        'Slider',
+        'Switch',
+        'TextArea',
+        'TextField',
+        'Wheel',
+    ],
+    Navigation: [
+        'Carousel',
+        'CollapsingNavigationBar',
+        'IconTabItem',
+        'NavigationBar',
+        'NavigationDrawer',
+        'NavigationDrawerItem',
+        'PaginationDots',
+        'TabBar',
+        'TabBarItem',
+        'TabItem',
+        'Tabs',
+    ],
+    Overlay: [
+        'CircularProgressBar',
+        'Drawer',
+        'Loader',
+        'Modal',
+        'ModalBottomSheet',
+        'Notification',
+        'NotificationContent',
+        'Overlay',
+        'Popover',
+        'ProgressBar',
+        'Toast',
+        'ToolBar',
+        'Tooltip',
+    ],
+    Layout: ['ScrollBar', 'Splitter'],
+    AI: ['AiAnswer', 'AiHeader', 'AiInput', 'AiUserMessage'],
+};
+
+/**
+ * Compose-компоненты раскладываются по группам меню; имена вне соответствия и каталога web
+ * попадают в группу «Other».
+ */
+const generateComposeComponentMap = (componentConfigs: Config[]) => {
+    const groupByName = new Map([
+        ...componentList.flatMap(({ groupName, components }) => components.map(({ name }) => [name, groupName] as const)),
+        ...Object.entries(composeComponentGroups).flatMap(([group, names]) => names.map((name) => [name, group] as const)),
+    ]);
+    const data: DataItems = { default: {} };
+
+    componentConfigs.forEach((item) => {
+        const name = item.getName();
+        const group = groupByName.get(name) ?? OTHER_COMPONENTS_GROUP;
+
+        data.default[group] ??= {};
+        data.default[group][name] = { default: { enabled: true, value: null, item } };
+    });
+
+    return data;
+};
+
 const generateColorTokensMap = (colors: ColorToken[], gradients: GradientToken[]) => {
     const groups: GroupNode[] = [];
 
@@ -380,6 +495,9 @@ export const getMenuItems = (data?: Theme | Config[], type?: MenuType): GroupNod
         return colorTokens;
     }
 };
+
+export const getComposeMenuItems = (componentConfigs: Config[]): Data =>
+    createDataItems(generateComposeComponentMap(componentConfigs), 'components');
 
 export const getOldMenuItems = (data?: Theme | Config[], type?: MenuType): Data | undefined => {
     if (type === 'typography' && data instanceof Theme) {

@@ -42,6 +42,8 @@ const sourceFor = (
     ) {
         return { type: 'literal', value: numeric };
     }
+    // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
+    if (!adjusted && property.type === 'value') return { type: 'literal', value: raw };
     if (!adjusted && typeof raw === 'string' && property.type !== 'float') {
         return { type: 'tokenRef', tokenId: raw };
     }
@@ -128,6 +130,9 @@ const collectStyles = (roots: Record<string, PreviewPropertyValue>, drafts: Prev
     return { styles, error };
 };
 
+/** Имя токена без разделителей и регистра: `solid.default` и `solid-default` дают один ключ. */
+const looseTokenKey = (id: string) => id.replace(/[.-]/g, '').toLowerCase();
+
 const comparable = (value: PreviewPropertyValue) => JSON.stringify(value);
 const numberFrom = (value: unknown) => {
     if (typeof value === 'number') return value;
@@ -195,6 +200,17 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
     }
 
     const tokenIndex = new Map(draft.themeTokens.map((token) => [token.id, token]));
+    // Compose-конфигурации пишут `surface.on-dark.solid.default`, а в теме токен называется `solid-default`:
+    // имя без учёта разделителей находит единственный токен. Неоднозначное имя токеном не считается.
+    const looseIndex = new Map<string, PreviewThemeTokenDraft[]>();
+    for (const token of draft.themeTokens) {
+        const key = looseTokenKey(token.id);
+        looseIndex.set(key, [...(looseIndex.get(key) ?? []), token]);
+    }
+    const findLoose = (id: string) => {
+        const matches = looseIndex.get(looseTokenKey(id));
+        return matches?.length === 1 ? matches[0] : undefined;
+    };
     const theme: Record<string, PreviewThemeValue> = {};
     const visiting: string[] = [];
 
@@ -212,7 +228,8 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
             `screen-s.${requestedId}`,
             referenceAlias,
         ].filter((id): id is string => Boolean(id));
-        const token = candidates.map((id) => tokenIndex.get(id)).find(Boolean);
+        const token =
+            candidates.map((id) => tokenIndex.get(id)).find(Boolean) ?? candidates.map(findLoose).find(Boolean);
         if (!token) return diagnostic('missing_token', `Theme token ${requestedId} is missing`, requestedId);
         if (!token.enabled) return diagnostic('disabled_token', `Theme token ${token.id} is disabled`, token.id);
         const raw = token.values[draft.themeValuePlatform];

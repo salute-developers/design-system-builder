@@ -1,4 +1,4 @@
-import type { Config, Theme } from '../controllers';
+import type { Config, ResolvedStyleReference, Theme } from '../controllers';
 import type { PropType, PropUnion } from '../controllers/componentBuilder/type';
 import type { JsonValue, PreviewAsset, PreviewSurface } from './types';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
@@ -75,6 +75,17 @@ const splitComposeMapping = (mapping?: string | null) =>
         .map((value) => value.trim())
         .filter(Boolean) ?? [];
 
+/** Разворачивает ссылку на стиль другого компонента в выбранные стили его конфигурации. */
+export type StyleReferenceResolver = (reference: string) => ResolvedStyleReference | undefined;
+
+const MAX_STYLE_REFERENCE_DEPTH = 5;
+
+interface CollectContext {
+    resolveStyleReference?: StyleReferenceResolver;
+    /** Вложенные стили по идентификатору: им же свойства ссылаются через `styleRef`. */
+    styles: Map<string, PreviewStyleDraft>;
+}
+
 const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     id: prop.getID(),
     name: prop.getName(),
@@ -89,6 +100,67 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value })),
     adjustment: prop.getAdjustment(),
 });
+
+/** Свойство-ссылка на стиль становится `styleRef`; не разворачиваемая ссылка (нет цели, цикл) пропускается. */
+const projectWithReferences = (
+    prop: PropUnion,
+    context: CollectContext,
+    trail: string[],
+): PreviewPropertyDraft | undefined => {
+    const projected = projectProperty(prop);
+    if (prop.getType() !== 'component_style') return projected;
+
+    const reference = String(prop.getValue() ?? '');
+    const resolved = reference ? context.resolveStyleReference?.(reference) : undefined;
+    if (!resolved || trail.length >= MAX_STYLE_REFERENCE_DEPTH || trail.includes(reference)) return;
+
+    if (!context.styles.has(reference)) {
+        // Запись создаётся до обхода: так ссылка стиля на самого себя не приводит к бесконечной рекурсии.
+        const style: PreviewStyleDraft = { id: reference, componentId: resolved.config.getName(), properties: [] };
+        context.styles.set(reference, style);
+        const { invariants, selected } = collectProperties(resolved.config, resolved.selections, context, [
+            ...trail,
+            reference,
+        ]);
+        style.properties = [...invariants, ...selected];
+    }
+
+    return { ...projected, value: undefined, styleRef: reference };
+};
+
+/**
+ * Свойства конфигурации при выбранных стилях: инварианты, значения выбранных стилей и значения сочетаний
+ * стилей. Сочетание действует, когда выбраны все его стили; более полное сочетание перекрывает менее полное,
+ * а любое сочетание — значение отдельного стиля.
+ */
+const collectProperties = (
+    config: Config,
+    selections: Record<string, string>,
+    context: CollectContext,
+    trail: string[],
+) => {
+    const project = (list: PropUnion[]) =>
+        list.flatMap((prop) => projectWithReferences(prop, context, trail) ?? []);
+
+    const byID = new Map<string, PropUnion>();
+    for (const variation of config.getVariations()) {
+        const styleID = selections[variation.getID()];
+        if (!styleID) continue;
+        variation
+            .getStyle(styleID)
+            ?.getProps()
+            .getList()
+            .forEach((prop) => byID.set(prop.getID(), prop));
+    }
+    const selectedIDs = new Set(Object.values(selections));
+    config
+        .getCombinations()
+        .filter(({ styleIDs }) => styleIDs.length > 0 && styleIDs.every((id) => selectedIDs.has(id)))
+        .sort((a, b) => a.styleIDs.length - b.styleIDs.length)
+        .forEach(({ props }) => props.getList().forEach((prop) => byID.set(prop.getID(), prop)));
+
+    return { invariants: project(config.getInvariants().getList()), selected: project([...byID.values()]) };
+};
 
 const asJsonValue = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;
 const projectThemeValue = (type: string, value: unknown): JsonValue => {
@@ -107,6 +179,8 @@ export interface CreateComponentPreviewDraftOptions {
     };
     args: Record<string, unknown>;
     variationSelections?: Record<string, unknown>;
+    /** Нужен компонентам со свойствами-ссылками на стили других компонентов (например, `ButtonGroup`). */
+    resolveStyleReference?: StyleReferenceResolver;
     exampleProps?: Record<string, unknown>;
     themeMode: string;
     themeValuePlatform: ThemeValuePlatform;
@@ -120,6 +194,7 @@ export const createComponentPreviewDraft = ({
     previewMetadata,
     args,
     variationSelections: explicitVariationSelections,
+    resolveStyleReference,
     exampleProps: explicitExampleProps,
     themeMode,
     themeValuePlatform,
@@ -137,7 +212,6 @@ export const createComponentPreviewDraft = ({
 
     const variationSelections: Record<string, string> = {};
     const variationNames = new Set<string>();
-    const selectedStyleProperties: PreviewPropertyDraft[] = [];
     for (const variation of config.getVariations()) {
         variationNames.add(variation.getName());
         const selected =
@@ -149,12 +223,9 @@ export const createComponentPreviewDraft = ({
             config.getDefaults().find((item) => item.getVariationID() === variation.getID())?.getStyleID();
         if (typeof selected !== 'string') continue;
         variationSelections[variation.getID()] = selected;
-        variation
-            .getStyle(selected)
-            ?.getProps()
-            .getList()
-            .forEach((prop) => selectedStyleProperties.push(projectProperty(prop)));
     }
+    const context: CollectContext = { resolveStyleReference, styles: new Map() };
+    const { invariants, selected: selectedStyleProperties } = collectProperties(config, variationSelections, context, []);
     const exampleProps = Object.fromEntries(
         Object.entries(explicitExampleProps ?? args)
             .filter(([name]) => explicitExampleProps !== undefined || !variationNames.has(name))
@@ -162,7 +233,7 @@ export const createComponentPreviewDraft = ({
     );
     const themeTokens: PreviewThemeTokenDraft[] = [];
     for (const [type, tokens] of Object.entries(theme.getTokens())) {
-        if (!['color', 'shape', 'spacing', 'typography', 'fontFamily'].includes(type)) continue;
+        if (!['color', 'shape', 'spacing', 'typography', 'fontFamily', 'gradient', 'shadow'].includes(type)) continue;
         for (const token of tokens) {
             themeTokens.push({
                 id: token.getName(),
@@ -188,10 +259,11 @@ export const createComponentPreviewDraft = ({
             componentRevision: config.getRevision(),
             themeRevision: theme.getRevision(),
             variationSelections,
-            invariantProperties: config.getInvariants().getList().map(projectProperty),
+            invariantProperties: invariants,
             selectedStyleProperties,
             themeTokens,
             assets,
+            ...(context.styles.size ? { styles: [...context.styles.values()] } : {}),
             example: { id: metadata.storyId!, props: exampleProps },
             surface,
         },

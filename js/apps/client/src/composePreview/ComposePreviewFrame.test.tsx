@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ComposePreviewFrame } from './ComposePreviewFrame';
 import { loadedManifest } from './testFixture';
+import { ComposePreviewResultError, ComposePreviewTimeoutError } from './session';
 import { PreviewPayloadInput, PreviewResult } from './types';
 import { BASIC_BUTTON_PREVIEW_FIXTURE } from './basicButtonFixture';
 
@@ -213,5 +214,174 @@ describe('ComposePreviewFrame', () => {
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Font is unavailable');
         expect(container.querySelector('iframe')).toBe(iframe);
+    });
+
+    describe('when the plugin stops rendering', () => {
+        const crashResult = (code: string): PreviewResult => ({
+            type: 'failure',
+            requestId: 'request-1',
+            code,
+            message: 'Compose preview stopped',
+        });
+
+        const setup = () => {
+            let request = 0;
+            const send = vi.fn((payload: PreviewPayloadInput) => {
+                void payload;
+                return { requestId: `request-${++request}`, result: new Promise<PreviewResult>(() => undefined) };
+            });
+            const makeSession = () => ({
+                waitUntilReady: vi.fn().mockResolvedValue(undefined),
+                send,
+                describeComponent: vi.fn().mockReturnValue({
+                    requestId: 'description-1',
+                    result: new Promise<never>(() => undefined),
+                }),
+                reload: vi.fn(),
+                dispose: vi.fn(),
+            });
+            const createSession = vi.fn(makeSession);
+            const loadManifest = vi.fn().mockResolvedValue(loadedManifest);
+            return { send, createSession, loadManifest };
+        };
+
+        const crash = async (send: ReturnType<typeof setup>['send'], error: Error) => {
+            // Результат первого запроса отклоняется ошибкой сбоя.
+            send.mockImplementationOnce(() => ({
+                requestId: 'request-1',
+                result: Promise.reject(error),
+            }));
+        };
+
+        it('restarts the plugin after a crash and does not resend the payload that caused it', async () => {
+            const { send, createSession, loadManifest } = setup();
+            await crash(
+                send,
+                new ComposePreviewResultError('Compose preview stopped', crashResult('render_crashed')),
+            );
+            const payload = { ...BASIC_BUTTON_PREVIEW_FIXTURE };
+            const { rerender } = render(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={payload}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+
+            await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+            await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Превью перезапущено'));
+            expect(send).toHaveBeenCalledTimes(1);
+
+            // Редактор пересобирает payload при любом изменении: другой объект с тем же содержимым не повод слать снова.
+            rerender(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={{ ...payload }}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+            await act(async () => undefined);
+            expect(send).toHaveBeenCalledTimes(1);
+            expect(createSession).toHaveBeenCalledTimes(2);
+        });
+
+        it('sends the next payload to the restarted plugin', async () => {
+            const { send, createSession, loadManifest } = setup();
+            await crash(
+                send,
+                new ComposePreviewResultError('Compose preview stopped', crashResult('plugin_crashed')),
+            );
+            const { rerender } = render(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+            await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+
+            rerender(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={{
+                        ...BASIC_BUTTON_PREVIEW_FIXTURE,
+                        example: { ...BASIC_BUTTON_PREVIEW_FIXTURE.example, props: { label: 'Next' } },
+                    }}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+
+            await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        });
+
+        it('treats a request timeout as a plugin crash', async () => {
+            const { send, createSession, loadManifest } = setup();
+            await crash(send, new ComposePreviewTimeoutError('Compose preview request request-1 timed out'));
+            render(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+
+            await waitFor(() => expect(createSession).toHaveBeenCalledTimes(2));
+        });
+
+        it('does not restart the plugin when a hidden page cannot confirm a frame, and renders again when shown', async () => {
+            const { send, createSession, loadManifest } = setup();
+            await crash(send, new ComposePreviewTimeoutError('Compose preview request request-1 timed out'));
+            const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+            render(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+            await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+            await act(async () => undefined);
+            expect(createSession).toHaveBeenCalledTimes(1);
+
+            visibility.mockReturnValue('visible');
+            await act(async () => {
+                document.dispatchEvent(new Event('visibilitychange'));
+            });
+
+            await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+            expect(createSession).toHaveBeenCalledTimes(1);
+            visibility.mockRestore();
+        });
+
+        it('does not restart the plugin when it merely rejects a payload', async () => {
+            const { send, createSession, loadManifest } = setup();
+            await crash(
+                send,
+                new ComposePreviewResultError('Unknown token', {
+                    type: 'failure',
+                    requestId: 'request-1',
+                    code: 'preview_preparation_failed',
+                    message: 'Unknown token',
+                }),
+            );
+            render(
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                    loadManifest={loadManifest}
+                    createSession={createSession}
+                />,
+            );
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('Unknown token');
+            expect(createSession).toHaveBeenCalledTimes(1);
+        });
     });
 });

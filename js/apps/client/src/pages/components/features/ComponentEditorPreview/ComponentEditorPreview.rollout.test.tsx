@@ -48,13 +48,22 @@ const buttonConfig = {
     getName: () => 'Button',
     getVariations: () => [],
     getRevision: () => 1,
+    getPlatform: () => 'web',
     getPreviewMetadata: () => ({ componentId: 'BasicButton', storyId: 'BasicButton' }),
 };
 const textConfig = {
     getName: () => 'Text',
     getVariations: () => [],
     getRevision: () => 1,
+    getPlatform: () => 'web',
     getPreviewMetadata: () => ({ componentId: undefined, storyId: undefined }),
+};
+const composeConfig = {
+    getName: () => 'BasicButton',
+    getVariations: () => [],
+    getRevision: () => 1,
+    getPlatform: () => 'compose',
+    getPreviewMetadata: () => ({ componentId: 'BasicButton', storyId: 'BasicButton' }),
 };
 const theme = { getTokenValue: () => '#FFFFFFFF', getRevision: () => 1 };
 
@@ -93,6 +102,24 @@ describe('ComponentEditorPreview Compose rollout', () => {
 
         expect(await screen.findByText('Compose')).toBeInTheDocument();
         expect(screen.getByText('React')).toBeInTheDocument();
+    });
+
+    it('renders a Compose component with the plugin only, without a renderer switch or React story', async () => {
+        render(previewElement(composeConfig));
+
+        expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
+        expect(screen.queryByText('Renderer')).not.toBeInTheDocument();
+        expect(screen.queryByText('React story')).not.toBeInTheDocument();
+    });
+
+    it('explains an unsupported browser for a Compose component without suggesting React', async () => {
+        pluginState.supported = false;
+
+        render(previewElement(composeConfig));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Compose-preview недоступен в этом браузере.');
+        expect(screen.getByRole('status')).not.toHaveTextContent('React');
+        expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
     });
 
     it('does not offer Compose and does not load a manifest without a plugin URL', async () => {

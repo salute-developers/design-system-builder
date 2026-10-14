@@ -41,7 +41,10 @@ interface PendingDescription {
 interface ComposePreviewSessionOptions {
     targetWindow: Window;
     hostWindow?: Window;
+    /** Ожидание готовности плагина: загрузка Wasm может быть долгой. */
     timeoutMs?: number;
+    /** Ожидание ответа на render и describe: успех приходит после отрисовки, поэтому дольше нескольких секунд ждать нечего. */
+    requestTimeoutMs?: number;
     createRequestId?: () => string;
 }
 
@@ -50,6 +53,7 @@ export class ComposePreviewSession {
     private readonly hostWindow: Window;
     private readonly targetOrigin: string;
     private readonly timeoutMs: number;
+    private readonly requestTimeoutMs: number;
     private readonly createRequestId: () => string;
     private readonly pending = new Map<string, PendingRequest>();
     private readonly pendingDescriptions = new Map<string, PendingDescription>();
@@ -65,6 +69,7 @@ export class ComposePreviewSession {
         this.hostWindow = options.hostWindow ?? window;
         this.targetOrigin = plugin.entrypointUrl.origin;
         this.timeoutMs = options.timeoutMs ?? 30_000;
+        this.requestTimeoutMs = options.requestTimeoutMs ?? options.timeoutMs ?? 10_000;
         this.createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
         this.readyPromise = new Promise((resolve, reject) => {
             this.resolveReady = resolve;
@@ -95,7 +100,7 @@ export class ComposePreviewSession {
             const timer = setTimeout(() => {
                 this.pending.delete(requestId);
                 reject(new ComposePreviewTimeoutError(`Compose preview request ${requestId} timed out`));
-            }, this.timeoutMs);
+            }, this.requestTimeoutMs);
             this.pending.set(requestId, { resolve, reject, timer });
         });
         const envelope: PreviewPayloadEnvelope = {
@@ -125,7 +130,7 @@ export class ComposePreviewSession {
             const timer = setTimeout(() => {
                 this.pendingDescriptions.delete(requestId);
                 reject(new ComposePreviewTimeoutError(`Compose preview description ${requestId} timed out`));
-            }, this.timeoutMs);
+            }, this.requestTimeoutMs);
             this.pendingDescriptions.set(requestId, { componentId, resolve, reject, timer });
         });
         const envelope: PreviewDescribeEnvelope = {

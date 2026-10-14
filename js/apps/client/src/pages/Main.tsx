@@ -80,6 +80,7 @@ export const Main = () => {
         designSystem,
         theme,
         components,
+        composeComponents,
         incompleteTokenIds,
         tokenDefinitions,
         loadError,
@@ -101,7 +102,7 @@ export const Main = () => {
     const isEditingDesignSystem = any(editorContext, all(designSystemName, designSystemVersion));
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = Boolean(components?.length);
+    const hasComponents = Boolean(components?.length || composeComponents.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = all(!isPopupOpen, !isEditingDesignSystem);
     // Ключ черновика задаёт контекст tenant, а без него — имя и версия ДС; в URL темы их нет, берём из ДС
@@ -327,6 +328,7 @@ export const Main = () => {
                                 designSystem,
                                 theme,
                                 components,
+                                composeComponents,
                                 updated,
                                 rerender,
                                 reload,

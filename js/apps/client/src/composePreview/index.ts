@@ -1,6 +1,8 @@
 export { getComposePreviewPluginUrl } from './config';
 export { isComposePreviewEnvironmentSupported } from './environment';
 export { BASIC_BUTTON_PREVIEW_FIXTURE, createBasicButtonPreviewPayload } from './basicButtonFixture';
+export { markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';
+export type { ComponentRoute } from './composeComponents';
 export { ComposePreviewFrame } from './ComposePreviewFrame';
 export { assembleComposePreviewPayload } from './assembler';
 export { createComponentPreviewDraft } from './draft';
@@ -10,6 +12,7 @@ export type {
     ComponentPreviewDraft,
     DraftResult,
     PreviewPropertyDraft,
+    StyleReferenceResolver,
     PreviewThemeTokenDraft,
     ThemeValuePlatform,
 } from './draft';

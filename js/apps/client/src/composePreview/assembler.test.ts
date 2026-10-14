@@ -283,6 +283,44 @@ describe('assembleComposePreviewPayload', () => {
             });
         });
 
+        it('finds a token whose name differs from the reference only by separators', () => {
+            const d = draft();
+            d.themeTokens.push({
+                id: 'surface.on-dark.solid-default',
+                type: 'color',
+                enabled: true,
+                values: { web: '#112233', android: '#112233' },
+            });
+            d.invariantProperties.push(prop({ name: 'thumbColor', value: 'surface.on-dark.solid.default', type: 'color' }));
+
+            expect(assembled(d).theme['surface.on-dark.solid.default']).toEqual({ type: 'color', value: '#112233FF' });
+        });
+
+        it('does not guess when the separator-insensitive name matches several tokens', () => {
+            const d = draft();
+            d.themeTokens.push(
+                { id: 'a.b-c', type: 'color', enabled: true, values: { web: '#112233', android: '#112233' } },
+                { id: 'a-b.c', type: 'color', enabled: true, values: { web: '#445566', android: '#445566' } },
+            );
+            d.invariantProperties.push(prop({ name: 'thumbColor', value: 'a.b.c', type: 'color' }));
+
+            expect(assembleComposePreviewPayload(d)).toMatchObject({ ok: false, diagnostics: [{ code: 'missing_token' }] });
+        });
+
+        it('sends a value-typed property as a literal instead of a token reference', () => {
+            const d = draft();
+            d.invariantProperties.push(prop({ name: 'iconPlacement', value: 'start', type: 'value' }));
+
+            const result = assembleComposePreviewPayload(d);
+
+            expect(result.ok).toBe(true);
+            if (!result.ok) return;
+            expect(result.payload.component.properties.iconPlacement.base).toEqual({
+                type: 'literal',
+                value: 'start',
+            });
+        });
+
         it('normalizes gradient and shadow tokens', () => {
             const d = draft();
             d.invariantProperties.push(

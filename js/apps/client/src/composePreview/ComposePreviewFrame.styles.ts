@@ -7,7 +7,7 @@ export const FrameRoot = styled.div`
     min-height: 20.75rem;
 `;
 
-export const PreviewIframe = styled.iframe`
+export const PreviewIframe = styled.iframe<{ $hidden?: boolean }>`
     display: block;
     width: 100%;
     height: 100%;
@@ -15,6 +15,7 @@ export const PreviewIframe = styled.iframe`
     border: 0;
     border-radius: inherit;
     background: transparent;
+    opacity: ${({ $hidden }) => ($hidden ? 0 : 1)};
 `;
 
 export const Status = styled.div`
