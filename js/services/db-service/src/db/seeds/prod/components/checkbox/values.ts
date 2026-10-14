@@ -33,7 +33,6 @@ export const values: ValuesSeed = {
             { prop: 'labelStyle', value: 'body.s.normal' },
             { prop: 'toggleBorderWidth', value: '1' },
             { prop: 'togglePadding', value: '1' },
-            { prop: 'toggleWidth', value: '14' },
         ],
         l: [
             { prop: 'descriptionPadding', value: '2' },
@@ -46,14 +45,12 @@ export const values: ValuesSeed = {
             { prop: 'labelStyle', value: 'body.l.normal' },
             { prop: 'toggleBorderWidth', value: '2' },
             { prop: 'togglePadding', value: '2' },
-            { prop: 'toggleWidth', value: '20' },
         ],
         m: [
             { prop: 'descriptionStyle', value: 'body.s.normal' },
             { prop: 'labelStyle', value: 'body.m.normal' },
             { prop: 'toggleBorderWidth', value: '2' },
             { prop: 'togglePadding', value: '2' },
-            { prop: 'toggleWidth', value: '20' },
             { prop: 'descriptionPadding', value: '2' },
             { prop: 'horizontalPadding', value: '12' },
             { prop: 'margin', value: '0' },

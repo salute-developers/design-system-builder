@@ -17,7 +17,7 @@ class ComponentSeedsResourceTest {
         val root = Json.parseToJsonElement(bytes.decodeToString()).jsonObject
         val components = root.getValue("components").jsonArray
 
-        assertEquals("1f4bf2832a86c2820343da6d1ebbbe1d11531a02ad96466a46dc37739e97df30", bytes.sha256())
+        assertEquals("b9e3453e07266c205b7e015ffe128af33783e3d67c9b9e5b2e9e79323108572f", bytes.sha256())
         assertEquals(63, components.size)
         assertEquals(21, root.getValue("dependencies").jsonArray.size)
         assertEquals(66, components.sumOf { it.jsonObject.getValue("appearances").jsonArray.size })
@@ -41,6 +41,27 @@ class ComponentSeedsResourceTest {
 
         assertTrue("listItemDividerHeight" in bound)
         assertFalse("listItemDividerWidth" in text)
+    }
+
+    @Test
+    fun `properties without a web parameter are not referenced`() {
+        val text = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json")).use { it.readBytes() }
+            .decodeToString()
+        val components = Json.parseToJsonElement(text).jsonObject.getValue("components").jsonArray
+            .associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
+        // Удалены из сидов db-service вместе со значениями: у них нет web-параметра, а метаданные их не содержат.
+        val removed = mapOf(
+            "Button" to
+                listOf("iconColor", "loadingAlpha", "paddingStart", "iconSize", "spinnerStrokeWidth", "valueStyle"),
+            "IconButton" to listOf("loadingAlpha", "paddingEnd", "iconSize", "spinnerStrokeWidth"),
+            "Checkbox" to listOf("toggleWidth", "toggleCheckedBorderWidth", "toggleIndeterminateIconColor"),
+            "Radiobox" to listOf("toggleWidth", "ellipseWidth", "toggleCheckedBorderWidth"),
+        )
+
+        removed.forEach { (component, names) ->
+            val json = components.getValue(component).toString()
+            names.forEach { name -> assertFalse("\"$name\"" in json, "$component.$name") }
+        }
     }
 
     private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256")
