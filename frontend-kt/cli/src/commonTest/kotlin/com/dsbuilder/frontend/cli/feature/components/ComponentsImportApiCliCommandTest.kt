@@ -187,12 +187,13 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anUnsupportedPlatformIsRefusedBeforeAnythingIsSent() {
-        val result = run(base(platform = "react"))
+    fun anUnknownPlatformIsRefusedBeforeAnythingIsSent() {
+        // Все платформы TargetPlatform поддержаны, поэтому отказ проверяется на значении вне словаря.
+        val result = run(base(platform = "flutter"))
 
         assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains("does not support platform 'react'"), result.output)
-        assertTrue(result.output.contains("Supported: compose, android-view, swiftui"), result.output)
+        assertTrue(result.output.contains("flutter"), result.output)
+        assertTrue(result.output.contains("compose, android-view, swiftui, react"), result.output)
         assertTrue(requests.isEmpty())
     }
 
@@ -308,6 +309,39 @@ class ComponentsImportApiCliCommandTest {
 
         assertEquals(1, result.exitCode, result.output)
         assertTrue(result.output.contains("not a View meta"), result.output)
+        assertTrue(result.output.contains(META_PATH), result.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun aWebMetaGoesWithTheWebPlatform() {
+        val result = run(base(platform = "react", from = WEB_META_PATH), files = mapOf(WEB_META_PATH to WEB_META))
+
+        assertEquals(0, result.exitCode, result.output)
+        val (path, body) = requests.single()
+        assertEquals("/api/admin/component-config/import-api-meta", path)
+        assertTrue(body.contains("\"platform\":\"web\""), body)
+        assertTrue(body.contains("\"source\":\"web-api-meta.json\""), body)
+        // Токен состояния `buttonColorHover` платформенным именем не становится.
+        assertTrue(body.contains("\"platformNames\":[{\"name\":\"buttonColor\"}]"), body)
+        assertTrue(
+            body.contains("\"platformNames\":[{\"name\":\"buttonFontFamily\"},{\"name\":\"buttonFontSize\"}]"),
+            body,
+        )
+        // `hovered` — состояние взаимодействия, а не компонента.
+        assertTrue(body.contains("\"states\":[]"), body)
+        // `AvatarGroup` без токенов уходит компонентом без свойств.
+        assertTrue(body.contains("{\"name\":\"AvatarGroup\",\"properties\":[],\"states\":[]}"), body)
+        listOf("Platform: react", "Source: $WEB_META_PATH", "Components: 2", "Properties: 2", "States: 0")
+            .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
+    }
+
+    @Test
+    fun aComposeMetaGivenAsReactIsReportedWithTheFile() {
+        val result = run(base(platform = "react"))
+
+        assertEquals(1, result.exitCode, result.output)
+        assertTrue(result.output.contains("not a list of web components"), result.output)
         assertTrue(result.output.contains(META_PATH), result.output)
         assertTrue(requests.isEmpty())
     }
@@ -430,6 +464,18 @@ class ComponentsImportApiCliCommandTest {
                "params":[{"id":"contentShape","attrName":"sd_contentShape","type":"shape"}]},
               {"componentNames":["Badge","IconBadge"],"styleableName":"Badge","params":[
                 {"id":"size","attrName":"sd_size","type":"dimension"}]}]}
+        """
+
+        const val WEB_META_PATH = "/work/meta/web-api-meta.json"
+
+        /** Мета web в форме вывода `generate:api-meta`: запись — токен. */
+        const val WEB_META = """
+            [{"componentName":"AvatarGroup","params":[]},
+             {"componentName":"Button","params":[
+               {"paramName":"buttonColor","type":"color","id":"labelColor"},
+               {"paramName":"buttonColorHover","type":"color","id":"labelColor","state":"hovered"},
+               {"paramName":"buttonFontFamily","type":"typography","id":"labelStyle","part":"fontFamily"},
+               {"paramName":"buttonFontSize","type":"typography","id":"labelStyle","part":"fontSize"}]}]
         """
 
         const val META = """
