@@ -20,6 +20,8 @@ Options:
 The setup starts the JavaScript stack without a schema, starts the Kotlin backend,
 whose ds-service creates the shared database schema with Flyway, and then seeds the
 database and binds the design system 'base' to the user's project.
+
+To list the Compose components in the component editor, run ./import-compose-components.sh afterwards.
 USAGE
 }
 
