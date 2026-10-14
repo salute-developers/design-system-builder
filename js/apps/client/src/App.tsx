@@ -12,7 +12,7 @@ import {
     useParams,
 } from 'react-router-dom';
 
-import { Home, Colors, Palette, Shapes, Typography, Components, Main, Login } from './pages';
+import { Home, Colors, Palette, Shapes, Typography, ComponentsRoute, Main, Login } from './pages';
 
 import { authService, designSystemsApi } from './api';
 import { getBaseName } from './utils/baseName';
@@ -114,7 +114,7 @@ function App() {
                         <Route path="colors" element={<Colors />} />
                         <Route path="shapes" element={<Shapes />} />
                         <Route path="typography" element={<Typography />} />
-                        <Route path="components/:componentName?" element={<Components />} />
+                        <Route path="components/:componentName?" element={<ComponentsRoute />} />
                     </Route>
                     <Route path="/" element={<Main />}>
                         <Route index element={<Navigate to="/projects" replace />} />

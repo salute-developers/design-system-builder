@@ -2,6 +2,7 @@ import { http, PROJECTS_URL } from '.';
 import type { Meta, PlatformsVariations, ThemeMeta, ThemeSource, TokenType, VariationType } from '../controllers';
 import type { Parameters } from '../types';
 import { getComposePreviewPluginUrl, markComposeComponents } from '../composePreview';
+import { isComponentEditorEnabled } from '../utils/featureFlags';
 import type { DesignSystemDto, ProjectDto, TenantDto } from './contracts';
 
 export interface EditorContextKey {
@@ -56,7 +57,7 @@ export class ThemeEditorRepository {
      * не должен ломать редактор web-компонентов.
      */
     private async loadComposeComponents(root: string, designSystemName: string, signal?: AbortSignal) {
-        if (!getComposePreviewPluginUrl()) return [];
+        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
         try {
             const response = await http.get<Meta[]>(
                 `${root}/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs`,
@@ -82,10 +83,13 @@ export class ThemeEditorRepository {
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
 
         const [components, palette] = await Promise.all([
-            http.get<Meta[]>(
-                `${root}/legacy/design-systems/${encodeURIComponent(designSystem.data.name)}/component-configs`,
-                { params: { platform: 'web' }, signal },
-            ),
+            // Раздел компонентов выключен сборкой: его данные никому не нужны, запрос не выполняется.
+            isComponentEditorEnabled()
+                ? http.get<Meta[]>(
+                      `${root}/legacy/design-systems/${encodeURIComponent(designSystem.data.name)}/component-configs`,
+                      { params: { platform: 'web' }, signal },
+                  )
+                : Promise.resolve({ data: [] as Meta[] }),
             values.data.some((value) => value.paletteId)
                 ? http.get<PaletteDto[]>(`${root}/palette`, { signal })
                 : Promise.resolve({ data: [] as PaletteDto[] }),

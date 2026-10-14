@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, put, pluginUrl } = vi.hoisted(() => ({
     get: vi.fn(),
@@ -50,6 +50,34 @@ beforeEach(() => {
     pluginUrl.value = undefined;
     get.mockReset();
     put.mockReset();
+});
+
+describe('ThemeEditorRepository with the component editor disabled', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('does not request component configs and still loads the theme', async () => {
+        vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
+        pluginUrl.value = 'http://plugin.example/';
+        get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(0);
+        expect(snapshot.componentsData).toEqual([]);
+        expect(snapshot.composeComponentsData).toEqual([]);
+        expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
+    });
+
+    it('requests component configs when the section is enabled', async () => {
+        vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
+        get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
+
+        await new ThemeEditorRepository().load(context);
+
+        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(1);
+    });
 });
 
 describe('ThemeEditorRepository Compose components', () => {
