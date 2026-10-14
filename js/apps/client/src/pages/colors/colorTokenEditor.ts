@@ -79,6 +79,11 @@ export interface ColorTokenSession {
     overlay: Map<string, { type: ColorTokenKey['type']; values: Record<string, unknown> }> | null;
     /** Имена определений из последней загрузки темы: определения, пропавшие из новой загрузки, удаляются. */
     loadedNames: Set<string>;
+    /**
+     * Определения (имя с режимом), изменённые на этом экране и ещё не сохранённые, по ключу токена. После
+     * перезагрузки темы накладываются только они: правки того же токена из другого места не затираются.
+     */
+    edited: Map<string, Set<string>>;
     reload: () => void;
     listeners: Set<() => void>;
 }
@@ -112,6 +117,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
         conflict: null,
         overlay: null,
         loadedNames: new Set(),
+        edited: new Map(),
         reload: () => undefined,
         listeners: new Set(),
         autosave: undefined as unknown as ColorTokenAutosave,
@@ -130,7 +136,11 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
                 if (parameters) parameters.editRevision = value;
             },
         },
-        onChange: () => notify(session),
+        onChange: () => {
+            const unsaved = new Set(session.autosave.unsavedKeys());
+            [...session.edited.keys()].forEach((key) => unsaved.has(key) || session.edited.delete(key));
+            notify(session);
+        },
         onConflict: (error) => {
             // Тема изменена в другом месте: несохранённые значения запоминаются, тема перечитывается, повторная
             // отправка — только по «Повторить».
@@ -152,7 +162,11 @@ const captureUnsaved = (session: ColorTokenSession) => {
     for (const id of session.autosave.unsavedKeys()) {
         const key = keyOfId(id);
         if (!key) continue;
+        const edited = session.edited.get(id);
+        // Состояния `-hover` и `-active` пересчитываются из изменённого определения и накладываются вместе с ним.
+        const isEdited = (name: string) => !edited || edited.has(name.replace(/-(hover|active)$/, ''));
         for (const token of familyTokens(theme, key)) {
+            if (!isEdited(token.getName())) continue;
             overlay.set(token.getName(), {
                 type: key.type,
                 values: Object.fromEntries(PLATFORMS.map((platform) => [platform, token.getValue(platform as never)])),
@@ -215,10 +229,16 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
     };
 
     /** Записывает значение определения и пересчитывает его состояния, как старый редактор. */
+    const markEdited = (key: ColorTokenKey, name: string) => {
+        const id = tokenId(key);
+        session.edited.set(id, (session.edited.get(id) ?? new Set()).add(name));
+    };
+
     const write = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null, value: string) => {
         const { theme: current, designSystem } = theme();
         const token = memberToken(key, mode, context);
         if (!token) return;
+        markEdited(key, token.getName());
         const persist = () => schedule(key);
         if (key.type === 'gradient') {
             const layers = splitTopLevel(value);
@@ -304,6 +324,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     if (!token) continue;
                     const empty = PLATFORMS.filter((platform) => isEmpty(token.getValue(platform as never)));
                     if (!empty.length) continue;
+                    markEdited(view.key, token.getName());
                     if (view.key.type === 'gradient') {
                         // Нативные значения градиента строятся из слоёв web, как при правке.
                         gradientTokenActions.updateToken({

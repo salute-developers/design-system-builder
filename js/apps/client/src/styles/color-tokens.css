@@ -3847,19 +3847,80 @@
     box-shadow: 0 0 0 2px rgba(66, 132, 255, 0.18);
 }
 
-/* Пустое состояние вкладки «Доступность»: правила прототипа `.empty` и `.empty.compact` с тёмными
- * переопределениями (общие классы `empty` и `compact` из сборки исключены). */
+/* Окна «Новый токен» и удаления: у прототипа шапка и подвал этих окон без своих правил — «×» уходит под
+ * заголовок, подвал получает фон и рамку общего `footer`, а форма — второй отступ. Шапка и подвал выстроены как
+ * у окон палитры прототипа (`.source-palette-manage-modal > header`). */
+.color-tokens-screen .custom-token-modal > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.color-tokens-screen .custom-token-modal > header span {
+    display: block;
+    margin-bottom: 4px;
+    color: #8793a3;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+/* В окне удаления над заголовком — имя токена, а не раздел: регистр имени сохраняется. */
+.color-tokens-screen .delete-token-modal > header span {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.color-tokens-screen .custom-token-modal > header h2 {
+    margin: 0;
+    color: #f3f6fa;
+    font-size: 20px;
+    line-height: 1.25;
+}
+
+.color-tokens-screen .custom-token-modal > header .source-palette-modal-close {
+    flex: none;
+    margin: -8px -10px 0 0;
+}
+
+.color-tokens-screen .custom-token-modal .custom-token-form {
+    padding: 0;
+}
+
+.color-tokens-screen .custom-token-modal > footer {
+    margin-top: 24px;
+    padding: 0;
+    justify-content: flex-end;
+    gap: 8px;
+    background: transparent;
+    border-top: 0;
+}
+
+/* Пустое состояние вкладки «Доступность» — часть карточки пар: без своей рамки, фона и скругления (иначе
+ * внутри скруглённой карточки видна вторая), текст в размерах шапки карточки. */
 .color-tokens-screen .accessibility-pair-list .empty.compact {
-    padding: 20px;
+    display: grid;
+    gap: 4px;
+    padding: 16px 14px;
     text-align: left;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 8px;
     color: var(--text);
+}
+
+.color-tokens-screen .accessibility-pair-list .empty.compact strong {
+    color: #eef2f7;
+    font-size: 13px;
 }
 
 .color-tokens-screen .accessibility-pair-list .empty.compact p {
     margin: 0;
+    color: #8f99a7;
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 /* Поле «Группа палитры» из раздела палитры (в прототипе его нет): отступы как у полей инспектора. */
@@ -3871,6 +3932,103 @@
  * выходило за экран. */
 .color-tokens-screen.ct-shell.ct-theme-workspace .editor-workbench.playground-workbench {
     height: 100%;
+}
+
+/* Поиск в дереве оформлен как поиск раздела «Палитра» (`.source-palette-family-search` из palette.css). Общее
+ * правило полей панелей прототипа `:is(.token-browser, …) :is(input:not(…), …)` задаёт полю фон, скругление и цвет —
+ * для поля внутри поиска они сняты, иначе внутри видна вторая подложка, а курсор срезан скруглением. */
+.color-tokens-screen .token-menu-header .token-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.color-tokens-screen.ct-theme-workspace
+    .token-browser
+    .token-search-field
+    input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+    background: transparent;
+    border-radius: 0;
+    color: #e3e7ed;
+}
+
+/* Стрелка раздела дерева — как у групп раздела «Палитра» (`.source-palette-family-category-toggle > span`):
+ * уголок из двух границ по центру строки вместо символов «⌄» и «›», которые шрифт ставит ниже текста. */
+.color-tokens-screen .token-tree-heading > .token-tree-chevron {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    display: block;
+    font-size: 0;
+    color: transparent;
+}
+
+.color-tokens-screen .token-tree-heading > .token-tree-chevron::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 1.5px;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid #8993a1;
+    border-bottom: 1.5px solid #8993a1;
+    transform: rotate(45deg);
+}
+
+.color-tokens-screen .token-tree-heading[aria-expanded='false'] > .token-tree-chevron::before {
+    left: 2px;
+    top: 3px;
+    transform: rotate(-45deg);
+}
+
+.color-tokens-screen .token-tree-heading:hover > .token-tree-chevron::before {
+    border-color: #d8dde5;
+}
+
+/* Поиск во вкладке Library выбора цвета — то же поле, что поиск раздела «Палитра» и дерева: правила прототипа
+ * `.cp-library-search span/input` (значок 12px, поле 24px) для него сняты. */
+.color-tokens-screen .cp-library-search .cp-library-search-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.color-tokens-screen .cp-library-search .cp-library-search-field > span {
+    width: auto;
+    height: auto;
+    display: block;
+    font-size: 15px;
+    line-height: 1;
+}
+
+.color-tokens-screen .cp-library-search .cp-library-search-field input {
+    height: 26px;
+    outline: 0;
+    color: #e3e7ed;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.color-tokens-screen .cp-library-search .cp-library-search-field input::placeholder {
+    color: #77808d;
+}
+
+/* Свечение оболочки прототипа (`.builder-shell-gradient`): у клиента оно лежит под контейнером редактора
+ * (`z-index: 1`) и над экраном не видно. Тот же градиент, привязанный к окну, повторён поверх панелей экрана —
+ * он продолжает свечение над рейлом и шапкой и остаётся под выбором цвета и окнами. */
+.color-tokens-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(
+            ellipse 705px 800px at 0 0,
+            rgba(43, 140, 237, 0.12) 0,
+            rgba(43, 140, 237, 0.06) 14.473%,
+            rgba(43, 140, 237, 0.02) 45.75%,
+            rgba(43, 140, 237, 0) 71.635%
+        )
+        fixed;
 }
 
 /* Состояние сохранения в панели инструментов и строке токена. */
@@ -3898,6 +4056,16 @@
 
 .color-tokens-screen .editor-header-controls .editor-canvas-picker {
     flex: none;
+}
+
+/* Если управление не помещается, оно уходит вправо под край панели, как в прототипе, а не налезает на вкладки:
+ * `safe` выравнивает по началу при переполнении, `overflow-x: clip` обрезает по ширине и не обрезает меню вниз. */
+.color-tokens-screen .editor-toolbar {
+    overflow-x: clip;
+}
+
+.color-tokens-screen .editor-toolbar .editor-header-controls {
+    justify-content: safe flex-end;
 }
 
 .color-tokens-screen .ct-save-status.is-error {

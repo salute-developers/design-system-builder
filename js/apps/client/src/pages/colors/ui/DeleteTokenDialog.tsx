@@ -18,7 +18,7 @@ export const DeleteTokenDialog = ({
 }: DeleteTokenDialogProps) => (
     <div className="modal-backdrop custom-token-backdrop">
         <section
-            className="entity-modal custom-token-modal"
+            className="entity-modal custom-token-modal delete-token-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-token-title"

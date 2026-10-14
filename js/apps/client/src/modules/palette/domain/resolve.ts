@@ -1,4 +1,5 @@
 import { defaultGroupForToken, stripModePrefix } from './groups';
+import { rampDisplayName, templateRampName } from './names';
 import { parsePaletteReference, sameRamp, type PaletteReference } from './reference';
 import type { PaletteRampRef, ThemePalette } from './types';
 
@@ -14,6 +15,15 @@ const templateValue = (palette: ThemePalette, ref: StepRef) =>
 export const resolveStepInGroup = (palette: ThemePalette, groupId: string, ref: StepRef) => {
     const ramp = palette.groups.find((group) => group.id === groupId)?.ramps.find((item) => sameRamp(item.slot, ref));
     return ramp?.steps.find((step) => step.step === ref.step)?.value ?? templateValue(palette, ref);
+};
+
+/**
+ * Имя слота в группе, как на экране палитры: растяжка, перестроенная от опорного цвета, называется по его тону,
+ * а слот без растяжки в группе — по шаблону.
+ */
+export const groupRampName = (palette: ThemePalette, groupId: string | undefined, ref: PaletteRampRef) => {
+    const ramp = palette.groups.find((group) => group.id === groupId)?.ramps.find((item) => sameRamp(item.slot, ref));
+    return ramp ? rampDisplayName(ramp.source, ramp.anchor) : templateRampName(ref);
 };
 
 const assignmentsByName = new WeakMap<ThemePalette, Map<string, ThemePalette['tokens'][number]>>();

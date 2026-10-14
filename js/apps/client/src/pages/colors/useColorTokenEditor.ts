@@ -3,7 +3,7 @@ import { useEffect, useMemo, useReducer } from 'react';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
 import { buildColorTokenViews, type ColorTokenContext, type ThemeTokenSource } from '../../modules/colorTokens';
-import { resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
+import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
 import { adoptTheme, colorTokenSession, createColorTokenEditor } from './colorTokenEditor';
 
@@ -101,6 +101,10 @@ export const useColorTokenEditor = (input: EditorInput) => {
                     return group ? { id: group.id, systemKey: group.systemKey, label: group.label } : null;
                 },
                 incomplete: incompleteNames,
+                rampName: palette
+                    ? (reference, tokenName) =>
+                          groupRampName(palette, resolveTokenGroupId(palette, tokenName), reference)
+                    : undefined,
             }),
         // eslint-disable-next-line react-hooks/exhaustive-deps -- тема меняется на месте, `updated` и `version` отмечают правки
         [theme, palette, updated, version, incompleteNames],

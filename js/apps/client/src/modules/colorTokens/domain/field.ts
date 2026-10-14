@@ -1,4 +1,4 @@
-import { parsePaletteReference, templateRampName } from '../../palette';
+import { parsePaletteReference, templateRampName, type PaletteRampRef } from '../../palette';
 import type { ColorFieldValue, ColorTokenType } from './types';
 
 /** Вычисление цвета ссылки по палитре темы: HEX с альфой или `null`, если ступени нет. */
@@ -24,6 +24,8 @@ export const colorField = (
     type: ColorTokenType,
     tokenName: string,
     resolve: PaletteColorResolver,
+    /** Имя растяжки ссылки в группе токена; без палитры — имя шаблона. */
+    rampName?: (reference: PaletteRampRef, tokenName: string) => string,
 ): ColorFieldValue => {
     const raw = rawValue(value);
     if (type === 'gradient') return { value: raw, resolved: raw, paletteLabel: null, opacity: 1 };
@@ -32,7 +34,7 @@ export const colorField = (
         return {
             value: raw,
             resolved: resolve(raw, tokenName) ?? 'transparent',
-            paletteLabel: `${templateRampName(reference)} ${reference.step}`,
+            paletteLabel: `${rampName?.(reference, tokenName) ?? templateRampName(reference)} ${reference.step}`,
             opacity: reference.opacity ?? 1,
         };
     }

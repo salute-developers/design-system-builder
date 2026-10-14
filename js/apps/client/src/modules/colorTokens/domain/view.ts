@@ -1,3 +1,4 @@
+import type { PaletteRampRef } from '../../palette';
 import { colorField, sameValue, type PaletteColorResolver } from './field';
 import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
 import { categoryOf, paletteCategoryLabel, sectionOf } from './sections';
@@ -26,6 +27,8 @@ export interface ViewDeps {
     paletteGroup: (memberName: string) => PaletteCategory | null;
     /** Имена определений без режима, у которых нет значений в теме. */
     incomplete: ReadonlySet<string>;
+    /** Имя растяжки ссылки в группе определения, как на экране палитры. */
+    rampName?: (reference: PaletteRampRef, tokenName: string) => string;
 }
 
 const camelName = (key: ColorTokenKey) =>
@@ -53,7 +56,7 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         const field = (mode: ColorMode, subgroup: string): ColorFieldValue | null => {
             const name = `${mode}.${key.group}.${subgroup}.${key.name}`;
             const token = byName.get(name);
-            return token ? colorField(token.web, key.type, name, deps.resolve) : null;
+            return token ? colorField(token.web, key.type, name, deps.resolve, deps.rampName) : null;
         };
         const empty = (): ColorFieldValue => ({ value: '', resolved: 'transparent', paletteLabel: null, opacity: 1 });
         const modes = Object.fromEntries(
