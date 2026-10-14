@@ -864,12 +864,16 @@ function emitSeeds(
         ...(description ? { description } : {}),
         properties: empty
             ? []
-            : [...props.values()].map((p) => ({
-                  name: p.name,
-                  type: p.type,
-                  ...(p.usedIn.length ? { variations: p.usedIn } : {}),
-                  params: { web: p.web },
-              })),
+            : [...props.values()].map((p) => {
+                  const [first, ...rest] = p.web;
+                  if (!first) throw new Error(`${COMP}.${p.name}: свойство без web-параметра`);
+                  return {
+                      name: p.name,
+                      type: p.type,
+                      ...(p.usedIn.length ? { variations: p.usedIn } : {}),
+                      params: { web: [first, ...rest] },
+                  };
+              }),
         variations: empty
             ? []
             : order.map((v) => ({

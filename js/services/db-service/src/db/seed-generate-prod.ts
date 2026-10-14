@@ -198,17 +198,17 @@ async function exportComponent(component: Row, dsId: string) {
         ...(component.description ? { description: component.description } : {}),
         properties: properties.map((p) => {
             const inVariations = propertyVariations.filter((pv) => pv.property_id === p.id).map((pv) => pv.name);
-            const byPlatform: Record<string, string[]> = {};
-            for (const pp of params.filter((r) => r.property_id === p.id)) {
-                byPlatform[pp.platform] = [...(byPlatform[pp.platform] ?? []), pp.name];
-            }
+            const [first, ...rest] = params
+                .filter((r) => r.property_id === p.id && r.platform === 'web')
+                .map((r) => r.name as string);
+            if (!first) throw new Error(`${component.name}.${p.name}: свойство без web-параметра, в сид его не записать`);
             return {
                 name: p.name,
                 type: p.type,
                 ...(p.description ? { description: p.description } : {}),
                 ...(p.default_value ? { defaultValue: p.default_value } : {}),
                 ...(inVariations.length ? { variations: inVariations } : {}),
-                ...(Object.keys(byPlatform).length ? { params: byPlatform } : {}),
+                params: { web: [first, ...rest] },
             };
         }),
         variations: variations.map((v) => ({

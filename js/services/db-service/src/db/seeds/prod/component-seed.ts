@@ -13,12 +13,9 @@ import { makeStateSetResolver, SENTINEL_STATE_SET_ID } from '../state-sets';
  */
 
 export type PropertyType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography' | 'value';
-// Сид описывает веб-компоненты. Сопоставления с нативными платформами (xml, compose, ios) и поправки
-// к ним в данных сида остаются, но не записываются: алиас принадлежит платформе своего компонента,
-// а нативные компоненты создаёт `dsbuilder components import-api` по метам платформ.
-const ownPlatform = (platform: string) => platform === SEED_PLATFORM;
-
-export type PropertyPlatform = 'web' | 'xml' | 'compose' | 'ios';
+// Сид описывает только веб-компоненты: нативные компоненты и их платформенные имена (xml, compose, ios)
+// заводит `dsbuilder components import-api` по метам платформ, поэтому других платформ тип не допускает.
+export type PropertyPlatform = 'web';
 export type State = 'pressed' | 'hovered' | 'focused' | 'selected' | 'activated' | 'readonly' | 'disabled';
 
 export type PropertySeed = {
@@ -28,8 +25,8 @@ export type PropertySeed = {
     defaultValue?: string;
     /** Вариации, в панели которых свойство показывается. */
     variations?: string[];
-    /** Имена параметра на платформах; у web это ключ объекта токенов ядра. */
-    params?: Partial<Record<PropertyPlatform, string[]>>;
+    /** Web-параметры свойства: ключи объекта токенов ядра. Свойство без web-параметра в web-компоненте не нужно. */
+    params: { web: [string, ...string[]] };
 };
 
 export type StyleSeed = { name: string; description?: string };
@@ -191,11 +188,7 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
         };
 
         const paramRows = seed.properties.flatMap((p) =>
-            Object.entries(p.params ?? {})
-                .filter(([platform]) => ownPlatform(platform))
-                .flatMap(([platform, names]) =>
-                (names ?? []).map((name) => ({ propertyId: propertyId(p.name), platform, name })),
-            ),
+            p.params.web.map((name) => ({ propertyId: propertyId(p.name), platform: SEED_PLATFORM, name })),
         );
         for (const part of chunked(paramRows)) {
             await db.insert(schema.propertyPlatformParams).values(part).onConflictDoNothing();
@@ -348,10 +341,10 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                             stateSetId: await stateSetId(value),
                         };
                         valueRows.push(row);
-                        if (value.adjust?.some((a) => ownPlatform(a.platform))) {
+                        if (value.adjust?.length) {
                             pendingAdjust.push({
                                 key: `${row.propertyId}:${row.styleId}:${row.stateSetId}`,
-                                adjust: value.adjust.filter((a) => ownPlatform(a.platform)),
+                                adjust: value.adjust,
                                 prop: value.prop,
                             });
                         }
@@ -401,11 +394,11 @@ export async function seedComponents(db: any, ctx: Ctx, seeds: ComponentSeed[]) 
                     .onConflictDoNothing()
                     .returning();
                 totals.invariants += 1;
-                if (ipv && value.adjust?.some((a) => ownPlatform(a.platform))) {
+                if (ipv && value.adjust?.length) {
                     await db
                         .insert(schema.invariantPlatformParamAdjustments)
                         .values(
-                            value.adjust.filter((a) => ownPlatform(a.platform)).map((a) => ({
+                            value.adjust.map((a) => ({
                                 ipvId: ipv.id,
                                 platformParamId: paramId(value.prop, a),
                                 value: a.value ?? null,
