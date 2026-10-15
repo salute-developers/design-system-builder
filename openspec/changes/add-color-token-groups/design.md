@@ -84,11 +84,19 @@ text.on-dark.accent       → onDarkTextAccent
 
 ### Ссылки компонентов разрешаются по `token_id`
 
-- `ComponentConfigImporter` пишет `value = null`, если токен по имени найден, как уже делает legacy `/update` в db-service.
-- Миграция V5 очищает `value` в строках значений компонентов, где `token_id` задан и `value` совпадает с именем этого токена.
-- `ComponentConfigBuilder` берёт имя по `token_id`, а `value` — только для строк без токена.
+Значения свойств компонентов читают и пишут оба сервиса:
 
-После миграции legacy `component-configs` в db-service тоже отдаёт имя по `token_id`: его код не меняется.
+| Где | Чтение | Запись |
+|---|---|---|
+| `ds-service` | `ComponentConfigBuilder` (`GET …/component-configs`) | `ComponentConfigImporter`, CRUD значений свойств (`ExposedPropertyValueRepository`), сид `GeneratedDesignSystemComponentInitializer` |
+| db-service | legacy `component-configs` — клиент, генератор и сервис документации; gateway направляет `/ds/legacy/**` в db-service (`nginx.prod.conf.template`) | legacy `/update`: уже пишет `value = null`, если токен найден по имени |
+
+Решение:
+
+- **Запись в `ds-service`.** Если у значения задан `token_id`, `value` сохраняется как `null`. Правило соблюдают импорт, создание и изменение значений через API и сид, а проверяет репозиторий значений свойств.
+- **Чтение в `ds-service`.** `ComponentConfigBuilder` берёт имя по `token_id`, а `value` — только для строк без токена. Так верное имя возвращается даже для строк, записанных до миграции.
+- **Данные.** Миграция V5 очищает `value` в строках значений компонентов, где `token_id` задан и `value` совпадает с именем этого токена.
+- **db-service.** Код не меняется: legacy `component-configs` отдаёт `value ?? имя по token_id`, и после очистки данных и с новым правилом записи в нём остаётся имя по `token_id`.
 
 ### Операции и ревизии
 
@@ -101,6 +109,7 @@ text.on-dark.accent       → onDarkTextAccent
 | Переименовать, переставить, перенести подгруппу | `PATCH /api/ds/tenants/{tenantId}/token-groups/{groupId}` | `tenants:write`, `tokens:write` |
 | Удалить с токенами | `DELETE /api/ds/tenants/{tenantId}/token-groups/{groupId}` | `tenants:write`, `tokens:delete` |
 | Перенести или переименовать токен | `POST /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/move` | `tenants:write`, `tokens:write` |
+| Сменить тип токена | `PUT /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/type` | `tenants:write`, `tokens:write` |
 
 - Удаление группы удаляет подгруппы и семейства их токенов со значениями во всех темах и привязками к группам палитры.
 - Позиции после вставки, переноса и удаления пересчитываются сервером подряд с нуля.
@@ -133,13 +142,13 @@ text.on-dark.accent       → onDarkTextAccent
   - порядка внутри — только в режиме «Исходные»;
   - подгруппы — в другую группу;
   - групп — между собой.
-- «+» в заголовке дерева добавляет группу. «+» у группы открывает меню «Добавить цвет», «Добавить градиент», «Добавить подгруппу». «+» у подгруппы открывает меню «Добавить цвет», «Добавить градиент». Третьего уровня нет.
+- «+» в заголовке дерева добавляет группу. «+» у группы открывает меню «Добавить токен» и «Добавить подгруппу». «+» у подгруппы сразу добавляет токен. Третьего уровня нет.
 - Новая группа, подгруппа или токен появляются строкой с полем ввода:
   - Enter сохраняет: группа и подгруппа — операцией создания, токен — операцией создания цветового токена;
   - Escape или пустое имя отменяют;
   - код новой группы — название в нижнем регистре через дефис, латиница и цифры;
   - начальные значения токена — значения выбранного токена той же группы, иначе `#171717` и `#F5F5F5`, как в прототипе;
-  - после создания градиентного токена инспектор открывает выбор цвета в режиме Gradient.
+  - новый токен создаётся с типом `color`; вид значения меняется в выборе цвета (см. «Цвет и градиент не разделяются при создании»).
 - Переименование:
   - двойной щелчок по строке группы, подгруппы или токена, токен ещё и полем имени в инспекторе;
   - группа меняет название, токен — сегмент имени операцией переноса;
@@ -168,6 +177,23 @@ sequenceDiagram
     Q-->>S: новые имена членов
     S->>S: обновить имена в Theme, перечитать группы
 ```
+
+### Цвет и градиент не разделяются при создании
+
+По ревью градиент — частный случай значения цветового токена. В этом изменении это отражено в интерфейсе, а хранение не меняется:
+
+- «Добавить токен» всегда создаёт токен типа `color`;
+- переключатель Solid / Gradient в выборе цвета (`PaintToolbar`) становится рабочим;
+- переключение у токена меняет тип всего семейства операцией `PUT /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/type`.
+
+Операция в одной транзакции меняет `tokens.type` у всех определений семейства и заменяет их значения во всех темах значениями из запроса. Ревизии всех тем увеличиваются, права — как у создания.
+
+Клиент собирает значения из текущей темы. При переходе к градиенту каждое значение становится `linear-gradient(90deg, C 0%, C 100%)` от прежнего цвета: ссылка на палитру разрешается в HEX. При переходе к цвету берётся цвет первого стопа. Так как значения заменяются и в других темах, клиент перед отправкой показывает подтверждение «Вид значения изменится во всех темах».
+
+Отвергнуто:
+
+- **Градиент как вид значения режима** (тип `gradient` упраздняется, Light может быть цветом, а Dark — градиентом): затрагивает проверку значений, `theme-data`, генератор, сервис документации и модель темы клиента. Это отдельная задача.
+- **Конвертация значений других тем на сервере**: потребовала бы разбора градиентов и ссылок на палитру в `ds-service` ради редкого действия.
 
 ### Программное проектирование
 
@@ -202,6 +228,7 @@ class CreateTokenGroupUseCase { fun execute(command: CreateTokenGroup): DsResult
 class UpdateTokenGroupUseCase { fun execute(command: UpdateTokenGroup): DsResult<TokenGroupMutation> }
 class DeleteTokenGroupUseCase { fun execute(command: DeleteTokenGroup): DsResult<RevisionMutation> }
 class MoveColorTokenUseCase { fun execute(command: MoveColorToken): DsResult<ColorTokenMutation> }
+class ChangeColorTokenTypeUseCase { fun execute(command: ChangeColorTokenType): DsResult<ColorTokenMutation> }
 ```
 
 Коды ошибок: `INVALID_TOKEN_GROUP` (400) — пустое или недопустимое название, третий уровень, родитель другого вида или дизайн-системы, код группы вне правила; `TOKEN_GROUP_CONFLICT` (409) — название занято у соседей; `TOKEN_NAME_CONFLICT` (409) — новое имя члена семейства занято; `TENANT_EDIT_CONFLICT` (409); `404` — группа или токен другой дизайн-системы.
@@ -219,6 +246,7 @@ interface TokenGroupRepository {
 interface ColorTokenRepository {
     // существующие create (с groupId), updateValues, delete
     move(context: ColorTokenContext, tokenId: string, input: { groupId: string; position: number; name?: string }, editRevision: number): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
+    changeType(context: ColorTokenContext, tokenId: string, input: { type: ColorTokenType; members: Array<{ tokenId: string; values: ColorTokenValueItem[] }> }, editRevision: number): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
 }
 const buildTree: (groups: TokenGroupDto[], tokens: ColorTokenView[], options: TreeOptions) => TreeGroup[];
 ```
@@ -245,5 +273,4 @@ const buildTree: (groups: TokenGroupDto[], tokens: ColorTokenView[], options: Tr
 
 ## Открытые вопросы
 
-- Меню «+» у группы: в чате названы пункты «Добавить токен» и «Добавить группу». Здесь они разделены на «Добавить цвет», «Добавить градиент», «Добавить подгруппу», потому что тип значения задаётся при создании. Нужна проверка дизайнером.
 - Нужно ли подтверждение переименования токена, используемого в опубликованной версии, или достаточно предупреждения.
