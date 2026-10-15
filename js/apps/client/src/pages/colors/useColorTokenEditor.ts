@@ -5,7 +5,13 @@ import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
 import { buildColorTokenViews, type ColorTokenContext, type ThemeTokenSource } from '../../modules/colorTokens';
 import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
-import { adoptTheme, colorTokenSession, createColorTokenEditor } from './colorTokenEditor';
+import {
+    adoptTheme,
+    colorTokenSession,
+    createColorTokenEditor,
+    refreshStructure,
+    setPlacements,
+} from './colorTokenEditor';
 
 interface EditorInput {
     context: ColorTokenContext;
@@ -57,6 +63,23 @@ export const useColorTokenEditor = (input: EditorInput) => {
         // Множество живёт в сессии: экран размонтируется на время перезагрузки темы.
         session.loadedNames.forEach((name) => names.has(name) || session.definitions.delete(name));
         session.loadedNames = names;
+        setPlacements(
+            session,
+            tokenDefinitions.map((token) => ({
+                name: token.name,
+                groupId: token.groupId ?? null,
+                position: token.position ?? 0,
+                publishedIn: token.publishedIn ?? null,
+            })),
+        );
+    }, [session, tokenDefinitions]);
+
+    // Группы общие для тем дизайн-системы и читаются отдельно от темы; места определений приходят с ними.
+    const [groupsError, setGroupsError] = useReducer((_: string | null, value: string | null) => value, null);
+    useEffect(() => {
+        refreshStructure(session)
+            .then(() => setGroupsError(null))
+            .catch((error: unknown) => setGroupsError(error instanceof Error ? error.message : String(error)));
     }, [session, tokenDefinitions]);
 
     useEffect(() => {
@@ -94,12 +117,7 @@ export const useColorTokenEditor = (input: EditorInput) => {
                     const color = restorePaletteColor(value, -1, tokenName);
                     return /^#[0-9a-f]{6,8}$/i.test(color) ? color : null;
                 },
-                paletteGroup: (memberName) => {
-                    if (!palette) return null;
-                    const groupId = resolveTokenGroupId(palette, memberName);
-                    const group = palette.groups.find((item) => item.id === groupId);
-                    return group ? { id: group.id, systemKey: group.systemKey, label: group.label } : null;
-                },
+                placement: (memberName) => session.placements.get(memberName) ?? null,
                 incomplete: incompleteNames,
                 rampName: palette
                     ? (reference, tokenName) =>
@@ -110,5 +128,5 @@ export const useColorTokenEditor = (input: EditorInput) => {
         [theme, palette, updated, version, incompleteNames],
     );
 
-    return { session, editor, views, status: session.autosave.overall(), version };
+    return { session, editor, views, groups: session.groups, groupsError, status: session.autosave.overall(), version };
 };

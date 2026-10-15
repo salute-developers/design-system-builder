@@ -1,10 +1,10 @@
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import { COLOR_CONTEXTS, type ColorContext, type ColorTokenView, type SaveStatus } from '../../../modules/colorTokens';
-import { TokenPaletteGroupField, type ThemeOperationRunner } from '../../palette/TokenPaletteGroupField';
 import type { FieldId } from '../colorTokenEditor';
 import { ColorField } from './ColorField';
 import { CtGlyph } from './CtGlyph';
+import { PublishedWarning } from './ColorTokenTree';
 
 const CONTEXT_LABELS: Record<ColorContext, string> = { ondark: 'OnDark', onlight: 'OnLight', inverse: 'Inverse' };
 
@@ -27,8 +27,8 @@ interface InspectorProps {
     onDelete: () => void;
     onFill: () => void;
     onRetry: () => void;
-    /** Очередь операций темы для смены группы палитры. */
-    run: ThemeOperationRunner;
+    /** Переименование токена: отказ бросает ошибку с текстом для поля имени. */
+    onRename: (label: string) => Promise<void>;
     /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
     addressLabel: (address: string) => string;
 }
@@ -37,6 +37,54 @@ interface InspectorProps {
 const description = (view: ColorTokenView) =>
     view.description ||
     'Значение токена используется в связанных состояниях темы и наследуется компонентами дизайн-системы.';
+
+/** Поле имени токена: Enter или уход из поля переименовывает токен, Escape возвращает имя. */
+const NameField = ({ view, editable, onRename }: Pick<InspectorProps, 'view' | 'editable' | 'onRename'>) => {
+    const [value, setValue] = useState(view.key.name);
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    useEffect(() => {
+        setValue(view.key.name);
+        setError(null);
+    }, [view.id, view.key.name]);
+    const commit = async () => {
+        if (busy || !value.trim() || value.trim() === view.key.name) return setValue(view.key.name);
+        setBusy(true);
+        try {
+            await onRename(value.trim());
+            setError(null);
+        } catch (failure) {
+            setError(failure instanceof Error ? failure.message : String(failure));
+        } finally {
+            setBusy(false);
+        }
+    };
+    return (
+        <label className="token-name-field">
+            <span className="inspector-heading">ИМЯ</span>
+            <span className="token-name-input">
+                <input
+                    aria-label="Имя токена"
+                    value={value}
+                    readOnly={!editable}
+                    disabled={busy}
+                    onChange={(event) => setValue(event.target.value)}
+                    onBlur={() => void commit()}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') void commit();
+                        if (event.key === 'Escape') setValue(view.key.name);
+                    }}
+                />
+                {view.publishedIn && editable && <PublishedWarning version={view.publishedIn} />}
+            </span>
+            {error && (
+                <span className="token-tree-input-error" role="alert">
+                    {error}
+                </span>
+            )}
+        </label>
+    );
+};
 
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
@@ -75,6 +123,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     </span>
                 </div>
                 <p>{description(view)}</p>
+                <NameField view={view} editable={editable} onRename={props.onRename} />
             </header>
             {save.state === 'error' && save.error && (
                 <div className="ct-banner" role="alert">
@@ -102,15 +151,6 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 {field('light', 'Light', view.modes.light)}
                 {field('dark', 'Dark', view.modes.dark)}
             </section>
-            {view.key.type === 'color' && (
-                <section className="inspector-section figma-inspector-group">
-                    <TokenPaletteGroupField
-                        tokenName={`dark.${view.key.group}.default.${view.key.name}`}
-                        value={view.modes.dark.value}
-                        run={props.run}
-                    />
-                </section>
-            )}
             <section className="inspector-section figma-inspector-group figma-subthemes">
                 <div className="figma-subthemes-heading">
                     <span className="inspector-heading">ПОДТЕМЫ</span>

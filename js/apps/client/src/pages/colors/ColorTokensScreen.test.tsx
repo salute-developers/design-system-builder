@@ -8,20 +8,44 @@ vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '
 
 import { ThemeEditorRepository } from '../../api/themeEditorRepository';
 import { DesignSystem, type Config, type Theme } from '../../controllers';
-import { ColorTokenOperationError, type ColorTokenRepository } from '../../modules/colorTokens';
+import {
+    ColorTokenOperationError,
+    type ColorTokenRepository,
+    type TokenGroupDto,
+    type TokenGroupRepository,
+} from '../../modules/colorTokens';
 import { setColorTokenRepository } from './colorTokenEditor';
 import { ColorTokensScreen } from './ColorTokensScreen';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
-const definitions = SUBGROUPS.map((subgroup, index) => ({
-    id: `accent-${index}`,
-    designSystemId: 'ds-1',
-    name: `text.${subgroup}.accent`,
-    type: 'color',
-    displayName: null,
-    description: null,
-    enabled: true,
-}));
+let published: string | null = null;
+const definitions = () =>
+    SUBGROUPS.map((subgroup, index) => ({
+        id: `accent-${index}`,
+        designSystemId: 'ds-1',
+        name: `text.${subgroup}.accent`,
+        type: 'color',
+        displayName: null,
+        description: null,
+        enabled: true,
+        groupId: 'g-accent',
+        position: 0,
+        publishedIn: published,
+    }));
+
+const group = (id: string, label: string, position: number, parentId: string | null = null): TokenGroupDto => ({
+    id,
+    parentId,
+    code: parentId ? null : 'text',
+    label,
+    position,
+    kind: 'color',
+});
+const GROUPS = [
+    group('g-text', 'Text & Icons', 0),
+    group('g-accent', 'Accent', 0, 'g-text'),
+    group('g-status', 'Status', 1, 'g-text'),
+];
 
 const LIGHT = '#118833';
 const DARK = '#22AA44';
@@ -40,10 +64,10 @@ const reply =
         if (url.endsWith('/design-systems/ds-1')) return { data: { id: 'ds-1', name: 'System' } };
         if (url.endsWith('/tenants/tenant-1'))
             return { data: { id: 'tenant-1', designSystemId: 'ds-1', name: 'tenant', editRevision: 3 } };
-        if (url.endsWith('/design-systems/ds-1/tokens')) return { data: definitions };
+        if (url.endsWith('/design-systems/ds-1/tokens')) return { data: definitions() };
         if (url.endsWith('/tenants/tenant-1/token-values'))
             return {
-                data: definitions
+                data: definitions()
                     .filter((token) => !missing.includes(token.id))
                     .flatMap((token) =>
                         ['web', 'ios', 'android'].flatMap((platform) =>
@@ -68,6 +92,18 @@ const repository = {
     create: vi.fn<ColorTokenRepository['create']>(),
     updateValues: vi.fn<ColorTokenRepository['updateValues']>(),
     delete: vi.fn<ColorTokenRepository['delete']>(),
+    move: vi.fn<ColorTokenRepository['move']>(),
+};
+
+/** Группы дизайн-системы в памяти: список и определения отдаются из текущего состояния. */
+let groupState: TokenGroupDto[] = [];
+let definitionState: ReturnType<typeof definitions> = [];
+const groupRepository = {
+    list: vi.fn<TokenGroupRepository['list']>(async () => groupState),
+    definitions: vi.fn<TokenGroupRepository['definitions']>(async () => definitionState),
+    create: vi.fn<TokenGroupRepository['create']>(),
+    update: vi.fn<TokenGroupRepository['update']>(),
+    remove: vi.fn<TokenGroupRepository['remove']>(),
 };
 
 /** Загружает тему через репозиторий редактора, как `useDesignSystem`, и рендерит экран. */
@@ -142,10 +178,17 @@ const commitLight = (value: string) => {
 
 beforeEach(() => {
     localStorage.clear();
+    published = null;
+    groupState = [...GROUPS];
+    definitionState = definitions();
     repository.create.mockReset();
     repository.updateValues.mockReset();
     repository.delete.mockReset();
-    setColorTokenRepository(repository);
+    repository.move.mockReset();
+    groupRepository.create.mockReset();
+    groupRepository.update.mockReset();
+    groupRepository.remove.mockReset();
+    setColorTokenRepository(repository, groupRepository);
 });
 
 afterEach(() => {
@@ -286,33 +329,193 @@ describe('ColorTokensScreen', () => {
         expect(within(inspector()).getAllByRole('textbox', { name: 'Dark' })[0]).toHaveValue('123456');
     });
 
-    it('создаёт токен в разделе со значениями всех подтем', async () => {
-        repository.create.mockImplementation(async (_context, input) => ({
-            editRevision: 4,
-            value: {
-                type: input.type,
-                group: input.group,
-                name: input.name,
-                members: input.members.map((member, index) => ({ tokenId: `new-${index}`, name: member.name })),
-            },
-        }));
+    it('показывает токен в его подгруппе и пустые подгруппы', async () => {
         await renderScreen();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Text & Icons' }));
-        const dialog = screen.getByRole('dialog');
-        fireEvent.change(within(dialog).getByPlaceholderText('Например, Highlight'), {
-            target: { value: 'Highlight' },
-        });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
+        const accent = await screen.findByTestId('token-subgroup-Accent');
+        expect(within(accent).getByTestId('color-token-row-color:text.accent')).toBeInTheDocument();
+        expect(screen.getByTestId('token-subgroup-Status')).toBeInTheDocument();
+        expect(screen.getByTestId('token-group-Text & Icons')).toBeInTheDocument();
+    });
 
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    it('создаёт группу строкой ввода в дереве', async () => {
+        groupRepository.create.mockImplementation(async (_context, input) => {
+            const created = { ...group('g-brand', input.label, 1), code: 'brand' };
+            groupState = [...groupState, created];
+            return { editRevision: 4, value: created };
+        });
+        await renderScreen();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
+        const field = screen.getByRole('textbox', { name: 'Название новой группы' });
+        fireEvent.change(field, { target: { value: 'Brand' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        await waitFor(() => expect(screen.getByTestId('token-group-Brand')).toBeInTheDocument());
+        expect(groupRepository.create).toHaveBeenCalledWith(
+            expect.anything(),
+            { kind: 'color', parentId: null, label: 'Brand' },
+            3,
+        );
+        expect(screen.queryByRole('textbox', { name: 'Название новой группы' })).toBeNull();
+    });
+
+    it('создаёт токен в подгруппе со значениями всех подтем и показывает ошибку занятого имени', async () => {
+        repository.create.mockImplementation(async (_context, input) => {
+            definitionState = [
+                ...definitionState,
+                ...input.members.map((member, index) => ({
+                    ...definitions()[0],
+                    id: `new-${index}`,
+                    name: member.name,
+                    groupId: input.groupId ?? null,
+                })),
+            ];
+            return {
+                editRevision: 4,
+                value: {
+                    type: input.type,
+                    group: input.group,
+                    name: input.name,
+                    members: input.members.map((member, index) => ({ tokenId: `new-${index}`, name: member.name })),
+                },
+            };
+        });
+        await renderScreen();
+        await screen.findByTestId('token-subgroup-Status');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
+        const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(field, { target: { value: 'Accent' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+        expect(await screen.findByRole('alert')).toHaveTextContent('Имя accent уже занято.');
+
+        fireEvent.change(field, { target: { value: 'Highlight' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        await waitFor(() => expect(repository.create).toHaveBeenCalledTimes(1));
         const [, input, revision] = repository.create.mock.calls[0];
         expect(revision).toBe(3);
-        expect(input).toMatchObject({ type: 'color', group: 'text', name: 'highlight' });
+        expect(input).toMatchObject({ type: 'color', group: 'text', name: 'highlight', groupId: 'g-status' });
         expect(input.members.map((member) => member.name)).toEqual(
             expect.arrayContaining(SUBGROUPS.map((subgroup) => `text.${subgroup}.highlight`)),
         );
-        expect(screen.getByTestId('color-token-row-color:text.highlight')).toBeInTheDocument();
+        // Начальные значения — выбранного токена той же группы.
+        expect(input.members[0].values.find((value) => value.mode === 'light')?.value).toEqual([LIGHT]);
+        await waitFor(() =>
+            expect(
+                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-color:text.highlight'),
+            ).toBeInTheDocument(),
+        );
+    });
+
+    it('переименовывает токен двойным щелчком переносом на то же место', async () => {
+        repository.move.mockImplementation(async () => {
+            definitionState = definitionState.map((item) => ({
+                ...item,
+                name: item.name.replace('.accent', '.brand'),
+            }));
+            return {
+                editRevision: 4,
+                value: {
+                    type: 'color',
+                    group: 'text',
+                    name: 'brand',
+                    members: definitionState.map((item) => ({ tokenId: item.id, name: item.name })),
+                },
+            };
+        });
+        await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        const field = screen.getByRole('textbox', { name: 'Новое имя textAccent' });
+        expect(screen.queryByRole('img', { name: /опубликован/ })).toBeNull();
+        fireEvent.change(field, { target: { value: 'Brand' } });
+        fireEvent.keyDown(field, { key: 'Enter' });
+
+        await waitFor(() =>
+            expect(repository.move).toHaveBeenCalledWith(
+                expect.anything(),
+                'accent-0',
+                { groupId: 'g-accent', position: 0, name: 'brand' },
+                3,
+            ),
+        );
+        await waitFor(() =>
+            expect(screen.getByTestId('color-token-row-color:text.brand')).toHaveTextContent('textBrand'),
+        );
+        expect(within(inspector()).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('brand');
+    });
+
+    it('у опубликованного токена показывает предупреждение у поля имени', async () => {
+        published = '1.2.0';
+        definitionState = definitions();
+        await renderScreen();
+
+        expect(
+            await within(inspector()).findByRole('img', {
+                name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
+            }),
+        ).toBeInTheDocument();
+    });
+
+    it('переносит токен перетаскиванием в другую подгруппу и показывает отказ', async () => {
+        repository.move
+            .mockRejectedValueOnce(new ColorTokenOperationError('invalid', 'Имя занято', 'TOKEN_NAME_CONFLICT'))
+            .mockImplementationOnce(async () => {
+                definitionState = definitionState.map((item) => ({ ...item, groupId: 'g-status' }));
+                return { editRevision: 4, value: { type: 'color', group: 'text', name: 'accent', members: [] } };
+            });
+        await renderScreen();
+        const status = await screen.findByTestId('token-subgroup-Status');
+        const row = screen.getByTestId('color-token-row-color:text.accent');
+        const target = status.querySelector('.token-tree-subgroup-row') as HTMLElement;
+        const dataTransfer = { setData: vi.fn() };
+
+        fireEvent.dragStart(row, { dataTransfer });
+        fireEvent.dragOver(target, { dataTransfer });
+        fireEvent.drop(target, { dataTransfer });
+        expect(await screen.findByText('Не удалось перенести токен: Имя занято')).toBeInTheDocument();
+        expect(within(screen.getByTestId('token-subgroup-Accent')).getByTestId('color-token-row-color:text.accent'));
+
+        fireEvent.dragStart(row, { dataTransfer });
+        fireEvent.dragOver(target, { dataTransfer });
+        fireEvent.drop(target, { dataTransfer });
+        await waitFor(() =>
+            expect(
+                within(screen.getByTestId('token-subgroup-Status')).getByTestId('color-token-row-color:text.accent'),
+            ).toBeInTheDocument(),
+        );
+        expect(repository.move).toHaveBeenLastCalledWith(
+            expect.anything(),
+            'accent-0',
+            { groupId: 'g-status', position: 0 },
+            3,
+        );
+    });
+
+    it('удаляет пустую подгруппу сразу, а группу с токенами — после подтверждения', async () => {
+        groupRepository.remove.mockImplementation(async (_context, groupId) => {
+            groupState = groupState.filter((item) => item.id !== groupId && item.parentId !== groupId);
+            if (groupId === 'g-text') definitionState = [];
+            return { editRevision: 4 };
+        });
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')]);
+        await screen.findByTestId('token-subgroup-Status');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить подгруппу Status' }));
+        expect(screen.queryByRole('dialog')).toBeNull();
+        await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить группу Text & Icons' }));
+        const dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByTestId('delete-group-tokens')).toHaveTextContent('1 токен');
+        expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Button');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить группу' }));
+
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.accent')).toBeNull());
+        expect(groupRepository.remove).toHaveBeenLastCalledWith(expect.anything(), 'g-text', 4);
     });
 
     it('удаляет токен без связей с компонентами без подтверждения', async () => {
@@ -344,8 +547,13 @@ describe('ColorTokensScreen', () => {
         await renderScreen('viewer');
 
         expect((inspector() as HTMLElement & { inert: boolean }).inert).toBe(true);
-        expect(screen.queryByRole('button', { name: 'Добавить токен в Text & Icons' })).toBeNull();
-        expect(screen.queryByRole('button', { name: 'Удалить токен' })).toBeNull();
+        await screen.findByTestId('token-subgroup-Accent');
+        expect(screen.queryByRole('button', { name: 'Добавить группу' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Добавить/ })).toBeNull();
+        expect(screen.queryByRole('button', { name: /^Удалить/ })).toBeNull();
+        expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveAttribute('draggable', 'false');
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
         expect(screen.getByText('Read-only access')).toBeInTheDocument();
 
         await act(async () => {

@@ -24,6 +24,17 @@ export interface CreateColorTokenInput {
     description?: string | null;
     paletteGroupId?: string | null;
     members: Array<{ name: string; values: ColorTokenValueItem[] }>;
+    /** Группа или подгруппа токенов; без неё токен создаётся без группы. */
+    groupId?: string | null;
+    /** Позиция в группе; без неё — в конец. */
+    position?: number | null;
+}
+
+export interface MoveColorTokenInput {
+    groupId: string;
+    position: number;
+    /** Новое имя без группы и состояния. */
+    name?: string;
 }
 
 export interface ColorTokenFamilyDto {
@@ -51,6 +62,13 @@ export interface ColorTokenRepository {
         editRevision: number,
     ): Promise<{ editRevision: number }>;
     delete(context: ColorTokenContext, tokenId: string, editRevision: number): Promise<{ editRevision: number }>;
+    /** Переносит семейство в группу и на позицию, при `name` — переименовывает; идентификаторы сохраняются. */
+    move(
+        context: ColorTokenContext,
+        tokenId: string,
+        input: MoveColorTokenInput,
+        editRevision: number,
+    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto }>;
 }
 
 export type ColorTokenErrorKind = 'conflict' | 'forbidden' | 'invalid' | 'not-found' | 'network';

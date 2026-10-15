@@ -5,24 +5,27 @@ import { properties as buttonProperties } from '../../../../../../services/db-se
 import {
     buildColorTokenViews,
     buildTree,
-    boardCategories,
     collectContrastPairs,
     contrastRatio,
     fieldsInheritingFrom,
     newTokenMembers,
-    normalizeNewToken,
     parseMemberName,
+    tokenNameFromLabel,
     type ComponentStyleSource,
-    type PaletteCategory,
     type ThemeTokenSource,
+    type TokenGroupDto,
+    type TokenPlacement,
 } from '.';
 
 const resolve = (value: string) => (value.includes('missing') ? null : '#3377FFFF');
-const groups: Record<string, PaletteCategory> = {
-    neutral: { id: 'g-neutral', systemKey: 'neutral', label: 'Neutral' },
-    accent: { id: 'g-accent', systemKey: 'accent', label: 'Accent' },
-    brand: { id: 'g-brand', systemKey: null, label: 'Brand' },
-};
+const group = (id: string, label: string, position: number, parentId: string | null = null): TokenGroupDto => ({
+    id,
+    parentId,
+    code: parentId ? null : id,
+    label,
+    position,
+    kind: 'color',
+});
 
 const family = (group: string, name: string, light: string, dark: string, overrides: Record<string, string> = {}) => {
     const subgroups =
@@ -49,9 +52,9 @@ const family = (group: string, name: string, light: string, dark: string, overri
     );
 };
 
-const deps = (assign: Record<string, PaletteCategory> = {}) => ({
+const deps = (placements: Record<string, TokenPlacement> = {}) => ({
     resolve,
-    paletteGroup: (name: string) => assign[name] ?? (name.includes('accent') ? groups.accent : groups.neutral),
+    placement: (name: string) => placements[name] ?? null,
     incomplete: new Set<string>(),
 });
 
@@ -77,35 +80,27 @@ describe('семейство токена', () => {
 });
 
 describe('токены экрана', () => {
-    it('собирает семейство, метку ступени, наследование подтем и категорию по группе палитры', () => {
+    it('собирает семейство, метку ступени, наследование подтем и место в группе', () => {
         const tokens = [
             ...family('text', 'accent', '[general.blue.500][0.56]', '#FFFFFF'),
             { name: 'dark.text.default.accent-hover', type: 'color', displayName: 'h', enabled: true, web: '#000' },
             ...family('surface', 'transparent-card', '#00000014', '#FFFFFF14', { 'on-dark.dark': '#123456' }),
             ...family('background', 'primary', '#FFFFFF', '#000000'),
         ] satisfies ThemeTokenSource[];
-        const [accent, card, background] = buildColorTokenViews(tokens, deps());
+        const [accent, card, background] = buildColorTokenViews(
+            tokens,
+            deps({ 'text.default.accent': { groupId: 'accent', position: 2, publishedIn: '1.0.0' } }),
+        );
 
         expect(accent.id).toBe('color:text.accent');
         expect(accent.displayName).toBe('textAccent');
         expect(accent.modes.light).toMatchObject({ paletteLabel: 'Blue 500', opacity: 0.56, resolved: '#3377FFFF' });
-        expect(accent.category).toBe('Accent');
+        expect(accent).toMatchObject({ groupId: 'accent', position: 2, publishedIn: '1.0.0' });
         expect(accent.contexts.inverse.linked).toBe(true);
-        expect(card.category).toBe('General / Transparent');
         expect(card.contexts.ondark.linked).toBe(false);
         expect(card.contexts.onlight.linked).toBe(true);
         expect(card.modes.dark.opacity).toBe(0.08);
-        expect(background.section).toBe('background');
-        expect(background.category).toBe('Default');
-    });
-
-    it('явная привязка к пользовательской группе меняет категорию', () => {
-        const [view] = buildColorTokenViews(
-            family('surface', 'highlight', '#FFFFFF', '#000000'),
-            deps({ 'surface.default.highlight': groups.brand }),
-        );
-        expect(view.category).toBe('Brand / Solid');
-        expect(view.paletteGroupId).toBe('g-brand');
+        expect(background).toMatchObject({ groupId: null, position: 0, publishedIn: null });
     });
 
     it('отмечает неполный токен и значения, которые не пройдут проверку', () => {
@@ -122,77 +117,65 @@ describe('токены экрана', () => {
 });
 
 describe('дерево', () => {
+    const groups = [
+        group('text', 'Text & Icons', 0),
+        group('outline', 'Outlines', 1),
+        group('accent', 'Accent', 0, 'text'),
+        group('status', 'Status', 1, 'text'),
+    ];
     const views = buildColorTokenViews(
         [
             ...family('text', 'secondary', '#000', '#FFF'),
             ...family('text', 'accent', 'bad', '#FFF'),
+            ...family('text', 'primary', '#000', '#FFF'),
+            ...family('text', 'orphan', '#000', '#FFF'),
             ...family('outline', 'primary', '#000', '#FFF'),
+            ...family('data', 'yellow', '#000', '#FFF'),
         ],
-        deps(),
+        deps({
+            'text.default.secondary': { groupId: 'accent', position: 0, publishedIn: null },
+            'text.default.accent': { groupId: 'accent', position: 1, publishedIn: null },
+            'text.default.primary': { groupId: 'text', position: 0, publishedIn: null },
+            'outline.default.primary': { groupId: 'outline', position: 0, publishedIn: null },
+        }),
     );
+    const names = (tokens: { displayName: string }[]) => tokens.map((token) => token.displayName);
 
-    it('сортирует «А–Я» внутри раздела и сохраняет исходный порядок по «Исходные»', () => {
-        expect(
-            buildTree(views, { query: '', sort: 'az', issuesOnly: false })[0].tokens.map((t) => t.displayName),
-        ).toEqual(['textAccent', 'textSecondary']);
-        expect(
-            buildTree(views, { query: '', sort: 'source', issuesOnly: false })[0].tokens.map((t) => t.displayName),
-        ).toEqual(['textSecondary', 'textAccent']);
+    it('строит группы, токены группы, подгруппы, пустые узлы и «Без группы»', () => {
+        const tree = buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false });
+        expect(tree.map((node) => node.group.label)).toEqual(['Text & Icons', 'Outlines', 'Без группы']);
+        expect(names(tree[0].tokens)).toEqual(['textPrimary']);
+        expect(tree[0].subgroups.map((item) => item.group.label)).toEqual(['Accent', 'Status', 'Без группы']);
+        expect(names(tree[0].subgroups[0].tokens)).toEqual(['textSecondary', 'textAccent']);
+        expect(tree[0].subgroups[1].tokens).toEqual([]);
+        expect(names(tree[0].subgroups[2].tokens)).toEqual(['textOrphan']);
+        expect(names(tree[2].tokens)).toEqual(['dataYellow']);
     });
 
-    it('ищет без учёта регистра, фильтрует проблемы и не выводит пустые разделы', () => {
-        expect(buildTree(views, { query: 'OUTLINE', sort: 'az', issuesOnly: false }).map((s) => s.section)).toEqual([
-            'outline',
-        ]);
-        expect(
-            buildTree(views, { query: '', sort: 'az', issuesOnly: true })[0].tokens.map((t) => t.displayName),
-        ).toEqual(['textAccent']);
-        expect(buildTree(views, { query: 'нет такого', sort: 'az', issuesOnly: false })).toEqual([]);
+    it('сортирует «А–Я» внутри узла', () => {
+        const tree = buildTree(groups, views, { query: '', sort: 'az', issuesOnly: false });
+        expect(names(tree[0].subgroups[0].tokens)).toEqual(['textAccent', 'textSecondary']);
     });
 
-    it('группирует борд по категориям', () => {
-        const text = views.filter((view) => view.section === 'text');
-        expect(boardCategories(text).map((item) => item.category)).toEqual(['General', 'Accent']);
+    it('при поиске и фильтре показывает только узлы с найденными токенами', () => {
+        const found = buildTree(groups, views, { query: 'OUTLINE', sort: 'az', issuesOnly: false });
+        expect(found.map((node) => node.group.label)).toEqual(['Outlines']);
+        const issues = buildTree(groups, views, { query: '', sort: 'az', issuesOnly: true });
+        expect(issues.map((node) => node.group.label)).toEqual(['Text & Icons']);
+        expect(issues[0].subgroups.map((item) => item.group.label)).toEqual(['Accent']);
+        expect(buildTree(groups, views, { query: 'нет такого', sort: 'az', issuesOnly: false })).toEqual([]);
     });
 });
 
 describe('новый токен', () => {
-    const existing = new Set(['text.accent']);
+    const taken = new Set(['text.accent']);
 
-    it('приводит имя к kebab-case и добавляет transparent- для категории Transparent', () => {
-        expect(
-            normalizeNewToken(
-                { section: 'text', surfaceKind: null, name: 'Card Header', light: '#FFF', dark: '#000' },
-                existing,
-            ),
-        ).toEqual({
-            key: { type: 'color', group: 'text', name: 'card-header' },
-            displayName: 'textCardHeader',
-        });
-        expect(
-            normalizeNewToken(
-                { section: 'surface', surfaceKind: 'Transparent', name: 'banner', light: '#FFF', dark: '#000' },
-                existing,
-            ),
-        ).toMatchObject({
-            key: { group: 'surface', name: 'transparent-banner' },
-            displayName: 'surfaceTransparentBanner',
-        });
-    });
-
-    it('показывает тексты ошибок прототипа', () => {
-        const input = { section: 'text' as const, surfaceKind: null, light: '#FFF', dark: '#000' };
-        expect(normalizeNewToken({ ...input, name: 'Привет' }, existing)).toEqual({
-            error: 'Введите имя токена: латиница и цифры.',
-        });
-        expect(normalizeNewToken({ ...input, name: 'accent' }, existing)).toEqual({
-            error: 'Токен textAccent уже есть в теме.',
-        });
-        expect(normalizeNewToken({ ...input, name: 'new', dark: 'black' }, existing)).toEqual({
-            error: 'Значения Light и Dark должны быть цветом в формате Hex.',
-        });
-        expect(normalizeNewToken({ ...input, name: 'accent hover' }, existing)).toEqual({
-            error: 'Имя токена не может оканчиваться на -hover, -active или -brightness.',
+    it('приводит имя к kebab-case и показывает ошибки', () => {
+        expect(tokenNameFromLabel('Card Header', 'text', taken)).toEqual({ name: 'card-header' });
+        expect(tokenNameFromLabel('Привет', 'text', taken)).toEqual({ error: 'Введите имя: латиница и цифры.' });
+        expect(tokenNameFromLabel('Accent', 'text', taken)).toEqual({ error: 'Имя accent уже занято.' });
+        expect(tokenNameFromLabel('accent hover', 'text', taken)).toEqual({
+            error: 'Имя не может оканчиваться на -hover, -active или -brightness.',
         });
     });
 

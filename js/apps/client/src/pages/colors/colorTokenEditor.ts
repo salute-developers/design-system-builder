@@ -6,9 +6,11 @@ import {
     COLOR_CONTEXTS,
     COLOR_MODES,
     ColorTokenOperationError,
+    camelTokenName,
     contextSubgroup,
     createColorTokenAutosave,
     createHttpColorTokenRepository,
+    createHttpTokenGroupRepository,
     familyCreateMembers,
     familyTokens,
     familyUpdate,
@@ -27,8 +29,13 @@ import {
     type ColorTokenKey,
     type ColorTokenRepository,
     type ColorTokenView,
+    type PlacedDefinition,
     type StateValue,
     type TokenDefinitions,
+    type TokenGroupDto,
+    type TokenGroupRepository,
+    type TokenPlacement,
+    type UpdateTokenGroupInput,
 } from '../../modules/colorTokens';
 import { formatPaletteReference, parsePaletteReference } from '../../modules/palette';
 import { draftEntriesOfTypes, removeDraftEntries } from '../../utils/designSystemDraft';
@@ -52,12 +59,7 @@ export const rgbHex = (value: string) => {
     return `#${full.toUpperCase()}`;
 };
 
-const camel = (key: ColorTokenKey) =>
-    key.group +
-    key.name
-        .split('-')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('');
+const camel = camelTokenName;
 
 /** Значения состояний нового токена: тот же расчёт, что при правке существующего. */
 export const stateValue: StateValue = (value, group, subgroup, mode, state) => {
@@ -84,6 +86,10 @@ export interface ColorTokenSession {
      * перезагрузки темы накладываются только они: правки того же токена из другого места не затираются.
      */
     edited: Map<string, Set<string>>;
+    /** Группы и подгруппы токенов дизайн-системы. */
+    groups: TokenGroupDto[];
+    /** Место определения (имя без режима) в группах и признак публикации. */
+    placements: Map<string, TokenPlacement>;
     reload: () => void;
     listeners: Set<() => void>;
 }
@@ -93,10 +99,12 @@ const sessionKey = ({ projectId, designSystemId, tenantId }: ColorTokenContext) 
     `${projectId}:${designSystemId}:${tenantId}`;
 
 let repository: ColorTokenRepository = createHttpColorTokenRepository();
+let groupRepository: TokenGroupRepository = createHttpTokenGroupRepository();
 
 /** Подмена порта операций в тестах. */
-export const setColorTokenRepository = (value: ColorTokenRepository) => {
+export const setColorTokenRepository = (value: ColorTokenRepository, groups?: TokenGroupRepository) => {
     repository = value;
+    if (groups) groupRepository = groups;
     sessions.clear();
 };
 
@@ -118,6 +126,8 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
         overlay: null,
         loadedNames: new Set(),
         edited: new Map(),
+        groups: [],
+        placements: new Map(),
         reload: () => undefined,
         listeners: new Set(),
         autosave: undefined as unknown as ColorTokenAutosave,
@@ -127,6 +137,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             create: (...args) => repository.create(...args),
             updateValues: (...args) => repository.updateValues(...args),
             delete: (...args) => repository.delete(...args),
+            move: (...args) => repository.move(...args),
         },
         context,
         revision: {
@@ -152,6 +163,60 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
     });
     sessions.set(key, session);
     return session;
+};
+
+/** Места определений из ответа сервера: имя без режима → группа, позиция и признак публикации. */
+export const setPlacements = (session: ColorTokenSession, definitions: Array<{ name: string } & TokenPlacement>) => {
+    session.placements = new Map(
+        definitions.map(({ name, groupId, position, publishedIn }) => [name, { groupId, position, publishedIn }]),
+    );
+};
+
+/**
+ * Приводит тему к определениям сервера по идентификаторам: переименованные определения получают новые имена,
+ * удалённые уходят из темы. Значения тем не перечитываются.
+ */
+const syncTheme = (session: ColorTokenSession, definitions: PlacedDefinition[]) => {
+    const theme = session.theme;
+    const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+    for (const [name, definition] of [...session.definitions]) {
+        const next = byId.get(definition.id);
+        const type = definition.type as ColorTokenKey['type'];
+        for (const mode of COLOR_MODES) {
+            const token = theme?.getToken(`${mode}.${name}`, type);
+            if (!token) continue;
+            if (!next) {
+                theme?.removeToken(token.getName(), type);
+                continue;
+            }
+            if (next.name === name) continue;
+            const renamed = `${mode}.${next.name}`;
+            const parsed = parseMemberName(renamed);
+            token.setName(renamed);
+            token.setTags(renamed.split('.'));
+            if (parsed && parsed.subgroup === 'default' && !parsed.state)
+                token.setDisplayName(camel({ group: parsed.group, name: parsed.name }));
+            else if (token.getDisplayName() === `${mode}.${name}`) token.setDisplayName(renamed);
+        }
+    }
+    session.definitions = new Map(
+        definitions
+            .filter((definition) => definition.type === 'color' || definition.type === 'gradient')
+            .map((definition) => [definition.name, { id: definition.id, type: definition.type }]),
+    );
+    session.loadedNames = new Set(session.definitions.keys());
+};
+
+/** Перечитывает группы и места определений; после операций над структурой приводит к ним тему. */
+export const refreshStructure = async (session: ColorTokenSession, sync = false) => {
+    const [groups, definitions] = await Promise.all([
+        groupRepository.list(session.context),
+        groupRepository.definitions(session.context),
+    ]);
+    if (sync) syncTheme(session, definitions);
+    session.groups = groups;
+    setPlacements(session, definitions);
+    notify(session);
 };
 
 /** Значения определений токенов с несохранёнными правками: имя с режимом → значения платформ. */
@@ -342,12 +407,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             schedule(view.key);
         },
 
-        /** Создаёт токен на сервере и добавляет его определения в тему. */
+        /** Создаёт токен в группе [groupId] на сервере и добавляет его определения в тему. */
         async create(
             key: ColorTokenKey,
             displayName: string,
             defaults: Record<ColorMode, string>,
-            paletteGroupId: string | null,
+            groupId: string | null,
         ): Promise<ColorTokenFamilyDto> {
             const members = newTokenMembers(key, defaults, stateValue);
             const family = await session.autosave.run((editRevision) =>
@@ -358,7 +423,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                         group: key.group,
                         name: key.name,
                         displayName,
-                        paletteGroupId,
+                        groupId,
                         members: members.map((member) => ({
                             name: member.name,
                             values: member.values.flatMap(({ mode, value }) =>
@@ -389,7 +454,56 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     );
                 }
             }
+            await refreshStructure(session).catch(() => notify(session));
             return family;
+        },
+
+        /** Создаёт группу (`parentId === null`) или подгруппу в конце соседей. */
+        async createGroup(parentId: string | null, label: string): Promise<TokenGroupDto> {
+            const group = await session.autosave.run((editRevision) =>
+                groupRepository.create(session.context, { kind: 'color', parentId, label }, editRevision),
+            );
+            await refreshStructure(session);
+            return group;
+        },
+
+        /** Переименование, перестановка или перенос подгруппы; токены перенесённой подгруппы переименовываются. */
+        async updateGroup(groupId: string, input: UpdateTokenGroupInput): Promise<TokenGroupDto> {
+            const group = await session.autosave.run((editRevision) =>
+                groupRepository.update(session.context, groupId, input, editRevision),
+            );
+            await refreshStructure(session, input.parentId !== undefined);
+            return group;
+        },
+
+        /** Удаляет группу с подгруппами и токенами во всех темах. */
+        async removeGroup(groupId: string) {
+            await session.autosave.run((editRevision) =>
+                groupRepository
+                    .remove(session.context, groupId, editRevision)
+                    .then((result) => ({ ...result, value: null })),
+            );
+            await refreshStructure(session, true);
+        },
+
+        /**
+         * Переносит токен в группу [groupId] на позицию [position] и при [name] переименовывает его. Возвращает
+         * ключ строки токена после операции.
+         */
+        async move(view: ColorTokenView, groupId: string, position: number, name?: string): Promise<string> {
+            const defaultId = session.definitions.get(`${view.key.group}.default.${view.key.name}`)?.id;
+            if (!defaultId) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            const family = await session.autosave.run((editRevision) =>
+                repository.move(
+                    session.context,
+                    defaultId,
+                    { groupId, position, ...(name ? { name } : {}) },
+                    editRevision,
+                ),
+            );
+            session.autosave.forget(tokenId(view.key));
+            await refreshStructure(session, true);
+            return tokenId({ type: view.key.type, group: family.group, name: family.name });
         },
 
         /** Удаляет токен на сервере и убирает его определения из темы. */
@@ -408,6 +522,8 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 const parsed = parseMemberName(token.getName());
                 if (parsed?.mode) session.definitions.delete(token.getName().slice(parsed.mode.length + 1));
             }
+            // Позиции соседей пересчитаны сервером.
+            await refreshStructure(session).catch(() => notify(session));
         },
 
         /** Цветовые и градиентные записи прежнего черновика темы. */

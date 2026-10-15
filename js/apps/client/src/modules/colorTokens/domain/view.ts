@@ -1,9 +1,16 @@
 import type { PaletteRampRef } from '../../palette';
 import { colorField, sameValue, type PaletteColorResolver } from './field';
 import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
-import { categoryOf, paletteCategoryLabel, sectionOf } from './sections';
 import { validateColorValue } from './validation';
-import type { ColorContext, ColorFieldValue, ColorMode, ColorTokenKey, ColorTokenType, ColorTokenView } from './types';
+import type {
+    ColorContext,
+    ColorFieldValue,
+    ColorMode,
+    ColorTokenKey,
+    ColorTokenType,
+    ColorTokenView,
+    TokenPlacement,
+} from './types';
 
 /** Определение темы, из которого строится экран: имя с режимом и web-значение. */
 export interface ThemeTokenSource {
@@ -15,16 +22,10 @@ export interface ThemeTokenSource {
     web: unknown;
 }
 
-export interface PaletteCategory {
-    id: string;
-    systemKey: string | null;
-    label: string;
-}
-
 export interface ViewDeps {
     resolve: PaletteColorResolver;
-    /** Группа палитры определения (имя без режима) или `null` без палитры. */
-    paletteGroup: (memberName: string) => PaletteCategory | null;
+    /** Место определения (имя без режима) в группах токенов или `null`, если определения нет на сервере. */
+    placement: (memberName: string) => TokenPlacement | null;
     /** Имена определений без режима, у которых нет значений в теме. */
     incomplete: ReadonlySet<string>;
     /** Имя растяжки ссылки в группе определения, как на экране палитры. */
@@ -41,18 +42,16 @@ const camelName = (key: ColorTokenKey) =>
 /** Токены экрана из определений темы: состояния `-hover`, `-active`, `-brightness` в строки не попадают. */
 export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps): ColorTokenView[] => {
     const byName = new Map(tokens.map((token) => [token.name, token]));
-    const families = new Map<string, { key: ColorTokenKey; index: number }>();
-    tokens.forEach((token, index) => {
+    const families = new Map<string, ColorTokenKey>();
+    tokens.forEach((token) => {
         const parsed = parseMemberName(token.name);
         if (!parsed || parsed.state) return;
         const key: ColorTokenKey = { type: token.type, group: parsed.group, name: parsed.name };
         const id = tokenId(key);
-        if (!families.has(id)) families.set(id, { key, index });
+        if (!families.has(id)) families.set(id, key);
     });
 
-    return [...families.values()].flatMap(({ key, index }) => {
-        const section = sectionOf(key);
-        if (!section) return [];
+    return [...families.values()].map((key) => {
         const field = (mode: ColorMode, subgroup: string): ColorFieldValue | null => {
             const name = `${mode}.${key.group}.${subgroup}.${key.name}`;
             const token = byName.get(name);
@@ -77,7 +76,7 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
 
         const defaultName = `${key.group}.default.${key.name}`;
         const source = byName.get(`dark.${defaultName}`) ?? byName.get(`light.${defaultName}`);
-        const group = key.type === 'color' ? deps.paletteGroup(defaultName) : null;
+        const placement = deps.placement(defaultName);
         const memberNames = [
             defaultName,
             ...COLOR_CONTEXTS.map((it) => `${key.group}.${contextSubgroup(key.group, it)}.${key.name}`),
@@ -102,16 +101,15 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
             displayName:
                 source?.displayName && source.displayName !== source.name ? source.displayName : camelName(key),
             description: source?.description ?? '',
-            section,
-            category: categoryOf(key, section, group ? paletteCategoryLabel(group.systemKey, group.label) : null),
-            paletteGroupId: group?.id ?? null,
-            sourceIndex: index,
+            groupId: placement?.groupId ?? null,
+            position: placement?.position ?? 0,
+            publishedIn: placement?.publishedIn ?? null,
             enabled: source?.enabled ?? true,
             incomplete,
             modes,
             contexts,
             issues,
         };
-        return [view];
+        return view;
     });
 };

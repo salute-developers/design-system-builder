@@ -7,25 +7,13 @@ import {
     inheritedMode,
     memberName,
 } from './family';
-import { isHexColor } from './validation';
-import { sectionGroup } from './sections';
-import type { ColorMode, ColorSection, ColorState, ColorTokenKey } from './types';
+import type { ColorMode, ColorState, ColorTokenKey } from './types';
 
 export const NEW_TOKEN_MESSAGES = {
-    name: 'Введите имя токена: латиница и цифры.',
-    state: 'Имя токена не может оканчиваться на -hover, -active или -brightness.',
-    exists: (displayName: string) => `Токен ${displayName} уже есть в теме.`,
-    hex: 'Значения Light и Dark должны быть цветом в формате Hex.',
+    name: 'Введите имя: латиница и цифры.',
+    state: 'Имя не может оканчиваться на -hover, -active или -brightness.',
+    exists: (name: string) => `Имя ${name} уже занято.`,
 } as const;
-
-export interface NewColorTokenInput {
-    section: ColorSection;
-    /** Solid или Transparent для Surfaces и Outlines. */
-    surfaceKind: 'Solid' | 'Transparent' | null;
-    name: string;
-    light: string;
-    dark: string;
-}
 
 const words = (value: string) =>
     value
@@ -36,26 +24,29 @@ const words = (value: string) =>
         .filter(Boolean)
         .map((word) => word.toLowerCase());
 
-const pascal = (parts: string[]) => parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join('');
-
-/** Ключ и отображаемое имя нового токена по вводу пользователя или текст ошибки. */
-export const normalizeNewToken = (
-    input: NewColorTokenInput,
-    existing: ReadonlySet<string>,
-): { key: ColorTokenKey; displayName: string } | { error: string } => {
-    const parts = words(input.name);
-    if (!parts.length) return { error: NEW_TOKEN_MESSAGES.name };
-    const transparent = input.surfaceKind === 'Transparent' && parts[0] !== 'transparent';
-    const nameParts = transparent ? ['transparent', ...parts] : parts;
-    const name = nameParts.join('-');
+/**
+ * Имя токена (сегмент без группы и состояния) из ввода в строке дерева: «Brand Hover 2» → `brand-hover-2`.
+ * [taken] — имена `<группа>.<имя>` токенов дизайн-системы.
+ */
+export const tokenNameFromLabel = (
+    label: string,
+    group: string,
+    taken: ReadonlySet<string>,
+): { name: string } | { error: string } => {
+    const name = words(label).join('-');
+    if (!name) return { error: NEW_TOKEN_MESSAGES.name };
     if (/-(hover|active|brightness)$/.test(name)) return { error: NEW_TOKEN_MESSAGES.state };
-    const group = sectionGroup(input.section);
-    const key: ColorTokenKey = { type: 'color', group, name };
-    const displayName = `${group}${pascal(nameParts)}`;
-    if (existing.has(`${group}.${name}`)) return { error: NEW_TOKEN_MESSAGES.exists(displayName) };
-    if (!isHexColor(input.light) || !isHexColor(input.dark)) return { error: NEW_TOKEN_MESSAGES.hex };
-    return { key, displayName };
+    if (taken.has(`${group}.${name}`)) return { error: NEW_TOKEN_MESSAGES.exists(name) };
+    return { name };
 };
+
+/** Отображаемое имя по правилу сида: `text` + `brand-minor` → `textBrandMinor`. */
+export const camelTokenName = (key: Pick<ColorTokenKey, 'group' | 'name'>) =>
+    key.group +
+    key.name
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join('');
 
 /** Значение состояния `-hover` или `-active` для режима — расчёт редактора (`getStateColor`). */
 export type StateValue = (value: string, group: string, subgroup: string, mode: ColorMode, state: ColorState) => string;

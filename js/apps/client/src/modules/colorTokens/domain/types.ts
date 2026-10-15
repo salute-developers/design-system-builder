@@ -4,9 +4,6 @@ export type ColorMode = 'light' | 'dark';
 export type ColorContext = 'ondark' | 'onlight' | 'inverse';
 export type ColorTokenType = 'color' | 'gradient';
 
-/** Разделы дерева в порядке прототипа. */
-export type ColorSection = 'text' | 'surface' | 'outline' | 'background' | 'overlay' | 'data' | 'technical';
-
 /** Ключ токена экрана: тип, группа (`text`) и имя без подгруппы и состояния (`accent-minor`). */
 export interface ColorTokenKey {
     type: ColorTokenType;
@@ -49,13 +46,34 @@ export interface ColorTokenView {
     id: string;
     displayName: string;
     description: string;
-    section: ColorSection;
-    category: string;
-    paletteGroupId: string | null;
-    sourceIndex: number;
+    /** Группа или подгруппа токенов; `null` — токен без группы. */
+    groupId: string | null;
+    /** Позиция в группе или подгруппе. */
+    position: number;
+    /** Последняя опубликованная версия с этим токеном или `null`. */
+    publishedIn: string | null;
     enabled: boolean;
     incomplete: boolean;
     modes: Record<ColorMode, ColorFieldValue>;
     contexts: Record<ColorContext, { linked: boolean; values: Record<ColorMode, ColorFieldValue> }>;
     issues: ColorValueIssue[];
+}
+
+/** Группа (`parentId === null`, есть `code`) или подгруппа токенов дизайн-системы. */
+export interface TokenGroupDto {
+    id: string;
+    parentId: string | null;
+    /** Первый сегмент имени токенов группы; у подгруппы `null`. */
+    code: string | null;
+    label: string;
+    position: number;
+    kind: 'color';
+}
+
+/** Место определения в группах и признак публикации. */
+export interface TokenPlacement {
+    groupId: string | null;
+    position: number;
+    /** Последняя опубликованная версия, в которую попало определение. */
+    publishedIn: string | null;
 }

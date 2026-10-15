@@ -1,10 +1,9 @@
 export * from './types';
 export * from './family';
-export * from './sections';
 export * from './field';
 export * from './validation';
 export * from './tree';
 export * from './newToken';
 export * from './contrast';
 export * from './gradient';
-export { buildColorTokenViews, type ThemeTokenSource, type PaletteCategory, type ViewDeps } from './view';
+export { buildColorTokenViews, type ThemeTokenSource, type ViewDeps } from './view';

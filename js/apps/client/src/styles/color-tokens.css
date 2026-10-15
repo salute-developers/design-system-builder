@@ -4113,3 +4113,175 @@
     font-size: 12px;
     color: var(--builder-ui-text-paragraph);
 }
+
+/* Группы и подгруппы дерева (add-color-token-groups): заголовок со своими «+» и удалением, строки токенов с
+ * удалением при наведении, строка ввода, меню «+» группы и место вставки при перетаскивании. */
+.color-tokens-screen .token-tree-heading-row {
+    position: relative;
+}
+
+.color-tokens-screen .token-tree-subheading {
+    padding-left: 24px;
+    color: #aeb7c4;
+    font-weight: 400;
+}
+
+.color-tokens-screen .token-tree-subgroup .token-row {
+    padding-left: 28px;
+}
+
+/* «+» и удаление показываются при наведении на свою строку, а не на всю группу. */
+.color-tokens-screen .token-tree-group:hover .token-group-add {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.color-tokens-screen .token-tree-heading-row:hover > .token-group-add,
+.color-tokens-screen .token-tree-heading-row:focus-within > .token-group-add,
+.color-tokens-screen .token-group-add[aria-expanded='true'] {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.color-tokens-screen .token-tree-heading-row > .token-tree-delete {
+    right: 34px;
+}
+
+.color-tokens-screen .token-row-wrap {
+    position: relative;
+}
+
+.color-tokens-screen .token-tree-delete {
+    position: absolute;
+    top: 4px;
+    right: 14px;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #c2c8d1;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.color-tokens-screen .token-row-wrap:hover > .token-tree-delete,
+.color-tokens-screen .token-row-wrap:focus-within > .token-tree-delete,
+.color-tokens-screen .token-tree-heading-row:hover > .token-tree-delete,
+.color-tokens-screen .token-tree-heading-row:focus-within > .token-tree-delete {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.color-tokens-screen .token-tree-delete:hover {
+    background: #343a44;
+    color: #ff6b6b;
+}
+
+.color-tokens-screen .token-tree-delete .ui-glyph {
+    width: 15px;
+    height: 15px;
+}
+
+.color-tokens-screen .token-group-menu {
+    position: absolute;
+    top: 30px;
+    right: 8px;
+    z-index: 20;
+    min-width: 176px;
+}
+
+.color-tokens-screen .token-tree-input {
+    display: grid;
+    gap: 4px;
+    margin: 2px 8px;
+}
+
+.color-tokens-screen .token-tree-input-field,
+.color-tokens-screen .token-name-input {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.color-tokens-screen .token-tree-input input,
+.color-tokens-screen .token-name-input input {
+    width: 100%;
+    height: 30px;
+    padding: 0 30px 0 10px;
+    border: 1px solid #4284ff;
+    border-radius: 6px;
+    background: #20252c;
+    color: #e8ebf0;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+.color-tokens-screen .token-name-input input {
+    border-color: var(--builder-ui-outline-primary, #3a414c);
+}
+
+.color-tokens-screen .token-name-input input:focus {
+    border-color: #4284ff;
+}
+
+.color-tokens-screen .token-name-input input[readonly] {
+    border-color: transparent;
+    background: transparent;
+}
+
+.color-tokens-screen .token-tree-input.is-error input {
+    border-color: #ff6b6b;
+}
+
+.color-tokens-screen .token-tree-input-error {
+    color: #ff8a8a;
+    font-size: 11px;
+    line-height: 14px;
+}
+
+.color-tokens-screen .token-name-field {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.color-tokens-screen .ct-published-warning {
+    position: absolute;
+    right: 8px;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #f5a623;
+    color: #1b1f24;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: help;
+}
+
+/* Место вставки: линия над строкой или заголовком-получателем. */
+.color-tokens-screen .token-tree-drop {
+    position: absolute;
+    top: 0;
+    left: 8px;
+    right: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: #4284ff;
+    z-index: 5;
+}
+
+.color-tokens-screen .token-tree-drop .ct-published-warning {
+    top: -8px;
+    right: 0;
+}
+
+.color-tokens-screen .token-row[draggable='true'] {
+    cursor: grab;
+}

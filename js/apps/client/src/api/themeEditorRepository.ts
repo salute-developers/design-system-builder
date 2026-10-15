@@ -16,6 +16,11 @@ export interface TokenDefinitionDto {
     displayName: string | null;
     description: string | null;
     enabled: boolean;
+    /** Группа или подгруппа токенов; у старого ds-service поля нет. */
+    groupId?: string | null;
+    position?: number;
+    /** Последняя опубликованная версия с этим определением. */
+    publishedIn?: string | null;
 }
 export interface TenantTokenValueDto {
     tokenId: string;

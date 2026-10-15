@@ -17,7 +17,11 @@ import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import {
     buildTree,
+    camelTokenName,
     collectContrastPairs,
+    groupCode,
+    tokenNameFromLabel,
+    treeTokens,
     contextOfSubgroup,
     legacyDraftFamilies,
     componentStyleSources,
@@ -26,10 +30,10 @@ import {
     parseMemberName,
     tokenId,
     type ColorContext,
-    type ColorSection,
     type ColorTokenContext,
     type ColorTokenView,
     type ContrastPair,
+    type TokenGroupDto,
     type TreeSort,
 } from '../../modules/colorTokens';
 import { ColorTokenOperationError } from '../../modules/colorTokens';
@@ -46,7 +50,6 @@ import { ColorTokenTree } from './ui/ColorTokenTree';
 import { ComponentCanvas } from './ui/ComponentCanvas';
 import { CtGlyph } from './ui/CtGlyph';
 import { DeleteTokenDialog } from './ui/DeleteTokenDialog';
-import { NewTokenDialog, type CategoryOption } from './ui/NewTokenDialog';
 
 export interface ColorTokensScreenProps {
     context: ColorTokenContext;
@@ -66,7 +69,6 @@ const PANELS_KEY = 'ds_color_tokens_panels';
 const COLLAPSED_KEY = 'ds_color_tokens_collapsed';
 const LEFT = { min: 220, max: 320, initial: 280 };
 const RIGHT = { min: 280, max: 400, initial: 320 };
-const DEFAULT_CATEGORY_SECTIONS = new Set<ColorSection>(['background', 'overlay', 'data', 'technical']);
 
 const readStorage = <T,>(key: string, fallback: T): T => {
     try {
@@ -98,7 +100,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const { context, designSystem, theme, components, palette, setPalette, rerender } = props;
     const navigate = useNavigate();
     const location = useLocation();
-    const { session, editor, views, status } = useColorTokenEditor(props);
+    const { session, editor, views, groups, groupsError, status } = useColorTokenEditor(props);
     const parameters = designSystem.getParameters();
     const readOnly = parameters?.readOnly === true;
     const canDelete = !readOnly && ['maintainer', 'owner'].includes(parameters?.effectiveRole ?? '');
@@ -117,19 +119,28 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
     useEffect(() => void lastSelection.set(selectionKey, selectedId), [selectionKey, selectedId]);
     const [picker, setPicker] = useState<FieldId | null>(null);
-    const [newToken, setNewToken] = useState<{ section: ColorSection; busy: boolean; error: string | null } | null>(
-        null,
-    );
-    const [deleting, setDeleting] = useState<{ busy: boolean; error: string | null } | null>(null);
+    const [deleting, setDeleting] = useState<{
+        view: ColorTokenView | null;
+        group: TokenGroupDto | null;
+        tokens: ColorTokenView[];
+        busy: boolean;
+        error: string | null;
+    } | null>(null);
     const [removing, setRemoving] = useState(false);
     const [legacy, setLegacy] = useState(() => editor.legacyDraft());
     const legacyFamilies = useMemo(() => legacyDraftFamilies(legacy).length, [legacy]);
     const [legacyBusy, setLegacyBusy] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
 
-    const tree = useMemo(() => buildTree(views, { query, sort, issuesOnly }), [views, query, sort, issuesOnly]);
-    const board = useMemo(() => buildTree(views, { query: '', sort: 'source', issuesOnly: false }), [views]);
-    const selected = views.find((view) => view.id === selectedId) ?? tree[0]?.tokens[0] ?? views[0] ?? null;
+    const tree = useMemo(
+        () => buildTree(groups, views, { query, sort, issuesOnly }),
+        [groups, views, query, sort, issuesOnly],
+    );
+    const board = useMemo(
+        () => buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false }),
+        [groups, views],
+    );
+    const selected = views.find((view) => view.id === selectedId) ?? tree.flatMap(treeTokens)[0] ?? views[0] ?? null;
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
     const requested = (location.state as { tokenName?: string } | null)?.tokenName;
@@ -180,10 +191,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         if (picker) setPicker(null);
     };
 
-    const sectionDefaults = (section: ColorSection) => {
+    /** Начальные значения нового токена: выбранный токен той же группы, иначе значения прототипа. */
+    const groupDefaults = (code: string | null) => {
         const source =
-            (selected?.section === section && !selected.incomplete ? selected : undefined) ??
-            views.find((view) => view.section === section && !view.incomplete && view.key.type === 'color');
+            selected && !selected.incomplete && selected.key.type === 'color' && selected.key.group === code
+                ? selected
+                : undefined;
         const hex = (value: string | undefined, fallback: string) =>
             value && /^#[0-9a-f]{6,8}$/i.test(value) ? rgbHex(value) : fallback;
         return {
@@ -192,51 +205,106 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         };
     };
 
-    const categories = (section: ColorSection): CategoryOption[] => {
-        if (DEFAULT_CATEGORY_SECTIONS.has(section) || !palette)
-            return [{ label: 'Default', paletteGroupId: null, surfaceKind: null }];
-        const groups = palette.groups
-            .filter((group) => group.systemKey === null || ['neutral', 'accent', 'status'].includes(group.systemKey))
-            .map((group) => ({
-                id: group.id,
-                label:
-                    group.systemKey === 'neutral'
-                        ? 'General'
-                        : group.systemKey === 'accent'
-                          ? 'Accent'
-                          : group.systemKey === 'status'
-                            ? 'Status'
-                            : group.label,
-            }));
-        const kinds = section === 'surface' || section === 'outline' ? (['Solid', 'Transparent'] as const) : [null];
-        return groups.flatMap((group) =>
-            kinds.map((kind) => ({
-                label: kind ? `${group.label} / ${kind}` : group.label,
-                paletteGroupId: group.id,
-                surfaceKind: kind,
-            })),
-        );
-    };
+    const takenNames = (except?: ColorTokenView) =>
+        new Set(views.filter((view) => view !== except).map((view) => `${view.key.group}.${view.key.name}`));
 
-    const create = async (input: Parameters<React.ComponentProps<typeof NewTokenDialog>['onCreate']>[0]) => {
-        setNewToken((current) => current && { ...current, busy: true, error: null });
+    /** Текст отказа операции структуры для строки ввода. */
+    const operationError = (error: unknown, name?: string) =>
+        new Error(
+            error instanceof ColorTokenOperationError && error.code === 'TOKEN_NAME_CONFLICT' && name
+                ? `Имя ${name} уже занято.`
+                : errorText(error),
+        );
+
+    const createGroup = async (parentId: string | null, label: string) => {
         try {
-            await editor.create(
-                input.key,
-                input.displayName,
-                { light: input.light, dark: input.dark },
-                input.paletteGroupId,
-            );
-            await refreshPalette();
-            setNewToken(null);
-            setSelectedId(tokenId(input.key));
+            await editor.createGroup(parentId, label);
             rerender();
         } catch (error) {
-            const message =
-                error instanceof ColorTokenOperationError && error.code === 'TOKEN_NAME_CONFLICT'
-                    ? `Токен ${input.displayName} уже есть в теме.`
-                    : errorText(error);
-            setNewToken((current) => current && { ...current, busy: false, error: message });
+            throw operationError(error);
+        }
+    };
+
+    const createToken = async (groupId: string, label: string) => {
+        const code = groupCode(groups, groupId);
+        if (!code) throw new Error('Группа не найдена');
+        const parsed = tokenNameFromLabel(label, code, takenNames());
+        if ('error' in parsed) throw new Error(parsed.error);
+        const key = { type: 'color' as const, group: code, name: parsed.name };
+        try {
+            await editor.create(key, camelTokenName(key), groupDefaults(code), groupId);
+        } catch (error) {
+            throw operationError(error, parsed.name);
+        }
+        await refreshPalette();
+        setSelectedId(tokenId(key));
+        rerender();
+    };
+
+    const renameGroup = async (groupId: string, label: string) => {
+        try {
+            await editor.updateGroup(groupId, { label });
+            rerender();
+        } catch (error) {
+            throw operationError(error);
+        }
+    };
+
+    /** Переименование — перенос токена на его же место с новым именем. */
+    const renameToken = async (view: ColorTokenView, label: string) => {
+        const parsed = tokenNameFromLabel(label, view.key.group, takenNames(view));
+        if ('error' in parsed) throw new Error(parsed.error);
+        const groupId =
+            view.groupId && groups.some((group) => group.id === view.groupId)
+                ? view.groupId
+                : groups.find((group) => group.parentId === null && group.code === view.key.group)?.id;
+        if (!groupId) throw new Error('Сначала перенесите токен в группу');
+        try {
+            const id = await editor.move(view, groupId, view.position, parsed.name);
+            if (selectedId === view.id || selected?.id === view.id) setSelectedId(id);
+            rerender();
+        } catch (error) {
+            throw operationError(error, parsed.name);
+        }
+    };
+
+    const moveToken = (view: ColorTokenView, groupId: string, position: number) =>
+        editor
+            .move(view, groupId, position)
+            .then((id) => {
+                if (selected?.id === view.id) setSelectedId(id);
+                rerender();
+            })
+            .catch((error: unknown) => setNotice(`Не удалось перенести токен: ${errorText(error)}`));
+
+    const moveGroup = (group: TokenGroupDto, parentId: string | null, position: number) =>
+        editor
+            .updateGroup(group.id, parentId && parentId !== group.parentId ? { parentId, position } : { position })
+            .then(rerender)
+            .catch((error: unknown) => setNotice(`Не удалось перенести группу: ${errorText(error)}`));
+
+    const groupTokens = (group: TokenGroupDto) => {
+        const ids = new Set([group.id, ...groups.filter((item) => item.parentId === group.id).map((item) => item.id)]);
+        return views.filter((view) => view.groupId && ids.has(view.groupId));
+    };
+
+    /** Пустая группа удаляется сразу, группа с токенами — после подтверждения. */
+    const requestGroupDelete = (group: TokenGroupDto) => {
+        const tokens = groupTokens(group);
+        if (tokens.length) setDeleting({ view: null, group, tokens, busy: false, error: null });
+        else void removeGroup(group, false);
+    };
+
+    const removeGroup = async (group: TokenGroupDto, confirmed: boolean) => {
+        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
+        try {
+            await editor.removeGroup(group.id);
+            await refreshPalette();
+            setDeleting(null);
+            rerender();
+        } catch (error) {
+            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
+            else setNotice(`Не удалось удалить группу: ${errorText(error)}`);
         }
     };
 
@@ -244,18 +312,18 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
      * Удаление токена: с подтверждением — ошибка остаётся в окне, без подтверждения (у токена нет связей с
      * компонентами) — показывается баннером инспектора.
      */
-    const remove = async (confirmed: boolean) => {
-        if (!selected || removing) return;
+    const remove = async (view: ColorTokenView, confirmed: boolean) => {
+        if (removing) return;
         setRemoving(true);
-        if (confirmed) setDeleting({ busy: true, error: null });
+        if (confirmed) setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
-            await editor.remove(selected);
+            await editor.remove(view);
             await refreshPalette();
             setDeleting(null);
             setSelectedId(null);
             rerender();
         } catch (error) {
-            if (confirmed) setDeleting({ busy: false, error: errorText(error) });
+            if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
             else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
         } finally {
             setRemoving(false);
@@ -263,10 +331,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     };
 
     /** Подтверждение нужно, только если токен используется в компонентах дизайн-системы. */
-    const requestDelete = () => {
-        if (!selected) return;
-        if (componentsUsingToken(components, selected.key).length) setDeleting({ busy: false, error: null });
-        else void remove(false);
+    const requestDelete = (view: ColorTokenView | null = selected) => {
+        if (!view) return;
+        if (componentsUsingToken(components, view.key).length)
+            setDeleting({ view, group: null, tokens: [view], busy: false, error: null });
+        else void remove(view, false);
     };
 
     /** Адрес отказа `<tokenId>:<platform>:<mode>` в терминах инспектора: подтема, платформа, режим. */
@@ -418,22 +487,31 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     {...resize('right')}
                 />
                 <ColorTokenTree
-                    sections={tree}
+                    tree={tree}
+                    groups={groups}
                     selectedId={selected?.id ?? null}
                     sort={sort}
                     query={query}
                     searchOpen={searchOpen}
                     issuesOnly={issuesOnly}
                     collapsed={collapsed}
-                    canAdd={!readOnly}
+                    editable={!readOnly}
+                    canDelete={canDelete}
                     status={(id) => session.autosave.status(id)}
                     onSelect={select}
                     onSort={() => setSort((current) => (current === 'az' ? 'source' : 'az'))}
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onIssuesOnly={() => setIssuesOnly((current) => !current)}
-                    onToggle={(section) => setCollapsed((current) => ({ ...current, [section]: !current[section] }))}
-                    onAdd={(section) => setNewToken({ section, busy: false, error: null })}
+                    onToggle={(groupId) => setCollapsed((current) => ({ ...current, [groupId]: !current[groupId] }))}
+                    onCreateGroup={createGroup}
+                    onCreateToken={createToken}
+                    onRenameGroup={renameGroup}
+                    onRenameToken={renameToken}
+                    onDeleteGroup={requestGroupDelete}
+                    onDeleteToken={(view) => requestDelete(view)}
+                    onMoveToken={(view, groupId, position) => void moveToken(view, groupId, position)}
+                    onMoveGroup={(group, parentId, position) => void moveGroup(group, parentId, position)}
                 />
                 <header className="editor-toolbar">
                     <div className="preview-toolbar">
@@ -521,6 +599,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             редакторе — нажмите «Повторить», чтобы отправить их.
                         </div>
                     )}
+                    {groupsError && (
+                        <div className="ct-banner" role="alert">
+                            Не удалось загрузить группы токенов: {groupsError}
+                        </div>
+                    )}
                     {notice && (
                         <div className="ct-banner" role="status">
                             {notice}
@@ -579,10 +662,10 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onOpacity={(field, percent) => edit(() => editor.setOpacity(selected, field, percent))}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
-                            onDelete={requestDelete}
-                            onFill={() => edit(() => editor.fill(selected, sectionDefaults(selected.section)))}
+                            onDelete={() => requestDelete(selected)}
+                            onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
                             onRetry={() => editor.retry(selected.id)}
-                            run={(operation) => session.autosave.run(operation)}
+                            onRename={(label) => renameToken(selected, label)}
                             addressLabel={addressLabel}
                         />
                     )}
@@ -604,7 +687,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             updated={props.updated}
                         />
                     ) : (
-                        <ColorTokenBoard sections={board} selectedId={selected?.id ?? null} onSelect={select} />
+                        <ColorTokenBoard tree={board} selectedId={selected?.id ?? null} onSelect={select} />
                     )}
                 </main>
                 {selected && picker && pickerValue && !readOnly && (
@@ -621,26 +704,20 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     />
                 )}
             </section>
-            {newToken && (
-                <NewTokenDialog
-                    section={newToken.section}
-                    categories={categories(newToken.section)}
-                    defaults={sectionDefaults(newToken.section)}
-                    existing={new Set(views.map((view) => `${view.key.group}.${view.key.name}`))}
-                    busy={newToken.busy}
-                    serverError={newToken.error}
-                    onCancel={() => setNewToken(null)}
-                    onCreate={create}
-                />
-            )}
-            {deleting && selected && (
+            {deleting && (
                 <DeleteTokenDialog
-                    displayName={selected.displayName}
-                    components={componentsUsingToken(components, selected.key)}
+                    displayName={deleting.group?.label ?? deleting.view?.displayName ?? ''}
+                    group={deleting.group ? { tokens: deleting.tokens.length } : null}
+                    components={[
+                        ...new Set(deleting.tokens.flatMap((view) => componentsUsingToken(components, view.key))),
+                    ]}
                     busy={deleting.busy}
                     error={deleting.error}
                     onCancel={() => setDeleting(null)}
-                    onConfirm={() => void remove(true)}
+                    onConfirm={() => {
+                        if (deleting.group) void removeGroup(deleting.group, true);
+                        else if (deleting.view) void remove(deleting.view, true);
+                    }}
                 />
             )}
         </div>
