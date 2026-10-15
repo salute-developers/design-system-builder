@@ -22,6 +22,12 @@ Format highlights:
   fontFamily, typography;
 - assets: `TTF`, `OTF`, `SVG`, `PNG`.
 
+Icons:
+
+- a property of type `icon` (`closedIcon`, `openedIcon`, ...) is a `literal` string: the icon name as it is stored in
+  the component configuration (`disclosure.down.fill.16`). The plugin maps it to an icon of its registry and answers
+  with the warning `unknown_icon` when it has none. A property without a value is not sent.
+
 Render results:
 
 - a `failure` result may carry optional `details` `{stack?, consoleError?}`: the stack of the exception that
