@@ -97,8 +97,9 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
             prop.getPlatformMappings()?.ios,
     ),
     value: prop.getValue(),
-    states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value })),
+    states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value, alpha: state.alpha })),
     adjustment: prop.getAdjustment(),
+    alpha: prop.getAlpha(),
 });
 
 /** Свойство-ссылка на стиль становится `styleRef`; не разворачиваемая ссылка (нет цели, цикл) пропускается. */
