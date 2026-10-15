@@ -360,6 +360,68 @@ describe('ComposePreviewFrame', () => {
             visibility.mockRestore();
         });
 
+        it('does not send to a session that is still loading and sends the latest payload once it is ready', async () => {
+            const crashError = new ComposePreviewResultError('Compose preview stopped', crashResult('render_crashed'));
+            const sessions: Array<{ ready: boolean; markReady: () => void; send: ReturnType<typeof vi.fn> }> = [];
+            const createSession = vi.fn(() => {
+                const state = { ready: false, markReady: () => undefined, send: vi.fn() };
+                const readyPromise = new Promise<void>((resolve) => {
+                    state.markReady = () => {
+                        state.ready = true;
+                        resolve();
+                    };
+                });
+                // Как настоящая сессия: send до готовности бросает исключение синхронно.
+                state.send = vi.fn((payload: PreviewPayloadInput) => {
+                    void payload;
+                    if (!state.ready) throw new Error('Compose preview session is not ready');
+                    return {
+                        requestId: `request-${sessions.indexOf(state)}`,
+                        result: sessions.indexOf(state) === 0
+                            ? Promise.reject(crashError)
+                            : new Promise<PreviewResult>(() => undefined),
+                    };
+                });
+                sessions.push(state);
+                return {
+                    waitUntilReady: () => readyPromise,
+                    send: state.send,
+                    describeComponent: vi.fn(() => {
+                        if (!state.ready) throw new Error('Compose preview session is not ready');
+                        return { requestId: 'description', result: new Promise<never>(() => undefined) };
+                    }),
+                    reload: vi.fn(),
+                    dispose: vi.fn(),
+                };
+            });
+            const loadManifest = vi.fn().mockResolvedValue(loadedManifest);
+            const element = (props: Record<string, unknown>) => (
+                <ComposePreviewFrame
+                    pluginUrl="https://plugin.example/"
+                    payload={{
+                        ...BASIC_BUTTON_PREVIEW_FIXTURE,
+                        example: { ...BASIC_BUTTON_PREVIEW_FIXTURE.example, props },
+                    }}
+                    loadManifest={loadManifest}
+                    createSession={createSession as never}
+                />
+            );
+            const { rerender } = render(element({ label: 'First' }));
+            await waitFor(() => expect(sessions).toHaveLength(1));
+            await act(async () => sessions[0].markReady());
+            // Первый payload останавливает плагин: iframe перезапускается, вторая сессия ещё не готова.
+            await waitFor(() => expect(sessions).toHaveLength(2));
+
+            // Правка редактора во время перезапуска не должна дойти до неготовой сессии.
+            rerender(element({ label: 'Second' }));
+            await act(async () => undefined);
+            expect(sessions[1].send).not.toHaveBeenCalled();
+
+            await act(async () => sessions[1].markReady());
+            await waitFor(() => expect(sessions[1].send).toHaveBeenCalledTimes(1));
+            expect(sessions[1].send.mock.calls[0][0].example.props).toEqual({ label: 'Second' });
+        });
+
         it('does not restart the plugin when it merely rejects a payload', async () => {
             const { send, createSession, loadManifest } = setup();
             await crash(

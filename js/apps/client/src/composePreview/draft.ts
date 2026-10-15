@@ -222,6 +222,13 @@ export const createComponentPreviewDraft = ({
                   : undefined) ??
             config.getDefaults().find((item) => item.getVariationID() === variation.getID())?.getStyleID();
         if (typeof selected !== 'string') continue;
+        // Выключенный флаг (`pilled`) в редакторе — отсутствие аргумента: при явном наборе выбранных вариаций
+        // его нельзя возвращать к стилю по умолчанию.
+        const flagIsOff =
+            variation.isFlag() &&
+            explicitVariationSelections !== undefined &&
+            typeof explicitVariationSelections[variation.getName()] !== 'string';
+        if (flagIsOff) continue;
         variationSelections[variation.getID()] = selected;
     }
     const context: CollectContext = { resolveStyleReference, styles: new Map() };

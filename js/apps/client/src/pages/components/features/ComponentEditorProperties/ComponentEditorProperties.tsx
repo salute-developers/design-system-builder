@@ -164,7 +164,7 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
     const [propNameWithDropdown, setPropNameWithDropdown] = useState<string | undefined>();
 
     const { api, variations } = useMemo(
-        () => designSystem.getComponentDataByName(config?.getName() || '').sources,
+        () => designSystem.getComponentData(config)?.sources ?? { api: [], variations: [] },
         [config, designSystem],
     );
 

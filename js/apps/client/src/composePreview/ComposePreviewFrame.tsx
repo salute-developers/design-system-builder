@@ -55,6 +55,8 @@ export const ComposePreviewFrame = ({
     const [status, setStatus] = useState<FrameStatus>('loading');
     const [failure, setFailure] = useState<string>();
     const [readyVersion, setReadyVersion] = useState(0);
+    // Готова ли текущая сессия: после перезапуска iframe новая сессия ещё грузится, а `readyVersion` остаётся от прежней.
+    const sessionReadyRef = useRef(false);
     const [revealed, setRevealed] = useState(false);
     // Остановленный Compose оживает только перезагрузкой iframe; payload, который его остановил, повторно не шлём.
     const [generation, setGeneration] = useState(0);
@@ -70,6 +72,7 @@ export const ComposePreviewFrame = ({
         const iframe = iframeRef.current;
         if (!iframe) return;
 
+        sessionReadyRef.current = false;
         setStatus('loading');
         setFailure(undefined);
         setRevealed(false);
@@ -84,6 +87,7 @@ export const ComposePreviewFrame = ({
             })
             .then(() => {
                 if (cancelled) return;
+                sessionReadyRef.current = true;
                 setStatus('ready');
                 setReadyVersion((version) => version + 1);
             })
@@ -104,7 +108,7 @@ export const ComposePreviewFrame = ({
 
     useEffect(() => {
         const session = sessionRef.current;
-        if (!session || !readyVersion) return;
+        if (!session || !readyVersion || !sessionReadyRef.current) return;
 
         const { requestId, result } = session.describeComponent(payload.component.id);
         latestDescriptionRef.current = requestId;
@@ -131,7 +135,8 @@ export const ComposePreviewFrame = ({
 
     useEffect(() => {
         const session = sessionRef.current;
-        if (!session || !readyVersion) return;
+        // До готовности новой сессии не шлём: `send` бросает исключение. Последний payload уйдёт после её `ready`.
+        if (!session || !readyVersion || !sessionReadyRef.current) return;
         // Сравнение по содержимому: payload пересобирается при каждом изменении редактора, но тот же самый
         // payload, остановивший плагин, повторно слать нельзя, иначе плагин перезапускается бесконечно.
         if (crashedPayloadRef.current === payloadKey) return;
@@ -190,6 +195,7 @@ export const ComposePreviewFrame = ({
                     if (!session || status === 'loading') return;
 
                     session.reload();
+                    sessionReadyRef.current = false;
                     latestRequestRef.current = undefined;
                     latestDescriptionRef.current = undefined;
                     setFailure(undefined);
@@ -199,6 +205,7 @@ export const ComposePreviewFrame = ({
                         .waitUntilReady()
                         .then(() => {
                             if (sessionRef.current !== session) return;
+                            sessionReadyRef.current = true;
                             setStatus('ready');
                             setReadyVersion((version) => version + 1);
                         })

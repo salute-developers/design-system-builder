@@ -253,6 +253,78 @@ describe('createComponentPreviewDraft', () => {
     });
 });
 
+describe('createComponentPreviewDraft: flag variations', () => {
+    // Флаг (`pilled`): единственный стиль `true`; выключенный флаг в редакторе — отсутствие аргумента.
+    const flagMeta = (): Meta => ({
+        name: 'Chip',
+        description: 'Chip',
+        preview: { compose: { componentId: 'Chip', storyId: 'Chip' } },
+        sources: {
+            variations: [{ id: 'pilled', name: 'pilled' }],
+            api: [
+                {
+                    id: 'radius',
+                    name: 'radius',
+                    type: 'dimension',
+                    variations: ['pilled'],
+                    platformMappings: { compose: 'radius', web: [], xml: null, ios: null },
+                },
+            ],
+            configs: [
+                {
+                    id: 'cfg',
+                    name: 'chip',
+                    config: {
+                        defaultVariations: [{ variationID: 'pilled', styleID: 'pilled-true' }],
+                        invariantProps: [],
+                        variations: [
+                            {
+                                id: 'pilled',
+                                styles: [
+                                    {
+                                        id: 'pilled-true',
+                                        name: 'true',
+                                        intersections: null,
+                                        props: [{ id: 'radius', value: '99' }],
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                },
+            ],
+        },
+    });
+    const draftOf = (variationSelections: Record<string, unknown> | undefined, args: Record<string, unknown> = {}) => {
+        const result = createComponentPreviewDraft({
+            config: new Config(flagMeta()),
+            theme: buildMockTheme(),
+            args,
+            variationSelections,
+            themeMode: 'light',
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+        });
+        if (!result.ok) throw new Error('draft failed');
+        return result.draft;
+    };
+
+    it('keeps the default style of a flag when the selections are not given explicitly', () => {
+        expect(draftOf(undefined).selectedStyleProperties.map((item) => item.id)).toEqual(['radius']);
+    });
+
+    it('selects a flag that is present in the explicit selections', () => {
+        expect(draftOf({ pilled: 'pilled-true' }).selectedStyleProperties.map((item) => item.id)).toEqual(['radius']);
+    });
+
+    it('treats a flag missing from the explicit selections as switched off', () => {
+        const draft = draftOf({});
+
+        expect(draft.variationSelections).toEqual({});
+        expect(draft.selectedStyleProperties).toEqual([]);
+    });
+});
+
 describe('createComponentPreviewDraft: combinations and nested styles', () => {
     const draftOf = (selections: Record<string, string>, withResolver = true) => {
         const metas = [groupMeta(), buttonMeta()];
