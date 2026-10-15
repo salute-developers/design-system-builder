@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { Config, Theme, Variation } from '../../../../controllers';
+import { isDebugMode } from '../../../../utils/debugMode';
 import {
     SegmentButton,
     SegmentButtonItem,
@@ -19,9 +20,11 @@ import {
     loadComposePreviewManifest,
     PreviewComponentDescription,
     PreviewExamplePropertyDescription,
+    PreviewPayloadInput,
     StyleReferenceResolver,
 } from '../../../../composePreview';
 
+import { ComposePayloadDebug } from './ComposePayloadDebug';
 import {
     Root,
     StyledPreviewShadow,
@@ -106,15 +109,18 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const [background, setBackground] = useState<SelectButtonItem>(backgroundList[0]);
     const [rendererMode, setRendererMode] = useState<SelectButtonItem>({ label: 'React', value: 'react' });
-    const [composePreviewMetadata, setComposePreviewMetadata] = useState<{
+    const [loadedComposeMetadata, setComposePreviewMetadata] = useState<{
         componentId: string;
         storyId: string;
+        /** Компонент редактора, для которого метаданные загружены: после переключения они устаревают. */
+        owner: string;
     }>();
     // Манифест загружен, а компонента в нём нет: плагин такой компонент не нарисует.
     const [missingFromPlugin, setMissingFromPlugin] = useState(false);
     const [composeDescription, setComposeDescription] = useState<PreviewComponentDescription>();
     const [composeDescriptionError, setComposeDescriptionError] = useState<string>();
     const [composeExampleProps, setComposeExampleProps] = useState<Record<string, string | number | boolean>>({});
+    const composePreviewMetadata = loadedComposeMetadata?.owner === componentName ? loadedComposeMetadata : undefined;
     const composePluginUrl = getComposePreviewPluginUrl();
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     // Compose-компонент существует только в плагине: React-preview у него нет.
@@ -133,6 +139,23 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const activeRenderer = isComposeComponent || supportsCompose ? rendererMode.value : 'react';
     const activeRendererItem = isComposeComponent || supportsCompose ? rendererMode : rendererModes[0];
     const composeAssembly = useMemo(() => {
+        // После переключения компонента `args` ещё держат стили предыдущего: payload с ними не собираем,
+        // последний актуальный остаётся в превью, пока редактор не принесёт выборы нового компонента.
+        if (!isResolved) return { ok: false as const, diagnostics: [] };
+        // Примеры и описание принадлежат компоненту, который описал плагин; чужие после переключения не используются.
+        // Значения по умолчанию в payload не нужны: плагин сам оставляет default state для отсутствующих ключей.
+        const descriptionMatches =
+            composeDescription !== undefined &&
+            composeDescription.componentId === (composePreviewMetadata ?? config.getPreviewMetadata()).componentId;
+        const payloadExampleProps = descriptionMatches
+            ? Object.fromEntries(
+                  Object.entries(composeExampleProps).filter(
+                      ([name, value]) =>
+                          composeDescription.properties.find((property) => property.name === name)?.defaultValue !==
+                          value,
+                  ),
+              )
+            : {};
         const surfaceToken = getBackgroundTokenName(String(themeMode.value), String(background.label));
         const surfaceColor = restorePaletteColor(
             theme.getTokenValue(surfaceToken, 'color', 'web') || '#FFFFFFFF',
@@ -146,7 +169,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             args,
             variationSelections: args,
             resolveStyleReference,
-            exampleProps: composeExampleProps,
+            exampleProps: payloadExampleProps,
             themeMode: String(themeMode.value),
             themeValuePlatform: 'android',
             surface: { width: 360, height: 160, background: surfaceColor },
@@ -154,8 +177,10 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         return draft.ok ? assembleComposePreviewPayload(draft.draft) : draft;
     }, [
         args,
+        isResolved,
         background,
         composePreviewMetadata,
+        composeDescription,
         composeExampleProps,
         config,
         config.getRevision(),
@@ -164,10 +189,18 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         theme.getRevision(),
         themeMode,
     ]);
-    const lastComposePayload = useRef(
-        composeAssembly.ok ? ('payload' in composeAssembly ? composeAssembly.payload : undefined) : undefined,
-    );
-    if (composeAssembly.ok && 'payload' in composeAssembly) lastComposePayload.current = composeAssembly.payload;
+    // Объект payload меняется только вместе с содержимым: иначе каждое промежуточное состояние редактора
+    // (сброс примеров, загрузка метаданных, ответ describe) уходило бы в плагин как отдельный payload.
+    const payloadCache = useRef<{ key: string; payload: PreviewPayloadInput }>();
+    const composePayload = useMemo(() => {
+        if (!composeAssembly.ok || !('payload' in composeAssembly)) return undefined;
+        const key = JSON.stringify(composeAssembly.payload);
+        if (payloadCache.current?.key === key) return payloadCache.current.payload;
+        payloadCache.current = { key, payload: composeAssembly.payload };
+        return composeAssembly.payload;
+    }, [composeAssembly]);
+    const lastComposePayload = useRef(composePayload);
+    if (composePayload) lastComposePayload.current = composePayload;
     const composeDiagnostic = missingFromPlugin
         ? `Компонент ${componentName} не зарегистрирован в Compose-плагине`
         : composeDescriptionError ?? (composeAssembly.ok ? undefined : composeAssembly.diagnostics[0]?.message);
@@ -194,7 +227,9 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                         ? storedMetadata.componentId
                         : undefined;
                 setComposePreviewMetadata(
-                    componentId ? { componentId, storyId: storedMetadata.storyId! } : undefined,
+                    componentId
+                        ? { componentId, storyId: storedMetadata.storyId!, owner: componentName }
+                        : undefined,
                 );
                 setMissingFromPlugin(isComposeComponent && !componentId);
             })
@@ -383,9 +418,12 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         );
     };
 
+    // Отладочный блок с payload: только в debug-режиме и только для Compose-renderer.
+    const showPayloadDebug = isDebugMode() && activeRenderer === 'compose' && Boolean(lastComposePayload.current);
+
     return (
         <Root>
-            <StyledPreviewShadow>
+            <StyledPreviewShadow $scrollable={showPayloadDebug}>
                 <StyledPreviewBackgroundEditor>
                     {!isComposeComponent && (
                         <SegmentButton
@@ -449,7 +487,10 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                         </StyledStorySelector>
                     )}
                 </StyledComponentWrapper>
-                <StyledComponentControls>
+                {showPayloadDebug && lastComposePayload.current && (
+                    <ComposePayloadDebug payload={lastComposePayload.current} />
+                )}
+                <StyledComponentControls $reserveHeight={showPayloadDebug}>
                     {variations.map(renderDynamicProps)}
                     <StyledDivider />
                     {activeRenderer === 'compose'
