@@ -17,6 +17,12 @@ export const parseComponentRoute = (segment: string): ComponentRoute =>
         : { platform: 'web', name: segment };
 
 /**
+ * Есть ли у компонента хотя бы одна конфигурация оформления. Компонент без неё есть в api-мете и привязан к
+ * дизайн-системе, но стилей для него в дизайн-системе нет: превью рисует его стилем по умолчанию и выглядит сломанным.
+ */
+export const hasConfiguration = (component: Meta): boolean => (component.sources?.configs?.length ?? 0) > 0;
+
+/**
  * Помечает компоненты платформой Compose и выводит привязку к плагину из имени: имя в API-мете
  * платформы совпадает с `componentName`, под которым компонент зарегистрирован в плагине.
  */

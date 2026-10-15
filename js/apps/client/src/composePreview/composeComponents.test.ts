@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Meta } from '../controllers';
-import { markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';
+import { hasConfiguration, markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';
 
 const meta = (name: string, preview?: Meta['preview']): Meta => ({
     name,
     description: name,
     preview,
     sources: { api: [], variations: [], configs: [] },
+});
+
+describe('hasConfiguration', () => {
+    const config = { id: 'default', name: 'default', config: { defaultVariations: [], invariantProps: [], variations: [] } };
+
+    it('is true for a component with a configuration and false without one', () => {
+        expect(hasConfiguration({ ...meta('Avatar'), sources: { api: [], variations: [], configs: [config] } })).toBe(true);
+        expect(hasConfiguration(meta('Wheel'))).toBe(false);
+    });
 });
 
 describe('markComposeComponents', () => {

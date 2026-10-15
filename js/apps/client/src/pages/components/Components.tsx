@@ -106,16 +106,26 @@ export const Components = () => {
         return [0, groupIndex, itemIndex];
     }, [groups, componentName]);
 
-    // Если компонент не задан в URL (или не найден) — переходим на первый доступный.
+    // Если компонент не задан в URL или его нет в меню (например, у него нет конфигурации) — переходим на первый доступный.
     useEffect(() => {
-        if (!platform || componentName) {
+        if (!platform || !data) {
             return;
+        }
+
+        if (componentName) {
+            const { name } = parseComponentRoute(componentName);
+            const inMenu = groups?.some(({ items }) => items.some((item) => item.name.toLowerCase() === name.toLowerCase()));
+
+            if (inMenu) {
+                return;
+            }
         }
 
         const route = firstEnabledRoute(platform);
 
         if (route) {
-            navigate(route, { replace: true });
+            // С параметром маршрута относительный путь считается от него, поэтому, как в onItemSelect, идём через `../components`.
+            navigate(componentName ? `../components/${route}` : route, { replace: true });
         }
     }, [platform, menus, componentName, navigate]);
 
