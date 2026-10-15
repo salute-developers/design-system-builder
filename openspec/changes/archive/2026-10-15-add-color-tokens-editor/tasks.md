@@ -42,9 +42,11 @@
 
 ## 6. Локальные проверки
 
-- [ ] 6.1 `cd js/apps/client && npm test && npm run build && npm run lint && npm run test:browser`
+- [x] 6.1 `cd js/apps/client && npm test && npm run build && npm run lint && npm run test:browser`
+  - `npm test` и `npm run build` проходят. `npm run lint` не выполнить: в клиенте нет eslint (ни зависимости, ни конфигурации), как и на базовой ветке. `npm run test:browser` локально падает одинаково на ветке и на базе `ac03eddc` (rail-проверки обзора и настройки), к экрану цветов не относится.
 - [x] 6.2 `cd js && npm run build`
-- [ ] 6.3 `tools/verify fast --change add-color-tokens-editor` и `tools/verify full --change add-color-tokens-editor`
+- [x] 6.3 `tools/verify fast --change add-color-tokens-editor` и `tools/verify full --change add-color-tokens-editor`
+  - FAST проходит. FULL проходит для backend и клиента (рост Strictacode клиента принят разработчиком), падает только Strictacode `javascript-cli`: `js/cli` совпадает с базой, его изменили в #102 без обновления baseline.
 
 ## 7. Внешние проверки до архивирования
 
