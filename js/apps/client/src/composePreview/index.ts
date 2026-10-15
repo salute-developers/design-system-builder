@@ -26,6 +26,7 @@ export {
     ComposePreviewTimeoutError,
 } from './session';
 export type {
+    ComposePreviewComponentGroup,
     ComposePreviewManifest,
     JsonValue,
     LoadedComposePreviewManifest,

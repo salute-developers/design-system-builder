@@ -37,3 +37,41 @@ describe('getComposeMenuItems', () => {
         expect(items.every((item) => !item.disabled && item.data.length === 1)).toBe(true);
     });
 });
+
+describe('getComposeMenuItems with groups of the plugin', () => {
+    const names = (data: ReturnType<typeof getComposeMenuItems>, group: string) =>
+        data.groups[0].data.find((item) => item.name === group)?.items.map((item) => item.name);
+
+    it('places a component into the group of the plugin instead of the client table', () => {
+        const data = getComposeMenuItems(
+            [config('CircularProgressBar'), config('Avatar')],
+            [{ name: 'Data Display', components: ['CircularProgressBar', 'Avatar'] }],
+        );
+
+        expect(names(data, 'Data Display')).toEqual(['Avatar', 'CircularProgressBar']);
+        expect(names(data, 'Overlay')).toBeUndefined();
+    });
+
+    it('falls back to the client table without groups', () => {
+        const data = getComposeMenuItems([config('CircularProgressBar')]);
+
+        expect(names(data, 'Overlay')).toEqual(['CircularProgressBar']);
+    });
+
+    it('uses the client table and Other for components missing from the groups of the plugin', () => {
+        const data = getComposeMenuItems(
+            [config('Avatar'), config('BasicButton'), config('Unknown')],
+            [{ name: 'Data Display', components: ['Avatar'] }],
+        );
+
+        expect(names(data, 'Data Display')).toEqual(['Avatar']);
+        expect(names(data, 'Data Entry')).toEqual(['BasicButton']);
+        expect(names(data, 'Other')).toEqual(['Unknown']);
+    });
+
+    it('shows the group names of the plugin', () => {
+        const data = getComposeMenuItems([config('AiAnswer')], [{ name: 'AI Kit', components: ['AiAnswer'] }]);
+
+        expect(names(data, 'AI Kit')).toEqual(['AiAnswer']);
+    });
+});

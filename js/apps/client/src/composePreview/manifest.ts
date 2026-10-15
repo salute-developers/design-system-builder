@@ -1,4 +1,5 @@
 import {
+    ComposePreviewComponentGroup,
     ComposePreviewManifest,
     LoadedComposePreviewManifest,
     PREVIEW_MESSAGE_TYPES,
@@ -17,6 +18,20 @@ const hasExpectedMessages = (value: unknown): value is ComposePreviewManifest['p
     value.resultMessageType === PREVIEW_MESSAGE_TYPES.result &&
     value.describeMessageType === PREVIEW_MESSAGE_TYPES.describe &&
     value.descriptionMessageType === PREVIEW_MESSAGE_TYPES.description;
+
+/** Корректные группы либо `undefined`: неверный формат отбрасывается целиком, манифест остаётся рабочим. */
+const parseGroups = (value: unknown): ComposePreviewComponentGroup[] | undefined => {
+    if (!Array.isArray(value)) return undefined;
+
+    const isGroup = (group: unknown): group is ComposePreviewComponentGroup =>
+        isRecord(group) &&
+        typeof group.name === 'string' &&
+        Boolean(group.name.trim()) &&
+        Array.isArray(group.components) &&
+        group.components.every((component) => typeof component === 'string' && component.trim());
+
+    return value.every(isGroup) ? value.map(({ name, components }) => ({ name, components })) : undefined;
+};
 
 export const validateComposePreviewManifest = (value: unknown): ComposePreviewManifest => {
     if (!isRecord(value)) {
@@ -44,7 +59,10 @@ export const validateComposePreviewManifest = (value: unknown): ComposePreviewMa
         throw new Error('Compose preview manifest must list its components as non-empty strings');
     }
 
-    return value as unknown as ComposePreviewManifest;
+    const { groups: rawGroups, ...rest } = value;
+    const groups = parseGroups(rawGroups);
+
+    return { ...rest, ...(groups ? { groups } : {}) } as unknown as ComposePreviewManifest;
 };
 
 const fetchComposePreviewManifest = async (

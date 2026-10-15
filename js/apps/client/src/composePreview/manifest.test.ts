@@ -134,3 +134,31 @@ describe('loadComposePreviewManifest caching', () => {
         expect(fetcher).toHaveBeenCalledTimes(2);
     });
 });
+
+describe('manifest groups', () => {
+    const groups = [
+        { name: 'Data Display', components: ['Avatar', 'CircularProgressBar'] },
+        { name: 'Data Entry', components: ['BasicButton'] },
+    ];
+
+    it('keeps the component groups of the plugin', () => {
+        expect(validateComposePreviewManifest({ ...compatibleManifest, groups }).groups).toEqual(groups);
+    });
+
+    it('treats a manifest without groups as valid', () => {
+        expect(validateComposePreviewManifest(compatibleManifest)).not.toHaveProperty('groups');
+    });
+
+    it.each([
+        ['not an array', { Avatar: 'Data Display' }],
+        ['a group without a name', [{ components: ['Avatar'] }]],
+        ['a group with an empty name', [{ name: ' ', components: ['Avatar'] }]],
+        ['a group without components', [{ name: 'Data Display' }]],
+        ['a group with a non-string component', [{ name: 'Data Display', components: ['Avatar', 1] }]],
+    ])('drops groups of an invalid shape (%s) and keeps the manifest valid', (_, invalid) => {
+        const manifest = validateComposePreviewManifest({ ...compatibleManifest, groups: invalid });
+
+        expect(manifest).not.toHaveProperty('groups');
+        expect(manifest.components).toEqual(compatibleManifest.components);
+    });
+});

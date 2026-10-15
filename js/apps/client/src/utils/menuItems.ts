@@ -11,6 +11,7 @@ import {
     Theme,
     TypographyToken,
 } from '../controllers';
+import type { ComposePreviewComponentGroup } from '../composePreview';
 import { kebabToCamel } from './';
 import { Data, DataItems, GroupNode, MenuType } from '../types';
 import { restorePaletteColor } from '../palette/activePalette';
@@ -262,10 +263,12 @@ const composeComponentGroups: Record<string, string[]> = {
  * Compose-компоненты раскладываются по группам меню; имена вне соответствия и каталога web
  * попадают в группу «Other».
  */
-const generateComposeComponentMap = (componentConfigs: Config[]) => {
+const generateComposeComponentMap = (componentConfigs: Config[], pluginGroups: ComposePreviewComponentGroup[] = []) => {
     const groupByName = new Map([
         ...componentList.flatMap(({ groupName, components }) => components.map(({ name }) => [name, groupName] as const)),
         ...Object.entries(composeComponentGroups).flatMap(([group, names]) => names.map((name) => [name, group] as const)),
+        // Группы плагина совпадают с песочницей и сильнее таблицы клиента.
+        ...pluginGroups.flatMap(({ name, components }) => components.map((component) => [component, name] as const)),
     ]);
     const data: DataItems = { default: {} };
 
@@ -496,8 +499,8 @@ export const getMenuItems = (data?: Theme | Config[], type?: MenuType): GroupNod
     }
 };
 
-export const getComposeMenuItems = (componentConfigs: Config[]): Data =>
-    createDataItems(generateComposeComponentMap(componentConfigs), 'components');
+export const getComposeMenuItems = (componentConfigs: Config[], pluginGroups?: ComposePreviewComponentGroup[]): Data =>
+    createDataItems(generateComposeComponentMap(componentConfigs, pluginGroups), 'components');
 
 export const getOldMenuItems = (data?: Theme | Config[], type?: MenuType): Data | undefined => {
     if (type === 'typography' && data instanceof Theme) {
