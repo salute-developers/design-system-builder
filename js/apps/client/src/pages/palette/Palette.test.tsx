@@ -71,6 +71,20 @@ const renderPalette = async () => {
     return screen.findByTestId('palette-page');
 };
 
+const renderLoading = (designSystem: unknown) =>
+    render(
+        <MemoryRouter initialEntries={['/p/d/t/palette']}>
+            <Routes>
+                <Route
+                    path="/:projectId/:designSystemId/:tenantId"
+                    element={<Outlet context={{ designSystem, palette: null, paletteError: null }} />}
+                >
+                    <Route path="palette" element={<Palette />} />
+                </Route>
+            </Routes>
+        </MemoryRouter>,
+    );
+
 const cards = (name: string, group: string) =>
     screen.queryAllByRole('button', { name: `Редактировать палитру ${name} в группе ${group}` });
 const card = (name: string, group: string) => cards(name, group)[0];
@@ -87,6 +101,17 @@ afterEach(() => {
 });
 
 describe('раздел «Палитра»', () => {
+    it('загрузка: пока грузится тема, индикатор только в шапке; потом — по центру раздела', () => {
+        renderLoading(null);
+        expect(screen.getByTestId('palette-loading')).toHaveAttribute('aria-busy', 'true');
+        expect(screen.queryByRole('status')).toBeNull();
+        cleanup();
+
+        renderLoading({ getParameters: () => ({}) });
+        expect(screen.getByRole('status')).toHaveTextContent('Загружаем палитру…');
+        expect(screen.getByTestId('palette-loading')).toHaveClass('source-palette-placeholder');
+    });
+
     it('показывает группы, растяжки, баннер local и выбирает первую растяжку', async () => {
         await renderPalette();
         const inspector = document.querySelector('.source-palette-inspector-v3') as HTMLElement;
