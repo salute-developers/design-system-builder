@@ -6,6 +6,7 @@ export type { ComponentRoute } from './composeComponents';
 export { ComposePreviewFrame } from './ComposePreviewFrame';
 export { assembleComposePreviewPayload } from './assembler';
 export { createComponentPreviewDraft } from './draft';
+export { COMPOSE_HOST_DEFAULTS } from './hostDefaults';
 export type { AssemblyResult } from './assembler';
 export type {
     AssemblyDiagnostic,
@@ -26,6 +27,7 @@ export {
     ComposePreviewTimeoutError,
 } from './session';
 export type {
+    PreviewDefaults,
     ComposePreviewComponentGroup,
     ComposePreviewManifest,
     JsonValue,

@@ -12,6 +12,7 @@ import {
     TextField,
 } from '../../../../components';
 import {
+    COMPOSE_HOST_DEFAULTS,
     ComposePreviewFrame,
     assembleComposePreviewPayload,
     createComponentPreviewDraft,
@@ -120,6 +121,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const [composeDescription, setComposeDescription] = useState<PreviewComponentDescription>();
     const [composeDescriptionError, setComposeDescriptionError] = useState<string>();
     const [composeExampleProps, setComposeExampleProps] = useState<Record<string, string | number | boolean>>({});
+    // Введённый текст числовых свойств: `0.` разбирается как `0`, и поле, которое показывало бы только значение, стирало бы точку.
+    const [numericDrafts, setNumericDrafts] = useState<Record<string, string>>({});
     const composePreviewMetadata = loadedComposeMetadata?.owner === componentName ? loadedComposeMetadata : undefined;
     const composePluginUrl = getComposePreviewPluginUrl();
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
@@ -169,6 +172,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
             args,
             variationSelections: args,
             resolveStyleReference,
+            hostDefaults: COMPOSE_HOST_DEFAULTS,
             exampleProps: payloadExampleProps,
             themeMode: String(themeMode.value),
             themeValuePlatform: 'android',
@@ -211,6 +215,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         setMissingFromPlugin(false);
         setComposeDescription(undefined);
         setComposeExampleProps({});
+        setNumericDrafts({});
         setComposeDescriptionError(undefined);
         setRendererMode(isComposeComponent ? { label: 'Compose', value: 'compose' } : { label: 'React', value: 'react' });
         lastComposePayload.current = undefined;
@@ -405,12 +410,14 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                 key={`compose:${property.name}`}
                 label={label}
                 type={property.type === 'string' ? 'text' : 'number'}
-                value={String(value)}
+                value={property.type === 'string' ? String(value) : numericDrafts[property.name] ?? String(value)}
                 onChange={(nextValue) => {
                     if (property.type === 'string') {
                         updateComposeExampleProp(property.name, nextValue);
                         return;
                     }
+                    setNumericDrafts((current) => ({ ...current, [property.name]: nextValue }));
+                    if (!nextValue.trim()) return;
                     const parsed = property.type === 'int' ? Number.parseInt(nextValue, 10) : Number(nextValue);
                     if (Number.isFinite(parsed)) updateComposeExampleProp(property.name, parsed);
                 }}

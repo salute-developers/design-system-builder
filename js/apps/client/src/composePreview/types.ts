@@ -90,6 +90,12 @@ export interface PreviewSurface {
     height: number;
     background: string;
 }
+/** Стили и текст по умолчанию для вспомогательных элементов истории (кнопки, Switch, Spinner, текст). */
+export interface PreviewDefaults {
+    text?: { style?: string; color?: string };
+    styles?: { button?: string; switch?: string; spinner?: string };
+}
+
 export interface PreviewPayload {
     protocolVersion: 1;
     requestId: string;
@@ -99,6 +105,8 @@ export interface PreviewPayload {
     component: PreviewComponent;
     /** Вложенные стили; присутствует, только если на них есть `styleRef`. */
     styles?: Record<string, PreviewStyle>;
+    /** Стили и текст по умолчанию из темы дизайн-системы; идентификаторы стилей указывают на `styles`. */
+    defaults?: PreviewDefaults;
     example: PreviewExample;
     surface: PreviewSurface;
 }

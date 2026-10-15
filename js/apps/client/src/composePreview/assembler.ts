@@ -1,5 +1,6 @@
 import type {
     JsonValue,
+    PreviewDefaults,
     PreviewAsset,
     PreviewPayloadInput,
     PreviewPropertySource,
@@ -79,7 +80,9 @@ const effectiveProperty = (property: PreviewPropertyDraft): PreviewPropertyValue
     const base = withAlpha(plainBase, property.alpha, property.id);
     if ('code' in base) return base;
     const states: PreviewStateEntry[] = [];
-    for (const { names, value, alpha } of property.states) {
+    // В конфигурации (как в Android ColorStateList) побеждает первое совпадение, а в протоколе при равном числе состояний
+    // последняя запись: порядок разворачивается, чтобы `pressed` перед `hovered` выигрывал при нажатии с наведением.
+    for (const { names, value, alpha } of [...property.states].reverse()) {
         const plain = sourceFor(property, value, property.adjustment !== undefined);
         if ('code' in plain) continue;
         const source = withAlpha(plain, alpha, property.id);
@@ -152,6 +155,14 @@ const colorFrom = (value: unknown) => {
 };
 
 export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): AssemblyResult => {
+    const result = assemble(draft);
+    // Стили по умолчанию вспомогательные: недоступный токен или стиль не должен ломать превью самого компонента.
+    if (result.ok || !draft.defaults) return result;
+
+    return assemble({ ...draft, defaults: undefined });
+};
+
+const assemble = (draft: ComponentPreviewDraft): AssemblyResult => {
     const properties: Record<string, PreviewPropertyValue> = {};
     const propertySources: Record<string, string> = {};
     for (const property of [...draft.selectedStyleProperties, ...draft.invariantProperties]) {
@@ -186,7 +197,13 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
         propertySources[property.name] = property.id;
     }
 
-    const collected = collectStyles(properties, draft.styles ?? []);
+    // Стили по умолчанию собираются так же, как вложенные: ссылка на стиль из корня достаёт его и его токены.
+    const defaultStyleRoots: Record<string, PreviewPropertyValue> = Object.fromEntries(
+        defaultStyleEntries(draft.defaults?.styles).flatMap(([kind, styleId]) =>
+            styleId ? [[`defaults.${kind}`, { base: { type: 'styleRef', styleId } } as PreviewPropertyValue]] : [],
+        ),
+    );
+    const collected = collectStyles({ ...properties, ...defaultStyleRoots }, draft.styles ?? []);
     if (collected.error) return failure(collected.error);
     const roots = new Set<string>();
     const assets = new Map<string, PreviewAsset>();
@@ -257,6 +274,7 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
         const error = resolve(root);
         if (error) return failure(error);
     }
+    const defaults = buildDefaults(draft.defaults, collected.styles, resolve);
     return {
         ok: true,
         payload: {
@@ -270,10 +288,39 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
                 properties,
             },
             ...(Object.keys(collected.styles).length ? { styles: collected.styles } : {}),
+            ...(defaults ? { defaults } : {}),
             example: draft.example,
             surface: draft.surface,
         },
     };
+};
+
+const defaultStyleEntries = (styles: object | undefined) =>
+    Object.entries(styles ?? {}) as Array<[string, string | undefined]>;
+
+/** Стили по умолчанию, присутствующие в `styles`, и токены текста, которые нашлись в теме. */
+const buildDefaults = (
+    defaults: ComponentPreviewDraft['defaults'],
+    styles: Record<string, PreviewStyle>,
+    resolve: (id: string) => AssemblyDiagnostic | undefined,
+): PreviewDefaults | undefined => {
+    if (!defaults) return undefined;
+
+    const text: NonNullable<PreviewDefaults['text']> = {};
+    for (const key of ['style', 'color'] as const) {
+        const tokenId = defaults.text?.[key];
+        if (tokenId && !resolve(tokenId)) text[key] = tokenId;
+    }
+    const resolvedStyles = Object.fromEntries(
+        defaultStyleEntries(defaults.styles).filter(([, styleId]) => styleId && styles[styleId]),
+    ) as NonNullable<PreviewDefaults['styles']>;
+
+    return Object.keys(text).length || Object.keys(resolvedStyles).length
+        ? {
+              ...(Object.keys(text).length ? { text } : {}),
+              ...(Object.keys(resolvedStyles).length ? { styles: resolvedStyles } : {}),
+          }
+        : undefined;
 };
 
 const normalizeToken = (

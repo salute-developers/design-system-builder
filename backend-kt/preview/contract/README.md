@@ -22,6 +22,15 @@ Format highlights:
   fontFamily, typography;
 - assets: `TTF`, `OTF`, `SVG`, `PNG`.
 
+Defaults:
+
+- optional `defaults` carries what the sandbox app provides around every story: `text` (`style` and `color` are theme
+  token ids) and `styles` (`button`, `switch`, `spinner` are ids from `styles` of `BasicButton`, `Switch`, `Spinner`
+  components). The client builds them from the design system theme; the plugin provides them as the default text style
+  and as `LocalButtonStyle`, `LocalSwitchStyle`, `LocalSpinnerStyle`. A missing section, token or style is skipped.
+- `states` of a property are ordered by priority: when several entries match with the same number of states, the last
+  one wins. A producer whose source lets the first match win (Android `ColorStateList`) reverses its order.
+
 Icons:
 
 - a property of type `icon` (`closedIcon`, `openedIcon`, ...) is a `literal` string: the icon name as it is stored in
