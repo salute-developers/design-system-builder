@@ -187,13 +187,18 @@ router.get("/:name/component-configs", (req, res) =>
           )
         : Promise.resolve([]),
       componentIds.length > 0
-        ? db.select().from(invariantPropertyValues).where(
-            and(
-              eq(invariantPropertyValues.designSystemId, dsId),
-              inArray(invariantPropertyValues.componentId, componentIds),
-              eq(invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
-            ),
-          )
+        ? db
+            .select()
+            .from(invariantPropertyValues)
+            .where(
+              and(
+                eq(invariantPropertyValues.designSystemId, dsId),
+                inArray(invariantPropertyValues.componentId, componentIds),
+              ),
+            )
+            // Значения состояний инварианта (например, `checked` у цвета RadioBox) идут вместе с базовым; порядок по
+            // `position` значим, как у значений вариаций.
+            .orderBy(invariantPropertyValues.position, invariantPropertyValues.id)
         : Promise.resolve([]),
     ]);
 
@@ -201,12 +206,18 @@ router.get("/:name/component-configs", (req, res) =>
 
     const vpvRows =
       styleIds.length > 0 && appearanceIds.length > 0
-        ? await db.select().from(variationPropertyValues).where(
-            and(
-              inArray(variationPropertyValues.styleId, styleIds),
-              inArray(variationPropertyValues.appearanceId, appearanceIds),
-            ),
-          )
+        ? await db
+            .select()
+            .from(variationPropertyValues)
+            .where(
+              and(
+                inArray(variationPropertyValues.styleId, styleIds),
+                inArray(variationPropertyValues.appearanceId, appearanceIds),
+              ),
+            )
+            // Порядок значений состояний значим (в ColorStateList выигрывает первое совпадение): без сортировки он
+            // зависел от порядка строк в таблице.
+            .orderBy(variationPropertyValues.position, variationPropertyValues.id)
         : [];
 
     // ── Adjustments (корректировки платформенных параметров) ──────────────────
@@ -397,9 +408,15 @@ router.get("/:name/component-configs", (req, res) =>
       : [];
     const componentNameById = new Map(componentList.map((c) => [c.id, c.name]));
     const depsByParent = groupBy(depRows, (d) => d.parentId);
-    const ipvByComponentId = groupBy(ipvRows, (ipv) => ipv.componentId);
+    // Базовые значения инвариантов (без состояния) и значения их состояний хранятся в одной таблице.
+    const ipvBaseRows = ipvRows.filter((ipv) => ipv.stateSetId === SENTINEL_STATE_SET_ID);
+    const ipvStateRowsByProperty = groupBy(
+      ipvRows.filter((ipv) => ipv.stateSetId !== SENTINEL_STATE_SET_ID),
+      (ipv) => `${ipv.componentId}::${ipv.appearanceId}::${ipv.propertyId}`,
+    );
+    const ipvByComponentId = groupBy(ipvBaseRows, (ipv) => ipv.componentId);
     const ipvByComponentAppearance = groupBy(
-      ipvRows,
+      ipvBaseRows,
       (ipv) => `${ipv.componentId}::${ipv.appearanceId}`,
     );
     const vpvByStyleAppearance = groupBy(
@@ -410,7 +427,7 @@ router.get("/:name/component-configs", (req, res) =>
     // Набор хранится ссылкой, а legacy-формат ждёт список имён. Имена собираются одним
     // запросом на всю выгрузку: конфигурация строится синхронно и дозапросить их некуда.
     const stateNamesBySetId = await loadStateNames([
-      ...new Set(vpvRows.map((vpv) => vpv.stateSetId)),
+      ...new Set([...vpvRows, ...ipvRows].map((row) => row.stateSetId)),
     ]);
     const stateNamesOf = (setId: string): string[] => stateNamesBySetId.get(setId) ?? [];
 
@@ -536,6 +553,17 @@ router.get("/:name/component-configs", (req, res) =>
           ...alphaField(ipv.alpha),
           ...(adjustmentByValueRowId.has(ipv.id)
             ? { adjustment: adjustmentByValueRowId.get(ipv.id) }
+            : {}),
+          ...(ipvStateRowsByProperty.has(`${component.id}::${appearance.id}::${ipv.propertyId}`)
+            ? {
+                states: ipvStateRowsByProperty
+                  .get(`${component.id}::${appearance.id}::${ipv.propertyId}`)!
+                  .map((sv) => ({
+                    state: stateNamesOf(sv.stateSetId),
+                    value: resolveValue(sv.value, sv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+                    ...alphaField(sv.alpha),
+                  })),
+              }
             : {}),
         }));
 

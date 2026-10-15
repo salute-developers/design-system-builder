@@ -32,6 +32,11 @@ export interface PreviewThemeTokenDraft {
     enabled: boolean;
     values: Partial<Record<ThemeValuePlatform, JsonValue>>;
 }
+/** Ссылки (имя конфигурации и стили) на стили по умолчанию и токены текста; см. `PreviewDefaults`. */
+export interface HostDefaults {
+    text?: { style?: string; color?: string };
+    styles?: { button?: string; switch?: string; spinner?: string };
+}
 export interface ComponentPreviewDraft {
     componentId: string;
     storyId: string;
@@ -47,6 +52,8 @@ export interface ComponentPreviewDraft {
     assets: PreviewAsset[];
     /** Вложенные стили; пусто, пока редактор не умеет ссылок на стили. */
     styles?: PreviewStyleDraft[];
+    /** Стили по умолчанию (идентификаторы указывают на `styles`) и токены текста по умолчанию. */
+    defaults?: HostDefaults;
     example: { id: string; props: Record<string, JsonValue> };
     surface: PreviewSurface;
 }
@@ -102,18 +109,13 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     alpha: prop.getAlpha(),
 });
 
-/** Свойство-ссылка на стиль становится `styleRef`; не разворачиваемая ссылка (нет цели, цикл) пропускается. */
-const projectWithReferences = (
-    prop: PropUnion,
-    context: CollectContext,
-    trail: string[],
-): PreviewPropertyDraft | undefined => {
-    const projected = projectProperty(prop);
-    if (prop.getType() !== 'component_style') return projected;
-
-    const reference = String(prop.getValue() ?? '');
+/**
+ * Добавляет в контекст стиль, на который указывает ссылка (`basic-button.m.default`), вместе со стилями, на которые
+ * ссылается он сам. `false`, если ссылка не разворачивается, зациклена или слишком глубока.
+ */
+const addReferencedStyle = (reference: string, context: CollectContext, trail: string[]): boolean => {
     const resolved = reference ? context.resolveStyleReference?.(reference) : undefined;
-    if (!resolved || trail.length >= MAX_STYLE_REFERENCE_DEPTH || trail.includes(reference)) return;
+    if (!resolved || trail.length >= MAX_STYLE_REFERENCE_DEPTH || trail.includes(reference)) return false;
 
     if (!context.styles.has(reference)) {
         // Запись создаётся до обхода: так ссылка стиля на самого себя не приводит к бесконечной рекурсии.
@@ -125,6 +127,22 @@ const projectWithReferences = (
         ]);
         style.properties = [...invariants, ...selected];
     }
+
+    return true;
+};
+
+/** Свойство-ссылка на стиль становится `styleRef`; не разворачиваемая ссылка (нет цели, цикл) пропускается. */
+const projectWithReferences = (
+    prop: PropUnion,
+    context: CollectContext,
+    trail: string[],
+): PreviewPropertyDraft | undefined => {
+    const projected = projectProperty(prop);
+    if (prop.getType() !== 'component_style') return projected;
+
+    const reference = String(prop.getValue() ?? '');
+
+    if (!addReferencedStyle(reference, context, trail)) return;
 
     return { ...projected, value: undefined, styleRef: reference };
 };
@@ -182,6 +200,8 @@ export interface CreateComponentPreviewDraftOptions {
     variationSelections?: Record<string, unknown>;
     /** Нужен компонентам со свойствами-ссылками на стили других компонентов (например, `ButtonGroup`). */
     resolveStyleReference?: StyleReferenceResolver;
+    /** Стили и текст по умолчанию из темы: рисуют кнопки, Switch и текст историй, у которых своего стиля нет. */
+    hostDefaults?: HostDefaults;
     exampleProps?: Record<string, unknown>;
     themeMode: string;
     themeValuePlatform: ThemeValuePlatform;
@@ -196,6 +216,7 @@ export const createComponentPreviewDraft = ({
     args,
     variationSelections: explicitVariationSelections,
     resolveStyleReference,
+    hostDefaults,
     exampleProps: explicitExampleProps,
     themeMode,
     themeValuePlatform,
@@ -234,6 +255,18 @@ export const createComponentPreviewDraft = ({
     }
     const context: CollectContext = { resolveStyleReference, styles: new Map() };
     const { invariants, selected: selectedStyleProperties } = collectProperties(config, variationSelections, context, []);
+    // Стили по умолчанию, которые не разворачиваются (нет конфигурации в дизайн-системе), просто не передаются.
+    const requestedStyles = Object.entries(hostDefaults?.styles ?? {}) as Array<[string, string | undefined]>;
+    const defaultStyles = Object.fromEntries(
+        requestedStyles.filter(([, reference]) => reference && addReferencedStyle(reference, context, [])),
+    ) as NonNullable<HostDefaults['styles']>;
+    const defaults: HostDefaults | undefined =
+        hostDefaults && (hostDefaults.text || Object.keys(defaultStyles).length)
+            ? {
+                  ...(hostDefaults.text ? { text: hostDefaults.text } : {}),
+                  ...(Object.keys(defaultStyles).length ? { styles: defaultStyles } : {}),
+              }
+            : undefined;
     const exampleProps = Object.fromEntries(
         Object.entries(explicitExampleProps ?? args)
             .filter(([name]) => explicitExampleProps !== undefined || !variationNames.has(name))
@@ -272,6 +305,7 @@ export const createComponentPreviewDraft = ({
             themeTokens,
             assets,
             ...(context.styles.size ? { styles: [...context.styles.values()] } : {}),
+            ...(defaults ? { defaults } : {}),
             example: { id: metadata.storyId!, props: exampleProps },
             surface,
         },

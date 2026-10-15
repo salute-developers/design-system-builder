@@ -159,3 +159,120 @@ describe('component-configs alpha', () => {
         ]);
     });
 });
+
+describe('component-configs state order', () => {
+    it('returns the state values of a style by their stored position', async () => {
+        const [component] = await testDb
+            .insert(components)
+            .values({ name: `Order-${randomUUID()}`, platform: 'compose' })
+            .returning();
+        try {
+            await testDb.insert(designSystemComponents).values({ designSystemId, componentId: component.id });
+            const [row] = await testDb
+                .insert(properties)
+                .values({ componentId: component.id, name: 'orderColor', type: 'color' })
+                .returning();
+            await testDb
+                .insert(propertyPlatformParams)
+                .values({ propertyId: row.id, platform: 'compose', name: 'orderColor' });
+            const [appearance] = await testDb
+                .insert(appearances)
+                .values({ designSystemId, componentId: component.id, name: 'default' })
+                .returning();
+            const [variation] = await testDb
+                .insert(variations)
+                .values({ componentId: component.id, name: 'size' })
+                .returning();
+            const [style] = await testDb
+                .insert(styles)
+                .values({ designSystemId, variationId: variation.id, name: 'm' })
+                .returning();
+            const resolve = makeStateSetResolver(testDb);
+            const pressed = await resolve('pressed');
+            const hovered = await resolve('hovered');
+            const value = (stateSetId: string, position: number) => ({
+                propertyId: row.id,
+                styleId: style.id,
+                appearanceId: appearance.id,
+                value: `color.at.${position}`,
+                position,
+                stateSetId,
+            });
+            // Вставка в обратном порядке: порядок строк не должен определять порядок ответа.
+            await testDb
+                .insert(variationPropertyValues)
+                .values([value(hovered, 2), value(pressed, 1), value(SENTINEL_STATE_SET_ID, 0)]);
+
+            const response = await fetch(
+                `${baseUrl}/api/ds/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs?platform=compose`,
+                { headers: { 'X-Project-Id': projectId, 'X-Project-Role': 'editor' } },
+            );
+            const body = (await response.json()) as Array<Record<string, any>>;
+            const config = body.find((item) => item.name === component.name)!.sources.configs[0].config;
+            const prop = config.variations[0].styles[0].props.find((item: any) => item.id === row.id);
+
+            expect(prop.value).toBe('color.at.0');
+            expect(prop.states.map((state: any) => state.state)).toEqual([['pressed'], ['hovered']]);
+        } finally {
+            await testDb.delete(components).where(eq(components.id, component.id));
+        }
+    });
+});
+
+describe('component-configs invariant states', () => {
+    it('returns the state values of an invariant with its base value instead of separate entries', async () => {
+        const [component] = await testDb
+            .insert(components)
+            .values({ name: `Invariant-${randomUUID()}`, platform: 'compose' })
+            .returning();
+        try {
+            await testDb.insert(designSystemComponents).values({ designSystemId, componentId: component.id });
+            const [row] = await testDb
+                .insert(properties)
+                .values({ componentId: component.id, name: 'toggleColor', type: 'color' })
+                .returning();
+            await testDb
+                .insert(propertyPlatformParams)
+                .values({ propertyId: row.id, platform: 'compose', name: 'toggleColor' });
+            const [appearance] = await testDb
+                .insert(appearances)
+                .values({ designSystemId, componentId: component.id, name: 'default' })
+                .returning();
+            const resolve = makeStateSetResolver(testDb);
+            const pressed = await resolve('pressed');
+            const hovered = await resolve('hovered');
+            const value = (stateSetId: string, position: number, text: string) => ({
+                propertyId: row.id,
+                designSystemId,
+                componentId: component.id,
+                appearanceId: appearance.id,
+                value: text,
+                position,
+                stateSetId,
+            });
+            await testDb
+                .insert(invariantPropertyValues)
+                .values([
+                    value(hovered, 2, 'surface.hover'),
+                    value(SENTINEL_STATE_SET_ID, 0, 'surface.base'),
+                    value(pressed, 1, 'surface.active'),
+                ]);
+
+            const response = await fetch(
+                `${baseUrl}/api/ds/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs?platform=compose`,
+                { headers: { 'X-Project-Id': projectId, 'X-Project-Role': 'editor' } },
+            );
+            const body = (await response.json()) as Array<Record<string, any>>;
+            const { invariantProps } = body.find((item) => item.name === component.name)!.sources.configs[0].config;
+
+            expect(invariantProps).toHaveLength(1);
+            expect(invariantProps[0].value).toBe('surface.base');
+            expect(invariantProps[0].states).toEqual([
+                { state: ['pressed'], value: 'surface.active' },
+                { state: ['hovered'], value: 'surface.hover' },
+            ]);
+        } finally {
+            await testDb.delete(components).where(eq(components.id, component.id));
+        }
+    });
+});
