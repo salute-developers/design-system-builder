@@ -111,6 +111,8 @@ private fun DsFailure.toErrorResponse() = when (this) {
         message = message,
         code = code,
         editRevision = editRevision,
+        draftId = draftId,
+        draftRevision = draftRevision,
         details = details.takeIf { it.isNotEmpty() }?.let { values ->
             buildJsonObject {
                 values.forEach { (name, numbers) ->

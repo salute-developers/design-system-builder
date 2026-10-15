@@ -8,12 +8,21 @@ import org.jetbrains.exposed.v1.javatime.timestamp
 internal object TokensTable : Table("tokens") {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", TokenDesignSystemsTable.id).nullable()
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+internal object TokenRevisionsTable : Table("token_revisions") {
+    val id = uuid("id")
+    val tokenId = reference("token_id", TokensTable.id)
+    val designSystemId = uuid("design_system_id")
+    val designSystemVersionId = uuid("design_system_version_id")
+    val versionSequenceNumber = long("version_sequence_number")
     val name = text("name")
     val type = postgresEnum("type", "token_type", TokenType::fromWire, TokenType::wireValue).nullable()
     val displayName = text("display_name").nullable()
     val description = text("description").nullable()
-    val enabled = bool("enabled").nullable()
-    val createdAt = timestamp("created_at")
+    val enabled = bool("enabled")
+    val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
-    override val primaryKey = PrimaryKey(id)
 }

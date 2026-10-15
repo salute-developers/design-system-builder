@@ -25,22 +25,15 @@ import com.dsbuilder.ds.components.application.CreateVariationUseCase
 import com.dsbuilder.ds.components.application.DeleteAppearanceUseCase
 import com.dsbuilder.ds.components.application.DeleteAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.DeleteAppearanceVariationValueUseCase
-import com.dsbuilder.ds.components.application.DeleteComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.DeleteComponentReuseConfigUseCase
-import com.dsbuilder.ds.components.application.DeleteComponentUseCase
 import com.dsbuilder.ds.components.application.DeleteDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.DeleteInvariantPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.DeleteInvariantPropertyValueUseCase
-import com.dsbuilder.ds.components.application.DeletePropertyPlatformParamUseCase
-import com.dsbuilder.ds.components.application.DeletePropertyUseCase
-import com.dsbuilder.ds.components.application.DeletePropertyVariationUseCase
-import com.dsbuilder.ds.components.application.DeleteStateUseCase
 import com.dsbuilder.ds.components.application.DeleteStyleCombinationMemberUseCase
 import com.dsbuilder.ds.components.application.DeleteStyleCombinationUseCase
 import com.dsbuilder.ds.components.application.DeleteStyleUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPropertyValueUseCase
-import com.dsbuilder.ds.components.application.DeleteVariationUseCase
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
@@ -141,34 +134,37 @@ import com.dsbuilder.ds.components.presentation.variationPropertyValueRoutes
 import com.dsbuilder.ds.components.presentation.variationRoutes
 import com.dsbuilder.ds.core.application.Clock
 import com.dsbuilder.ds.core.application.DsAccessPolicy
+import com.dsbuilder.ds.core.application.EntityEditStateRepository
 import com.dsbuilder.ds.core.application.IdGenerator
+import com.dsbuilder.ds.core.application.IdempotentReplayException
+import com.dsbuilder.ds.core.application.IdempotentRequestRepository
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
+import com.dsbuilder.ds.core.data.ExposedEntityEditStateRepository
+import com.dsbuilder.ds.core.data.ExposedIdempotentRequestRepository
 import com.dsbuilder.ds.core.data.ExposedTransactionRunner
 import com.dsbuilder.ds.core.data.PostgresDatabasePool
 import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
+import com.dsbuilder.ds.core.data.PostgresUniqueKeyLockRepository
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.installLegacyValidationError
 import com.dsbuilder.ds.core.presentation.markDsFailureOutcome
-import com.dsbuilder.ds.designsystems.application.CreateDesignSystemChangeUseCase
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
-import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.GetDesignSystemChangeUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
-import com.dsbuilder.ds.designsystems.application.ListChangesByDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemChangeEntriesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentStylesUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemComponentsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTenantsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTokensUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemVersionsUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemsUseCase
+import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
 import com.dsbuilder.ds.designsystems.application.ListVersionsByDesignSystemUseCase
+import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
 import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemUseCase
-import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.di.designSystemsModule
 import com.dsbuilder.ds.designsystems.presentation.designSystemChangeRoutes
 import com.dsbuilder.ds.designsystems.presentation.designSystemRoutes
@@ -283,6 +279,9 @@ private fun Application.installDependencyGraph(configuration: DsServiceConfigura
                 }
                 single<Clock> { Clock(Instant::now) }
                 single<IdGenerator> { IdGenerator(UUID::randomUUID) }
+                single<EntityEditStateRepository> { ExposedEntityEditStateRepository() }
+                single<UniqueKeyLockRepository> { PostgresUniqueKeyLockRepository() }
+                single<IdempotentRequestRepository> { ExposedIdempotentRequestRepository() }
             },
             designSystemsModule,
             themesModule,
@@ -326,6 +325,13 @@ private fun Application.installHttpPlugins(json: Json, metrics: DsMetrics) {
         json(json)
     }
     install(StatusPages) {
+        exception<IdempotentReplayException> { call, cause ->
+            call.respondText(
+                text = cause.response.body,
+                contentType = ContentType.Application.Json,
+                status = HttpStatusCode.fromValue(cause.response.status),
+            )
+        }
         exception<BadRequestException> { call, cause ->
             call.markDsFailureOutcome("invalid_request")
             val error = validationErrors.fromBadRequest(call, cause)
@@ -356,13 +362,14 @@ private fun Application.installServiceRoutes(runtime: DsRuntime, json: Json) {
 
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
-    apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>())
+    apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>(), json)
     componentConfigRoutes(
         runtime.evaluator,
         koin.get<GetComponentConfigUseCase>(),
         koin.get<ImportComponentConfigUseCase>(),
         koin.get<ExportComponentConfigUseCase>(),
         koin.get<GetComponentWebAdapterUseCase>(),
+        json,
     )
     componentRoutes(
         runtime.evaluator,
@@ -370,7 +377,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetComponentUseCase>(),
         koin.get<CreateComponentUseCase>(),
         koin.get<UpdateComponentUseCase>(),
-        koin.get<DeleteComponentUseCase>(),
         koin.get<ListComponentVariationsUseCase>(),
         koin.get<ListComponentPropertiesUseCase>(),
         koin.get<ListDependenciesByComponentUseCase>(),
@@ -382,6 +388,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetDesignSystemComponentUseCase>(),
         koin.get<CreateDesignSystemComponentUseCase>(),
         koin.get<DeleteDesignSystemComponentUseCase>(),
+        json,
     )
     componentDependencyRoutes(
         runtime.evaluator,
@@ -389,7 +396,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetComponentDependencyUseCase>(),
         koin.get<CreateComponentDependencyUseCase>(),
         koin.get<UpdateComponentDependencyUseCase>(),
-        koin.get<DeleteComponentDependencyUseCase>(),
         json,
     )
     componentReuseConfigRoutes(
@@ -400,6 +406,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<CreateComponentReuseConfigUseCase>(),
         koin.get<UpdateComponentReuseConfigUseCase>(),
         koin.get<DeleteComponentReuseConfigUseCase>(),
+        json,
     )
     variationRoutes(
         runtime.evaluator,
@@ -407,7 +414,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetVariationUseCase>(),
         koin.get<CreateVariationUseCase>(),
         koin.get<UpdateVariationUseCase>(),
-        koin.get<DeleteVariationUseCase>(),
         koin.get<ListVariationStylesUseCase>(),
         koin.get<ListVariationPropertiesUseCase>(),
         json,
@@ -418,7 +424,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetPropertyUseCase>(),
         koin.get<CreatePropertyUseCase>(),
         koin.get<UpdatePropertyUseCase>(),
-        koin.get<DeletePropertyUseCase>(),
         json,
     )
     propertyPlatformParamRoutes(
@@ -427,7 +432,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetPropertyPlatformParamUseCase>(),
         koin.get<CreatePropertyPlatformParamUseCase>(),
         koin.get<UpdatePropertyPlatformParamUseCase>(),
-        koin.get<DeletePropertyPlatformParamUseCase>(),
         json,
     )
     propertyVariationRoutes(
@@ -435,7 +439,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<ListPropertyVariationsUseCase>(),
         koin.get<GetPropertyVariationUseCase>(),
         koin.get<CreatePropertyVariationUseCase>(),
-        koin.get<DeletePropertyVariationUseCase>(),
+        json,
     )
     variationPlatformParamAdjustmentRoutes(
         runtime.evaluator,
@@ -521,7 +525,6 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetStateImpactUseCase>(),
         koin.get<CreateStateUseCase>(),
         koin.get<UpdateStateUseCase>(),
-        koin.get<DeleteStateUseCase>(),
         json,
     )
     stateSetRoutes(
@@ -529,6 +532,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<ListStateSetsUseCase>(),
         koin.get<GetStateSetUseCase>(),
         koin.get<ResolveStateSetUseCase>(),
+        json,
     )
     styleCombinationRoutes(
         runtime.evaluator,
@@ -547,6 +551,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetStyleCombinationMemberUseCase>(),
         koin.get<CreateStyleCombinationMemberUseCase>(),
         koin.get<DeleteStyleCombinationMemberUseCase>(),
+        json,
     )
 }
 
@@ -590,16 +595,13 @@ private fun Route.registerDesignSystemFeature(runtime: DsRuntime, json: Json, ko
         koin.get<GetDesignSystemVersionUseCase>(),
         koin.get<ListVersionsByDesignSystemUseCase>(),
         koin.get<CreateDesignSystemVersionUseCase>(),
-        koin.get<UpdateDesignSystemVersionUseCase>(),
-        koin.get<DeleteDesignSystemVersionUseCase>(),
         json,
     )
     designSystemChangeRoutes(
         runtime.evaluator,
-        koin.get<ListDesignSystemChangeEntriesUseCase>(),
-        koin.get<GetDesignSystemChangeUseCase>(),
-        koin.get<ListChangesByDesignSystemUseCase>(),
-        koin.get<CreateDesignSystemChangeUseCase>(),
+        koin.get<ListDraftChangesUseCase>(),
+        koin.get<RevertDraftChangeUseCase>(),
+        json,
     )
 }
 
@@ -648,6 +650,7 @@ private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Ko
         koin.get<CreatePaletteEntryUseCase>(),
         koin.get<UpdatePaletteEntryUseCase>(),
         koin.get<DeletePaletteEntryUseCase>(),
+        json,
     )
 }
 

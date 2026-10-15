@@ -13,9 +13,9 @@
 # - Comprehensive health checks for all services
 #
 # Usage: ./setup-docker.sh [--seed-only]
-#   --seed-only  only seed the database and bind design system 'base' to the user's project;
-#                the stack must be running and the schema must already exist (DS_SCHEMA_MIGRATION_OWNER=flyway
-#                flow: ds-service creates the schema, then this step fills it)
+#   --seed-only  bootstrap a local project and its 'base' design system after the schema exists.
+#                In Flyway mode this uses the projects-service and ds-service HTTP APIs and never runs
+#                the legacy Drizzle seed against the ds-service schema.
 #
 # Project bootstrap env (all optional):
 #   DSBUILDER_GATEWAY_URL       gateway of backend-kt stack, default http://localhost:8080
@@ -214,6 +214,10 @@ for project in json.load(sys.stdin):
 # Seeds the database and binds design system 'base' to the user's project.
 # Seeding is skipped when the database already holds 'base', so repeated runs do not duplicate data.
 seed_and_bind() {
+    if [ "$SCHEMA_MIGRATION_OWNER" = "flyway" ]; then
+        bootstrap_ds_service
+        return
+    fi
     local seeded
     seeded="$(run_psql -c "SELECT count(*) FROM design_systems WHERE name = 'base';" 2>/dev/null || echo 0)"
     if [ "$seeded" != "0" ]; then
@@ -248,6 +252,57 @@ seed_and_bind() {
         echo_warning "Project bootstrap skipped: design system 'base' stays without project_id (visible to every project)"
     fi
 
+}
+
+# Creates the minimal local workspace only through current service APIs. Generated token definitions are initialized
+# by ds-service as part of design-system creation; a theme can then be created in the editor.
+bootstrap_ds_service() {
+    local project_id token_response access_token systems http_status body
+    if [ "$SKIP_PROJECT" = "1" ]; then
+        echo_info "Local project bootstrap skipped (DSBUILDER_SKIP_PROJECT=1)"
+        return
+    fi
+    project_id="$(bootstrap_user_project)" || {
+        echo_error "Could not bootstrap the local project"
+        exit 1
+    }
+    token_response="$(curl -sf -X POST "$GATEWAY_URL/realms/$REALM/protocol/openid-connect/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        --data-urlencode "grant_type=password" \
+        --data-urlencode "client_id=$CLIENT_ID" \
+        --data-urlencode "username=$PROJECT_USERNAME" \
+        --data-urlencode "password=$PROJECT_PASSWORD")" || {
+        echo_error "Could not obtain an access token for ds-service bootstrap"
+        exit 1
+    }
+    access_token="$(printf '%s' "$token_response" | json_field access_token)"
+    systems="$(curl -sf "$GATEWAY_URL/api/projects/$project_id/ds/design-systems" \
+        -H "Authorization: Bearer $access_token")" || {
+        echo_error "Could not list design systems through ds-service"
+        exit 1
+    }
+    if printf '%s' "$systems" | python3 -c '
+import json, sys
+raise SystemExit(0 if any(item.get("name") == "base" for item in json.load(sys.stdin)) else 1)
+'; then
+        echo_info "Design system 'base' already exists in project $project_id"
+        return
+    fi
+
+    body="$(mktemp)"
+    http_status="$(curl -sS -o "$body" -w "%{http_code}" -X POST \
+        "$GATEWAY_URL/api/projects/$project_id/ds/design-systems" \
+        -H "Authorization: Bearer $access_token" \
+        -H "Content-Type: application/json" \
+        -H "Idempotency-Key: local-base-$project_id" \
+        -d '{"name":"base","projectName":"Base"}')"
+    if [ "$http_status" != "201" ]; then
+        echo_error "Design-system bootstrap failed: HTTP $http_status $(cat "$body")"
+        rm -f "$body"
+        exit 1
+    fi
+    rm -f "$body"
+    echo_success "Created design system 'base' through ds-service for project $project_id"
 }
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"
@@ -347,7 +402,7 @@ fi
 
 # --- Seeding and project binding ---
 if [ "$SCHEMA_MIGRATION_OWNER" = "flyway" ]; then
-    echo_info "Seed and project binding are deferred: ds-service creates the schema first (run ./setup-docker.sh --seed-only afterwards)"
+    echo_info "Deferring API bootstrap until ds-service has created the schema"
 else
     seed_and_bind
 fi

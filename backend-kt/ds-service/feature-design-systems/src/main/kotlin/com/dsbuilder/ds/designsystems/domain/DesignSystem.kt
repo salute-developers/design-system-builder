@@ -2,6 +2,7 @@ package com.dsbuilder.ds.designsystems.domain
 
 import com.dsbuilder.ds.core.domain.ProjectId
 import java.time.Instant
+import java.util.UUID
 
 /** Design-system aggregate root. */
 data class DesignSystem(
@@ -25,4 +26,8 @@ data class DesignSystem(
     val tenantCount: Int = 0,
     /** Preview первых тем в порядке создания. */
     val themePreviews: List<DesignSystemThemePreview> = emptyList(),
+    /** Идентификатор активного черновика для команд записи и публикации. */
+    val draftId: UUID? = null,
+    /** Техническая редакция активного черновика. */
+    val draftRevision: Long? = null,
 )

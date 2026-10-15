@@ -24,5 +24,7 @@ data class BatchSaveTenantTokenValuesRequest(
         val paletteId: String? = null,
         /** Явное JSON-значение. */
         val value: JsonElement,
+        /** Базовая ревизия именно этого значения. */
+        val baseRevision: Long = 0,
     )
 }

@@ -110,88 +110,88 @@ val componentModelModule = module {
     single<StyleCombinationRepository> { ExposedStyleCombinationRepository() }
     factory { ListVariationsUseCase(get(), get(), get()) }
     factory { GetVariationUseCase(get(), get(), get()) }
-    factory { CreateVariationUseCase(get(), get(), get()) }
+    factory { CreateVariationUseCase(get(), get(), get(), get()) }
     factory { UpdateVariationUseCase(get(), get(), get()) }
     factory { DeleteVariationUseCase(get(), get(), get()) }
     factory { ListVariationStylesUseCase(get(), get(), get()) }
     factory { ListVariationPropertiesUseCase(get(), get(), get()) }
     factory { ListPropertiesUseCase(get(), get(), get()) }
     factory { GetPropertyUseCase(get(), get(), get()) }
-    factory { CreatePropertyUseCase(get(), get(), get()) }
+    factory { CreatePropertyUseCase(get(), get(), get(), get()) }
     factory { UpdatePropertyUseCase(get(), get(), get()) }
     factory { DeletePropertyUseCase(get(), get(), get()) }
     factory { ListPropertyPlatformParamsUseCase(get(), get(), get()) }
     factory { GetPropertyPlatformParamUseCase(get(), get(), get()) }
-    factory { CreatePropertyPlatformParamUseCase(get(), get(), get()) }
+    factory { CreatePropertyPlatformParamUseCase(get(), get(), get(), get()) }
     factory { UpdatePropertyPlatformParamUseCase(get(), get(), get()) }
     factory { DeletePropertyPlatformParamUseCase(get(), get(), get()) }
     factory { ListPropertyVariationsUseCase(get(), get(), get()) }
     factory { GetPropertyVariationUseCase(get(), get(), get()) }
-    factory { CreatePropertyVariationUseCase(get(), get(), get()) }
+    factory { CreatePropertyVariationUseCase(get(), get(), get(), get()) }
     factory { DeletePropertyVariationUseCase(get(), get(), get()) }
     factory { ListVariationPlatformParamAdjustmentsUseCase(get(), get(), get()) }
     factory { GetVariationPlatformParamAdjustmentUseCase(get(), get(), get()) }
-    factory { CreateVariationPlatformParamAdjustmentUseCase(get(), get(), get()) }
+    factory { CreateVariationPlatformParamAdjustmentUseCase(get(), get(), get(), get()) }
     factory { UpdateVariationPlatformParamAdjustmentUseCase(get(), get(), get()) }
     factory { DeleteVariationPlatformParamAdjustmentUseCase(get(), get(), get()) }
     factory { ListInvariantPlatformParamAdjustmentsUseCase(get(), get(), get()) }
     factory { GetInvariantPlatformParamAdjustmentUseCase(get(), get(), get()) }
-    factory { CreateInvariantPlatformParamAdjustmentUseCase(get(), get(), get()) }
+    factory { CreateInvariantPlatformParamAdjustmentUseCase(get(), get(), get(), get()) }
     factory { UpdateInvariantPlatformParamAdjustmentUseCase(get(), get(), get()) }
     factory { DeleteInvariantPlatformParamAdjustmentUseCase(get(), get(), get()) }
     factory { ListStylesUseCase(get(), get(), get()) }
     factory { GetStyleUseCase(get(), get(), get()) }
     factory { ListStylesByVariationAndDesignSystemUseCase(get(), get(), get()) }
-    factory { CreateStyleUseCase(get(), get(), get()) }
-    factory { UpdateStyleUseCase(get(), get(), get()) }
+    factory { CreateStyleUseCase(get(), get(), get(), get(), get()) }
+    factory { UpdateStyleUseCase(get(), get(), get(), get()) }
     factory { DeleteStyleUseCase(get(), get(), get()) }
     factory { ListAppearancesUseCase(get(), get(), get()) }
     factory { GetAppearanceUseCase(get(), get(), get()) }
-    factory { CreateAppearanceUseCase(get(), get(), get()) }
-    factory { UpdateAppearanceUseCase(get(), get(), get()) }
+    factory { CreateAppearanceUseCase(get(), get(), get(), get(), get()) }
+    factory { UpdateAppearanceUseCase(get(), get(), get(), get()) }
     factory { DeleteAppearanceUseCase(get(), get(), get()) }
     factory { ListAppearanceVariationAxesUseCase(get(), get(), get()) }
     factory { ListAppearanceVariationsUseCase(get(), get(), get()) }
     factory { GetAppearanceVariationUseCase(get(), get(), get()) }
-    factory { CreateAppearanceVariationUseCase(get(), get(), get()) }
+    factory { CreateAppearanceVariationUseCase(get(), get(), get(), get()) }
     factory { UpdateAppearanceVariationUseCase(get(), get(), get()) }
     factory { DeleteAppearanceVariationUseCase(get(), get(), get()) }
     factory { ListAppearanceVariationValuesUseCase(get(), get(), get()) }
     factory { GetAppearanceVariationValueUseCase(get(), get(), get()) }
-    factory { CreateAppearanceVariationValueUseCase(get(), get(), get()) }
+    factory { CreateAppearanceVariationValueUseCase(get(), get(), get(), get()) }
     factory { UpdateAppearanceVariationValueUseCase(get(), get(), get()) }
     factory { DeleteAppearanceVariationValueUseCase(get(), get(), get()) }
     factory { ListVariationPropertyValuesUseCase(get(), get(), get()) }
     factory { GetVariationPropertyValueUseCase(get(), get(), get()) }
     factory { ListVariationPropertyValuesByStyleUseCase(get(), get(), get()) }
     factory { ListVariationPropertyValuesByAppearanceUseCase(get(), get(), get()) }
-    factory { CreateVariationPropertyValueUseCase(get(), get(), get()) }
+    factory { CreateVariationPropertyValueUseCase(get(), get(), get(), get()) }
     factory { UpdateVariationPropertyValueUseCase(get(), get(), get()) }
     factory { DeleteVariationPropertyValueUseCase(get(), get(), get()) }
     factory { ListInvariantPropertyValuesUseCase(get(), get(), get()) }
     factory { GetInvariantPropertyValueUseCase(get(), get(), get()) }
     factory { ListInvariantPropertyValuesByComponentAndDesignSystemUseCase(get(), get(), get()) }
-    factory { CreateInvariantPropertyValueUseCase(get(), get(), get()) }
+    factory { CreateInvariantPropertyValueUseCase(get(), get(), get(), get()) }
     factory { UpdateInvariantPropertyValueUseCase(get(), get(), get()) }
     factory { DeleteInvariantPropertyValueUseCase(get(), get(), get()) }
     factory { ListStatesUseCase(get(), get(), get()) }
     factory { GetStateUseCase(get(), get(), get()) }
     factory { GetStateImpactUseCase(get(), get(), get()) }
-    factory { CreateStateUseCase(get(), get(), get()) }
+    factory { CreateStateUseCase(get(), get(), get(), get()) }
     factory { UpdateStateUseCase(get(), get(), get()) }
     factory { DeleteStateUseCase(get(), get(), get()) }
     factory { ListStateSetsUseCase(get(), get(), get()) }
     factory { GetStateSetUseCase(get(), get(), get()) }
-    factory { ResolveStateSetUseCase(get(), get(), get()) }
+    factory { ResolveStateSetUseCase(get(), get(), get(), get()) }
     factory { ListStyleCombinationsUseCase(get(), get(), get()) }
     factory { GetStyleCombinationUseCase(get(), get(), get()) }
-    factory { CreateStyleCombinationUseCase(get(), get(), get()) }
+    factory { CreateStyleCombinationUseCase(get(), get(), get(), get()) }
     factory { UpdateStyleCombinationUseCase(get(), get(), get()) }
     factory { DeleteStyleCombinationUseCase(get(), get(), get()) }
     factory { ListMembersByStyleCombinationUseCase(get(), get(), get()) }
-    factory { AddStyleCombinationMemberUseCase(get(), get(), get()) }
+    factory { AddStyleCombinationMemberUseCase(get(), get(), get(), get()) }
     factory { ListStyleCombinationMembersUseCase(get(), get(), get()) }
     factory { GetStyleCombinationMemberUseCase(get(), get(), get()) }
-    factory { CreateStyleCombinationMemberUseCase(get(), get(), get()) }
+    factory { CreateStyleCombinationMemberUseCase(get(), get(), get(), get()) }
     factory { DeleteStyleCombinationMemberUseCase(get(), get(), get()) }
 }

@@ -40,8 +40,11 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val config = exported(ds, "default")
         assertEquals("shape", config.string("rootVariationId"))
         assertEquals("view", config.string("colorSchemeVariationId"))
-        assertEquals("1", query("SELECT count(*) FROM appearances WHERE root_variation_id IS NOT NULL"))
-        assertEquals("1", query("SELECT count(*) FROM appearance_variations WHERE is_color_scheme"))
+        assertEquals(
+            "1",
+            query("SELECT count(*) FROM ($RESOLVED_APPEARANCES) resolved WHERE root_variation_id IS NOT NULL"),
+        )
+        assertEquals("1", colorSchemeAxisCount())
     }
 
     @Test
@@ -64,7 +67,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val rejected = json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("rejected").jsonArray
         assertEquals(1, rejected.size)
-        assertEquals("0", query("SELECT count(*) FROM appearances"))
+        assertEquals("0", query("SELECT count(*) FROM ($RESOLVED_APPEARANCES) resolved"))
     }
 
     @Test
@@ -73,6 +76,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val body = config(root = "shape", scheme = "view", "shape", "size", "view")
         importConfig(ds, "default", body)
         val again = importConfig(ds, "default", body)
+        assertEquals(HttpStatusCode.OK, again.status, again.bodyAsText())
         assertEquals(
             "1",
             json.parseToJsonElement(again.bodyAsText()).jsonObject.getValue("unchanged").jsonPrimitive.content,
@@ -84,7 +88,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
     fun `axis endpoints report both roles and move them`() = withService {
         val ds = designSystem()
         importConfig(ds, "default", config(root = "shape", scheme = "view", "shape", "size", "view"))
-        val appearance = query("SELECT id FROM appearances")
+        val appearance = appearanceId()
 
         var axes = axes(appearance)
         assertEquals(setOf("shape"), axes.rootNames())
@@ -93,9 +97,18 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val sizeAxis = axes.axisId("size")
         val viewAxis = axes.axisId("view")
         val shapeAxis = axes.axisId("shape")
+        val appearanceRevision = editRevision("appearance", appearance)
+        val sizeAxisRevision = editRevision("appearance-variation", sizeAxis)
 
-        val moved = patch("/api/ds/appearance-variations/$sizeAxis", """{"isRoot":true}""")
+        val moved = patch(
+            "/api/ds/appearance-variations/$sizeAxis",
+            """{"isRoot":true}""",
+            appearanceRevision,
+        )
         assertEquals(HttpStatusCode.OK, moved.status, moved.bodyAsText())
+        assertTrue(moved.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
+        assertEquals(sizeAxisRevision, editRevision("appearance-variation", sizeAxis))
+        assertEquals("/root_variation_id", latestPaths("appearance", appearance, appearanceRevision + 1))
         axes = axes(appearance)
         assertEquals(setOf("size"), axes.rootNames())
 
@@ -104,22 +117,63 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(setOf("size"), axes(appearance).rootNames())
         assertEquals(setOf("view"), axes(appearance).schemeNames())
 
-        val schemeMoved = patch("/api/ds/appearance-variations/$shapeAxis", """{"isColorScheme":true}""")
+        val schemeMoved = patch(
+            "/api/ds/appearance-variations/$shapeAxis",
+            """{"isColorScheme":true}""",
+            appearanceRevision,
+        )
         assertEquals(HttpStatusCode.OK, schemeMoved.status, schemeMoved.bodyAsText())
+        assertTrue(schemeMoved.headers["X-DS-Mutation-Metadata"].orEmpty().contains("\"warnings\": []"))
         assertEquals(setOf("shape"), axes(appearance).schemeNames())
-        assertEquals("1", query("SELECT count(*) FROM appearance_variations WHERE is_color_scheme"))
+        assertEquals("1", colorSchemeAxisCount())
 
-        val released = patch("/api/ds/appearance-variations/$shapeAxis", """{"isColorScheme":false}""")
+        val released = patch(
+            "/api/ds/appearance-variations/$shapeAxis",
+            """{"isColorScheme":false}""",
+            appearanceRevision,
+        )
         assertEquals(HttpStatusCode.OK, released.status)
+        assertTrue(
+            released.headers["X-DS-Mutation-Metadata"].orEmpty()
+                .contains("\"warnings\": [\"/color_scheme_variation_id\"]"),
+        )
         assertEquals(emptySet(), axes(appearance).schemeNames())
-        assertEquals("0", query("SELECT count(*) FROM appearance_variations WHERE is_color_scheme"))
+        assertEquals("0", colorSchemeAxisCount())
+    }
+
+    @Test
+    fun `unchanged axis roles do not create an edit and mixed request records only the changed role`() = withService {
+        val ds = designSystem()
+        importConfig(ds, "default", config(root = "shape", scheme = "view", "shape", "size", "view"))
+        val appearance = appearanceId()
+        val axes = axes(appearance)
+        val shapeAxis = axes.axisId("shape")
+        val viewAxis = axes.axisId("view")
+        val revision = editRevision("appearance", appearance)
+
+        val repeated = patch(
+            "/api/ds/appearance-variations/$shapeAxis",
+            """{"isRoot":true}""",
+            revision,
+        )
+        assertEquals(HttpStatusCode.OK, repeated.status, repeated.bodyAsText())
+        assertEquals(revision, editRevision("appearance", appearance))
+
+        val mixed = patch(
+            "/api/ds/appearance-variations/$viewAxis",
+            """{"isRoot":false,"isColorScheme":false}""",
+            revision,
+        )
+        assertEquals(HttpStatusCode.OK, mixed.status, mixed.bodyAsText())
+        assertEquals(revision + 1, editRevision("appearance", appearance))
+        assertEquals("/color_scheme_variation_id", latestPaths("appearance", appearance, revision + 1))
     }
 
     @Test
     fun `deleting the root axis reassigns the root by the fallback order`() = withService {
         val ds = designSystem()
         importConfig(ds, "default", config(root = "size", scheme = "view", "view", "shape", "size"))
-        val appearance = query("SELECT id FROM appearances")
+        val appearance = appearanceId()
         val sizeAxis = axes(appearance).axisId("size")
 
         val deleted = delete("/api/ds/appearance-variations/$sizeAxis")
@@ -132,7 +186,10 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(emptySet(), axes(appearance).schemeNames())
         assertEquals(
             "shape",
-            query("SELECT name FROM variations WHERE id = (SELECT root_variation_id FROM appearances)"),
+            query(
+                "SELECT name FROM variations " +
+                    "WHERE id = (SELECT root_variation_id FROM ($RESOLVED_APPEARANCES) resolved)",
+            ),
         )
     }
 
@@ -140,7 +197,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
     fun `the first axis created through the endpoint becomes the root`() = withService {
         val ds = designSystem()
         importConfig(ds, "default", config(root = null, scheme = null))
-        val appearance = query("SELECT id FROM appearances")
+        val appearance = appearanceId()
         val component = query("SELECT id FROM components WHERE name = 'Button'")
         val variation = id(post("/api/ds/variations", """{"componentId":"$component","name":"shape"}""").bodyAsText())
         val created = post(
@@ -150,6 +207,30 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         assertEquals(setOf("shape"), axes(appearance).rootNames())
         assertTrue(created.bodyAsText().contains("\"isRoot\":true"))
+    }
+
+    @Test
+    fun `component configuration create repeats the saved result`() = withService {
+        val ds = designSystem()
+        importConfig(ds, "default", config(root = null, scheme = null))
+        val appearance = appearanceId()
+        val component = query("SELECT id FROM components WHERE name = 'Button'")
+        val variation = id(post("/api/ds/variations", """{"componentId":"$component","name":"shape"}""").bodyAsText())
+        val body = """{"appearanceId":"$appearance","variationId":"$variation","position":0}"""
+
+        val first = post("/api/ds/appearance-variations", body, idempotencyKey = "axis-create")
+        val replay = post("/api/ds/appearance-variations", body, idempotencyKey = "axis-create")
+        val mismatch = post(
+            "/api/ds/appearance-variations",
+            """{"appearanceId":"$appearance","variationId":"$variation","position":1}""",
+            idempotencyKey = "axis-create",
+        )
+
+        assertEquals(HttpStatusCode.Created, first.status, first.bodyAsText())
+        assertEquals(HttpStatusCode.Created, replay.status, replay.bodyAsText())
+        assertEquals(first.bodyAsText(), replay.bodyAsText())
+        assertEquals(HttpStatusCode.Conflict, mismatch.status, mismatch.bodyAsText())
+        assertEquals("1", query("SELECT count(*) FROM appearance_variations WHERE appearance_id = '$appearance'"))
     }
 
     // ── fixtures ───────────────────────────────────────────────────────────────────────────────────
@@ -218,6 +299,27 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
 
     private fun variationName(id: String) = query("SELECT name FROM variations WHERE id = '$id'")
 
+    private fun appearanceId() = query("SELECT appearance_id FROM ($RESOLVED_APPEARANCES) resolved")
+
+    private fun colorSchemeAxisCount() = query(
+        "WITH resolved_appearances AS ($RESOLVED_APPEARANCES), " +
+            "resolved_axes AS ($RESOLVED_APPEARANCE_VARIATIONS) " +
+            "SELECT count(*) FROM resolved_axes axis " +
+            "JOIN appearance_variations entity ON entity.id = axis.appearance_variation_id " +
+            "JOIN resolved_appearances appearance ON appearance.appearance_id = entity.appearance_id " +
+            "WHERE entity.variation_id = appearance.color_scheme_variation_id",
+    )
+
+    private fun editRevision(entityType: String, entityId: String): Long = query(
+        "SELECT revision FROM entity_edit_states " +
+            "WHERE entity_type = '$entityType' AND entity_id = '$entityId'",
+    ).toLong()
+
+    private fun latestPaths(entityType: String, entityId: String, revision: Long): String = query(
+        "SELECT string_agg(path, ',' ORDER BY path) FROM entity_edit_paths " +
+            "WHERE entity_type = '$entityType' AND entity_id = '$entityId' AND last_revision = $revision",
+    )
+
     private fun JsonObject.string(name: String): String? = getValue(name).let {
         if (it is JsonNull) null else it.jsonPrimitive.content
     }
@@ -245,17 +347,21 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         owner: Boolean = false,
         editor: Boolean = false,
         viewer: Boolean = false,
+        idempotencyKey: String? = null,
     ) = service.builder.client.post(path) {
         actor(admin = !owner && !editor && !viewer, owner = owner, editor = editor, viewer = viewer)
+        idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
     }
 
-    private suspend fun patch(path: String, body: String) = service.builder.client.patch(path) {
-        actor(admin = true, owner = false, editor = false, viewer = false)
-        contentType(ContentType.Application.Json)
-        setBody(body)
-    }
+    private suspend fun patch(path: String, body: String, baseRevision: Long? = null) =
+        service.builder.client.patch(path) {
+            actor(admin = true, owner = false, editor = false, viewer = false)
+            baseRevision?.let { header("X-DS-Base-Revision", it) }
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
 
     private suspend fun delete(path: String) = service.builder.client.delete(path) {
         actor(admin = true, owner = false, editor = false, viewer = false)
@@ -316,5 +422,14 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         ).use {
             it.createStatement().use { statement -> statement.execute(sql) }
         }
+    }
+
+    private companion object {
+        const val RESOLVED_APPEARANCES =
+            "SELECT * FROM (SELECT DISTINCT ON (appearance_id) * FROM appearance_revisions " +
+                "ORDER BY appearance_id, version_sequence_number DESC) latest WHERE NOT deleted"
+        const val RESOLVED_APPEARANCE_VARIATIONS =
+            "SELECT * FROM (SELECT DISTINCT ON (appearance_variation_id) * FROM appearance_variation_revisions " +
+                "ORDER BY appearance_variation_id, version_sequence_number DESC) latest WHERE NOT deleted"
     }
 }

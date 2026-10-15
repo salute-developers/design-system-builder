@@ -6,7 +6,10 @@ import com.dsbuilder.ds.components.domain.ComponentStateSet
 import com.dsbuilder.ds.components.domain.ResolvedStateSet
 import com.dsbuilder.ds.components.domain.StateImpact
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.TextColumnType
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -48,6 +51,7 @@ class ExposedStateRepository : StateRepository {
                 ComponentOwnership.readableState(ComponentStatesTable.id, projectId, systemAdmin)
         }.singleOrNull()?.let(::componentState)
 
+    @Suppress("LongMethod")
     override suspend fun impact(projectId: ProjectId, systemAdmin: Boolean, id: UUID): StateImpact? {
         if (find(projectId, systemAdmin, id) == null) return null
         val readableComponents = ComponentOwnership.readableComponentIds(projectId, systemAdmin)
@@ -61,14 +65,61 @@ class ExposedStateRepository : StateRepository {
         val designSystemScope = if (systemAdmin) {
             "TRUE"
         } else {
-            "(ds.project_id = '${projectId.value.replace("'", "''")}' OR ds.project_id IS NULL)"
+            "(ds.project_id = ? OR ds.project_id IS NULL)"
+        }
+        val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to id)
+        if (!systemAdmin) {
+            args += TextColumnType() to projectId.value
+            args += TextColumnType() to projectId.value
         }
         val sql = """
             WITH doomed AS (
-              SELECT id FROM state_sets WHERE state_ids @> ARRAY['$id'::uuid]
+              SELECT id FROM state_sets WHERE state_ids @> ARRAY[?]::uuid[]
+            ), resolved_variation_values AS (
+              SELECT value.state_set_id, entity.style_id
+                FROM variation_property_values entity
+                JOIN design_system_versions boundary
+                  ON boundary.design_system_id = entity.design_system_id
+                 AND boundary.id = COALESCE(
+                      NULLIF(current_setting('ds.version_id', true), '')::uuid,
+                      (SELECT active.id FROM design_system_versions active
+                       WHERE active.design_system_id = entity.design_system_id AND active.status = 'draft')
+                 )
+                 AND boundary.status IN ('draft', 'published')
+                JOIN variation_property_value_revisions value
+                  ON value.variation_property_value_id = entity.id
+                 AND value.version_sequence_number <= boundary.sequence_number
+               WHERE NOT value.deleted
+                 AND value.version_sequence_number = (
+                   SELECT max(candidate.version_sequence_number)
+                     FROM variation_property_value_revisions candidate
+                    WHERE candidate.variation_property_value_id = entity.id
+                      AND candidate.version_sequence_number <= boundary.sequence_number
+                 )
+            ), resolved_invariant_values AS (
+              SELECT value.state_set_id, entity.component_id, entity.design_system_id
+                FROM invariant_property_values entity
+                JOIN design_system_versions boundary
+                  ON boundary.design_system_id = entity.design_system_id
+                 AND boundary.id = COALESCE(
+                      NULLIF(current_setting('ds.version_id', true), '')::uuid,
+                      (SELECT active.id FROM design_system_versions active
+                       WHERE active.design_system_id = entity.design_system_id AND active.status = 'draft')
+                 )
+                 AND boundary.status IN ('draft', 'published')
+                JOIN invariant_property_value_revisions value
+                  ON value.invariant_property_value_id = entity.id
+                 AND value.version_sequence_number <= boundary.sequence_number
+               WHERE NOT value.deleted
+                 AND value.version_sequence_number = (
+                   SELECT max(candidate.version_sequence_number)
+                     FROM invariant_property_value_revisions candidate
+                    WHERE candidate.invariant_property_value_id = entity.id
+                      AND candidate.version_sequence_number <= boundary.sequence_number
+                 )
             ), affected AS (
               SELECT v.state_set_id, vr.component_id
-                FROM variation_property_values v
+                FROM resolved_variation_values v
                 JOIN doomed d ON d.id = v.state_set_id
                 JOIN styles st ON st.id = v.style_id
                 JOIN variations vr ON vr.id = st.variation_id
@@ -76,7 +127,7 @@ class ExposedStateRepository : StateRepository {
                WHERE ${componentScope.replace("component_id", "vr.component_id")} AND $designSystemScope
               UNION ALL
               SELECT v.state_set_id, v.component_id
-                FROM invariant_property_values v
+                FROM resolved_invariant_values v
                 JOIN doomed d ON d.id = v.state_set_id
                 JOIN design_systems ds ON ds.id = v.design_system_id
                WHERE ${componentScope.replace("component_id", "v.component_id")} AND $designSystemScope
@@ -86,7 +137,7 @@ class ExposedStateRepository : StateRepository {
               (SELECT count(*) FROM affected)::int AS values,
               (SELECT count(DISTINCT component_id) FROM affected)::int AS components
         """.trimIndent()
-        return TransactionManager.current().exec(sql, explicitStatementType = StatementType.SELECT) { result ->
+        return TransactionManager.current().exec(sql, args, explicitStatementType = StatementType.SELECT) { result ->
             check(result.next())
             StateImpact(result.getInt("state_sets"), result.getInt("values"), result.getInt("components"))
         }

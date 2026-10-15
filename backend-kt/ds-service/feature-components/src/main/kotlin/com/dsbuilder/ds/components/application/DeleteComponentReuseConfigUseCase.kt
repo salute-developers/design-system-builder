@@ -17,7 +17,7 @@ class DeleteComponentReuseConfigUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         policy.read(context, ProjectScope.COMPONENTS_DELETE) {
-            transactions.required {
+            transactions.required(context) {
                 if (repository.deleteAccessible(context.projectId, context.principal.systemAdmin, id)) {
                     DsResult.Success(Unit)
                 } else {

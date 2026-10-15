@@ -17,3 +17,4 @@ export { FormField } from './FormField';
 export { ActionButton } from './ActionButton';
 export { Divider } from './Divider';
 export { EditorLoading } from './EditorLoading';
+export { AutosaveIndicator } from './AutosaveIndicator';

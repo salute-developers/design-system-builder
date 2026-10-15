@@ -13,6 +13,14 @@ interface TenantRepository {
     /** Performs the findaccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): Tenant?
 
+    /** Checks a normalized non-null tenant name in the currently resolved draft state. */
+    suspend fun nameExists(
+        projectId: ProjectId,
+        designSystemId: UUID,
+        normalizedName: String,
+        excludingId: UUID? = null,
+    ): Boolean
+
     /** Performs the createowned operation. */
     suspend fun createOwned(projectId: ProjectId, command: CreateTenant): Tenant?
 

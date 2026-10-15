@@ -4,8 +4,8 @@ import com.dsbuilder.ds.components.domain.ApiMetaImportReport
 
 /** Persistence port for the global-layer API-meta import. */
 interface ApiMetaRepository {
-    /** Imports [command] additively and journals the run on behalf of [actorId]. */
-    suspend fun import(actorId: String, command: ImportApiMeta): ImportAttempt
+    /** Imports [command] additively into the shared component API catalog. */
+    suspend fun import(command: ImportApiMeta): ImportAttempt
 
     /** Outcome of one import attempt. */
     sealed interface ImportAttempt {

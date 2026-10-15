@@ -9,11 +9,8 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.updateReturning
-import java.time.Instant
 import java.util.UUID
 
 /** Exposed repository for design-system-specific dependency reuse configuration. */
@@ -69,13 +66,21 @@ class ExposedComponentReuseConfigRepository : ComponentReuseConfigRepository {
         ) {
             return null
         }
-        return ComponentReuseConfigsTable.insertReturning {
+        val id = StableComponentReuseConfigsTable.insertReturning {
             it[componentDepId] = command.componentDepId
             it[designSystemId] = command.designSystemId
+        }.single()[StableComponentReuseConfigsTable.id]
+        ComponentReuseConfigRevisionsTable.replaceRevision(
+            ComponentReuseConfigRevisionsTable.entityId,
+            id,
+            command.designSystemId,
+        ) {
             it[appearanceId] = command.appearanceId
             it[variationId] = command.variationId
             it[styleId] = command.styleId
-        }.single().let(::reuseConfig)
+        }
+        return ComponentReuseConfigsTable.selectAll().where { ComponentReuseConfigsTable.id eq id }
+            .single().let(::reuseConfig)
     }
 
     @Suppress("ReturnCount")
@@ -85,24 +90,67 @@ class ExposedComponentReuseConfigRepository : ComponentReuseConfigRepository {
         id: UUID,
         command: ComponentReuseConfigRepository.Update,
     ): ComponentReuseConfig? {
+        if (!lockComponentSubject(
+                StableComponentReuseConfigsTable,
+                StableComponentReuseConfigsTable.id,
+                StableComponentReuseConfigsTable.designSystemId,
+                "component-reuse-config",
+                id,
+            )
+        ) {
+            return null
+        }
         val current = findAccessible(projectId, systemAdmin, id) ?: return null
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, current.designSystemId)) return null
         val appearanceId = command.appearanceId ?: current.appearanceId
         val variationId = command.variationId ?: current.variationId
         val styleId = command.styleId ?: current.styleId
         if (!referencesBelongToDesignSystem(current.designSystemId, appearanceId, variationId, styleId)) return null
-        return ComponentReuseConfigsTable.updateReturning(where = { ComponentReuseConfigsTable.id eq id }) {
-            command.appearanceId?.let { value -> it[ComponentReuseConfigsTable.appearanceId] = value }
-            command.variationId?.let { value -> it[ComponentReuseConfigsTable.variationId] = value }
-            command.styleId?.let { value -> it[ComponentReuseConfigsTable.styleId] = value }
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::reuseConfig)
+        val changedPaths = buildSet {
+            if (command.appearanceId != null) add("/appearance_id")
+            if (command.variationId != null) add("/variation_id")
+            if (command.styleId != null) add("/style_id")
+        }
+        if (changedPaths.isEmpty()) return current
+        ComponentReuseConfigRevisionsTable.replaceRevision(
+            ComponentReuseConfigRevisionsTable.entityId,
+            id,
+            current.designSystemId,
+            changedPaths = changedPaths,
+        ) {
+            it[ComponentReuseConfigRevisionsTable.appearanceId] = appearanceId
+            it[ComponentReuseConfigRevisionsTable.variationId] = variationId
+            it[ComponentReuseConfigRevisionsTable.styleId] = styleId
+        }
+        return ComponentReuseConfigsTable.selectAll().where { ComponentReuseConfigsTable.id eq id }
+            .singleOrNull()?.let(::reuseConfig)
     }
 
+    @Suppress("ReturnCount")
     override suspend fun deleteAccessible(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
+        if (!lockComponentSubject(
+                StableComponentReuseConfigsTable,
+                StableComponentReuseConfigsTable.id,
+                StableComponentReuseConfigsTable.designSystemId,
+                "component-reuse-config",
+                id,
+            )
+        ) {
+            return false
+        }
         val current = findAccessible(projectId, systemAdmin, id) ?: return false
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, current.designSystemId)) return false
-        return ComponentReuseConfigsTable.deleteWhere { ComponentReuseConfigsTable.id eq id } > 0
+        ComponentReuseConfigRevisionsTable.replaceRevision(
+            ComponentReuseConfigRevisionsTable.entityId,
+            id,
+            current.designSystemId,
+            deleted = true,
+        ) {
+            it[appearanceId] = current.appearanceId
+            it[variationId] = current.variationId
+            it[styleId] = current.styleId
+        }
+        return true
     }
 }
 

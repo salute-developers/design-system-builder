@@ -1,10 +1,7 @@
 package com.dsbuilder.ds.components.data
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.javatime.timestamp
-import org.jetbrains.exposed.v1.json.jsonb
 import org.postgresql.util.PGobject
 import java.util.UUID
 
@@ -23,7 +20,30 @@ internal object ComponentsTable : Table("components") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentDesignSystemsTable : Table("design_systems") {
+internal object ComponentDesignSystemsTable : ResolvedRevisionTable(
+    "design_systems",
+    """
+        SELECT entity.id, revision.name, entity.project_name, entity.project_id,
+               entity.created_at, revision.updated_at AS updated_at
+        FROM design_systems entity
+        JOIN design_system_versions draft
+          ON draft.design_system_id = entity.id
+         AND draft.id = COALESCE(
+              NULLIF(current_setting('ds.version_id', true), '')::uuid,
+              (SELECT active.id FROM design_system_versions active
+               WHERE active.design_system_id = entity.id AND active.status = 'draft')
+         )
+         AND draft.status IN ('draft', 'published')
+        JOIN design_system_revisions revision
+          ON revision.design_system_id = entity.id AND revision.version_sequence_number <= draft.sequence_number
+        WHERE NOT revision.deleted
+          AND revision.version_sequence_number = (
+              SELECT max(candidate.version_sequence_number) FROM design_system_revisions candidate
+              WHERE candidate.design_system_id = entity.id
+                AND candidate.version_sequence_number <= draft.sequence_number
+          )
+    """.trimIndent(),
+) {
     val id = uuid("id")
     val name = text("name")
     val projectName = text("project_name")
@@ -45,7 +65,16 @@ internal object ComponentDesignSystemVersionsTable : Table("design_system_versio
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object DesignSystemComponentsTable : Table("design_system_components") {
+internal object DesignSystemComponentsTable : ResolvedRevisionTable(
+    "design_system_components",
+    resolvedRevisionSql(
+        "design_system_components",
+        "design_system_component_revisions",
+        "design_system_component_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        emptyList(),
+    ),
+) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val componentId = reference("component_id", ComponentsTable.id)
@@ -87,7 +116,16 @@ internal object ComponentDependenciesTable : Table("component_deps") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentReuseConfigsTable : Table("component_reuse_configs") {
+internal object ComponentReuseConfigsTable : ResolvedRevisionTable(
+    "component_reuse_configs",
+    resolvedRevisionSql(
+        "component_reuse_configs",
+        "component_reuse_config_revisions",
+        "component_reuse_config_id",
+        listOf("id", "component_dep_id", "design_system_id", "created_at"),
+        listOf("appearance_id", "variation_id", "style_id"),
+    ),
+) {
     val id = uuid("id")
     val componentDepId = reference("component_dep_id", ComponentDependenciesTable.id)
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
@@ -99,7 +137,16 @@ internal object ComponentReuseConfigsTable : Table("component_reuse_configs") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentAppearancesTable : Table("appearances") {
+internal object ComponentAppearancesTable : ResolvedRevisionTable(
+    "appearances",
+    resolvedRevisionSql(
+        "appearances",
+        "appearance_revisions",
+        "appearance_id",
+        listOf("id", "design_system_id", "component_id", "created_at"),
+        listOf("name", "root_variation_id", "color_scheme_variation_id"),
+    ),
+) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val componentId = reference("component_id", ComponentsTable.id)
@@ -111,7 +158,16 @@ internal object ComponentAppearancesTable : Table("appearances") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentStylesTable : Table("styles") {
+internal object ComponentStylesTable : ResolvedRevisionTable(
+    "styles",
+    resolvedRevisionSql(
+        "styles",
+        "style_revisions",
+        "style_id",
+        listOf("id", "design_system_id", "variation_id", "created_at"),
+        listOf("name", "description"),
+    ),
+) {
     val id = uuid("id")
     val designSystemId = uuid("design_system_id")
     val variationId = uuid("variation_id")
@@ -121,9 +177,25 @@ internal object ComponentStylesTable : Table("styles") {
     val updatedAt = timestamp("updated_at")
 }
 
-internal object AppearanceVariationsTable : Table("appearance_variations") {
+internal object AppearanceVariationsTable : ResolvedRevisionTable(
+    "appearance_variations",
+    resolvedRevisionSql(
+        "appearance_variations",
+        "appearance_variation_revisions",
+        "appearance_variation_id",
+        listOf("id", "appearance_id", "variation_id", "design_system_id", "created_at"),
+        listOf("position", "default_style_id", "declared_type"),
+        listOf(
+            "coalesce((SELECT ar.color_scheme_variation_id = entity.variation_id " +
+                "FROM appearance_revisions ar WHERE ar.appearance_id = entity.appearance_id " +
+                "AND ar.version_sequence_number <= draft.sequence_number ORDER BY ar.version_sequence_number DESC " +
+                "LIMIT 1), false) AS is_color_scheme",
+        ),
+    ),
+) {
     val id = uuid("id")
     val appearanceId = reference("appearance_id", ComponentAppearancesTable.id)
+    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val variationId = reference("variation_id", VariationsTable.id)
     val position = integer("position").default(0)
     val defaultStyleId = reference("default_style_id", ComponentStylesTable.id).nullable()
@@ -134,7 +206,16 @@ internal object AppearanceVariationsTable : Table("appearance_variations") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object AppearanceVariationValuesTable : Table("appearance_variation_values") {
+internal object AppearanceVariationValuesTable : ResolvedRevisionTable(
+    "appearance_variation_values",
+    resolvedRevisionSql(
+        "appearance_variation_values",
+        "appearance_variation_value_revisions",
+        "appearance_variation_value_id",
+        listOf("id", "appearance_variation_id", "design_system_id", "created_at"),
+        listOf("style_id", "position", "authored_id"),
+    ),
+) {
     val id = uuid("id")
     val appearanceVariationId = reference("appearance_variation_id", AppearanceVariationsTable.id)
     val styleId = reference("style_id", ComponentStylesTable.id)
@@ -171,11 +252,21 @@ internal object PropertyVariationsTable : Table("property_variations") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object VariationPropertyValuesTable : Table("variation_property_values") {
+internal object VariationPropertyValuesTable : ResolvedRevisionTable(
+    "variation_property_values",
+    resolvedRevisionSql(
+        "variation_property_values",
+        "variation_property_value_revisions",
+        "variation_property_value_id",
+        listOf("id", "property_id", "style_id", "appearance_id", "design_system_id", "created_at"),
+        listOf("token_id", "value", "alpha", "adjustment", "position", "state_set_id"),
+    ),
+) {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val styleId = reference("style_id", ComponentStylesTable.id)
     val appearanceId = reference("appearance_id", ComponentAppearancesTable.id)
+    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val tokenId = uuid("token_id").nullable()
     val value = text("value").nullable()
     val alpha = text("alpha").nullable()
@@ -187,7 +278,16 @@ internal object VariationPropertyValuesTable : Table("variation_property_values"
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object InvariantPropertyValuesTable : Table("invariant_property_values") {
+internal object InvariantPropertyValuesTable : ResolvedRevisionTable(
+    "invariant_property_values",
+    resolvedRevisionSql(
+        "invariant_property_values",
+        "invariant_property_value_revisions",
+        "invariant_property_value_id",
+        listOf("id", "property_id", "design_system_id", "component_id", "appearance_id", "created_at"),
+        listOf("token_id", "value", "alpha", "adjustment", "position", "state_set_id"),
+    ),
+) {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
@@ -223,7 +323,16 @@ internal object ComponentStatesTable : Table("states") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentTokensTable : Table("tokens") {
+internal object ComponentTokensTable : ResolvedRevisionTable(
+    "tokens",
+    resolvedRevisionSql(
+        "tokens",
+        "token_revisions",
+        "token_id",
+        listOf("id", "design_system_id", "created_at"),
+        listOf("name", "type"),
+    ),
+) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id).nullable()
     val name = text("name")
@@ -231,7 +340,16 @@ internal object ComponentTokensTable : Table("tokens") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object AppearanceCombinationsTable : Table("appearance_combinations") {
+internal object AppearanceCombinationsTable : ResolvedRevisionTable(
+    "appearance_combinations",
+    resolvedRevisionSql(
+        "appearance_combinations",
+        "appearance_combination_revisions",
+        "appearance_combination_id",
+        listOf("id", "appearance_id", "design_system_id", "created_at"),
+        listOf("combination_key", "position", "authored_id"),
+    ),
+) {
     val id = uuid("id")
     val appearanceId = reference("appearance_id", ComponentAppearancesTable.id)
     val combinationKey = text("combination_key")
@@ -242,7 +360,16 @@ internal object AppearanceCombinationsTable : Table("appearance_combinations") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object AppearanceCombinationMembersTable : Table("appearance_combination_members") {
+internal object AppearanceCombinationMembersTable : ResolvedRevisionTable(
+    "appearance_combination_members",
+    resolvedRevisionSql(
+        "appearance_combination_members",
+        "appearance_combination_member_revisions",
+        "appearance_combination_member_id",
+        listOf("id", "appearance_combination_id", "design_system_id", "created_at"),
+        listOf("style_id", "position"),
+    ),
+) {
     val id = uuid("id")
     val appearanceCombinationId = reference("appearance_combination_id", AppearanceCombinationsTable.id)
     val styleId = reference("style_id", ComponentStylesTable.id)
@@ -252,10 +379,20 @@ internal object AppearanceCombinationMembersTable : Table("appearance_combinatio
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object StyleCombinationsTable : Table("style_combinations") {
+internal object StyleCombinationsTable : ResolvedRevisionTable(
+    "style_combinations",
+    resolvedRevisionSql(
+        "style_combinations",
+        "style_combination_revisions",
+        "style_combination_id",
+        listOf("id", "property_id", "appearance_id", "design_system_id", "created_at"),
+        listOf("combination_key", "value", "token_id", "alpha", "adjustment", "position", "state_set_id"),
+    ),
+) {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val appearanceId = reference("appearance_id", ComponentAppearancesTable.id)
+    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val combinationKey = text("combination_key").default("")
     val value = text("value")
     val tokenId = reference("token_id", ComponentTokensTable.id).nullable()
@@ -268,7 +405,16 @@ internal object StyleCombinationsTable : Table("style_combinations") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object StyleCombinationMembersTable : Table("style_combination_members") {
+internal object StyleCombinationMembersTable : ResolvedRevisionTable(
+    "style_combination_members",
+    resolvedRevisionSql(
+        "style_combination_members",
+        "style_combination_member_revisions",
+        "style_combination_member_id",
+        listOf("id", "combination_id", "design_system_id", "created_at"),
+        listOf("style_id"),
+    ),
+) {
     val id = uuid("id")
     val combinationId = reference("combination_id", StyleCombinationsTable.id)
     val styleId = reference("style_id", ComponentStylesTable.id)
@@ -277,7 +423,22 @@ internal object StyleCombinationMembersTable : Table("style_combination_members"
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentStyleReferencesTable : Table("component_style_references") {
+internal object ComponentStyleReferencesTable : ResolvedRevisionTable(
+    "component_style_references",
+    resolvedRevisionSql(
+        "component_style_references",
+        "component_style_reference_revisions",
+        "component_style_reference_id",
+        listOf("id", "design_system_id", "created_at"),
+        listOf(
+            "invariant_property_value_id",
+            "variation_property_value_id",
+            "style_combination_id",
+            "target_appearance_id",
+            "reference",
+        ),
+    ),
+) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val invariantPropertyValueId = reference("invariant_property_value_id", InvariantPropertyValuesTable.id).nullable()
@@ -290,7 +451,16 @@ internal object ComponentStyleReferencesTable : Table("component_style_reference
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentStyleReferenceStylesTable : Table("component_style_reference_styles") {
+internal object ComponentStyleReferenceStylesTable : ResolvedRevisionTable(
+    "component_style_reference_styles",
+    resolvedRevisionSql(
+        "component_style_reference_styles",
+        "component_style_reference_style_revisions",
+        "component_style_reference_style_id",
+        listOf("id", "reference_id", "design_system_id", "created_at"),
+        listOf("style_id"),
+    ),
+) {
     val id = uuid("id")
     val referenceId = reference("reference_id", ComponentStyleReferencesTable.id)
     val styleId = reference("style_id", ComponentStylesTable.id)
@@ -299,24 +469,16 @@ internal object ComponentStyleReferenceStylesTable : Table("component_style_refe
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object DesignSystemChangesTable : Table("design_system_changes") {
-    val id = uuid("id")
-    val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id).nullable()
-    val entityType = text("entity_type")
-    val entityId = uuid("entity_id")
-    val operation = postgresEnum(
-        "operation",
-        "operation",
-        ComponentChangeOperationDb::fromWire,
-        ComponentChangeOperationDb::wireValue,
-    )
-    val data = jsonb<JsonElement>("data", Json.Default).nullable()
-    val createdAt = timestamp("created_at")
-    val updatedAt = timestamp("updated_at")
-    override val primaryKey = PrimaryKey(id)
-}
-
-internal object VariationPlatformParamAdjustmentsTable : Table("variation_platform_param_adjustments") {
+internal object VariationPlatformParamAdjustmentsTable : ResolvedRevisionTable(
+    "variation_platform_param_adjustments",
+    resolvedRevisionSql(
+        "variation_platform_param_adjustments",
+        "variation_platform_param_adjustment_revisions",
+        "variation_platform_param_adjustment_id",
+        listOf("id", "vpv_id", "platform_param_id", "design_system_id", "created_at"),
+        listOf("value", "template"),
+    ),
+) {
     val id = uuid("id")
     val vpvId = reference("vpv_id", VariationPropertyValuesTable.id)
     val platformParamId = reference("platform_param_id", PropertyPlatformParamsTable.id)
@@ -327,7 +489,16 @@ internal object VariationPlatformParamAdjustmentsTable : Table("variation_platfo
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object InvariantPlatformParamAdjustmentsTable : Table("invariant_platform_param_adjustments") {
+internal object InvariantPlatformParamAdjustmentsTable : ResolvedRevisionTable(
+    "invariant_platform_param_adjustments",
+    resolvedRevisionSql(
+        "invariant_platform_param_adjustments",
+        "invariant_platform_param_adjustment_revisions",
+        "invariant_platform_param_adjustment_id",
+        listOf("id", "ipv_id", "platform_param_id", "design_system_id", "created_at"),
+        listOf("value", "template"),
+    ),
+) {
     val id = uuid("id")
     val ipvId = reference("ipv_id", InvariantPropertyValuesTable.id)
     val platformParamId = reference("platform_param_id", PropertyPlatformParamsTable.id)
@@ -400,17 +571,6 @@ internal enum class ComponentPlatformDb(val wireValue: String) {
 internal enum class RelationTypeDb(val wireValue: String) {
     REUSE("reuse"),
     COMPOSE("compose"),
-    ;
-
-    companion object {
-        fun fromWire(value: String) = entries.firstOrNull { it.wireValue == value }
-    }
-}
-
-internal enum class ComponentChangeOperationDb(val wireValue: String) {
-    CREATED("created"),
-    UPDATED("updated"),
-    DELETED("deleted"),
     ;
 
     companion object {

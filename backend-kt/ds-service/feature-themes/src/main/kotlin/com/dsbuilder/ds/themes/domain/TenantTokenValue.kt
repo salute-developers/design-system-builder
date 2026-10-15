@@ -19,6 +19,8 @@ data class TenantTokenValue(
     val mode: String?,
     /** Value json carried by this contract. */
     val valueJson: String?,
+    /** Текущая техническая ревизия этого значения в активном черновике. */
+    val editRevision: Long,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

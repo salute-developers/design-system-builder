@@ -1,6 +1,8 @@
 package com.dsbuilder.ds.tokens.di
 
 import com.dsbuilder.ds.core.application.DesignSystemTokenInitializer
+import com.dsbuilder.ds.core.application.DraftChangeHandler
+import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenValueUseCase
@@ -25,29 +27,34 @@ import com.dsbuilder.ds.tokens.data.ExposedPaletteRepository
 import com.dsbuilder.ds.tokens.data.ExposedTokenRepository
 import com.dsbuilder.ds.tokens.data.ExposedTokenValueRepository
 import com.dsbuilder.ds.tokens.data.GeneratedTokenDefinitionInitializer
+import com.dsbuilder.ds.tokens.data.tokenDraftChangeHandlers
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /** Dependency bindings owned by the tokens feature. */
 val tokensModule = module {
+    tokenDraftChangeHandlers().forEach { handler ->
+        single<DraftChangeHandler>(named(handler.entityType)) { handler }
+    }
     single<TokenRepository> { ExposedTokenRepository() }
     single<TokenValueRepository> { ExposedTokenValueRepository() }
     single<PaletteRepository> { ExposedPaletteRepository() }
     single<DesignSystemTokenInitializer> { GeneratedTokenDefinitionInitializer() }
     factory { ListTokensUseCase(get(), get(), get()) }
     factory { GetTokenUseCase(get(), get(), get()) }
-    factory { CreateTokenUseCase(get(), get(), get()) }
-    factory { UpdateTokenUseCase(get(), get(), get()) }
+    factory { CreateTokenUseCase(get(), get(), get(), IdempotentCreateExecutor(get()), get()) }
+    factory { UpdateTokenUseCase(get(), get(), get(), get()) }
     factory { DeleteTokenUseCase(get(), get(), get()) }
     factory { GetTokenValuesUseCase(get(), get(), get()) }
     factory { ListTokenValuesUseCase(get(), get(), get()) }
     factory { GetTokenValueUseCase(get(), get(), get()) }
-    factory { CreateTokenValueUseCase(get(), get(), get()) }
+    factory { CreateTokenValueUseCase(get(), get(), get(), IdempotentCreateExecutor(get()), get()) }
     factory { UpdateTokenValueUseCase(get(), get(), get()) }
     factory { DeleteTokenValueUseCase(get(), get(), get()) }
     factory { ListPaletteUseCase(get(), get(), get()) }
     factory { GetPaletteEntryUseCase(get(), get(), get()) }
     factory { ListPaletteByTypeUseCase(get(), get(), get()) }
-    factory { CreatePaletteEntryUseCase(get(), get(), get()) }
+    factory { CreatePaletteEntryUseCase(get(), get(), get(), get()) }
     factory { UpdatePaletteEntryUseCase(get(), get(), get()) }
     factory { DeletePaletteEntryUseCase(get(), get(), get()) }
 }

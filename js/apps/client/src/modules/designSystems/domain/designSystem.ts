@@ -8,6 +8,8 @@ export interface DesignSystem {
     description?: string | null;
     tenantCount: number;
     themePreviews: Array<{ tenantId: string; name: string; preview: ThemePreview }>;
+    draftId?: string | null;
+    draftRevision?: number | null;
 }
 
 export const formatThemeCount = (count: number) => {

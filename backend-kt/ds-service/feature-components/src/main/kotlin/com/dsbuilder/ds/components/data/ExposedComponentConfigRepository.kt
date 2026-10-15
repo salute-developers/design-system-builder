@@ -52,10 +52,7 @@ class ExposedComponentConfigRepository internal constructor(
         }.orderBy(
             ComponentDesignSystemVersionsTable.publishedAt to SortOrder.DESC,
             ComponentDesignSystemVersionsTable.version to SortOrder.DESC,
-        ).limit(1).singleOrNull()?.get(ComponentDesignSystemVersionsTable.version)
-            ?: return ComponentConfigRepository.ExportAttempt.Failed(
-                "Design system '${designSystem[ComponentDesignSystemsTable.name]}' has no published version",
-            )
+        ).limit(1).singleOrNull()?.get(ComponentDesignSystemVersionsTable.version) ?: "draft"
 
         val componentFilter = normalized(query.components)
         val styleFilter = normalized(query.styles)

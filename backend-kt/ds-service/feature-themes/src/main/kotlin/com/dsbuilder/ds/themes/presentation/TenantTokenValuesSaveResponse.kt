@@ -7,4 +7,6 @@ import kotlinx.serialization.Serializable
 data class TenantTokenValuesSaveResponse(
     /** Новая ревизия темы. */
     val editRevision: Int,
+    /** Сохранённые значения с актуальными ревизиями. */
+    val values: List<TenantTokenValueResponse>,
 )

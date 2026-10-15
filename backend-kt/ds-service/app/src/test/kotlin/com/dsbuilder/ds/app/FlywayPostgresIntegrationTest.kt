@@ -31,8 +31,22 @@ class FlywayPostgresIntegrationTest {
             assertEquals(0, flyway.migrate().migrationsExecuted)
             assertTrue(flyway.validateWithResult().validationSuccessful)
             val migrated = connection(cleanUrl, postgres).use(SchemaFingerprintCalculator()::calculate)
+            connection(cleanUrl, postgres).use(::assertImmutableMigrationChecksums)
             connection(cleanUrl, postgres).use(::assertComponentImportGuards)
             assertFailureRollsBack(cleanUrl, postgres)
+
+            val upgradeUrl = createDatabase(postgres, "upgrade_from_v16")
+            val flywayV16 = Flyway.configure()
+                .dataSource(upgradeUrl, postgres.username, postgres.password)
+                .locations("classpath:db/migration")
+                .target("16")
+                .load()
+            assertEquals(16, flywayV16.migrate().migrationsExecuted)
+            assertTrue(flywayV16.validateWithResult().validationSuccessful)
+            val upgradedFlyway = flyway(upgradeUrl, postgres.username, postgres.password)
+            assertEquals(1, upgradedFlyway.migrate().migrationsExecuted)
+            assertTrue(upgradedFlyway.validateWithResult().validationSuccessful)
+            assertEquals(migrated, connection(upgradeUrl, postgres).use(SchemaFingerprintCalculator()::calculate))
 
             val matchingUrl = createDatabase(postgres, "matching_legacy")
             connection(matchingUrl, postgres).use(::applyBaselineWithoutHistory)
@@ -185,6 +199,19 @@ class FlywayPostgresIntegrationTest {
                     "{00000000-0000-4000-8000-000000000001,00000000-0000-4000-8000-000000000002}",
                     rows.getString(1),
                 )
+            }
+        }
+    }
+
+    private fun assertImmutableMigrationChecksums(connection: Connection) {
+        connection.prepareStatement(
+            "SELECT version, checksum FROM flyway_schema_history WHERE version IN ('5', '10') ORDER BY version",
+        ).use { statement ->
+            statement.executeQuery().use { rows ->
+                val checksums = buildMap {
+                    while (rows.next()) put(rows.getString("version"), rows.getInt("checksum"))
+                }
+                assertEquals(mapOf("10" to 1183811285, "5" to 1713098090), checksums)
             }
         }
     }

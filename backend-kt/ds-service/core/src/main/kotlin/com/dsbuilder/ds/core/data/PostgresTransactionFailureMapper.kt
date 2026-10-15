@@ -11,14 +11,17 @@ class PostgresTransactionFailureMapper : TransactionFailureMapper {
         val messages = generateSequence(failure) { it.cause }
             .mapNotNull(Throwable::message)
             .joinToString(" ")
-        val sqlState = generateSequence(failure) { it.cause }.filterIsInstance<SQLException>()
-            .mapNotNull(SQLException::getSQLState).firstOrNull()
+        val sqlStates = generateSequence(failure) { it.cause }.filterIsInstance<SQLException>()
+            .mapNotNull(SQLException::getSQLState).toSet()
         return when {
-            sqlState == "23505" && "tenants_design_system_id_name_ci_unique" in messages ->
+            "23505" in sqlStates && (
+                "tenants_design_system_id_name_ci_unique" in messages ||
+                    "tenant_revisions_version_name_ci_unique" in messages
+                ) ->
                 DsFailure.Conflict("TENANT_NAME_CONFLICT", transactionFailure = true)
-            sqlState == "23505" -> DsFailure.Conflict("constraint_conflict", transactionFailure = true)
-            sqlState == "23503" -> DsFailure.InvalidRequest("invalid_reference", transactionFailure = true)
-            sqlState == "23502" || sqlState == "23514" || sqlState?.startsWith("22") == true ->
+            "23505" in sqlStates -> DsFailure.Conflict("constraint_conflict", transactionFailure = true)
+            "23503" in sqlStates -> DsFailure.InvalidRequest("invalid_reference", transactionFailure = true)
+            "23502" in sqlStates || "23514" in sqlStates || sqlStates.any { it.startsWith("22") } ->
                 DsFailure.InvalidRequest("invalid_body", transactionFailure = true)
             else -> DsFailure.TechnicalFailure
         }

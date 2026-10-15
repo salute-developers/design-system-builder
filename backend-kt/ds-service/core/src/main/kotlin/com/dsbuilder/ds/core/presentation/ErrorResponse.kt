@@ -22,11 +22,19 @@ data class ErrorResponse(
     /** Подробности предметной ошибки, например `steps` у `PALETTE_STEP_MISSING`. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val details: JsonObject? = null,
+    /** Идентификатор актуального черновика при конфликте публикации. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val draftId: String? = null,
+    /** Актуальная редакция черновика при конфликте публикации. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val draftRevision: Long? = null,
 ) {
     constructor(
         error: String,
         message: String? = null,
         code: String? = null,
         editRevision: Int? = null,
-    ) : this(JsonPrimitive(error), message, code, editRevision)
+        draftId: String? = null,
+        draftRevision: Long? = null,
+    ) : this(JsonPrimitive(error), message, code, editRevision, draftId = draftId, draftRevision = draftRevision)
 }

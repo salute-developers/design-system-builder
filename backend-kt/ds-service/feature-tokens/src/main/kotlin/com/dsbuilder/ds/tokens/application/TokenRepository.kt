@@ -13,6 +13,14 @@ interface TokenRepository {
     /** Performs the findAccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): Token?
 
+    /** Checks a normalized token name in the currently resolved draft state. */
+    suspend fun nameExists(
+        projectId: ProjectId,
+        designSystemId: UUID,
+        normalizedName: String,
+        excludingId: UUID? = null,
+    ): Boolean
+
     /** Performs the createOwned operation. */
     suspend fun createOwned(projectId: ProjectId, command: CreateToken): Token?
 

@@ -3,9 +3,11 @@ package com.dsbuilder.ds.tokens.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntry
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.DeletePaletteEntryUseCase
@@ -13,16 +15,18 @@ import com.dsbuilder.ds.tokens.application.GetPaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteByTypeUseCase
 import com.dsbuilder.ds.tokens.application.ListPaletteUseCase
 import com.dsbuilder.ds.tokens.application.UpdatePaletteEntryUseCase
+import com.dsbuilder.ds.tokens.domain.PaletteEntry
 import com.dsbuilder.ds.tokens.domain.PaletteType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.util.UUID
 
 /** Registers globally readable, system-admin writable palette endpoints. */
@@ -35,39 +39,56 @@ fun Route.paletteRoutes(
     create: CreatePaletteEntryUseCase,
     update: UpdatePaletteEntryUseCase,
     delete: DeletePaletteEntryUseCase,
+    json: Json,
 ) {
     route("/api/ds/palette") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(PaletteEntryResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(PaletteEntryResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/by-type/{type}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val type = PaletteType.fromWire(call.parameters["type"])
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_type"))
             when (val result = listByType.execute(context, type)) {
-                is DsResult.Success -> call.respond(result.value.map(PaletteEntryResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(PaletteEntryResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.paletteUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(PaletteEntryResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, PaletteEntryResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         @Suppress("ComplexCondition")
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreatePaletteEntryRequest>()
             val type = PaletteType.fromWire(request.type)
@@ -86,13 +107,29 @@ fun Route.paletteRoutes(
                 request.saturation,
                 request.value.trim(),
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(HttpStatusCode.Created, PaletteEntryResponse.from(result.value))
+            when (
+                val result = create.execute(
+                    context.withIdempotentResponse { value: PaletteEntry ->
+                        json.encodeToString(PaletteEntryResponse.from(value))
+                    },
+                    command,
+                    call.request.headers["Idempotency-Key"],
+                )
+            ) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    PaletteEntryResponse.from(result.value),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.paletteUuid()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -100,17 +137,21 @@ fun Route.paletteRoutes(
             val value = request.value?.trim()?.takeIf(String::isNotEmpty)
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             when (val result = update.execute(context, id, value)) {
-                is DsResult.Success -> call.respond(PaletteEntryResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, PaletteEntryResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.paletteUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

@@ -1269,6 +1269,21 @@ button:disabled {
 }
 
 /* Literal catalog/chrome values from workflow final cascade. */
+
+.editor-autosave-status {
+    color: var(--text-secondary, #6b7280);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.editor-autosave-status.is-error button {
+    border: 0;
+    padding: 0;
+    color: var(--text-negative, #c73838);
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+}
 .builder-shell {
     position: relative;
     isolation: isolate;
@@ -3820,4 +3835,73 @@ button:disabled {
     align-items: center;
     gap: 8px;
     border-bottom: 1px solid #ffffff1a;
+}
+
+.editor-version-actions,
+.version-journal-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.version-journal-controls select,
+.version-journal-controls > button {
+    min-height: 32px;
+    border: 1px solid #ffffff26;
+    border-radius: 8px;
+    background: #20232a;
+    color: #f3f3f3;
+    padding: 0 10px;
+}
+.change-journal {
+    position: fixed;
+    z-index: 100;
+    top: 64px;
+    right: 16px;
+    width: min(440px, calc(100vw - 32px));
+    max-height: calc(100vh - 80px);
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid #ffffff26;
+    border-radius: 12px;
+    background: #17191f;
+    box-shadow: 0 18px 48px #0008;
+}
+.change-journal header,
+.change-journal li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+.change-journal ul {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.change-journal li {
+    padding: 10px;
+    border-radius: 8px;
+    background: #ffffff0d;
+}
+.change-journal li div {
+    display: grid;
+    gap: 3px;
+}
+.change-journal .change-journal-batch {
+    width: 100%;
+    gap: 8px;
+}
+.change-journal .change-journal-item {
+    padding-top: 8px;
+    border-top: 1px solid #ffffff14;
+}
+.change-journal .change-journal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 5px;
+}
+.change-journal small {
+    color: #ffffff99;
 }

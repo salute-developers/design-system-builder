@@ -26,6 +26,10 @@ data class DesignSystemResponse(
     val tenantCount: Int,
     /** Preview до четырёх тем. */
     val themePreviews: List<ThemePreviewResponse>,
+    /** Активный черновик для последующей команды публикации. */
+    val draftId: String?,
+    /** Техническая редакция активного черновика. */
+    val draftRevision: Long?,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -40,6 +44,8 @@ data class DesignSystemResponse(
             isTechnical = domain.isTechnical,
             tenantCount = domain.tenantCount,
             themePreviews = domain.themePreviews.map(ThemePreviewResponse::from),
+            draftId = domain.draftId?.toString(),
+            draftRevision = domain.draftRevision,
         )
     }
 }

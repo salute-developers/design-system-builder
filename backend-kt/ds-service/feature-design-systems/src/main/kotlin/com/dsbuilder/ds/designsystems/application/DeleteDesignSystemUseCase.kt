@@ -17,7 +17,7 @@ class DeleteDesignSystemUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<Unit> =
         when (val authorization = accessPolicy.require(context, "design-systems:delete")) {
             is DsResult.Failure -> authorization
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.required(context) {
                 if (repository.deleteOwned(context.projectId, id)) {
                     DsResult.Success(Unit)
                 } else {

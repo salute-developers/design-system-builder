@@ -386,7 +386,7 @@ export const gradientTokenActions: GradientTokenActions = {
 
             token.setDescription(defaultDescription);
 
-            updateDraftToken(dsName, dsVersion, token, isDraftAddedToken(token.getName()) ? 'save' : 'remove');
+            updateDraftToken(dsName, dsVersion, token, isDraftAddedToken(token.getName()) ? 'save' : 'discard');
         });
 
         const defaultWeb = defaultToken.getDefaultValue('web');

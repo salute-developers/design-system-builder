@@ -6,7 +6,7 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
-import java.util.UUID
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 
 /** Gets one accessible design-system version. */
 class GetDesignSystemVersionUseCase(
@@ -15,11 +15,11 @@ class GetDesignSystemVersionUseCase(
     private val repository: DesignSystemVersionRepository,
 ) {
     /** Performs the execute operation. */
-    suspend fun execute(context: DsRequestContext, id: UUID): DsResult<DesignSystemVersion> = when (
+    suspend fun execute(context: DsRequestContext, id: DesignSystemVersionId): DsResult<DesignSystemVersion> = when (
         val allowed = policy.require(context, "design-systems:read")
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.find(context.projectId, id)?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
         }
     }

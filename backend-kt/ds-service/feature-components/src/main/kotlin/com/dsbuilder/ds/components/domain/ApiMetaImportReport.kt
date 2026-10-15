@@ -1,6 +1,9 @@
 package com.dsbuilder.ds.components.domain
 
+import kotlinx.serialization.Serializable
+
 /** Report produced by an additive API-meta import into the global component layer. */
+@Serializable
 data class ApiMetaImportReport(
     /** Components created for the requested platform. */
     val createdComponents: Int = 0,
@@ -26,6 +29,7 @@ data class ApiMetaImportReport(
     val absent: List<String> = emptyList(),
 ) {
     /** One property that was not written. */
+    @Serializable
     data class Rejection(
         /** Component name. */
         val component: String,

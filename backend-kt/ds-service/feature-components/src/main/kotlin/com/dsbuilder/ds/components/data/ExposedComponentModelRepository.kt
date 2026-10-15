@@ -303,42 +303,43 @@ class ExposedComponentModelRepository : ComponentModelRepository {
     ): VariationPlatformParamAdjustment? {
         if (!canWriteVpv(projectId, systemAdmin, command.vpvId)) return null
         if (!canWritePlatformParam(projectId, systemAdmin, command.platformParamId)) return null
-        return VariationPlatformParamAdjustmentsTable.insertReturning {
+        val designSystemId = VariationPropertyValuesTable.selectAll()
+            .where { VariationPropertyValuesTable.id eq command.vpvId }
+            .single()[VariationPropertyValuesTable.designSystemId]
+        val id = StableVariationPlatformParamAdjustmentsTable.insertReturning {
             it[vpvId] = command.vpvId
             it[platformParamId] = command.platformParamId
-            it[value] = command.value
-            it[template] = command.template
-        }.single().let(::variationAdjustment)
+            it[StableVariationPlatformParamAdjustmentsTable.designSystemId] = designSystemId
+        }.single()[StableVariationPlatformParamAdjustmentsTable.id]
+        VariationPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            VariationPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+        ) { statement ->
+            statement[value] = command.value
+            statement[template] = command.template
+        }
+        return findVariationAdjustment(projectId, systemAdmin, id)
     }
 
+    @Suppress("ReturnCount")
     override suspend fun updateVariationAdjustment(
         projectId: ProjectId,
         systemAdmin: Boolean,
         id: UUID,
         command: ComponentModelRepository.AdjustmentUpdate,
     ): VariationPlatformParamAdjustment? {
-        return VariationPlatformParamAdjustmentsTable.updateReturning(
-            where = {
-                (VariationPlatformParamAdjustmentsTable.id eq id) and
-                    ComponentOwnership.writableVariationPropertyValue(
-                        VariationPlatformParamAdjustmentsTable.vpvId,
-                        projectId,
-                        systemAdmin,
-                    ) and ComponentOwnership.writablePlatformParam(
-                        VariationPlatformParamAdjustmentsTable.platformParamId,
-                        projectId,
-                        systemAdmin,
-                    )
-            },
+        if (!lockComponentSubject(
+                StableVariationPlatformParamAdjustmentsTable,
+                StableVariationPlatformParamAdjustmentsTable.id,
+                StableVariationPlatformParamAdjustmentsTable.designSystemId,
+                "variation-platform-param-adjustment",
+                id,
+            )
         ) {
-            if (command.valuePresent) it[value] = command.value
-            if (command.templatePresent) it[template] = command.template
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::variationAdjustment)
-    }
-
-    override suspend fun deleteVariationAdjustment(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return VariationPlatformParamAdjustmentsTable.deleteWhere {
+            return null
+        }
+        val existing = VariationPlatformParamAdjustmentsTable.selectAll().where {
             (VariationPlatformParamAdjustmentsTable.id eq id) and
                 ComponentOwnership.writableVariationPropertyValue(
                     VariationPlatformParamAdjustmentsTable.vpvId,
@@ -349,7 +350,68 @@ class ExposedComponentModelRepository : ComponentModelRepository {
                     projectId,
                     systemAdmin,
                 )
-        } > 0
+        }.singleOrNull() ?: return null
+        val designSystemId = StableVariationPlatformParamAdjustmentsTable.selectAll()
+            .where { StableVariationPlatformParamAdjustmentsTable.id eq id }
+            .single()[StableVariationPlatformParamAdjustmentsTable.designSystemId]
+        val changedPaths = buildSet {
+            if (command.valuePresent) add("/value")
+            if (command.templatePresent) add("/template")
+        }
+        if (changedPaths.isEmpty()) return variationAdjustment(existing)
+        VariationPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            VariationPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+            changedPaths = changedPaths,
+        ) { statement ->
+            statement[value] = if (command.valuePresent) {
+                command.value
+            } else {
+                existing[VariationPlatformParamAdjustmentsTable.value]
+            }
+            statement[template] = if (command.templatePresent) {
+                command.template
+            } else {
+                existing[VariationPlatformParamAdjustmentsTable.template]
+            }
+        }
+        return findVariationAdjustment(projectId, systemAdmin, id)
+    }
+
+    override suspend fun deleteVariationAdjustment(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
+        if (!lockComponentSubject(
+                StableVariationPlatformParamAdjustmentsTable,
+                StableVariationPlatformParamAdjustmentsTable.id,
+                StableVariationPlatformParamAdjustmentsTable.designSystemId,
+                "variation-platform-param-adjustment",
+                id,
+            )
+        ) {
+            return false
+        }
+        val existing = VariationPlatformParamAdjustmentsTable.selectAll().where {
+            (VariationPlatformParamAdjustmentsTable.id eq id) and
+                ComponentOwnership.writableVariationPropertyValue(
+                    VariationPlatformParamAdjustmentsTable.vpvId,
+                    projectId,
+                    systemAdmin,
+                ) and ComponentOwnership.writablePlatformParam(
+                    VariationPlatformParamAdjustmentsTable.platformParamId,
+                    projectId,
+                    systemAdmin,
+                )
+        }.singleOrNull() ?: return false
+        val designSystemId = StableVariationPlatformParamAdjustmentsTable.selectAll()
+            .where { StableVariationPlatformParamAdjustmentsTable.id eq id }
+            .single()[StableVariationPlatformParamAdjustmentsTable.designSystemId]
+        VariationPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            VariationPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+            deleted = true,
+        )
+        return true
     }
 
     override suspend fun listInvariantAdjustments(
@@ -393,42 +455,43 @@ class ExposedComponentModelRepository : ComponentModelRepository {
     ): InvariantPlatformParamAdjustment? {
         if (!canWriteIpv(projectId, systemAdmin, command.ipvId)) return null
         if (!canWritePlatformParam(projectId, systemAdmin, command.platformParamId)) return null
-        return InvariantPlatformParamAdjustmentsTable.insertReturning {
+        val designSystemId = InvariantPropertyValuesTable.selectAll()
+            .where { InvariantPropertyValuesTable.id eq command.ipvId }
+            .single()[InvariantPropertyValuesTable.designSystemId]
+        val id = StableInvariantPlatformParamAdjustmentsTable.insertReturning {
             it[ipvId] = command.ipvId
             it[platformParamId] = command.platformParamId
-            it[value] = command.value
-            it[template] = command.template
-        }.single().let(::invariantAdjustment)
+            it[StableInvariantPlatformParamAdjustmentsTable.designSystemId] = designSystemId
+        }.single()[StableInvariantPlatformParamAdjustmentsTable.id]
+        InvariantPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            InvariantPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+        ) { statement ->
+            statement[value] = command.value
+            statement[template] = command.template
+        }
+        return findInvariantAdjustment(projectId, systemAdmin, id)
     }
 
+    @Suppress("ReturnCount")
     override suspend fun updateInvariantAdjustment(
         projectId: ProjectId,
         systemAdmin: Boolean,
         id: UUID,
         command: ComponentModelRepository.AdjustmentUpdate,
     ): InvariantPlatformParamAdjustment? {
-        return InvariantPlatformParamAdjustmentsTable.updateReturning(
-            where = {
-                (InvariantPlatformParamAdjustmentsTable.id eq id) and
-                    ComponentOwnership.writableInvariantPropertyValue(
-                        InvariantPlatformParamAdjustmentsTable.ipvId,
-                        projectId,
-                        systemAdmin,
-                    ) and ComponentOwnership.writablePlatformParam(
-                        InvariantPlatformParamAdjustmentsTable.platformParamId,
-                        projectId,
-                        systemAdmin,
-                    )
-            },
+        if (!lockComponentSubject(
+                StableInvariantPlatformParamAdjustmentsTable,
+                StableInvariantPlatformParamAdjustmentsTable.id,
+                StableInvariantPlatformParamAdjustmentsTable.designSystemId,
+                "invariant-platform-param-adjustment",
+                id,
+            )
         ) {
-            if (command.valuePresent) it[value] = command.value
-            if (command.templatePresent) it[template] = command.template
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::invariantAdjustment)
-    }
-
-    override suspend fun deleteInvariantAdjustment(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return InvariantPlatformParamAdjustmentsTable.deleteWhere {
+            return null
+        }
+        val existing = InvariantPlatformParamAdjustmentsTable.selectAll().where {
             (InvariantPlatformParamAdjustmentsTable.id eq id) and
                 ComponentOwnership.writableInvariantPropertyValue(
                     InvariantPlatformParamAdjustmentsTable.ipvId,
@@ -439,7 +502,68 @@ class ExposedComponentModelRepository : ComponentModelRepository {
                     projectId,
                     systemAdmin,
                 )
-        } > 0
+        }.singleOrNull() ?: return null
+        val designSystemId = StableInvariantPlatformParamAdjustmentsTable.selectAll()
+            .where { StableInvariantPlatformParamAdjustmentsTable.id eq id }
+            .single()[StableInvariantPlatformParamAdjustmentsTable.designSystemId]
+        val changedPaths = buildSet {
+            if (command.valuePresent) add("/value")
+            if (command.templatePresent) add("/template")
+        }
+        if (changedPaths.isEmpty()) return invariantAdjustment(existing)
+        InvariantPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            InvariantPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+            changedPaths = changedPaths,
+        ) { statement ->
+            statement[value] = if (command.valuePresent) {
+                command.value
+            } else {
+                existing[InvariantPlatformParamAdjustmentsTable.value]
+            }
+            statement[template] = if (command.templatePresent) {
+                command.template
+            } else {
+                existing[InvariantPlatformParamAdjustmentsTable.template]
+            }
+        }
+        return findInvariantAdjustment(projectId, systemAdmin, id)
+    }
+
+    override suspend fun deleteInvariantAdjustment(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
+        if (!lockComponentSubject(
+                StableInvariantPlatformParamAdjustmentsTable,
+                StableInvariantPlatformParamAdjustmentsTable.id,
+                StableInvariantPlatformParamAdjustmentsTable.designSystemId,
+                "invariant-platform-param-adjustment",
+                id,
+            )
+        ) {
+            return false
+        }
+        val existing = InvariantPlatformParamAdjustmentsTable.selectAll().where {
+            (InvariantPlatformParamAdjustmentsTable.id eq id) and
+                ComponentOwnership.writableInvariantPropertyValue(
+                    InvariantPlatformParamAdjustmentsTable.ipvId,
+                    projectId,
+                    systemAdmin,
+                ) and ComponentOwnership.writablePlatformParam(
+                    InvariantPlatformParamAdjustmentsTable.platformParamId,
+                    projectId,
+                    systemAdmin,
+                )
+        }.singleOrNull() ?: return false
+        val designSystemId = StableInvariantPlatformParamAdjustmentsTable.selectAll()
+            .where { StableInvariantPlatformParamAdjustmentsTable.id eq id }
+            .single()[StableInvariantPlatformParamAdjustmentsTable.designSystemId]
+        InvariantPlatformParamAdjustmentRevisionsTable.replaceRevision(
+            InvariantPlatformParamAdjustmentRevisionsTable.entityId,
+            id,
+            designSystemId,
+            deleted = true,
+        )
+        return true
     }
 }
 

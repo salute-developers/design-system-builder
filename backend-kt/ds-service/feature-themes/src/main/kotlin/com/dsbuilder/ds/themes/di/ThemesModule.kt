@@ -1,5 +1,8 @@
 package com.dsbuilder.ds.themes.di
 
+import com.dsbuilder.ds.core.application.DraftChangeHandler
+import com.dsbuilder.ds.core.application.DraftChangePolicy
+import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
@@ -41,16 +44,23 @@ import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
 import com.dsbuilder.ds.themes.data.ExposedTokenGroupRepository
 import com.dsbuilder.ds.themes.data.GeneratedTenantTokenValueInitializer
+import com.dsbuilder.ds.themes.data.themeDraftChangeHandlers
+import com.dsbuilder.ds.themes.data.themeDraftChangePolicy
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /** Dependency bindings owned by the themes feature. */
 val themesModule = module {
+    themeDraftChangeHandlers().forEach { handler ->
+        single<DraftChangeHandler>(named(handler.entityType)) { handler }
+    }
+    single<DraftChangePolicy>(named("theme-journal")) { themeDraftChangePolicy() }
     single<TenantRepository> { ExposedTenantRepository() }
     single<TenantTokenValueInitializer> { GeneratedTenantTokenValueInitializer() }
     factory { ListTenantsUseCase(get(), get(), get()) }
     factory { GetTenantUseCase(get(), get(), get()) }
-    factory { CreateTenantUseCase(get(), get(), get(), get(), get(), get()) }
-    factory { UpdateTenantUseCase(get(), get(), get()) }
+    factory { CreateTenantUseCase(get(), get(), get(), get(), get(), get(), IdempotentCreateExecutor(get()), get()) }
+    factory { UpdateTenantUseCase(get(), get(), get(), get()) }
     factory { DeleteTenantUseCase(get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get(), get()) }
     factory { SaveTenantTokenValuesUseCase(get(), get(), get(), get(), get()) }

@@ -32,7 +32,7 @@ class GetTenantTokenValuesUseCase(
             // Снимок палитры берёт тему FOR SHARE до чтения значений: оба чтения видят одно состояние, и сопоставление
             // значений по `id` не теряется из-за параллельного `PUT token-values`. Транзакция изменяющая — теме без
             // палитры копия шаблона создаётся здесь же.
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.required(context) {
                 val snapshot = paletteRepository.initializedSnapshot(context.projectId, id)
                 values(context, id) { values -> snapshot?.let { resolved(id, it, values) } ?: values }
             }

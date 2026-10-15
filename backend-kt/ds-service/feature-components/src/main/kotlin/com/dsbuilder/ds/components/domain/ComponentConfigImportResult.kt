@@ -1,6 +1,9 @@
 package com.dsbuilder.ds.components.domain
 
+import kotlinx.serialization.Serializable
+
 /** Report produced by an atomic component configuration import. */
+@Serializable
 data class ComponentConfigImportResult(
     /** Created carried by this contract. */
     val created: Int = 0,
@@ -27,6 +30,7 @@ data class ComponentConfigImportResult(
     val underivableVariationIds: List<String> = emptyList(),
 ) {
     /** Rejected configuration and its stable reason. */
+    @Serializable
     data class Rejection(
         /** Component name carried by this contract. */
         val componentName: String,

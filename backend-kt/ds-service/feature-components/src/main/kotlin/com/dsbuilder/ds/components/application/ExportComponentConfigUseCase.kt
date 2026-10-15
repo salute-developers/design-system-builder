@@ -19,7 +19,7 @@ class ExportComponentConfigUseCase(
         context: DsRequestContext,
         query: ExportComponentConfig,
     ): DsResult<ComponentConfigPackage> = policy.read(context, ProjectScope.COMPONENTS_READ) {
-        transactions.readOnly {
+        transactions.readOnly(context) {
             when (val attempt = repository.export(context.projectId, context.principal.systemAdmin, query)) {
                 is ComponentConfigRepository.ExportAttempt.Success -> DsResult.Success(attempt.value)
                 ComponentConfigRepository.ExportAttempt.NotFound -> DsResult.Failure(DsFailure.NotFound)

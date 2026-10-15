@@ -6,6 +6,8 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
+import com.dsbuilder.ds.core.application.IdempotentRequestRepository
 import com.dsbuilder.ds.core.application.TransactionRunner
 
 /** Creates an unowned global component only for a trusted system administrator. */
@@ -13,11 +15,26 @@ class CreateComponentUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: ComponentRepository,
+    private val repeatedRequests: IdempotentRequestRepository,
 ) {
     /** Performs the execute operation. */
-    suspend fun execute(context: DsRequestContext, command: ComponentRepository.Create): DsResult<Component> =
+    suspend fun execute(
+        context: DsRequestContext,
+        command: ComponentRepository.Create,
+        idempotencyKey: String? = null,
+    ): DsResult<Component> =
         policy.read(context, ProjectScope.COMPONENTS_WRITE) {
             if (!context.principal.systemAdmin) return@read DsResult.Failure(DsFailure.Forbidden)
-            transactions.required { DsResult.Success(repository.createGlobal(command)) }
+            transactions.required(context) {
+                IdempotentCreateExecutor(repeatedRequests).execute(
+                    context,
+                    idempotencyKey,
+                    "create-component",
+                    command,
+                    { repository.findAccessible(context.projectId, true, it) },
+                    { repository.createGlobal(command) },
+                    Component::id,
+                )
+            }
         }
 }

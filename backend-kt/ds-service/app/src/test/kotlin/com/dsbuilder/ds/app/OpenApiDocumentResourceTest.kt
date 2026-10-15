@@ -58,6 +58,18 @@ class OpenApiDocumentResourceTest {
         assertFalse("admin" in routeNames)
         assertFalse("documentation-pages" in routeNames)
         assertFalse("generate" in routeNames)
+        assertFalse("/api/ds/design-system-changes" in routeNames)
+        assertFalse("patch" in paths.getValue("/api/ds/design-system-versions/{id}").jsonObject)
+        assertFalse("delete" in paths.getValue("/api/ds/design-system-versions/{id}").jsonObject)
+        listOf(
+            "/api/ds/components/{id}",
+            "/api/ds/component-deps/{id}",
+            "/api/ds/properties/{id}",
+            "/api/ds/variations/{id}",
+            "/api/ds/property-platform-params/{id}",
+            "/api/ds/property-variations/{id}",
+            "/api/ds/states/{id}",
+        ).forEach { path -> assertFalse("delete" in paths.getValue(path).jsonObject, path) }
     }
 
     /** DTO schemas and route parameters are inherited from the legacy contract, not emitted as placeholders. */
@@ -72,11 +84,66 @@ class OpenApiDocumentResourceTest {
 
         val queryParameters = paths.getValue("/api/ds/component-config").jsonObject
             .getValue("get").jsonObject.getValue("parameters").jsonArray
+        assertTrue(
+            queryParameters.any { it.jsonObject["\$ref"]?.jsonPrimitive?.content?.endsWith("/VersionId") == true },
+        )
         assertEquals(
             setOf("ds", "version", "appearance", "component", "platform"),
-            queryParameters.map {
-                it.jsonObject.getValue("name").jsonPrimitive.content
+            queryParameters.mapNotNull {
+                it.jsonObject["name"]?.jsonPrimitive?.content
             }.toSet(),
         )
+
+        listOf(
+            "/api/ds/tokens" to "post",
+            "/api/ds/appearances/{id}" to "patch",
+            "/api/ds/style-combinations/{id}" to "delete",
+            "/api/ds/component-config/import" to "post",
+        ).forEach { (path, method) ->
+            val operation = paths.getValue(path).jsonObject.getValue(method).jsonObject
+            val parameters = operation.getValue("parameters").jsonArray
+            assertTrue(
+                parameters.any { it.jsonObject["\$ref"]?.jsonPrimitive?.content?.endsWith("/BaseRevision") == true },
+                "$method $path",
+            )
+            val success = operation.getValue("responses").jsonObject.entries
+                .first { it.key.startsWith("2") }.value.jsonObject
+            assertTrue("X-DS-Mutation-Metadata" in success.getValue("headers").jsonObject, "$method $path")
+        }
+    }
+
+    /** Required fields cannot refer to properties absent from the same concrete schema. */
+    @Test
+    fun `schema required fields are declared`() {
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        schemas.forEach { (name, element) ->
+            val schema = element.jsonObject
+            val properties = schema["properties"]?.jsonObject ?: return@forEach
+            val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
+            assertTrue(required.all(properties::containsKey), "$name has undeclared required properties")
+        }
+
+        val tenantValues = paths.getValue("/api/ds/tenants/{id}/token-values").jsonObject
+        listOf("get", "put").forEach { method ->
+            val response = tenantValues.getValue(method).jsonObject.getValue("responses").jsonObject.getValue("200")
+            assertTrue(response.toString().contains("TenantTokenValue"), method)
+        }
+
+        fun required(name: String) = schemas.getValue(name).jsonObject.getValue("required").jsonArray
+            .map { it.jsonPrimitive.content }.toSet()
+        assertEquals(
+            setOf(
+                "id", "tokenId", "tenantId", "paletteId", "platform", "mode", "value", "createdAt", "updatedAt",
+            ),
+            required("TokenValue"),
+        )
+        assertEquals(
+            setOf(
+                "changeId", "versionId", "entityType", "entityId", "operation", "changedPaths",
+                "previousValue", "currentValue", "actorId", "changedAt", "editRevision",
+            ),
+            required("DraftChange"),
+        )
+        assertTrue("preview" in required("Tenant"))
     }
 }

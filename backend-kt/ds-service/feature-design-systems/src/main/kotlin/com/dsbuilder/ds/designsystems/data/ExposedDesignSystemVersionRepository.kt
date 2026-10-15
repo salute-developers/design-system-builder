@@ -1,101 +1,125 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.data.lockDesignSystemPublication
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
 import com.dsbuilder.ds.designsystems.application.DesignSystemVersionRepository
-import com.dsbuilder.ds.designsystems.application.UpdateDesignSystemVersion
+import com.dsbuilder.ds.designsystems.application.DraftChangeRepository
+import com.dsbuilder.ds.designsystems.application.PublishDesignSystemResult
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
-import kotlinx.serialization.json.Json
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionStatus
+import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.updateReturning
-import java.util.UUID
+import java.time.Instant
 
-/** Exposed implementation of project-scoped version persistence. */
-class ExposedDesignSystemVersionRepository : DesignSystemVersionRepository {
-    override suspend fun list(projectId: ProjectId): List<DesignSystemVersion> = scoped(projectId)
-        .orderBy(DesignSystemVersionsTable.publishedAt to SortOrder.DESC)
+/** Хранилище новых опубликованных границ; прежние строки со снимками намеренно скрыты. */
+class ExposedDesignSystemVersionRepository(
+    private val changes: DraftChangeRepository,
+) : DesignSystemVersionRepository {
+    override suspend fun list(projectId: ProjectId): List<DesignSystemVersion> = publishedRows(projectId)
         .map(::toDomain)
 
-    override suspend fun find(projectId: ProjectId, id: UUID): DesignSystemVersion? = joined()
-        .selectAll()
-        .where { (DesignSystemVersionsTable.id eq id) and accessible(projectId) }
-        .limit(1).singleOrNull()?.let(::toDomain)
+    override suspend fun find(projectId: ProjectId, id: DesignSystemVersionId): DesignSystemVersion? =
+        publishedRows(projectId, id = id).singleOrNull()?.let(::toDomain)
 
     override suspend fun listByDesignSystem(
         projectId: ProjectId,
         designSystemId: DesignSystemId,
     ): List<DesignSystemVersion>? {
-        if (!accessibleDesignSystem(projectId, designSystemId)) return null
-        return DesignSystemVersionsTable.selectAll()
-            .where { DesignSystemVersionsTable.designSystemId eq designSystemId.value }
-            .orderBy(DesignSystemVersionsTable.publishedAt to SortOrder.DESC)
+        if (!accessible(projectId, designSystemId)) return null
+        return publishedRows(projectId, designSystemId)
             .map(::toDomain)
     }
 
-    override suspend fun create(projectId: ProjectId, command: CreateDesignSystemVersion): DesignSystemVersion? {
-        if (!ownedDesignSystem(projectId, command.designSystemId)) return null
-        return DesignSystemVersionsTable.insertReturning {
-            it[designSystemId] = command.designSystemId.value
-            it[version] = command.version
-            it[snapshot] = Json.parseToJsonElement(command.snapshotJson)
-            it[changelog] = command.changelog
-            it[publicationStatus] = command.publicationStatus
-        }.single().let(::toDomain)
-    }
-
-    override suspend fun update(
+    @Suppress("ReturnCount")
+    override suspend fun publish(
         projectId: ProjectId,
-        id: UUID,
-        command: UpdateDesignSystemVersion,
-    ): DesignSystemVersion? {
-        if (!ownedVersion(projectId, id)) return null
-        return DesignSystemVersionsTable.updateReturning(where = { DesignSystemVersionsTable.id eq id }) {
-            if (command.changelogPresent) it[changelog] = command.changelog
-            if (command.publicationStatusPresent) it[publicationStatus] = command.publicationStatus
-        }.singleOrNull()?.let(::toDomain)
+        command: CreateDesignSystemVersion,
+    ): PublishDesignSystemResult {
+        if (!owned(projectId, command.designSystemId)) return PublishDesignSystemResult.NotFound
+        lockDesignSystemPublication(command.designSystemId.value)
+        val draft = VersionBoundariesTable.selectAll().where {
+            (VersionBoundariesTable.designSystemId eq command.designSystemId.value) and
+                (VersionBoundariesTable.status eq DesignSystemVersionStatus.DRAFT)
+        }.forUpdate().singleOrNull() ?: return PublishDesignSystemResult.NotFound
+        val actualId = DesignSystemVersionId(draft[VersionBoundariesTable.id])
+        val actualRevision = draft[VersionBoundariesTable.revision]
+        if (actualId != command.draftId || actualRevision != command.draftRevision) {
+            return PublishDesignSystemResult.DraftStale(actualId, actualRevision)
+        }
+        val duplicate = VersionBoundariesTable.selectAll().where {
+            (VersionBoundariesTable.designSystemId eq command.designSystemId.value) and
+                (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED) and
+                (VersionBoundariesTable.version eq command.version)
+        }.limit(1).any()
+        if (duplicate) return PublishDesignSystemResult.VersionAlreadyExists
+        if (changes.hasChanges(projectId, command.designSystemId) != true) {
+            return PublishDesignSystemResult.EmptyDraft
+        }
+        val published = VersionBoundariesTable.updateReturning(
+            where = { VersionBoundariesTable.id eq actualId.value },
+        ) {
+            it[status] = DesignSystemVersionStatus.PUBLISHED
+            it[version] = command.version
+            it[changelog] = command.changelog
+            it[publishedAt] = Instant.now()
+        }.single()
+        VersionBoundariesTable.insert {
+            it[designSystemId] = command.designSystemId.value
+            it[status] = DesignSystemVersionStatus.DRAFT
+            it[sequenceNumber] = draft[VersionBoundariesTable.sequenceNumber] + 1
+            it[revision] = 0
+            it[version] = null
+            it[changelog] = null
+            it[snapshot] = null
+            it[publicationStatus] = null
+            it[publishedAt] = null
+        }
+        return PublishDesignSystemResult.Published(toDomain(published))
     }
 
-    override suspend fun delete(projectId: ProjectId, id: UUID): Boolean =
-        ownedVersion(projectId, id) && DesignSystemVersionsTable.deleteWhere { DesignSystemVersionsTable.id eq id } > 0
-
-    private fun joined() = DesignSystemVersionsTable.innerJoin(DesignSystemsTable)
-
-    private fun scoped(projectId: ProjectId) = joined().selectAll().where { accessible(projectId) }
-
-    private fun accessible(projectId: ProjectId) =
-        (DesignSystemsTable.projectId eq projectId.value) or DesignSystemsTable.projectId.isNull()
-
-    private fun accessibleDesignSystem(projectId: ProjectId, id: DesignSystemId) = DesignSystemsTable.selectAll()
-        .where { (DesignSystemsTable.id eq id.value) and accessible(projectId) }.limit(1).any()
-
-    private fun ownedDesignSystem(projectId: ProjectId, id: DesignSystemId) = DesignSystemsTable.selectAll()
+    private fun publishedRows(
+        projectId: ProjectId,
+        designSystemId: DesignSystemId? = null,
+        id: DesignSystemVersionId? = null,
+    ): List<ResultRow> = VersionBoundariesTable
+        .join(DesignSystemsTable, JoinType.INNER, VersionBoundariesTable.designSystemId, DesignSystemsTable.id)
+        .selectAll()
         .where {
-            (DesignSystemsTable.id eq id.value) and
+            var predicate: Op<Boolean> = (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED) and
+                (DesignSystemsTable.projectId eq projectId.value)
+            designSystemId?.let { predicate = predicate and (VersionBoundariesTable.designSystemId eq it.value) }
+            id?.let { predicate = predicate and (VersionBoundariesTable.id eq it.value) }
+            predicate
+        }
+        .orderBy(VersionBoundariesTable.sequenceNumber to SortOrder.DESC)
+        .toList()
+
+    private fun accessible(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =
+        DesignSystemsTable.selectAll().where {
+            (DesignSystemsTable.id eq designSystemId.value) and
                 (DesignSystemsTable.projectId eq projectId.value)
         }.limit(1).any()
 
-    private fun ownedVersion(projectId: ProjectId, id: UUID) = joined().selectAll()
-        .where {
-            (DesignSystemVersionsTable.id eq id) and
-                (DesignSystemsTable.projectId eq projectId.value)
-        }.limit(1).any()
+    private fun owned(projectId: ProjectId, designSystemId: DesignSystemId): Boolean =
+        accessible(projectId, designSystemId)
 
     private fun toDomain(row: ResultRow) = DesignSystemVersion(
-        id = row[DesignSystemVersionsTable.id],
-        designSystemId = DesignSystemId(row[DesignSystemVersionsTable.designSystemId]),
-        version = row[DesignSystemVersionsTable.version],
-        snapshotJson = row[DesignSystemVersionsTable.snapshot].toString(),
-        changelog = row[DesignSystemVersionsTable.changelog],
-        publicationStatus = row[DesignSystemVersionsTable.publicationStatus],
-        publishedAt = row[DesignSystemVersionsTable.publishedAt],
+        id = DesignSystemVersionId(row[VersionBoundariesTable.id]),
+        designSystemId = DesignSystemId(row[VersionBoundariesTable.designSystemId]),
+        sequenceNumber = row[VersionBoundariesTable.sequenceNumber],
+        revision = row[VersionBoundariesTable.revision],
+        version = requireNotNull(row[VersionBoundariesTable.version]),
+        changelog = requireNotNull(row[VersionBoundariesTable.changelog]),
+        publishedAt = requireNotNull(row[VersionBoundariesTable.publishedAt]),
     )
 }

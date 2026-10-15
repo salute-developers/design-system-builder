@@ -35,14 +35,14 @@ class AppearanceAxisRolesMigrationPostgresIntegrationTest {
                             "WHERE id = '${fixture.noSizeNoFlag}'",
                     )
                 }
-                update(
-                    connection,
-                    "DELETE FROM appearance_variations WHERE appearance_id = '${fixture.sizeAndScheme}' " +
-                        "AND variation_id = '${fixture.size}'",
-                )
-                assertRoles(connection, fixture.sizeAndScheme, root = null, scheme = fixture.view)
-                update(connection, "DELETE FROM appearance_variations WHERE appearance_id = '${fixture.sizeAndScheme}'")
-                assertRoles(connection, fixture.sizeAndScheme, root = null, scheme = null)
+                assertFailsWith<SQLException> {
+                    update(
+                        connection,
+                        "DELETE FROM appearance_variations WHERE appearance_id = '${fixture.sizeAndScheme}' " +
+                            "AND variation_id = '${fixture.size}'",
+                    )
+                }
+                assertRoles(connection, fixture.sizeAndScheme, root = fixture.size, scheme = fixture.view)
             }
         }
     }
@@ -108,7 +108,8 @@ class AppearanceAxisRolesMigrationPostgresIntegrationTest {
 
     private fun assertRoles(connection: Connection, appearance: UUID, root: UUID?, scheme: UUID?) {
         connection.prepareStatement(
-            "SELECT root_variation_id, color_scheme_variation_id FROM appearances WHERE id = ?",
+            "SELECT root_variation_id, color_scheme_variation_id FROM appearance_revisions " +
+                "WHERE appearance_id = ? ORDER BY version_sequence_number DESC LIMIT 1",
         ).use { statement ->
             statement.setObject(1, appearance)
             statement.executeQuery().use { rows ->
@@ -122,7 +123,8 @@ class AppearanceAxisRolesMigrationPostgresIntegrationTest {
     private fun flags(connection: Connection, appearance: UUID, vararg variations: UUID): List<Boolean> =
         variations.map { variation ->
             connection.prepareStatement(
-                "SELECT is_color_scheme FROM appearance_variations WHERE appearance_id = ? AND variation_id = ?",
+                "SELECT (SELECT color_scheme_variation_id FROM appearance_revisions " +
+                    "WHERE appearance_id = ? ORDER BY version_sequence_number DESC LIMIT 1) = ?",
             ).use { statement ->
                 statement.setObject(1, appearance)
                 statement.setObject(2, variation)

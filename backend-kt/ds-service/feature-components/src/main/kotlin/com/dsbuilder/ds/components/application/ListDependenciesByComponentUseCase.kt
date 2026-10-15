@@ -18,7 +18,7 @@ class ListDependenciesByComponentUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentDependencyGraph> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
-            transactions.readOnly {
+            transactions.readOnly(context) {
                 repository.dependencies(context.projectId, context.principal.systemAdmin, id)
                     ?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
                     DsResult.Success(ComponentDependencyGraph(emptyList(), emptyList()))

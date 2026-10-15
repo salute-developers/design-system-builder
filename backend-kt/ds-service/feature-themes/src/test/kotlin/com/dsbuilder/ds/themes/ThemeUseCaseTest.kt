@@ -9,6 +9,12 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
+import com.dsbuilder.ds.core.application.IdempotentRequestLookup
+import com.dsbuilder.ds.core.application.IdempotentRequestRepository
+import com.dsbuilder.ds.core.application.IdempotentResponse
+import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.CreateTenant
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
@@ -68,6 +74,8 @@ class ThemeUseCaseTest {
             componentInitializer,
             initializer,
             palette,
+            IdempotentCreateExecutor(NoopIdempotentRequestRepository()),
+            NoopUniqueKeyLockRepository(),
         ).execute(ownerContext(), command)
 
         assertIs<DsResult.Success<Tenant>>(result)
@@ -81,7 +89,7 @@ class ThemeUseCaseTest {
     @Test
     fun `update tenant requires write permission before repository access`() = runBlocking {
         val repository = RecordingTenantRepository()
-        val result = UpdateTenantUseCase(policy, transactions, repository).execute(
+        val result = UpdateTenantUseCase(policy, transactions, repository, NoopUniqueKeyLockRepository()).execute(
             viewerContext(),
             UUID.randomUUID(),
             UpdateTenant(null, false, null, false, null, false),
@@ -100,6 +108,7 @@ class ThemeUseCaseTest {
             ThemeTokenMode.LIGHT,
             null,
             JsonPrimitive("#ffffff"),
+            0,
         )
 
         val result = saveValues(repository).execute(
@@ -149,6 +158,27 @@ class ThemeUseCaseTest {
     )
 }
 
+private class NoopIdempotentRequestRepository : IdempotentRequestRepository {
+    override suspend fun lookup(
+        projectId: ProjectId,
+        key: String,
+        operation: String,
+        requestHash: String,
+    ): IdempotentRequestLookup = IdempotentRequestLookup.New
+
+    override suspend fun save(
+        projectId: ProjectId,
+        key: String,
+        actorId: String,
+        operation: String,
+        requestHash: String,
+        response: IdempotentResponse,
+    ) = Unit
+}
+
+private class NoopUniqueKeyLockRepository : UniqueKeyLockRepository {
+    override suspend fun lock(designSystemId: UUID, entityType: String, normalizedKey: String) = Unit
+}
 private class RecordingTenantRepository : TenantRepository {
     var createProject: ProjectId? = null
     var createCommand: CreateTenant? = null
@@ -159,6 +189,13 @@ private class RecordingTenantRepository : TenantRepository {
     override suspend fun listAccessible(projectId: ProjectId): List<Tenant> = emptyList()
 
     override suspend fun findAccessible(projectId: ProjectId, id: UUID): Tenant? = null
+
+    override suspend fun nameExists(
+        projectId: ProjectId,
+        designSystemId: UUID,
+        normalizedName: String,
+        excludingId: UUID?,
+    ): Boolean = false
 
     override suspend fun createOwned(projectId: ProjectId, command: CreateTenant): Tenant {
         createProject = projectId

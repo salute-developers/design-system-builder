@@ -5,15 +5,10 @@ import com.dsbuilder.ds.components.application.ImportApiMeta
 import com.dsbuilder.ds.components.domain.AliasDeprecation
 import com.dsbuilder.ds.components.domain.ApiMetaAlias
 import com.dsbuilder.ds.components.domain.ApiMetaImportReport
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
-import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
@@ -28,11 +23,11 @@ import java.util.UUID
  * property, not the request.
  */
 internal class ExposedApiMetaRepository : ApiMetaRepository {
-    override suspend fun import(actorId: String, command: ImportApiMeta): ApiMetaRepository.ImportAttempt =
-        runCatching { ApiMetaRepository.ImportAttempt.Success(importMeta(actorId, command)) }
+    override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt =
+        runCatching { ApiMetaRepository.ImportAttempt.Success(importMeta(command)) }
             .getOrElse { ApiMetaRepository.ImportAttempt.Failed(it.message ?: it.toString()) }
 
-    private fun importMeta(actorId: String, command: ImportApiMeta): ApiMetaImportReport {
+    private fun importMeta(command: ImportApiMeta): ApiMetaImportReport {
         val platform = requireNotNull(ComponentPlatformDb.fromWire(command.platform))
         val counters = Counters()
         val components = merge(command.components, counters.rejected)
@@ -42,9 +37,7 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         ensureStates(components, componentIds, counters)
         val properties = ensureProperties(components, componentIds, ids, counters)
         ensureAliases(platform, properties.aliasRows, counters)
-        val report = counters.toReport(absent(platform, components, componentIds, properties.existing))
-        journal(actorId, command, report)
-        return report
+        return counters.toReport(absent(platform, components, componentIds, properties.existing))
     }
 
     private fun ensureComponents(
@@ -239,49 +232,6 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
             if ("$componentName.${key.second}" !in manifestProperties) result += "$componentName.${key.second}"
         }
         return result.sorted()
-    }
-
-    private fun journal(actorId: String, command: ImportApiMeta, report: ApiMetaImportReport) {
-        DesignSystemChangesTable.insertReturning {
-            it[designSystemId] = null
-            it[entityType] = "components:import-api-meta"
-            // A global operation has no entity of its own and the column is mandatory: the run id.
-            it[entityId] = UUID.randomUUID()
-            it[operation] = if (report.createdComponents + report.createdProperties > 0) {
-                ComponentChangeOperationDb.CREATED
-            } else {
-                ComponentChangeOperationDb.UPDATED
-            }
-            it[data] = buildJsonObject {
-                put("userId", actorId)
-                put("platform", command.platform)
-                put("source", command.source.substringAfterLast('/').substringAfterLast('\\'))
-                put("dryRun", command.dryRun)
-                put("createdComponents", report.createdComponents)
-                put("createdProperties", report.createdProperties)
-                put("createdStates", report.createdStates)
-                put("createdAliases", report.createdAliases)
-                put("unchangedProperties", report.unchangedProperties)
-                put("deprecatedMarked", report.deprecatedMarked)
-                put("deprecatedMessageChanged", report.deprecatedMessageChanged)
-                put("deprecatedCleared", report.deprecatedCleared)
-                put(
-                    "rejected",
-                    JsonArray(
-                        report.rejected.map {
-                            buildJsonObject {
-                                put("component", it.component)
-                                put("property", it.property)
-                                put("reason", it.reason)
-                            }
-                        },
-                    ),
-                )
-                put("typeMismatches", JsonArray(report.typeMismatches.map(::JsonPrimitive)))
-                // The list can be long and is only needed in the response: the journal keeps its size.
-                put("absentCount", report.absent.size)
-            }
-        }.single()
     }
 
     /**

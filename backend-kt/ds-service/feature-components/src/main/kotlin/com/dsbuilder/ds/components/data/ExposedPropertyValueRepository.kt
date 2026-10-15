@@ -9,11 +9,8 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.updateReturning
-import java.time.Instant
 import java.util.UUID
 
 /** Exposed persistence for variation and invariant property values. */
@@ -60,16 +57,28 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
         command: PropertyValueRepository.VariationCreate,
     ): VariationPropertyValue? {
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
-        return VariationPropertyValuesTable.insertReturning {
+        val appearance = appearanceRow(command.appearanceId) ?: return null
+        val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
+        val id = StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[styleId] = command.styleId
             it[appearanceId] = command.appearanceId
+            it[StableVariationPropertyValuesTable.designSystemId] = designSystemId
+        }.single()[StableVariationPropertyValuesTable.id]
+        VariationPropertyValueRevisionsTable.replaceRevision(
+            VariationPropertyValueRevisionsTable.entityId,
+            id,
+            designSystemId,
+        ) {
             it[tokenId] = command.tokenId
             it[value] = command.value.takeIf { command.tokenId == null }
             it[alpha] = command.alpha
             it[adjustment] = command.adjustment
+            it[position] = 0
             it[stateSetId] = command.stateSetId
-        }.single().let(::variationPropertyValue)
+        }
+        return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
+            .single().let(::variationPropertyValue)
     }
 
     @Suppress("ReturnCount")
@@ -88,27 +97,40 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
         ) {
             return null
         }
-        return VariationPropertyValuesTable.updateReturning(where = {
+        if (!lockComponentSubject(
+                StableVariationPropertyValuesTable,
+                StableVariationPropertyValuesTable.id,
+                StableVariationPropertyValuesTable.designSystemId,
+                "variation-property-value",
+                id,
+            )
+        ) {
+            return null
+        }
+        val current = VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.id eq id) and writableVariationValue(projectId, systemAdmin)
-        }) {
-            if (command.tokenIdPresent) it[tokenId] = command.tokenId
-            // Значение со ссылкой на токен хранит только `token_id`.
-            if (command.tokenIdPresent && command.tokenId != null) {
-                it[value] = null
-            } else if (command.valuePresent) {
-                it[value] = command.value
-            }
-            if (command.alphaPresent) it[alpha] = command.alpha
-            if (command.adjustmentPresent) it[adjustment] = command.adjustment
-            command.stateSetId?.let { stateSet -> it[stateSetId] = stateSet }
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::variationPropertyValue)
+        }.singleOrNull() ?: return null
+        writeVariationRevision(current, command, deleted = false)
+        return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
+            .singleOrNull()?.let(::variationPropertyValue)
     }
 
     override suspend fun deleteVariation(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return VariationPropertyValuesTable.deleteWhere {
+        if (!lockComponentSubject(
+                StableVariationPropertyValuesTable,
+                StableVariationPropertyValuesTable.id,
+                StableVariationPropertyValuesTable.designSystemId,
+                "variation-property-value",
+                id,
+            )
+        ) {
+            return false
+        }
+        val current = VariationPropertyValuesTable.selectAll().where {
             (VariationPropertyValuesTable.id eq id) and writableVariationValue(projectId, systemAdmin)
-        } > 0
+        }.singleOrNull() ?: return false
+        writeVariationRevision(current, null, deleted = true)
+        return true
     }
 
     override suspend fun listInvariant(projectId: ProjectId, systemAdmin: Boolean): List<InvariantPropertyValue> =
@@ -143,17 +165,26 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
         command: PropertyValueRepository.InvariantCreate,
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
-        return InvariantPropertyValuesTable.insertReturning {
+        val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
             it[componentId] = command.componentId
             it[appearanceId] = command.appearanceId
+        }.single()[StableInvariantPropertyValuesTable.id]
+        InvariantPropertyValueRevisionsTable.replaceRevision(
+            InvariantPropertyValueRevisionsTable.entityId,
+            id,
+            command.designSystemId,
+        ) {
             it[tokenId] = command.tokenId
             it[value] = command.value.takeIf { command.tokenId == null }
             it[alpha] = command.alpha
             it[adjustment] = command.adjustment
+            it[position] = 0
             it[stateSetId] = command.stateSetId
-        }.single().let(::invariantPropertyValue)
+        }
+        return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }
+            .single().let(::invariantPropertyValue)
     }
 
     @Suppress("ReturnCount")
@@ -172,27 +203,136 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
         ) {
             return null
         }
-        return InvariantPropertyValuesTable.updateReturning(where = {
+        if (!lockComponentSubject(
+                StableInvariantPropertyValuesTable,
+                StableInvariantPropertyValuesTable.id,
+                StableInvariantPropertyValuesTable.designSystemId,
+                "invariant-property-value",
+                id,
+            )
+        ) {
+            return null
+        }
+        val current = InvariantPropertyValuesTable.selectAll().where {
             (InvariantPropertyValuesTable.id eq id) and writableInvariantValue(projectId, systemAdmin)
-        }) {
-            if (command.tokenIdPresent) it[tokenId] = command.tokenId
-            // Значение со ссылкой на токен хранит только `token_id`.
-            if (command.tokenIdPresent && command.tokenId != null) {
-                it[value] = null
-            } else if (command.valuePresent) {
-                it[value] = command.value
-            }
-            if (command.alphaPresent) it[alpha] = command.alpha
-            if (command.adjustmentPresent) it[adjustment] = command.adjustment
-            command.stateSetId?.let { stateSet -> it[stateSetId] = stateSet }
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::invariantPropertyValue)
+        }.singleOrNull() ?: return null
+        writeInvariantRevision(current, command, deleted = false)
+        return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }
+            .singleOrNull()?.let(::invariantPropertyValue)
     }
 
     override suspend fun deleteInvariant(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return InvariantPropertyValuesTable.deleteWhere {
+        if (!lockComponentSubject(
+                StableInvariantPropertyValuesTable,
+                StableInvariantPropertyValuesTable.id,
+                StableInvariantPropertyValuesTable.designSystemId,
+                "invariant-property-value",
+                id,
+            )
+        ) {
+            return false
+        }
+        val current = InvariantPropertyValuesTable.selectAll().where {
             (InvariantPropertyValuesTable.id eq id) and writableInvariantValue(projectId, systemAdmin)
-        } > 0
+        }.singleOrNull() ?: return false
+        writeInvariantRevision(current, null, deleted = true)
+        return true
+    }
+
+    private fun writeVariationRevision(
+        current: ResultRow,
+        command: PropertyValueRepository.ValueUpdate?,
+        deleted: Boolean,
+    ) {
+        val designSystemId = current[VariationPropertyValuesTable.designSystemId]
+        val changedPaths = command?.let {
+            buildSet {
+                if (it.tokenIdPresent) add("/token_id")
+                if (it.valuePresent) add("/value")
+                if (it.alphaPresent) add("/alpha")
+                if (it.adjustmentPresent) add("/adjustment")
+                if (it.stateSetId != null) add("/state_set_id")
+            }
+        }
+        if (!deleted && changedPaths?.isEmpty() == true) return
+        VariationPropertyValueRevisionsTable.replaceRevision(
+            VariationPropertyValueRevisionsTable.entityId,
+            current[VariationPropertyValuesTable.id],
+            designSystemId,
+            deleted,
+            changedPaths,
+        ) {
+            it[tokenId] = if (command?.tokenIdPresent == true) {
+                command.tokenId
+            } else {
+                current[VariationPropertyValuesTable.tokenId]
+            }
+            it[value] = if (command?.valuePresent == true) {
+                command.value
+            } else {
+                current[VariationPropertyValuesTable.value]
+            }
+            it[alpha] = if (command?.alphaPresent == true) {
+                command.alpha
+            } else {
+                current[VariationPropertyValuesTable.alpha]
+            }
+            it[adjustment] = if (command?.adjustmentPresent == true) {
+                command.adjustment
+            } else {
+                current[VariationPropertyValuesTable.adjustment]
+            }
+            it[position] = current[VariationPropertyValuesTable.position]
+            it[stateSetId] = command?.stateSetId ?: current[VariationPropertyValuesTable.stateSetId]
+        }
+    }
+
+    private fun writeInvariantRevision(
+        current: ResultRow,
+        command: PropertyValueRepository.ValueUpdate?,
+        deleted: Boolean,
+    ) {
+        val designSystemId = current[InvariantPropertyValuesTable.designSystemId]
+        val changedPaths = command?.let {
+            buildSet {
+                if (it.tokenIdPresent) add("/token_id")
+                if (it.valuePresent) add("/value")
+                if (it.alphaPresent) add("/alpha")
+                if (it.adjustmentPresent) add("/adjustment")
+                if (it.stateSetId != null) add("/state_set_id")
+            }
+        }
+        if (!deleted && changedPaths?.isEmpty() == true) return
+        InvariantPropertyValueRevisionsTable.replaceRevision(
+            InvariantPropertyValueRevisionsTable.entityId,
+            current[InvariantPropertyValuesTable.id],
+            designSystemId,
+            deleted,
+            changedPaths,
+        ) {
+            it[tokenId] = if (command?.tokenIdPresent == true) {
+                command.tokenId
+            } else {
+                current[InvariantPropertyValuesTable.tokenId]
+            }
+            it[value] = if (command?.valuePresent == true) {
+                command.value
+            } else {
+                current[InvariantPropertyValuesTable.value]
+            }
+            it[alpha] = if (command?.alphaPresent == true) {
+                command.alpha
+            } else {
+                current[InvariantPropertyValuesTable.alpha]
+            }
+            it[adjustment] = if (command?.adjustmentPresent == true) {
+                command.adjustment
+            } else {
+                current[InvariantPropertyValuesTable.adjustment]
+            }
+            it[position] = current[InvariantPropertyValuesTable.position]
+            it[stateSetId] = command?.stateSetId ?: current[InvariantPropertyValuesTable.stateSetId]
+        }
     }
 }
 
