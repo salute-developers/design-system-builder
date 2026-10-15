@@ -47,9 +47,9 @@ export const validateComposePreviewManifest = (value: unknown): ComposePreviewMa
     return value as unknown as ComposePreviewManifest;
 };
 
-export const loadComposePreviewManifest = async (
+const fetchComposePreviewManifest = async (
     pluginBaseUrl: string,
-    fetcher: typeof fetch = fetch,
+    fetcher: typeof fetch,
 ): Promise<LoadedComposePreviewManifest> => {
     let manifestUrl: URL;
 
@@ -91,4 +91,29 @@ export const loadComposePreviewManifest = async (
     }
 
     return { manifest, manifestUrl, entrypointUrl };
+};
+
+const manifestCache = new Map<string, Promise<LoadedComposePreviewManifest>>();
+
+/**
+ * Загружает manifest плагина. Манифест с настоящим `fetch` запоминается на время жизни страницы: редактор спрашивает его
+ * при каждом переключении компонента, а он меняется только вместе с плагином (после перезагрузки страницы). Ошибка в
+ * кеше не остаётся. С подменённым `fetcher` (тесты) кеш не используется.
+ */
+export const loadComposePreviewManifest = (
+    pluginBaseUrl: string,
+    fetcher: typeof fetch = fetch,
+): Promise<LoadedComposePreviewManifest> => {
+    if (fetcher !== fetch) return fetchComposePreviewManifest(pluginBaseUrl, fetcher);
+
+    const cached = manifestCache.get(pluginBaseUrl);
+    if (cached) return cached;
+
+    const loading = fetchComposePreviewManifest(pluginBaseUrl, fetcher).catch((error) => {
+        manifestCache.delete(pluginBaseUrl);
+        throw error;
+    });
+    manifestCache.set(pluginBaseUrl, loading);
+
+    return loading;
 };
