@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useRef, useState } from 'react';
 
-import { getNormalizedColor, isValidColorValue } from '../../../../utils';
+import { convertColor, getNormalizedColor, isValidColorValue } from '../../../../utils';
+import { ColorFormats } from '../../../../types';
 import { SelectButton, SelectButtonItem, Slider, TextField } from '../../../../components';
 import { ColorValueEditButton } from '../ColorValueEditButton';
 
@@ -31,8 +32,20 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
     const [xPos, setXPos] = useState(0);
     const [yPos, setYPos] = useState(0);
 
+    // Поле ввода показывает цвет в выбранном формате (HEX, RGB, HSL) и принимает правку в нём (ревью QA, PR #101).
+    const formatColor = (format: string) => {
+        const hex = getNormalizedColor(color, undefined, true, tokenName);
+        if (format === 'hex') return hex;
+        try {
+            // Прозрачность у выбора цвета отдельная, поэтому формат считается от HEX без альфа-канала.
+            return convertColor(hex.slice(0, 7))[format as keyof ColorFormats];
+        } catch {
+            return hex;
+        }
+    };
+
     const [colorType, setColorType] = useState({ value: 'hex' });
-    const [inputValue, setInputValue] = useState(getNormalizedColor(color, undefined, true, tokenName));
+    const [inputValue, setInputValue] = useState(formatColor('hex'));
     const [colorValueStatus, setColorValueStatus] = useState<'default' | 'negative'>('default');
 
     const hueSliderThumbRef = useRef<HTMLDivElement>(null);
@@ -47,6 +60,8 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
 
     const onColorTypeSelect = (item: SelectButtonItem) => {
         setColorType(item);
+        setColorValueStatus('default');
+        setInputValue(formatColor(item.value));
     };
 
     const onInputValueChange = (value: string) => {
@@ -67,7 +82,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
         }
 
         if (value === '') {
-            setInputValue(getNormalizedColor(color, undefined, true, tokenName));
+            setInputValue(formatColor(colorType.value));
             return;
         }
 
@@ -165,7 +180,7 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
     }, [color]);
 
     useEffect(() => {
-        setInputValue(getNormalizedColor(color, undefined, true, tokenName));
+        setInputValue(formatColor(colorType.value));
     }, [color]);
 
     const hueColor = `hsl(${hue}, 100%, 50%)`;
