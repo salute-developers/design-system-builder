@@ -8,12 +8,10 @@ export const colorTypeList = [
     {
         label: 'RGB',
         value: 'rgb',
-        disabled: true,
     },
     {
         label: 'HSL',
         value: 'hsl',
-        disabled: true,
     },
 ];
 
