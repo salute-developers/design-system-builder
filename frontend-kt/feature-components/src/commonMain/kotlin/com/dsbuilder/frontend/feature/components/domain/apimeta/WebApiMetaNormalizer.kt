@@ -22,7 +22,8 @@ import kotlinx.serialization.json.Json
  * - описание — `token: <paramName>` (при нескольких токенах через `/`);
  * - состояния компонента — значения `state` в kebab-case, кроме состояний взаимодействия (`hovered`,
  *   `pressed` и др.): те общие для всех компонентов и в базе уже есть, а компонентное состояние с тем же
- *   именем было бы дублем;
+ *   именем было бы дублем. Состояние взаимодействия узнаётся так же, как его сопоставляет backend при
+ *   импорте конфигураций: без учёта регистра и знаков (`readOnly`, `read-only` и `readonly` — одно состояние);
  * - устаревание относится к токену, как у View к атрибуту: помечен только тот `paramName`, у которого есть
  *   `deprecated`; генератор пишет `{}` без сообщения, если в `@deprecated` нет `{@link}`;
  * - компонент без токенов (файл без словаря: `AvatarGroup`, `Image`) попадает в манифест без свойств: в пакете
@@ -91,7 +92,8 @@ internal class WebApiMetaNormalizer : ApiMetaNormalizer {
                 }
                 else -> known.addToken(param)
             }
-            param.state?.toKebabCase()?.takeIf { it.isNotBlank() && it !in INTERACTION_STATES }?.let(states::add)
+            param.state?.takeIf { it.canonical() !in INTERACTION_STATES }?.toKebabCase()?.takeIf(String::isNotBlank)
+                ?.let(states::add)
         }
     }
 
@@ -123,11 +125,14 @@ internal class WebApiMetaNormalizer : ApiMetaNormalizer {
     private companion object {
         const val SKIPPED_STATE_ONLY = "properties with state tokens only"
 
-        /** Словарь состояний взаимодействия из базовой миграции: у них `component_id` пуст. */
+        /** Словарь состояний взаимодействия из базовой миграции (`component_id` пуст), в форме [canonical]. */
         val INTERACTION_STATES =
             setOf("pressed", "hovered", "focused", "selected", "activated", "readonly", "disabled")
     }
 }
+
+/** Ключ сравнения состояний, как `canonical()` в `ComponentConfigImporter` ds-service: регистр и знаки не важны. */
+private fun String.canonical() = lowercase().filter(Char::isLetterOrDigit)
 
 @Serializable
 private data class WebMetaComponent(
