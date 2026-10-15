@@ -18,7 +18,7 @@ class ListPaletteByTypeUseCase(
     suspend fun execute(context: DsRequestContext, type: PaletteType): DsResult<List<PaletteEntry>> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 DsResult.Success(repository.listByType(type))
             }
         }

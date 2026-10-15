@@ -20,20 +20,52 @@ internal object ThemeDesignSystemsTable : Table("design_systems") {
 internal object TenantsTable : Table("tenants") {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ThemeDesignSystemsTable.id)
+    val createdAt = timestamp("created_at")
+    override val primaryKey = PrimaryKey(id)
+}
+
+internal object TenantRevisionsTable : Table("tenant_revisions") {
+    val id = uuid("id")
+    val tenantId = reference("tenant_id", TenantsTable.id)
+    val designSystemId = uuid("design_system_id")
+    val designSystemVersionId = uuid("design_system_version_id")
+    val versionSequenceNumber = long("version_sequence_number")
     val name = text("name").nullable()
     val description = text("description").nullable()
     val colorConfig = jsonb<JsonElement>("color_config", Json.Default)
-    val editRevision = integer("edit_revision")
-    val createdAt = timestamp("created_at")
+    val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
-    override val primaryKey = PrimaryKey(id)
+}
+
+internal object ThemeVersionBoundariesTable : Table("design_system_versions") {
+    val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
+    val status = postgresEnum(
+        "status",
+        "design_system_version_status",
+        ThemeVersionBoundaryStatus::fromWire,
+        ThemeVersionBoundaryStatus::wireValue,
+    )
+    val sequenceNumber = long("sequence_number")
+    val createdAt = timestamp("created_at")
+}
+
+internal enum class ThemeVersionBoundaryStatus(val wireValue: String) {
+    BASELINE("baseline"),
+    DRAFT("draft"),
+    PUBLISHED("published"),
+    ;
+
+    companion object {
+        fun fromWire(value: String): ThemeVersionBoundaryStatus? = entries.firstOrNull { it.wireValue == value }
+    }
 }
 
 internal object ThemeTokenValuesTable : Table("token_values") {
     val id = uuid("id")
-    val tokenId = uuid("token_id").nullable()
-    val tenantId = uuid("tenant_id").nullable()
-    val paletteId = uuid("palette_id").nullable()
+    val designSystemId = uuid("design_system_id")
+    val tokenId = uuid("token_id")
+    val tenantId = uuid("tenant_id")
     val platform = postgresEnum(
         "platform",
         "platform",
@@ -41,23 +73,50 @@ internal object ThemeTokenValuesTable : Table("token_values") {
         ThemeTokenPlatform::wireValue,
     ).nullable()
     val mode = postgresEnum("mode", "mode", ThemeTokenMode::fromWire, ThemeTokenMode::wireValue).nullable()
-    val value = jsonb<JsonElement>("value", Json.Default).nullable()
     val createdAt = timestamp("created_at")
-    val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
+}
+
+internal object ThemeTokenValueRevisionsTable : Table("token_value_revisions") {
+    val id = uuid("id")
+    val tokenValueId = reference("token_value_id", ThemeTokenValuesTable.id)
+    val designSystemId = uuid("design_system_id")
+    val designSystemVersionId = uuid("design_system_version_id")
+    val versionSequenceNumber = long("version_sequence_number")
+    val paletteId = uuid("palette_id").nullable()
+    val value = jsonb<JsonElement>("value", Json.Default).nullable()
+    val deleted = bool("deleted")
+    val updatedAt = timestamp("updated_at")
+}
+
+internal object ThemeTokenValueCreationBaselinesTable : Table("token_value_creation_baselines") {
+    val designSystemVersionId = uuid("design_system_version_id")
+    val tokenValueId = reference("token_value_id", ThemeTokenValuesTable.id)
+    val designSystemId = uuid("design_system_id")
+    val paletteId = uuid("palette_id").nullable()
+    val value = jsonb<JsonElement>("value", Json.Default).nullable()
+    override val primaryKey = PrimaryKey(designSystemVersionId, tokenValueId)
 }
 
 internal object ThemeTokensTable : Table("tokens") {
     val id = uuid("id")
     val designSystemId = uuid("design_system_id").nullable()
+    override val primaryKey = PrimaryKey(id)
+}
+
+internal object ThemeTokenRevisionsTable : Table("token_revisions") {
+    val tokenId = reference("token_id", ThemeTokensTable.id)
+    val designSystemId = uuid("design_system_id")
+    val designSystemVersionId = uuid("design_system_version_id")
+    val versionSequenceNumber = long("version_sequence_number")
     val name = text("name")
     val displayName = text("display_name").nullable()
     val description = text("description").nullable()
     val type = postgresEnum("type", "token_type", ThemeTokenType::fromWire, ThemeTokenType::wireValue).nullable()
     val groupId = uuid("group_id").nullable()
     val position = integer("position")
+    val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
-    override val primaryKey = PrimaryKey(id)
 }
 
 internal object ThemePaletteTable : Table("palette") {

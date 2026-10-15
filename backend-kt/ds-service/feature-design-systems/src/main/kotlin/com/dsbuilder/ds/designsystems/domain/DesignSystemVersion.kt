@@ -1,22 +1,21 @@
 package com.dsbuilder.ds.designsystems.domain
 
 import java.time.Instant
-import java.util.UUID
 
-/** Immutable design-system snapshot version. */
+/** Неизменяемая опубликованная граница дизайн-системы. */
 data class DesignSystemVersion(
-    /** Id carried by this contract. */
-    val id: UUID,
-    /** Design system id carried by this contract. */
+    /** Идентификатор временной границы. */
+    val id: DesignSystemVersionId,
+    /** Идентификатор дизайн-системы. */
     val designSystemId: DesignSystemId,
-    /** Version carried by this contract. */
+    /** Независимый порядковый номер границы. */
+    val sequenceNumber: Long,
+    /** Итоговая техническая редакция опубликованного черновика. */
+    val revision: Long,
+    /** Продуктовый номер версии. */
     val version: String,
-    /** Snapshot json carried by this contract. */
-    val snapshotJson: String,
-    /** Changelog carried by this contract. */
-    val changelog: String?,
-    /** Publication status carried by this contract. */
-    val publicationStatus: PublicationStatus?,
-    /** Published at carried by this contract. */
+    /** Описание публикации. */
+    val changelog: String,
+    /** Время публикации. */
     val publishedAt: Instant,
 )

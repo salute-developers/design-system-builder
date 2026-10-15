@@ -140,8 +140,8 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
-Скрипт сначала поднимает JavaScript-контур без схемы БД, затем запускает Kotlin backend в detached-режиме, а потом наполняет
-базу и привязывает дизайн-систему `base` к проекту пользователя. Схему общей базы `ds_registry` создаёт Flyway в `ds-service`
+Скрипт сначала поднимает JavaScript-контур без схемы БД, затем запускает Kotlin backend в detached-режиме, а потом через
+API `projects-service` и `ds-service` создаёт локальный проект и дизайн-систему `base`. Схему общей базы `ds_registry` создаёт Flyway в `ds-service`
 (`V1`–`V3`), Drizzle-миграции в этом контуре не запускаются: иначе схема не совпадёт с baseline Flyway и `ds-service`
 остановится с `Schema fingerprint mismatch`. Порядок нужен ещё и потому, что `documentation-service` использует JS
 `db-service` по адресу `host.docker.internal:3008`.

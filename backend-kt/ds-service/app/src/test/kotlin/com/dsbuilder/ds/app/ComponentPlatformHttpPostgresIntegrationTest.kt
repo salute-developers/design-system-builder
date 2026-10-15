@@ -13,7 +13,6 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
@@ -67,14 +66,47 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             )
                 .bodyAsText(),
         )
+        val variation = id(
+            post(
+                "/api/ds/variations",
+                """{"componentId":"$component","name":"view"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        val propertyVariationBody = """{"propertyId":"$property","variationId":"$variation"}"""
+        val propertyVariation = post(
+            "/api/ds/property-variations",
+            propertyVariationBody,
+            admin = true,
+            idempotencyKey = "property-variation-replay",
+        )
+        val replayedPropertyVariation = post(
+            "/api/ds/property-variations",
+            propertyVariationBody,
+            admin = true,
+            idempotencyKey = "property-variation-replay",
+        )
+        assertEquals(HttpStatusCode.Created, propertyVariation.status, propertyVariation.bodyAsText())
+        assertEquals(propertyVariation.status, replayedPropertyVariation.status)
+        assertEquals(propertyVariation.bodyAsText(), replayedPropertyVariation.bodyAsText())
 
         val created = post(
             "/api/ds/property-platform-params",
             """{"propertyId":"$property","platform":"xml","name":"sd_textColor","deprecated":true,""" +
                 """"deprecatedMessage":"Use android:textColor"}""",
             admin = true,
+            idempotencyKey = "property-platform-param-replay",
         )
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val replayed = post(
+            "/api/ds/property-platform-params",
+            """{"propertyId":"$property","platform":"xml","name":"sd_textColor","deprecated":true,""" +
+                """"deprecatedMessage":"Use android:textColor"}""",
+            admin = true,
+            idempotencyKey = "property-platform-param-replay",
+        )
+        assertEquals(created.status, replayed.status)
+        assertEquals(created.bodyAsText(), replayed.bodyAsText())
         val alias = id(created.bodyAsText())
         assertTrue(
             json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("deprecated").jsonPrimitive.boolean,
@@ -117,6 +149,33 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         )
         assertTrue(foreign.status.value >= 400, "an alias of another platform must be rejected: ${foreign.status}")
         assertEquals(2, count("property_platform_params WHERE property_id = '$property'"))
+    }
+
+    @Test
+    fun `state set resolution replays the original status and body`() = withService {
+        val state = post(
+            "/api/ds/states",
+            """{"name":"replay-state"}""",
+            admin = true,
+        )
+        assertEquals(HttpStatusCode.Created, state.status, state.bodyAsText())
+        val body = """{"stateIds":["${id(state.bodyAsText())}"]}"""
+        val first = post(
+            "/api/ds/state-sets/resolve",
+            body,
+            admin = true,
+            idempotencyKey = "state-set-replay",
+        )
+        val replay = post(
+            "/api/ds/state-sets/resolve",
+            body,
+            admin = true,
+            idempotencyKey = "state-set-replay",
+        )
+
+        assertEquals(HttpStatusCode.Created, first.status, first.bodyAsText())
+        assertEquals(first.status, replay.status)
+        assertEquals(first.bodyAsText(), replay.bodyAsText())
     }
 
     @Test
@@ -185,12 +244,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         assertEquals(1, exportedCompose.entries())
         assertEquals(0, exportedWeb.entries())
         assertEquals(HttpStatusCode.BadRequest, exportedWithoutPlatform.status)
-        assertEquals(
-            "compose",
-            query(
-                "SELECT data->>'platform' FROM design_system_changes WHERE entity_type = 'components:import' LIMIT 1",
-            ),
-        )
+        assertEquals(null, queryNullable("SELECT to_regclass('public.design_system_changes')"))
     }
 
     @Test
@@ -231,10 +285,23 @@ class ComponentPlatformHttpPostgresIntegrationTest {
                     """{"id":"view","name":"view","values":[${entry(first)},${entry(second)}]}]}""",
             )
 
-            val members = "SELECT string_agg(k, ';' ORDER BY p) FROM (SELECT ac.position AS p, " +
-                "(SELECT string_agg(s.name, '+' ORDER BY m.position) FROM appearance_combination_members m " +
-                "JOIN styles s ON s.id = m.style_id WHERE m.appearance_combination_id = ac.id) AS k " +
-                "FROM appearance_combinations ac) x"
+            val members =
+                "WITH combinations AS (SELECT * FROM (SELECT DISTINCT ON (appearance_combination_id) * " +
+                    "FROM appearance_combination_revisions ORDER BY appearance_combination_id, " +
+                    "version_sequence_number DESC) latest WHERE NOT deleted), " +
+                    "members AS (SELECT * FROM (SELECT DISTINCT ON (appearance_combination_member_id) * " +
+                    "FROM appearance_combination_member_revisions ORDER BY appearance_combination_member_id, " +
+                    "version_sequence_number DESC) latest WHERE NOT deleted), " +
+                    "styles_resolved AS (SELECT * FROM (SELECT DISTINCT ON (style_id) * FROM style_revisions " +
+                    "ORDER BY style_id, version_sequence_number DESC) latest WHERE NOT deleted) " +
+                    "SELECT string_agg(k, ';' ORDER BY p) FROM (SELECT combination.position AS p, " +
+                    "(SELECT string_agg(style_revision.name, '+' ORDER BY member.position) " +
+                    "FROM appearance_combination_members member_entity " +
+                    "JOIN members member ON member.appearance_combination_member_id = member_entity.id " +
+                    "JOIN styles_resolved style_revision ON style_revision.style_id = member.style_id " +
+                    "WHERE member_entity.appearance_combination_id = combination_entity.id) AS k " +
+                    "FROM appearance_combinations combination_entity JOIN combinations combination " +
+                    "ON combination.appearance_combination_id = combination_entity.id) result"
 
             val first = post("/api/ds/component-config/import", body("l", "m"), editor = true)
             assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
@@ -247,21 +314,12 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         }
 
     @Test
-    fun `journal rows without a design system never reach the project feeds`() = withService {
-        val designSystem =
-            id(post("/api/ds/design-systems", """{"name":"beta","projectName":"beta"}""", owner = true).bodyAsText())
-        execute(
-            "INSERT INTO design_system_changes (design_system_id, entity_type, entity_id, operation, data) " +
-                "VALUES (NULL, 'components:import-api-meta', '${UUID.randomUUID()}', 'created', '{}'::jsonb)",
+    fun `client managed journal routes are absent`() = withService {
+        assertEquals(HttpStatusCode.NotFound, get("/api/ds/design-system-changes", viewer = true).status)
+        assertEquals(
+            HttpStatusCode.NotFound,
+            get("/api/ds/design-system-changes/by-design-system/${UUID.randomUUID()}", viewer = true).status,
         )
-
-        val all = get("/api/ds/design-system-changes", viewer = true)
-        val byDesignSystem = get("/api/ds/design-system-changes/by-design-system/$designSystem", viewer = true)
-
-        assertEquals(HttpStatusCode.OK, all.status, all.bodyAsText())
-        assertEquals(HttpStatusCode.OK, byDesignSystem.status, byDesignSystem.bodyAsText())
-        assertFalse(all.bodyAsText().contains("components:import-api-meta"))
-        assertEquals(JsonArray(emptyList()), json.parseToJsonElement(byDesignSystem.bodyAsText()))
     }
 
     private suspend fun io.ktor.client.statement.HttpResponse.entries(): Int =
@@ -306,8 +364,10 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         owner: Boolean = false,
         editor: Boolean = false,
         viewer: Boolean = false,
+        idempotencyKey: String? = null,
     ) = service.builder.client.post(path) {
         actor(admin, owner, editor, viewer)
+        idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
     }
@@ -359,6 +419,20 @@ class ComponentPlatformHttpPostgresIntegrationTest {
     private fun count(tableAndWhere: String): Int = query("SELECT count(*) FROM $tableAndWhere").toInt()
 
     private fun query(sql: String): String =
+        DriverManager.getConnection(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        ).use {
+            it.createStatement().use { statement ->
+                statement.executeQuery(sql).use { rows ->
+                    rows.next()
+                    rows.getString(1)
+                }
+            }
+        }
+
+    private fun queryNullable(sql: String): String? =
         DriverManager.getConnection(
             service.postgres.jdbcUrl,
             service.postgres.username,

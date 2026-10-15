@@ -7,6 +7,8 @@ plugins {
 dependencies {
     implementation("com.dsbuilder.authorization:authorization-core")
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.exposed.java.time)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.postgresql.jdbc)
     implementation(libs.hikari)
 

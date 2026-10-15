@@ -18,11 +18,11 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 /** Записывает эталонные значения токенов из канонического ресурса ds-service. */
@@ -33,35 +33,70 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
 
     private fun initialize(tenantId: UUID, designSystemId: UUID, configuration: ColorConfiguration) {
         ensurePaletteRows()
-        val tokens = ThemeTokensTable.selectAll()
-            .where { ThemeTokensTable.designSystemId eq designSystemId }
+        val draft = themeDraft(designSystemId) ?: error("Active draft is missing")
+        val tokens = currentThemeTokenRows(designSystemId)
+            .filter { it[ThemeTokensTable.designSystemId] == designSystemId }
             .associate { row ->
-                row[ThemeTokensTable.name] to Token(row[ThemeTokensTable.id], row[ThemeTokensTable.type])
+                row[ThemeTokenRevisionsTable.name] to
+                    Token(row[ThemeTokensTable.id], row[ThemeTokenRevisionsTable.type])
             }
         val palettes = ThemePaletteTable.selectAll().associate { row ->
             PaletteKey(row[ThemePaletteTable.type], row[ThemePaletteTable.shade], row[ThemePaletteTable.saturation]) to
                 row[ThemePaletteTable.id]
         }
-        ThemeTokenValuesTable.deleteWhere { ThemeTokenValuesTable.tenantId eq tenantId }
+        currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId))
+            .forEach { row ->
+                saveValue(
+                    row,
+                    draft,
+                    row[ThemeTokenValueRevisionsTable.paletteId],
+                    row[ThemeTokenValueRevisionsTable.value],
+                    true,
+                )
+            }
         definitions.forEach { definition ->
             val token = tokens[definition.name] ?: return@forEach
             val paletteId = definition.palette?.let { key ->
                 requireNotNull(palettes[key]) { "Palette $key required by initial token values is missing" }
             }
-            ThemeTokenValuesTable.insert { statement ->
-                statement[tokenId] = token.id
-                statement[ThemeTokenValuesTable.tenantId] = tenantId
-                statement[ThemeTokenValuesTable.paletteId] = paletteId
-                statement[platform] = definition.platform
-                statement[mode] = definition.mode
-                statement[value] = definition.value
-            }
+            saveValue(
+                tenantId,
+                designSystemId,
+                token.id,
+                definition.platform,
+                definition.mode,
+                paletteId,
+                definition.value,
+                draft,
+            )
         }
-        insertMissingColorValues(tenantId, tokens)
-        overrideProfileAnchors(tenantId, tokens, configuration)
+        insertMissingColorValues(tenantId, designSystemId, tokens, draft)
+        overrideProfileAnchors(tenantId, tokens, configuration, draft)
+        captureCreationBaselines(tenantId, designSystemId, draft)
     }
 
-    private fun insertMissingColorValues(tenantId: UUID, tokens: Map<String, Token>) {
+    private fun captureCreationBaselines(
+        tenantId: UUID,
+        designSystemId: UUID,
+        draft: org.jetbrains.exposed.v1.core.ResultRow,
+    ) {
+        currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId)).forEach { row ->
+            ThemeTokenValueCreationBaselinesTable.insertIgnore {
+                it[designSystemVersionId] = draft[ThemeVersionBoundariesTable.id]
+                it[tokenValueId] = row[ThemeTokenValuesTable.id]
+                it[ThemeTokenValueCreationBaselinesTable.designSystemId] = designSystemId
+                it[paletteId] = row[ThemeTokenValueRevisionsTable.paletteId]
+                it[value] = row[ThemeTokenValueRevisionsTable.value]
+            }
+        }
+    }
+
+    private fun insertMissingColorValues(
+        tenantId: UUID,
+        designSystemId: UUID,
+        tokens: Map<String, Token>,
+        draft: org.jetbrains.exposed.v1.core.ResultRow,
+    ) {
         tokens.filter { (_, token) -> token.type == ThemeTokenType.COLOR }
             .filterKeys { name -> name !in baseColorTokenNames }
             .forEach { (name, token) ->
@@ -71,13 +106,16 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
                         ThemeTokenPlatform.IOS,
                         ThemeTokenPlatform.ANDROID,
                     ).forEach { platform ->
-                        ThemeTokenValuesTable.insert { statement ->
-                            statement[tokenId] = token.id
-                            statement[ThemeTokenValuesTable.tenantId] = tenantId
-                            statement[ThemeTokenValuesTable.platform] = platform
-                            statement[ThemeTokenValuesTable.mode] = mode
-                            statement[value] = colorValueJson(fallbackColorValue(name, mode))
-                        }
+                        saveValue(
+                            tenantId,
+                            designSystemId,
+                            token.id,
+                            platform,
+                            mode,
+                            paletteId = null,
+                            value = colorValueJson(fallbackColorValue(name, mode)),
+                            draft = draft,
+                        )
                     }
                 }
             }
@@ -87,22 +125,75 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         tenantId: UUID,
         tokens: Map<String, Token>,
         configuration: ColorConfiguration,
+        draft: org.jetbrains.exposed.v1.core.ResultRow,
     ) {
+        val designSystemId = draft[ThemeVersionBoundariesTable.designSystemId]
+        val values = currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId))
         PROFILE_ANCHORS.forEach { name ->
             val token = tokens[name] ?: return@forEach
             ThemeTokenMode.entries.forEach { tokenMode ->
-                ThemeTokenValuesTable.update(
-                    where = {
-                        (ThemeTokenValuesTable.tenantId eq tenantId) and
-                            (ThemeTokenValuesTable.tokenId eq token.id) and
-                            (ThemeTokenValuesTable.mode eq tokenMode) and
-                            (ThemeTokenValuesTable.platform inList ThemeTokenPlatform.entries)
-                    },
-                ) { statement ->
-                    statement[paletteId] = null
-                    statement[value] = colorValueJson(fallbackColorValue(name, tokenMode, configuration))
+                values.filter {
+                    it[ThemeTokenValuesTable.tenantId] == tenantId &&
+                        it[ThemeTokenValuesTable.tokenId] == token.id &&
+                        it[ThemeTokenValuesTable.mode] == tokenMode &&
+                        it[ThemeTokenValuesTable.platform] in ThemeTokenPlatform.entries
+                }.forEach { row ->
+                    saveValue(
+                        row,
+                        draft,
+                        paletteId = null,
+                        value = colorValueJson(fallbackColorValue(name, tokenMode, configuration)),
+                        deleted = false,
+                    )
                 }
             }
+        }
+    }
+
+    private fun saveValue(
+        tenantId: UUID,
+        designSystemId: UUID,
+        tokenId: UUID,
+        platform: ThemeTokenPlatform?,
+        mode: ThemeTokenMode?,
+        paletteId: UUID?,
+        value: JsonElement?,
+        draft: org.jetbrains.exposed.v1.core.ResultRow,
+    ) {
+        val entity = ThemeTokenValuesTable.selectAll().where {
+            (ThemeTokenValuesTable.tokenId eq tokenId) and
+                (ThemeTokenValuesTable.tenantId eq tenantId) and
+                (ThemeTokenValuesTable.platform eq platform) and
+                (ThemeTokenValuesTable.mode eq mode)
+        }.singleOrNull() ?: ThemeTokenValuesTable.insertReturning {
+            it[ThemeTokenValuesTable.designSystemId] = designSystemId
+            it[ThemeTokenValuesTable.tokenId] = tokenId
+            it[ThemeTokenValuesTable.tenantId] = tenantId
+            it[ThemeTokenValuesTable.platform] = platform
+            it[ThemeTokenValuesTable.mode] = mode
+        }.single()
+        saveValue(entity, draft, paletteId, value, deleted = false)
+    }
+
+    private fun saveValue(
+        row: org.jetbrains.exposed.v1.core.ResultRow,
+        draft: org.jetbrains.exposed.v1.core.ResultRow,
+        paletteId: UUID?,
+        value: JsonElement?,
+        deleted: Boolean,
+    ) {
+        ThemeTokenValueRevisionsTable.deleteWhere {
+            (ThemeTokenValueRevisionsTable.tokenValueId eq row[ThemeTokenValuesTable.id]) and
+                (ThemeTokenValueRevisionsTable.designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
+        }
+        ThemeTokenValueRevisionsTable.insert {
+            it[tokenValueId] = row[ThemeTokenValuesTable.id]
+            it[designSystemId] = row[ThemeTokenValuesTable.designSystemId]
+            it[designSystemVersionId] = draft[ThemeVersionBoundariesTable.id]
+            it[versionSequenceNumber] = draft[ThemeVersionBoundariesTable.sequenceNumber]
+            it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
+            it[ThemeTokenValueRevisionsTable.value] = value
+            it[ThemeTokenValueRevisionsTable.deleted] = deleted
         }
     }
 

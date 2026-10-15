@@ -6,11 +6,9 @@ import com.dsbuilder.ds.components.application.AxisRoleConflictException
 import com.dsbuilder.ds.components.domain.RootCandidate
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import org.jetbrains.exposed.v1.core.JoinType
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 /**
@@ -42,6 +40,7 @@ internal object AppearanceAxisRoleStore {
      * схемы и наоборот, иначе бросается [AxisRoleConflictException].
      */
     fun apply(appearanceId: UUID, variationId: UUID, root: Boolean?, colorScheme: Boolean?) {
+        if (root == null && colorScheme == null) return
         val current = load(listOf(appearanceId)).getValue(appearanceId)
         val nextScheme = next(current.colorScheme, variationId, colorScheme)
         var nextRoot = next(current.root, variationId, root)
@@ -50,7 +49,12 @@ internal object AppearanceAxisRoleStore {
         if (nextRoot == null && root == false && current.root == variationId) {
             nextRoot = fallbackRoot(candidates(appearanceId), nextScheme, excluded = variationId)
         }
-        store(appearanceId, nextRoot, nextScheme)
+        val changedPaths = buildSet {
+            if (current.root != nextRoot) add("/root_variation_id")
+            if (current.colorScheme != nextScheme) add("/color_scheme_variation_id")
+        }
+        if (changedPaths.isEmpty()) return
+        store(appearanceId, nextRoot, nextScheme, changedPaths)
     }
 
     /** Значение роли после запроса: `true` назначает ось, `false` снимает роль только с неё, `null` не меняет. */
@@ -65,24 +69,37 @@ internal object AppearanceAxisRoleStore {
         val roles = load(listOf(appearanceId))[appearanceId] ?: return
         if (roles.root != null) return
         val root = fallbackRoot(candidates(appearanceId), roles.colorScheme) ?: return
-        store(appearanceId, root, roles.colorScheme)
+        store(appearanceId, root, roles.colorScheme, setOf("/root_variation_id"))
     }
 
-    /** Записывает роли и приводит флаги `is_color_scheme` в соответствие с ними. */
-    fun store(appearanceId: UUID, root: UUID?, colorScheme: UUID?) {
-        ComponentAppearancesTable.update(where = { ComponentAppearancesTable.id eq appearanceId }) {
+    /** Записывает роли. Вычисляемый флаг `is_color_scheme` в текущем представлении повторяет эту ссылку. */
+    fun store(
+        appearanceId: UUID,
+        root: UUID?,
+        colorScheme: UUID?,
+        changedPaths: Set<String> = setOf("/root_variation_id", "/color_scheme_variation_id"),
+    ) {
+        check(
+            lockComponentSubject(
+                StableAppearancesTable,
+                StableAppearancesTable.id,
+                StableAppearancesTable.designSystemId,
+                "appearance",
+                appearanceId,
+            ),
+        ) { "Appearance is missing" }
+        val current = ComponentAppearancesTable.selectAll()
+            .where { ComponentAppearancesTable.id eq appearanceId }
+            .single()
+        AppearanceRevisionsTable.replaceRevision(
+            AppearanceRevisionsTable.entityId,
+            appearanceId,
+            current[ComponentAppearancesTable.designSystemId],
+            changedPaths = changedPaths,
+        ) {
+            it[name] = current[ComponentAppearancesTable.name]
             it[rootVariationId] = root
             it[colorSchemeVariationId] = colorScheme
-        }
-        AppearanceVariationsTable.update(where = {
-            (AppearanceVariationsTable.appearanceId eq appearanceId) and
-                (AppearanceVariationsTable.isColorScheme eq true)
-        }) { it[isColorScheme] = false }
-        if (colorScheme != null) {
-            AppearanceVariationsTable.update(where = {
-                (AppearanceVariationsTable.appearanceId eq appearanceId) and
-                    (AppearanceVariationsTable.variationId eq colorScheme)
-            }) { it[isColorScheme] = true }
         }
     }
 

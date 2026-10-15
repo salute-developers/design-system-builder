@@ -3,9 +3,11 @@ package com.dsbuilder.ds.tokens.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.tokens.application.CreateToken
 import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.DeleteTokenUseCase
@@ -15,12 +17,12 @@ import com.dsbuilder.ds.tokens.application.ListTokensUseCase
 import com.dsbuilder.ds.tokens.application.TokenValueFilter
 import com.dsbuilder.ds.tokens.application.UpdateToken
 import com.dsbuilder.ds.tokens.application.UpdateTokenUseCase
+import com.dsbuilder.ds.tokens.domain.Token
 import com.dsbuilder.ds.tokens.domain.TokenMode
 import com.dsbuilder.ds.tokens.domain.TokenPlatform
 import com.dsbuilder.ds.tokens.domain.TokenType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -45,25 +47,37 @@ fun Route.tokenRoutes(
 ) {
     route("/api/ds/tokens") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(TokenResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(TokenResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, TokenResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}/values") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -82,12 +96,16 @@ fun Route.tokenRoutes(
             }
             val filter = TokenValueFilter(tenantId, platform, mode)
             when (val result = getValues.execute(context, id, filter)) {
-                is DsResult.Success -> call.respond(result.value.map(TokenValueResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val request = call.receive<CreateTokenRequest>()
             val designSystemId = request.designSystemId?.tokenUuid()
@@ -108,13 +126,24 @@ fun Route.tokenRoutes(
                 request.description?.trim(),
                 request.enabled,
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(HttpStatusCode.Created, TokenResponse.from(result.value))
+            val createContext = context.withIdempotentResponse<Token> {
+                json.encodeToString(TokenResponse.serializer(), TokenResponse.from(it))
+            }
+            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    HttpStatusCode.Created,
+                    TokenResponse.from(result.value),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -139,17 +168,21 @@ fun Route.tokenRoutes(
                 "enabled" in payload,
             )
             when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(TokenResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, TokenResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.tokenUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

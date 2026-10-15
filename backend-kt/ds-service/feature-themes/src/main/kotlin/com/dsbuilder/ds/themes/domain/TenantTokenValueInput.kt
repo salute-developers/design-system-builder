@@ -15,4 +15,6 @@ data class TenantTokenValueInput(
     val paletteId: UUID?,
     /** Явное JSON-значение. */
     val value: JsonElement,
+    /** Ревизия конкретного значения, на основе которой пользователь начал изменение. */
+    val baseRevision: Long,
 )

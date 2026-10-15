@@ -23,6 +23,10 @@ sealed interface DsFailure {
         val code: String,
         /** Актуальная ревизия ресурса при optimistic-concurrency конфликте. */
         val editRevision: Int? = null,
+        /** Актуальный черновик при конфликте публикации. */
+        val draftId: String? = null,
+        /** Актуальная редакция черновика при конфликте публикации. */
+        val draftRevision: Long? = null,
         /** Whether this conflict originated at the persistence boundary. */
         val transactionFailure: Boolean = false,
         /** Текст для пользователя; передаётся в `message` ответа. */

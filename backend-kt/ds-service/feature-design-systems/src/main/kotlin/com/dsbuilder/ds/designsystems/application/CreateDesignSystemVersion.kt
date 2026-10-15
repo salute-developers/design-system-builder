@@ -1,18 +1,18 @@
 package com.dsbuilder.ds.designsystems.application
 
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
-import com.dsbuilder.ds.designsystems.domain.PublicationStatus
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 
-/** Validated input for a design-system version. */
+/** Проверенная команда публикации активного черновика. */
 data class CreateDesignSystemVersion(
-    /** Design system id carried by this contract. */
+    /** Публикуемая дизайн-система. */
     val designSystemId: DesignSystemId,
-    /** Version carried by this contract. */
+    /** Ожидаемый активный черновик. */
+    val draftId: DesignSystemVersionId,
+    /** Ожидаемая редакция черновика. */
+    val draftRevision: Long,
+    /** Продуктовый номер версии. */
     val version: String,
-    /** Snapshot json carried by this contract. */
-    val snapshotJson: String,
-    /** Changelog carried by this contract. */
-    val changelog: String?,
-    /** Publication status carried by this contract. */
-    val publicationStatus: PublicationStatus?,
+    /** Описание публикации. */
+    val changelog: String,
 )

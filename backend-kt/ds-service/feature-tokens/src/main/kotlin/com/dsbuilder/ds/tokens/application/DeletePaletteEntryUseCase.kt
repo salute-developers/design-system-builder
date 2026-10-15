@@ -19,7 +19,7 @@ class DeletePaletteEntryUseCase(
         if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
         return when (val allowed = policy.require(context, ProjectScope.TOKENS_DELETE)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.required(context) {
                 if (repository.delete(id)) {
                     DsResult.Success(Unit)
                 } else {

@@ -18,7 +18,7 @@ class DeleteTokenValueUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<Unit> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_DELETE)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.required(context) {
                 if (repository.deleteOwned(context.projectId, id)) {
                     DsResult.Success(Unit)
                 } else {

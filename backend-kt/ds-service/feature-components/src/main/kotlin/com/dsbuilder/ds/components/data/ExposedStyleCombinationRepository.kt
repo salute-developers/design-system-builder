@@ -11,11 +11,8 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.updateReturning
-import java.time.Instant
 import java.util.UUID
 
 /** Exposed persistence for style combinations and their members. */
@@ -40,19 +37,31 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         command: StyleCombinationRepository.Create,
     ): StyleCombination? {
         if (!canWriteReferences(projectId, systemAdmin, command)) return null
-        return StyleCombinationsTable.insertReturning {
+        val designSystemId = ComponentAppearancesTable.selectAll()
+            .where { ComponentAppearancesTable.id eq command.appearanceId }
+            .single()[ComponentAppearancesTable.designSystemId]
+        val id = StableStyleCombinationsTable.insertReturning {
             it[propertyId] = command.propertyId
             it[appearanceId] = command.appearanceId
-            command.combinationKey?.let { key -> it[combinationKey] = key }
-            it[value] = command.value
-            it[tokenId] = command.tokenId
-            it[alpha] = command.alpha
-            it[adjustment] = command.adjustment
-            it[stateSetId] = command.stateSetId
-        }.single().let(::styleCombination)
+            it[StableStyleCombinationsTable.designSystemId] = designSystemId
+        }.single()[StableStyleCombinationsTable.id]
+        StyleCombinationRevisionsTable.replaceRevision(
+            StyleCombinationRevisionsTable.entityId,
+            id,
+            designSystemId,
+        ) { statement ->
+            statement[combinationKey] = command.combinationKey.orEmpty()
+            statement[value] = command.value
+            statement[tokenId] = command.tokenId
+            statement[alpha] = command.alpha
+            statement[adjustment] = command.adjustment
+            statement[position] = 0
+            statement[stateSetId] = command.stateSetId
+        }
+        return find(projectId, systemAdmin, id)
     }
 
-    @Suppress("ReturnCount")
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
     override suspend fun update(
         projectId: ProjectId,
         systemAdmin: Boolean,
@@ -68,26 +77,79 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         ) {
             return null
         }
-        return StyleCombinationsTable.updateReturning(where = {
+        if (!lockComponentSubject(
+                StableStyleCombinationsTable,
+                StableStyleCombinationsTable.id,
+                StableStyleCombinationsTable.designSystemId,
+                "style-combination",
+                id,
+            )
+        ) {
+            return null
+        }
+        val existing = StyleCombinationsTable.selectAll().where {
             (StyleCombinationsTable.id eq id) and
                 ComponentOwnership.writableProperty(StyleCombinationsTable.propertyId, projectId, systemAdmin) and
                 ComponentOwnership.writableAppearance(StyleCombinationsTable.appearanceId, projectId, systemAdmin)
-        }) {
-            command.value?.let { newValue -> it[value] = newValue }
-            if (command.tokenIdPresent) it[tokenId] = command.tokenId
-            if (command.alphaPresent) it[alpha] = command.alpha
-            if (command.adjustmentPresent) it[adjustment] = command.adjustment
-            command.stateSetId?.let { newStateSet -> it[stateSetId] = newStateSet }
-            it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::styleCombination)
+        }.singleOrNull() ?: return null
+        val designSystemId = existing[StyleCombinationsTable.designSystemId]
+        val changedPaths = buildSet {
+            if (command.value != null) add("/value")
+            if (command.tokenIdPresent) add("/token_id")
+            if (command.alphaPresent) add("/alpha")
+            if (command.adjustmentPresent) add("/adjustment")
+            if (command.stateSetId != null) add("/state_set_id")
+        }
+        if (changedPaths.isEmpty()) return styleCombination(existing)
+        StyleCombinationRevisionsTable.replaceRevision(
+            StyleCombinationRevisionsTable.entityId,
+            id,
+            designSystemId,
+            changedPaths = changedPaths,
+        ) { statement ->
+            statement[combinationKey] = existing[StyleCombinationsTable.combinationKey]
+            statement[value] = command.value ?: existing[StyleCombinationsTable.value]
+            statement[tokenId] = if (command.tokenIdPresent) {
+                command.tokenId
+            } else {
+                existing[StyleCombinationsTable.tokenId]
+            }
+            statement[alpha] = if (command.alphaPresent) command.alpha else existing[StyleCombinationsTable.alpha]
+            statement[adjustment] = if (command.adjustmentPresent) {
+                command.adjustment
+            } else {
+                existing[StyleCombinationsTable.adjustment]
+            }
+            statement[position] = existing[StyleCombinationsTable.position]
+            statement[stateSetId] = command.stateSetId ?: existing[StyleCombinationsTable.stateSetId]
+        }
+        return find(projectId, systemAdmin, id)
     }
 
     override suspend fun delete(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return StyleCombinationsTable.deleteWhere {
+        if (!lockComponentSubject(
+                StableStyleCombinationsTable,
+                StableStyleCombinationsTable.id,
+                StableStyleCombinationsTable.designSystemId,
+                "style-combination",
+                id,
+            )
+        ) {
+            return false
+        }
+        val existing = StyleCombinationsTable.selectAll().where {
             (StyleCombinationsTable.id eq id) and
                 ComponentOwnership.writableProperty(StyleCombinationsTable.propertyId, projectId, systemAdmin) and
                 ComponentOwnership.writableAppearance(StyleCombinationsTable.appearanceId, projectId, systemAdmin)
-        } > 0
+        }.singleOrNull() ?: return false
+        val designSystemId = existing[StyleCombinationsTable.designSystemId]
+        StyleCombinationRevisionsTable.replaceRevision(
+            StyleCombinationRevisionsTable.entityId,
+            id,
+            designSystemId,
+            deleted = true,
+        )
+        return true
     }
 
     override suspend fun listMembers(projectId: ProjectId, systemAdmin: Boolean): List<StyleCombinationMember> =
@@ -145,15 +207,34 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         val combination = find(projectId, systemAdmin, command.combinationId) ?: return null
         if (!canWrite(projectId, systemAdmin, combination)) return null
         if (!ComponentOwnership.canWriteStyle(projectId, systemAdmin, command.styleId)) return null
-        return StyleCombinationMembersTable.insertReturning {
+        val designSystemId = StyleCombinationsTable.selectAll()
+            .where { StyleCombinationsTable.id eq command.combinationId }
+            .single()[StyleCombinationsTable.designSystemId]
+        val id = StableStyleCombinationMembersTable.insertReturning {
             it[combinationId] = command.combinationId
-            it[styleId] = command.styleId
-        }.single().let(::styleCombinationMember)
+            it[StableStyleCombinationMembersTable.designSystemId] = designSystemId
+        }.single()[StableStyleCombinationMembersTable.id]
+        StyleCombinationMemberRevisionsTable.replaceRevision(
+            StyleCombinationMemberRevisionsTable.entityId,
+            id,
+            designSystemId,
+        ) { statement -> statement[styleId] = command.styleId }
+        return findMember(projectId, systemAdmin, id)
     }
 
     @Suppress("ReturnCount")
     override suspend fun deleteMember(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
-        return StyleCombinationMembersTable.deleteWhere {
+        if (!lockComponentSubject(
+                StableStyleCombinationMembersTable,
+                StableStyleCombinationMembersTable.id,
+                StableStyleCombinationMembersTable.designSystemId,
+                "style-combination-member",
+                id,
+            )
+        ) {
+            return false
+        }
+        val existing = StyleCombinationMembersTable.selectAll().where {
             (StyleCombinationMembersTable.id eq id) and
                 ComponentOwnership.writableStyleCombination(
                     StyleCombinationMembersTable.combinationId,
@@ -161,7 +242,17 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
                     systemAdmin,
                 ) and
                 ComponentOwnership.writableStyle(StyleCombinationMembersTable.styleId, projectId, systemAdmin)
-        } > 0
+        }.singleOrNull() ?: return false
+        val designSystemId = StableStyleCombinationMembersTable.selectAll()
+            .where { StableStyleCombinationMembersTable.id eq id }
+            .single()[StableStyleCombinationMembersTable.designSystemId]
+        StyleCombinationMemberRevisionsTable.replaceRevision(
+            StyleCombinationMemberRevisionsTable.entityId,
+            id,
+            designSystemId,
+            deleted = true,
+        )
+        return true
     }
 }
 

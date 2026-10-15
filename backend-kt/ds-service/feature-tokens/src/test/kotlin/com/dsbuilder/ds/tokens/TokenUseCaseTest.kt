@@ -8,7 +8,12 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
+import com.dsbuilder.ds.core.application.IdempotentRequestLookup
+import com.dsbuilder.ds.core.application.IdempotentRequestRepository
+import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntry
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
@@ -50,7 +55,12 @@ class TokenUseCaseTest {
 
     @Test
     fun `palette mutation is forbidden for project owner`() = runBlocking {
-        val result = CreatePaletteEntryUseCase(policy, transactions, UnusedPaletteRepository()).execute(
+        val result = CreatePaletteEntryUseCase(
+            policy,
+            transactions,
+            UnusedPaletteRepository(),
+            NoopIdempotentRequestRepository(),
+        ).execute(
             ownerContext(),
             CreatePaletteEntry(PaletteType.GENERAL, "red", 50, "#ff0000"),
         )
@@ -75,7 +85,13 @@ class TokenUseCaseTest {
         val command = CreateToken(UUID.randomUUID(), "button.color", TokenType.COLOR, null, null, true)
         val filter = TokenValueFilter(UUID.randomUUID(), TokenPlatform.WEB, TokenMode.DARK)
 
-        val create = CreateTokenUseCase(policy, transactions, repository).execute(ownerContext(), command)
+        val create = CreateTokenUseCase(
+            policy,
+            transactions,
+            repository,
+            IdempotentCreateExecutor(NoopIdempotentRequestRepository()),
+            NoopUniqueKeyLockRepository(),
+        ).execute(ownerContext(), command)
         val values = GetTokenValuesUseCase(
             policy,
             transactions,
@@ -102,6 +118,28 @@ class TokenUseCaseTest {
         override suspend fun <T> readOnly(block: suspend () -> DsResult<T>) = block()
     }
 
+    private class NoopIdempotentRequestRepository : IdempotentRequestRepository {
+        override suspend fun lookup(
+            projectId: ProjectId,
+            key: String,
+            operation: String,
+            requestHash: String,
+        ): IdempotentRequestLookup = IdempotentRequestLookup.New
+
+        override suspend fun save(
+            projectId: ProjectId,
+            key: String,
+            actorId: String,
+            operation: String,
+            requestHash: String,
+            response: IdempotentResponse,
+        ) = Unit
+    }
+
+    private class NoopUniqueKeyLockRepository : UniqueKeyLockRepository {
+        override suspend fun lock(designSystemId: UUID, entityType: String, normalizedKey: String) = Unit
+    }
+
     private class RecordingTokenRepository : TokenRepository {
         var listedProject: ProjectId? = null
         var valuesProject: ProjectId? = null
@@ -113,6 +151,12 @@ class TokenUseCaseTest {
         }
 
         override suspend fun findAccessible(projectId: ProjectId, id: UUID): Token? = null
+        override suspend fun nameExists(
+            projectId: ProjectId,
+            designSystemId: UUID,
+            normalizedName: String,
+            excludingId: UUID?,
+        ): Boolean = false
         override suspend fun createOwned(projectId: ProjectId, command: CreateToken): Token? = null
         override suspend fun updateOwned(projectId: ProjectId, id: UUID, command: UpdateToken): Token? = null
         override suspend fun deleteOwned(projectId: ProjectId, id: UUID): Boolean = false

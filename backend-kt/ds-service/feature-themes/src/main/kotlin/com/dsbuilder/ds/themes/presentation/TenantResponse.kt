@@ -16,7 +16,7 @@ data class TenantResponse(
     val description: String?,
     /** Color config carried by this contract. */
     val colorConfig: ColorConfigurationDto,
-    /** Ревизия пакетного редактирования. */
+    /** Наибольшая редакция значений темы в выбранной границе версии. */
     val editRevision: Int,
     /** Краткое представление цветов темы. */
     val preview: ThemePreviewResponse,

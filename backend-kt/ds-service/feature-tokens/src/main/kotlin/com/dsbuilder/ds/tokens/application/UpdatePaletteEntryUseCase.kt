@@ -20,7 +20,7 @@ class UpdatePaletteEntryUseCase(
         if (!context.principal.systemAdmin) return DsResult.Failure(DsFailure.Forbidden)
         return when (val allowed = policy.require(context, ProjectScope.TOKENS_WRITE)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.required {
+            is DsResult.Success -> transactions.required(context) {
                 repository.updateValue(id, value)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }

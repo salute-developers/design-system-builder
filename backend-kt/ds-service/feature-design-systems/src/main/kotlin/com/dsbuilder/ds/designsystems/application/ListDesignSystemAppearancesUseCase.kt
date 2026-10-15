@@ -19,7 +19,7 @@ class ListDesignSystemAppearancesUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<List<DesignSystemAppearanceSummary>> =
         when (val allowed = policy.require(context, ProjectScope.COMPONENT_VARIATIONS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 repository.listAppearances(context.projectId, id)?.let { DsResult.Success(it) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }

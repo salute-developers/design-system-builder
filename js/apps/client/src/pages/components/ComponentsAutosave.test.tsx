@@ -1,0 +1,211 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+    currentMeta: { enabled: true } as Record<string, unknown>,
+    config: {
+        getName: () => 'Button',
+        getMeta: () => structuredClone(mocks.currentMeta),
+    },
+    inputMeta: { enabled: true, kind: 'input' } as Record<string, unknown>,
+    inputConfig: {
+        getName: () => 'Input',
+        getMeta: () => structuredClone(mocks.inputMeta),
+    },
+    saveComponentMutation: vi.fn(async () => ({ style: 1 })),
+}));
+
+vi.mock('../../utils', () => ({
+    getOldMenuItems: () => ({
+        groups: [
+            {
+                data: [
+                    {
+                        items: [
+                            { name: 'Button', disabled: false, data: [mocks.config] },
+                            { name: 'Input', disabled: false, data: [mocks.inputConfig] },
+                        ],
+                    },
+                ],
+            },
+        ],
+    }),
+}));
+
+vi.mock('../../layouts', () => ({
+    MenuOld: () => null,
+    Workspace: ({ content }: { content: ReactNode }) => <>{content}</>,
+}));
+
+vi.mock('./features/ComponentEditor', () => ({
+    ComponentEditor: ({ onConfigUpdate }: { onConfigUpdate: () => void }) => (
+        <button type="button" onClick={onConfigUpdate}>
+            изменить
+        </button>
+    ),
+}));
+
+vi.mock('../../api/themeEditorRepository', () => ({
+    ThemeEditorRepository: class {
+        saveComponentMutation = mocks.saveComponentMutation;
+    },
+}));
+
+import { Components } from './Components';
+
+describe('Components autosave', () => {
+    beforeEach(() => {
+        localStorage.clear();
+        mocks.currentMeta = { enabled: true };
+        mocks.inputMeta = { enabled: true, kind: 'input' };
+        mocks.saveComponentMutation.mockClear();
+        mocks.saveComponentMutation.mockResolvedValue({ style: 1 });
+    });
+
+    afterEach(cleanup);
+
+    it('отправляет ожидающее изменение при уходе до окончания задержки', async () => {
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        const view = render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        view.unmount();
+
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        await waitFor(() =>
+            expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toBeNull(),
+        );
+    });
+
+    it('serializes newer edits and does not let an old response remove the latest request', async () => {
+        let finishFirst: ((value: Record<string, number>) => void) | undefined;
+        const firstSave = new Promise<Record<string, number>>((resolve) => {
+            finishFirst = resolve;
+        });
+        mocks.saveComponentMutation.mockReturnValueOnce(firstSave);
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        const edit = await screen.findByRole('button', { name: 'изменить' });
+        mocks.currentMeta = { enabled: false, value: 1 };
+        fireEvent.click(edit);
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        mocks.currentMeta = { enabled: false, value: 2 };
+        fireEvent.click(edit);
+        expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1);
+        const firstProgress = mocks.saveComponentMutation.mock.calls[0][4] as
+            | ((revisions: Record<string, number>) => void)
+            | undefined;
+        firstProgress?.({ style: 1 });
+        expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toContain('"value":2');
+
+        finishFirst?.({ style: 1 });
+        await firstSave;
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+        expect(mocks.saveComponentMutation.mock.calls[1][2]).toEqual(
+            expect.objectContaining({ after: { enabled: false, value: 2 } }),
+        );
+        await waitFor(() =>
+            expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toBeNull(),
+        );
+    });
+
+    it('does not use a late confirmation from the previous component as the new component baseline', async () => {
+        let finishButton: ((value: Record<string, number>) => void) | undefined;
+        const buttonSave = new Promise<Record<string, number>>((resolve) => {
+            finishButton = resolve;
+        });
+        mocks.saveComponentMutation.mockReturnValueOnce(buttonSave).mockResolvedValueOnce({ style: 2 });
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config, mocks.inputConfig],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => {
+            const navigate = useNavigate();
+            return (
+                <>
+                    <button type="button" onClick={() => navigate('/components/Input')}>
+                        к Input
+                    </button>
+                    <Outlet context={context} />
+                </>
+            );
+        };
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        mocks.currentMeta = { enabled: false, value: 'button-change' };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        fireEvent.click(screen.getByRole('button', { name: 'к Input' }));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'изменить' })).toBeInTheDocument());
+        finishButton?.({ style: 1 });
+        await buttonSave;
+
+        mocks.inputMeta = { enabled: false, kind: 'input', value: 'input-change' };
+        fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+
+        expect(mocks.saveComponentMutation.mock.calls[1][2]).toEqual(
+            expect.objectContaining({
+                componentName: 'Input',
+                before: { enabled: true, kind: 'input' },
+                after: { enabled: false, kind: 'input', value: 'input-change' },
+            }),
+        );
+    });
+});

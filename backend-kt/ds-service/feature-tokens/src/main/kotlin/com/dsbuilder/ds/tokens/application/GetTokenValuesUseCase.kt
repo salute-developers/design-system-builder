@@ -22,7 +22,7 @@ class GetTokenValuesUseCase(
         filter: TokenValueFilter,
     ): DsResult<List<TokenValue>> = when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.values(context.projectId, id, filter)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 import {
@@ -40,6 +40,8 @@ import {
 } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
 import { EditorLoading } from '../components/EditorLoading';
+import { VersionJournalControls } from '../components/VersionJournalControls';
+import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { all, any, choose, Visible } from '../components/rendering';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
@@ -49,6 +51,7 @@ const loadErrorMessages = {
 
 export const Main = () => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const currentPath = useLocation().pathname.split('/').filter(Boolean);
 
     // TODO: Временное решение для обновления
@@ -74,8 +77,9 @@ export const Main = () => {
                 projectId: projectId!,
                 designSystemId: designSystemId!,
                 tenantId: tenantId!,
+                versionId: searchParams.get('versionId') ?? undefined,
             }),
-        [projectId, designSystemId, tenantId],
+        [projectId, designSystemId, tenantId, searchParams],
     );
     const {
         designSystem,
@@ -89,6 +93,8 @@ export const Main = () => {
         palette,
         paletteError,
         setPalette,
+        autosaveStatus,
+        retryAutosave,
     } = useDesignSystem(
         choose<string | NonNullable<typeof editorContext> | undefined>(
             Boolean(editorContext),
@@ -179,8 +185,11 @@ export const Main = () => {
             `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`,
             `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`,
         );
+        const versionQuery = editorContext?.versionId
+            ? `?${new URLSearchParams({ versionId: editorContext.versionId }).toString()}`
+            : '';
 
-        navigate(newPath, { replace: true });
+        navigate(`${newPath}${versionQuery}`, { replace: true });
     };
 
     const onHomeClick = () => {
@@ -305,16 +314,45 @@ export const Main = () => {
                         ]}
                         action={choose(
                             isEditorLoading,
-                            <Link
-                                className="builder-icon-button"
-                                to={`/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/settings`}
-                                aria-label="Настройки темы"
-                                title="Настройки темы"
-                            >
-                                <IconSettingsOutline size="xs" color="inherit" />
-                            </Link>,
-                            // Загрузку темы показывает индикатор по центру холста, а не спиннер в шапке (ревью QA, PR #101).
-                            null,
+                            <div className="editor-version-actions">
+                                <Visible when={all(editorContext, !editorContext?.versionId)}>
+                                    <AutosaveIndicator status={autosaveStatus} retry={retryAutosave} />
+                                </Visible>
+                                <Visible when={Boolean(editorContext)}>
+                                    <VersionJournalControls
+                                        context={editorContext!}
+                                        autosaveStatus={autosaveStatus}
+                                        onVersionChange={(versionId) => {
+                                            const next = new URLSearchParams(searchParams);
+                                            if (versionId) next.set('versionId', versionId);
+                                            else next.delete('versionId');
+                                            setSearchParams(next);
+                                        }}
+                                    />
+                                </Visible>
+                                <Link
+                                    className="builder-icon-button"
+                                    to={`/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/settings${
+                                        choose(
+                                            Boolean(editorContext?.versionId),
+                                            '',
+                                            `?${new URLSearchParams({
+                                                versionId: editorContext?.versionId ?? '',
+                                            }).toString()}`,
+                                        )
+                                    }`}
+                                    aria-disabled={Boolean(editorContext?.versionId)}
+                                    tabIndex={choose(Boolean(editorContext?.versionId), undefined, -1)}
+                                    onClick={(event) => {
+                                        if (editorContext?.versionId) event.preventDefault();
+                                    }}
+                                    aria-label="Настройки темы"
+                                    title="Настройки темы"
+                                >
+                                    <IconSettingsOutline size="xs" color="inherit" />
+                                </Link>
+                            </div>,
+                            <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />,
                         )}
                     />
                 </Visible>
@@ -411,6 +449,7 @@ export const Main = () => {
                             onNextPage={onCreateComplete}
                         />
                     </Visible>
+
                 </StyledPopup>
             </Visible>
         </Root>

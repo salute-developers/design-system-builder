@@ -2,36 +2,34 @@ package com.dsbuilder.ds.designsystems.presentation
 
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 
-/** External design-system version representation. */
+/** Внешнее представление опубликованной границы новой модели. */
 @Serializable
 data class DesignSystemVersionResponse(
-    /** Id carried by this contract. */
+    /** Идентификатор публикации. */
     val id: String,
-    /** Design system id carried by this contract. */
+    /** Идентификатор дизайн-системы. */
     val designSystemId: String,
-    /** Version carried by this contract. */
+    /** Порядковый номер временной границы. */
+    val sequenceNumber: Long,
+    /** Итоговая техническая редакция. */
+    val revision: Long,
+    /** Продуктовый номер версии. */
     val version: String,
-    /** Snapshot carried by this contract. */
-    val snapshot: JsonElement,
-    /** Changelog carried by this contract. */
-    val changelog: String?,
-    /** Publication status carried by this contract. */
-    val publicationStatus: String?,
-    /** Published at carried by this contract. */
+    /** Описание публикации. */
+    val changelog: String,
+    /** Время публикации. */
     val publishedAt: String,
 ) {
     companion object {
-        /** Performs the from operation. */
+        /** Создаёт внешний ответ из предметной публикации. */
         fun from(value: DesignSystemVersion) = DesignSystemVersionResponse(
-            value.id.toString(),
+            value.id.value.toString(),
             value.designSystemId.value.toString(),
+            value.sequenceNumber,
+            value.revision,
             value.version,
-            Json.parseToJsonElement(value.snapshotJson),
             value.changelog,
-            value.publicationStatus?.wireValue,
             value.publishedAt.toString(),
         )
     }

@@ -22,7 +22,7 @@ class UpdateTokenValueUseCase(
         command: UpdateTokenValue,
     ): DsResult<TokenValue> = when (val allowed = policy.require(context, ProjectScope.TOKENS_WRITE)) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.required {
+        is DsResult.Success -> transactions.required(context) {
             repository.updateOwned(context.projectId, id, command)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

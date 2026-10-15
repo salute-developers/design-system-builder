@@ -18,7 +18,7 @@ class ListVersionsByDesignSystemUseCase(
     suspend fun execute(context: DsRequestContext, id: DesignSystemId): DsResult<List<DesignSystemVersion>> =
         when (val allowed = policy.require(context, "design-systems:read")) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly {
+            is DsResult.Success -> transactions.readOnly(context) {
                 repository.listByDesignSystem(context.projectId, id)?.let { DsResult.Success(it) }
                     ?: if (context.principal.systemAdmin) {
                         DsResult.Success(emptyList())

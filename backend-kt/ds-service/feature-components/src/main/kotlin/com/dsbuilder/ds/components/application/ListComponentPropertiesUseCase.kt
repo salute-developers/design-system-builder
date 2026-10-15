@@ -18,7 +18,7 @@ class ListComponentPropertiesUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<ComponentPropertySummary>> =
         policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
-            transactions.readOnly {
+            transactions.readOnly(context) {
                 repository.properties(context.projectId, context.principal.systemAdmin, id)
                     ?.let { DsResult.Success(it) } ?: if (context.principal.systemAdmin) {
                     DsResult.Success(emptyList())

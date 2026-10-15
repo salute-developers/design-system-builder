@@ -18,6 +18,8 @@ class ListTenantsUseCase(
         val allowed = policy.require(context, ProjectScope.TENANTS_READ)
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly { DsResult.Success(repository.listAccessible(context.projectId)) }
+        is DsResult.Success -> transactions.readOnly(
+            context,
+        ) { DsResult.Success(repository.listAccessible(context.projectId)) }
     }
 }

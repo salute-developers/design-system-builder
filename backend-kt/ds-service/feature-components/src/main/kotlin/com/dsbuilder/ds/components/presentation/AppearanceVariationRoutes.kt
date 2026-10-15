@@ -7,14 +7,16 @@ import com.dsbuilder.ds.components.application.DeleteAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.ListAppearanceVariationsUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceVariationUseCase
+import com.dsbuilder.ds.components.domain.AppearanceVariation
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -37,25 +39,37 @@ fun Route.appearanceVariationRoutes(
 ) {
     route("/api/ds/appearance-variations") {
         get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(AppearanceVariationResponse::from))
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(AppearanceVariationResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(AppearanceVariationResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, AppearanceVariationResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val payload = call.receive<JsonObject>()
             val request = runCatching {
@@ -80,8 +94,12 @@ fun Route.appearanceVariationRoutes(
                 request.isRoot,
                 request.declaredType?.trim(),
             )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(
+            val createContext = context.withIdempotentResponse { value: AppearanceVariation ->
+                json.encodeToString(AppearanceVariationResponse.serializer(), AppearanceVariationResponse.from(value))
+            }
+            when (val result = create.execute(createContext, command, call.request.headers["Idempotency-Key"])) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
                     HttpStatusCode.Created,
                     AppearanceVariationResponse.from(result.value),
                 )
@@ -89,7 +107,11 @@ fun Route.appearanceVariationRoutes(
             }
         }
         patch("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@patch call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
@@ -114,17 +136,21 @@ fun Route.appearanceVariationRoutes(
                 "declaredType" in payload,
             )
             when (val result = update.execute(context, id, command)) {
-                is DsResult.Success -> call.respond(AppearanceVariationResponse.from(result.value))
+                is DsResult.Success -> call.respondSuccess(result, AppearanceVariationResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         delete("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers,
+                evaluator,
+                call.request.queryParameters["versionId"],
+            )
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = delete.execute(context, id)) {
-                is DsResult.Success -> call.respond(OkResponse())
+                is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

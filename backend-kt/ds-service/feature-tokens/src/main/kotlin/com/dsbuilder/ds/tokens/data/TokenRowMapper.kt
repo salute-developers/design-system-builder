@@ -8,12 +8,12 @@ internal object TokenRowMapper {
     fun map(row: ResultRow) = Token(
         id = row[TokensTable.id],
         designSystemId = row[TokensTable.designSystemId],
-        name = row[TokensTable.name],
-        type = row[TokensTable.type],
-        displayName = row[TokensTable.displayName],
-        description = row[TokensTable.description],
-        enabled = row[TokensTable.enabled],
+        name = row[TokenRevisionsTable.name],
+        type = row[TokenRevisionsTable.type],
+        displayName = row[TokenRevisionsTable.displayName],
+        description = row[TokenRevisionsTable.description],
+        enabled = row[TokenRevisionsTable.enabled],
         createdAt = row[TokensTable.createdAt],
-        updatedAt = row[TokensTable.updatedAt],
+        updatedAt = row[TokenRevisionsTable.updatedAt],
     )
 }

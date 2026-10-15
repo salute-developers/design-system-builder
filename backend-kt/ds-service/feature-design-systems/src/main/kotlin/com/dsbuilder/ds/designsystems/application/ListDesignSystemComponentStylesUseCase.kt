@@ -28,7 +28,7 @@ class ListDesignSystemComponentStylesUseCase(
         )
     ) {
         is DsResult.Failure -> allowed
-        is DsResult.Success -> transactions.readOnly {
+        is DsResult.Success -> transactions.readOnly(context) {
             repository.listComponentStyles(context.projectId, id, componentId)?.let { DsResult.Success(it) }
                 ?: DsResult.Failure(DsFailure.NotFound)
         }

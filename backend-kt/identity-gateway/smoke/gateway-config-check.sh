@@ -11,6 +11,7 @@ grep -q 'proxy_set_header X-Project-Role $trusted_project_role' "$CONFIG"
 grep -q 'proxy_set_header X-System-Admin $trusted_system_admin' "$CONFIG"
 grep -q "proxy_set_header X-User-Id \"\"" "$CONFIG"
 grep -q "Access-Control-Allow-Origin" "$CONFIG"
+test "$(grep -c 'Access-Control-Allow-Headers .*X-DS-Base-Revision.*Idempotency-Key' "$CONFIG")" -eq 3
 grep -q "return 204" "$CONFIG"
 
 echo "gateway config smoke checks passed"

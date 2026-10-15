@@ -164,6 +164,11 @@ export interface Meta {
         };
     };
     sources: Sources;
+    /** Устойчивые идентификаторы серверной конфигурации, необходимые для предметного автосохранения. */
+    serverBinding?: {
+        componentId: string;
+        appearanceId: string;
+    };
 }
 
 

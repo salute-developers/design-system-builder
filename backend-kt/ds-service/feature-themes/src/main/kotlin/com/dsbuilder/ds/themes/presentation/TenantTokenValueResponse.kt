@@ -25,6 +25,8 @@ data class TenantTokenValueResponse(
     val mode: String?,
     /** Value carried by this contract. */
     val value: JsonElement?,
+    /** Текущая техническая ревизия значения. */
+    val editRevision: Long,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -43,6 +45,7 @@ data class TenantTokenValueResponse(
             value.platform,
             value.mode,
             value.valueJson?.let(Json::parseToJsonElement),
+            value.editRevision,
             value.createdAt.toString(),
             value.updatedAt.toString(),
             value.paletteRef,

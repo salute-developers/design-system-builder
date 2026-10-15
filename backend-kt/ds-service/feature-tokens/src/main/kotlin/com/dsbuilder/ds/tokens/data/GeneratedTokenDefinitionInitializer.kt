@@ -6,8 +6,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -15,14 +17,25 @@ import java.util.UUID
 class GeneratedTokenDefinitionInitializer : DesignSystemTokenInitializer {
     override suspend fun initialize(designSystemId: UUID) {
         if (TokensTable.selectAll().where { TokensTable.designSystemId eq designSystemId }.limit(1).any()) return
+        val baseline = TokenVersionBoundariesTable.selectAll().where {
+            (TokenVersionBoundariesTable.designSystemId eq designSystemId) and
+                (TokenVersionBoundariesTable.status eq TokenVersionBoundaryStatus.BASELINE)
+        }.single()
         definitions.forEach { definition ->
-            TokensTable.insert {
+            val tokenId = TokensTable.insertReturning {
                 it[TokensTable.designSystemId] = designSystemId
+            }.single()[TokensTable.id]
+            TokenRevisionsTable.insert {
+                it[TokenRevisionsTable.tokenId] = tokenId
+                it[TokenRevisionsTable.designSystemId] = designSystemId
+                it[designSystemVersionId] = baseline[TokenVersionBoundariesTable.id]
+                it[versionSequenceNumber] = baseline[TokenVersionBoundariesTable.sequenceNumber]
                 it[name] = definition.name
                 it[type] = definition.type
                 it[displayName] = definition.displayName
                 it[description] = definition.description
                 it[enabled] = definition.enabled
+                it[deleted] = false
             }
         }
     }

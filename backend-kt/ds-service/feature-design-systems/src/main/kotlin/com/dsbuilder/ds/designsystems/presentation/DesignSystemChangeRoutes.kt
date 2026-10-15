@@ -3,106 +3,129 @@ package com.dsbuilder.ds.designsystems.presentation
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.withIdempotentResponse
+import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
-import com.dsbuilder.ds.designsystems.application.CreateDesignSystemChange
-import com.dsbuilder.ds.designsystems.application.CreateDesignSystemChangeUseCase
-import com.dsbuilder.ds.designsystems.application.GetDesignSystemChangeUseCase
-import com.dsbuilder.ds.designsystems.application.ListChangesByDesignSystemUseCase
-import com.dsbuilder.ds.designsystems.application.ListDesignSystemChangeEntriesUseCase
-import com.dsbuilder.ds.designsystems.domain.ChangeOperation
+import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.designsystems.application.ListDraftChangesUseCase
+import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
+import com.dsbuilder.ds.designsystems.domain.DraftChange
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
-import io.ktor.server.routing.route
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
-/** Registers top-level and nested design-system change routes. */
-@Suppress("ComplexCondition", "CyclomaticComplexMethod", "LongMethod", "LongParameterList")
+/** Вычисляемый журнал конкретной дизайн-системы и откат его черновых записей. */
 fun Route.designSystemChangeRoutes(
     evaluator: PolicyEvaluator,
-    list: ListDesignSystemChangeEntriesUseCase,
-    get: GetDesignSystemChangeUseCase,
-    listByDesignSystem: ListChangesByDesignSystemUseCase,
-    create: CreateDesignSystemChangeUseCase,
+    list: ListDraftChangesUseCase,
+    revert: RevertDraftChangeUseCase,
+    json: Json,
 ) {
-    route("/api/ds/design-system-changes") {
-        get {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
-                is DsResult.Success -> call.respond(result.value.map(DesignSystemChangeResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        get("/by-design-system/{designSystemId}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["designSystemId"]?.uuid()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            respondChanges(listByDesignSystem.execute(context, DesignSystemId(id), missingAsEmpty = true))
-        }
-        get("/{id}") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.uuid()
-                ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = get.execute(context, id)) {
-                is DsResult.Success -> call.respond(DesignSystemChangeResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-        post {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
-                ?: return@post call.respondFailure(DsFailure.Forbidden)
-            val request = call.receive<CreateDesignSystemChangeRequest>()
-            val designSystemId = request.designSystemId.uuid()
-            val entityId = request.entityId.uuid()
-            val operation = ChangeOperation.fromWire(request.operation)
-            if (
-                designSystemId == null ||
-                entityId == null ||
-                operation == null ||
-                request.entityType.trim().isEmpty()
-            ) {
-                return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            }
-            val command = CreateDesignSystemChange(
-                DesignSystemId(designSystemId),
-                request.entityType.trim(),
-                entityId,
-                operation,
-                request.data?.toString(),
-            )
-            when (val result = create.execute(context, command)) {
-                is DsResult.Success -> call.respond(
-                    HttpStatusCode.Created,
-                    DesignSystemChangeResponse.from(result.value),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
-        }
-    }
     get("/api/ds/design-systems/{id}/changes") {
-        val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+        val context = TrustedDsRequestContextMapper.map(
+            call.request.headers,
+            evaluator,
+            call.request.queryParameters["versionId"],
+        )
             ?: return@get call.respondFailure(DsFailure.Forbidden)
-        val id = call.parameters["id"]?.uuid()
+        val designSystemId = call.parameters["id"]?.uuid()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-        respondChanges(listByDesignSystem.execute(context, DesignSystemId(id)))
+        val rawVersionId = call.request.queryParameters["versionId"]
+        val versionId = rawVersionId?.uuid()
+            ?: rawVersionId?.let { return@get call.respondFailure(DsFailure.InvalidRequest("invalid_version_id")) }
+        when (
+            val result = list.execute(
+                context,
+                DesignSystemId(designSystemId),
+                versionId?.let(::DesignSystemVersionId),
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(result, result.value.map(DraftChangeResponse::from))
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
     }
-}
-
-private suspend fun io.ktor.server.routing.RoutingContext.respondChanges(
-    result: DsResult<List<com.dsbuilder.ds.designsystems.domain.DesignSystemChange>>,
-) {
-    when (result) {
-        is DsResult.Success -> call.respond(result.value.map(DesignSystemChangeResponse::from))
-        is DsResult.Failure -> call.respondFailure(result.error)
+    post("/api/ds/design-systems/{id}/changes/{changeId}/revert") {
+        val context = TrustedDsRequestContextMapper.map(
+            call.request.headers,
+            evaluator,
+            call.request.queryParameters["versionId"],
+        )
+            ?: return@post call.respondFailure(DsFailure.Forbidden)
+        val designSystemId = call.parameters["id"]?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val changeId = call.parameters["changeId"]?.uuid()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_change_id"))
+        val revision = call.request.headers["X-DS-Base-Revision"]?.toLongOrNull()
+            ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_base_revision"))
+        val idempotencyKey = call.request.headers["Idempotency-Key"]
+        if (idempotencyKey.isNullOrBlank()) {
+            return@post call.respondFailure(DsFailure.InvalidRequest("idempotency_key_required"))
+        }
+        when (
+            val result = revert.execute(
+                context.withIdempotentResponse { _: Unit -> json.encodeToString(OkResponse()) },
+                DesignSystemId(designSystemId),
+                changeId,
+                revision,
+                idempotencyKey,
+            )
+        ) {
+            is DsResult.Success -> call.respondSuccess(result, OkResponse())
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
     }
 }
 
 private fun String.uuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
+
+/** Внешнее представление вычисленного изменения. */
+@Serializable
+data class DraftChangeResponse(
+    /** Устойчивый идентификатор изменения. */
+    val changeId: String,
+    /** Идентификатор сравниваемой версии. */
+    val versionId: String,
+    /** Тип предметной сущности. */
+    val entityType: String,
+    /** Идентификатор предметной сущности. */
+    val entityId: String,
+    /** Вид изменения. */
+    val operation: String,
+    /** Изменённые предметные пути. */
+    val changedPaths: Set<String>,
+    /** Предыдущее отображаемое значение. */
+    val previousValue: JsonObject?,
+    /** Новое отображаемое значение. */
+    val currentValue: JsonObject?,
+    /** Автор последнего изменения. */
+    val actorId: String?,
+    /** Время последнего изменения. */
+    val changedAt: String,
+    /** Текущая техническая редакция. */
+    val editRevision: Long,
+) {
+    companion object {
+        /** Создаёт внешний ответ из вычисленного отличия. */
+        fun from(change: DraftChange) = DraftChangeResponse(
+            change.changeId.toString(),
+            change.versionId.value.toString(),
+            change.entityType,
+            change.entityId.toString(),
+            change.operation.wireValue,
+            change.changedPaths,
+            change.previousValue,
+            change.currentValue,
+            change.actorId,
+            change.changedAt.toString(),
+            change.editRevision,
+        )
+    }
+}

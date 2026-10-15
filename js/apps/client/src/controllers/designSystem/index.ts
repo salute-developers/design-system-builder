@@ -39,9 +39,9 @@ export class DesignSystem {
     private componentsData: Meta[] = [];
     private composeComponentsData: Meta[] = [];
 
-    private constructor({ name, parameters }: DesignSystemProps) {
+    private constructor({ name, version = '0.1.0', parameters }: DesignSystemProps) {
         this.name = name;
-        this.version = '0.1.0';
+        this.version = version;
         this.parameters = parameters;
 
         this.themeData = {} as ThemeSource;
@@ -92,12 +92,13 @@ export class DesignSystem {
 
     public static fromSnapshot({
         name,
+        version,
         parameters,
         themeData,
         componentsData,
         composeComponentsData = [],
     }: DesignSystemProps & { componentsData: Meta[]; composeComponentsData?: Meta[] }) {
-        const instance = new DesignSystem({ name, parameters });
+        const instance = new DesignSystem({ name, version, parameters });
         instance.themeData = themeData ?? ({} as ThemeSource);
         instance.componentsData = componentsData;
         instance.composeComponentsData = composeComponentsData;
