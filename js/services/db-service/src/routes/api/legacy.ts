@@ -376,7 +376,10 @@ router.get("/:name/component-configs", (req, res) =>
       membersByCombo.set(m.combinationId, [...(membersByCombo.get(m.combinationId) ?? []), m.styleId]);
     }
     // combinations: одна запись на набор стилей, внутри — значения свойств под этим набором.
-    const combinationsByAppearance = new Map<string, Map<string, { styleIDs: string[]; props: { id: string; value: string }[] }>>();
+    const combinationsByAppearance = new Map<
+      string,
+      Map<string, { styleIDs: string[]; props: { id: string; value: string; alpha?: number }[] }>
+    >();
     for (const c of comboRows) {
       const styleIDs = [...(membersByCombo.get(c.id) ?? [])].sort();
       const key = styleIDs.join(',');
@@ -386,7 +389,7 @@ router.get("/:name/component-configs", (req, res) =>
       const propType = propById.get(c.propertyId)?.type;
       const raw = c.tokenId ? (comboTokenNameById.get(c.tokenId) ?? c.value) : c.value;
       const value = raw && propType === "typography" ? stripScreenPrefix(raw) : raw;
-      byKey.get(key)!.props.push({ id: c.propertyId, value: value ?? "" });
+      byKey.get(key)!.props.push({ id: c.propertyId, value: value ?? "", ...alphaField(c.alpha) });
     }
 
     const depRows = componentIds.length
@@ -530,6 +533,7 @@ router.get("/:name/component-configs", (req, res) =>
         ).map((ipv) => ({
           id: ipv.propertyId,
           value: resolveValue(ipv.value, ipv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+          ...alphaField(ipv.alpha),
           ...(adjustmentByValueRowId.has(ipv.id)
             ? { adjustment: adjustmentByValueRowId.get(ipv.id) }
             : {}),
@@ -560,12 +564,14 @@ router.get("/:name/component-configs", (req, res) =>
               return {
                 id: propId,
                 value: base ? resolveValue(base.value, base.tokenId, propById.get(propId)?.type) : null,
+                ...(base ? alphaField(base.alpha) : {}),
                 ...(base && adjustmentByValueRowId.has(base.id)
                   ? { adjustment: adjustmentByValueRowId.get(base.id) }
                   : {}),
                 states: (statesByPropId.get(propId) ?? []).map((sv) => ({
                   state: stateNamesOf(sv.stateSetId),
                   value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
+                  ...alphaField(sv.alpha),
                 })),
               };
             });
@@ -1828,6 +1834,16 @@ router.post("/:name/update", (req, res) =>
 type PppRow = { id: string; propertyId: string; platform: string; name: string };
 
 // Нормализация adjustment из legacy-JSON: число или строка -> строка, пусто -> null
+/**
+ * Прозрачность значения для legacy-формата: в базе она текст в исходной форме (`0.2`), а потребителям нужно число.
+ * Пустое и нечисловое значение пропускается, а не превращается в `NaN`.
+ */
+function alphaField(raw: string | null | undefined): { alpha?: number } {
+  if (raw === null || raw === undefined || raw.trim() === "") return {};
+  const alpha = Number(raw);
+  return Number.isFinite(alpha) ? { alpha } : {};
+}
+
 function toAdjustmentStr(v: unknown): string | null {
   return v === null || v === undefined || v === "" ? null : String(v);
 }

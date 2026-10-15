@@ -92,6 +92,8 @@ export interface DefaultVariationConfig {
 export interface State {
     state: PropState[];
     value?: string;
+    /** Прозрачность значения 0..1; в Compose-превью накладывается на цвет или градиент. */
+    alpha?: number;
 }
 
 export interface PropConfig {
@@ -99,6 +101,8 @@ export interface PropConfig {
     value?: string | number;
     states?: State[] | null;
     adjustment?: string | number;
+    /** Прозрачность значения 0..1; в Compose-превью накладывается на цвет или градиент. */
+    alpha?: number;
 }
 
 export interface StyleConfig {
