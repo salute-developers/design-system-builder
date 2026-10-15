@@ -4031,6 +4031,12 @@
         fixed;
 }
 
+/* Выбранная строка дерева: фон и рамку задаёт правило `.ct-theme-workspace` прототипа, а правило компактного
+ * списка добавляет внутреннюю подложку `::before` — у строки получалось два фона. Остаётся один. */
+.color-tokens-screen .token-tree .token-row.is-selected::before {
+    content: none;
+}
+
 /* Состояние сохранения в панели инструментов и строке токена. */
 .color-tokens-screen .ct-save-status {
     display: inline-flex;
