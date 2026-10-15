@@ -90,7 +90,8 @@ export const collectLinks = (
     return [...links.values()];
 };
 
-const pairCount = (links: PaletteLink[]) => new Set(links.map((link) => `${link.tokenId}|${link.mode ?? ''}`)).size;
+// Связи считаются по токенам, как строки инспектора: токен в режимах Light и Dark — одна связь (ревью QA, PR #101).
+const tokenCount = (links: PaletteLink[]) => new Set(links.map((link) => link.tokenId)).size;
 
 const defaultRamp = (groupId: string, slot: PaletteRampRef): StoredRamp => ({
     groupId,
@@ -124,7 +125,7 @@ const buildRamp = (
                 value: override ?? templateValue,
                 templateValue,
                 overridden: override !== undefined,
-                linkedCount: pairCount(rampLinks.filter((link) => link.step === step)),
+                linkedCount: tokenCount(rampLinks.filter((link) => link.step === step)),
             };
         });
     return {
@@ -135,7 +136,7 @@ const buildRamp = (
         anchor: stored.anchor,
         added: stored.added,
         modified: Object.keys(stored.steps).length > 0,
-        linkedCount: pairCount(rampLinks),
+        linkedCount: tokenCount(rampLinks),
         steps,
     };
 };

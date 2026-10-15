@@ -105,7 +105,7 @@ object ThemePaletteBuilder {
         val steps = source.keys.filter { it in slotSteps }.sorted().map { step ->
             val templateValue = source.getValue(step)
             val override = stored.steps[step]
-            val linked = pairs(rampLinks.filter { it.step == step })
+            val linked = tokens(rampLinks.filter { it.step == step })
             PaletteStepView(step, override ?: templateValue, templateValue, override != null, linked)
         }
         return PaletteRampView(
@@ -116,7 +116,7 @@ object ThemePaletteBuilder {
             anchor = stored.anchor,
             added = stored.added,
             modified = stored.steps.isNotEmpty(),
-            linkedCount = pairs(rampLinks),
+            linkedCount = tokens(rampLinks),
             steps = steps,
         )
     }
@@ -124,5 +124,6 @@ object ThemePaletteBuilder {
     private fun rebuildAnchor(stored: StoredPaletteRamp): PaletteAnchor? =
         stored.anchor.takeIf { stored.origin == PaletteRampOrigin.REBUILD }
 
-    private fun pairs(links: List<PaletteLink>): Int = links.map { it.tokenId to it.mode }.toSet().size
+    // Связи считаются по токенам, как строки инспектора клиента: токен в режимах Light и Dark — одна связь.
+    private fun tokens(links: List<PaletteLink>): Int = links.map { it.tokenId }.toSet().size
 }

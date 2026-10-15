@@ -531,7 +531,7 @@
             "slot": "general.green",
             "source": "additional.h190",
             "displayName": "Azure",
-            "linkedCount": 2,
+            "linkedCount": 1,
             "modified": false,
             "steps": {
               "400": {
