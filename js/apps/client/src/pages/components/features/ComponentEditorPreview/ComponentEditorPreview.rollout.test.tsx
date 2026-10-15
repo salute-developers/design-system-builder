@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ComponentEditorPreview } from './ComponentEditorPreview';
@@ -7,6 +7,7 @@ const pluginState = vi.hoisted(() => ({
     url: undefined as string | undefined,
     supported: true,
     loadManifest: vi.fn(),
+    framePayloads: [] as unknown[],
 }));
 
 vi.mock('../../../../composePreview', async (importOriginal) => {
@@ -29,7 +30,10 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
                 surface: { width: 360, height: 160, background: '#FFFFFFFF' },
             },
         }),
-        ComposePreviewFrame: () => <div data-testid="compose-frame" />,
+        ComposePreviewFrame: ({ payload }: { payload: unknown }) => {
+            if (!pluginState.framePayloads.includes(payload)) pluginState.framePayloads.push(payload);
+            return <div data-testid="compose-frame" />;
+        },
     };
 });
 
@@ -93,9 +97,23 @@ describe('ComponentEditorPreview Compose rollout', () => {
         pluginState.url = 'https://plugin.example/';
         pluginState.supported = true;
         pluginState.loadManifest = vi.fn().mockResolvedValue({ manifest: { components: ['BasicButton'] } });
+        pluginState.framePayloads = [];
         storyProps.mockClear();
     });
     afterEach(cleanup);
+
+    it('hands the frame one payload while the manifest loads and the editor state settles', async () => {
+        render(previewElement(composeConfig));
+
+        await screen.findByTestId('compose-frame');
+        await waitFor(() => expect(pluginState.loadManifest).toHaveBeenCalled());
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        // Загрузка метаданных и сброс примеров не меняют содержимое payload, а значит, и сам объект.
+        expect(pluginState.framePayloads).toHaveLength(1);
+    });
 
     it('offers Compose when the plugin is configured, supported and lists the component', async () => {
         render(previewElement());
@@ -129,6 +147,36 @@ describe('ComponentEditorPreview Compose rollout', () => {
         expect(await screen.findByRole('status')).toHaveTextContent('Compose-preview недоступен в этом браузере.');
         expect(screen.getByRole('status')).not.toHaveTextContent('React');
         expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
+    });
+
+    describe('payload debug block', () => {
+        afterEach(() => {
+            localStorage.removeItem('debug_mode');
+        });
+
+        it('is not shown outside the debug mode', async () => {
+            render(previewElement(composeConfig));
+
+            await screen.findByTestId('compose-frame');
+            expect(screen.queryByTestId('compose-payload-debug')).not.toBeInTheDocument();
+        });
+
+        it('is shown under a Compose component in the debug mode', async () => {
+            localStorage.setItem('debug_mode', 'true');
+
+            render(previewElement(composeConfig));
+
+            expect(await screen.findByTestId('compose-payload-debug')).toBeInTheDocument();
+        });
+
+        it('is not shown for a web component in the debug mode', async () => {
+            localStorage.setItem('debug_mode', 'true');
+
+            render(previewElement());
+            await screen.findByText('Compose');
+
+            expect(screen.queryByTestId('compose-payload-debug')).not.toBeInTheDocument();
+        });
     });
 
     it('does not offer Compose and does not load a manifest without a plugin URL', async () => {

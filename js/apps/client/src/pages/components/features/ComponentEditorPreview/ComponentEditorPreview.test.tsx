@@ -121,15 +121,8 @@ describe('ComponentEditorPreview Compose controls', () => {
             const latest = createDraft.mock.calls[createDraft.mock.calls.length - 1]?.[0] as {
                 exampleProps: Record<string, unknown>;
             };
-            expect(latest.exampleProps).toEqual({
-                label: 'label',
-                value: '',
-                icon: 'Start',
-                spacing: 'Packed',
-                hasFixedWidth: false,
-                enabled: true,
-                loading: false,
-            });
+            // Значения по умолчанию в payload не попадают: плагин сам оставляет default state.
+            expect(latest.exampleProps).toEqual({});
         });
     });
 
@@ -144,7 +137,7 @@ describe('ComponentEditorPreview Compose controls', () => {
                 exampleProps: Record<string, unknown>;
             };
             expect(latest.exampleProps.label).toBe('Changed');
-            expect(latest.exampleProps.enabled).toBe(true);
+            expect(latest.exampleProps).toEqual({ label: 'Changed' });
         });
         view.unmount();
     });
@@ -177,11 +170,13 @@ describe('ComponentEditorPreview Compose controls', () => {
                 properties: [{ type: 'string', name: 'count', defaultValue: 'reset' }],
             });
         });
+        // Несовместимое значение сброшено к default нового описания, а default в payload не передаётся.
+        expect(await screen.findByDisplayValue('reset')).toBeInTheDocument();
         await waitFor(() => {
             const latest = createDraft.mock.calls[createDraft.mock.calls.length - 1]?.[0] as {
                 exampleProps: Record<string, unknown>;
             };
-            expect(latest.exampleProps).toEqual({ count: 'reset' });
+            expect(latest.exampleProps).toEqual({});
         });
     });
 });
