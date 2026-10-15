@@ -152,14 +152,14 @@ const RampPopover = ({
 
     const replace = async (source: { type: PaletteRamp['source']['type']; shade: string }) => {
         if (sameRamp(source, ramp.source)) return;
-        const done = await editor.run(
+        await editor.run(
             (editRevision) => paletteRepository.replaceSource(context, group.id, ramp.slot, source, editRevision),
             (value) => ({
                 title: 'Палитра заменена',
                 text: `${value.displayName} заменена только в группе ${group.label}. Связи сохранены.`,
             }),
         );
-        if (done) editor.setPopover(null);
+        // Как в прототипе, окно остаётся открытым: новая растяжка отмечена «Текущая», можно выбрать другую.
     };
 
     const rebuild = async () => {
