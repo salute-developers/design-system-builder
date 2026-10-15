@@ -782,9 +782,11 @@
     height: 28px;
 }
 
-/* Загрузка раздела — как индикатор восстановления сессии прототипа (session-restore-*): спиннер рядом с текстом
-   по центру рабочей области. Ревью QA (PR #101). */
-.source-palette-v3.source-palette-loading {
+/* Загрузка и ошибка раздела — как индикатор восстановления сессии прототипа (session-restore-*): спиннер рядом
+   с текстом по центру рабочей области. Секция растягивается на всю ширину холста редактора. Ревью QA (PR #101). */
+.source-palette-v3.source-palette-placeholder {
+    flex: 1;
+    align-self: stretch;
     display: grid;
     place-items: center;
 }
