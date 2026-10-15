@@ -56,6 +56,15 @@ export const familyLabel = (ramp: PaletteRamp) => {
 
 export const isChanged = (ramp: PaletteRamp) => ramp.modified || !sameRamp(ramp.slot, ramp.source);
 
+/**
+ * Ступени, изменённые относительно шаблона: у заменённой или перестроенной растяжки — все, иначе — правленые.
+ * Ревью QA (PR #101): в режиме «Цвет» фильтр «Изменённые» показывает ступени, а не всю растяжку.
+ */
+export const changedSteps = (ramp: PaletteRamp) =>
+    !sameRamp(ramp.slot, ramp.source) || ramp.origin === 'rebuild'
+        ? ramp.steps
+        : ramp.steps.filter((step) => step.overridden);
+
 /** Все ступени палитры в порядке от светлой к тёмной; отсутствующие у растяжки показываются пустыми. */
 export const displaySteps = (palette: ThemePalette) => {
     const steps = new Set<number>();

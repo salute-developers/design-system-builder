@@ -9,7 +9,16 @@ import {
     type ThemePalette,
 } from '../../modules/palette';
 import { paletteRepository } from '../../palette/paletteSession';
-import { familyLabel, filterGroups, middleStep, rampMeta, selectionStep, stepOf, type PaletteFilter } from './Palette.utils';
+import {
+    changedSteps,
+    familyLabel,
+    filterGroups,
+    middleStep,
+    rampMeta,
+    selectionStep,
+    stepOf,
+    type PaletteFilter,
+} from './Palette.utils';
 import { PaletteGlyph } from './PaletteGlyph';
 import type { PaletteEditor } from './usePaletteEditor';
 
@@ -286,7 +295,7 @@ export const PaletteSidebar = ({ context, palette, editor, canEdit, steps }: Pal
                                                         role="list"
                                                         aria-label={`Цвета ${ramp.displayName}`}
                                                     >
-                                                        {ramp.steps.map((step) => {
+                                                        {(editor.filter === 'changed' ? changedSteps(ramp) : ramp.steps).map((step) => {
                                                             const activeStep = selected?.step === step.step;
                                                             return (
                                                                 <button
