@@ -118,7 +118,7 @@ export interface PreviewComponentDescription {
 }
 export type PreviewComponentDescriptionResult =
     | { type: 'success'; requestId: string; description: PreviewComponentDescription }
-    | { type: 'failure'; requestId: string; code: string; message: string };
+    | { type: 'failure'; requestId: string; code: string; message: string; details?: PreviewFailureDetails };
 
 export interface ComposePreviewManifest {
     schemaVersion: 1;
@@ -160,12 +160,18 @@ export interface PreviewResultSuccess {
     requestId: string;
     warnings?: PreviewWarning[];
 }
+/** Причина остановки плагина: stack исключения и последняя запись `console.error` плагина. */
+export interface PreviewFailureDetails {
+    stack?: string;
+    consoleError?: string;
+}
 export interface PreviewResultFailure {
     type: 'failure';
     requestId: string;
     code: string;
     message: string;
     path?: string;
+    details?: PreviewFailureDetails;
 }
 export type PreviewResult = PreviewResultSuccess | PreviewResultFailure;
 export interface PreviewResultEnvelope {

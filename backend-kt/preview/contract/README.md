@@ -22,5 +22,12 @@ Format highlights:
   fontFamily, typography;
 - assets: `TTF`, `OTF`, `SVG`, `PNG`.
 
+Render results:
+
+- a `failure` result may carry optional `details` `{stack?, consoleError?}`: the stack of the exception that
+  stopped the plugin and its message (`render_crashed`, `plugin_crashed`). Consumers that do not know the field
+  ignore it. A Kotlin/Wasm exception reaches the browser as an opaque `WebAssembly.Exception`, so the plugin reports
+  the cause of a layout failure from Kotlin; composition and draw failures carry no cause.
+
 The version number stays `1`: the protocol has not been released outside development.
 Copies between repositories are compared manually when a client and plugin pair is released.

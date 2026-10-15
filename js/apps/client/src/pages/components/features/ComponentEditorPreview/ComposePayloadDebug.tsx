@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { BasicButton } from '../../../../components';
 import type { PreviewPayloadInput } from '../../../../composePreview';
+import { copyText } from '../../../../utils/copyText';
 
 import {
     StyledPayloadCount,
@@ -19,25 +20,6 @@ interface ComposePayloadDebugProps {
 type CopyState = 'idle' | 'copied' | 'failed';
 
 const format = (payload: PreviewPayloadInput) => JSON.stringify(payload, null, 2);
-
-/** Clipboard API есть только в безопасном контексте; запасной путь — временный `textarea`. */
-const copyText = async (text: string) => {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        return;
-    }
-
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    const copied = document.execCommand('copy');
-    document.body.removeChild(area);
-
-    if (!copied) throw new Error('Copy is not available');
-};
 
 /**
  * Отладочный блок под Compose-превью: JSON последнего собранного payload (без `requestId`, его добавляет сессия при

@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { loadComposePreviewManifest } from './manifest';
 import { ComposePreviewResultError, ComposePreviewSession, ComposePreviewTimeoutError } from './session';
-import { PreviewComponentDescription, PreviewPayloadInput } from './types';
+import { isDebugMode } from '../utils/debugMode';
+
+import { PreviewComponentDescription, PreviewFailureDetails, PreviewPayloadInput } from './types';
 import type { LoadedComposePreviewManifest } from './types';
+import { ComposeFailureDetails } from './ComposeFailureDetails';
 import { FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
 interface ComposePreviewFrameProps {
@@ -36,6 +39,10 @@ const isPluginCrash = (error: unknown) =>
         error.result.type === 'failure' &&
         PLUGIN_CRASH_CODES.includes(error.result.code));
 
+/** Причина отказа, которую передал плагин (`details`); у таймаута и сетевых сбоев её нет. */
+const failureDetails = (error: unknown): PreviewFailureDetails | undefined =>
+    error instanceof ComposePreviewResultError && error.result.type === 'failure' ? error.result.details : undefined;
+
 const defaultCreateSession: NonNullable<ComposePreviewFrameProps['createSession']> = (plugin, targetWindow, timeoutMs) =>
     new ComposePreviewSession(plugin, { targetWindow, timeoutMs });
 
@@ -54,6 +61,7 @@ export const ComposePreviewFrame = ({
     const latestDescriptionRef = useRef<string>();
     const [status, setStatus] = useState<FrameStatus>('loading');
     const [failure, setFailure] = useState<string>();
+    const [failureCause, setFailureCause] = useState<PreviewFailureDetails>();
     const [readyVersion, setReadyVersion] = useState(0);
     // Готова ли текущая сессия: после перезапуска iframe новая сессия ещё грузится, а `readyVersion` остаётся от прежней.
     const sessionReadyRef = useRef(false);
@@ -65,7 +73,7 @@ export const ComposePreviewFrame = ({
     // У скрытой страницы браузер останавливает кадры, и плагин не может подтвердить отрисовку: это не сбой.
     const stalledWhileHiddenRef = useRef(false);
     const [resendTick, setResendTick] = useState(0);
-    const [crashNotice, setCrashNotice] = useState<{ key: string; message: string }>();
+    const [crashNotice, setCrashNotice] = useState<{ key: string; message: string; details?: PreviewFailureDetails }>();
 
     useEffect(() => {
         let cancelled = false;
@@ -143,6 +151,7 @@ export const ComposePreviewFrame = ({
 
         setStatus('rendering');
         setFailure(undefined);
+        setFailureCause(undefined);
         const { requestId, result } = session.send(payload);
         latestRequestRef.current = requestId;
 
@@ -159,11 +168,16 @@ export const ComposePreviewFrame = ({
                 }
                 if (isPluginCrash(error)) {
                     crashedPayloadRef.current = payloadKey;
-                    setCrashNotice({ key: payloadKey, message: `${crashReason(error, message)} Превью перезапущено.` });
+                    setCrashNotice({
+                        key: payloadKey,
+                        message: `${crashReason(error, message)} Превью перезапущено.`,
+                        details: failureDetails(error),
+                    });
                     setGeneration((value) => value + 1);
                     return;
                 }
                 setFailure(message);
+                setFailureCause(failureDetails(error));
                 setStatus('failure');
             });
     }, [payload, readyVersion, resendTick]);
@@ -182,6 +196,8 @@ export const ComposePreviewFrame = ({
             cancelAnimationFrame(second);
         };
     }, [status, revealed]);
+
+    const cause = failure ? failureCause : crashNotice?.key === payloadKey ? crashNotice.details : undefined;
 
     return (
         <FrameRoot data-status={status}>
@@ -221,6 +237,7 @@ export const ComposePreviewFrame = ({
             {(failure ?? (crashNotice?.key === payloadKey ? crashNotice.message : undefined)) && (
                 <Status role="alert">{failure ?? crashNotice?.message}</Status>
             )}
+            {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}
         </FrameRoot>
     );
 };
