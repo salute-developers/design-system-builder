@@ -2,6 +2,7 @@ import type {
     ColorProp,
     DimensionProp,
     FloatProp,
+    IconProp,
     ShadowProp,
     ShapeProp,
     StyleReferenceProp,
@@ -33,6 +34,8 @@ export type PropType =
     | 'color'
     | 'dimension'
     | 'float'
+    /** Иконка: имя в формате данных (`disclosure.down.fill.16`). */
+    | 'icon'
     | 'shadow'
     | 'shape'
     | 'typography'
@@ -47,6 +50,7 @@ export type Intersections = Record<string, string[]>;
 export type PropUnion =
     | ColorProp
     | FloatProp
+    | IconProp
     | ShadowProp
     | ShapeProp
     | DimensionProp

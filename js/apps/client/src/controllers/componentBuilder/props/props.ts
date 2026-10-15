@@ -2,6 +2,7 @@ import type { ComponentAPI, PropConfig, PropUnion } from '../type';
 import { ColorProp } from './color';
 import { DimensionProp } from './dimension';
 import { FloatProp } from './float';
+import { IconProp } from './icon';
 import { ShadowProp } from './shadow';
 import { ShapeProp } from './shape';
 import { StyleReferenceProp } from './style-reference';
@@ -112,6 +113,10 @@ export class Props {
 
         if (type === 'component_style') {
             return new StyleReferenceProp(name, item, platformMappings);
+        }
+
+        if (type === 'icon') {
+            return new IconProp(name, item, platformMappings);
         }
 
         return null;

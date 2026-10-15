@@ -119,8 +119,8 @@ const renderComponentProp = ({ prop, theme, onChange, onStateChange }: RenderCom
         );
     }
 
-    // Ссылка на стиль другого компонента пока не редактируется: показываем её как есть.
-    if (propType === 'component_style') {
+    // Ссылка на стиль другого компонента и иконка пока не редактируются: показываем значение как есть.
+    if (propType === 'component_style' || propType === 'icon') {
         return (
             <TextField
                 stretched

@@ -43,7 +43,8 @@ const sourceFor = (
         return { type: 'literal', value: numeric };
     }
     // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
-    if (!adjusted && property.type === 'value') return { type: 'literal', value: raw };
+    // Иконка — имя в формате данных (`disclosure.down.fill.16`); плагин находит по нему иконку, токена темы нет.
+    if (!adjusted && (property.type === 'value' || property.type === 'icon')) return { type: 'literal', value: raw };
     if (!adjusted && typeof raw === 'string' && property.type !== 'float') {
         return { type: 'tokenRef', tokenId: raw };
     }
@@ -65,6 +66,10 @@ const withAlpha = (
     }
     return source.type === 'literal' || source.type === 'tokenRef' ? { ...source, alpha } : source;
 };
+
+/** Иконка без значения в payload не попадает: компонент рисуется с иконкой по умолчанию. */
+const isEmptyIcon = (property: PreviewPropertyDraft) =>
+    property.type === 'icon' && (property.value === undefined || property.value === '');
 
 const effectiveProperty = (property: PreviewPropertyDraft): PreviewPropertyValue | AssemblyDiagnostic => {
     if (property.styleRef) return { base: { type: 'styleRef', styleId: property.styleRef } };
@@ -114,6 +119,7 @@ const collectStyles = (roots: Record<string, PreviewPropertyValue>, drafts: Prev
                 if (!draftStyle) return diagnostic('invalid_reference', `Style ${id} is missing`, id);
                 const nested: Record<string, PreviewPropertyValue> = {};
                 for (const property of draftStyle.properties) {
+                    if (isEmptyIcon(property)) continue;
                     const effective = effectiveProperty(property);
                     if ('code' in effective) return effective;
                     nested[property.name] = effective;
@@ -149,6 +155,7 @@ export const assembleComposePreviewPayload = (draft: ComponentPreviewDraft): Ass
     const properties: Record<string, PreviewPropertyValue> = {};
     const propertySources: Record<string, string> = {};
     for (const property of [...draft.selectedStyleProperties, ...draft.invariantProperties]) {
+        if (isEmptyIcon(property)) continue;
         if (!property.composeParameters.length) {
             if (property.hasNonComposeMappings) continue;
             return failure(
