@@ -1418,6 +1418,14 @@ button:disabled {
 .builder-hierarchy-path .hierarchy-current {
     color: #f3f3f3;
 }
+/* Как .builder-hierarchy-path button:focus-visible прототипа: вместо рамки браузера — подчёркивание. */
+.builder-hierarchy-path a:hover,
+.builder-hierarchy-path a:focus-visible {
+    color: #f3f3f3;
+    outline: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
 .builder-hierarchy-path .hierarchy-separator {
     color: #b6b7b9;
     opacity: 0.2;

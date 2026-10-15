@@ -781,3 +781,47 @@
     margin-left: auto;
     height: 28px;
 }
+
+/* Загрузка раздела — как индикатор восстановления сессии прототипа (session-restore-*): спиннер рядом с текстом
+   по центру рабочей области. Ревью QA (PR #101). */
+.source-palette-v3.source-palette-loading {
+    display: grid;
+    place-items: center;
+}
+
+.source-palette-loading-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #aeb8c8;
+    font-size: 14px;
+}
+
+.source-palette-loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #3e4756;
+    border-top-color: #5b8cff;
+    border-radius: 50%;
+    animation: source-palette-loading-spin 0.65s linear infinite;
+}
+
+@keyframes source-palette-loading-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .source-palette-loading-spinner {
+        animation-duration: 1.6s;
+    }
+}
+
+/* Фокус с клавиатуры в боковой панели. В прототипе своих правил у строк нет, и Chrome с Firefox рисовали
+   разные рамки браузера; здесь та же рамка, что у остальных элементов палитры. Сдвиг внутрь — чтобы рамку не
+   обрезала прокручиваемая панель. Ревью QA (PR #101). */
+.source-palette-family-menu button:focus-visible {
+    outline: 2px solid #75a7ff;
+    outline-offset: -2px;
+}

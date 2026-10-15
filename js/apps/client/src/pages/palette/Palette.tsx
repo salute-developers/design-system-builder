@@ -49,9 +49,10 @@ export const Palette = () => {
     // Палитра прежней темы, пока загружается новая, не показывается.
     if (!outlet.palette || outlet.palette.tenantId !== context.tenantId)
         return (
-            <section className="workspace-page source-palette-v3" data-testid="palette-loading">
-                <div className="source-palette-board-empty" role="status">
-                    <strong>Загружаем палитру…</strong>
+            <section className="workspace-page source-palette-v3 source-palette-loading" data-testid="palette-loading">
+                <div className="source-palette-loading-indicator" role="status" aria-live="polite">
+                    <span className="source-palette-loading-spinner" aria-hidden="true" />
+                    <span>Загружаем палитру…</span>
                 </div>
             </section>
         );
