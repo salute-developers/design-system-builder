@@ -106,6 +106,7 @@ CLI SHALL преобразовывать веб-мету (`web-api-meta.json` и
 - **WHEN** у токена есть `state` вне словаря состояний взаимодействия (`pressed`, `hovered`, `focused`, `selected`, `activated`, `readonly`, `disabled`)
 - **THEN** это состояние в kebab-case MUST быть состоянием компонента
 - **THEN** состояния взаимодействия MUST NOT становиться состояниями компонента
+- **THEN** состояние взаимодействия MUST распознаваться без учёта регистра и знаков, как его сопоставляет backend: `readOnly`, `read-only` и `readonly` — одно состояние `readonly`
 
 #### Scenario: Описание свойства web
 

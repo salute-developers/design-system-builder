@@ -107,6 +107,20 @@ class WebApiMetaNormalizerTest {
     }
 
     @Test
+    fun anInteractionStateIsRecognizedRegardlessOfCaseAndSeparators() {
+        // Backend сопоставляет состояния без учёта регистра и знаков: `readOnly` — это общее `readonly`.
+        val result = normalized(
+            """[{"componentName":"TextField","params":[
+              {"paramName":"inputColor","type":"color","id":"inputColor"},
+              {"paramName":"inputColorReadOnly","type":"color","id":"inputColor","state":"readOnly"},
+              {"paramName":"inputColorReadOnlyDash","type":"color","id":"inputColor","state":"read-only"},
+              {"paramName":"inputColorDisabled","type":"color","id":"inputColor","state":"Disabled"}]}]""",
+        )
+
+        assertEquals(emptyList(), result.manifest.components.single().states)
+    }
+
+    @Test
     fun descriptionNamesTheTokens() {
         val button = properties("Button")
 
