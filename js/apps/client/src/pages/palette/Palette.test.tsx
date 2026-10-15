@@ -134,6 +134,9 @@ describe('раздел «Палитра»', () => {
         expect(await screen.findByText(/заменена только в группе Neutral/)).toBeInTheDocument();
         expect(card('Azure', 'Neutral')).toBeInTheDocument();
         expect(cards('Green', 'Accent')).toHaveLength(1);
+        // Окно остаётся открытым, как в прототипе: выбранная растяжка отмечена «Текущая».
+        const reopened = screen.getByRole('dialog', { name: 'Настройка палитры Azure' });
+        expect(within(reopened).getByText('Текущая').closest('button')).toHaveTextContent('Azure');
     });
 
     it('пустая системная группа видна: «+» добавляет палитру, «Убрать» без связей убирает её', async () => {
