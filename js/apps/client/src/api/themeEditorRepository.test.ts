@@ -85,7 +85,12 @@ describe('ThemeEditorRepository Compose components', () => {
         url.endsWith('/component-configs')
             ? Promise.resolve({ data: options?.params?.platform === 'compose' ? compose : web })
             : Promise.resolve(reply('tenant-1', '#111111')(url));
-    const meta = (name: string) => ({ name, description: name, sources: { api: [], variations: [], configs: [] } });
+    const config = { id: 'default', name: 'default', config: { defaultVariations: [], invariantProps: [], variations: [] } };
+    const meta = (name: string, configs: unknown[] = [config]) => ({
+        name,
+        description: name,
+        sources: { api: [], variations: [], configs },
+    });
 
     it('does not request Compose components without a plugin URL', async () => {
         get.mockImplementation(configsOf([meta('BasicButton')]));
@@ -110,6 +115,15 @@ describe('ThemeEditorRepository Compose components', () => {
                 preview: { compose: { componentId: 'Avatar', storyId: 'Avatar' } },
             }),
         ]);
+    });
+
+    it('hides Compose components that have no configuration in the design system', async () => {
+        pluginUrl.value = 'http://plugin.example/';
+        get.mockImplementation(configsOf([meta('Avatar'), meta('DropdownLoadingState', []), meta('Wheel', [])]));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(snapshot.composeComponentsData.map((item) => item.name)).toEqual(['Avatar']);
     });
 
     it('keeps the editor usable when Compose components fail to load', async () => {

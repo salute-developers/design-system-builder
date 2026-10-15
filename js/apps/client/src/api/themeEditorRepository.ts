@@ -1,7 +1,7 @@
 import { http, PROJECTS_URL } from '.';
 import type { Meta, PlatformsVariations, ThemeMeta, ThemeSource, TokenType, VariationType } from '../controllers';
 import type { Parameters } from '../types';
-import { getComposePreviewPluginUrl, markComposeComponents } from '../composePreview';
+import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import type { DesignSystemDto, ProjectDto, TenantDto } from './contracts';
 
@@ -63,7 +63,8 @@ export class ThemeEditorRepository {
                 `${root}/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs`,
                 { params: { platform: 'compose' }, signal },
             );
-            return markComposeComponents(response.data);
+            // Компоненты без конфигурации в дизайн-системе в редакторе не показываются: стилей для них нет.
+            return markComposeComponents(response.data.filter(hasConfiguration));
         } catch (error) {
             if (signal?.aborted) throw error;
             console.error('[ThemeEditorRepository] Не удалось загрузить Compose-компоненты', error);
