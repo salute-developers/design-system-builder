@@ -2,7 +2,7 @@
 
 ### Requirement: API meta import platform
 
-Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose`, `android-view` и `react`.
+Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose`, `android-view`, `swiftui` и `react`.
 
 #### Scenario: Платформа обязательна
 
@@ -15,6 +15,12 @@
 - **THEN** CLI MUST нормализовать мету View и отправить её одним запросом
 - **THEN** CLI MUST передать backend `platform` со значением `xml`
 
+#### Scenario: Платформа swiftui
+
+- **WHEN** платформа — `swiftui`
+- **THEN** CLI MUST нормализовать мету SwiftUI и отправить её одним запросом
+- **THEN** CLI MUST передать backend `platform` со значением `ios`
+
 #### Scenario: Платформа react
 
 - **WHEN** платформа — `react`
@@ -23,8 +29,8 @@
 
 #### Scenario: Неподдержанная платформа
 
-- **WHEN** платформа — `swiftui`
-- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что платформа пока не поддержана
+- **WHEN** значение `--platform` не входит в перечень поддержанных платформ
+- **THEN** CLI MUST завершиться ненулевым кодом и назвать поддержанные платформы
 - **THEN** CLI MUST NOT читать файл и MUST NOT обращаться к backend
 
 #### Scenario: Соответствие платформы значению backend
