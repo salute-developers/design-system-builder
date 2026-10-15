@@ -224,6 +224,18 @@ export class DesignSystem {
         return componentData || this.componentsData[0];
     }
 
+    /**
+     * API-метаданные компонента конфигурации с учётом платформы. Compose-компонент ищется только среди Compose-компонентов
+     * (имена с web совпадают, а API разный), без подмены чужим компонентом, если его нет.
+     */
+    public getComponentData(config: Config) {
+        if (config.getPlatform() === 'compose') {
+            return this.composeComponentsData.find((item) => item.name === config.getName());
+        }
+
+        return this.getComponentDataByName(config.getName());
+    }
+
     public getComponentsData() {
         return this.componentsData;
     }
