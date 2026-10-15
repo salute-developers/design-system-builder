@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
-import { parseComponentRoute, toComponentRoute } from '../../composePreview';
-import type { ComponentRoute } from '../../composePreview';
+import {
+    getComposePreviewPluginUrl,
+    loadComposePreviewManifest,
+    parseComponentRoute,
+    toComponentRoute,
+} from '../../composePreview';
+import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
 import { SegmentButton, SegmentButtonItem } from '../../components';
 import { getComposeMenuItems, getOldMenuItems } from '../../utils';
 import type { Data } from '../../types';
@@ -35,14 +40,32 @@ export const Components = () => {
     const navigate = useNavigate();
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
+    // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
+    const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
+
+    useEffect(() => {
+        const pluginUrl = getComposePreviewPluginUrl();
+        if (!pluginUrl || !composeComponents?.length) return;
+
+        let cancelled = false;
+        void loadComposePreviewManifest(pluginUrl)
+            .then(({ manifest }) => {
+                if (!cancelled) setPluginGroups(manifest.groups);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [composeComponents]);
 
     // Платформы показываем только те, для которых у дизайн-системы есть компоненты.
     const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
         () => ({
             ...(components?.length ? { web: getOldMenuItems(components, 'components') } : {}),
-            ...(composeComponents?.length ? { compose: getComposeMenuItems(composeComponents) } : {}),
+            ...(composeComponents?.length ? { compose: getComposeMenuItems(composeComponents, pluginGroups) } : {}),
         }),
-        [theme, components, composeComponents],
+        [theme, components, composeComponents, pluginGroups],
     );
     const platforms = (Object.keys(menus) as Platform[]).sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : 0));
     const routePlatform = componentName ? parseComponentRoute(componentName).platform : undefined;
@@ -140,7 +163,8 @@ export const Components = () => {
             menuBackground={'transparent'}
             menu={
                 <MenuOld
-                    key={platform}
+                    // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
+                    key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}

@@ -120,6 +120,12 @@ export type PreviewComponentDescriptionResult =
     | { type: 'success'; requestId: string; description: PreviewComponentDescription }
     | { type: 'failure'; requestId: string; code: string; message: string; details?: PreviewFailureDetails };
 
+/** Группа компонентов песочницы: имя и компоненты, которые в неё входят. */
+export interface ComposePreviewComponentGroup {
+    name: string;
+    components: string[];
+}
+
 export interface ComposePreviewManifest {
     schemaVersion: 1;
     platform: 'compose';
@@ -134,6 +140,8 @@ export interface ComposePreviewManifest {
         descriptionMessageType: typeof PREVIEW_MESSAGE_TYPES.description;
     };
     components: string[];
+    /** Группы компонентов песочницы; нет у плагина без поддержки групп. */
+    groups?: ComposePreviewComponentGroup[];
 }
 export interface LoadedComposePreviewManifest {
     manifest: ComposePreviewManifest;
