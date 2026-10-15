@@ -10,3 +10,4 @@ export * from './importDesignSystem';
 export * from './baseName';
 export * from './debugMode';
 export * from './featureFlags';
+export * from './copyText';

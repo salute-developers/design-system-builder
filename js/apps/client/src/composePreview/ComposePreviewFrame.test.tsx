@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ComposePreviewFrame } from './ComposePreviewFrame';
@@ -285,6 +285,66 @@ describe('ComposePreviewFrame', () => {
             await act(async () => undefined);
             expect(send).toHaveBeenCalledTimes(1);
             expect(createSession).toHaveBeenCalledTimes(2);
+        });
+
+        describe('crash details', () => {
+            const details = { stack: 'Error: Only Sp can convert to Px\n    at Dp.toPx', consoleError: 'Only Sp can convert to Px' };
+
+            const renderCrashed = async (result: PreviewResult) => {
+                const { send, createSession, loadManifest } = setup();
+                await crash(send, new ComposePreviewResultError('Compose preview stopped', result));
+                render(
+                    <ComposePreviewFrame
+                        pluginUrl="https://plugin.example/"
+                        payload={{ ...BASIC_BUTTON_PREVIEW_FIXTURE }}
+                        loadManifest={loadManifest}
+                        createSession={createSession}
+                    />,
+                );
+                await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Превью перезапущено'));
+            };
+
+            afterEach(() => {
+                localStorage.removeItem('debug_mode');
+            });
+
+            it('shows the cause with the stack of the crash in the debug mode', async () => {
+                localStorage.setItem('debug_mode', 'true');
+                await renderCrashed({ ...crashResult('render_crashed'), details } as PreviewResult);
+
+                const block = await screen.findByTestId('compose-failure-details');
+                expect(screen.queryByTestId('compose-failure-details-text')).not.toBeInTheDocument();
+
+                fireEvent.click(within(block).getByText(/Причина/));
+                const text = screen.getByTestId('compose-failure-details-text');
+                expect(text).toHaveTextContent('console.error: Only Sp can convert to Px');
+                expect(text).toHaveTextContent('at Dp.toPx');
+            });
+
+            it('copies the cause', async () => {
+                localStorage.setItem('debug_mode', 'true');
+                const writeText = vi.fn().mockResolvedValue(undefined);
+                Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+                await renderCrashed({ ...crashResult('render_crashed'), details } as PreviewResult);
+
+                fireEvent.click(within(await screen.findByTestId('compose-failure-details')).getByText('Копировать'));
+
+                await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('at Dp.toPx')));
+                expect(await screen.findByText('Скопировано')).toBeInTheDocument();
+            });
+
+            it('does not show the cause outside the debug mode', async () => {
+                await renderCrashed({ ...crashResult('render_crashed'), details } as PreviewResult);
+
+                expect(screen.queryByTestId('compose-failure-details')).not.toBeInTheDocument();
+            });
+
+            it('does not show the cause when the plugin sent no details', async () => {
+                localStorage.setItem('debug_mode', 'true');
+                await renderCrashed(crashResult('render_crashed'));
+
+                expect(screen.queryByTestId('compose-failure-details')).not.toBeInTheDocument();
+            });
         });
 
         it('sends the next payload to the restarted plugin', async () => {
