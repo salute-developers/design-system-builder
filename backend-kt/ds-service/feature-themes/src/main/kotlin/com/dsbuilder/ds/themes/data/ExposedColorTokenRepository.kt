@@ -5,9 +5,12 @@ import com.dsbuilder.ds.themes.application.colortokens.ColorTokenLock
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenLookup
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
+import com.dsbuilder.ds.themes.application.colortokens.PlacedToken
 import com.dsbuilder.ds.themes.application.colortokens.StoredColorTokenFamily
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenNaming
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -98,6 +101,8 @@ class ExposedColorTokenRepository : ColorTokenRepository {
         names: List<String>,
         displayName: String?,
         description: String?,
+        groupId: UUID?,
+        position: Int,
     ): Map<String, UUID> = names.associateWith { name ->
         // Отображаемое имя и описание — у члена `default`: им редактор подписывает токен целиком.
         val isDefault = name == family.defaultMember()
@@ -107,8 +112,56 @@ class ExposedColorTokenRepository : ColorTokenRepository {
             it[type] = family.type
             it[ThemeTokensTable.displayName] = if (isDefault) displayName else null
             it[ThemeTokensTable.description] = if (isDefault) description else null
+            it[ThemeTokensTable.groupId] = groupId
+            it[ThemeTokensTable.position] = position
         }.single()[ThemeTokensTable.id]
     }
+
+    override suspend fun placedIn(designSystemId: UUID, groupIds: Collection<UUID>): List<PlacedToken> =
+        if (groupIds.isEmpty()) {
+            emptyList()
+        } else {
+            ThemeTokensTable.selectAll()
+                .where {
+                    (ThemeTokensTable.designSystemId eq designSystemId) and (ThemeTokensTable.groupId inList groupIds)
+                }
+                .map(::placed)
+        }
+
+    override suspend fun placedById(tokenIds: Collection<UUID>): List<PlacedToken> =
+        if (tokenIds.isEmpty()) {
+            emptyList()
+        } else {
+            ThemeTokensTable.selectAll().where { ThemeTokensTable.id inList tokenIds }.map(::placed)
+        }
+
+    override suspend fun arrange(groupId: UUID?, slots: List<Collection<UUID>>) {
+        slots.forEachIndexed { index, ids ->
+            ThemeTokensTable.update({ ThemeTokensTable.id inList ids }) {
+                it[ThemeTokensTable.groupId] = groupId
+                it[position] = index
+                it[updatedAt] = Instant.now()
+            }
+        }
+    }
+
+    override suspend fun rename(names: Map<UUID, String>) {
+        names.forEach { (tokenId, name) ->
+            ThemeTokensTable.update({ ThemeTokensTable.id eq tokenId }) {
+                it[ThemeTokensTable.name] = name
+                it[displayName] = ColorTokenNaming.displayName(name)
+                it[updatedAt] = Instant.now()
+            }
+        }
+    }
+
+    private fun placed(row: ResultRow) = PlacedToken(
+        id = row[ThemeTokensTable.id],
+        name = row[ThemeTokensTable.name],
+        type = row[ThemeTokensTable.type],
+        groupId = row[ThemeTokensTable.groupId],
+        position = row[ThemeTokensTable.position],
+    )
 
     override suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>) {
         tenantIds.forEach { tenant -> values.forEach { (token, items) -> insert(tenant, token, items) } }

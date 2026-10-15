@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.application.colortokens
 
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import java.util.UUID
 
 /** Создание цветового токена: определения семейства с начальными значениями и необязательная группа палитры. */
 data class CreateColorToken(
@@ -16,4 +17,8 @@ data class CreateColorToken(
     val paletteGroupId: String?,
     /** Полное имя члена семейства → его значения. */
     val members: Map<String, List<ColorTokenValue>>,
+    /** Группа или подгруппа токенов; `null` — без группы. */
+    val groupId: UUID? = null,
+    /** Позиция в группе; `null` — в конец. */
+    val position: Int? = null,
 )

@@ -21,4 +21,8 @@ data class CreateColorTokenRequest(
     val paletteGroupId: String? = null,
     /** Члены семейства с начальными значениями. */
     val members: List<ColorTokenMemberValues>,
+    /** Группа или подгруппа токенов; без неё токен создаётся без группы. */
+    val groupId: String? = null,
+    /** Позиция в группе; без неё — в конец. */
+    val position: Int? = null,
 )

@@ -18,7 +18,7 @@
         ["PATCH", "/design-systems/{id}", "UpdateDesignSystemRequest", "DesignSystem", 200, "design-systems:write", null],
         ["DELETE", "/design-systems/{id}", null, "OkResponse", 200, "design-systems:delete", null],
         ["GET", "/design-systems/{id}/components", "DesignSystemComponentsQuery", "ComponentSummary[]", 200, "components:read", null],
-        ["GET", "/design-systems/{id}/tokens", "DesignSystemTokensQuery", "Token[]", 200, "tokens:read", null],
+        ["GET", "/design-systems/{id}/tokens", "DesignSystemTokensQuery", "DesignSystemToken[]", 200, "tokens:read", null],
         ["GET", "/design-systems/{id}/components/{componentId}/styles", null, "Style[]", 200, "components:read", "design-system-and-component-link"],
         ["GET", "/design-systems/{id}/tenants", null, "Tenant[]", 200, "tenants:read", null],
         ["GET", "/design-systems/{id}/appearances", null, "Appearance[]", 200, "components:variations:read", null],
@@ -95,7 +95,21 @@
       "operations": [
         ["POST", "/tenants/{tenantId}/color-tokens", "CreateColorTokenRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
         ["PUT", "/tenants/{tenantId}/color-tokens/{tokenId}/values", "UpdateColorTokenValuesRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"]
+        ["DELETE", "/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/tenants/{tenantId}/color-tokens/{tokenId}/move", "MoveColorTokenRequest", "ColorTokenMutation", 200, "tenants:write", "tenant-edit-revision"]
+      ]
+    },
+    {
+      "name": "token-groups",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/design-systems/{id}/token-groups", null, "TokenGroup[]", 200, "tokens:read", null],
+        ["POST", "/tenants/{tenantId}/token-groups", "CreateTokenGroupRequest", "TokenGroupMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["PATCH", "/tenants/{tenantId}/token-groups/{groupId}", "UpdateTokenGroupRequest", "TokenGroupMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/tenants/{tenantId}/token-groups/{groupId}", "DeleteTokenGroupRequest", "TokenGroupRevision", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {

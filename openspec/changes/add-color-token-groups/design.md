@@ -104,7 +104,7 @@ text.on-dark.accent       → onDarkTextAccent
 
 | Операция | Маршрут | Права |
 |---|---|---|
-| Список групп | `GET /api/ds/design-systems/{designSystemId}/token-groups?kind=color` | `tokens:read` |
+| Список групп | `GET /api/ds/design-systems/{id}/token-groups?kind=color` | `tokens:read` |
 | Создать | `POST /api/ds/tenants/{tenantId}/token-groups` | `tenants:write`, `tokens:write` |
 | Переименовать, переставить, перенести подгруппу | `PATCH /api/ds/tenants/{tenantId}/token-groups/{groupId}` | `tenants:write`, `tokens:write` |
 | Удалить с токенами | `DELETE /api/ds/tenants/{tenantId}/token-groups/{groupId}` | `tenants:write`, `tokens:delete` |
@@ -127,6 +127,8 @@ text.on-dark.accent       → onDarkTextAccent
    - у BG, Overlays, Data и Technical подгруппа одна, Default;
 4. раскладывает семейства по подгруппам с позициями по порядку `created_at`, затем `name`;
 5. очищает дубли имени в `value` значений компонентов.
+
+Правила раскладки записаны один раз — в SQL-функции `token_groups_initialize_color(design_system_id)` из V6. Миграция вызывает её для всех дизайн-систем. `ds-service` вызывает её при первом чтении списка групп и перед созданием первой группы, если у дизайн-системы нет групп вида `color`. Так раскладку получают и дизайн-системы, созданные после миграции через legacy db-service. Функция блокирует строку дизайн-системы и ничего не делает, если группы уже есть.
 
 Явные привязки к группам палитры в категории не превращаются. Они появились недавно, хранятся на уровне темы и продолжают действовать на цвет.
 

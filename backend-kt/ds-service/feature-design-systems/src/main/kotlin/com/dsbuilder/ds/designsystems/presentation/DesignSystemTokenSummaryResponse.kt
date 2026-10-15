@@ -24,6 +24,12 @@ data class DesignSystemTokenSummaryResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Группа или подгруппа токенов; `null` — токен без группы. */
+    val groupId: String?,
+    /** Позиция в группе или подгруппе. */
+    val position: Int,
+    /** Последняя опубликованная версия, в которую попало определение, или `null`. */
+    val publishedIn: String?,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -37,6 +43,9 @@ data class DesignSystemTokenSummaryResponse(
             value.enabled,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.groupId?.toString(),
+            value.position,
+            value.publishedIn,
         )
     }
 }

@@ -239,8 +239,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 it[designSystemId] = ds
                 it[componentId] = component
                 it[appearanceId] = appearance
-                it[tokenId] = token(value.token, context)
-                it[InvariantPropertyValuesTable.value] = value.value
+                val token = token(value.token, context)
+                it[tokenId] = token
+                // Ссылка на токен — только `token_id`: имя берётся у токена и следует за переименованием.
+                it[InvariantPropertyValuesTable.value] = value.value.takeIf { token == null }
                 it[alpha] = value.alpha
                 it[adjustment] = value.adjustment
                 it[position] = value.position
@@ -337,8 +339,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             it[propertyId] = p
             it[styleId] = s
             it[appearanceId] = a
-            it[tokenId] = token(value.token, c)
-            it[VariationPropertyValuesTable.value] = value.value
+            val token = token(value.token, c)
+            it[tokenId] = token
+            it[VariationPropertyValuesTable.value] = value.value.takeIf { token == null }
             it[alpha] = value.alpha
             it[adjustment] = value.adjustment
             it[position] = value.position

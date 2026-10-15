@@ -22,14 +22,32 @@ interface ColorTokenRepository {
     /** Типы токенов [tokenIds]; токенов без типа в ответе нет. */
     suspend fun tokenTypes(tokenIds: Collection<UUID>): Map<UUID, ThemeTokenType>
 
-    /** Вставляет определения [names] семейства и возвращает полное имя → идентификатор. */
+    /**
+     * Вставляет определения [names] семейства в группу [groupId] на позицию [position] и возвращает полное имя →
+     * идентификатор.
+     */
+    @Suppress("LongParameterList")
     suspend fun insertDefinitions(
         designSystemId: UUID,
         family: ColorTokenFamily,
         names: List<String>,
         displayName: String?,
         description: String?,
+        groupId: UUID?,
+        position: Int,
     ): Map<String, UUID>
+
+    /** Определения дизайн-системы [designSystemId], лежащие в группах [groupIds]. */
+    suspend fun placedIn(designSystemId: UUID, groupIds: Collection<UUID>): List<PlacedToken>
+
+    /** Определения [tokenIds] с их местом. */
+    suspend fun placedById(tokenIds: Collection<UUID>): List<PlacedToken>
+
+    /** Кладёт определения каждого слота [slots] в группу [groupId] на позицию, равную индексу слота. */
+    suspend fun arrange(groupId: UUID?, slots: List<Collection<UUID>>)
+
+    /** Переименовывает определения: идентификатор → новое полное имя; отображаемое имя пересчитывается. */
+    suspend fun rename(names: Map<UUID, String>)
 
     /** Записывает значения [values] токенов в каждую из тем [tenantIds]. */
     suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>)
@@ -43,3 +61,13 @@ interface ColorTokenRepository {
     /** Увеличивает ревизии тем [tenantIds] и возвращает новые значения. */
     suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int>
 }
+
+/**
+ * Слоты группы — семейства цветовых токенов в порядке позиций: определения семейства всегда стоят вместе.
+ * Определение вне семейства занимает свой слот.
+ */
+internal fun List<PlacedToken>.slots(): List<List<UUID>> =
+    groupBy { token -> token.type?.let { ColorTokenFamily.of(it, token.name) } ?: token.id }
+        .values
+        .sortedWith(compareBy({ members -> members.minOf { it.position } }, { members -> members.minOf { it.name } }))
+        .map { members -> members.map { it.id } }

@@ -8,4 +8,6 @@ data class ColorTokenUseCases(
     val updateValues: UpdateColorTokenValuesUseCase,
     /** Удаление токена. */
     val delete: DeleteColorTokenUseCase,
+    /** Перенос и переименование токена. */
+    val move: MoveColorTokenUseCase,
 )

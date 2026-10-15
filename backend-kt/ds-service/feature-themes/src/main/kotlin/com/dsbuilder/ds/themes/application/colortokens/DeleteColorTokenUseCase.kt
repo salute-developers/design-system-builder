@@ -24,7 +24,11 @@ class DeleteColorTokenUseCase(
                 ) {
                     is DsResult.Failure -> found
                     is DsResult.Success -> {
+                        val groupIds = tokens.placedById(found.value.members.values).mapNotNull { it.groupId }.toSet()
                         tokens.deleteDefinitions(found.value.members.values)
+                        groupIds.forEach { group ->
+                            tokens.arrange(group, tokens.placedIn(lock.designSystemId, listOf(group)).slots())
+                        }
                         DsResult.Success(tokens.bumpRevisions(lock.tenantIds).getValue(tenantId))
                     }
                 }

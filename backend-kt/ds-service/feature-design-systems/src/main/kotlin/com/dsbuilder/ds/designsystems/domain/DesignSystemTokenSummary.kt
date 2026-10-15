@@ -23,4 +23,10 @@ data class DesignSystemTokenSummary(
     val createdAt: Instant,
     /** Updated at carried by this contract. */
     val updatedAt: Instant,
+    /** Группа или подгруппа токенов; `null` — токен без группы. */
+    val groupId: UUID?,
+    /** Позиция в группе или подгруппе; у всех определений семейства цветового токена одна. */
+    val position: Int,
+    /** Последняя опубликованная версия, в которую попало определение, или `null`. */
+    val publishedIn: String?,
 )

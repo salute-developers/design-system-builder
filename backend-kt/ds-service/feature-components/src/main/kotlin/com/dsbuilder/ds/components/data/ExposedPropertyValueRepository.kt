@@ -65,7 +65,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             it[styleId] = command.styleId
             it[appearanceId] = command.appearanceId
             it[tokenId] = command.tokenId
-            it[value] = command.value
+            it[value] = command.value.takeIf { command.tokenId == null }
             it[alpha] = command.alpha
             it[adjustment] = command.adjustment
             it[stateSetId] = command.stateSetId
@@ -92,7 +92,12 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             (VariationPropertyValuesTable.id eq id) and writableVariationValue(projectId, systemAdmin)
         }) {
             if (command.tokenIdPresent) it[tokenId] = command.tokenId
-            if (command.valuePresent) it[value] = command.value
+            // Значение со ссылкой на токен хранит только `token_id`.
+            if (command.tokenIdPresent && command.tokenId != null) {
+                it[value] = null
+            } else if (command.valuePresent) {
+                it[value] = command.value
+            }
             if (command.alphaPresent) it[alpha] = command.alpha
             if (command.adjustmentPresent) it[adjustment] = command.adjustment
             command.stateSetId?.let { stateSet -> it[stateSetId] = stateSet }
@@ -144,7 +149,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             it[componentId] = command.componentId
             it[appearanceId] = command.appearanceId
             it[tokenId] = command.tokenId
-            it[value] = command.value
+            it[value] = command.value.takeIf { command.tokenId == null }
             it[alpha] = command.alpha
             it[adjustment] = command.adjustment
             it[stateSetId] = command.stateSetId
@@ -171,7 +176,12 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             (InvariantPropertyValuesTable.id eq id) and writableInvariantValue(projectId, systemAdmin)
         }) {
             if (command.tokenIdPresent) it[tokenId] = command.tokenId
-            if (command.valuePresent) it[value] = command.value
+            // Значение со ссылкой на токен хранит только `token_id`.
+            if (command.tokenIdPresent && command.tokenId != null) {
+                it[value] = null
+            } else if (command.valuePresent) {
+                it[value] = command.value
+            }
             if (command.alphaPresent) it[alpha] = command.alpha
             if (command.adjustmentPresent) it[adjustment] = command.adjustment
             command.stateSetId?.let { stateSet -> it[stateSetId] = stateSet }

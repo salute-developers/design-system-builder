@@ -6,7 +6,7 @@
 
 #### Scenario: Список групп
 
-- **WHEN** пользователь с правом `tokens:read` запрашивает `GET /api/ds/design-systems/{designSystemId}/token-groups?kind=color`
+- **WHEN** пользователь с правом `tokens:read` запрашивает `GET /api/ds/design-systems/{id}/token-groups?kind=color`
 - **THEN** API MUST вернуть `200` и массив `{ id, parentId, code, label, position, kind }` всех групп и подгрупп вида `color`, упорядоченный по уровню, родителю и позиции
 - **THEN** пустые группы и подгруппы MUST входить в ответ
 
@@ -37,6 +37,12 @@
 - **THEN** токены с `accent` или `promo` в последнем сегменте MUST попасть в подгруппу Accent, с `positive`, `negative`, `warning` или `info` — в Status, остальные — в General
 - **THEN** в Surfaces и Outlines к названию MUST добавляться «/ Solid» или «/ Transparent» по префиксу `transparent-` или имени `clear`
 - **THEN** токены групп BG, Overlays, Data и Technical MUST попасть в единственную подгруппу Default своей группы
+
+#### Scenario: Дизайн-система, созданная после миграции
+
+- **WHEN** у дизайн-системы есть цветовые токены и нет групп вида `color`, например она создана через legacy db-service
+- **THEN** первое чтение списка групп или создание первой группы MUST разложить её токены по тем же правилам, что и миграция
+- **THEN** повторный вызов MUST NOT менять группы, которые уже есть
 
 #### Scenario: Все члены семейства в одной подгруппе
 

@@ -3,6 +3,7 @@ package com.dsbuilder.ds.themes.application.colortokens
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenNaming
 import java.util.UUID
 
 /**
@@ -16,7 +17,14 @@ internal class FakeColorTokenRepository(
     private val onInsert: (Map<String, UUID>) -> Unit = {},
 ) : ColorTokenRepository {
     /** Определение токена. */
-    data class Definition(val id: UUID, val name: String, val type: ThemeTokenType)
+    data class Definition(
+        val id: UUID,
+        val name: String,
+        val type: ThemeTokenType,
+        val groupId: UUID? = null,
+        val position: Int = 0,
+        val displayName: String? = null,
+    )
 
     val revisions: MutableMap<UUID, Int> = tenantIds.associateWith { 0 }.toMutableMap()
     val definitions = mutableListOf<Definition>()
@@ -24,8 +32,12 @@ internal class FakeColorTokenRepository(
     var lockedAllThemes: Boolean? = null
 
     /** Добавляет существующее определение и возвращает его идентификатор. */
-    fun define(name: String, type: ThemeTokenType = ThemeTokenType.COLOR): UUID =
-        UUID.randomUUID().also { definitions += Definition(it, name, type) }
+    fun define(
+        name: String,
+        type: ThemeTokenType = ThemeTokenType.COLOR,
+        groupId: UUID? = null,
+        position: Int = 0,
+    ): UUID = UUID.randomUUID().also { definitions += Definition(it, name, type, groupId, position) }
 
     override suspend fun lock(
         projectId: ProjectId,
@@ -61,7 +73,35 @@ internal class FakeColorTokenRepository(
         names: List<String>,
         displayName: String?,
         description: String?,
-    ): Map<String, UUID> = names.associateWith { define(it, family.type) }.also(onInsert)
+        groupId: UUID?,
+        position: Int,
+    ): Map<String, UUID> = names.associateWith { define(it, family.type, groupId, position) }.also(onInsert)
+
+    override suspend fun placedIn(designSystemId: UUID, groupIds: Collection<UUID>): List<PlacedToken> =
+        definitions.filter { it.groupId != null && it.groupId in groupIds }.map(::placed)
+
+    override suspend fun placedById(tokenIds: Collection<UUID>): List<PlacedToken> =
+        definitions.filter { it.id in tokenIds }.map(::placed)
+
+    override suspend fun arrange(groupId: UUID?, slots: List<Collection<UUID>>) {
+        slots.forEachIndexed { index, ids -> update(ids) { it.copy(groupId = groupId, position = index) } }
+    }
+
+    override suspend fun rename(names: Map<UUID, String>) {
+        names.forEach { (id, name) ->
+            update(listOf(id)) { it.copy(name = name, displayName = ColorTokenNaming.displayName(name)) }
+        }
+    }
+
+    /** Определение по полному имени. */
+    fun named(name: String): Definition = definitions.single { it.name == name }
+
+    private fun update(ids: Collection<UUID>, change: (Definition) -> Definition) {
+        definitions.replaceAll { if (it.id in ids) change(it) else it }
+    }
+
+    private fun placed(definition: Definition) =
+        PlacedToken(definition.id, definition.name, definition.type, definition.groupId, definition.position)
 
     override suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>) {
         tenantIds.forEach { tenant -> values.forEach { (token, items) -> this.values[tenant to token] = items } }

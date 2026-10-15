@@ -211,6 +211,60 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
       x-permission: components:read
+  /api/ds/design-systems/{id}/token-groups:
+    get:
+      tags:
+        - Token groups
+      summary: List token groups and subgroups of a design system
+      description: Includes empty groups. Ordered by level, parent and position.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            enum:
+              - color
+          required: false
+          name: kind
+          in: query
+      responses:
+        "200":
+          description: Token groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TokenGroup"
+        "400":
+          description: Invalid id or kind
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Design system not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tokens:read
   /api/ds/design-systems/{id}/tokens:
     get:
       tags:
@@ -252,7 +306,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Token"
+                  $ref: "#/components/schemas/DesignSystemToken"
         "400":
           description: Invalid filter
           content:
@@ -1714,7 +1768,7 @@ paths:
     post:
       tags:
         - Color tokens
-      summary: Create a color token with its family, values in every theme and palette group
+      summary: Create a color token with its family in a token group, values in every theme and optional palette group
       description: Requires tenants:write and tokens:write. Increments editRevision of every theme of the design system.
       parameters:
         - schema:
@@ -1737,7 +1791,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ColorTokenMutation"
         "400":
-          description: Invalid request, token name (INVALID_TOKEN_NAME), token family (INVALID_TOKEN_FAMILY), token value (INVALID_TOKEN_VALUE) or unknown paletteId (invalid_reference)
+          description: Invalid request, token name (INVALID_TOKEN_NAME), token family (INVALID_TOKEN_FAMILY), token group (INVALID_TOKEN_GROUP), token value (INVALID_TOKEN_VALUE) or unknown paletteId (invalid_reference)
           content:
             application/json:
               schema:
@@ -1749,7 +1803,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Tenant, token or palette group not found
+          description: Tenant, token, token group or palette group not found
           content:
             application/json:
               schema:
@@ -1876,6 +1930,256 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/color-tokens/{tokenId}/move:
+    post:
+      tags:
+        - Color tokens
+      summary: Move a color token family to a token group and position, optionally renaming it
+      description: Requires tenants:write and tokens:write. Definition ids are kept; moving to a group with another code
+        changes the first name segment, display names are recomputed. Increments editRevision of every theme of the
+        design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveColorTokenRequest"
+      responses:
+        "200":
+          description: Moved color token family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ColorTokenMutation"
+        "400":
+          description: Invalid request, token name (INVALID_TOKEN_NAME), token family (INVALID_TOKEN_FAMILY) or token group (INVALID_TOKEN_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant, token or token group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or token name conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/token-groups:
+    post:
+      tags:
+        - Token groups
+      summary: Create a token group or subgroup
+      description: Requires tenants:write and tokens:write. A top-level group gets a code derived from its label. Increments
+        editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTokenGroupRequest"
+      responses:
+        "201":
+          description: Created token group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenGroupMutation"
+        "400":
+          description: Invalid request or token group (INVALID_TOKEN_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or parent group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict or label conflict (TOKEN_GROUP_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/token-groups/{groupId}:
+    patch:
+      tags:
+        - Token groups
+      summary: Rename or reorder a token group, move a subgroup to another group
+      description: Requires tenants:write and tokens:write. Moving a subgroup to a group with another code renames its tokens
+        keeping definition ids. Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: groupId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTokenGroupRequest"
+      responses:
+        "200":
+          description: Updated token group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenGroupMutation"
+        "400":
+          description: Invalid request or token group (INVALID_TOKEN_GROUP)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict, label conflict (TOKEN_GROUP_CONFLICT) or token name conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+    delete:
+      tags:
+        - Token groups
+      summary: Delete a token group with its subgroups and tokens
+      description: Requires tenants:write and tokens:delete. Token values in every theme and palette group bindings are
+        deleted, component value references become null. Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: groupId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteTokenGroupRequest"
+      responses:
+        "200":
+          description: New theme revision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenGroupRevision"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token group not found
           content:
             application/json:
               schema:
@@ -9264,6 +9568,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ColorTokenMemberValues"
+        groupId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Token group or subgroup; its top-level code must equal group. Without it the token has no group.
+        position:
+          type: integer
+          minimum: 0
+          nullable: true
       required:
         - editRevision
         - type
@@ -9340,6 +9653,146 @@ components:
           minimum: 0
       required:
         - editRevision
+    MoveColorTokenRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        groupId:
+          type: string
+          format: uuid
+        position:
+          type: integer
+          minimum: 0
+        name:
+          type: string
+          nullable: true
+      required:
+        - editRevision
+        - groupId
+        - position
+    TokenGroup:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        code:
+          type: string
+          nullable: true
+        label:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum:
+            - color
+      required:
+        - id
+        - parentId
+        - code
+        - label
+        - position
+        - kind
+    CreateTokenGroupRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum:
+            - color
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        label:
+          type: string
+        position:
+          type: integer
+          minimum: 0
+          nullable: true
+      required:
+        - editRevision
+        - kind
+        - label
+    UpdateTokenGroupRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        label:
+          type: string
+          nullable: true
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        position:
+          type: integer
+          minimum: 0
+          nullable: true
+      required:
+        - editRevision
+    DeleteTokenGroupRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
+    TokenGroupMutation:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        value:
+          $ref: "#/components/schemas/TokenGroup"
+      required:
+        - editRevision
+        - value
+    TokenGroupRevision:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
+    DesignSystemToken:
+      allOf:
+        - $ref: "#/components/schemas/Token"
+        - type: object
+          properties:
+            groupId:
+              type: string
+              format: uuid
+              nullable: true
+              description: Token group or subgroup; null for a token without a group.
+            position:
+              type: integer
+              minimum: 0
+              description: Position in the group; every definition of a color token family has the same one.
+            publishedIn:
+              type: string
+              nullable: true
+              description: Latest published version of the design system that contains the definition.
+          required:
+            - groupId
+            - position
+            - publishedIn
     PaletteTokenAssignmentMutation:
       type: object
       properties:

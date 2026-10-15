@@ -6,9 +6,12 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
 import com.dsbuilder.ds.themes.application.colortokens.CreateColorToken
+import com.dsbuilder.ds.themes.application.colortokens.MoveColorToken
+import com.dsbuilder.ds.themes.application.colortokens.StoredColorTokenFamily
 import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValues
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
@@ -32,13 +35,7 @@ fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCa
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
-            when (val result = useCases.create.execute(context, tenantId, command)) {
-                is DsResult.Success -> call.respond(
-                    HttpStatusCode.Created,
-                    ColorTokenMutationResponse(result.value.editRevision, ColorTokenFamilyDto.from(result.value.value)),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondFamily(useCases.create.execute(context, tenantId, command), HttpStatusCode.Created)
         }
         put("/{tokenId}/values") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@put
@@ -46,6 +43,12 @@ fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCa
             val command = call.body<UpdateColorTokenValuesRequest>()?.toCommand()
                 ?: return@put call.respondFailure(BODY)
             call.respondRevision(useCases.updateValues.execute(context, tenantId, tokenId, command))
+        }
+        post("/{tokenId}/move") {
+            val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
+            val tokenId = call.tokenId() ?: return@post
+            val command = call.body<MoveColorTokenRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
+            call.respondFamily(useCases.move.execute(context, tenantId, tokenId, command), HttpStatusCode.OK)
         }
         delete("/{tokenId}") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
@@ -62,6 +65,7 @@ private fun CreateColorTokenRequest.toCommand(): CreateColorToken? {
     val tokenType = ThemeTokenType.fromWire(type)?.takeIf { it in ColorTokenFamily.TYPES } ?: return null
     val values = members.associate { member -> member.name to (member.values.toValues() ?: return null) }
     if (values.size != members.size) return null
+    val tokenGroupId = groupId?.let { uuid(it) ?: return null }
     return CreateColorToken(
         editRevision = editRevision,
         family = ColorTokenFamily(tokenType, group, name),
@@ -69,8 +73,14 @@ private fun CreateColorTokenRequest.toCommand(): CreateColorToken? {
         description = description,
         paletteGroupId = paletteGroupId,
         members = values,
+        groupId = tokenGroupId,
+        position = position,
     )
 }
+
+/** Команда переноса или `null`, если идентификатор группы не разобран. */
+private fun MoveColorTokenRequest.toCommand(): MoveColorToken? =
+    uuid(groupId)?.let { MoveColorToken(editRevision, it, position, name) }
 
 /** Команда изменения или `null`, если идентификатор, платформа или режим не разобраны. */
 private fun UpdateColorTokenValuesRequest.toCommand(): UpdateColorTokenValues? {
@@ -108,6 +118,17 @@ private suspend inline fun <reified T : Any> ApplicationCall.body(): T? =
     runCatching { receive<T>() }
         .onFailure { if (it is CancellationException) throw it }
         .getOrNull()
+
+private suspend fun ApplicationCall.respondFamily(
+    result: DsResult<ColorTokenMutation<StoredColorTokenFamily>>,
+    status: HttpStatusCode,
+) = when (result) {
+    is DsResult.Success -> respond(
+        status,
+        ColorTokenMutationResponse(result.value.editRevision, ColorTokenFamilyDto.from(result.value.value)),
+    )
+    is DsResult.Failure -> respondFailure(result.error)
+}
 
 private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = when (result) {
     is DsResult.Success -> respond(ColorTokenRevisionResponse(result.value))

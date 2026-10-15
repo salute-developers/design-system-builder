@@ -15,6 +15,7 @@ import com.dsbuilder.ds.themes.application.TenantRepository
 import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.palette.FakeTenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
+import com.dsbuilder.ds.themes.application.tokengroups.FakeTokenGroupRepository
 import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
@@ -53,7 +54,8 @@ class ColorTokenUseCaseTest {
         "[${ramp.key}.${steps.keys.first()}]"
     }
     private val family = ColorTokenFamily(ThemeTokenType.COLOR, "text", "highlight")
-    private val create = CreateColorTokenUseCase(policy, transactions, tokens, palette)
+    private val groups = FakeTokenGroupRepository(tokens.designSystemId)
+    private val create = CreateColorTokenUseCase(policy, transactions, tokens, palette, groups)
     private val update = UpdateColorTokenValuesUseCase(policy, transactions, tokens, palette)
     private val delete = DeleteColorTokenUseCase(policy, transactions, tokens)
 
@@ -252,6 +254,49 @@ class ColorTokenUseCaseTest {
     }
 
     @Test
+    fun `создание в подгруппе ставит семейство на позицию и сдвигает соседей`() = runBlocking {
+        val text = groups.add("Text & Icons", code = "text")
+        val accent = groups.add("Accent", text.id)
+        val first = tokens.define("text.default.accent", groupId = accent.id, position = 0)
+        val second = tokens.define("text.default.accent-minor", groupId = accent.id, position = 1)
+
+        val result = success(create.execute(context("editor"), current, command(groupId = accent.id, position = 1)))
+
+        val created = result.value.members.values
+        assertTrue(
+            created.all { id ->
+                tokens.definitions.single { it.id == id }.let { it.groupId == accent.id && it.position == 1 }
+            },
+        )
+        assertEquals(0, tokens.definitions.single { it.id == first }.position)
+        assertEquals(2, tokens.definitions.single { it.id == second }.position)
+    }
+
+    @Test
+    fun `создание в группе с другим кодом и в чужой группе отклоняется`() = runBlocking {
+        val surface = groups.add("Surfaces", code = "surface")
+
+        val wrongCode = create.execute(context("editor"), current, command(groupId = surface.id))
+        assertEquals("INVALID_TOKEN_GROUP", code(wrongCode))
+        val foreignGroup = create.execute(context("editor"), current, command(groupId = UUID.randomUUID()))
+        assertEquals(DsFailure.NotFound, failure(foreignGroup))
+        assertTrue(tokens.definitions.isEmpty())
+        assertEquals(mapOf(current to 0, other to 0), tokens.revisions)
+    }
+
+    @Test
+    fun `удаление токена пересчитывает позиции его подгруппы`() = runBlocking {
+        val text = groups.add("Text", code = "text")
+        val removed = tokens.define("text.default.accent", groupId = text.id, position = 0)
+        tokens.define("text.on-dark.accent", groupId = text.id, position = 0)
+        val kept = tokens.define("text.default.primary", groupId = text.id, position = 1)
+
+        success(delete.execute(context("maintainer"), current, removed, 0))
+
+        assertEquals(0, tokens.definitions.single { it.id == kept }.position)
+    }
+
+    @Test
     fun `пакетное сохранение темы проверяет цветовые значения`() = runBlocking {
         val color = tokens.define("text.default.accent")
         val typography = tokens.define("screen-s.display.l", ThemeTokenType.TYPOGRAPHY)
@@ -279,7 +324,9 @@ class ColorTokenUseCaseTest {
             "text.on-dark.highlight" to complete("#FFFFFF"),
         ),
         paletteGroupId: String? = null,
-    ) = CreateColorToken(0, family, "textHighlight", null, paletteGroupId, members)
+        groupId: UUID? = null,
+        position: Int? = null,
+    ) = CreateColorToken(0, family, "textHighlight", null, paletteGroupId, members, groupId, position)
 
     private fun complete(value: String) = ThemeTokenPlatform.entries.flatMap { platform ->
         ThemeTokenMode.entries.map { mode ->

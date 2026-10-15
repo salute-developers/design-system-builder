@@ -18,15 +18,10 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
-import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -47,7 +42,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                     pathItem.jsonObject.keys.map { method -> template to method }
                 }
-                assertEquals(172, operations.size)
+                assertEquals(177, operations.size)
                 operations.forEach { (template, method) ->
                     val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                     val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
@@ -95,7 +90,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
                 verifyThemeCreationWithoutComponentMetadata(client, postgres)
 
-                val componentIds = seedComponentPrerequisites(postgres)
+                val componentIds = ComponentSeedFixture.seed(postgres)
                 val componentId = componentIds.getValue("Button")
                 val designSystem = client.post("/api/ds/design-systems") {
                     trusted("project-a", "owner")
@@ -381,60 +376,6 @@ class DsServiceHttpPostgresIntegrationTest {
         }
     }
 
-    private fun seedComponentPrerequisites(postgres: PostgreSQLContainer<Nothing>): Map<String, UUID> {
-        val root = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json"))
-            .bufferedReader().use { json.parseToJsonElement(it.readText()).jsonObject }
-        val componentIds = linkedMapOf<String, UUID>()
-        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
-            root.getValue("components").jsonArray.forEach { element ->
-                val component = element.jsonObject
-                val componentName = component.getValue("name").jsonPrimitive.content
-                val componentId = connection.prepareStatement(
-                    "INSERT INTO components (name, description, platform) VALUES (?, '', 'web') RETURNING id",
-                ).use { statement ->
-                    statement.setString(1, componentName)
-                    statement.executeQuery().use { rows ->
-                        rows.next()
-                        rows.getObject(1, UUID::class.java)
-                    }
-                }
-                componentIds[componentName] = componentId
-                val propertyNames = linkedSetOf<String>()
-                component.getValue("propertyVariations").jsonArray.forEach {
-                    propertyNames += it.jsonObject.getValue("property").jsonPrimitive.content
-                }
-                collectPropertyNames(component.getValue("appearances"), propertyNames)
-                propertyNames.forEach { propertyName ->
-                    val propertyId = connection.prepareStatement(
-                        "INSERT INTO properties (component_id, name, type) " +
-                            "VALUES (?, ?, 'value'::property_type) RETURNING id",
-                    ).use { statement ->
-                        statement.setObject(1, componentId)
-                        statement.setString(2, propertyName)
-                        statement.executeQuery().use { rows ->
-                            rows.next()
-                            rows.getObject(1, UUID::class.java)
-                        }
-                    }
-                    val params = linkedSetOf<Pair<String, String>>()
-                    collectAdjustments(component.getValue("appearances"), propertyName, params)
-                    params.forEach { (platform, name) ->
-                        connection.prepareStatement(
-                            "INSERT INTO property_platform_params (property_id, platform, name) " +
-                                "VALUES (?, ?::component_platform, ?)",
-                        ).use { statement ->
-                            statement.setObject(1, propertyId)
-                            statement.setString(2, platform)
-                            statement.setString(3, name)
-                            statement.executeUpdate()
-                        }
-                    }
-                }
-            }
-        }
-        return componentIds
-    }
-
     private suspend fun verifyThemeCreationWithoutComponentMetadata(
         client: HttpClient,
         postgres: PostgreSQLContainer<Nothing>,
@@ -462,40 +403,6 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, deleted.status)
         assertEquals(0, rowCount(postgres, "design_systems"))
         assertEquals(0, rowCount(postgres, "tokens"))
-    }
-
-    private fun collectPropertyNames(value: JsonElement, target: MutableSet<String>) {
-        when (value) {
-            is JsonArray -> value.forEach { collectPropertyNames(it, target) }
-            is JsonObject -> {
-                value["prop"]?.jsonPrimitive?.content?.let(target::add)
-                value.values.forEach { collectPropertyNames(it, target) }
-            }
-            else -> Unit
-        }
-    }
-
-    private fun collectAdjustments(
-        value: JsonElement,
-        propertyName: String,
-        target: MutableSet<Pair<String, String>>,
-        currentProperty: String? = null,
-    ) {
-        when (value) {
-            is JsonArray -> value.forEach { collectAdjustments(it, propertyName, target, currentProperty) }
-            is JsonObject -> {
-                val property = value["prop"]?.jsonPrimitive?.content ?: currentProperty
-                if (property == propertyName) {
-                    value["adjust"]?.jsonArray?.forEach { adjustment ->
-                        val entry = adjustment.jsonObject
-                        target += entry.getValue("platform").jsonPrimitive.content to
-                            entry.getValue("param").jsonPrimitive.content
-                    }
-                }
-                value.values.forEach { collectAdjustments(it, propertyName, target, property) }
-            }
-            else -> Unit
-        }
     }
 
     private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(

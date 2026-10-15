@@ -8,12 +8,14 @@ import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemStyleSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTenantSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTokenSummary
+import com.dsbuilder.ds.designsystems.domain.PublicationStatus
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -23,6 +25,7 @@ import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.time.Instant
 import java.util.UUID
 
 /** Exposed aggregate reads with ownership checked before dependent table access. */
@@ -78,14 +81,30 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
                     (AggregateTokensTable.description.lowerCase() like pattern)
                 )
         }
+        val published = latestPublished(designSystemId)
         return AggregateTokensTable.join(
             DesignSystemsTable,
             JoinType.INNER,
             additionalConstraint = { AggregateTokensTable.designSystemId eq DesignSystemsTable.id },
         ).select(AggregateTokensTable.columns).where {
             condition and accessibleDesignSystem(DesignSystemsTable, projectId)
-        }.map(::token)
+        }.map { row ->
+            val publishedIn = published?.takeIf { (_, at) -> !row[AggregateTokensTable.createdAt].isAfter(at) }
+            token(row, publishedIn?.first)
+        }
     }
+
+    /** Номер и время последней опубликованной версии дизайн-системы. */
+    private fun latestPublished(designSystemId: DesignSystemId): Pair<String, Instant>? = DesignSystemVersionsTable
+        .selectAll()
+        .where {
+            (DesignSystemVersionsTable.designSystemId eq designSystemId.value) and
+                (DesignSystemVersionsTable.publicationStatus eq PublicationStatus.PUBLISHED)
+        }
+        .orderBy(DesignSystemVersionsTable.publishedAt to SortOrder.DESC)
+        .limit(1)
+        .singleOrNull()
+        ?.let { it[DesignSystemVersionsTable.version] to it[DesignSystemVersionsTable.publishedAt] }
 
     @Suppress("ReturnCount")
     override suspend fun listComponentStyles(
@@ -167,7 +186,7 @@ private fun component(row: ResultRow) = DesignSystemComponentSummary(
     row[AggregateComponentsTable.updatedAt],
 )
 
-private fun token(row: ResultRow) = DesignSystemTokenSummary(
+private fun token(row: ResultRow, publishedIn: String?) = DesignSystemTokenSummary(
     row[AggregateTokensTable.id],
     row[AggregateTokensTable.designSystemId],
     row[AggregateTokensTable.name],
@@ -177,6 +196,9 @@ private fun token(row: ResultRow) = DesignSystemTokenSummary(
     row[AggregateTokensTable.enabled],
     row[AggregateTokensTable.createdAt],
     row[AggregateTokensTable.updatedAt],
+    row[AggregateTokensTable.groupId],
+    row[AggregateTokensTable.position],
+    publishedIn,
 )
 
 private fun style(row: ResultRow) = DesignSystemStyleSummary(
