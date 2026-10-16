@@ -164,6 +164,26 @@ export const ColorTokenTree = (props: TreeProps) => {
     const searching = searchOpen || Boolean(query);
     const [editing, setEditing] = useState<Editing | null>(null);
     const [menu, setMenu] = useState<string | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    // Меню «+» группы закрывается крестиком, Escape и кликом вне меню, как остальные поповеры экрана.
+    useEffect(() => {
+        if (!menu) return;
+        const close = (event: Event) => {
+            if (event instanceof globalThis.KeyboardEvent) {
+                if (event.key === 'Escape') setMenu(null);
+                return;
+            }
+            const target = event.target as Element | null;
+            if (menuRef.current?.contains(target) || target?.closest?.('.token-group-add')) return;
+            setMenu(null);
+        };
+        document.addEventListener('mousedown', close);
+        document.addEventListener('keydown', close);
+        return () => {
+            document.removeEventListener('mousedown', close);
+            document.removeEventListener('keydown', close);
+        };
+    }, [menu]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [dragged, setDragged] = useState<Dragged | null>(null);
@@ -408,7 +428,15 @@ export const ColorTokenTree = (props: TreeProps) => {
                         props.onDeleteGroup(group),
                     )}
                 {menu === group.id && (
-                    <div className="reset-dropdown token-group-menu" role="menu">
+                    <div className="reset-dropdown token-group-menu" role="menu" ref={menuRef}>
+                        <button
+                            type="button"
+                            className="cp-close token-group-menu-close"
+                            aria-label="Закрыть меню"
+                            onClick={() => setMenu(null)}
+                        >
+                            ×
+                        </button>
                         <button
                             type="button"
                             role="menuitem"

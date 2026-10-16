@@ -338,6 +338,35 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('token-group-Text & Icons')).toBeInTheDocument();
     });
 
+    it('меню «+» группы закрывается крестиком, Escape, кликом вне меню и повторным нажатием на «+»', async () => {
+        await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+        const plus = screen.getByRole('button', { name: 'Добавить в Text & Icons' });
+        const menu = () => screen.queryByRole('menu');
+
+        fireEvent.click(plus);
+        expect(menu()).toBeInTheDocument();
+        fireEvent.click(within(menu()!).getByRole('button', { name: 'Закрыть меню' }));
+        expect(menu()).toBeNull();
+
+        fireEvent.click(plus);
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(menu()).toBeNull();
+
+        fireEvent.click(plus);
+        fireEvent.mouseDown(inspector());
+        expect(menu()).toBeNull();
+
+        fireEvent.click(plus);
+        fireEvent.mouseDown(plus);
+        fireEvent.click(plus);
+        expect(menu()).toBeNull();
+
+        fireEvent.click(plus);
+        fireEvent.mouseDown(within(menu()!).getByRole('menuitem', { name: 'Добавить подгруппу' }));
+        expect(menu()).toBeInTheDocument();
+    });
+
     it('создаёт группу строкой ввода в дереве', async () => {
         groupRepository.create.mockImplementation(async (_context, input) => {
             const created = { ...group('g-brand', input.label, 1), code: 'brand' };
