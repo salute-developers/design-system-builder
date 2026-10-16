@@ -4,16 +4,15 @@ Production deployment использует готовые Docker images из Git
 
 ## Состав stack
 
-Корневой [docker-compose.prod.yml](../docker-compose.prod.yml) запускает десять backend/infra компонентов:
+Корневой [docker-compose.prod.yml](../docker-compose.prod.yml) запускает девять backend/infra компонентов:
 
 - `gateway`;
 - `keycloak` и одноразовый `keycloak-bootstrap`;
 - `auth-helper`;
 - `projects-service`;
 - `documentation-service`;
+- `ds-service`;
 - `db-service`;
-- `generator`;
-- `publisher`;
 - `docs-generator` из образа `documentation-generator`.
 
 `admin` и `client` не входят в production compose. Их статика продолжает собираться отдельными frontend workflow и публиковаться в S3. Экспериментальный `project-publisher` также не входит в этот deployment.
@@ -58,7 +57,7 @@ COOLIFY_PROD_WEBHOOK
 
 1. Доставьте workflow в default branch GitHub и в обе запускаемые ветки `master`/`dev`.
 2. Убедитесь, что organization policy разрешает workflow создавать container packages.
-3. Первый успешный push создаст десять packages. Проверьте, что они private, связаны с исходным repository через OCI label и наследуют нужные permissions.
+3. Первый успешный push создаст девять packages. Проверьте, что они private, связаны с исходным repository через OCI label и наследуют нужные permissions.
 4. Создайте для deployment server PAT classic отдельного технического или выделенного пользователя с минимальным scope `read:packages`. `write:packages`, `delete:packages` и `repo` для pull не нужны. Если organization использует SSO, авторизуйте token для неё.
 5. Авторизуйте Docker daemon deployment server тем же системным пользователем, которого Coolify использует для Docker:
 
@@ -124,7 +123,7 @@ PROD:
 2. Укажите `release_tag`, например `release_1.4.0`.
 3. Запустите workflow.
 
-Workflow собирает matrix из десяти образов для `linux/amd64`. Coolify webhook вызывается только после успешного завершения всей matrix. Успешный webhook response означает, что deployment поставлен в очередь; финальный status и health проверяются в Coolify.
+Workflow собирает matrix из девяти образов для `linux/amd64`. Coolify webhook вызывается только после успешного завершения всей matrix. Успешный webhook response означает, что deployment поставлен в очередь; финальный status и health проверяются в Coolify.
 
 ## Локальная проверка compose
 

@@ -4,9 +4,8 @@
   "description": "Design System Builder Application.",
   "scripts": {
     "dev": "concurrently \"npm run dev:services\" \"npm run dev:client\" \"npm run dev:admin\"",
-    "dev:services": "concurrently \"npm run dev:db-service\" \"npm run dev:publisher\" \"npm run dev:documentation-generator\"",
+    "dev:services": "concurrently \"npm run dev:db-service\" \"npm run dev:documentation-generator\"",
     "dev:db-service": "cd services/db-service && npm run dev",
-    "dev:publisher": "cd services/publisher && npm run start",
     "dev:documentation-generator": "cd services/documentation-generator && npm run start:dev",
     "dev:client": "cd apps/client && npm run dev",
     "dev:admin": "cd apps/admin && npm run dev",

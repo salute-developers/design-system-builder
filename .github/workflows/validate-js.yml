@@ -42,8 +42,6 @@ jobs:
           "apps/admin/src/**/*.{ts,tsx}"
           "services/db-service/src/**/*.ts"
           "services/documentation-generator/src/**/*.ts"
-      - name: Publisher syntax
-        run: node --check services/publisher/app/server.js
 
   tests:
     name: Tests (documentation-generator)
