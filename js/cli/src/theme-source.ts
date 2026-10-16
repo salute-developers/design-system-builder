@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { ThemeSource as GeneratorThemeSource } from '../../services/generator/app/themeBuilder/types/theme.ts';
+import type { ThemeSource as GeneratorThemeSource } from './generator/themeBuilder/types/theme.ts';
 import type { LocalThemePaths, LocalThemeSet } from './local-theme-source.ts';
 
 export type Palette = Record<string, Record<string, string>>;

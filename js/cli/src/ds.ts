@@ -1,22 +1,17 @@
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { COMPONENTS_PACKAGE, readComponentsForGeneration } from './components-input.ts';
 import { generateThemes } from './generate-theme.ts';
+import { generateComponentsFiles } from './generator/generate.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
 import { readThemeSetSource } from './theme-source.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
 
-// Генератор использует CommonJS: подключаем его из ES-модуля через require с обработчиком TypeScript от tsx.
-const require = createRequire(import.meta.url);
-const { generateComponentsFiles } =
-    require('../../services/generator/app/generate.ts') as typeof import('../../services/generator/app/generate.ts');
-
 /**
  * Генерирует дизайн-систему целиком: тему и компоненты из .sdds одним запуском.
  * Без `--package` в `output` заменяются `src/theme` и `src/components`; с `--package` собирается один
- * полный пакет, как в сервисе генерации. К бэкенду CLI не обращается.
+ * полный пакет. К бэкенду CLI не обращается.
  */
 async function main() {
     const { values } = parseArgs({
@@ -36,7 +31,7 @@ async function main() {
     });
 
     if (values.help) {
-        console.log(`Generate a local React design system package (theme and components) using services/generator.
+        console.log(`Generate a local React design system package (theme and components).
 
 Usage: npm run generate:ds -- [options]
   --sdds <directory>       Local data directory (default: js/cli/.sdds)

@@ -1031,7 +1031,7 @@ type Manifest = {
 };
 
 function writeComponentManifest(patcher: SeedPatcher, dbDir: string, component: string, manifest: Manifest) {
-    const dir = path.resolve(dbDir, '../../../generator/app/templates', component);
+    const dir = path.resolve(dbDir, '../../../../cli/src/generator/templates', component);
     const file = path.join(dir, 'component.json');
     // Сливаем с существующим: у дочерних составного (TabItem) имя токенов задаёт импорт
     // родителя, а реэкспорты и cast приходят из своего index.ts; ни один прогон не знает всё.
@@ -1061,7 +1061,7 @@ function readIndexReexports(args: Args, component: string, dbDir?: string): Mani
     const dirName = sddsDirName(args, component);
     // Если у генератора есть шаблон обёртки `templates/<X>/<X>.tsx` (Toast, Notification), локальные
     // экспорты обёртки (ToastProvider, NotificationsProvider) отдаёт он: index.ts экспортирует их из './<X>'.
-    const templateDir = dbDir ? path.resolve(dbDir, '../../../generator/app/templates', component) : null;
+    const templateDir = dbDir ? path.resolve(dbDir, '../../../../cli/src/generator/templates', component) : null;
     const hasWrapperTemplate = Boolean(templateDir && ['tsx', 'ts'].some((e) => fs.existsSync(path.join(templateDir, `${component}.${e}`))));
     const dir = path.join(args.plasma, 'packages/sdds-serv/src/components', dirName);
     const file = ['ts', 'tsx'].map((e) => path.join(dir, `index.${e}`)).find((f) => fs.existsSync(f));

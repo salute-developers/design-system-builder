@@ -8,7 +8,7 @@ import type {
     PropConfig,
     PropType,
     StyleConfig,
-} from '../../services/generator/app/componentBuilder/type.ts';
+} from './generator/componentBuilder/type.ts';
 
 /**
  * Сборка метаданных генератора из выгрузки `dsbuilder components fetch` и web-маппингов.
