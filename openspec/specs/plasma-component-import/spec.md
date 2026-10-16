@@ -2,9 +2,7 @@
 
 ## Purpose
 Определяет инструмент импорта web-компонента из репозитория plasma в prod-сид `db-service` и манифест генератора: источники, правила приведения конфига оформления к модели DS Builder, отчёт о спорных местах и режимы применения.
-
 ## Requirements
-
 ### Requirement: Import reads plasma sources and writes the component seed
 
 Инструмент импорта SHALL читать объект токенов компонента из `plasma-new-hope` и конфиг оформления из
@@ -19,7 +17,8 @@
 
 - **WHEN** инструмент запущен с `--apply`
 - **THEN** папка `seeds/prod/components/<имя>/` MUST быть записана целиком
-- **THEN** манифест `templates/<X>/component.json` в генераторе MUST быть записан, если у компонента есть сведения, не выводимые из данных
+- **THEN** манифест `js/cli/src/generator/templates/<X>/component.json` MUST быть записан, если у компонента есть сведения, не выводимые из данных
+- **THEN** инструмент MUST NOT обращаться к каталогу `js/services/generator`
 
 #### Scenario: Удаление трогает только папку компонента
 
@@ -138,3 +137,4 @@
 
 - **WHEN** импорт составного компонента завершён
 - **THEN** манифест генератора MUST содержать `appearances: { prop, default }`, где `prop` — значение `--root` или `orientation`
+
