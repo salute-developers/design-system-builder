@@ -80,21 +80,6 @@ export const downloadThemeData = async (designSystem: DesignSystem) => {
     URL.revokeObjectURL(url);
 };
 
-export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        projectName: designSystem.getName(),
-    };
-
-    const projectId = designSystem.getParameters()?.projectId;
-
-    // TODO: Очень странный эндпоинт, нужно будет потом его переписать
-    const result = (await http.post(`${PROJECTS_URL}/${projectId}/docs/api/documentation/generate`, data)).data;
-
-    return result;
-};
-
 export const designSystemSave = async (designSystem: DesignSystem, theme: Theme, components: Config[]) => {
     const themeData = {
         meta: createMetaTokens(theme),
