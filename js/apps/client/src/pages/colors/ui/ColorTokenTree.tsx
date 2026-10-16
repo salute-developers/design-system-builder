@@ -490,9 +490,9 @@ export const ColorTokenTree = (props: TreeProps) => {
                     <button
                         type="button"
                         className={issuesOnly ? 'is-active' : ''}
-                        aria-label="Только с проблемами"
+                        aria-label="Только токены с ошибками"
                         aria-pressed={issuesOnly}
-                        title="Только с проблемами"
+                        title="Только токены с ошибками"
                         onClick={props.onIssuesOnly}
                     >
                         <CtGlyph name="sliders" />
