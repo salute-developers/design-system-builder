@@ -7,6 +7,7 @@ import com.dsbuilder.ds.core.application.DraftSubjectChange
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.designsystems.application.DraftChangeLimitExceededException
 import com.dsbuilder.ds.designsystems.application.DraftChangeRepository
 import com.dsbuilder.ds.designsystems.domain.ChangeOperation
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
@@ -37,20 +38,26 @@ class ExposedDraftChangeRepository(
     ): List<DraftChange>? {
         val target = boundary(projectId, systemAdmin, designSystemId, versionId) ?: return null
         val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
-        val differences = differences(target.id, designSystemId.value, target.sequenceNumber, previousSequence)
-        val edits = editStates(target.id)
-        return differences.map { (subject, difference) ->
+        val differences = boundedDifferences(target.id, designSystemId.value, target.sequenceNumber, previousSequence)
+            ?: throw DraftChangeLimitExceededException()
+        val edits = editStates(target.id, differences)
+        val changes = differences.map { (subject, difference) ->
             change(subject, difference, designSystemId, target, edits[subject.entityType to difference.entityId])
         }.sortedWith(compareBy(DraftChange::entityType, DraftChange::entityId))
+        return changes
     }
 
     override suspend fun hasChanges(projectId: ProjectId, designSystemId: DesignSystemId): Boolean? {
         val target = boundary(projectId, false, designSystemId, null) ?: return null
         val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
-        return differences(target.id, designSystemId.value, target.sequenceNumber, previousSequence).isNotEmpty()
+        return if (policies.all(DraftChangePolicy::preservesNonEmpty)) {
+            hasAnyDraftChanges(handlers, designSystemId.value, target.sequenceNumber, previousSequence)
+        } else {
+            differences(target.id, designSystemId.value, target.sequenceNumber, previousSequence).isNotEmpty()
+        }
     }
 
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod")
     override suspend fun revert(
         projectId: ProjectId,
         systemAdmin: Boolean,
@@ -61,7 +68,13 @@ class ExposedDraftChangeRepository(
         val target = boundary(projectId, systemAdmin, designSystemId, versionId = null)
             ?: return DraftChangeRevertResult.NotFound
         val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
-        val discoveredChange = differences(target.id, designSystemId.value, target.sequenceNumber, previousSequence)
+        val discoveredDifferences = boundedDifferences(
+            target.id,
+            designSystemId.value,
+            target.sequenceNumber,
+            previousSequence,
+        ) ?: return DraftChangeRevertResult.LimitExceeded
+        val discoveredChange = discoveredDifferences
             .firstOrNull { stableChangeId(target.id, it.subject.entityType, it.difference.entityId) == changeId }
             ?: return DraftChangeRevertResult.NotFound
         if (!lockDraftSubject(
@@ -75,12 +88,14 @@ class ExposedDraftChangeRepository(
         val lockedTarget = boundary(projectId, systemAdmin, designSystemId, versionId = null)
             ?: return DraftChangeRevertResult.NotFound
         val subject = discoveredChange.subject
-        val difference = differences(
+        val lockedDifferences = boundedDifferences(
             lockedTarget.id,
             designSystemId.value,
             lockedTarget.sequenceNumber,
             previousSequence(designSystemId, lockedTarget.sequenceNumber),
-        ).firstOrNull { stableChangeId(lockedTarget.id, it.subject.entityType, it.difference.entityId) == changeId }
+        ) ?: return DraftChangeRevertResult.LimitExceeded
+        val difference = lockedDifferences
+            .firstOrNull { stableChangeId(lockedTarget.id, it.subject.entityType, it.difference.entityId) == changeId }
             ?.difference
             ?: return DraftChangeRevertResult.NotFound
         val change = change(
@@ -206,16 +221,39 @@ class ExposedDraftChangeRepository(
     }
 
     private fun editState(versionId: UUID, entityType: String, entityId: UUID): EditRow? {
-        return editStates(versionId)[entityType to entityId]
+        val sql = """
+            SELECT revision, last_actor_id, updated_at
+            FROM entity_edit_states
+            WHERE design_system_version_id = ? AND entity_type = ? AND entity_id = ?
+            LIMIT 1
+        """.trimIndent()
+        return TransactionManager.current().exec(
+            sql,
+            listOf(
+                UUIDColumnType() to versionId,
+                TextColumnType() to entityType,
+                UUIDColumnType() to entityId,
+            ),
+        ) { rows ->
+            if (rows.next()) {
+                EditRow(rows.getLong("revision"), rows.getString("last_actor_id"), rows.instant("updated_at"))
+            } else {
+                null
+            }
+        }
     }
 
-    private fun editStates(versionId: UUID): Map<Pair<String, UUID>, EditRow> {
+    private fun editStates(versionId: UUID, differences: List<TypedDifference>): Map<Pair<String, UUID>, EditRow> {
+        if (differences.isEmpty()) return emptyMap()
+        val entityIds = differences.map { it.difference.entityId }.distinct()
+        val placeholders = entityIds.joinToString(",") { "?" }
         val sql = """
             SELECT entity_type, entity_id, revision, last_actor_id, updated_at
             FROM entity_edit_states
-            WHERE design_system_version_id = ?
+            WHERE design_system_version_id = ? AND entity_id IN ($placeholders)
         """.trimIndent()
-        return TransactionManager.current().exec(sql, listOf(UUIDColumnType() to versionId)) { rows ->
+        val arguments = listOf(UUIDColumnType() to versionId) + entityIds.map { UUIDColumnType() to it }
+        return TransactionManager.current().exec(sql, arguments) { rows ->
             buildMap {
                 while (rows.next()) {
                     put(
@@ -250,6 +288,30 @@ class ExposedDraftChangeRepository(
             }
     }
 
+    private fun boundedDifferences(
+        targetVersionId: UUID,
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+    ): List<TypedDifference>? {
+        val handlersByType = handlers.associateBy(DraftChangeHandler::entityType)
+        val candidates = handlers.flatMap { subject ->
+            val described = subject.describe(
+                designSystemId,
+                sequenceNumber,
+                previousSequenceNumber,
+                limit = MAX_JOURNAL_CANDIDATES_PER_TYPE + 1,
+            )
+            if (described.size > MAX_JOURNAL_CANDIDATES_PER_TYPE) return null
+            described.map { difference -> DraftChangeCandidate(subject.entityType, difference) }
+        }
+        val visible = policies.fold(candidates) { current, policy -> policy.visible(targetVersionId, current) }
+        if (visible.size > MAX_JOURNAL_CHANGES) return null
+        return visible.mapNotNull { candidate ->
+            handlersByType[candidate.entityType]?.let { TypedDifference(it, candidate.change) }
+        }
+    }
+
     private fun ResultSet.instant(column: String): Instant = getTimestamp(column).toInstant()
 
     private fun stableChangeId(versionId: UUID, entityType: String, entityId: UUID): UUID = UUID.nameUUIDFromBytes(
@@ -261,8 +323,19 @@ class ExposedDraftChangeRepository(
     private data class TypedDifference(val subject: DraftChangeHandler, val difference: DraftSubjectChange)
 }
 
+internal fun hasAnyDraftChanges(
+    handlers: List<DraftChangeHandler>,
+    designSystemId: UUID,
+    sequenceNumber: Long,
+    previousSequenceNumber: Long,
+): Boolean = handlers.any { handler ->
+    handler.hasChanges(designSystemId, sequenceNumber, previousSequenceNumber)
+}
+
 private fun Throwable.hasSqlState(expected: String): Boolean = generateSequence(this) { it.cause }
     .filterIsInstance<SQLException>()
     .any { it.sqlState == expected }
 
 private const val FOREIGN_KEY_VIOLATION = "23503"
+private const val MAX_JOURNAL_CHANGES = 10_000
+private const val MAX_JOURNAL_CANDIDATES_PER_TYPE = 100_000

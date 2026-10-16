@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
@@ -20,7 +21,14 @@ import java.util.UUID
 fun themeDraftChangeHandlers(): List<DraftChangeHandler> = listOf(themeDraftChangeHandler())
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
-fun themeDraftChangePolicy(): DraftChangePolicy = DraftChangePolicy { versionId, candidates ->
+fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
+    override val preservesNonEmpty: Boolean = true
+
+    override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =
+        visibleThemeChanges(versionId, candidates)
+}
+
+private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> {
     val createdTenantIds = candidates.asSequence()
         .filter { it.entityType == TENANT_ENTITY_TYPE && it.change.previousValue == null }
         .map { it.change.entityId.toString() }
@@ -34,7 +42,7 @@ fun themeDraftChangePolicy(): DraftChangePolicy = DraftChangePolicy { versionId,
         emptyMap()
     } else {
         ThemeTokenValueCreationBaselinesTable.selectAll().where {
-                (ThemeTokenValueCreationBaselinesTable.designSystemVersionId eq versionId) and
+            (ThemeTokenValueCreationBaselinesTable.designSystemVersionId eq versionId) and
                 (ThemeTokenValueCreationBaselinesTable.tokenValueId inList newThemeValueIds)
         }.associate { row ->
             row[ThemeTokenValueCreationBaselinesTable.tokenValueId] to InitialTokenValue(
@@ -43,7 +51,7 @@ fun themeDraftChangePolicy(): DraftChangePolicy = DraftChangePolicy { versionId,
             )
         }
     }
-    candidates.mapNotNull { candidate ->
+    return candidates.mapNotNull { candidate ->
         if (candidate.entityType != TOKEN_VALUE_ENTITY_TYPE || candidate.change.entityId !in newThemeValueIds) {
             return@mapNotNull candidate
         }

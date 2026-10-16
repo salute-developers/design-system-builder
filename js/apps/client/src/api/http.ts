@@ -3,6 +3,7 @@ import axios from 'axios';
 import { API_GATEWAY_URL } from './constants';
 import { authService } from './authService';
 import { getBaseName } from '../utils/baseName';
+import { getEditorClientId } from './editorClientIdentity';
 
 export const http = axios.create({ baseURL: API_GATEWAY_URL });
 
@@ -13,6 +14,7 @@ const forceLogout = () => {
 };
 
 http.interceptors.request.use(async (config) => {
+    config.headers['X-DS-Client-Id'] = getEditorClientId();
     try {
         const token = await authService.getValidAccessToken();
 

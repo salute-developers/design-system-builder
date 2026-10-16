@@ -54,31 +54,38 @@ private fun tokenValueDraftChangeHandler(): DraftChangeHandler {
     )
     return object : DraftChangeHandler by delegate {
         override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
-            if (removeStableEntity) return delegate.revert(versionId, entityId, true)
-            val baseline = TokenValueCreationBaselinesTable.selectAll().where {
-                (TokenValueCreationBaselinesTable.designSystemVersionId eq versionId) and
-                    (TokenValueCreationBaselinesTable.tokenValueId eq entityId)
-            }.singleOrNull() ?: return delegate.revert(versionId, entityId, false)
-            val current = TokenValueRevisionsTable.selectAll().where {
-                (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
-                    (TokenValueRevisionsTable.tokenValueId eq entityId)
-            }.singleOrNull() ?: return false
-            TokenValueRevisionsTable.deleteWhere {
-                (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
-                    (TokenValueRevisionsTable.tokenValueId eq entityId)
-            }
-            SubjectMutationPaths.with(setOf("/palette_id", "/value")) {
-                TokenValueRevisionsTable.insert {
-                    it[tokenValueId] = entityId
-                    it[designSystemId] = current[TokenValueRevisionsTable.designSystemId]
-                    it[designSystemVersionId] = versionId
-                    it[versionSequenceNumber] = current[TokenValueRevisionsTable.versionSequenceNumber]
-                    it[paletteId] = baseline[TokenValueCreationBaselinesTable.paletteId]
-                    it[value] = baseline[TokenValueCreationBaselinesTable.value]
-                    it[deleted] = false
+            return if (removeStableEntity) {
+                delegate.revert(versionId, entityId, true)
+            } else {
+                val baseline = TokenValueCreationBaselinesTable.selectAll().where {
+                    (TokenValueCreationBaselinesTable.designSystemVersionId eq versionId) and
+                        (TokenValueCreationBaselinesTable.tokenValueId eq entityId)
+                }.singleOrNull()
+                if (baseline == null) {
+                    delegate.revert(versionId, entityId, false)
+                } else {
+                    val current = TokenValueRevisionsTable.selectAll().where {
+                        (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
+                            (TokenValueRevisionsTable.tokenValueId eq entityId)
+                    }.singleOrNull() ?: return false
+                    TokenValueRevisionsTable.deleteWhere {
+                        (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
+                            (TokenValueRevisionsTable.tokenValueId eq entityId)
+                    }
+                    SubjectMutationPaths.with(setOf("/palette_id", "/value")) {
+                        TokenValueRevisionsTable.insert {
+                            it[tokenValueId] = entityId
+                            it[designSystemId] = current[TokenValueRevisionsTable.designSystemId]
+                            it[designSystemVersionId] = versionId
+                            it[versionSequenceNumber] = current[TokenValueRevisionsTable.versionSequenceNumber]
+                            it[paletteId] = baseline[TokenValueCreationBaselinesTable.paletteId]
+                            it[value] = baseline[TokenValueCreationBaselinesTable.value]
+                            it[deleted] = false
+                        }
+                    }
+                    true
                 }
             }
-            return true
         }
     }
 }

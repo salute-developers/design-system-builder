@@ -16,4 +16,7 @@ sealed interface DraftChangeRevertResult {
 
     /** Созданную сущность нельзя удалить из-за действующей зависимости. */
     data object DependencyConflict : DraftChangeRevertResult
+
+    /** Поиск изменения превысил защитный предел публичного журнала. */
+    data object LimitExceeded : DraftChangeRevertResult
 }

@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.app
 
 import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.ds.core.application.DraftInvalidationStream
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.data.PostgresDatabasePool
 import org.flywaydb.core.api.output.MigrateResult
@@ -16,6 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
  * @property migration Flyway migration result when migrations are enabled
  * @property flywayValidated whether startup validation succeeded
  * @property policyCoverageValid whether every manifest permission exists in the immutable policy
+ * @property draftInvalidations stream of committed active-draft invalidations
  */
 data class DsRuntime(
     val databasePool: PostgresDatabasePool,
@@ -25,6 +27,9 @@ data class DsRuntime(
     val migration: MigrateResult?,
     val flywayValidated: Boolean,
     val policyCoverageValid: Boolean,
+    val draftInvalidations: DraftInvalidationStream,
+    /** Закрываемый ресурс отдельного PostgreSQL `LISTEN`-соединения. */
+    val draftInvalidationResource: AutoCloseable,
 ) {
     /** Exposed database backed by [databasePool]. */
     val database: Database = databasePool.database

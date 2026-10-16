@@ -11,17 +11,21 @@ import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.UpdateTenant
 import com.dsbuilder.ds.themes.domain.Tenant
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
+import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
 import com.dsbuilder.ds.themes.domain.ThemePreview
 import com.dsbuilder.ds.themes.domain.ThemePreviewResolver
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -203,21 +207,8 @@ class ExposedTenantRepository : TenantRepository {
         id: UUID,
         command: SaveTenantTokenValues,
     ): TenantTokenValuesSaveOutcome {
-        val candidate = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull()
-            ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value }
-            ?: return TenantTokenValuesSaveOutcome.NotFound
-        val designSystemId = candidate[TenantsTable.designSystemId]
-        if (themeDraft(designSystemId) == null) return TenantTokenValuesSaveOutcome.NotFound
-        TenantsTable.selectAll().where {
-            (TenantsTable.id eq id) and (TenantsTable.designSystemId eq designSystemId)
-        }.forUpdate(ForUpdateOption.PostgreSQL.ForKeyShare).singleOrNull()
-            ?: return TenantTokenValuesSaveOutcome.NotFound
-        val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull()
-            ?.takeIf {
-                it[ThemeDesignSystemsTable.projectId] == projectId.value &&
-                    it[TenantsTable.designSystemId] == designSystemId
-            }
-            ?: return TenantTokenValuesSaveOutcome.NotFound
+        val tenant = lockWritableTenant(projectId, id) ?: return TenantTokenValuesSaveOutcome.NotFound
+        val designSystemId = tenant[TenantsTable.designSystemId]
         val tokenIds = command.values.map { it.tokenId }.distinct()
         val validTokenCount = if (tokenIds.isEmpty()) {
             0
@@ -225,19 +216,11 @@ class ExposedTenantRepository : TenantRepository {
             currentThemeTokenRows(designSystemId, tokenIds.toSet()).size.toLong()
         }
         if (validTokenCount != tokenIds.size.toLong()) return TenantTokenValuesSaveOutcome.ForeignToken
-        command.values.sortedWith(
-            compareBy(
-                { it.tokenId.toString() },
-                { it.platform.wireValue },
-                { it.mode?.wireValue.orEmpty() },
-            ),
-        ).forEach { value ->
-            val entity = ThemeTokenValuesTable.selectAll().where {
-                (ThemeTokenValuesTable.tokenId eq value.tokenId) and
-                    (ThemeTokenValuesTable.tenantId eq id) and
-                    (ThemeTokenValuesTable.platform eq value.platform) and
-                    (ThemeTokenValuesTable.mode eq value.mode)
-            }.forUpdate().singleOrNull() ?: ThemeTokenValuesTable.insertReturning {
+        val orderedValues = orderedTokenValues(command.values)
+        val existingEntities = lockTokenValueEntities(id, orderedValues)
+        orderedValues.forEach { value ->
+            val key = Triple(value.tokenId, value.platform, value.mode)
+            val entity = existingEntities[key] ?: ThemeTokenValuesTable.insertReturning {
                 it[ThemeTokenValuesTable.designSystemId] = tenant[TenantsTable.designSystemId]
                 it[tokenId] = value.tokenId
                 it[tenantId] = id
@@ -277,6 +260,57 @@ class ExposedTenantRepository : TenantRepository {
             tenantEditRevisions(listOf(tenant))[id] ?: 0,
             savedRows.map { row -> toTokenValue(row, savedRevisions[row[ThemeTokenValuesTable.id]] ?: 0) },
         )
+    }
+
+    private fun lockWritableTenant(projectId: ProjectId, tenantId: UUID): ResultRow? {
+        val candidate = currentTenantRows(projectId = projectId, tenantId = tenantId).singleOrNull()
+            ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value }
+            ?: return null
+        val designSystemId = candidate[TenantsTable.designSystemId]
+        val locked = themeDraft(designSystemId) != null && TenantsTable.selectAll().where {
+            (TenantsTable.id eq tenantId) and (TenantsTable.designSystemId eq designSystemId)
+        }.forUpdate(ForUpdateOption.PostgreSQL.ForKeyShare).singleOrNull() != null
+        return if (locked) {
+            currentTenantRows(projectId = projectId, tenantId = tenantId).singleOrNull()?.takeIf { row ->
+                row[ThemeDesignSystemsTable.projectId] == projectId.value &&
+                    row[TenantsTable.designSystemId] == designSystemId
+            }
+        } else {
+            null
+        }
+    }
+
+    private fun orderedTokenValues(values: List<TenantTokenValueInput>) = values.sortedWith(
+        compareBy(
+            { it.tokenId.toString() },
+            { it.platform.wireValue },
+            { it.mode?.wireValue.orEmpty() },
+        ),
+    )
+
+    private fun lockTokenValueEntities(
+        tenantId: UUID,
+        values: List<TenantTokenValueInput>,
+    ): Map<Triple<UUID, ThemeTokenPlatform?, ThemeTokenMode?>, ResultRow> {
+        if (values.isEmpty()) return emptyMap()
+        val requestedValues = values.map { value ->
+            (ThemeTokenValuesTable.tokenId eq value.tokenId) and
+                (ThemeTokenValuesTable.platform eq value.platform) and
+                (ThemeTokenValuesTable.mode eq value.mode)
+        }.reduce { left, right -> left or right }
+        return ThemeTokenValuesTable.selectAll().where {
+            (ThemeTokenValuesTable.tenantId eq tenantId) and requestedValues
+        }.orderBy(
+            ThemeTokenValuesTable.tokenId to SortOrder.ASC,
+            ThemeTokenValuesTable.platform to SortOrder.ASC,
+            ThemeTokenValuesTable.mode to SortOrder.ASC,
+        ).forUpdate().associateBy { row ->
+            Triple(
+                row[ThemeTokenValuesTable.tokenId],
+                row[ThemeTokenValuesTable.platform],
+                row[ThemeTokenValuesTable.mode],
+            )
+        }
     }
 
     private fun ownedDesignSystem(projectId: ProjectId, id: UUID): Boolean = ThemeDesignSystemsTable

@@ -1,10 +1,22 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, saveTokenMutation } = vi.hoisted(() => ({
+const { load, loadTokenData, loadComponentData, saveTokenMutation } = vi.hoisted(() => ({
     load: vi.fn(),
+    loadTokenData: vi.fn(),
+    loadComponentData: vi.fn(),
     saveTokenMutation: vi.fn(),
 }));
+const { subscribeToDraftInvalidations, emitDraftInvalidation } = vi.hoisted(() => {
+    let received: ((event: Record<string, unknown>) => void) | undefined;
+    return {
+        subscribeToDraftInvalidations: vi.fn(({ received: next }) => {
+            received = next;
+            return Promise.resolve();
+        }),
+        emitDraftInvalidation: (event: Record<string, unknown>) => received?.(event),
+    };
+});
 const { applyDraftChanges } = vi.hoisted(() => ({
     applyDraftChanges: vi.fn(),
 }));
@@ -12,9 +24,12 @@ const { applyDraftChanges } = vi.hoisted(() => ({
 vi.mock('../api/themeEditorRepository', () => ({
     ThemeEditorRepository: class {
         load = load;
+        loadTokenData = loadTokenData;
+        loadComponentData = loadComponentData;
         saveTokenMutation = saveTokenMutation;
     },
 }));
+vi.mock('../api/draftInvalidationStream', () => ({ subscribeToDraftInvalidations }));
 vi.mock('../utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../utils')>()),
     applyDraftChanges,
@@ -90,12 +105,9 @@ const ProbeWithContext = ({ editorContext }: { editorContext: typeof context }) 
 beforeEach(() => {
     localStorage.clear();
     vi.useFakeTimers();
-    load.mockReset().mockResolvedValue({
-        designSystem: { id: 'ds-1', name: 'System' },
+    const tokenData = {
         tenant: { id: 'tenant-1', designSystemId: 'ds-1', name: 'Theme' },
         themeData: { meta: { tokens: [] }, variations: {} },
-        componentsData: [],
-        parameters: {},
         editRevision: 3,
         incompleteTokenIds: [],
         tokenIdsByName: { accent: 'token-1' },
@@ -116,7 +128,16 @@ beforeEach(() => {
             'token-1:android:': 4,
         },
         publicationVersion: '0.1.0',
+    };
+    load.mockReset().mockResolvedValue({
+        ...tokenData,
+        designSystem: { id: 'ds-1', name: 'System', draftId: 'draft-1', draftRevision: 1 },
+        componentsData: [],
+        parameters: { draftId: 'draft-1', draftRevision: 1 },
     });
+    loadTokenData.mockReset().mockResolvedValue(tokenData);
+    loadComponentData.mockReset().mockResolvedValue([]);
+    subscribeToDraftInvalidations.mockClear();
     saveTokenMutation.mockReset().mockResolvedValue({
         tokenId: 'token-1',
         editRevision: 4,
@@ -132,6 +153,52 @@ afterEach(() => {
 });
 
 describe('useDesignSystem server autosave', () => {
+    it('reloads only token data for a token invalidation without rebuilding the full snapshot', async () => {
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+
+        act(() =>
+            emitDraftInvalidation({
+                designSystemId: 'ds-1',
+                draftId: 'draft-1',
+                draftRevision: 2,
+                actorId: 'user-2',
+                clientId: 'tab-2',
+                changedAt: '2026-10-15T13:30:00Z',
+                scopes: ['theme-tokens'],
+            }),
+        );
+        await act(async () => Promise.resolve());
+
+        expect(screen.getByText('loaded')).toBeInTheDocument();
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(loadTokenData).toHaveBeenCalledOnce();
+        expect(loadComponentData).not.toHaveBeenCalled();
+    });
+
+    it('reloads only component data for a component invalidation', async () => {
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+
+        act(() =>
+            emitDraftInvalidation({
+                designSystemId: 'ds-1',
+                draftId: 'draft-1',
+                draftRevision: 2,
+                actorId: 'user-2',
+                clientId: 'tab-2',
+                changedAt: '2026-10-15T13:30:00Z',
+                scopes: ['component-configurations'],
+            }),
+        );
+        await act(async () => Promise.resolve());
+
+        expect(screen.getByText('loaded')).toBeInTheDocument();
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(loadTokenData).not.toHaveBeenCalled();
+        expect(loadComponentData).toHaveBeenCalledOnce();
+    });
+
     it('does not mix an active local draft into a published version', async () => {
         const { setActiveDraftContext } = await import('../utils/designSystemDraft');
         setActiveDraftContext(context);

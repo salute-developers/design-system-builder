@@ -70,6 +70,13 @@ class RevertDraftChangeUseCase(
                     DraftChangeRevertResult.NotFound -> DsResult.Failure(DsFailure.NotFound)
                     DraftChangeRevertResult.DependencyConflict ->
                         DsResult.Failure(DsFailure.Conflict("REVERT_DEPENDENCY_CONFLICT"))
+                    DraftChangeRevertResult.LimitExceeded ->
+                        DsResult.Failure(
+                            DsFailure.Unprocessable(
+                                code = "JOURNAL_LIMIT_EXCEEDED",
+                                message = "The journal exceeds the supported limit of 10000 changes",
+                            ),
+                        )
                     is DraftChangeRevertResult.Stale ->
                         DsResult.Failure(DsFailure.Conflict("DRAFT_CHANGE_STALE", result.currentRevision.toInt()))
                 }

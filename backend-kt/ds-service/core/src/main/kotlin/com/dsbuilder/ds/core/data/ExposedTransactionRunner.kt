@@ -105,6 +105,12 @@ class ExposedTransactionRunner(
                 listOf(TextColumnType() to revision.toString()),
             )
         }
+        context.clientId?.let { clientId ->
+            TransactionManager.current().exec(
+                "SELECT set_config('ds.client_id', ?, true)",
+                listOf(TextColumnType() to clientId),
+            )
+        }
         context.versionId?.let { versionId ->
             TransactionManager.current().exec(
                 "SELECT set_config('ds.version_id', ?, true)",

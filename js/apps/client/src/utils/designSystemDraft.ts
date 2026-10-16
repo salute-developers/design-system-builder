@@ -89,6 +89,7 @@ let pendingMutationListener:
       }) => void)
     | null = null;
 const draftAddedTokensByKey = new Map<string, Set<string>>();
+const volatileDraftChanges = new Map<string, DraftChanges>();
 
 export const setActiveDraftContext = (context: typeof activeDraftContext) => {
     activeDraftContext = context;
@@ -125,15 +126,30 @@ export const isDraftAddedToken = (tokenName: string) => draftAddedTokens().has(t
 export const getDraftKey = (name: string, version: string, context?: DraftContext) => activeKey(name, version, context);
 
 const loadDraftChanges = (dsName: string, dsVersion: string, context?: DraftContext): DraftChanges => {
-    const raw = localStorage.getItem(getDraftKey(dsName, dsVersion, context));
+    const key = getDraftKey(dsName, dsVersion, context);
+    let raw: string | null;
+    try {
+        raw = localStorage.getItem(key);
+    } catch {
+        return volatileDraftChanges.get(key) ?? {};
+    }
 
     if (!raw) {
+        volatileDraftChanges.delete(key);
         return {};
     }
 
     try {
-        return JSON.parse(raw) as DraftChanges;
+        const changes = JSON.parse(raw) as DraftChanges;
+        volatileDraftChanges.set(key, changes);
+        return changes;
     } catch {
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // Storage is only a recovery aid; the in-memory autosave path must remain available.
+        }
         return {};
     }
 };
@@ -162,12 +178,23 @@ export const pendingDraftTokens = (dsName: string, dsVersion: string): DraftChan
     loadDraftChanges(dsName, dsVersion);
 
 const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges, context?: DraftContext) => {
+    const key = getDraftKey(dsName, dsVersion, context);
     if (Object.keys(changes).length === 0) {
-        localStorage.removeItem(getDraftKey(dsName, dsVersion, context));
+        volatileDraftChanges.delete(key);
+        try {
+            localStorage.removeItem(key);
+        } catch {
+            // The server save remains authoritative even when browser storage is unavailable.
+        }
         return;
     }
 
-    localStorage.setItem(getDraftKey(dsName, dsVersion, context), JSON.stringify(changes));
+    volatileDraftChanges.set(key, changes);
+    try {
+        localStorage.setItem(key, JSON.stringify(changes));
+    } catch {
+        // Keep the pending change in memory so the autosave listener can still enqueue it.
+    }
 };
 
 export const updateDraftToken = (
@@ -371,12 +398,23 @@ export const clearDraft = (dsName?: string, dsVersion?: string) => {
         return;
     }
 
-    localStorage.removeItem(getDraftKey(dsName, dsVersion));
+    const key = getDraftKey(dsName, dsVersion);
+    volatileDraftChanges.delete(key);
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Clearing the in-memory copy is sufficient for the active page session.
+    }
     draftAddedTokens().clear();
 };
 
 export const hasDraft = (dsName: string, dsVersion: string) => {
-    return localStorage.getItem(getDraftKey(dsName, dsVersion)) !== null;
+    const key = getDraftKey(dsName, dsVersion);
+    try {
+        return localStorage.getItem(key) !== null;
+    } catch {
+        return volatileDraftChanges.has(key);
+    }
 };
 
 /** Черновик на момент отправки: ключ фиксируется сразу, чтобы смена tenant не подменила его. */

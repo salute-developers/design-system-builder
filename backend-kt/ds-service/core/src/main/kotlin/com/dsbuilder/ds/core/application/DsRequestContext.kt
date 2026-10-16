@@ -17,6 +17,8 @@ data class DsRequestContext(
     val baseRevision: Long? = null,
     /** Необязательная опубликованная граница предметного чтения. */
     val versionId: UUID? = null,
+    /** Идентификатор вкладки редактора для исключения собственного SSE-события. */
+    val clientId: String? = null,
     /** Кодирует публичное тело первого ответа для точного повтора ключа. */
     val idempotentResponseEncoder: ((Any) -> String)? = null,
 ) {

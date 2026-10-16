@@ -11,6 +11,7 @@ interface OperationGroup<T extends AutosaveOperation> {
     pending: Map<string, T>;
     inFlight?: T;
     retryPending?: T;
+    debounceUntil?: number;
     timer?: ReturnType<typeof setTimeout>;
     retryTimer?: ReturnType<typeof setTimeout>;
     failed: Map<string, T>;
@@ -45,6 +46,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     enqueue(operation: T, immediate = false) {
         const group = this.group(operation.tokenKey);
         group.pending.set(operation.operationKey, operation);
+        group.debounceUntil = immediate ? undefined : Date.now() + this.debounceMs;
         if (group.retryTimer) clearTimeout(group.retryTimer);
         group.retryTimer = undefined;
         if (!group.inFlight) this.schedule(operation.tokenKey, immediate ? 0 : this.debounceMs);
@@ -64,6 +66,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     flushAll(keepalive = false) {
         this.groups.forEach((group, tokenKey) => {
             group.forceKeepalive = [group.forceKeepalive, keepalive].some(Boolean);
+            group.debounceUntil = undefined;
             if (group.timer) clearTimeout(group.timer);
             group.timer = undefined;
             if (!group.inFlight) void this.flush(tokenKey, keepalive);
@@ -135,7 +138,10 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
             group.inFlight = undefined;
             const shouldContinue = [group.retryPending, group.pending.size].some(Boolean);
             if ([shouldContinue, group.failed.size === 0, !group.retryTimer].every(Boolean)) {
-                this.schedule(tokenKey, 0);
+                const delay = group.retryPending
+                    ? 0
+                    : Math.max(0, (group.debounceUntil ?? Date.now()) - Date.now());
+                this.schedule(tokenKey, delay);
             }
             this.removeEmptyGroup(tokenKey, group);
             this.publishStatus();
