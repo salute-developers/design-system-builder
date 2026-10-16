@@ -24,7 +24,6 @@ import { defaultParameters, popupContentPages } from './Main.utils';
 import {
     EditorBody,
     EditorCanvas,
-    EditorLoadingSpinner,
     MainItems,
     Root,
     Separator,
@@ -33,6 +32,7 @@ import {
     StyledPopup,
 } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { EditorLoading } from '../components/EditorLoading';
 import { all, any, choose, Visible } from '../components/rendering';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
@@ -70,8 +70,17 @@ export const Main = () => {
             }),
         [projectId, designSystemId, tenantId],
     );
-    const { designSystem, theme, components, incompleteTokenIds, loadError, reload, palette, paletteError, setPalette } =
-        useDesignSystem(
+    const {
+        designSystem,
+        theme,
+        components,
+        incompleteTokenIds,
+        loadError,
+        reload,
+        palette,
+        paletteError,
+        setPalette,
+    } = useDesignSystem(
         choose<string | NonNullable<typeof editorContext> | undefined>(
             Boolean(editorContext),
             designSystemProjectId,
@@ -306,27 +315,32 @@ export const Main = () => {
                             >
                                 <IconSettingsOutline size="xs" color="inherit" />
                             </Link>,
-                            <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />,
+                            // Загрузку темы показывает индикатор по центру холста, а не спиннер в шапке (ревью QA, PR #101).
+                            null,
                         )}
                     />
                 </Visible>
                 <EditorCanvas>
-                    <Outlet
-                        context={{
-                            projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
-                            projectId: projectId ?? designSystemProjectId,
-                            designSystem,
-                            theme,
-                            components,
-                            updated,
-                            rerender,
-                            reload,
-                            palette,
-                            paletteError,
-                            setPalette,
-                            onDesignSystemCreate,
-                        }}
-                    />
+                    {isEditorLoading ? (
+                        <EditorLoading text="Загружаем тему…" />
+                    ) : (
+                        <Outlet
+                            context={{
+                                projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
+                                projectId: projectId ?? designSystemProjectId,
+                                designSystem,
+                                theme,
+                                components,
+                                updated,
+                                rerender,
+                                reload,
+                                palette,
+                                paletteError,
+                                setPalette,
+                                onDesignSystemCreate,
+                            }}
+                        />
+                    )}
                 </EditorCanvas>
             </EditorBody>
             <Visible when={isReadOnly}>

@@ -101,12 +101,7 @@ afterEach(() => {
 });
 
 describe('раздел «Палитра»', () => {
-    it('загрузка: пока грузится тема, индикатор только в шапке; потом — по центру раздела', () => {
-        renderLoading(null);
-        expect(screen.getByTestId('palette-loading')).toHaveAttribute('aria-busy', 'true');
-        expect(screen.queryByRole('status')).toBeNull();
-        cleanup();
-
+    it('загрузка палитры: индикатор по центру холста, как у загрузки темы', () => {
         renderLoading({ getParameters: () => ({}) });
         expect(screen.getByRole('status')).toHaveTextContent('Загружаем палитру…');
         expect(screen.getByTestId('palette-loading')).toHaveClass('source-palette-placeholder');

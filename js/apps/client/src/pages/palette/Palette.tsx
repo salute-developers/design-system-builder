@@ -13,6 +13,7 @@ import { PaletteSidebar } from './PaletteSidebar';
 import { StepColorEditor } from './StepColorEditor';
 import { displaySteps, isChanged, middleStep } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
+import { EditorLoading } from '../../components';
 
 export interface PaletteOutletContext {
     designSystem: DesignSystem | null;
@@ -46,17 +47,12 @@ export const Palette = () => {
                 </div>
             </section>
         );
-    // Пока загружается тема, индикатор — общий спиннер в шапке редактора: второй индикатор не показывается.
-    if (!outlet.designSystem)
-        return <section className="workspace-page source-palette-v3" aria-busy="true" data-testid="palette-loading" />;
     // Палитра прежней темы, пока загружается новая, не показывается.
     if (!outlet.palette || outlet.palette.tenantId !== context.tenantId)
         return (
             <section className="workspace-page source-palette-v3 source-palette-placeholder" data-testid="palette-loading">
-                <div className="source-palette-loading-indicator" role="status" aria-live="polite">
-                    <span className="source-palette-loading-spinner" aria-hidden="true" />
-                    <span>Загружаем палитру…</span>
-                </div>
+                {/* Тот же индикатор, что у загрузки темы в редакторе, на том же месте. */}
+                <EditorLoading text="Загружаем палитру…" />
             </section>
         );
     return <PaletteScreen context={context} palette={outlet.palette} outlet={outlet} />;

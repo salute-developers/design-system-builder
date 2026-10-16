@@ -66,7 +66,7 @@ describe('Theme editor shell', () => {
         expect(screen.getByText('Цветовые токены')).toBeInTheDocument();
     });
 
-    it('shows a circular progress indicator in the shared toolbar while the Theme loads', () => {
+    it('shows one centered loading indicator instead of the header spinner while the Theme loads', () => {
         hookState.loading = true;
         render(
             <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
@@ -81,8 +81,10 @@ describe('Theme editor shell', () => {
             </MemoryRouter>,
         );
 
-        const spinner = screen.getByRole('status', { name: 'Загрузка темы' });
-        expect(spinner.closest('header')).toHaveClass('builder-hierarchy-bar');
+        // Один индикатор по центру холста; в шапке спиннера нет (ревью QA, PR #101).
+        const loading = screen.getByRole('status');
+        expect(loading).toHaveTextContent('Загружаем тему…');
+        expect(loading.closest('header')).toBeNull();
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: 'Настройки темы' })).not.toBeInTheDocument();
