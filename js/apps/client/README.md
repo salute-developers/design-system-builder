@@ -177,17 +177,10 @@ instance reports a second success.
 
 ### Preview Protocol schema
 
-The schema in `src/composePreview/schema` is a synchronized consumer snapshot. Its canonical
-source is `backend-kt/preview/contract/schemas/v1`. Shared fixtures from
-`backend-kt/preview/contract/fixtures/v1/{valid,invalid}` are copied to `schema/fixtures`; the
-schema test validates every `valid` fixture as accepted and every `invalid` one as rejected.
-`check:preview-schema` compares schema and fixtures byte for byte, `sync:preview-schema` restores
-the copies:
-
-```sh
-npm run sync:preview-schema
-npm run check:preview-schema
-```
+The client keeps no copy of the schema. The schema test (`src/composePreview/schema.test.ts`) reads the canonical files
+from `backend-kt/preview/contract` (`schemas/v1` and the shared fixtures in `fixtures/v1/{valid,invalid}`), validates every
+`valid` fixture as accepted and every `invalid` one as rejected, and checks that an assembled payload satisfies the schema.
+The tests run from `js/apps/client` (`npm test`) and in CI (`Tests (client)` in `validate-js.yml`).
 
 ### PoC boundary
 

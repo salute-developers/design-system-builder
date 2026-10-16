@@ -1,7 +1,7 @@
 /**
  * TypeScript consumer projection of the canonical Preview Protocol schema.
- * The schema lives in design-system-builder-kt/preview/contract and its checked-in
- * client snapshot is verified by `npm run check:preview-schema`.
+ * The schema lives in backend-kt/preview/contract; `schema.test.ts` validates
+ * the assembled payloads against it directly, without a client copy.
  */
 export const PREVIEW_PROTOCOL_VERSION = 1;
 

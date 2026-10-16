@@ -1,10 +1,10 @@
 # Preview Protocol contract
 
-Canonical JSON Schema and shared fixtures of Preview Protocol v1. Consumers keep byte-identical
-copies and check them:
+Canonical JSON Schema and shared fixtures of Preview Protocol v1. Consumers:
 
-- `design-system-builder/js/apps/client` (`npm run check:preview-schema`);
-- `plasma-android/integration-core/preview-contract` (digest check in its tests).
+- `design-system-builder/js/apps/client` reads these files directly in its tests (`npm test`, no copy);
+- `plasma-android/integration-core/preview-contract` keeps byte-identical copies and checks them against a recorded
+  digest.
 
 Layout:
 
