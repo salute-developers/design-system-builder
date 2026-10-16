@@ -222,6 +222,45 @@ describe('ThemeEditorRepository', () => {
         expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
     });
 
+    it('limits parallel component detail requests below the gateway burst', async () => {
+        const components = Array.from({ length: 24 }, (_, index) => ({
+            id: `component-${index}`,
+            name: `Component ${index}`,
+            description: null,
+            platform: 'web',
+        }));
+        let active = 0;
+        let maximum = 0;
+        const detail = async (data: unknown[]) => {
+            active += 1;
+            maximum = Math.max(maximum, active);
+            await new Promise((resolve) => setTimeout(resolve, 2));
+            active -= 1;
+            return { data };
+        };
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/design-system-components')) {
+                return Promise.resolve({
+                    data: components.map((component, index) => ({
+                        id: `link-${index}`,
+                        designSystemId: 'ds-1',
+                        componentId: component.id,
+                    })),
+                });
+            }
+            if (url.endsWith('/components')) return Promise.resolve({ data: components });
+            if (url.endsWith('/appearances')) return Promise.resolve({ data: [] });
+            if (url.includes('/properties')) return detail([]);
+            if (url.includes('/variations')) return detail([]);
+            throw new Error(`Unexpected GET ${url}`);
+        });
+
+        const result = await new ThemeEditorRepository().loadComponentData(context);
+
+        expect(result).toHaveLength(24);
+        expect(maximum).toBeLessThanOrEqual(4);
+    });
+
     it('loads component configurations only through ds-service versioned endpoints', async () => {
         get.mockImplementation((url: string) => {
             if (url.endsWith('/design-system-components'))

@@ -140,14 +140,10 @@ interface ComponentConfigDto {
 interface ComponentConfigExportDto {
     components: Array<{ componentName: string; styleName: string; config: ComponentConfigDto }>;
 }
-export interface ThemeEditorSnapshot {
-    designSystem: DesignSystemDto;
+export interface ThemeEditorTokenSnapshot {
     tenant: TenantDto;
     themeData: ThemeSource;
-    componentsData: Meta[];
-    /** Compose-компоненты дизайн-системы; пусто, пока Compose-preview не настроен. */
-    composeComponentsData: Meta[];
-    parameters: Partial<Parameters>;
+
     editRevision: number;
     incompleteTokenIds: string[];
     tokenDefinitions: TokenDefinitionDto[];
@@ -155,6 +151,12 @@ export interface ThemeEditorSnapshot {
     tokenDefinitionsByName?: Record<string, TokenDefinitionDto>;
     tokenValueRevisionsByKey: Record<string, number>;
     publicationVersion: string;
+}
+
+export interface ThemeEditorSnapshot extends ThemeEditorTokenSnapshot {
+    designSystem: DesignSystemDto;
+    componentsData: Meta[];
+    parameters: Partial<Parameters>;
 }
 
 export interface DesignSystemVersionDto {
@@ -279,13 +281,47 @@ export class ThemeEditorRepository {
         const root = apiRoot(context.projectId);
         const version = context.versionId ? { versionId: context.versionId } : undefined;
         const request = { signal, params: version };
-        const [project, designSystem, tenant, tokens, values, versions] = await Promise.all([
+        const [project, designSystem, tokenData, components] = await Promise.all([
             http.get<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
             http.get<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
+            this.loadTokenData(context, signal),
+            this.loadComponentData(context, signal),
+        ]);
+        return {
+            ...tokenData,
+            designSystem: designSystem.data,
+            componentsData: components,
+            parameters: {
+                projectId: context.projectId,
+                projectName: project.data.name,
+                packagesName: designSystem.data.name,
+                tenantId: context.tenantId,
+                designSystemId: context.designSystemId,
+                editRevision: tokenData.tenant.editRevision,
+                draftId: designSystem.data.draftId ?? undefined,
+                draftRevision: designSystem.data.draftRevision ?? undefined,
+                readOnly: [
+                    Boolean(context.versionId),
+                    project.data.status === 'archived',
+                    project.data.effectiveRole === 'viewer',
+                ].some(Boolean),
+            },
+        };
+    }
+
+    async loadTokenData(
+        context: EditorContextKey,
+        signal?: AbortSignal,
+        knownPublicationVersion?: string,
+    ): Promise<ThemeEditorTokenSnapshot> {
+        const root = apiRoot(context.projectId);
+        const version = context.versionId ? { versionId: context.versionId } : undefined;
+        const request = { signal, params: version };
+        const [tenant, tokens, values, versions] = await Promise.all([
             http.get<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
             http.get<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
             http.get<TenantTokenValueDto[]>(`${root}/tenants/${context.tenantId}/token-values`, request),
-            context.versionId
+            context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
                 : http.get<DesignSystemVersionDto[]>(
                       `${root}/design-system-versions/by-design-system/${context.designSystemId}`,
@@ -293,14 +329,9 @@ export class ThemeEditorRepository {
                   ),
         ]);
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
-
-        const [components, palette] = await Promise.all([
-            this.loadComponents(root, context, request),
-            values.data.some((value) => value.paletteId)
-                ? http.get<PaletteDto[]>(`${root}/palette`, { signal })
-                : Promise.resolve({ data: [] as PaletteDto[] }),
-        ]);
-        const composeComponents = await this.loadComposeComponents(root, designSystem.data.name, signal);
+        const palette = values.data.some((value) => value.paletteId)
+            ? await http.get<PaletteDto[]>(`${root}/palette`, { signal })
+            : { data: [] as PaletteDto[] };
         const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
         const valuesByToken = new Map<string, TenantTokenValueDto[]>();
         for (const value of values.data)
@@ -390,7 +421,7 @@ export class ThemeEditorRepository {
             screen: [],
             weight: [],
         };
-        const publicationVersion = nextPatchVersion(versions.data.map((version) => version.version));
+        const publicationVersion = knownPublicationVersion ?? nextPatchVersion(versions.data.map((version) => version.version));
         const meta = {
             name: tenant.data.name,
             version: publicationVersion,
@@ -404,27 +435,9 @@ export class ThemeEditorRepository {
             fontFamily: emptyMeta,
         } as unknown as ThemeMeta;
         return {
-            designSystem: designSystem.data,
             tenant: tenant.data,
             themeData: { meta, variations },
-            componentsData: components,
-            composeComponentsData: composeComponents,
-            parameters: {
-                projectId: context.projectId,
-                projectName: project.data.name,
-                packagesName: designSystem.data.name,
-                tenantId: context.tenantId,
-                designSystemId: context.designSystemId,
-                editRevision: tenant.data.editRevision,
-                draftId: designSystem.data.draftId ?? undefined,
-                draftRevision: designSystem.data.draftRevision ?? undefined,
-                effectiveRole: project.data.effectiveRole,
-                readOnly: [
-                    Boolean(context.versionId),
-                    project.data.status === 'archived',
-                    project.data.effectiveRole === 'viewer',
-                ].some(Boolean),
-            },
+
             editRevision: tenant.data.editRevision,
             incompleteTokenIds,
             tokenIdsByName: Object.fromEntries(tokens.data.map((token) => [token.name, token.id])),
@@ -438,6 +451,12 @@ export class ThemeEditorRepository {
             publicationVersion,
             tokenDefinitions: tokens.data,
         };
+    }
+
+    async loadComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
+        const root = apiRoot(context.projectId);
+        const version = context.versionId ? { versionId: context.versionId } : undefined;
+        return this.loadComponents(root, context, { signal, params: version });
     }
 
     private async loadComponents(
@@ -464,16 +483,23 @@ export class ThemeEditorRepository {
         );
         const components = catalog.data.filter((component) => linkedIds.has(component.id));
         const entries = exported.flatMap((response) => response.data.components);
+        const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
             components.map(async (component) => {
                 const [properties, variations] = await Promise.all([
-                    http.get<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
-                    http.get<ComponentVariationDto[]>(`${root}/components/${component.id}/variations`, request),
+                    limitedRequest(() =>
+                        http.get<ComponentPropertyDto[]>(`${root}/components/${component.id}/properties`, request),
+                    ),
+                    limitedRequest(() =>
+                        http.get<ComponentVariationDto[]>(`${root}/components/${component.id}/variations`, request),
+                    ),
                 ]);
                 const styles = (
                     await Promise.all(
                         variations.data.map((variation) =>
-                            http.get<ComponentStyleDto[]>(`${root}/variations/${variation.id}/styles`, request),
+                            limitedRequest(() =>
+                                http.get<ComponentStyleDto[]>(`${root}/variations/${variation.id}/styles`, request),
+                            ),
                         ),
                     )
                 ).flatMap((response) => response.data);
@@ -971,6 +997,23 @@ export class ThemeEditorRepository {
         ).data;
     }
 }
+
+const createRequestLimiter = (maximum: number) => {
+    let active = 0;
+    const waiting: Array<() => void> = [];
+    return async <T,>(request: () => Promise<T>): Promise<T> => {
+        if (active >= maximum) await new Promise<void>((resolve) => waiting.push(resolve));
+        active += 1;
+        try {
+            return await request();
+        } finally {
+            active -= 1;
+            waiting.shift()?.();
+        }
+    };
+};
+
+const COMPONENT_LOAD_CONCURRENCY = 4;
 
 const parseMutationMetadata = (raw: unknown): Array<{ entityType: string; entityId: string; revision: number }> => {
     if (typeof raw !== 'string') return [];

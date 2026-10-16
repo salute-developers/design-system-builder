@@ -27,9 +27,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.postgresql.PGConnection
 import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.Connection
 import java.sql.DriverManager
@@ -40,6 +45,58 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class VersionedJournalPublicationPostgresIntegrationTest {
+    @Test
+    fun `committed draft mutation publishes one compact invalidation`() {
+        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
+            postgres.start()
+            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+            val fixture = connection(postgres).use(::seed)
+
+            connection(postgres).use { listener ->
+                listener.autoCommit = true
+                listener.createStatement().use { it.execute("LISTEN ds_draft_invalidations") }
+                connection(postgres).use { writer ->
+                    writer.autoCommit = false
+                    writer.createStatement().use { statement ->
+                        statement.execute("SELECT set_config('ds.actor_id', 'editor-1', true)")
+                        statement.execute("SELECT set_config('ds.client_id', 'tab-1', true)")
+                        statement.execute(
+                            "INSERT INTO token_revisions(" +
+                                "token_id, design_system_id, design_system_version_id, version_sequence_number, " +
+                                "name, type, display_name, enabled, deleted" +
+                                ") VALUES ('${fixture.tokenId}', '${fixture.designSystemId}', " +
+                                "'${fixture.draftId}', 1, 'surface', 'color', 'Surface', true, false)",
+                        )
+                        statement.execute(
+                            "INSERT INTO tenant_revisions(" +
+                                "tenant_id, design_system_id, design_system_version_id, " +
+                                "version_sequence_number, name, deleted" +
+                                ") VALUES ('${fixture.tenantId}', '${fixture.designSystemId}', " +
+                                "'${fixture.draftId}', 1, 'Default updated', false)",
+                        )
+                    }
+                    writer.commit()
+                }
+
+                val notifications = listener.unwrap(PGConnection::class.java).getNotifications(5_000).orEmpty()
+                assertEquals(1, notifications.size)
+                val payload = Json.parseToJsonElement(notifications.single().parameter).jsonObject
+                assertEquals(
+                    fixture.designSystemId.toString(),
+                    payload.getValue("designSystemId").jsonPrimitive.content,
+                )
+                assertEquals(fixture.draftId.toString(), payload.getValue("draftId").jsonPrimitive.content)
+                assertEquals("1", payload.getValue("draftRevision").jsonPrimitive.content)
+                assertEquals("editor-1", payload.getValue("actorId").jsonPrimitive.content)
+                assertEquals("tab-1", payload.getValue("clientId").jsonPrimitive.content)
+                assertEquals(
+                    listOf("theme-tokens", "theme-metadata"),
+                    payload.getValue("scopes").jsonArray.map { it.jsonPrimitive.content },
+                )
+            }
+        }
+    }
+
     @Test
     fun `draft theme creation is one journal entry and reverts its initial values atomically`() {
         PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->

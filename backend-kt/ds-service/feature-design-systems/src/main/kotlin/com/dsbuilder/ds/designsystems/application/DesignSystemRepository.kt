@@ -2,6 +2,7 @@ package com.dsbuilder.ds.designsystems.application
 
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.domain.DesignSystem
+import com.dsbuilder.ds.designsystems.domain.DesignSystemDraftCursor
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 
 /** Project-scoped persistence port for design systems. */
@@ -11,6 +12,9 @@ interface DesignSystemRepository {
 
     /** Performs the findaccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: DesignSystemId): DesignSystem?
+
+    /** Возвращает только активную границу доступной дизайн-системы без загрузки тем. */
+    suspend fun findDraftCursorAccessible(projectId: ProjectId, id: DesignSystemId): DesignSystemDraftCursor?
 
     /** Performs the createowned operation. */
     suspend fun createOwned(projectId: ProjectId, command: CreateDesignSystem): DesignSystem

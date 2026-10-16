@@ -133,6 +133,7 @@ import com.dsbuilder.ds.components.presentation.variationPlatformParamAdjustment
 import com.dsbuilder.ds.components.presentation.variationPropertyValueRoutes
 import com.dsbuilder.ds.components.presentation.variationRoutes
 import com.dsbuilder.ds.core.application.Clock
+import com.dsbuilder.ds.core.application.DraftInvalidationStream
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.EntityEditStateRepository
 import com.dsbuilder.ds.core.application.IdGenerator
@@ -144,6 +145,7 @@ import com.dsbuilder.ds.core.data.ExposedEntityEditStateRepository
 import com.dsbuilder.ds.core.data.ExposedIdempotentRequestRepository
 import com.dsbuilder.ds.core.data.ExposedTransactionRunner
 import com.dsbuilder.ds.core.data.PostgresDatabasePool
+import com.dsbuilder.ds.core.data.PostgresDraftInvalidationStream
 import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
 import com.dsbuilder.ds.core.data.PostgresUniqueKeyLockRepository
 import com.dsbuilder.ds.core.presentation.ErrorResponse
@@ -152,6 +154,7 @@ import com.dsbuilder.ds.core.presentation.markDsFailureOutcome
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
+import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
@@ -169,6 +172,7 @@ import com.dsbuilder.ds.designsystems.di.designSystemsModule
 import com.dsbuilder.ds.designsystems.presentation.designSystemChangeRoutes
 import com.dsbuilder.ds.designsystems.presentation.designSystemRoutes
 import com.dsbuilder.ds.designsystems.presentation.designSystemVersionRoutes
+import com.dsbuilder.ds.designsystems.presentation.draftInvalidationRoutes
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
@@ -252,7 +256,10 @@ fun main() {
 /** Installs the DS runtime and HTTP endpoints. */
 fun Application.module(configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment()) {
     val runtime = createRuntime(configuration)
-    monitor.subscribe(ApplicationStopped) { runtime.databasePool.close() }
+    monitor.subscribe(ApplicationStopped) {
+        runtime.draftInvalidationResource.close()
+        runtime.databasePool.close()
+    }
     val json = Json {
         ignoreUnknownKeys = false
         explicitNulls = true
@@ -271,6 +278,7 @@ private fun Application.installDependencyGraph(configuration: DsServiceConfigura
                 single { runtime.database }
                 single { runtime.evaluator }
                 single { runtime.accessPolicy }
+                single<DraftInvalidationStream> { runtime.draftInvalidations }
                 single<TransactionRunner> {
                     ExposedTransactionRunner(
                         runtime.database,
@@ -603,6 +611,12 @@ private fun Route.registerDesignSystemFeature(runtime: DsRuntime, json: Json, ko
         koin.get<RevertDraftChangeUseCase>(),
         json,
     )
+    draftInvalidationRoutes(
+        runtime.evaluator,
+        koin.get<GetDesignSystemDraftCursorUseCase>(),
+        koin.get<DraftInvalidationStream>(),
+        json,
+    )
 }
 
 private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Koin) {
@@ -693,6 +707,11 @@ private fun createRuntime(configuration: DsServiceConfiguration): DsRuntime {
     }
     val flywayValidated = configuration.runFlyway && flyway.validateWithResult().validationSuccessful
     check(!configuration.runFlyway || flywayValidated) { "Flyway validation failed" }
+    val draftInvalidations = PostgresDraftInvalidationStream.create(
+        configuration.databaseUrl,
+        configuration.databaseUser,
+        configuration.databasePassword,
+    )
     return DsRuntime(
         databasePool,
         evaluator,
@@ -701,6 +720,8 @@ private fun createRuntime(configuration: DsServiceConfiguration): DsRuntime {
         migration,
         flywayValidated,
         policyCoverageValid = true,
+        draftInvalidations = draftInvalidations,
+        draftInvalidationResource = draftInvalidations,
     )
 }
 

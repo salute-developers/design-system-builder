@@ -29,6 +29,7 @@ import { PlatformSwitch } from './Components.styles';
 
 import { AutosaveIndicator } from '../../components/AutosaveIndicator';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
+import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -107,6 +108,7 @@ export const Components = () => {
         value: PendingComponentMutation['before'];
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
+
 
     // TODO: Маппинг имени компонента в индексы — временный мост к MenuOld, который работает
     // на индексах [tab, group, item]. Когда MenuOld заменят на новый Menu, выбирающий по имени,
@@ -188,10 +190,10 @@ export const Components = () => {
         confirmedConfig.current = { componentName: config.getName(), value: config.getMeta() };
         let mounted = true;
         const componentName = config.getName();
+        const activitySource = `component:${componentName}`;
         const requestKey = `${storagePrefix}:${componentName}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
-        const readRevisions = () =>
-            JSON.parse(localStorage.getItem(revisionKey) ?? '{}') as Record<string, number>;
+        const readRevisions = () => readStoredJson<Record<string, number>>(revisionKey, {});
         const queue = new TokenAutosaveQueue<PendingComponentSave, Record<string, number>>({
             send: (operation) => {
                 const meta = designSystem.getComponentDataByName(operation.componentName);
@@ -208,61 +210,60 @@ export const Components = () => {
                     currentOperation,
                     readRevisions(),
                     (revisions) => {
-                        localStorage.setItem(revisionKey, JSON.stringify(revisions));
-                        const stored = localStorage.getItem(requestKey);
+                        persistStoredJson(revisionKey, revisions);
+                        const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                         if (!stored) return;
-                        try {
-                            if ((JSON.parse(stored) as Partial<PendingComponentSave>).generation === operation.generation) {
-                                localStorage.setItem(requestKey, JSON.stringify(currentOperation));
-                            }
-                        } catch {
-                            // Повреждённая локальная операция будет удалена при следующей загрузке редактора.
+                        if (stored.generation === operation.generation) {
+                            persistStoredJson(requestKey, currentOperation);
                         }
                     },
                 );
             },
             confirmed: (operation, revisions) => {
-                localStorage.setItem(revisionKey, JSON.stringify(revisions));
+                persistStoredJson(revisionKey, revisions);
                 if (confirmedConfig.current?.componentName === operation.componentName) {
                     confirmedConfig.current = { componentName: operation.componentName, value: operation.after };
                 }
-                const stored = localStorage.getItem(requestKey);
-                if (!stored) return;
-                try {
-                    if ((JSON.parse(stored) as Partial<PendingComponentSave>).generation !== operation.generation) return;
-                } catch {
-                    return;
+                const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                if (stored?.generation === operation.generation) {
+                    removeStoredValue(requestKey);
                 }
-                localStorage.removeItem(requestKey);
                 reload();
             },
             retryable: isRetryableAutosaveError,
             statusChanged: (status) => {
-                if (mounted) setAutosaveStatus(status);
+                if (mounted) {
+                    setDraftAutosaveActivity(editorContext, activitySource, status);
+                    setAutosaveStatus(status);
+                }
             },
         });
+        setDraftAutosaveActivity(editorContext, activitySource, 'saved');
         autosaveQueue.current = queue;
-        const stored = localStorage.getItem(requestKey);
+        const stored = readStoredJson<(Partial<PendingComponentSave> & PendingComponentMutation) | null>(
+            requestKey,
+            null,
+        );
         if (stored) {
             try {
-                const pending = JSON.parse(stored) as Partial<PendingComponentSave> & PendingComponentMutation;
                 const operation: PendingComponentSave = {
-                    ...pending,
+                    ...stored,
                     tokenKey: componentName,
                     operationKey: componentName,
-                    generation: pending.generation ?? crypto.randomUUID(),
-                    retryCount: pending.retryCount ?? 0,
+                    generation: stored.generation ?? crypto.randomUUID(),
+                    retryCount: stored.retryCount ?? 0,
                     metadataKey: requestKey,
                 };
-                localStorage.setItem(requestKey, JSON.stringify(operation));
+                persistStoredJson(requestKey, operation);
                 queue.enqueue(operation, true);
             } catch {
-                localStorage.removeItem(requestKey);
+                removeStoredValue(requestKey);
             }
         }
         return () => {
             mounted = false;
             queue.flushAll();
+            setDraftAutosaveActivity(editorContext, activitySource, null);
             if (autosaveQueue.current === queue) autosaveQueue.current = null;
         };
     }, [config, designSystem, editorContext, parameters?.readOnly, reload, storagePrefix]);
@@ -274,12 +275,7 @@ export const Components = () => {
             confirmedConfig.current?.componentName === config.getName() ? confirmedConfig.current.value : undefined;
         if (!before) return;
         const requestKey = `${storagePrefix}:${config.getName()}:request`;
-        let previous: Partial<PendingComponentSave> | null = null;
-        try {
-            previous = JSON.parse(localStorage.getItem(requestKey) ?? 'null') as Partial<PendingComponentSave> | null;
-        } catch {
-            previous = null;
-        }
+        const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
         const pending: PendingComponentSave = {
             componentName: config.getName(),
             before,
@@ -291,7 +287,7 @@ export const Components = () => {
             retryCount: 0,
             metadataKey: requestKey,
         };
-        localStorage.setItem(requestKey, JSON.stringify(pending));
+        persistStoredJson(requestKey, pending);
         autosaveQueue.current?.enqueue(pending);
     }, [config, parameters?.readOnly, rerender, storagePrefix]);
 
@@ -368,3 +364,29 @@ export const Components = () => {
 };
 
 export const componentNavigationTarget = (pathname: string, search: string) => ({ pathname, search });
+
+const readStoredJson = <T,>(key: string, fallback: T): T => {
+    try {
+        const stored = localStorage.getItem(key);
+        return stored === null ? fallback : (JSON.parse(stored) as T);
+    } catch {
+        removeStoredValue(key);
+        return fallback;
+    }
+};
+
+const persistStoredJson = (key: string, value: unknown) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+        // Локальная копия необязательна: очередь в памяти всё равно должна отправить изменение.
+    }
+};
+
+const removeStoredValue = (key: string) => {
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Ошибка очистки локальной копии не меняет результат подтверждённой серверной операции.
+    }
+};

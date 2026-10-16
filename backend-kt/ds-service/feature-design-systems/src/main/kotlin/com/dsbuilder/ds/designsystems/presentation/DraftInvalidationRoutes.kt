@@ -1,0 +1,233 @@
+package com.dsbuilder.ds.designsystems.presentation
+
+import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.ds.core.application.DraftInvalidation
+import com.dsbuilder.ds.core.application.DraftInvalidationScope
+import com.dsbuilder.ds.core.application.DraftInvalidationStream
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
+import com.dsbuilder.ds.designsystems.domain.DesignSystemId
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.response.header
+import io.ktor.server.response.respond
+import io.ktor.server.response.respondTextWriter
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.time.Instant
+import java.util.UUID
+
+/** Регистрирует поток уведомлений об изменении активного черновика. */
+@Suppress("CyclomaticComplexMethod", "LongMethod")
+fun Route.draftInvalidationRoutes(
+    evaluator: PolicyEvaluator,
+    getDraftCursor: GetDesignSystemDraftCursorUseCase,
+    invalidations: DraftInvalidationStream,
+    json: Json,
+) {
+    val connectionLimiter = DraftInvalidationConnectionLimiter(MAX_CONNECTIONS_PER_ACTOR)
+    get("/api/ds/design-systems/{id}/events") {
+        val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            ?: return@get call.respondFailure(DsFailure.Forbidden)
+        val designSystemId = call.parameters["id"]?.toUuidOrNull()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val knownDraftId = call.request.queryParameters["draftId"]?.toUuidOrNull()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_draft_id"))
+        val knownRevision = call.request.queryParameters["draftRevision"]?.toLongOrNull()?.takeIf { it >= 0 }
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_draft_revision"))
+        if (context.clientId == null) {
+            return@get call.respondFailure(DsFailure.InvalidRequest("client_id_required"))
+        }
+        val connectionLease = connectionLimiter.tryAcquire(context.projectId.value, context.principal.actorId)
+            ?: return@get call.respond(HttpStatusCode.TooManyRequests)
+        try {
+            coroutineScope {
+                val signals = merge(
+                    invalidations.events
+                        .filter { event -> event.designSystemId == designSystemId }
+                        .map(DraftStreamSignal::Invalidated),
+                    invalidations.reconnections.map(DraftStreamSignal::Reconnected),
+                ).produceIn(this)
+                try {
+                    val activeCursor = when (
+                        val result = getDraftCursor.execute(context, DesignSystemId(designSystemId))
+                    ) {
+                        is DsResult.Success -> result.value
+                        is DsResult.Failure -> {
+                            call.respondFailure(result.error)
+                            return@coroutineScope
+                        }
+                    }
+                    call.response.header(HttpHeaders.CacheControl, "no-cache")
+                    call.response.header("X-Accel-Buffering", "no")
+                    call.respondTextWriter(contentType = EVENT_STREAM_CONTENT_TYPE) {
+                        var lastDraftId = knownDraftId
+                        var lastRevision = knownRevision
+                        write("retry: $RETRY_MILLIS\n\n")
+                        flush()
+                        if (knownDraftId != activeCursor.draftId || knownRevision != activeCursor.draftRevision) {
+                            val missed =
+                                missedInvalidation(designSystemId, activeCursor.draftId, activeCursor.draftRevision)
+                            writeEvent(json, missed)
+                            lastDraftId = missed.draftId
+                            lastRevision = missed.draftRevision
+                        }
+                        withTimeoutOrNull(CONNECTION_MAX_MILLIS) {
+                            stream@ while (true) {
+                                when (val signal = withTimeoutOrNull(HEARTBEAT_MILLIS) { signals.receive() }) {
+                                    null -> {
+                                        write(": heartbeat\n\n")
+                                        flush()
+                                    }
+                                    is DraftStreamSignal.Invalidated -> {
+                                        val event = signal.event
+                                        val isNewer = event.draftId != lastDraftId || event.draftRevision > lastRevision
+                                        if (isNewer) {
+                                            val missedEvents = draftInvalidationGap(event, lastDraftId, lastRevision)
+                                            lastDraftId = event.draftId
+                                            lastRevision = event.draftRevision
+                                            val isOwnEvent = isOwnDraftInvalidation(
+                                                context.principal.actorId,
+                                                context.clientId,
+                                                event,
+                                            )
+                                            if (!isOwnEvent || missedEvents) {
+                                                writeEvent(json, event.withFullRefreshIf(missedEvents))
+                                            }
+                                        }
+                                    }
+                                    is DraftStreamSignal.Reconnected -> {
+                                        val current = when (
+                                            val result = getDraftCursor.reconcile(
+                                                context,
+                                                DesignSystemId(designSystemId),
+                                                signal.generation,
+                                            )
+                                        ) {
+                                            is DsResult.Success -> result.value
+                                            is DsResult.Failure -> break@stream
+                                        }
+                                        if (draftCursorChanged(
+                                                current.draftId,
+                                                current.draftRevision,
+                                                lastDraftId,
+                                                lastRevision,
+                                            )
+                                        ) {
+                                            val missed = missedInvalidation(
+                                                designSystemId,
+                                                current.draftId,
+                                                current.draftRevision,
+                                            )
+                                            writeEvent(json, missed)
+                                            lastDraftId = missed.draftId
+                                            lastRevision = missed.draftRevision
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    signals.cancel()
+                }
+            }
+        } finally {
+            connectionLease.close()
+        }
+    }
+}
+
+@Serializable
+private data class DraftInvalidationResponse(
+    val designSystemId: String,
+    val draftId: String,
+    val draftRevision: Long,
+    val actorId: String,
+    val clientId: String?,
+    val changedAt: String,
+    val scopes: Set<String>,
+) {
+    companion object {
+        fun from(value: DraftInvalidation) = DraftInvalidationResponse(
+            designSystemId = value.designSystemId.toString(),
+            draftId = value.draftId.toString(),
+            draftRevision = value.draftRevision,
+            actorId = value.actorId,
+            clientId = value.clientId,
+            changedAt = value.changedAt.toString(),
+            scopes = value.scopes.mapTo(linkedSetOf()) { it.wireName },
+        )
+    }
+}
+
+private suspend fun java.io.Writer.writeEvent(json: Json, event: DraftInvalidation) {
+    write("event: draft-invalidated\n")
+    write("id: ${event.draftId}:${event.draftRevision}\n")
+    write(
+        "data: ${json.encodeToString(
+            DraftInvalidationResponse.serializer(),
+            DraftInvalidationResponse.from(event),
+        )}\n\n",
+    )
+    flush()
+}
+
+private fun missedInvalidation(designSystemId: UUID, draftId: UUID, draftRevision: Long) = DraftInvalidation(
+    designSystemId = designSystemId,
+    draftId = draftId,
+    draftRevision = draftRevision,
+    actorId = "system",
+    clientId = null,
+    changedAt = Instant.now(),
+    scopes = setOf(DraftInvalidationScope.ALL),
+)
+
+internal fun isOwnDraftInvalidation(
+    actorId: String,
+    clientId: String?,
+    event: DraftInvalidation,
+): Boolean = clientId != null && event.clientId == clientId && event.actorId == actorId
+
+internal fun draftInvalidationGap(event: DraftInvalidation, lastDraftId: UUID, lastRevision: Long): Boolean =
+    event.draftId != lastDraftId || event.draftRevision > lastRevision + 1
+
+private fun DraftInvalidation.withFullRefreshIf(required: Boolean): DraftInvalidation =
+    if (required) copy(scopes = setOf(DraftInvalidationScope.ALL)) else this
+
+private sealed interface DraftStreamSignal {
+    data class Invalidated(val event: DraftInvalidation) : DraftStreamSignal
+
+    data class Reconnected(val generation: Long) : DraftStreamSignal
+}
+
+private fun String.toUuidOrNull(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
+
+private fun draftCursorChanged(
+    currentDraftId: UUID?,
+    currentRevision: Long?,
+    lastDraftId: UUID,
+    lastRevision: Long,
+): Boolean {
+    if (currentDraftId == null) return false
+    if (currentRevision == null) return false
+    return currentDraftId != lastDraftId || currentRevision != lastRevision
+}
+
+private val EVENT_STREAM_CONTENT_TYPE = ContentType.parse("text/event-stream")
+private const val HEARTBEAT_MILLIS = 15_000L
+private const val CONNECTION_MAX_MILLIS = 300_000L
+private const val RETRY_MILLIS = 2_000
+private const val MAX_CONNECTIONS_PER_ACTOR = 8

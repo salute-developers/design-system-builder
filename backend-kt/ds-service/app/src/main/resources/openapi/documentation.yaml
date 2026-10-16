@@ -484,6 +484,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DraftChange'
+        '422':
+          description: Complete journal exceeds the supported safety limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -6741,7 +6747,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Complete journal exceeds the supported safety limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       x-permission: design-systems:write
+  /api/ds/design-systems/{id}/events:
+    get:
+      tags:
+        - Design Systems
+      summary: Subscribe to active draft invalidations
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: draftId
+          in: query
+        - schema:
+            type: integer
+            format: int64
+            minimum: 0
+          required: true
+          name: draftRevision
+          in: query
+        - schema:
+            type: string
+            maxLength: 128
+          required: true
+          name: X-DS-Client-Id
+          in: header
+      responses:
+        '200':
+          description: >-
+            Stream of active draft invalidations. Each draft-invalidated event contains the draft cursor and
+            unique scopes theme-tokens, theme-metadata, component-configurations, design-system or all.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          description: Invalid draft cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Design system not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many concurrent event streams for this project participant
+      x-permission: design-systems:read
 components:
   schemas:
     OkResponse:

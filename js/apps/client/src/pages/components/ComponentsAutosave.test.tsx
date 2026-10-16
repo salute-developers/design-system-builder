@@ -64,7 +64,74 @@ describe('Components autosave', () => {
         mocks.saveComponentMutation.mockResolvedValue({ style: 1 });
     });
 
-    afterEach(cleanup);
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+    });
+
+    it('отправляет изменение даже при переполненном localStorage', async () => {
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new DOMException('quota', 'QuotaExceededError');
+        });
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument());
+    });
+
+    it('ignores and removes corrupted revision metadata', async () => {
+        localStorage.setItem('ds_pending_component:project:ds:tenant:Button:revisions', '{broken');
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        expect(mocks.saveComponentMutation.mock.calls[0][3]).toEqual({});
+    });
 
     it('отправляет ожидающее изменение при уходе до окончания задержки', async () => {
         const context = {

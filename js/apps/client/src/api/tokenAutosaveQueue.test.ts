@@ -41,6 +41,70 @@ describe('TokenAutosaveQueue', () => {
         expect(confirmed).toEqual(['first', 'second']);
     });
 
+    it('starts the first save after the 400 ms trailing coalescing window', async () => {
+        const send = vi.fn<(item: Operation) => Promise<string>>().mockResolvedValue('saved');
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed: () => undefined,
+            retryable: () => false,
+            statusChanged: () => undefined,
+        });
+
+        queue.enqueue(operation('first', '#111'));
+        await vi.advanceTimersByTimeAsync(399);
+        expect(send).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces rapid input into the last value after 400 ms of silence', async () => {
+        const send = vi.fn<(item: Operation) => Promise<string>>().mockResolvedValue('saved');
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed: () => undefined,
+            retryable: () => false,
+            statusChanged: () => undefined,
+        });
+
+        queue.enqueue(operation('first', '1'));
+        await vi.advanceTimersByTimeAsync(250);
+        queue.enqueue(operation('second', '16'));
+        await vi.advanceTimersByTimeAsync(399);
+        expect(send).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(send).toHaveBeenCalledOnce();
+        expect(send.mock.calls[0][0].value).toBe('16');
+    });
+
+    it('waits for the remaining trailing window after an in-flight save completes', async () => {
+        let finishFirst: ((value: string) => void) | undefined;
+        const send = vi
+            .fn<(item: Operation) => Promise<string>>()
+            .mockImplementationOnce(() => new Promise((resolve) => (finishFirst = resolve)))
+            .mockResolvedValueOnce('second');
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed: () => undefined,
+            retryable: () => false,
+            statusChanged: () => undefined,
+        });
+
+        queue.enqueue(operation('first', '#111'), true);
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(100);
+        queue.enqueue(operation('second', '#222'));
+        await vi.advanceTimersByTimeAsync(100);
+
+        finishFirst?.('first');
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(299);
+        expect(send).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(send.mock.calls.map(([item]) => item.generation)).toEqual(['first', 'second']);
+    });
+
     it('keeps a temporary failure and retries it with backoff', async () => {
         const send = vi.fn<(item: Operation) => Promise<string>>().mockRejectedValueOnce(new Error('offline'));
         send.mockResolvedValueOnce('ok');

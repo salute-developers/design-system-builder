@@ -9,6 +9,7 @@ import com.dsbuilder.ds.designsystems.application.DesignSystemAggregateRepositor
 import com.dsbuilder.ds.designsystems.application.DesignSystemRepository
 import com.dsbuilder.ds.designsystems.application.DesignSystemVersionRepository
 import com.dsbuilder.ds.designsystems.application.DraftChangeRepository
+import com.dsbuilder.ds.designsystems.application.GetDesignSystemDraftCursorUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.GetDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemAppearancesUseCase
@@ -42,6 +43,7 @@ val designSystemsModule = module {
     single<DraftChangeRepository> { ExposedDraftChangeRepository(getAll(), getAll()) }
     factory { ListDesignSystemsUseCase(get(), get(), get()) }
     factory { GetDesignSystemUseCase(get(), get(), get()) }
+    factory { GetDesignSystemDraftCursorUseCase(get(), get(), get()) }
     factory { CreateDesignSystemUseCase(get(), get(), get(), get(), get(), IdempotentCreateExecutor(get())) }
     factory { UpdateDesignSystemUseCase(get(), get(), get()) }
     factory { DeleteDesignSystemUseCase(get(), get(), get()) }

@@ -26,7 +26,9 @@ object TrustedDsRequestContextMapper {
         val baseRevision = rawBaseRevision?.toLongOrNull()?.takeIf { it >= 0 }
         if (rawBaseRevision != null && baseRevision == null) return null
         val parsedVersionId = versionId?.let { runCatching { UUID.fromString(it) }.getOrNull() ?: return null }
-        return DsRequestContext(principal, correlationId, baseRevision, parsedVersionId)
+        val clientId = headers[CLIENT_ID_HEADER]?.takeIf { it.isNotBlank() && it.length <= MAX_CLIENT_ID_LENGTH }
+        if (headers[CLIENT_ID_HEADER] != null && clientId == null) return null
+        return DsRequestContext(principal, correlationId, baseRevision, parsedVersionId, clientId)
     }
 
     private const val ACTOR_TYPE_HEADER = "X-Actor-Type"
@@ -38,4 +40,6 @@ object TrustedDsRequestContextMapper {
     private const val SYSTEM_ADMIN_HEADER = "X-System-Admin"
     private const val CORRELATION_ID_HEADER = "X-Correlation-Id"
     private const val BASE_REVISION_HEADER = "X-DS-Base-Revision"
+    private const val CLIENT_ID_HEADER = "X-DS-Client-Id"
+    private const val MAX_CLIENT_ID_LENGTH = 128
 }

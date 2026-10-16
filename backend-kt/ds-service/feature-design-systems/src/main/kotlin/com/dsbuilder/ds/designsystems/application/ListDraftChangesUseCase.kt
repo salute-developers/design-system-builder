@@ -23,9 +23,18 @@ class ListDraftChangesUseCase(
     ): DsResult<List<DraftChange>> = when (val allowed = policy.require(context, "design-systems:read")) {
         is DsResult.Failure -> allowed
         is DsResult.Success -> transactions.readOnly(context) {
-            repository.list(context.projectId, context.principal.systemAdmin, designSystemId, versionId)
-                ?.let { changes -> DsResult.Success(changes) }
-                ?: DsResult.Failure(DsFailure.NotFound)
+            try {
+                repository.list(context.projectId, context.principal.systemAdmin, designSystemId, versionId)
+                    ?.let { changes -> DsResult.Success(changes) }
+                    ?: DsResult.Failure(DsFailure.NotFound)
+            } catch (_: DraftChangeLimitExceededException) {
+                DsResult.Failure(
+                    DsFailure.Unprocessable(
+                        code = "JOURNAL_LIMIT_EXCEEDED",
+                        message = "The journal exceeds the supported limit of 10000 changes",
+                    ),
+                )
+            }
         }
     }
 }

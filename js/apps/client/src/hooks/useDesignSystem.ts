@@ -19,6 +19,16 @@ import { isRetryableAutosaveError } from '../api/autosaveHttp';
 import type { ThemePalette } from '../modules/palette';
 import { setActivePalette } from '../palette/activePalette';
 import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
+import {
+    subscribeToDraftInvalidations,
+    type DraftInvalidationEvent,
+    type DraftInvalidationScope,
+} from '../api/draftInvalidationStream';
+import {
+    isDraftAutosaveIdle,
+    reloadWhenDraftAutosaveIsIdle,
+    setDraftAutosaveActivity,
+} from '../api/draftAutosaveActivity';
 
 const themeEditorRepository = new ThemeEditorRepository();
 
@@ -112,7 +122,7 @@ export const useDesignSystem = (
                         : null;
                 setComposeComponents([]);
                 try {
-                    const snapshot = await themeEditorRepository.load(designSystemProjectId, controller.signal);
+                    let snapshot = await themeEditorRepository.load(designSystemProjectId, controller.signal);
                     if (controller.signal.aborted) return;
                     const ds = DesignSystem.fromSnapshot({
                         name: snapshot.designSystem.name,
@@ -157,12 +167,21 @@ export const useDesignSystem = (
                         const metadataKey = (operationKey: string) =>
                             `ds_pending_meta:${designSystemProjectId.projectId}:${designSystemProjectId.designSystemId}:${designSystemProjectId.tenantId}:${operationKey}`;
                         const readMetadata = (key: string): Partial<PendingTokenSave> | null => {
-                            const stored = localStorage.getItem(key);
+                            let stored: string | null;
+                            try {
+                                stored = localStorage.getItem(key);
+                            } catch {
+                                return null;
+                            }
                             if (!stored) return null;
                             try {
                                 return JSON.parse(stored) as Partial<PendingTokenSave>;
                             } catch {
-                                localStorage.removeItem(key);
+                                try {
+                                    localStorage.removeItem(key);
+                                } catch {
+                                    // Corrupted recovery metadata must not block the in-memory queue.
+                                }
                                 return null;
                             }
                         };
@@ -276,14 +295,22 @@ export const useDesignSystem = (
                                         designSystemProjectId,
                                     ),
                                 );
-                                localStorage.removeItem(operation.metadataKey);
+                                try {
+                                    localStorage.removeItem(operation.metadataKey);
+                                } catch {
+                                    // The confirmed server state is authoritative.
+                                }
                                 latestGenerationByMetadataKey.delete(operation.metadataKey);
                             },
                             retryable: isRetryableAutosaveError,
                             statusChanged: (status) => {
-                                if (mounted) setAutosaveStatus(status);
+                                if (mounted) {
+                                    setDraftAutosaveActivity(designSystemProjectId, 'tokens', status);
+                                    setAutosaveStatus(status);
+                                }
                             },
                         });
+                        setDraftAutosaveActivity(designSystemProjectId, 'tokens', 'saved');
                         autosaveQueue.current = queue;
                         const schedule = (
                             tokenName: string,
@@ -369,8 +396,12 @@ export const useDesignSystem = (
                                 const logicalKey = logicalKeyByName.get(baseName) ?? baseName;
                                 queue.discard(logicalKey, tokenName);
                                 queue.discard(logicalKey, baseName);
-                                localStorage.removeItem(metadataKey(tokenName));
-                                localStorage.removeItem(metadataKey(baseName));
+                                try {
+                                    localStorage.removeItem(metadataKey(tokenName));
+                                    localStorage.removeItem(metadataKey(baseName));
+                                } catch {
+                                    // Discarding from the active in-memory queue must not depend on storage.
+                                }
                                 latestGenerationByMetadataKey.delete(metadataKey(tokenName));
                                 latestGenerationByMetadataKey.delete(metadataKey(baseName));
                                 return;
@@ -416,12 +447,162 @@ export const useDesignSystem = (
                                 ),
                             );
                         const flushOnPageHide = () => queue.flushAll(true);
+                        let cancelDeferredReload: () => void = () => undefined;
+                        let retryRemoteReload: number | undefined;
+                        let remoteReloadRunning = false;
+                        let latestRemoteEvent: DraftInvalidationEvent | undefined;
+                        const pendingRemoteScopes = new Set<DraftInvalidationScope>();
+                        const replaceTokenRuntimeState = (next: typeof snapshot) => {
+                            editRevision = Math.max(editRevision, next.editRevision);
+                            Object.keys(tokenIds).forEach((name) => delete tokenIds[name]);
+                            Object.assign(tokenIds, next.tokenIdsByName);
+                            logicalKeyByName.clear();
+                            tokenIdByLogicalKey.clear();
+                            definitionByLogicalKey.clear();
+                            renamedAwayNames.clear();
+                            Object.entries(next.tokenDefinitionsByName ?? {}).forEach(([name, definition]) => {
+                                const logicalKey = `token:${definition.id}`;
+                                logicalKeyByName.set(name, logicalKey);
+                                tokenIdByLogicalKey.set(logicalKey, definition.id);
+                                definitionByLogicalKey.set(logicalKey, definition);
+                            });
+                            Object.entries(tokenIds).forEach(([name, tokenId]) => {
+                                const logicalKey = logicalKeyByName.get(name) ?? `token:${tokenId}`;
+                                logicalKeyByName.set(name, logicalKey);
+                                tokenIdByLogicalKey.set(logicalKey, tokenId);
+                            });
+                            baseRevisions.clear();
+                            valueBaseRevisions.clear();
+                            Object.entries(next.tokenValueRevisionsByKey).forEach(([key, revision]) =>
+                                valueBaseRevisions.set(key, revision),
+                            );
+                        };
+                        const applyRemoteSnapshot = (
+                            next: typeof snapshot,
+                            tokensChanged: boolean,
+                            componentsChanged: boolean,
+                        ) => {
+                            snapshot = next;
+                            const nextDesignSystem = DesignSystem.fromSnapshot({
+                                name: next.designSystem.name,
+                                version: next.publicationVersion,
+                                parameters: next.parameters,
+                                themeData: next.themeData,
+                                componentsData: next.componentsData,
+                            });
+                            setDesignSystem(nextDesignSystem);
+                            if (tokensChanged) {
+                                replaceTokenRuntimeState(next);
+                                setIncompleteTokenIds(next.incompleteTokenIds);
+                                const nextTheme = nextDesignSystem.createThemeInstance({ includeExtraTokens });
+                                applyDraftChanges(nextTheme, next.designSystem.name, '0.1.0');
+                                setTheme(nextTheme);
+                            }
+                            if (componentsChanged) setComponents(nextDesignSystem.createAllComponentInstances());
+                        };
+                        const scheduleRemoteReload = () => {
+                            if (retryRemoteReload !== undefined) {
+                                window.clearTimeout(retryRemoteReload);
+                                retryRemoteReload = undefined;
+                            }
+                            cancelDeferredReload();
+                            cancelDeferredReload = reloadWhenDraftAutosaveIsIdle(
+                                designSystemProjectId,
+                                () => void runRemoteReload(),
+                            );
+                        };
+                        const runRemoteReload = async () => {
+                            if (remoteReloadRunning || pendingRemoteScopes.size === 0 || !latestRemoteEvent) return;
+                            remoteReloadRunning = true;
+                            const event = latestRemoteEvent;
+                            const scopes = new Set(pendingRemoteScopes);
+                            pendingRemoteScopes.clear();
+                            const fullReload =
+                                scopes.has('all') ||
+                                scopes.has('design-system') ||
+                                event.draftId !== snapshot.designSystem.draftId;
+                            const tokensChanged =
+                                fullReload || scopes.has('theme-tokens') || scopes.has('theme-metadata');
+                            const componentsChanged = fullReload || scopes.has('component-configurations');
+                            try {
+                                let next = snapshot;
+                                if (fullReload) {
+                                    next = await themeEditorRepository.load(designSystemProjectId, controller.signal);
+                                } else {
+                                    const [tokenData, componentData] = await Promise.all([
+                                        tokensChanged
+                                            ? themeEditorRepository.loadTokenData(
+                                                  designSystemProjectId,
+                                                  controller.signal,
+                                                  snapshot.publicationVersion,
+                                              )
+                                            : Promise.resolve(null),
+                                        componentsChanged
+                                            ? themeEditorRepository.loadComponentData(
+                                                  designSystemProjectId,
+                                                  controller.signal,
+                                              )
+                                            : Promise.resolve(null),
+                                    ]);
+                                    next = {
+                                        ...snapshot,
+                                        ...(tokenData ?? {}),
+                                        componentsData: componentData ?? snapshot.componentsData,
+                                        designSystem: {
+                                            ...snapshot.designSystem,
+                                            draftId: event.draftId,
+                                            draftRevision: event.draftRevision,
+                                        },
+                                        parameters: {
+                                            ...snapshot.parameters,
+                                            ...(tokenData ? { editRevision: tokenData.editRevision } : {}),
+                                            draftId: event.draftId,
+                                            draftRevision: event.draftRevision,
+                                        },
+                                    };
+                                }
+                                if (!isDraftAutosaveIdle(designSystemProjectId)) {
+                                    scopes.forEach((scope) => pendingRemoteScopes.add(scope));
+                                    return;
+                                }
+                                if (!controller.signal.aborted) {
+                                    applyRemoteSnapshot(next, tokensChanged, componentsChanged);
+                                }
+                            } catch (error) {
+                                if (!controller.signal.aborted) {
+                                    scopes.forEach((scope) => pendingRemoteScopes.add(scope));
+                                    console.warn('[useDesignSystem] Не удалось обновить изменённые данные', error);
+                                    retryRemoteReload = window.setTimeout(scheduleRemoteReload, 2_000);
+                                }
+                            } finally {
+                                remoteReloadRunning = false;
+                                if (pendingRemoteScopes.size > 0 && retryRemoteReload === undefined) {
+                                    scheduleRemoteReload();
+                                }
+                            }
+                        };
+                        if (snapshot.designSystem.draftId && snapshot.designSystem.draftRevision != null) {
+                            void subscribeToDraftInvalidations({
+                                context: designSystemProjectId,
+                                draftId: snapshot.designSystem.draftId,
+                                draftRevision: snapshot.designSystem.draftRevision,
+                                signal: controller.signal,
+                                received: (event) => {
+                                    latestRemoteEvent = event;
+                                    event.scopes.forEach((scope) => pendingRemoteScopes.add(scope));
+                                    scheduleRemoteReload();
+                                },
+                            });
+                        }
                         window.addEventListener('pagehide', flushOnPageHide);
                         controller.signal.addEventListener('abort', () => {
                             mounted = false;
+                            cancelDeferredReload();
+                            if (retryRemoteReload !== undefined) window.clearTimeout(retryRemoteReload);
                             setPendingMutationListener(null);
                             window.removeEventListener('pagehide', flushOnPageHide);
                             queue.flushAll(true);
+                            setDraftAutosaveActivity(designSystemProjectId, 'tokens', null);
                             if (autosaveQueue.current === queue) autosaveQueue.current = null;
                         });
                     }

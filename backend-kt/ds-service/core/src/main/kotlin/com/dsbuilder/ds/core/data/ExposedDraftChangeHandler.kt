@@ -42,12 +42,13 @@ class ExposedDraftChangeHandler(
         designSystemId: UUID,
         sequenceNumber: Long,
         previousSequenceNumber: Long,
+        limit: Int?,
     ): List<DraftSubjectChange> {
-        return differences(designSystemId, sequenceNumber, previousSequenceNumber, stopAfterFirst = false)
+        return differences(designSystemId, sequenceNumber, previousSequenceNumber, limit)
     }
 
     override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
-        differences(designSystemId, sequenceNumber, previousSequenceNumber, stopAfterFirst = true).isNotEmpty()
+        differences(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
 
     override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
         val hasHistoricalRevision = removeStableEntity && revisionTable.selectAll().where {
@@ -64,13 +65,13 @@ class ExposedDraftChangeHandler(
         designSystemId: UUID,
         sequenceNumber: Long,
         previousSequenceNumber: Long,
-        stopAfterFirst: Boolean,
+        limit: Int?,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
         val currentValue = valueExpression("current")
         val previousResolved = resolvedValueExpression("previous", previousValue)
         val currentResolved = resolvedValueExpression("current", currentValue)
-        val limit = if (stopAfterFirst) "LIMIT 1" else ""
+        val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,
@@ -98,7 +99,8 @@ class ExposedDraftChangeHandler(
             ) current ON true
             WHERE entity.${stableDesignSystemId.quotedName()} = ?
               AND ($previousResolved) IS DISTINCT FROM ($currentResolved)
-            $limit
+            ORDER BY ${stableTable.qualified(stableId)}
+            $limitClause
         """.trimIndent()
         return TransactionManager.current().exec(
             sql,
@@ -115,7 +117,6 @@ class ExposedDraftChangeHandler(
                     if (before != after) {
                         val entityId = rows.getObject("entity_id", UUID::class.java)
                         add(DraftSubjectChange(entityId, before, after, changedPaths(before, after)))
-                        if (stopAfterFirst) break
                     }
                 }
             }
