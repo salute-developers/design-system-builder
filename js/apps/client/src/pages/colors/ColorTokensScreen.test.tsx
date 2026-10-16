@@ -610,10 +610,8 @@ describe('ColorTokensScreen', () => {
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
         expect(screen.getByText('Read-only access')).toBeInTheDocument();
 
-        await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: 'Доступность' }));
-        });
-        expect(screen.getByTestId('accessibility-panel')).toBeInTheDocument();
+        // Вкладка «Доступность» пока скрыта по решению команды.
+        expect(screen.queryByRole('button', { name: 'Доступность' })).toBeNull();
         expect(repository.updateValues).not.toHaveBeenCalled();
     });
 });

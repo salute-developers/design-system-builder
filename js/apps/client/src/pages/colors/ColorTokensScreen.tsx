@@ -65,6 +65,9 @@ export interface ColorTokensScreenProps {
     reload: () => void;
 }
 
+/** Вкладка «Доступность» пока скрыта по решению команды; панель и расчёт пар контраста остаются в коде. */
+const SHOW_ACCESSIBILITY = false;
+
 const PANELS_KEY = 'ds_color_tokens_panels';
 const COLLAPSED_KEY = 'ds_color_tokens_collapsed';
 const LEFT = { min: 220, max: 320, initial: 280 };
@@ -523,13 +526,15 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             >
                                 Обзор
                             </button>
-                            <button
-                                type="button"
-                                className={workspace === 'accessibility' ? 'is-active' : ''}
-                                onClick={() => setWorkspace('accessibility')}
-                            >
-                                Доступность
-                            </button>
+                            {SHOW_ACCESSIBILITY && (
+                                <button
+                                    type="button"
+                                    className={workspace === 'accessibility' ? 'is-active' : ''}
+                                    onClick={() => setWorkspace('accessibility')}
+                                >
+                                    Доступность
+                                </button>
+                            )}
                         </div>
                         <div className="editor-header-controls">
                             <span
@@ -589,7 +594,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 <aside
                     className="properties-panel"
                     ref={(node) => {
-                        // INFO: React 18 не передаёт `inert` атрибутом; дерево, борд и «Доступность» остаются доступны.
+                        // INFO: React 18 не передаёт `inert` атрибутом; дерево и борд остаются доступны.
                         if (node) (node as HTMLElement & { inert: boolean }).inert = readOnly;
                     }}
                 >
