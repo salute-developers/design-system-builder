@@ -115,7 +115,7 @@ cd frontend-kt && ./gradlew build
 ## Production
 
 Backend production stack описан в [docker-compose.prod.yml](./docker-compose.prod.yml). GitHub Actions вручную собирает
-девять Kotlin, JavaScript и infrastructure образов, публикует их в GitHub Container Registry (GHCR) и вызывает deploy webhook
+восемь Kotlin, JavaScript и infrastructure образов, публикует их в GitHub Container Registry (GHCR) и вызывает deploy webhook
 DEV или PROD resource в Coolify. Compose использует только готовые registry images; исходники на deployment server не
 собираются.
 
