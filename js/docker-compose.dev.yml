@@ -85,24 +85,6 @@ services:
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
-  # Publisher service
-  publisher:
-    build:
-      context: ./services/publisher
-      dockerfile: Dockerfile
-    container_name: ds-builder-publisher-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3007
-      # Optional locally: the legacy npm publishing endpoint reports a clear error when it is not configured.
-      NPM_TOKEN: ${NPM_TOKEN:-}
-    ports:
-      - "3007:3007"
-    networks:
-      - ds-builder-network
-    command: npm run start
-
   # Documentation Generator Service
   docs-generator:
     build:

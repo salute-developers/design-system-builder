@@ -158,47 +158,6 @@ services:
       start_period: 30s
       retries: 5
 
-  publisher:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/publisher:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3007
-      NPM_TOKEN: ${NPM_TOKEN:?Set NPM_TOKEN}
-    expose:
-      - "3007"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
-
-  generator:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/generator:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3005
-      DB_SERVICE_URL: http://db-service:3008/api
-      PUBLISHER_URL: http://publisher:3007
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
-    expose:
-      - "3005"
-    depends_on:
-      db-service:
-        condition: service_healthy
-      publisher:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 20s
-      retries: 5
-
   docs-generator:
     image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-generator:${IMAGE_TAG:?Set IMAGE_TAG}
     pull_policy: always
@@ -321,17 +280,11 @@ services:
       DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
       DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
       DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
-      GENERATOR_SERVICE_UPSTREAM_SCHEME: http
-      GENERATOR_SERVICE_UPSTREAM_HOST: generator
-      GENERATOR_SERVICE_UPSTREAM_PORT: 3005
-      PUBLISHER_SERVICE_UPSTREAM_SCHEME: http
-      PUBLISHER_SERVICE_UPSTREAM_HOST: publisher
-      PUBLISHER_SERVICE_UPSTREAM_PORT: 3007
       GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
     command:
       - /bin/sh
       - -c
-      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     expose:
       - "8080"
     depends_on:
@@ -344,10 +297,6 @@ services:
       documentation-service:
         condition: service_healthy
       ds-service:
-        condition: service_healthy
-      generator:
-        condition: service_healthy
-      publisher:
         condition: service_healthy
       docs-generator:
         condition: service_healthy
