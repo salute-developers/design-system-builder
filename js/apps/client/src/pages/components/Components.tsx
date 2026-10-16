@@ -1,26 +1,85 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
-import { getOldMenuItems } from '../../utils';
+import {
+    getComposePreviewPluginUrl,
+    loadComposePreviewManifest,
+    parseComponentRoute,
+    toComponentRoute,
+} from '../../composePreview';
+import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
+import { SegmentButton, SegmentButtonItem } from '../../components';
+import { getComposeMenuItems, getOldMenuItems } from '../../utils';
+import type { Data } from '../../types';
 import { DesignSystem, Theme, Config } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
 
 import { ComponentEditor } from './features/ComponentEditor';
+import { PlatformSwitch } from './Components.styles';
+
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
     components?: Config[];
+    composeComponents?: Config[];
     updated: object;
     rerender: () => void;
 }
 
+type Platform = ComponentRoute['platform'];
+
+const platformItems: Record<Platform, SegmentButtonItem> = {
+    web: { label: 'Web', value: 'web' },
+    compose: { label: 'Compose', value: 'compose' },
+};
+
 export const Components = () => {
-    const { designSystem, theme, components, updated, rerender } = useOutletContext<ComponentsOutletContextProps>();
+    const { designSystem, theme, components, composeComponents, updated, rerender } =
+        useOutletContext<ComponentsOutletContextProps>();
     const { componentName } = useParams<{ componentName?: string }>();
     const navigate = useNavigate();
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
-    const data = useMemo(() => getOldMenuItems(components, 'components'), [theme]);
+    // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
+    const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
+
+    useEffect(() => {
+        const pluginUrl = getComposePreviewPluginUrl();
+        if (!pluginUrl || !composeComponents?.length) return;
+
+        let cancelled = false;
+        void loadComposePreviewManifest(pluginUrl)
+            .then(({ manifest }) => {
+                if (!cancelled) setPluginGroups(manifest.groups);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [composeComponents]);
+
+    // Платформы показываем только те, для которых у дизайн-системы есть компоненты.
+    const menus = useMemo<Partial<Record<Platform, Data | undefined>>>(
+        () => ({
+            ...(components?.length ? { web: getOldMenuItems(components, 'components') } : {}),
+            ...(composeComponents?.length ? { compose: getComposeMenuItems(composeComponents, pluginGroups) } : {}),
+        }),
+        [theme, components, composeComponents, pluginGroups],
+    );
+    const platforms = (Object.keys(menus) as Platform[]).sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : 0));
+    const routePlatform = componentName ? parseComponentRoute(componentName).platform : undefined;
+    const platform: Platform | undefined =
+        routePlatform && menus[routePlatform] ? routePlatform : platforms[0];
+    const data = platform ? menus[platform] : undefined;
+
+    const firstEnabledRoute = (target: Platform) => {
+        const item = menus[target]
+            ?.groups?.[0]?.data?.flatMap(({ items }) => items)
+            .find((candidate) => !candidate.disabled);
+
+        return item ? toComponentRoute(target, item.name) : undefined;
+    };
 
     // TODO: Маппинг имени компонента в индексы — временный мост к MenuOld, который работает
     // на индексах [tab, group, item]. Когда MenuOld заменят на новый Menu, выбирающий по имени,
@@ -33,33 +92,42 @@ export const Components = () => {
             return [0, 0, 0];
         }
 
+        const { name } = parseComponentRoute(componentName);
         const groupIndex = groups.findIndex(({ items }) =>
-            items.some((item) => item.name.toLowerCase() === componentName.toLowerCase()),
+            items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
         );
 
         if (groupIndex === -1) {
             return [0, 0, 0];
         }
 
-        const itemIndex = groups[groupIndex].items.findIndex(
-            (item) => item.name.toLowerCase() === componentName.toLowerCase(),
-        );
+        const itemIndex = groups[groupIndex].items.findIndex((item) => item.name.toLowerCase() === name.toLowerCase());
 
         return [0, groupIndex, itemIndex];
     }, [groups, componentName]);
 
-    // Если компонент не задан в URL (или не найден) — переходим на первый доступный.
+    // Если компонент не задан в URL или его нет в меню (например, у него нет конфигурации) — переходим на первый доступный.
     useEffect(() => {
-        if (!groups || componentName) {
+        if (!platform || !data) {
             return;
         }
 
-        const firstEnabled = groups.flatMap(({ items }) => items).find((item) => !item.disabled);
+        if (componentName) {
+            const { name } = parseComponentRoute(componentName);
+            const inMenu = groups?.some(({ items }) => items.some((item) => item.name.toLowerCase() === name.toLowerCase()));
 
-        if (firstEnabled) {
-            navigate(firstEnabled.name, { replace: true });
+            if (inMenu) {
+                return;
+            }
         }
-    }, [groups, componentName, navigate]);
+
+        const route = firstEnabledRoute(platform);
+
+        if (route) {
+            // С параметром маршрута относительный путь считается от него, поэтому, как в onItemSelect, идём через `../components`.
+            navigate(componentName ? `../components/${route}` : route, { replace: true });
+        }
+    }, [platform, menus, componentName, navigate]);
 
     useEffect(() => {
         if (!data) {
@@ -77,8 +145,16 @@ export const Components = () => {
     const onItemSelect = (groupIndex: number, itemIndex: number) => {
         const name = groups?.[groupIndex]?.items?.[itemIndex]?.name;
 
-        if (name) {
-            navigate(`../components/${name}`);
+        if (name && platform) {
+            navigate(`../components/${toComponentRoute(platform, name)}`);
+        }
+    };
+
+    const onPlatformSelect = (item: SegmentButtonItem) => {
+        const route = firstEnabledRoute(item.value as Platform);
+
+        if (route) {
+            navigate(`../components/${route}`);
         }
     };
 
@@ -86,7 +162,7 @@ export const Components = () => {
         return null;
     }
 
-    if (components.length === 0) {
+    if (!platform) {
         return <Navigate to="../colors" replace />;
     }
 
@@ -97,6 +173,8 @@ export const Components = () => {
             menuBackground={'transparent'}
             menu={
                 <MenuOld
+                    // Развёрнутая группа берётся из выбора при монтировании: с группами плагина меню собирается заново.
+                    key={`${platform}-${pluginGroups ? 'plugin-groups' : 'default-groups'}`}
                     header={designSystem.getParameters()?.projectName}
                     subheader={designSystem.getParameters()?.packagesName}
                     data={data}
@@ -105,6 +183,18 @@ export const Components = () => {
                     sectionTitle="Компоненты"
                     selectedItemIndexes={selectedItemIndexes}
                     onItemSelect={onItemSelect}
+                    toolbar={
+                        platforms.length > 1 && (
+                            <PlatformSwitch>
+                                <SegmentButton
+                                    label="Платформа"
+                                    items={platforms.map((item) => platformItems[item])}
+                                    selected={platformItems[platform]}
+                                    onSelect={onPlatformSelect}
+                                />
+                            </PlatformSwitch>
+                        )
+                    }
                 />
             }
             content={

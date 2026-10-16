@@ -2,7 +2,10 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const { hookState, reload } = vi.hoisted(() => ({ hookState: { loading: false }, reload: vi.fn() }));
+const { hookState, reload } = vi.hoisted(() => ({
+    hookState: { loading: false, components: [] as unknown[] },
+    reload: vi.fn(),
+}));
 vi.mock('../hooks', () => ({
     useForceRerender: () => [null, vi.fn()],
     useDesignSystem: () => ({
@@ -19,7 +22,8 @@ vi.mock('../hooks', () => ({
                   }),
               },
         theme: hookState.loading ? null : { getName: () => 'Brand' },
-        components: hookState.loading ? null : [],
+        components: hookState.loading ? null : hookState.components,
+        composeComponents: [],
         incompleteTokenIds: [],
         loadError: null,
         reload,
@@ -30,7 +34,9 @@ import { Main } from './Main';
 
 afterEach(() => {
     hookState.loading = false;
+    hookState.components = [];
     cleanup();
+    vi.unstubAllEnvs();
 });
 
 describe('Theme editor shell', () => {
@@ -88,5 +94,39 @@ describe('Theme editor shell', () => {
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: 'Настройки темы' })).not.toBeInTheDocument();
+    });
+
+    describe('component editor section', () => {
+        const renderShell = () =>
+            render(
+                <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
+                    <Routes>
+                        <Route
+                            path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                            element={<Main />}
+                        >
+                            <Route path="colors" element={<div>Цветовые токены</div>} />
+                        </Route>
+                    </Routes>
+                </MemoryRouter>,
+            );
+
+        it('offers the section when it is enabled and the design system has components', () => {
+            vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
+            hookState.components = [{}];
+
+            renderShell();
+
+            expect(screen.getByTestId('editor-nav-components')).toBeInTheDocument();
+        });
+
+        it('hides the section when it is disabled, even if the design system has components', () => {
+            vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
+            hookState.components = [{}];
+
+            renderShell();
+
+            expect(screen.queryByTestId('editor-nav-components')).not.toBeInTheDocument();
+        });
     });
 });

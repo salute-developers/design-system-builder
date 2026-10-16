@@ -128,14 +128,21 @@ router.get("/:name/component-configs", (req, res) =>
     if (!assertFound(ds, res)) return;
     if (!designSystemBelongsToScope(ds, req)) { res.status(404).json({ error: "Not found" }); return; }
 
+    // Без `platform` выдача прежняя (web): её читают генератор и веб-клиент.
+    const requestedPlatform = req.query.platform ?? "web";
+    if (requestedPlatform !== "web" && requestedPlatform !== "compose") {
+      res.status(400).json({ error: "platform must be 'web' or 'compose'" });
+      return;
+    }
+
     const dsId = ds.id;
 
     const dscRows = await db.query.designSystemComponents.findMany({
       where: eq(designSystemComponents.designSystemId, dsId),
       with: { component: true },
     });
-    // Legacy-формат обслуживает веб-клиент и генератор: компоненты других платформ в выдачу не попадают.
-    const componentList = dscRows.map((r) => r.component).filter((c) => c.platform === "web");
+    // Legacy-формат обслуживает веб-клиент и генератор: в выдачу попадают компоненты одной платформы.
+    const componentList = dscRows.map((r) => r.component).filter((c) => c.platform === requestedPlatform);
     const componentIds = componentList.map((c) => c.id);
 
     if (componentIds.length === 0) { res.json([]); return; }
@@ -180,13 +187,18 @@ router.get("/:name/component-configs", (req, res) =>
           )
         : Promise.resolve([]),
       componentIds.length > 0
-        ? db.select().from(invariantPropertyValues).where(
-            and(
-              eq(invariantPropertyValues.designSystemId, dsId),
-              inArray(invariantPropertyValues.componentId, componentIds),
-              eq(invariantPropertyValues.stateSetId, SENTINEL_STATE_SET_ID),
-            ),
-          )
+        ? db
+            .select()
+            .from(invariantPropertyValues)
+            .where(
+              and(
+                eq(invariantPropertyValues.designSystemId, dsId),
+                inArray(invariantPropertyValues.componentId, componentIds),
+              ),
+            )
+            // Значения состояний инварианта (например, `checked` у цвета RadioBox) идут вместе с базовым; порядок по
+            // `position` значим, как у значений вариаций.
+            .orderBy(invariantPropertyValues.position, invariantPropertyValues.id)
         : Promise.resolve([]),
     ]);
 
@@ -194,12 +206,18 @@ router.get("/:name/component-configs", (req, res) =>
 
     const vpvRows =
       styleIds.length > 0 && appearanceIds.length > 0
-        ? await db.select().from(variationPropertyValues).where(
-            and(
-              inArray(variationPropertyValues.styleId, styleIds),
-              inArray(variationPropertyValues.appearanceId, appearanceIds),
-            ),
-          )
+        ? await db
+            .select()
+            .from(variationPropertyValues)
+            .where(
+              and(
+                inArray(variationPropertyValues.styleId, styleIds),
+                inArray(variationPropertyValues.appearanceId, appearanceIds),
+              ),
+            )
+            // Порядок значений состояний значим (в ColorStateList выигрывает первое совпадение): без сортировки он
+            // зависел от порядка строк в таблице.
+            .orderBy(variationPropertyValues.position, variationPropertyValues.id)
         : [];
 
     // ── Adjustments (корректировки платформенных параметров) ──────────────────
@@ -369,7 +387,10 @@ router.get("/:name/component-configs", (req, res) =>
       membersByCombo.set(m.combinationId, [...(membersByCombo.get(m.combinationId) ?? []), m.styleId]);
     }
     // combinations: одна запись на набор стилей, внутри — значения свойств под этим набором.
-    const combinationsByAppearance = new Map<string, Map<string, { styleIDs: string[]; props: { id: string; value: string }[] }>>();
+    const combinationsByAppearance = new Map<
+      string,
+      Map<string, { styleIDs: string[]; props: { id: string; value: string; alpha?: number }[] }>
+    >();
     for (const c of comboRows) {
       const styleIDs = [...(membersByCombo.get(c.id) ?? [])].sort();
       const key = styleIDs.join(',');
@@ -379,7 +400,7 @@ router.get("/:name/component-configs", (req, res) =>
       const propType = propById.get(c.propertyId)?.type;
       const raw = c.tokenId ? (comboTokenNameById.get(c.tokenId) ?? c.value) : c.value;
       const value = raw && propType === "typography" ? stripScreenPrefix(raw) : raw;
-      byKey.get(key)!.props.push({ id: c.propertyId, value: value ?? "" });
+      byKey.get(key)!.props.push({ id: c.propertyId, value: value ?? "", ...alphaField(c.alpha) });
     }
 
     const depRows = componentIds.length
@@ -387,9 +408,15 @@ router.get("/:name/component-configs", (req, res) =>
       : [];
     const componentNameById = new Map(componentList.map((c) => [c.id, c.name]));
     const depsByParent = groupBy(depRows, (d) => d.parentId);
-    const ipvByComponentId = groupBy(ipvRows, (ipv) => ipv.componentId);
+    // Базовые значения инвариантов (без состояния) и значения их состояний хранятся в одной таблице.
+    const ipvBaseRows = ipvRows.filter((ipv) => ipv.stateSetId === SENTINEL_STATE_SET_ID);
+    const ipvStateRowsByProperty = groupBy(
+      ipvRows.filter((ipv) => ipv.stateSetId !== SENTINEL_STATE_SET_ID),
+      (ipv) => `${ipv.componentId}::${ipv.appearanceId}::${ipv.propertyId}`,
+    );
+    const ipvByComponentId = groupBy(ipvBaseRows, (ipv) => ipv.componentId);
     const ipvByComponentAppearance = groupBy(
-      ipvRows,
+      ipvBaseRows,
       (ipv) => `${ipv.componentId}::${ipv.appearanceId}`,
     );
     const vpvByStyleAppearance = groupBy(
@@ -400,7 +427,7 @@ router.get("/:name/component-configs", (req, res) =>
     // Набор хранится ссылкой, а legacy-формат ждёт список имён. Имена собираются одним
     // запросом на всю выгрузку: конфигурация строится синхронно и дозапросить их некуда.
     const stateNamesBySetId = await loadStateNames([
-      ...new Set(vpvRows.map((vpv) => vpv.stateSetId)),
+      ...new Set([...vpvRows, ...ipvRows].map((row) => row.stateSetId)),
     ]);
     const stateNamesOf = (setId: string): string[] => stateNamesBySetId.get(setId) ?? [];
 
@@ -523,8 +550,20 @@ router.get("/:name/component-configs", (req, res) =>
         ).map((ipv) => ({
           id: ipv.propertyId,
           value: resolveValue(ipv.value, ipv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+          ...alphaField(ipv.alpha),
           ...(adjustmentByValueRowId.has(ipv.id)
             ? { adjustment: adjustmentByValueRowId.get(ipv.id) }
+            : {}),
+          ...(ipvStateRowsByProperty.has(`${component.id}::${appearance.id}::${ipv.propertyId}`)
+            ? {
+                states: ipvStateRowsByProperty
+                  .get(`${component.id}::${appearance.id}::${ipv.propertyId}`)!
+                  .map((sv) => ({
+                    state: stateNamesOf(sv.stateSetId),
+                    value: resolveValue(sv.value, sv.tokenId, propById.get(ipv.propertyId)?.type) ?? "",
+                    ...alphaField(sv.alpha),
+                  })),
+              }
             : {}),
         }));
 
@@ -553,12 +592,14 @@ router.get("/:name/component-configs", (req, res) =>
               return {
                 id: propId,
                 value: base ? resolveValue(base.value, base.tokenId, propById.get(propId)?.type) : null,
+                ...(base ? alphaField(base.alpha) : {}),
                 ...(base && adjustmentByValueRowId.has(base.id)
                   ? { adjustment: adjustmentByValueRowId.get(base.id) }
                   : {}),
                 states: (statesByPropId.get(propId) ?? []).map((sv) => ({
                   state: stateNamesOf(sv.stateSetId),
                   value: resolveValue(sv.value, sv.tokenId, propById.get(propId)?.type) ?? "",
+                  ...alphaField(sv.alpha),
                 })),
               };
             });
@@ -1821,6 +1862,16 @@ router.post("/:name/update", (req, res) =>
 type PppRow = { id: string; propertyId: string; platform: string; name: string };
 
 // Нормализация adjustment из legacy-JSON: число или строка -> строка, пусто -> null
+/**
+ * Прозрачность значения для legacy-формата: в базе она текст в исходной форме (`0.2`), а потребителям нужно число.
+ * Пустое и нечисловое значение пропускается, а не превращается в `NaN`.
+ */
+function alphaField(raw: string | null | undefined): { alpha?: number } {
+  if (raw === null || raw === undefined || raw.trim() === "") return {};
+  const alpha = Number(raw);
+  return Number.isFinite(alpha) ? { alpha } : {};
+}
+
 function toAdjustmentStr(v: unknown): string | null {
   return v === null || v === undefined || v === "" ? null : String(v);
 }

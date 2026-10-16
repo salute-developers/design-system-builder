@@ -1,0 +1,66 @@
+# compose-crash-diagnostics Specification
+
+## Purpose
+TBD - created by archiving change add-compose-crash-details. Update Purpose after archive.
+## Requirements
+### Requirement: Плагин сообщает причину сбоя в результате
+
+Плагин SHALL добавлять в `failure`-результат с кодом `render_crashed` или `plugin_crashed` необязательное поле `details`
+с полями `stack` (stack исключения) и `consoleError` (последняя запись `console.error`), если они известны. Версия
+протокола MUST NOT меняться, а клиент без поддержки поля MUST продолжать работать.
+
+#### Scenario: Исключение остановило Compose в фазе layout
+
+- **WHEN** исключение Kotlin возникает при измерении содержимого превью и останавливает Compose
+- **THEN** `failure` для запроса в полёте MUST содержать `details.consoleError` с текстом исключения и `details.stack` с его stack
+- **AND** `message` отказа MUST содержать текст исключения, а не `[object WebAssembly.Exception]`.
+
+#### Scenario: Исключение вне фазы layout
+
+- **WHEN** исключение возникает вне измерения (композиция, отрисовка) и плагин знает только запись `console.error`
+- **THEN** `details.consoleError` MUST содержать её текст, а `details.stack` MAY отсутствовать.
+
+#### Scenario: Сбой найден по записи в консоли
+
+- **WHEN** плагин признаёт запрос сбойным по записи `console.error` без исключения
+- **THEN** `details.consoleError` MUST содержать текст записи
+- **AND** `details.stack` MUST быть stack из этой записи, если он есть, а не stack служебного `Error`.
+
+#### Scenario: Запрос после остановки
+
+- **WHEN** хост шлёт payload в уже остановленный плагин
+- **THEN** `plugin_crashed` MUST содержать те же `details`, что и первый сбой.
+
+### Requirement: Клиент показывает причину сбоя в debug-режиме
+
+Клиент SHALL в debug-режиме показывать под плашкой сбоя сворачиваемый блок «Причина» с `details.stack` и
+`details.consoleError` и кнопкой «Копировать», если плагин передал `details`. Вне debug-режима и без `details` блок MUST
+NOT показываться, плашка остаётся прежней.
+
+#### Scenario: Debug-режим выключен
+
+- **WHEN** плагин остановился и передал `details`, а debug-режим не включён
+- **THEN** блок «Причина» MUST NOT показываться.
+
+#### Scenario: Debug-режим включён
+
+- **WHEN** плагин остановился и передал `details`, debug-режим включён
+- **THEN** под плашкой MUST показываться блок «Причина», свёрнутый по умолчанию
+- **AND** после разворачивания MUST показываться stack и консольная ошибка.
+
+#### Scenario: Плагин без details
+
+- **WHEN** плагин остановился и не передал `details` (старая версия или таймаут)
+- **THEN** блок «Причина» MUST NOT показываться, а перезапуск превью MUST работать как раньше.
+
+### Requirement: Копирование причины
+
+Кнопка «Копировать» SHALL помещать в буфер текст причины (консольная ошибка и stack) и MUST сообщать о результате;
+при недоступном буфере обмена редактор MUST продолжать работать.
+
+#### Scenario: Копирование причины
+
+- **WHEN** пользователь нажимает «Копировать» в блоке «Причина»
+- **THEN** в буфер MUST попасть текст причины
+- **AND** рядом с кнопкой MUST показаться подтверждение.
+

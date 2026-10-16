@@ -140,6 +140,9 @@ const componentMapper: Record<string, Story[]> = {
     SegmentItem: SegmentItemStories,
 };
 
+// Стабильная ссылка: эффекты зависят от `storyArgs`, а у компонента без story (Compose) массив иначе новый на каждый render.
+const NO_STORY_ARGS: never[] = [];
+
 export const useStory = (componentName?: string) => {
     const [selectedStory, setSelectedStory] = useState<SelectButtonItem>({ value: 'Default', label: 'Default' });
 
@@ -156,7 +159,7 @@ export const useStory = (componentName?: string) => {
     );
 
     return {
-        storyArgs: story?.args ?? [],
+        storyArgs: story?.args ?? NO_STORY_ARGS,
         items,
         selectedStory,
         setSelectedStory,

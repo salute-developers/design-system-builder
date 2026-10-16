@@ -15,19 +15,24 @@ export abstract class Prop {
 
     protected adjustment?: string | number;
 
+    protected alpha?: number;
+
     protected webTokens?: WebToken[] | null;
+    protected platformMappings?: PlatformTokens;
 
     constructor(name: string, data: PropConfig, platformTokens?: PlatformTokens) {
-        const { value, id, adjustment, states } = data;
+        const { value, id, adjustment, states, alpha } = data;
 
         this.name = name;
         this.id = id;
         this.value = value;
         this.default = value;
         this.adjustment = adjustment;
+        this.alpha = alpha;
         this.states = states;
 
         this.webTokens = platformTokens?.web;
+        this.platformMappings = platformTokens;
     }
 
     public getName() {
@@ -56,6 +61,11 @@ export abstract class Prop {
 
     public getType() {
         return this.type;
+    }
+
+    /** Прозрачность значения 0..1, если она задана в конфигурации. */
+    public getAlpha() {
+        return this.alpha;
     }
 
     public getStates() {
@@ -107,6 +117,10 @@ export abstract class Prop {
 
     public getWebTokens() {
         return this.webTokens;
+    }
+
+    public getPlatformMappings(): Readonly<PlatformTokens> | undefined {
+        return this.platformMappings;
     }
 
     protected getAdditionalTokens(token: string, getValue: (state: State) => string | number | undefined) {

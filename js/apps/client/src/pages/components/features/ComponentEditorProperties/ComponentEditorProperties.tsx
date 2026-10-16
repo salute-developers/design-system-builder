@@ -119,6 +119,19 @@ const renderComponentProp = ({ prop, theme, onChange, onStateChange }: RenderCom
         );
     }
 
+    // Ссылка на стиль другого компонента и иконка пока не редактируются: показываем значение как есть.
+    if (propType === 'component_style' || propType === 'icon') {
+        return (
+            <TextField
+                stretched
+                hasBackground
+                readOnly
+                label={<StyledPropLabel>{propName}</StyledPropLabel>}
+                value={String(propValue ?? '')}
+            />
+        );
+    }
+
     if (propType === 'float' || propType === 'dimension') {
         return (
             <TextField
@@ -151,7 +164,7 @@ export const ComponentEditorProperties = (props: ComponentEditorPropertiesProps)
     const [propNameWithDropdown, setPropNameWithDropdown] = useState<string | undefined>();
 
     const { api, variations } = useMemo(
-        () => designSystem.getComponentDataByName(config?.getName() || '').sources,
+        () => designSystem.getComponentData(config)?.sources ?? { api: [], variations: [] },
         [config, designSystem],
     );
 

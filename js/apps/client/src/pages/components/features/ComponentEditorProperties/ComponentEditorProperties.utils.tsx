@@ -49,6 +49,7 @@ export const propTypeMap: Record<string, string> = {
     shadow: 'Тень',
     float: 'Число',
     dimension: 'Размер',
+    component_style: 'Стиль компонента',
 };
 
 export const getPropList = (
@@ -76,11 +77,12 @@ export const getPropList = (
                 return;
             }
 
-            result[type].push(item);
+            // Значение стиля может иметь тип, которого нет среди свойств API выбранной вариации (Compose).
+            (result[type] ??= []).push(item);
         });
 
         return Object.entries(result).map(([key, props]) => ({
-            type: propTypeMap[key],
+            type: propTypeMap[key] ?? key,
             props,
         }));
     };
