@@ -4285,3 +4285,36 @@
 .color-tokens-screen .token-row[draggable='true'] {
     cursor: grab;
 }
+
+/* Переключатель Light / Dark превью компонента: собственные отступы и ровная рамка фокуса — общие правила
+ * `.workspace-tabs` рассчитаны на шапку редактора. */
+.color-tokens-screen .playground-workbench .component-preview-stage-inline > .workspace-tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 8px;
+    background: #24282f;
+}
+
+.color-tokens-screen .playground-workbench .component-preview-stage-inline > .workspace-tabs button {
+    display: inline-flex;
+    height: 26px;
+    padding: 4px 12px;
+    align-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #aeb7c4;
+    font-size: 12px;
+    line-height: 16px;
+    outline: none;
+}
+
+.color-tokens-screen .playground-workbench .component-preview-stage-inline > .workspace-tabs button.is-active {
+    background: #383b42;
+    color: #fff;
+}
+
+.color-tokens-screen .playground-workbench .component-preview-stage-inline > .workspace-tabs button:focus-visible {
+    box-shadow: 0 0 0 2px #4284ff;
+}

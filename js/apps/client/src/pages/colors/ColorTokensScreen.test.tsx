@@ -448,6 +448,32 @@ describe('ColorTokensScreen', () => {
         expect(within(inspector()).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('brand');
     });
 
+    it('уход фокуса из строки переименования сохраняет изменённое имя, а без изменений закрывает строку', async () => {
+        repository.move.mockImplementation(async () => {
+            definitionState = definitionState.map((item) => ({ ...item, name: item.name.replace('.accent', '.glow') }));
+            return { editRevision: 4, value: { type: 'color', group: 'text', name: 'glow', members: [] } };
+        });
+        await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        fireEvent.blur(screen.getByRole('textbox', { name: 'Новое имя textAccent' }));
+        expect(screen.queryByRole('textbox', { name: 'Новое имя textAccent' })).toBeNull();
+        expect(repository.move).not.toHaveBeenCalled();
+
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        const field = screen.getByRole('textbox', { name: 'Новое имя textAccent' }) as HTMLInputElement;
+        expect(field.selectionStart).toBe(0);
+        expect(field.selectionEnd).toBe('accent'.length);
+        fireEvent.change(field, { target: { value: 'Glow' } });
+        fireEvent.blur(field);
+
+        await waitFor(() => expect(screen.getByTestId('color-token-row-color:text.glow')).toBeInTheDocument());
+        expect(repository.move).toHaveBeenCalledTimes(1);
+        expect(repository.move.mock.calls[0][2]).toEqual({ groupId: 'g-accent', position: 0, name: 'glow' });
+        expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
+    });
+
     it('у опубликованного токена показывает предупреждение у поля имени', async () => {
         published = '1.2.0';
         definitionState = definitions();

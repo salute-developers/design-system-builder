@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import {
     groupCode,
@@ -38,7 +38,10 @@ interface InlineInputProps {
     onCancel: () => void;
 }
 
-/** Строка ввода в дереве: Enter сохраняет, Escape или пустое значение отменяют. */
+/**
+ * Строка ввода в дереве: Enter или уход фокуса (клик вне поля, выбор другого токена) сохраняют изменённое значение,
+ * Escape, пустое или неизменённое значение закрывают строку без запроса. Текст при открытии выделен.
+ */
 const InlineInput = ({
     label,
     initial = '',
@@ -50,7 +53,20 @@ const InlineInput = ({
     onCancel,
 }: InlineInputProps) => {
     const [value, setValue] = useState(initial);
-    const submit = () => (value.trim() && value.trim() !== initial.trim() ? onSubmit(value.trim()) : onCancel());
+    const field = useRef<HTMLInputElement>(null);
+    // Значение последней отправки: после отказа уход фокуса не отправляет его повторно.
+    const sent = useRef<string | null>(null);
+    useEffect(() => field.current?.select(), []);
+    const submit = () => {
+        const next = value.trim();
+        if (!next || next === initial.trim()) return onCancel();
+        sent.current = next;
+        onSubmit(next);
+    };
+    const blur = () => {
+        if (busy || (error && sent.current === value.trim())) return;
+        submit();
+    };
     const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -65,6 +81,7 @@ const InlineInput = ({
         <div className={`token-tree-input ${error ? 'is-error' : ''}`}>
             <span className="token-tree-input-field">
                 <input
+                    ref={field}
                     autoFocus
                     aria-label={label}
                     value={value}
@@ -72,7 +89,7 @@ const InlineInput = ({
                     disabled={busy}
                     onChange={(event) => setValue(event.target.value)}
                     onKeyDown={keyDown}
-                    onBlur={() => !value.trim() && onCancel()}
+                    onBlur={blur}
                 />
                 {warning && <PublishedWarning version={warning} />}
             </span>
@@ -158,7 +175,11 @@ export const ColorTokenTree = (props: TreeProps) => {
         setMenu(null);
     };
 
+    // Enter и уход фокуса могут прийти подряд: операция структуры отправляется один раз.
+    const running = useRef(false);
     const submit = async (operation: () => Promise<void>) => {
+        if (running.current) return;
+        running.current = true;
         setBusy(true);
         setError(null);
         try {
@@ -167,6 +188,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         } catch (failure) {
             setError(errorText(failure));
         } finally {
+            running.current = false;
             setBusy(false);
         }
     };
