@@ -1,7 +1,7 @@
 import type { Config, ResolvedStyleReference, Theme } from '../controllers';
 import type { PropType, PropUnion } from '../controllers/componentBuilder/type';
 import type { JsonValue, PreviewAsset, PreviewSurface } from './types';
-import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { restorePaletteColor } from '../palette/activePalette';
 
 export type ThemeValuePlatform = 'web' | 'android' | 'ios';
 export interface PreviewPropertyDraft {
@@ -182,9 +182,9 @@ const collectProperties = (
 };
 
 const asJsonValue = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;
-const projectThemeValue = (type: string, value: unknown): JsonValue => {
+const projectThemeValue = (type: string, value: unknown, tokenName: string): JsonValue => {
     if (type === 'color' && typeof value === 'string') {
-        return getRestoredColorFromPalette(value, -1) || value;
+        return restorePaletteColor(value, -1, tokenName) || value;
     }
     return asJsonValue(value);
 };
@@ -281,9 +281,9 @@ export const createComponentPreviewDraft = ({
                 type: type === 'spacing' ? 'dimension' : (type as PreviewThemeTokenDraft['type']),
                 enabled: token.getEnabled(),
                 values: {
-                    web: projectThemeValue(type, token.getValue('web')),
-                    android: projectThemeValue(type, token.getValue('android')),
-                    ios: projectThemeValue(type, token.getValue('ios')),
+                    web: projectThemeValue(type, token.getValue('web'), token.getName()),
+                    android: projectThemeValue(type, token.getValue('android'), token.getName()),
+                    ios: projectThemeValue(type, token.getValue('ios'), token.getName()),
                 },
             });
         }
