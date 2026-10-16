@@ -89,13 +89,15 @@ class WebGenerationPostgresIntegrationTest {
     private suspend fun verifyExportOffsets(client: HttpClient, designSystemId: String) {
         val exported = client.post("/api/ds/component-config/export") {
             trusted("project-a", "viewer")
-            jsonBody("""{"designSystemId":"$designSystemId","components":["tabs"],"styles":["default"]}""")
+            jsonBody(
+                """{"designSystemId":"$designSystemId","platform":"web","components":["tabs"],"styles":["default"]}""",
+            )
         }
         assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
         val config = json.parseToJsonElement(exported.bodyAsText()).jsonObject
             .getValue("components").jsonArray.single().jsonObject.getValue("config").jsonObject
         val invariants = config.getValue("invariants").jsonObject
-        // У строки смещения нет: берётся числовая поправка, web важнее xml.
+        // У строки смещения нет: берётся числовая поправка web-алиаса.
         assertEquals("-2", invariants.getValue("shape").jsonObject.getValue("adjustment").jsonPrimitive.content)
         // Нечисловая поправка смещением не считается.
         assertFalse("adjustment" in invariants.getValue("gap").jsonObject)
@@ -109,7 +111,9 @@ class WebGenerationPostgresIntegrationTest {
         // У значения вариации смещения нет: берётся числовая поправка, отличная от значения.
         assertEquals("3", sizes.padding("l").getValue("adjustment").jsonPrimitive.content)
 
-        val single = client.get("/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Tabs") {
+        val single = client.get(
+            "/api/ds/component-config?ds=alpha&version=1.0.0&appearance=default&component=Tabs&platform=web",
+        ) {
             trusted("project-a", "viewer")
         }
         assertEquals(HttpStatusCode.OK, single.status, single.bodyAsText())
@@ -156,7 +160,11 @@ class WebGenerationPostgresIntegrationTest {
             }
             val ds = UUID.fromString(designSystemId)
             fun component(name: String, description: String?) =
-                insert("INSERT INTO components (name, description) VALUES (?, ?)", name, description)
+                insert(
+                    "INSERT INTO components (name, description, platform) VALUES (?, ?, 'web'::component_platform)",
+                    name,
+                    description,
+                )
             fun appearance(componentId: UUID, name: String = "default") = insert(
                 "INSERT INTO appearances (design_system_id, component_id, name) VALUES (?, ?, ?)",
                 ds,
@@ -178,7 +186,7 @@ class WebGenerationPostgresIntegrationTest {
             )
             fun param(propertyId: UUID, platform: String, name: String) = insert(
                 "INSERT INTO property_platform_params (property_id, platform, name) " +
-                    "VALUES (?, ?::property_platform, ?)",
+                    "VALUES (?, ?::component_platform, ?)",
                 propertyId,
                 platform,
                 name,
@@ -199,9 +207,9 @@ class WebGenerationPostgresIntegrationTest {
             val shape = property(tabs, "shape", "shape")
             val gap = property(tabs, "gap", "dimension")
             val padding = property(tabs, "padding", "dimension")
+            // Алиасы только платформы компонента: xml-алиасы web-компонента запрещает триггер схемы.
             val shapeWeb = param(shape, "web", "tabsRadius")
-            val shapeXml = param(shape, "xml", "sd_shape")
-            val gapXml = param(gap, "xml", "sd_gap")
+            val gapWeb = param(gap, "web", "tabsGap")
             val paddingWeb = param(padding, "web", "tabsPadding")
 
             fun invariant(propertyId: UUID, value: String, appearanceId: UUID = tabsAppearance) = insert(
@@ -224,9 +232,8 @@ class WebGenerationPostgresIntegrationTest {
                 template,
             )
             val shapeValue = invariant(shape, "round.l")
-            invariantAdjustment(shapeValue, shapeXml, "-4", null)
             invariantAdjustment(shapeValue, shapeWeb, "-2", "0 $1")
-            invariantAdjustment(invariant(gap, "4"), gapXml, "abc", null)
+            invariantAdjustment(invariant(gap, "4"), gapWeb, "abc", null)
             // Второй стиль того же компонента: запись остаётся одна, а шаблоны раскладываются по стилям.
             invariantAdjustment(invariant(shape, "round.m", appearance(tabs, "outline")), shapeWeb, null, "1 $1")
 
