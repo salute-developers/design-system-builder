@@ -8,3 +8,4 @@ export { ColorPicker } from './ColorPicker';
 export { LoginForm } from './LoginForm';
 export { BrandPreview } from './BrandPreview';
 export { AuthState } from './AuthState';
+export { SaveDesignSystemButton, isSuccessfulSave } from './SaveDesignSystemButton';

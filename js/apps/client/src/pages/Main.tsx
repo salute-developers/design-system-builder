@@ -7,27 +7,33 @@ import {
     IconGroupOutline,
     IconFolderOutline,
     IconBookOutline,
-    IconCloudUploadOutline,
     IconSettingsOutline,
 } from '@salutejs/plasma-icons';
 
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
-import { transliterateToSnakeCase, hasDraft, isDebugMode } from '../utils';
+import {
+    transliterateToSnakeCase,
+    hasDraft,
+    getDraftKey,
+    takeDraftSnapshot,
+    clearDraftIfUnchanged,
+    isDebugMode,
+} from '../utils';
 import { IconColorSwatchOutline, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
-import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
+import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
+import { SaveDesignSystemButton, isSuccessfulSave } from '../features';
 import { Debug } from './Debug';
 
-import { defaultParameters, popupContentPages } from './Main.utils';
+import { defaultParameters, designSystemSave, popupContentPages } from './Main.utils';
 import {
     EditorBody,
     EditorCanvas,
     MainItems,
     Root,
     Separator,
-    StyledBasicButton,
     StyledIconButton,
     StyledPopup,
 } from './Main.styles';
@@ -98,10 +104,11 @@ export const Main = () => {
     const hasComponents = Boolean(components?.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = all(!isPopupOpen, !isEditingDesignSystem);
-    const hasUnpublishedChanges = Boolean(
-        designSystemName && designSystemVersion && hasDraft(designSystemName, designSystemVersion),
-    );
-    const isPublishButtonVisible = isEditingDesignSystem && !isReadOnly && !isPopupOpen && hasUnpublishedChanges;
+    // Ключ черновика задаёт контекст tenant, а без него — имя и версия ДС; в URL темы их нет, берём из ДС
+    const draftName = designSystem?.getName() ?? '';
+    const draftVersion = designSystem?.getVersion() ?? '';
+    const hasUnsavedChanges = Boolean(designSystem && hasDraft(draftName, draftVersion));
+    const isSaveButtonVisible = isEditingDesignSystem && !isReadOnly && !isPopupOpen && hasUnsavedChanges;
     const isEditorLoading = all(editorContext, !designSystem, !loadError);
 
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
@@ -190,18 +197,6 @@ export const Main = () => {
         }
 
         rerender(null);
-    };
-
-    const onDesignSystemPublish = () => {
-        setIsPopupOpen(true);
-        setPopupContentPage(popupContentPages.PUBLISH_PROGRESS);
-    };
-
-    const onPublishComplete = () => {
-        onClickPanelButton('colors');
-        onPopupClose();
-
-        reload();
     };
 
     // TODO: Временное решение для получения projectId после создания дизайн-системы, придумать что-то получше
@@ -360,13 +355,25 @@ export const Main = () => {
                     значениями другой темы.
                 </div>
             </Visible>
-            <Visible when={isPublishButtonVisible}>
-                <StyledBasicButton
-                    text="Опубликовать"
-                    contentRight={<IconCloudUploadOutline size="xs" color="inherit" />}
-                    onClick={onDesignSystemPublish}
+            {isSaveButtonVisible && designSystem && theme && components && (
+                <SaveDesignSystemButton
+                    save={async () => {
+                        // Снимок принадлежит этому запросу: параллельное сохранение другой темы его не перезапишет.
+                        const snapshot = takeDraftSnapshot(draftName, draftVersion);
+                        const result = await designSystemSave(designSystem, theme, components);
+                        if (isSuccessfulSave(result)) {
+                            // Черновик, изменённый во время сохранения, остаётся: reload применит его поверх сохранённого.
+                            clearDraftIfUnchanged(snapshot);
+                            // Редактор уже показывает другой tenant: его состояние этот ответ не затрагивает.
+                            if (getDraftKey(draftName, draftVersion) === snapshot.key) {
+                                reload();
+                            }
+                        }
+                        return result;
+                    }}
+                    onReload={reload}
                 />
-            </Visible>
+            )}
             <Visible when={all(isEditingDesignSystem, !isReadOnly, isDebugMode())}>
                 <Debug
                     designSystem={designSystem}
@@ -399,15 +406,6 @@ export const Main = () => {
                             accentColor={general[accentColor][darkFillSaturation]}
                             onPrevPage={onPopupClose}
                             onNextPage={onCreateComplete}
-                        />
-                    </Visible>
-                    <Visible when={popupContentPage === popupContentPages.PUBLISH_PROGRESS}>
-                        <PublishProgress
-                            designSystem={designSystem}
-                            theme={theme}
-                            components={components}
-                            onPrevPage={onPopupClose}
-                            onNextPage={onPublishComplete}
                         />
                     </Visible>
                 </StyledPopup>

@@ -3,13 +3,12 @@ import { general } from '@salutejs/plasma-colors';
 
 import { GrayTone, Parameters } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
-import { getNpmMeta, getNpmPackageName, http, PROJECTS_URL } from '../api';
+import { http, PROJECTS_URL } from '../api';
 
 export const popupContentPages = {
     CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
     SETUP_PARAMETERS: 'SETUP_PARAMETERS',
     CREATION_PROGRESS: 'CREATION_PROGRESS',
-    PUBLISH_PROGRESS: 'PUBLISH_PROGRESS',
 } as const;
 
 export const defaultParameters: Parameters = {
@@ -58,38 +57,6 @@ export const getGrayTokens = (grayTone: GrayTone, themeMode: ThemeMode) =>
         })
         .join('\n');
 
-export const generateDownload = async (designSystem: DesignSystem, exportType: 'tgz' | 'zip') => {
-    const projectId = designSystem.getParameters()?.projectId;
-
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        exportType,
-    };
-
-    const result = await http.post<ArrayBuffer>(`${PROJECTS_URL}/${projectId}/generator/generate-download`, data, {
-        responseType: 'arraybuffer',
-    });
-
-    const u8 = new Uint8Array(result.data);
-
-    // Находим начало архива (на случай мусора/префикса перед бинарником).
-    const signature = exportType === 'tgz' ? [0x1f, 0x8b] : [0x50, 0x4b, 0x03, 0x04];
-    const start = u8.findIndex((_, index) => signature.every((byte, offset) => byte === u8[index + offset]));
-
-    const blob = new Blob([u8.slice(Math.max(start, 0))]);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${designSystem.getName()}@${designSystem.getVersion()}.${exportType}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-
-    return true;
-};
-
 export const downloadThemeData = async (designSystem: DesignSystem) => {
     const name = designSystem.getName();
 
@@ -111,31 +78,6 @@ export const downloadThemeData = async (designSystem: DesignSystem) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-};
-
-export interface PublishResult {
-    success: boolean;
-    version?: string;
-}
-
-export const generatePublish = async (
-    designSystem: DesignSystem,
-    exportType: 'tgz' | 'zip',
-): Promise<PublishResult> => {
-    const data = {
-        packageName: designSystem.getName(),
-        packageVersion: designSystem.getVersion(),
-        exportType,
-    };
-
-    const projectId = designSystem.getParameters()?.projectId;
-
-    const result = (await http.post(`${PROJECTS_URL}/${projectId}/generator/generate-publish`, data)).data;
-
-    return {
-        success: result?.message?.success || false,
-        version: result?.version ?? result?.message?.version,
-    };
 };
 
 export const generateAndDeployDocumentation = async (designSystem: DesignSystem) => {
@@ -235,38 +177,4 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
     }
 
     return await designSystem.updateDesignSystemData(themeData, componentsData);
-};
-
-interface LongPollNpmOptions {
-    version?: string;
-    interval?: number;
-    shouldStop?: () => boolean;
-}
-
-// Опрашивает npm, пока там не появится пакет (или его конкретная версия)
-export const longPollNpm = async (packagesName: string, options: LongPollNpmOptions = {}): Promise<{ success: boolean }> => {
-    const { version, interval = 10_000, shouldStop = () => false } = options;
-
-    return new Promise((resolve) => {
-        const poll = async () => {
-            if (shouldStop()) {
-                return resolve({ success: false });
-            }
-
-            try {
-                const data = await getNpmMeta(getNpmPackageName(packagesName));
-                const published = version ? Boolean(data?.versions?.[version]) : 'versions' in data;
-
-                if (published) {
-                    return resolve({ success: true });
-                }
-            } catch (err) {
-                console.error('[longPollNpm] Ошибка запроса к npm:', err);
-            }
-
-            setTimeout(poll, interval);
-        };
-
-        poll();
-    });
 };
