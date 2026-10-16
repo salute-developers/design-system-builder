@@ -338,7 +338,7 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('token-group-Text & Icons')).toBeInTheDocument();
     });
 
-    it('меню «+» группы закрывается крестиком, Escape, кликом вне меню и повторным нажатием на «+»', async () => {
+    it('меню «+» группы: «+» нажат, пока меню открыто; закрывается Escape, кликом вне меню и повторным «+»', async () => {
         await renderScreen();
         await screen.findByTestId('token-subgroup-Accent');
         const plus = screen.getByRole('button', { name: 'Добавить в Text & Icons' });
@@ -346,12 +346,11 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(plus);
         expect(menu()).toBeInTheDocument();
-        fireEvent.click(within(menu()!).getByRole('button', { name: 'Закрыть меню' }));
-        expect(menu()).toBeNull();
-
-        fireEvent.click(plus);
+        expect(plus).toHaveAttribute('aria-expanded', 'true');
+        expect(within(menu()!).queryByRole('button', { name: /Закрыть/ })).toBeNull();
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(menu()).toBeNull();
+        expect(plus).toHaveAttribute('aria-expanded', 'false');
 
         fireEvent.click(plus);
         fireEvent.mouseDown(inspector());

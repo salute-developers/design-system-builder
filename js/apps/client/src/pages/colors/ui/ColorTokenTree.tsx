@@ -165,7 +165,7 @@ export const ColorTokenTree = (props: TreeProps) => {
     const [editing, setEditing] = useState<Editing | null>(null);
     const [menu, setMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    // Меню «+» группы закрывается крестиком, Escape и кликом вне меню, как остальные поповеры экрана.
+    // Меню «+» группы закрывается Escape, кликом вне меню и повторным нажатием на «+», как остальные поповеры экрана.
     useEffect(() => {
         if (!menu) return;
         const close = (event: Event) => {
@@ -429,14 +429,6 @@ export const ColorTokenTree = (props: TreeProps) => {
                     )}
                 {menu === group.id && (
                     <div className="reset-dropdown token-group-menu" role="menu" ref={menuRef}>
-                        <button
-                            type="button"
-                            className="cp-close token-group-menu-close"
-                            aria-label="Закрыть меню"
-                            onClick={() => setMenu(null)}
-                        >
-                            ×
-                        </button>
                         <button
                             type="button"
                             role="menuitem"

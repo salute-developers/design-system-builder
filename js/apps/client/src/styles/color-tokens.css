@@ -4196,20 +4196,10 @@
     min-width: 176px;
 }
 
-/* Крестик меню «+» — `cp-close` выбора цвета; пункты не заходят под него. */
-.color-tokens-screen .token-group-menu .token-group-menu-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 24px;
-    height: 24px;
-    display: grid;
-    place-items: center;
-    padding: 0;
-}
-
-.color-tokens-screen .token-group-menu [role='menuitem'] {
-    padding-right: 36px;
+/* «+» группы выглядит нажатым, пока открыто его меню: видно, к какой группе оно относится и что «+» его закроет. */
+.color-tokens-screen .token-tree-heading-row > .token-group-add[aria-expanded='true'] {
+    background: #343a44;
+    color: #fff;
 }
 
 .color-tokens-screen .token-tree-input {
