@@ -29,6 +29,8 @@ internal object AggregateTokensTable : Table("tokens") {
     val enabled = bool("enabled").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
+    val groupId = uuid("group_id").nullable()
+    val position = integer("position")
 }
 
 internal object AggregateVariationsTable : Table("variations") {

@@ -180,10 +180,14 @@ import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
+import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.di.themesModule
+import com.dsbuilder.ds.themes.presentation.colortokens.colorTokenRoutes
 import com.dsbuilder.ds.themes.presentation.palette.tenantPaletteRoutes
 import com.dsbuilder.ds.themes.presentation.tenantRoutes
+import com.dsbuilder.ds.themes.presentation.tokengroups.tokenGroupRoutes
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenUseCase
 import com.dsbuilder.ds.tokens.application.CreateTokenValueUseCase
@@ -612,6 +616,8 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
         json,
     )
     tenantPaletteRoutes(runtime.evaluator, koin.get<TenantPaletteUseCases>())
+    colorTokenRoutes(runtime.evaluator, koin.get<ColorTokenUseCases>())
+    tokenGroupRoutes(runtime.evaluator, koin.get<TokenGroupUseCases>())
 }
 
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {

@@ -244,4 +244,38 @@ describe('ThemeEditorRepository', () => {
         const snapshot = await new ThemeEditorRepository().load(context);
         expect(snapshot.parameters.readOnly).toBe(true);
     });
+
+    it('loads a color token without values of the tenant as incomplete instead of failing', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/design-systems/ds-1/tokens'))
+                return Promise.resolve({
+                    data: [
+                        ...reply('tenant-1', '#111111')(url).data,
+                        {
+                            id: 'token-new',
+                            designSystemId: 'ds-1',
+                            name: 'text.default.highlight',
+                            type: 'color',
+                            displayName: 'textHighlight',
+                            description: null,
+                            enabled: true,
+                        },
+                    ],
+                });
+            return Promise.resolve(reply('tenant-1', '#111111')(url));
+        });
+        const snapshot = await new ThemeEditorRepository().load(context);
+        expect(snapshot.incompleteTokenIds).toEqual(['token-new']);
+        expect(snapshot.parameters.effectiveRole).toBe('editor');
+        const { DesignSystem } = await import('../controllers');
+        const ds = DesignSystem.fromSnapshot({
+            name: 'System',
+            parameters: snapshot.parameters,
+            themeData: snapshot.themeData,
+            componentsData: snapshot.componentsData,
+        });
+        const built = ds.createThemeInstance({ includeExtraTokens: true });
+        expect(built.getTokenValue('dark.text.default.highlight', 'color', 'web')).toBe('');
+        expect(built.getTokenValue('light.surface.default.accent', 'color', 'web')).toBe('#111111');
+    });
 });

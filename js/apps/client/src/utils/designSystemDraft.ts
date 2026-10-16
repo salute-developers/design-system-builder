@@ -111,6 +111,22 @@ const loadDraftChanges = (dsName: string, dsVersion: string): DraftChanges => {
 export const draftTokenNames = (dsName: string, dsVersion: string) =>
     new Set(Object.keys(loadDraftChanges(dsName, dsVersion)));
 
+/** Записи черновика токенов заданных типов: полное имя с режимом и тип. */
+export const draftEntriesOfTypes = (dsName: string, dsVersion: string, types: readonly VariationType[]) =>
+    Object.entries(loadDraftChanges(dsName, dsVersion))
+        .filter(([, change]) => types.includes(change.type))
+        .map(([name, change]) => ({ name, type: change.type }));
+
+/** Удаляет из черновика записи [names]; остальные записи сохраняются. */
+export const removeDraftEntries = (dsName: string, dsVersion: string, names: readonly string[]) => {
+    const changes = loadDraftChanges(dsName, dsVersion);
+    names.forEach((name) => {
+        delete changes[name];
+        draftAddedTokens().delete(name);
+    });
+    saveDraftChanges(dsName, dsVersion, changes);
+};
+
 const saveDraftChanges = (dsName: string, dsVersion: string, changes: DraftChanges) => {
     if (Object.keys(changes).length === 0) {
         localStorage.removeItem(getDraftKey(dsName, dsVersion));

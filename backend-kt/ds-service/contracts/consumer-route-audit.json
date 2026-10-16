@@ -11,7 +11,9 @@
       "/component-config/web-adapter"
     ],
     "js/apps/client": [
-      "/design-systems"
+      "/design-systems/**",
+      "/tenants/**",
+      "/palette"
     ]
   },
   "excludedButUsed": {

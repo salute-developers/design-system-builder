@@ -28,6 +28,9 @@ The fingerprint in `contracts/schema-fingerprint.json` describes the baseline sc
 - V4 — удаление таблицы `saved_queries` вместе с NL-запросами (`V4__drop_saved_queries.sql`).
 - V5 — палитра темы (`V5__tenant_palette.sql`): у каждой существующей темы копия общей палитры и системные
   группы; аналога в Drizzle нет.
+- V6 — группы и подгруппы токенов (`V6__token_groups.sql`): таблица `token_groups`, `tokens.group_id` и
+  `tokens.position`, раскладка существующих цветовых токенов по разделам и категориям экрана «Цвета», очистка
+  имени токена в `value` значений компонентов со ссылкой `token_id`; аналога в Drizzle нет.
 
 Это разбиение изменено до первой регистрации прежних Flyway V1/V2 на стендах.
 Не применяйте этот вариант к базе, на которой уже есть история прежнего разбиения:

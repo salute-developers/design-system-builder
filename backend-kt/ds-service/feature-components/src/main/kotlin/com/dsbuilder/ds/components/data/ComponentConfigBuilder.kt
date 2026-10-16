@@ -293,14 +293,15 @@ internal class ComponentConfigBuilder(
         return ComponentConfig.Property(
             base.propertyId.toString().takeUnless { exported },
             type,
-            restored(base.value ?: base.tokenName, type),
+            // Имя токена по `token_id` важнее текста: токен мог быть переименован после записи значения.
+            restored(base.tokenName ?: base.value, type),
             base.alpha?.let(::number),
             base.adjustment?.let(::number),
             rows.filter { it.states.isNotEmpty() }.sortedBy { it.position }.map { row ->
                 val stateType = derivedType(row, "$where.${row.propertyName}", underived)
                 ComponentConfig.State(
                     row.states,
-                    restored(row.value ?: row.tokenName, stateType),
+                    restored(row.tokenName ?: row.value, stateType),
                     row.alpha?.let(::number),
                     stateType.takeIf { it != type },
                 )

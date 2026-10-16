@@ -136,8 +136,13 @@ const server = createServer(async (req, res) => {
                             checks.titleVisible = titleRect.width > 0 && titleRect.height > 0 && titleStyle.visibility !== 'hidden';
                             checks.titleEllipsis = titleStyle.textOverflow === 'ellipsis' && title.scrollWidth > title.clientWidth;
                         }
-                        const menu = document.querySelector('[data-testid="editor-workspace-menu"]');
-                        const content = document.querySelector('[data-testid="editor-workspace-content"]');
+                        // Раздел «Цвета» не использует Workspace: меню — дерево токенов, содержимое — корень экрана,
+                        // который начинается от рейла и включает дерево.
+                        const colorsScreen = document.querySelector('[data-testid="color-tokens-screen"]');
+                        const menu = colorsScreen
+                            ? colorsScreen.querySelector('.token-browser')
+                            : document.querySelector('[data-testid="editor-workspace-menu"]');
+                        const content = colorsScreen ?? document.querySelector('[data-testid="editor-workspace-content"]');
                         const rail = document.querySelector('[data-testid="editor-rail"]');
                         const railLogo = rail?.querySelector('.builder-rail-logo');
                         const railButton = rail?.querySelector('[data-testid="editor-nav-colors"]');
@@ -170,7 +175,9 @@ const server = createServer(async (req, res) => {
                             checks.contentRect = JSON.stringify({ top: contentRect.top, bottom: contentRect.bottom, height: contentRect.height });
                             checks.sectionRect = JSON.stringify({ top: sectionRect.top, bottom: sectionRect.bottom, height: sectionRect.height });
                             checks.menuFollowsRail = menuRect.left === railRect.right;
-                            checks.contentFollowsMenu = contentRect.left === menuRect.right;
+                            checks.contentFollowsMenu = colorsScreen
+                                ? contentRect.left === railRect.right && menuRect.left === contentRect.left
+                                : contentRect.left === menuRect.right;
                             checks.menuFillsViewport = menuRect.top === 44 && menuRect.bottom === innerHeight && menuRect.height === innerHeight - 44;
                             checks.contentFillsViewport = contentRect.top === 44 && contentRect.bottom === innerHeight && contentRect.height === innerHeight - 44;
                             checks.contentVisible = contentRect.width > 0 && contentRect.height > 0 && getComputedStyle(content).visibility !== 'hidden';
@@ -179,7 +186,9 @@ const server = createServer(async (req, res) => {
                             checks.alertText = JSON.stringify(Array.from(document.querySelectorAll('[role="alert"]'), (node) => node.textContent));
                             checks.loadedExistingTenant = !document.body.textContent.includes('Загружаем Theme') && !document.querySelector('[role="alert"]');
                             checks.readOnlyPreserved = document.body.textContent.includes('Режим просмотра');
-                            checks.nativeReadOnly = menu.inert === true && content.inert === true;
+                            checks.nativeReadOnly = colorsScreen
+                                ? colorsScreen.querySelector('.properties-panel')?.inert === true
+                                : menu.inert === true && content.inert === true;
                             if (expectedSection === 'overview') {
                                 const editTarget = content.querySelector('input, textarea, button, [contenteditable="true"]');
                                 checks.editTargetPresent = Boolean(editTarget);

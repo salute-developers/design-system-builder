@@ -315,8 +315,9 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                         it[propertyId] = context.property(seed.name, value.prop)
                         it[styleId] = styles.getValue(StyleKey(axis, style))
                         it[VariationPropertyValuesTable.appearanceId] = appearanceId
-                        it[tokenId] = value.token?.let(context.tokens::getValue)
-                        it[VariationPropertyValuesTable.value] = value.value
+                        val token = value.token?.let(context.tokens::getValue)
+                        it[tokenId] = token
+                        it[VariationPropertyValuesTable.value] = value.value.takeIf { token == null }
                         it[alpha] = null
                         it[adjustment] = null
                         it[VariationPropertyValuesTable.position] = 0
@@ -332,8 +333,9 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                 it[InvariantPropertyValuesTable.designSystemId] = designSystemId
                 it[InvariantPropertyValuesTable.componentId] = componentId
                 it[InvariantPropertyValuesTable.appearanceId] = appearanceId
-                it[tokenId] = value.token?.let(context.tokens::getValue)
-                it[InvariantPropertyValuesTable.value] = value.value
+                val token = value.token?.let(context.tokens::getValue)
+                it[tokenId] = token
+                it[InvariantPropertyValuesTable.value] = value.value.takeIf { token == null }
                 it[alpha] = null
                 it[adjustment] = null
                 it[InvariantPropertyValuesTable.position] = 0

@@ -16,6 +16,11 @@ export interface TokenDefinitionDto {
     displayName: string | null;
     description: string | null;
     enabled: boolean;
+    /** Группа или подгруппа токенов; у старого ds-service поля нет. */
+    groupId?: string | null;
+    position?: number;
+    /** Последняя опубликованная версия с этим определением. */
+    publishedIn?: string | null;
 }
 export interface TenantTokenValueDto {
     tokenId: string;
@@ -87,9 +92,10 @@ export class ThemeEditorRepository {
 
         for (const token of tokens.data) {
             const tokenValues = valuesByToken.get(token.id) || [];
-            const modes = [...new Set(tokenValues.map((value) => value.mode).filter(Boolean))] as Array<
-                'light' | 'dark'
-            >;
+            const usesModes = token.type === 'color' || token.type === 'gradient';
+            const modes = (
+                usesModes ? ['light', 'dark'] : [...new Set(tokenValues.map((value) => value.mode).filter(Boolean))]
+            ) as Array<'light' | 'dark'>;
             const names = modes.length ? modes.map((mode) => `${mode}.${token.name}`) : [token.name];
             const complete = names.every((name) =>
                 ['web', 'ios', 'android'].every((platform) =>
@@ -110,6 +116,16 @@ export class ThemeEditorRepository {
                     description: token.description || undefined,
                     enabled: token.enabled,
                 });
+            if (usesModes) {
+                // Токен, созданный в другой теме или прежними операциями, может прийти без значений этой темы:
+                // пустые заглушки дают построить тему, а экран показывает токен неполным.
+                const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
+                for (const name of names)
+                    for (const platform of ['web', 'ios', 'android']) {
+                        group[platform] ||= {};
+                        group[platform][name] ??= token.type === 'gradient' ? [] : '';
+                    }
+            }
             for (const value of tokenValues) {
                 if (!value.platform) continue;
                 const name = value.mode ? `${value.mode}.${token.name}` : token.name;
@@ -172,6 +188,7 @@ export class ThemeEditorRepository {
                 designSystemId: context.designSystemId,
                 editRevision: tenant.data.editRevision,
                 readOnly: project.data.status === 'archived' || project.data.effectiveRole === 'viewer',
+                effectiveRole: project.data.effectiveRole,
             },
             editRevision: tenant.data.editRevision,
             incompleteTokenIds,

@@ -1,1 +1,0 @@
-export { TokenColorPreview } from './TokenColorPreview';
