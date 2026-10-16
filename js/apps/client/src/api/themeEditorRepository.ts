@@ -23,6 +23,8 @@ export interface TenantTokenValueDto {
     platform: 'web' | 'ios' | 'android' | null;
     mode: 'light' | 'dark' | null;
     paletteId?: string | null;
+    /** Исходная ссылка на палитру: ds-service отдаёт в `value` цвет по палитре темы, а ссылку — здесь. */
+    paletteRef?: string | null;
     value: unknown;
 }
 interface PaletteDto {
@@ -39,6 +41,7 @@ export interface ThemeEditorSnapshot {
     parameters: Partial<Parameters>;
     editRevision: number;
     incompleteTokenIds: string[];
+    tokenDefinitions: TokenDefinitionDto[];
 }
 
 const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
@@ -117,9 +120,21 @@ export class ThemeEditorRepository {
                 const storedValue = [unwrapValue(value.value), ([] as unknown[]).concat(value.value as never)][
                     Number(preservesArrayShape)
                 ];
-                group[value.platform][name] = paletteEntry
-                    ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]`
-                    : storedValue;
+                // При ссылке через paletteId в value хранится прозрачность ссылки: ["0.56"] → [..][0.56].
+                const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
+                const opacity =
+                    typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
+                        ? Number(rawOpacity)
+                        : NaN;
+                // Редактор работает со ссылками: раскрытый сервером цвет заменяется исходной ссылкой. Ссылка, которую
+                // палитра темы не раскрыла, приходит прежней формой — через paletteId.
+                group[value.platform][name] =
+                    value.paletteRef ??
+                    (paletteEntry
+                        ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${
+                              Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''
+                          }`
+                        : storedValue);
             }
         }
         const emptyMeta = {
@@ -160,6 +175,7 @@ export class ThemeEditorRepository {
             },
             editRevision: tenant.data.editRevision,
             incompleteTokenIds,
+            tokenDefinitions: tokens.data,
         };
     }
 

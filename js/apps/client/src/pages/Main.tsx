@@ -14,7 +14,7 @@ import {
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
 
 import { transliterateToSnakeCase, hasDraft, isDebugMode } from '../utils';
-import { IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
+import { IconColorSwatchOutline, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
 import { CreateFirstName, SetupParameters, CreationProgress, PublishProgress } from '../popup';
@@ -24,7 +24,6 @@ import { defaultParameters, popupContentPages } from './Main.utils';
 import {
     EditorBody,
     EditorCanvas,
-    EditorLoadingSpinner,
     MainItems,
     Root,
     Separator,
@@ -33,6 +32,7 @@ import {
     StyledPopup,
 } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { EditorLoading } from '../components/EditorLoading';
 import { all, any, choose, Visible } from '../components/rendering';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
@@ -70,7 +70,17 @@ export const Main = () => {
             }),
         [projectId, designSystemId, tenantId],
     );
-    const { designSystem, theme, components, incompleteTokenIds, loadError, reload } = useDesignSystem(
+    const {
+        designSystem,
+        theme,
+        components,
+        incompleteTokenIds,
+        loadError,
+        reload,
+        palette,
+        paletteError,
+        setPalette,
+    } = useDesignSystem(
         choose<string | NonNullable<typeof editorContext> | undefined>(
             Boolean(editorContext),
             designSystemProjectId,
@@ -224,6 +234,16 @@ export const Main = () => {
                         </Visible>
                         <Visible when={isEditingDesignSystem}>
                             <>
+                                <Visible when={Boolean(editorContext)}>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('palette') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-palette"
+                                        selected={currentPath.includes('palette')}
+                                        onClick={() => onClickPanelButton('palette')}
+                                    >
+                                        <IconColorSwatchOutline size="xs" color="inherit" />
+                                    </StyledIconButton>
+                                </Visible>
                                 <StyledIconButton
                                     className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
                                     data-testid="editor-nav-colors"
@@ -295,23 +315,32 @@ export const Main = () => {
                             >
                                 <IconSettingsOutline size="xs" color="inherit" />
                             </Link>,
-                            <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />,
+                            // Загрузку темы показывает индикатор по центру холста, а не спиннер в шапке (ревью QA, PR #101).
+                            null,
                         )}
                     />
                 </Visible>
                 <EditorCanvas>
-                    <Outlet
-                        context={{
-                            projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
-                            projectId: projectId ?? designSystemProjectId,
-                            designSystem,
-                            theme,
-                            components,
-                            updated,
-                            rerender,
-                            onDesignSystemCreate,
-                        }}
-                    />
+                    {isEditorLoading ? (
+                        <EditorLoading text="Загружаем тему…" />
+                    ) : (
+                        <Outlet
+                            context={{
+                                projectName: designSystem?.getParameters()?.projectName ?? designSystemName,
+                                projectId: projectId ?? designSystemProjectId,
+                                designSystem,
+                                theme,
+                                components,
+                                updated,
+                                rerender,
+                                reload,
+                                palette,
+                                paletteError,
+                                setPalette,
+                                onDesignSystemCreate,
+                            }}
+                        />
+                    )}
                 </EditorCanvas>
             </EditorBody>
             <Visible when={isReadOnly}>

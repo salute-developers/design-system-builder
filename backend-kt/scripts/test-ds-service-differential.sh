@@ -14,6 +14,6 @@ DS_SERVICE_JAR="$(find "$ROOT/backend-kt/ds-service/app/build/libs" -name '*-all
 "$ROOT/backend-kt/ds-service/gradlew" \
   -p "$ROOT/backend-kt/ds-service" \
   :app:test \
-  --tests com.dsbuilder.ds.app.OpenApiDocumentFactoryTest \
+  --tests com.dsbuilder.ds.app.OpenApiDocumentResourceTest \
   --tests com.dsbuilder.ds.app.DsServiceHttpPostgresIntegrationTest \
   --tests com.dsbuilder.ds.app.FlywayPostgresIntegrationTest

@@ -106,12 +106,14 @@ interface TokenColorPreviewProps {
     opacity?: number;
     theme?: Theme;
     type: string;
+    /** Токен, для которого показывается цвет: ссылка разрешается по его группе палитры. */
+    tokenName?: string;
 }
 
 export const TokenColorPreview = (props: TokenColorPreviewProps) => {
-    const { color, opacity, theme, type } = props;
+    const { color, opacity, theme, type, tokenName } = props;
 
-    const colorValue = type === 'gradient' ? color : getNormalizedColor(color, opacity);
+    const colorValue = type === 'gradient' ? color : getNormalizedColor(color, opacity, false, tokenName);
     const tokenList = getColorsTokens(theme);
 
     return (

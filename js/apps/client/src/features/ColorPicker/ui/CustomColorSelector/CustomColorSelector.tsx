@@ -14,10 +14,11 @@ interface CustomColorSelectorProps {
     opacity: number;
     onColorChange?: (color: string | string[]) => void;
     onOpacityChange?: (opacity: number) => void;
+    tokenName?: string;
 }
 
 export const CustomColorSelector = (props: CustomColorSelectorProps) => {
-    const { tokenType, color, opacity, onColorChange, onOpacityChange } = props;
+    const { tokenType, color, opacity, onColorChange, onOpacityChange, tokenName } = props;
 
     const styleTypeList = getStyleList(tokenType);
     const defaultStyleType = tokenType === 'color' ? styleTypeList[0] : styleTypeList[1];
@@ -49,6 +50,7 @@ export const CustomColorSelector = (props: CustomColorSelectorProps) => {
                 <ColorConstructor
                     color={color}
                     opacity={opacity}
+                    tokenName={tokenName}
                     onChange={onColorValueChange}
                     onOpacityChange={onSliderValueChange}
                 />

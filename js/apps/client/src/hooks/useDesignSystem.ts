@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
 
 import { DesignSystem, Config, Theme } from '../controllers';
 import { applyDraftChanges, setActiveDraftContext } from '../utils';
 import { ThemeEditorRepository, type EditorContextKey } from '../api/themeEditorRepository';
+import type { ThemePalette } from '../modules/palette';
+import { setActivePalette } from '../palette/activePalette';
+import { paletteRepository, setPaletteSession } from '../palette/paletteSession';
 
 const themeEditorRepository = new ThemeEditorRepository();
 
@@ -19,16 +22,33 @@ export const useDesignSystem = (
     const [incompleteTokenIds, setIncompleteTokenIds] = useState<string[]>([]);
     const [loadError, setLoadError] = useState<'forbidden' | 'not-found' | 'failed' | null>(null);
     const [reloadTrigger, setReloadTrigger] = useState<object>({});
+    const [palette, setPaletteState] = useState<ThemePalette | null>(null);
+    const [paletteError, setPaletteError] = useState<Error | null>(null);
+    // Тема, для которой сейчас загружена палитра: ответы для прежней темы отбрасываются.
+    const tenantRef = useRef<string | null>(null);
 
     useEffect(() => {
         const controller = new AbortController();
         const loadDesignSystems = async () => {
             setLoadError(null);
+            setActivePalette(null);
+            setPaletteSession(null);
+            setPaletteState(null);
+            setPaletteError(null);
+            tenantRef.current = typeof designSystemProjectId === 'object' ? designSystemProjectId.tenantId : null;
             if (typeof designSystemProjectId === 'object') {
                 setActiveDraftContext(designSystemProjectId);
                 setDesignSystem(null);
                 setTheme(null);
                 setComponents(null);
+                // В режиме api палитра запрашивается параллельно с темой и не задерживает её загрузку.
+                const earlyPalette =
+                    paletteRepository.source === 'api'
+                        ? paletteRepository.load(designSystemProjectId, controller.signal).then(
+                              (value) => ({ value }),
+                              (error: unknown) => ({ error }),
+                          )
+                        : null;
                 try {
                     const snapshot = await themeEditorRepository.load(designSystemProjectId, controller.signal);
                     if (controller.signal.aborted) return;
@@ -42,6 +62,29 @@ export const useDesignSystem = (
                     setIncompleteTokenIds(snapshot.incompleteTokenIds);
                     const selectedTheme = ds.createThemeInstance({ includeExtraTokens });
                     applyDraftChanges(selectedTheme, snapshot.designSystem.name, '0.1.0');
+                    setPaletteSession({
+                        context: designSystemProjectId,
+                        designSystem: ds,
+                        theme: selectedTheme,
+                        tokens: snapshot.tokenDefinitions
+                            .filter((token) => token.type === 'color')
+                            .map((token) => ({ id: token.id, name: token.name, displayName: token.displayName })),
+                        readOnly: snapshot.parameters.readOnly === true,
+                    });
+                    try {
+                        const early = earlyPalette ? await earlyPalette : null;
+                        if (early && 'error' in early) throw early.error;
+                        const loadedPalette = early
+                            ? early.value
+                            : await paletteRepository.load(designSystemProjectId, controller.signal);
+                        if (controller.signal.aborted) return;
+                        setActivePalette(loadedPalette);
+                        setPaletteState(loadedPalette);
+                    } catch (error) {
+                        if (controller.signal.aborted) return;
+                        setPaletteError(error instanceof Error ? error : new Error(String(error)));
+                        console.error('[useDesignSystem] Не удалось загрузить палитру темы', error);
+                    }
                     setTheme(selectedTheme);
                     setComponents(ds.createAllComponentInstances());
                 } catch (error) {
@@ -90,10 +133,31 @@ export const useDesignSystem = (
         };
 
         loadDesignSystems();
-        return () => controller.abort();
+        return () => {
+            controller.abort();
+            setActivePalette(null);
+        };
     }, [designSystemProjectId, designSystemName, designSystemVersion, includeExtraTokens, reloadTrigger]);
 
     const reload = useCallback(() => setReloadTrigger({}), []);
 
-    return { designSystem, theme, components, incompleteTokenIds, loadError, reload };
+    /** Обновляет палитру открытой темы после операции; превью перечитывают активную палитру. */
+    const setPalette = useCallback((next: ThemePalette) => {
+        if (next.tenantId !== tenantRef.current) return;
+        setActivePalette(next);
+        setPaletteState(next);
+        setPaletteError(null);
+    }, []);
+
+    return {
+        designSystem,
+        theme,
+        components,
+        incompleteTokenIds,
+        loadError,
+        reload,
+        palette,
+        paletteError,
+        setPalette,
+    };
 };

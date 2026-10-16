@@ -34,27 +34,6 @@ export const EditorCanvas = styled.div`
     min-height: 0;
 `;
 
-export const EditorLoadingSpinner = styled.span`
-    width: 24px;
-    height: 24px;
-    display: grid;
-    place-items: center;
-
-    &::before {
-        width: 14px;
-        height: 14px;
-        content: '';
-        border: 2px solid #ffffff24;
-        border-top-color: var(--p-accent, #2b8ced);
-        border-radius: 50%;
-        animation: editor-loading-spin 0.8s linear infinite;
-    }
-
-    @keyframes editor-loading-spin {
-        to { transform: rotate(360deg); }
-    }
-`;
-
 export const Separator = styled.div`
     width: 1.5rem;
     height: 0.03125rem;
