@@ -3,20 +3,6 @@
 ## Purpose
 TBD - created by archiving change add-documentation-bundle-upload. Update Purpose after archive.
 ## Requirements
-### Requirement: Project-scoped endpoint приема bundle
-Gateway SHALL предоставлять `POST /api/projects/{projectId}/documentation/bundles`, защищать его существующей project-scoped аутентификацией и направлять запрос в новый documentation service как `POST /documentation/bundles` вместе с trusted actor/project context.
-
-#### Scenario: Gateway направляет upload в documentation service
-- **WHEN** аутентифицированный клиент отправляет `POST /api/projects/project-a/documentation/bundles`
-- **THEN** Gateway SHALL проверить доступ actor к `project-a`
-- **AND** Gateway SHALL передать запрос новому documentation service по внутреннему пути `/documentation/bundles`
-- **AND** Gateway SHALL явно заменить client-provided `X-Actor-*` и `X-Project-*` headers значениями Auth Helper
-
-#### Scenario: Существующий docs route остается независимым
-- **WHEN** клиент обращается к `/api/projects/project-a/docs/...`
-- **THEN** Gateway SHALL продолжить направлять запрос в существующий `docs_service_api`
-- **AND** новый documentation route SHALL NOT изменять rewrite или upstream существующего route
-
 ### Requirement: Авторизация публикации документации
 Documentation service MUST требовать permission `documentation:write` для публикации bundle. User actor получает permission через grants effective project role; project key actor — только при наличии точного scope `documentation:write`; `system_admin` использует global override canonical policy.
 
@@ -222,3 +208,18 @@ Documentation service MUST получать endpoint, region, bucket, credential
 #### Scenario: Внутренняя ошибка не раскрывает инфраструктуру
 - **WHEN** storage, database или downstream request завершается внутренней ошибкой
 - **THEN** публичный response MUST NOT содержать stack trace, JDBC URL, storage root, credential или внутренний db-service URL
+
+### Requirement: Project-scoped endpoint приема documentation bundle
+Gateway SHALL предоставлять `POST /api/projects/{projectId}/documentation/bundles`, защищать его существующей project-scoped аутентификацией и направлять запрос в новый documentation service как `POST /documentation/bundles` вместе с trusted actor/project context.
+
+#### Scenario: Gateway направляет upload в documentation service
+- **WHEN** аутентифицированный клиент отправляет `POST /api/projects/project-a/documentation/bundles`
+- **THEN** Gateway SHALL проверить доступ actor к `project-a`
+- **AND** Gateway SHALL передать запрос новому documentation service по внутреннему пути `/documentation/bundles`
+- **AND** Gateway SHALL явно заменить client-provided `X-Actor-*` и `X-Project-*` headers значениями Auth Helper
+
+#### Scenario: Маршрута удалённого docs-сервиса нет
+- **WHEN** клиент обращается к `/api/projects/project-a/docs/...`
+- **THEN** Gateway SHALL NOT проксировать запрос в удалённый сервис `documentation-generator` и SHALL NOT объявлять upstream `docs_service_api`
+- **AND** маршрут `/api/projects/{projectId}/documentation` SHALL по-прежнему проксироваться в `documentation_service_api` с `auth_request /_auth_project`
+

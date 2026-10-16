@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { ThemeSource as GeneratorThemeSource } from '../../services/generator/app/themeBuilder/types/theme.ts';
+import type { ThemeSource as GeneratorThemeSource } from './generator/themeBuilder/types/theme.ts';
 import type { LocalThemePaths, LocalThemeSet } from './local-theme-source.ts';
 
 export type Palette = Record<string, Record<string, string>>;
@@ -25,6 +25,71 @@ export interface ThemeSetSource {
 
 /** Имя темы становится идентификатором в коде: `export { <имя>__dark }`. */
 const THEME_NAME_PATTERN = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * Латиница для русских букв, близкая к ICAO, без диакритики и апострофов. Таблица — часть контракта:
+ * её изменение переименует экспорты уже сгенерированных тем.
+ */
+const LOWERCASE_TRANSLITERATION: Record<string, string> = {
+    а: 'a',
+    б: 'b',
+    в: 'v',
+    г: 'g',
+    д: 'd',
+    е: 'e',
+    ё: 'e',
+    ж: 'zh',
+    з: 'z',
+    и: 'i',
+    й: 'y',
+    к: 'k',
+    л: 'l',
+    м: 'm',
+    н: 'n',
+    о: 'o',
+    п: 'p',
+    р: 'r',
+    с: 's',
+    т: 't',
+    у: 'u',
+    ф: 'f',
+    х: 'kh',
+    ц: 'ts',
+    ч: 'ch',
+    ш: 'sh',
+    щ: 'shch',
+    ъ: '',
+    ы: 'y',
+    ь: '',
+    э: 'e',
+    ю: 'yu',
+    я: 'ya',
+};
+
+/** Та же таблица и заглавные буквы: `Щ` → `Shch`. */
+const TRANSLITERATION: Record<string, string> = Object.fromEntries(
+    Object.entries(LOWERCASE_TRANSLITERATION).flatMap(([letter, latin]) => [
+        [letter, latin],
+        [letter.toUpperCase(), latin.charAt(0).toUpperCase() + latin.slice(1)],
+    ]),
+);
+
+/**
+ * Приводит имя темы к идентификатору JavaScript: русские буквы — латиницей, остальные недопустимые
+ * символы — одним `_`, без `_` по краям. Подходящее имя не меняется. Возвращает undefined, если
+ * идентификатор не получается: имя пустое или начинается с цифры.
+ */
+export function toThemeIdentifier(name: string): string | undefined {
+    if (THEME_NAME_PATTERN.test(name)) {
+        return name;
+    }
+    const identifier = Array.from(name, (letter) => TRANSLITERATION[letter] ?? letter)
+        .join('')
+        .replace(/[^\w$]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+    return THEME_NAME_PATTERN.test(identifier) ? identifier : undefined;
+}
 
 /** Читает JSON в UTF-8; тип T описывает ожидаемые данные, но не проверяет их структуру. */
 const readJson = async <T>(path: string) => JSON.parse(await readFile(path, 'utf8')) as T;
@@ -63,7 +128,7 @@ async function readTheme(paths: LocalThemePaths): Promise<ThemeSource> {
 
 /**
  * Загружает все темы и палитру и проверяет имена тем до генерации: имя из meta.json попадает
- * в имена файлов и экспортов, поэтому должно быть идентификатором и не повторяться.
+ * в имена файлов и экспортов, поэтому приводится к идентификатору и не должно повторяться.
  */
 export async function readThemeSetSource(paths: LocalThemeSet): Promise<ThemeSetSource> {
     const palette = await readJson<Palette>(paths.palette).catch((error) => {
@@ -75,26 +140,38 @@ export async function readThemeSetSource(paths: LocalThemeSet): Promise<ThemeSet
     });
     const themes = await Promise.all(paths.themes.map(readTheme));
 
-    const tenantByThemeName = new Map<string, string>();
-    themes.forEach(({ meta }, index) => {
+    const sameNameByKey = new Map<string, { tenant: string; name: string; original: string }>();
+    const named = themes.map(({ meta, variations }, index) => {
         const { tenant } = paths.themes[index];
-        if (typeof meta.name !== 'string' || !THEME_NAME_PATTERN.test(meta.name)) {
+        const name = typeof meta.name === 'string' ? toThemeIdentifier(meta.name) : undefined;
+        if (name === undefined) {
             throw new Error(
-                `Theme "${tenant}" has the name "${meta.name}" in meta.json, which is not a valid JavaScript identifier.`,
+                `Theme "${tenant}" has the name "${meta.name}" in meta.json, which cannot be turned into ` +
+                    'a JavaScript identifier: it must start with a Latin or Russian letter, "_" or "$".',
             );
         }
-        // Без учёта регистра: имя становится именем файла, а файловая система может регистр не различать.
-        const key = meta.name.toLowerCase();
-        const sameName = tenantByThemeName.get(key);
-        if (sameName !== undefined) {
-            throw new Error(`Themes "${sameName}" and "${tenant}" have the same name "${meta.name}" in meta.json.`);
+        if (name !== meta.name) {
+            console.warn(`Theme "${tenant}": name "${meta.name}" in meta.json is used as "${name}".`);
         }
-        tenantByThemeName.set(key, tenant);
+        // Без учёта регистра: имя становится именем файла, а файловая система может регистр не различать.
+        const key = name.toLowerCase();
+        const sameName = sameNameByKey.get(key);
+        if (sameName !== undefined) {
+            // Исходное имя показывается, только если тема получила другое.
+            const original = (theme: { name: string; original: string }) =>
+                theme.original === theme.name ? '' : ` ("${theme.original}")`;
+            throw new Error(
+                `Themes "${sameName.tenant}"${original(sameName)} and "${tenant}"` +
+                    `${original({ name, original: meta.name })} have the same name "${name}" in meta.json.`,
+            );
+        }
+        sameNameByKey.set(key, { tenant, name, original: meta.name });
+        return { meta: { ...meta, name }, variations };
     });
 
     return {
         palette,
-        themes,
-        defaultThemeName: themes[paths.themes.indexOf(paths.defaultTheme)].meta.name,
+        themes: named,
+        defaultThemeName: named[paths.themes.indexOf(paths.defaultTheme)].meta.name,
     };
 }

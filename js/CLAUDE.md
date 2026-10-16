@@ -9,14 +9,11 @@ For a public-facing overview see [README.md](README.md). **This file is for thin
 | Service | Path | Port (host) | Stack |
 |---|---|---|---|
 | DB Service | [services/db-service](services/db-service/) | 3008 | Express + Drizzle + Postgres |
-| Generator | [services/generator](services/generator/) | 3005 | Fastify |
-| Publisher | [services/publisher](services/publisher/) | 3007 | Express (plain JS) |
-| Docs Generator | [services/documentation-generator](services/documentation-generator/) | 3006 | NestJS + Docusaurus |
 | Client | [apps/client](apps/client/) | 3002 | React 18 + Vite + `@salutejs/plasma-*` |
 | Admin | [apps/admin](apps/admin/) | 3004 | React 18 + Vite + OpenAPI-typed client |
 | Postgres (db-service) | — | 5433 | postgres:16-alpine, DB `ds_registry` |
 
-**Data flow (the important one):** `Client` → `DB Service` (source of truth). Generation/docs is triggered from the client against `Generator` / `Docs Generator`, which both fetch DS data from `DB Service`. `Publisher` is called by `Generator` to push the built package to npm. The `Admin` app talks to `DB Service` directly through an OpenAPI-typed fetch client.
+**Data flow (the important one):** `Client` → `DB Service` (source of truth). The npm package is generated locally by [cli](cli/) from downloaded data; the generator code lives in [cli/src/generator](cli/src/generator/). The `Admin` app talks to `DB Service` directly through an OpenAPI-typed fetch client.
 
 ## How to run things
 
@@ -56,10 +53,10 @@ Without Docker: `npm run dev` from the repo root. Use the granular `dev:*` scrip
 `cause`, а не в `message` верхнего уровня. Ручка, переводящая отказ в `400`, обязана разворачивать
 причину, иначе отдаст `500` с сырым SQL.
 
-### Tests: only db-service has them, and they need a database
+### Tests: db-service needs a database
 
 `db-service` runs [vitest](services/db-service/vitest.config.ts): `cd services/db-service && npm test`.
-No other service has tests except `documentation-generator` (jest).
+Of the services only db-service has tests; `cli` and `apps/client` have their own.
 
 - Tests talk to a **real** Postgres, not a mock: the import logic is mostly SQL, and a mock would
   assert the mock. `TEST_DATABASE_URL` defaults to `postgresql://postgres:postgres@localhost:5433/db_service_test`
@@ -91,7 +88,10 @@ Whenever you touch certain files in `db-service`, generated artifacts must be re
 These were deleted intentionally. If you see stale references to them in code/docs, clean them up — do not reintroduce them:
 - `services/client-proxy`
 - `apps/frontend` (replaced by `apps/client` and `apps/admin`)
-- `generate-ds` (old CLI, superseded by `services/generator`)
+- `generate-ds` (old CLI)
+- `services/generator` (HTTP generation service; the generator code moved to `cli/src/generator`)
+- `services/publisher` (npm publishing service)
+- `services/documentation-generator` (Docusaurus documentation service; documentation now lives in Kotlin `documentation-service` and `dsbuilder docs`)
 
 ### Admin app gotchas
 - Admin pages registered in [apps/admin/src/App.tsx](apps/admin/src/App.tsx): `/tables`, `/queries`, `/schema`, `/docs`, `/settings`. That's all of them.
@@ -100,7 +100,7 @@ These were deleted intentionally. If you see stale references to them in code/do
 ### CI / deployment
 - [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
 - [.github/workflows/design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same for PRs.
-- **Backend services are NOT deployed from this repo.** `db-service`, `generator`, `publisher`, `documentation-generator` have their own deployment elsewhere.
+- `db-service` is published by [publish-backend-images](../.github/workflows/publish-backend-images.yml) and runs from the root [docker-compose.prod.yml](../docker-compose.prod.yml).
 
 ## Key files to remember
 

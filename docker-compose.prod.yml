@@ -158,76 +158,6 @@ services:
       start_period: 30s
       retries: 5
 
-  publisher:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/publisher:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3007
-      NPM_TOKEN: ${NPM_TOKEN:?Set NPM_TOKEN}
-    expose:
-      - "3007"
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 15s
-      retries: 5
-
-  generator:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/generator:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3005
-      DB_SERVICE_URL: http://db-service:3008/api
-      PUBLISHER_URL: http://publisher:3007
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
-    expose:
-      - "3005"
-    depends_on:
-      db-service:
-        condition: service_healthy
-      publisher:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 20s
-      retries: 5
-
-  docs-generator:
-    image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-generator:${IMAGE_TAG:?Set IMAGE_TAG}
-    pull_policy: always
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3006
-      DB_SERVICE_URL: http://db-service:3008/api
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:?Set NPM_PACKAGE_SCOPE}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?Set AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?Set AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT:?Set AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION:?Set AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET:?Set AWS_S3_BUCKET}
-      OUTPUT_DIR: /home/node/app/output
-    expose:
-      - "3006"
-    volumes:
-      - docs_output:/home/node/app/output
-    depends_on:
-      db-service:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/documentation/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 15s
-      timeout: 5s
-      start_period: 30s
-      retries: 5
-
   documentation-service:
     image: ${REGISTRY_HOST:?Set REGISTRY_HOST}/${REGISTRY_NAMESPACE:?Set REGISTRY_NAMESPACE}/documentation-service:${IMAGE_TAG:?Set IMAGE_TAG}
     pull_policy: always
@@ -314,24 +244,15 @@ services:
       DS_SERVICE_UPSTREAM_SCHEME: http
       DS_SERVICE_UPSTREAM_HOST: ds-service
       DS_SERVICE_UPSTREAM_PORT: 8085
-      DOCS_SERVICE_UPSTREAM_SCHEME: http
-      DOCS_SERVICE_UPSTREAM_HOST: docs-generator
-      DOCS_SERVICE_UPSTREAM_PORT: 3006
       DOCUMENTATION_SERVICE_UPSTREAM_SCHEME: http
       DOCUMENTATION_SERVICE_UPSTREAM_HOST: documentation-service
       DOCUMENTATION_SERVICE_UPSTREAM_PORT: 8084
       DOCUMENTATION_MAX_REQUEST_SIZE: ${DOCUMENTATION_MAX_REQUEST_SIZE:-101m}
-      GENERATOR_SERVICE_UPSTREAM_SCHEME: http
-      GENERATOR_SERVICE_UPSTREAM_HOST: generator
-      GENERATOR_SERVICE_UPSTREAM_PORT: 3005
-      PUBLISHER_SERVICE_UPSTREAM_SCHEME: http
-      PUBLISHER_SERVICE_UPSTREAM_HOST: publisher
-      PUBLISHER_SERVICE_UPSTREAM_PORT: 3007
       GATEWAY_PROXY_TIMEOUT_SECONDS: ${GATEWAY_PROXY_TIMEOUT_SECONDS:-300}
     command:
       - /bin/sh
       - -c
-      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCS_SERVICE_UPSTREAM_SCHEME $$DOCS_SERVICE_UPSTREAM_HOST $$DOCS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GENERATOR_SERVICE_UPSTREAM_SCHEME $$GENERATOR_SERVICE_UPSTREAM_HOST $$GENERATOR_SERVICE_UPSTREAM_PORT $$PUBLISHER_SERVICE_UPSTREAM_SCHEME $$PUBLISHER_SERVICE_UPSTREAM_HOST $$PUBLISHER_SERVICE_UPSTREAM_PORT $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
+      - envsubst '$$KEYCLOAK_UPSTREAM_HOST $$KEYCLOAK_UPSTREAM_PORT $$KEYCLOAK_REALM $$OIDC_CLIENT_ID $$OIDC_REDIRECT_URI $$OIDC_WEB_ORIGIN $$DB_SERVICE_UPSTREAM_SCHEME $$DB_SERVICE_UPSTREAM_HOST $$DB_SERVICE_UPSTREAM_PORT $$DS_SERVICE_UPSTREAM_SCHEME $$DS_SERVICE_UPSTREAM_HOST $$DS_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_SERVICE_UPSTREAM_SCHEME $$DOCUMENTATION_SERVICE_UPSTREAM_HOST $$DOCUMENTATION_SERVICE_UPSTREAM_PORT $$DOCUMENTATION_MAX_REQUEST_SIZE $$GATEWAY_PROXY_TIMEOUT_SECONDS' < /etc/nginx/templates/nginx.prod.conf.template > /etc/nginx/nginx.conf && nginx -g 'daemon off;'
     expose:
       - "8080"
     depends_on:
@@ -339,23 +260,16 @@ services:
         condition: service_completed_successfully
       auth-helper:
         condition: service_healthy
+      db-service:
+        condition: service_healthy
       projects-service:
         condition: service_healthy
       documentation-service:
         condition: service_healthy
       ds-service:
         condition: service_healthy
-      generator:
-        condition: service_healthy
-      publisher:
-        condition: service_healthy
-      docs-generator:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
-
-volumes:
-  docs_output:

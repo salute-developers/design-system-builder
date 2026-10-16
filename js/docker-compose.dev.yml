@@ -85,76 +85,8 @@ services:
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
-  # Generator web library
-  generator:
-    build:
-      context: ./services/generator
-      dockerfile: Dockerfile.dev
-    container_name: ds-builder-generator-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3005
-      DB_SERVICE_URL: http://db-service:3008/api
-      PUBLISHER_URL: http://publisher:3007
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:-@sddsjs}
-    ports:
-      - "3005:3005"
-    depends_on:
-      - db-service
-    networks:
-      - ds-builder-network
-    volumes:
-      - ./services/generator:/home/node/app
-      - /home/node/app/node_modules
-    command: npm run dev
-
-  # Publisher service
-  publisher:
-    build:
-      context: ./services/publisher
-      dockerfile: Dockerfile
-    container_name: ds-builder-publisher-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3007
-      # Optional locally: the legacy npm publishing endpoint reports a clear error when it is not configured.
-      NPM_TOKEN: ${NPM_TOKEN:-}
-    ports:
-      - "3007:3007"
-    networks:
-      - ds-builder-network
-    command: npm run start
-
-  # Documentation Generator Service
-  docs-generator:
-    build:
-      context: ./services/documentation-generator
-      dockerfile: Dockerfile.dev
-    container_name: documentation-generator-dev
-    environment:
-      NODE_ENV: development
-      PORT: 3006
-      DB_SERVICE_URL: http://db-service:3008/api
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:-@sddsjs}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
-    ports:
-      - "3006:3006"
-    volumes:
-      - docs_output:/home/node/app/output
-    networks:
-      - ds-builder-network
-    command: npm run start:dev
-
 volumes:
   postgres_registry_data_dev:
-    driver: local
-  docs_output:
     driver: local
 
 networks:

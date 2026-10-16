@@ -44,8 +44,9 @@ context: |
   - js/services/db-service is the source of truth of the design-system and component configuration
     model: src/db/schema.ts is authoritative, drizzle/ holds migrations, src/routes/api/ the Express
     routers, src/openapi/spec.ts the OpenAPI description.
-  - js/services/generator, js/services/publisher and js/services/documentation-generator are the
-    remaining Node.js services.
+  - js/services/db-service is the only remaining Node.js service.
+  - js/cli generates the React design-system package locally; the generator code lives in
+    js/cli/src/generator.
   - js/apps/client and js/apps/admin are the React/Vite applications; js/apps/admin/src/api is
     generated from the OpenAPI spec.
   - js/docs/db-schema.dbml is a hand-maintained mirror of the DB schema; drizzle does not generate it.
@@ -60,8 +61,8 @@ context: |
   - kotlin.test/JUnit and Ktor test host for tests.
   - Detekt and Spotless/ktlint are configured by build-system conventions.
   - Kotlin Multiplatform with jvm and macos targets for the CLI.
-  - Node.js with TypeScript, Express and Drizzle ORM over PostgreSQL in db-service, Fastify in
-    generator, NestJS in documentation-generator, React 18 with Vite in the apps.
+  - Node.js with TypeScript, Express and Drizzle ORM over PostgreSQL in db-service, React 18 with
+    Vite in the apps, tsx-run ES modules in js/cli.
   - ESLint and Prettier for the JS part. There is no npm workspace: every app and service carries its
     own package.json and node_modules.
   - js/services/db-service currently has no test runner. Adding tests there means standing one up in

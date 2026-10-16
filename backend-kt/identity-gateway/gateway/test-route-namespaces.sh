@@ -8,13 +8,11 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   compatibility_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds/legacy(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   admin_block=$(awk 'index($0, "location ~ ^/api/admin(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
-  docs_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/docs(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   documentation_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   test -n "$ds_block"
   test -n "$compatibility_block"
   test -n "$admin_block"
-  test -n "$docs_block"
   test -n "$documentation_block"
 
   printf '%s' "$ds_block" | grep -Fq 'set $project_id $1;'
@@ -29,10 +27,16 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$admin_block" | grep -Fq 'auth_request /_auth_user;'
   printf '%s' "$admin_block" | grep -Fq 'db_service_api'
 
-  printf '%s' "$docs_block" | grep -Fq 'auth_request /_auth_project;'
-  printf '%s' "$docs_block" | grep -Fq 'proxy_pass '
-  printf '%s' "$docs_block" | grep -Fq 'docs_service_api'
-  printf '%s' "$docs_block" | grep -Fq 'rewrite ^/api/projects/[^/]+/docs'
+  # Сервис documentation-generator удалён: маршрута /docs и его upstream нет.
+  # `! grep` под `set -e` скрипт не останавливает, поэтому выход явный.
+  if grep -Fq 'location ~ ^/api/projects/([^/]+)/docs(/.*)?$' "$config"; then
+    echo "$config: the /docs route of the removed documentation-generator must not exist" >&2
+    exit 1
+  fi
+  if grep -Fq 'docs_service_api' "$config"; then
+    echo "$config: the docs_service_api upstream must not exist" >&2
+    exit 1
+  fi
 
   printf '%s' "$documentation_block" | grep -Fq 'auth_request /_auth_project;'
   printf '%s' "$documentation_block" | grep -Fq 'auth_request_set $trusted_project_id'

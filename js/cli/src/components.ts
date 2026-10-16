@@ -1,14 +1,9 @@
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { COMPONENTS_PACKAGE, readComponentsForGeneration } from './components-input.ts';
+import { generateComponentsFiles } from './generator/generate.ts';
 import { CORE_VERSION, cliDirectory, writePackagePart } from './package-output.ts';
-
-// Генератор использует CommonJS: подключаем его из ES-модуля через require с обработчиком TypeScript от tsx.
-const require = createRequire(import.meta.url);
-const { generateComponentsFiles } =
-    require('../../services/generator/app/generate.ts') as typeof import('../../services/generator/app/generate.ts');
 
 /**
  * Генерирует компоненты дизайн-системы из выгрузки в .sdds, без темы.
@@ -31,7 +26,7 @@ async function main() {
     });
 
     if (values.help) {
-        console.log(`Generate the components of a local React design system package using services/generator.
+        console.log(`Generate the components of a local React design system package.
 
 Usage: npm run generate:components -- [options]
   --sdds <directory>       Local data directory (default: js/cli/.sdds)

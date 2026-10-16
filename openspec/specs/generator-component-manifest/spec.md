@@ -2,12 +2,10 @@
 
 ## Purpose
 Определяет манифест и шаблоны компонента в генераторе пакета: где хранится то, что не выводится из данных дизайн-системы, какие формы обёрток генератор умеет писать и как раскладываются составные и multi-appearance компоненты.
-
 ## Requirements
-
 ### Requirement: Component manifest holds what data cannot express
 
-Генератор SHALL читать манифест `app/templates/<X>/component.json` и брать из него имена экспортов ядра,
+Генератор SHALL читать манифест `js/cli/src/generator/templates/<X>/component.json` и брать из него имена экспортов ядра,
 реэкспорты `index.ts`, приведение типа, параметры дженерика, соседей без конфига и проп выбора appearance.
 Отсутствие манифеста SHALL означать имена по умолчанию `<x>Tokens` и `<x>Config` и обычную обёртку.
 
@@ -33,7 +31,7 @@
 - **WHEN** в `templates/<X>/` лежат файлы `.ts` или `.tsx`
 - **THEN** они MUST быть скопированы в папку компонента пакета
 - **THEN** файлы, кроме обёртки `<X>.tsx`, MUST быть реэкспортированы из `index.ts` через `export *`
-- **THEN** шаблоны MUST попадать в сборку генератора и MUST NOT компилироваться вместе с его кодом
+- **THEN** шаблоны MUST NOT проверяться и компилироваться вместе с кодом `js/cli`: `tsconfig.json` `js/cli` MUST исключать `src/generator/templates` и `src/generator/constants`
 
 ### Requirement: Wrapper strategy is chosen by data and manifest
 
@@ -109,4 +107,5 @@
 #### Scenario: Ошибка сборки пакета видна в логе
 
 - **WHEN** сборка сгенерированного пакета завершается ошибкой
-- **THEN** генератор MUST вывести stderr сборки в лог и завершить запрос ошибкой
+- **THEN** CLI MUST вывести stderr сборки и завершить команду с ненулевым кодом
+

@@ -96,15 +96,6 @@ jobs:
           - image: db-service
             context: js/services/db-service
             file: js/services/db-service/Dockerfile
-          - image: generator
-            context: js/services/generator
-            file: js/services/generator/Dockerfile
-          - image: publisher
-            context: js/services/publisher
-            file: js/services/publisher/Dockerfile
-          - image: documentation-generator
-            context: js/services/documentation-generator
-            file: js/services/documentation-generator/Dockerfile
     env:
       IMAGE_REF: ghcr.io/${{ needs.prepare.outputs.image_namespace }}/${{ matrix.image }}
       DEPLOYMENT_TAG: ${{ needs.prepare.outputs.deployment_tag }}

@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import { GrayTone } from '../types';
-import { Popup, BasicButton, IconButton } from '../components';
+import { Popup, IconButton } from '../components';
 import { getGrayTokens } from './Main.utils';
 
 export const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?: boolean }>`
@@ -51,15 +51,6 @@ export const MainItems = styled.div`
 export const BuilderExpandedItems = styled.div`
     display: flex;
     flex-direction: column;
-`;
-
-export const StyledBasicButton = styled(BasicButton)`
-    position: absolute;
-    z-index: 10000;
-
-    width: 13.5rem;
-    bottom: 1rem;
-    left: 4.5rem;
 `;
 
 export const StyledPopup = styled(Popup)`

@@ -1,19 +1,17 @@
 # Локальная генерация
 
-Генерация компонентов и тем использует `../services/generator`.
-CLI читает локальные данные, раскрывает ссылки на палитру из `.sdds` и передаёт тему
-исходной функции `generate` сервиса. Сервис и его API не изменяются.
-Структура результата (`themes`, `css`, `tokens`) сохраняется; содержимое файлов
-определяется исходным генератором и может отличаться от удалённого `cli/theme-builder`
-в обработке отсутствующих значений, старых токенов Plasma и форматировании.
-Нужны установленные зависимости этого сервиса (`npm ci` в `js/services/generator`)
-и самого CLI (`npm ci` в `js/cli`).
+Генератор пакета лежит в `src/generator`: сборщики темы и компонентов, заготовка пакета (`constants`) и
+манифесты и шаблоны компонентов (`templates`). CLI читает локальные данные, раскрывает ссылки на палитру
+из `.sdds` и передаёт их генератору. Структура результата темы (`themes`, `css`, `tokens`) сохраняется;
+содержимое файлов может отличаться от удалённого `cli/theme-builder` в обработке отсутствующих значений,
+старых токенов Plasma и форматировании.
+Нужны только зависимости самого CLI (`npm ci` в `js/cli`).
 `generate:theme`, `generate:components` и `generate:ds` загружают `js/.env`, если он есть: генератору нужен
 `NPM_PACKAGE_SCOPE` (scope пакета). `generate:api-meta` переменных окружения не требует.
 
 Тема и компоненты генерируются раздельно, как у Android: `generate:theme` — только тема,
 `generate:components` — только компоненты; `generate:ds` — обе части одним запуском, а с `--package` —
-один полный пакет `<scope>-<name>-<version>.tgz`, как у сервиса генерации (`dsbuilder ds generate`). Из общего CLI их запускает
+один полный пакет `<scope>-<name>-<version>.tgz` (`dsbuilder ds generate`). Из общего CLI их запускает
 `dsbuilder theme generate --platform react` и `dsbuilder components generate --platform react`:
 делегат платформы `web` ищет этот каталог по `--tool` или переменной `DSBUILDER_WEB_TOOL`.
 
@@ -83,10 +81,11 @@ npm run generate:components -- --package --name base
 npm run generate:ds -- --package --name base
 ```
 
-Пакет собирается во временном каталоге `services/generator/result-cli-*` — там же, где его
-собирает сервис генерации: скрипты пакета берут eslint из `../node_modules` генератора. С `--package`
-устанавливаются зависимости пакета и запускается его `npm run build` (через pacote, как в сервисе),
-поэтому нужна сеть до npm registry. CLI не обращается к бэкенду и не публикует пакет.
+Пакет собирается во временном каталоге `js/cli/result-*`. pacote запускает у пакета только `prepare`
+(`npm run build`) и не устанавливает его зависимости: babel, rollup, tsc, `react`, `styled-components`,
+`@salutejs/plasma-new-hope` и eslint скрипты пакета берут из `js/cli/node_modules`, конфиг eslint — из
+заготовки пакета (`src/generator/constants/eslint.config.mjs`). Типы пакета строятся по той версии
+`@salutejs/plasma-new-hope`, что установлена в `js/cli`. CLI не обращается к бэкенду и не публикует пакет.
 `component-configs.json` генерацией не используется.
 
 # Метаданные Style API
