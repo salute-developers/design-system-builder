@@ -77,6 +77,14 @@ jobs:
       - run: npm test
         working-directory: js/apps/client
 
+  contract-fingerprint:
+    name: Contract fingerprint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # CONTRACT.sha256 читает CI plasma-android: он должен соответствовать схеме и общим фикстурам.
+      - run: backend-kt/preview/contract/fingerprint.sh --check
+
   build:
     name: Build (${{ matrix.project.name }})
     runs-on: ubuntu-22.04
