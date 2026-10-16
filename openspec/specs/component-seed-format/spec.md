@@ -2,9 +2,7 @@
 
 ## Purpose
 Определяет формат prod-сидов компонентов `db-service`: папка на компонент, описание данными без идентификаторов, единый формат для сида, выгрузки из базы и импорта из plasma, частичный пересев одного компонента и объявление зависимостей компонентов по именам.
-
 ## Requirements
-
 ### Requirement: Component seed is a directory without identifiers
 
 Prod-сид компонента SHALL лежать в папке `seeds/prod/components/<имя>/`, где `<имя>` — имя компонента с
@@ -132,3 +130,23 @@ system without one.
 - **THEN** the seed MUST insert published version `0.1.0`
 - **WHEN** `base` already has a published version
 - **THEN** the seed MUST NOT insert another one
+
+### Requirement: Component seed carries web mappings only
+
+Prod-сид компонента SHALL описывать только веб-компонент: у каждого свойства MUST быть непустой список web-параметров, а сопоставления и поправки нативных платформ (`xml`, `compose`, `ios`) MUST отсутствовать. Нативные компоненты и их платформенные имена заводит импорт API-меты платформы, а не сид.
+
+#### Scenario: Свойство без web-параметра
+
+- **WHEN** свойство сида не содержит `params.web` или список пуст
+- **THEN** проверка типов сида MUST завершиться ошибкой
+
+#### Scenario: Нативное сопоставление
+
+- **WHEN** свойство или поправка значения указывает платформу `xml`, `compose` или `ios`
+- **THEN** проверка типов сида MUST завершиться ошибкой
+
+#### Scenario: Сид на чистую базу
+
+- **WHEN** prod-сид выполнен на пустой базе
+- **THEN** у каждого свойства веб-компонента MUST быть хотя бы один алиас платформы `web`
+
