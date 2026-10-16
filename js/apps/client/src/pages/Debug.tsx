@@ -4,7 +4,6 @@ import styled, { keyframes } from 'styled-components';
 import {
     IconSave,
     IconDownload,
-    IconCloudUploadOutline,
     IconDocumentImportOutline,
     IconUploadOutline,
     IconFileTextOutline,
@@ -15,13 +14,7 @@ import { BasicButton, LinkButton, Dialog, Switch, TextField } from '../component
 import { Config, DesignSystem, Theme, type ThemeSource } from '../controllers';
 import { importTokensToTheme, importDesignSystem, clearDraft } from '../utils';
 import { Parameters } from '../types';
-import {
-    designSystemSave,
-    downloadThemeData,
-    generateAndDeployDocumentation,
-    generateDownload,
-    generatePublish,
-} from './Main.utils';
+import { designSystemSave, downloadThemeData, generateAndDeployDocumentation } from './Main.utils';
 
 const spin = keyframes`
     to { 
@@ -105,14 +98,8 @@ export const Debug = (props: DebugProps) => {
         [],
     );
 
-    const onDebugDesignSystemDownload = async () =>
-        withDesignSystem((loadedDesignSystem) => generateDownload(loadedDesignSystem, 'tgz'));
-
     const onThemeDataDownload = async () =>
         withDesignSystem((loadedDesignSystem) => downloadThemeData(loadedDesignSystem));
-
-    const onDesignSystemPublish = async () =>
-        withDesignSystem((loadedDesignSystem) => generatePublish(loadedDesignSystem, 'tgz'));
 
     const onDesignSystemDocs = async () =>
         withDesignSystem((loadedDesignSystem) => generateAndDeployDocumentation(loadedDesignSystem));
@@ -268,19 +255,9 @@ export const Debug = (props: DebugProps) => {
                     onClick={onClearDraftClick}
                 />
                 <LinkButton
-                    text="Скачать архив дизайн системы"
-                    contentRight={<IconDownload size="s" />}
-                    onClick={withLoading(onDebugDesignSystemDownload)}
-                />
-                <LinkButton
                     text="Скачать тему"
                     contentRight={<IconDownload size="s" />}
                     onClick={withLoading(onThemeDataDownload)}
-                />
-                <LinkButton
-                    text="Опубликовать"
-                    contentRight={<IconCloudUploadOutline size="s" />}
-                    onClick={withLoading(onDesignSystemPublish)}
                 />
                 <LinkButton
                     text="Опубликовать документацию"

@@ -304,6 +304,30 @@ export const hasDraft = (dsName: string, dsVersion: string) => {
     return localStorage.getItem(getDraftKey(dsName, dsVersion)) !== null;
 };
 
+/** Черновик на момент отправки: ключ фиксируется сразу, чтобы смена tenant не подменила его. */
+export interface DraftSnapshot {
+    key: string;
+    value: string | null;
+}
+
+export const takeDraftSnapshot = (dsName: string, dsVersion: string): DraftSnapshot => {
+    const key = getDraftKey(dsName, dsVersion);
+    return { key, value: localStorage.getItem(key) };
+};
+
+/**
+ * Очищает черновик снимка, если он не менялся с момента снимка: правки, сделанные во время сохранения,
+ * в запрос не попали и должны остаться. Возвращает, был ли черновик очищен.
+ */
+export const clearDraftIfUnchanged = ({ key, value }: DraftSnapshot) => {
+    if (localStorage.getItem(key) !== value) {
+        return false;
+    }
+    localStorage.removeItem(key);
+    draftAddedTokensByKey.delete(key);
+    return true;
+};
+
 export const applyDraftChanges = (theme: Theme, dsName: string, dsVersion: string) => {
     const changes = loadDraftChanges(dsName, dsVersion);
 
