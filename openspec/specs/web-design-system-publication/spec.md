@@ -3,7 +3,7 @@
 ## Purpose
 Определяет, как веб-клиент сохраняет дизайн-систему кнопкой «Сохранить» без генерации документации и без
 сборки и публикации npm-пакета, и запрещает обращения к удалённым сервисам генерации и публикации.
-Документация строится вручную действием на странице Debug.
+Генерации документации в клиенте нет: документация развивается в Kotlin `documentation-service` и `dsbuilder docs`.
 ## Requirements
 ### Requirement: Web client does not call removed generation services
 
@@ -83,4 +83,19 @@ SHALL NOT запускать генерацию документации. Кно
 
 - **WHEN** пользователь переходит по ссылке `.../themes/{tenantId}/overview`
 - **THEN** клиент MUST открыть раздел «Цвета» этой темы
+
+### Requirement: Web client does not build documentation
+
+Веб-клиент SHALL NOT запускать генерацию документации и SHALL NOT обращаться к маршрутам
+`/api/projects/{projectId}/docs/*`.
+
+#### Scenario: Страница Debug без генерации документации
+
+- **WHEN** пользователь открывает страницу Debug
+- **THEN** на ней MUST NOT быть действия «Опубликовать документацию»
+
+#### Scenario: Сохранение без документации
+
+- **WHEN** пользователь сохраняет дизайн-систему
+- **THEN** клиент MUST NOT отправлять запросы к `/api/projects/{projectId}/docs/*`
 
