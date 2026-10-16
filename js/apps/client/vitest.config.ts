@@ -12,5 +12,8 @@ export default defineConfig({
         setupFiles: ['./src/test/setup.ts'],
         restoreMocks: true,
         css: true,
+        // Тяжёлые страницы (палитра, проекты) на CI-раннере рендерятся дольше 5 с по умолчанию.
+        testTimeout: 20000,
+        hookTimeout: 20000,
     },
 });
