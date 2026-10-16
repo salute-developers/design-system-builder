@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -8,10 +7,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { generateThemes } from './generate-theme.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
 import { readThemeSetSource } from './theme-source.ts';
-
-// Сервис генерации использует CommonJS, поэтому подключаем его через require из ES-модуля.
-const { generate } = createRequire(import.meta.url)('../../services/generator/app/themeBuilder/index.ts') as
-    typeof import('../../services/generator/app/themeBuilder/index.ts');
 
 let root: string;
 let sdds: string;
@@ -182,35 +177,6 @@ describe('readThemeSetSource', () => {
         await rm(join(sdds, 'tenants', 'palette.json'));
 
         await assert.rejects(readThemes(), /Palette is missing/);
-    });
-});
-
-describe('themeBuilder.generate для сервиса генерации', () => {
-    it('пишет одну тему с прежним составом: имена файлов из meta.json, один индекс, один файл токенов', async () => {
-        const [source] = (await readThemes({ tenant: 'brand_light' })).themes;
-        const directory = join(root, 'service-theme');
-
-        // Сервис передаёт имя пакета, отличное от имени темы: в файлы идёт имя из meta.json.
-        await generate([{ name: 'package-name', version: '1.0.0' }], source, directory);
-
-        assert.deepEqual((await readdir(join(directory, 'themes'))).sort(), [
-            'brand_light__dark.ts',
-            'brand_light__light.ts',
-            'index.ts',
-        ]);
-        assert.deepEqual((await readdir(join(directory, 'css'))).sort(), [
-            'brand_light.module.css',
-            'brand_light__dark.css',
-            'brand_light__light.css',
-        ]);
-        const index = await readFile(join(directory, 'themes', 'index.ts'), 'utf8');
-        assert.equal(
-            index.replace(/^\/\/.*\n+/, ''),
-            "export { brand_light__dark } from './brand_light__dark';\nexport { brand_light__light } from './brand_light__light';\n",
-        );
-        const tokens = await readFile(join(directory, 'tokens', 'index.ts'), 'utf8');
-        assert.equal(tokens.match(/export const textPrimary = 'var\(--text-primary, #FFFFFFFF\)';/g)?.length, 1);
-        assert.match(await readFile(join(directory, 'index.ts'), 'utf8'), /export \* from '.\/themes';/);
     });
 });
 

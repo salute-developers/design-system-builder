@@ -27,7 +27,7 @@ async function main() {
     });
 
     if (values.help) {
-        console.log(`Generate the theme of a local React design system package using services/generator.
+        console.log(`Generate the theme of a local React design system package.
 
 Usage: npm run generate:theme -- [options]
   --sdds <directory>       Local data directory (default: js/cli/.sdds)

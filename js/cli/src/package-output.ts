@@ -1,21 +1,15 @@
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import pacote from 'pacote';
+
+import { generateBaseFileStructure } from './generator/generate.ts';
+import { CORE_VERSION } from './generator/utils/index.ts';
+
+export { CORE_VERSION };
+
 export const cliDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-
-// Генератор использует CommonJS: подключаем его из ES-модуля через require с обработчиком TypeScript от tsx.
-const require = createRequire(import.meta.url);
-const { generateBaseFileStructure } =
-    require('../../services/generator/app/generate.ts') as typeof import('../../services/generator/app/generate.ts');
-export const { CORE_VERSION } =
-    require('../../services/generator/app/utils/index.ts') as typeof import('../../services/generator/app/utils/index.ts');
-
-// pacote — зависимость генератора, у CLI своей нет: разрешаем его из пакета генератора.
-const generatorDirectory = resolve(cliDirectory, '..', 'services', 'generator');
-const generatorRequire = createRequire(join(generatorDirectory, 'package.json'));
-const pacote = generatorRequire('pacote') as { tarball(spec: string): Promise<Buffer> };
 
 /** Служебное имя временного пакета, когда собираются только исходники. */
 const SOURCES_ONLY_PACKAGE_NAME = 'design-system';
@@ -42,15 +36,15 @@ export interface PackagePartOptions {
  * Генерирует части пакета и кладёт результат в `output`, не трогая остальные части.
  *
  * Пакет целиком собирается во временном каталоге: в `output` попадают только исходники частей
- * (`src/theme`, `src/components` и корневой индекс) или архив. Каталог лежит внутри сервиса
- * генерации, как его `result-*`: скрипты пакета берут eslint из `../node_modules`.
+ * (`src/theme`, `src/components` и корневой индекс) или архив. Каталог `result-*` лежит внутри `js/cli`:
+ * скрипты пакета берут eslint из `../node_modules`, а его конфиг — из заготовки пакета.
  */
 export async function writePackagePart(options: PackagePartOptions): Promise<string> {
     const { parts, outputDirectory, pack } = options;
     if (pack && !options.packageName) {
         throw new Error('--name is required with --package: it is the name of the published package.');
     }
-    const pathToDir = await mkdtemp(join(generatorDirectory, 'result-cli-'));
+    const pathToDir = await mkdtemp(join(cliDirectory, 'result-'));
     try {
         await generateBaseFileStructure({
             pathToDir,
@@ -111,8 +105,8 @@ async function writeRootIndex(sourceDirectory: string): Promise<void> {
 }
 
 /**
- * Собирает пакет и упаковывает его так же, как сервис генерации: pacote запускает `prepare`
- * (установку зависимостей и `npm run build`) и складывает файлы из `files` package.json.
+ * Собирает пакет и упаковывает его: pacote запускает только `prepare`
+ * (`npm run build`; зависимости берутся из `js/cli/node_modules`) и складывает файлы из `files` package.json.
  * Имя архива — как у `npm pack`: `@scope/name@1.0.0` → `scope-name-1.0.0.tgz`; у пакета из одной части —
  * с её суффиксом (`…-theme.tgz`). Имя самого пакета не меняется, суффикс нужен, чтобы архивы частей не
  * перезаписывали друг друга и полный пакет.
