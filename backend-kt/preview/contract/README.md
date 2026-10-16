@@ -3,8 +3,8 @@
 Canonical JSON Schema and shared fixtures of Preview Protocol v1. Consumers:
 
 - `design-system-builder/js/apps/client` reads these files directly in its tests (`npm test`, no copy);
-- `plasma-android/integration-core/preview-contract` keeps byte-identical copies and checks them against a recorded
-  digest.
+- `plasma-android/integration-core/preview-contract` keeps byte-identical copies and checks them against the
+  fingerprints in `CONTRACT.sha256` (see below).
 
 Layout:
 
@@ -46,3 +46,13 @@ Render results:
 
 The version number stays `1`: the protocol has not been released outside development.
 Copies between repositories are compared manually when a client and plugin pair is released.
+
+Fingerprints:
+
+- `CONTRACT.sha256` holds the SHA-256 of the schema and every shared fixture (`sha256sum` format, paths relative to this
+  directory, sorted). After changing a schema or fixture run `./fingerprint.sh --write`; CI runs `./fingerprint.sh --check`.
+- Update the plasma-android copy with
+  `./fingerprint.sh --sync-to <plasma-android>/integration-core/preview-contract/src/commonMain/resources`: it copies the
+  schema, puts fixtures into `fixtures/v1/shared` and rewrites `schemas/v1/DIGEST`.
+- plasma-android compares its `DIGEST` with the canonical `CONTRACT.sha256` (paths differ by `fixtures/v1/shared/`):
+  a pull request gets a warning, `release/*`, `hotfix/*`, `main` and the nightly run on `develop` fail.
