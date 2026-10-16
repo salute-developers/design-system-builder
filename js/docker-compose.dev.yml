@@ -85,34 +85,8 @@ services:
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
 
-  # Documentation Generator Service
-  docs-generator:
-    build:
-      context: ./services/documentation-generator
-      dockerfile: Dockerfile.dev
-    container_name: documentation-generator-dev
-    environment:
-      NODE_ENV: development
-      PORT: 3006
-      DB_SERVICE_URL: http://db-service:3008/api
-      NPM_PACKAGE_SCOPE: ${NPM_PACKAGE_SCOPE:-@sddsjs}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_ENDPOINT: ${AWS_ENDPOINT}
-      AWS_REGION: ${AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
-    ports:
-      - "3006:3006"
-    volumes:
-      - docs_output:/home/node/app/output
-    networks:
-      - ds-builder-network
-    command: npm run start:dev
-
 volumes:
   postgres_registry_data_dev:
-    driver: local
-  docs_output:
     driver: local
 
 networks:

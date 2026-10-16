@@ -5,7 +5,7 @@
 # =============================================================================
 # This script performs a complete setup of the Design System Builder
 # development environment including:
-# - Building and starting all services (postgres-registry, db-service, admin, client, docs-generator)
+# - Building and starting all services (postgres-registry, db-service, admin, client)
 # - Running database migrations
 # - Seeding initial data (seed-prod.ts)
 # - Bootstrapping the user's project in projects-service (via gateway)
@@ -272,7 +272,7 @@ fi
 
 echo ""
 echo_header "🚀 Setting up development environment..."
-echo "   📦 Services: postgres-registry, db-service, admin, client, docs-generator"
+echo "   📦 Services: postgres-registry, db-service, admin, client"
 echo "   🗄️ Database: migrations + seeding (prod seeds)"
 echo "   👤 Project: find/create user project via $GATEWAY_URL and bind it to DS 'base'"
 echo "   🔍 Health checks: all services"
@@ -349,7 +349,7 @@ else
     seed_and_bind
 fi
 
-# Now start the remaining services (client, admin, docs-generator)
+# Now start the remaining services (client, admin)
 echo_info "Starting remaining services..."
 run_compose up -d
 
@@ -420,7 +420,6 @@ if [ "$services_healthy" = true ]; then
     echo "   🛠️ Admin:          http://localhost:3004"
     echo "   🎨 Client:         http://localhost:3002"
     echo "   📋 DB Service:     http://localhost:3008"
-    echo "   📄 Docs Generator: http://localhost:3006"
     echo "   🗄️ DB (db-service):  localhost:5433"
     echo ""
     echo_header "📦 View running services:"

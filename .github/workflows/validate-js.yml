@@ -41,24 +41,6 @@ jobs:
           "apps/client/src/**/*.{ts,tsx}"
           "apps/admin/src/**/*.{ts,tsx}"
           "services/db-service/src/**/*.ts"
-          "services/documentation-generator/src/**/*.ts"
-
-  tests:
-    name: Tests (documentation-generator)
-    if: ${{ false }} # Temporarily disabled together with JS analysis.
-    runs-on: ubuntu-22.04
-    defaults:
-      run:
-        working-directory: js/services/documentation-generator
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.20.0'
-          cache: npm
-          cache-dependency-path: js/services/documentation-generator/package-lock.json
-      - run: npm ci --no-progress
-      - run: npm test -- --runInBand --passWithNoTests
 
   cli:
     name: Typecheck and tests (cli)
@@ -90,8 +72,6 @@ jobs:
             directory: js/apps/admin
           - name: db-service
             directory: js/services/db-service
-          - name: documentation-generator
-            directory: js/services/documentation-generator
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
