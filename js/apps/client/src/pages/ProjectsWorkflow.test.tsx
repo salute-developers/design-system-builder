@@ -1202,12 +1202,15 @@ describe('design system and Theme workflow', () => {
             },
         ]);
         const remove = vi.spyOn(designSystemsApi, 'remove').mockResolvedValue();
+        // Без настоящей сети: при регрессии запрос к npm не уйдёт наружу, а попадёт в проверку ниже.
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected fetch'));
         at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
         expect(await screen.findByRole('navigation', { name: 'Разделы: Настройки дизайн-системы' })).toHaveTextContent(
             'ОсновноеУдаление',
         );
-        expect(screen.getByText('Публикация в npm')).toBeInTheDocument();
-        expect(screen.getByText('Не опубликовано')).toBeInTheDocument();
+        // Публикации в npm нет: ни блока статуса, ни запросов к npm registry.
+        expect(screen.queryByText('Публикация в npm')).not.toBeInTheDocument();
+        expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('registry.npmjs.org'))).toBe(false);
         expect(screen.queryByText('Перенос')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
         expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();
