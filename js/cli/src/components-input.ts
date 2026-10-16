@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 
-import type { Meta } from '../../services/generator/app/componentBuilder/type.ts';
+import type { Meta } from './generator/componentBuilder/type.ts';
 import { readComponentsMeta } from './component-source.ts';
 import { buildApiMeta } from './generate-api-meta.ts';
 import { cliDirectory } from './package-output.ts';

@@ -1,14 +1,9 @@
-import { createRequire } from 'node:module';
 import { rm } from 'node:fs/promises';
 
+import { generateThemeSet } from './generator/themeBuilder/index.ts';
 import type { Palette, ThemeSetSource, ThemeSource } from './theme-source.ts';
 
-// Сервис генерации использует CommonJS, поэтому подключаем его через require из ES-модуля CLI.
-const require = createRequire(import.meta.url);
-const { generateThemeSet } = require('../../services/generator/app/themeBuilder/index.ts') as
-    typeof import('../../services/generator/app/themeBuilder/index.ts');
-
-/** Раскрывает ссылку на локальную палитру в цвет, понятный исходному генератору сервиса. */
+/** Раскрывает ссылку на локальную палитру в цвет, понятный генератору. */
 function resolvePaletteColor(value: string, palette: Palette): string {
     const match = value.match(/^\[([^.]+)\.([^.]+)\.([^\]]+)\](?:\[([^\]]+)\])?$/);
     if (!match) {
@@ -36,7 +31,7 @@ export function toGeneratorThemeSource(source: ThemeSource, palette: Palette) {
 }
 
 /**
- * Очищает прежний результат и вызывает исходный генератор сервиса с локальными данными всех тем,
+ * Очищает прежний результат и вызывает генератор с локальными данными всех тем,
  * без загрузки темы. Ссылки на палитру раскрываются до очистки: ошибка в данных не стирает результат.
  */
 export async function generateThemes(source: ThemeSetSource, outputDirectory: string) {
