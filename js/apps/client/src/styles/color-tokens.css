@@ -4153,6 +4153,8 @@
 
 .color-tokens-screen .token-tree-delete {
     position: absolute;
+    /* Строки дерева из прототипа лежат в своём слое: без z-index клик попадает в строку, а не в удаление. */
+    z-index: 3;
     top: 4px;
     right: 14px;
     width: 24px;
