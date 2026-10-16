@@ -38,4 +38,19 @@ describe('ColorConstructor', () => {
         selectFormat('RGB', 'HSL');
         expect(field().value).toMatch(/^hsl\(\d+, \d+%, \d+%\)$/);
     });
+
+    it('показывает цвет, заданный в RGB, в любом формате', () => {
+        render(
+            <ColorConstructor
+                color="rgb(10, 120, 200)"
+                opacity={1}
+                hideOpacity
+                onChange={() => undefined}
+                onOpacityChange={() => undefined}
+            />,
+        );
+        expect(field().value).toBe('#0A78C8');
+        selectFormat('HEX', 'RGB');
+        expect(field().value).toBe('rgb(10, 120, 200)');
+    });
 });
