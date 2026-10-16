@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { generateThemes } from './generate-theme.ts';
 import { resolveLocalThemes } from './local-theme-source.ts';
-import { readThemeSetSource } from './theme-source.ts';
+import { readThemeSetSource, toThemeIdentifier } from './theme-source.ts';
 
 let root: string;
 let sdds: string;
@@ -149,10 +149,44 @@ describe('readThemeSetSource', () => {
         await assert.rejects(readThemes(), /Themes "brand_night" and "copy" have the same name "brand_night"/);
     });
 
-    it('отклоняет имя, непригодное как идентификатор', async () => {
+    it('приводит имя к идентификатору и сообщает об этом', async (context) => {
+        const warn = context.mock.method(console, 'warn', () => {});
         await writeTheme(themeDirectory('dashed'), 'brand-dashed', '#111111FF');
 
-        await assert.rejects(readThemes(), /Theme "dashed" has the name "brand-dashed".*not a valid JavaScript identifier/);
+        const { themes } = await readThemes();
+
+        assert.deepEqual(themes.map(({ meta }) => meta.name), ['brand_light', 'brand_night', 'brand_dashed']);
+        assert.deepEqual(warn.mock.calls.map((call) => call.arguments[0]), [
+            'Theme "dashed": name "brand-dashed" in meta.json is used as "brand_dashed".',
+        ]);
+    });
+
+    it('отклоняет имя, которое не приводится к идентификатору', async () => {
+        await writeTheme(themeDirectory('digits'), '2025-theme', '#111111FF');
+
+        await assert.rejects(
+            readThemes(),
+            /Theme "digits" has the name "2025-theme".*cannot be turned into a JavaScript identifier/,
+        );
+    });
+
+    it('отклоняет имена, совпавшие после приведения, и называет исходные', async (context) => {
+        context.mock.method(console, 'warn', () => {});
+        await writeTheme(themeDirectory('dashed'), 'brand-night', '#111111FF');
+
+        await assert.rejects(
+            readThemes(),
+            /Themes "brand_night" and "dashed" \("brand-night"\) have the same name "brand_night"/,
+        );
+    });
+
+    it('считает тему по умолчанию по приведённому имени', async (context) => {
+        context.mock.method(console, 'warn', () => {});
+        await writeTheme(themeDirectory('brand_light'), 'Светлая тема', '#FFFFFFFF');
+
+        const { defaultThemeName } = await readThemes();
+
+        assert.equal(defaultThemeName, 'Svetlaya_tema');
     });
 
     it('отклоняет имена, различающиеся только регистром', async () => {
@@ -177,6 +211,36 @@ describe('readThemeSetSource', () => {
         await rm(join(sdds, 'tenants', 'palette.json'));
 
         await assert.rejects(readThemes(), /Palette is missing/);
+    });
+});
+
+describe('toThemeIdentifier', () => {
+    it('не меняет имя, которое уже является идентификатором', () => {
+        for (const name of ['brand_night', 'Brand$', '_dark', 'v2']) {
+            assert.equal(toThemeIdentifier(name), name);
+        }
+    });
+
+    it('заменяет разделители одним подчёркиванием и транслитерирует русские буквы', () => {
+        const cases: Record<string, string> = {
+            'my-theme': 'my_theme',
+            'brand night': 'brand_night',
+            'dark--v2': 'dark_v2',
+            '-x-': 'x',
+            'Тёмная тема': 'Temnaya_tema',
+            'Щука': 'Shchuka',
+            'объём': 'obem',
+            'ЖЁЛТЫЙ': 'ZhELTYY',
+        };
+        for (const [name, identifier] of Object.entries(cases)) {
+            assert.equal(toThemeIdentifier(name), identifier, name);
+        }
+    });
+
+    it('не приводит пустое имя и имя, начинающееся с цифры', () => {
+        for (const name of ['', '---', '★', '2025-theme']) {
+            assert.equal(toThemeIdentifier(name), undefined, name);
+        }
     });
 });
 
@@ -231,6 +295,21 @@ describe('generateThemes', () => {
             'brand_night__light.ts',
             'index.ts',
         ]);
+    });
+
+    it('пишет тему под приведённым именем', async (context) => {
+        context.mock.method(console, 'warn', () => {});
+        await writeTheme(themeDirectory('mine'), 'my-theme', '#111111FF');
+
+        await generateThemes(await readThemes({ tenant: 'mine' }), output());
+
+        assert.deepEqual((await readdir(join(output(), 'css'))).sort(), [
+            'my_theme.module.css',
+            'my_theme__dark.css',
+            'my_theme__light.css',
+        ]);
+        const exported = [...(await read('themes/index.ts')).matchAll(/export \{ (\w+) \}/g)].map(([, name]) => name);
+        assert.deepEqual(exported, ['my_theme__dark', 'my_theme__light']);
     });
 
     it('повторная генерация даёт тот же результат', async () => {
