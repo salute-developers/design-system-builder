@@ -33,12 +33,12 @@ export const ColorConstructor = (props: ColorConstructorProps) => {
     const [yPos, setYPos] = useState(0);
 
     // Поле ввода показывает цвет в выбранном формате (HEX, RGB, HSL) и принимает правку в нём (ревью QA, PR #101).
+    // Формат считается от HEX без прозрачности: прозрачность у выбора цвета отдельная.
     const formatColor = (format: string) => {
-        const hex = getNormalizedColor(color, undefined, true, tokenName);
+        const hex = getNormalizedColor(color, undefined, false, tokenName);
         if (format === 'hex') return hex;
         try {
-            // Прозрачность у выбора цвета отдельная, поэтому формат считается от HEX без альфа-канала.
-            return convertColor(hex.slice(0, 7))[format as keyof ColorFormats];
+            return convertColor(hex)[format as keyof ColorFormats];
         } catch {
             return hex;
         }
