@@ -1,7 +1,6 @@
 export * from './colors';
 export * from './components';
 export * from './home';
-export * from './overview';
 export * from './palette';
 export * from './projects';
 export * from './shapes';
