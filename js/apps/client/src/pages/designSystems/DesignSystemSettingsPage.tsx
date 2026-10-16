@@ -1,12 +1,11 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { designSystemsApi, getNpmPackageName, getNpmPackageUrl, projectsApi } from '../../api';
+import { designSystemsApi, projectsApi } from '../../api';
 import { SettingsFrame } from '../../components/BuilderShell/BuilderShell';
 import { Field, State } from '../../components/Catalog/Catalog';
 import { any, Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
-import { useNpmLatestVersion } from '../../hooks';
 import { formatThemeCount } from '../../modules/designSystems/domain/designSystem';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 
@@ -24,7 +23,6 @@ export const DesignSystemSettingsPage = () => {
         [projectId, designSystemId],
         `themes:${projectId}:${designSystemId}`,
     );
-    const npmVersion = useNpmLatestVersion(system.data?.name);
     const [message, setMessage] = useState('');
     const [confirmation, setConfirmation] = useState('');
     if ([project.error, system.error, themes.error].some(isAccessDenied))
@@ -129,17 +127,6 @@ export const DesignSystemSettingsPage = () => {
             <section className="settings">
                 <form id="settings-general" className="settings-section" onSubmit={save}>
                     <Field label="Название" name="name" required defaultValue={system.data.name} />
-                    <div className="ds-publication-status">
-                        <span>Публикация в npm</span>
-                        <strong>{npmVersion ?? 'Не опубликовано'}</strong>
-                        <a
-                            href={getNpmPackageUrl(system.data.name, npmVersion ?? undefined)}
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            {getNpmPackageName(system.data.name)}
-                        </a>
-                    </div>
                 </form>
                 <section id="settings-delete" className="settings-section">
                     <h2 className="ps-danger-title">Опасная зона</h2>
