@@ -5,12 +5,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 const { hookState, reload, mainUtils } = vi.hoisted(() => ({
     hookState: { loading: false },
     reload: vi.fn(),
-    mainUtils: { designSystemSave: vi.fn(), generateAndDeployDocumentation: vi.fn() },
+    mainUtils: { designSystemSave: vi.fn() },
 }));
 vi.mock('./Main.utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('./Main.utils')>()),
     designSystemSave: mainUtils.designSystemSave,
-    generateAndDeployDocumentation: mainUtils.generateAndDeployDocumentation,
 }));
 vi.mock('../hooks', () => ({
     useForceRerender: () => [null, vi.fn()],
@@ -133,7 +132,7 @@ describe('Theme editor shell', () => {
         expect(screen.queryByText('Опубликовать')).not.toBeInTheDocument();
     });
 
-    it('saves without building the documentation, clears the draft and reloads', async () => {
+    it('saves, clears the draft and reloads', async () => {
         localStorage.setItem(DRAFT_KEY, '{}');
         mainUtils.designSystemSave.mockResolvedValueOnce({ editRevision: 2 });
         renderEditor();
@@ -142,7 +141,6 @@ describe('Theme editor shell', () => {
 
         await waitFor(() => expect(reload).toHaveBeenCalledOnce());
         expect(mainUtils.designSystemSave).toHaveBeenCalledOnce();
-        expect(mainUtils.generateAndDeployDocumentation).not.toHaveBeenCalled();
         expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
     });
 
