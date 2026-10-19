@@ -30,8 +30,7 @@
     ]
   },
   "compatibilityFallbacks": [
-    "/api/projects/{projectId}/ds/legacy/**",
-    "/api/admin/** (except POST /api/admin/component-config/import-api-meta, served by ds-service)"
+    "/api/projects/{projectId}/ds/legacy/**"
   ],
-  "decision": "Keep authenticated legacy project routes plus user-authenticated admin routes on db-service, except the administrative API-meta import which ds-service serves; no consumer contract changes are required for included routes."
+  "decision": "Keep authenticated legacy project routes on db-service; the only administrative route is the API-meta import served by ds-service; no consumer contract changes are required for included routes."
 }

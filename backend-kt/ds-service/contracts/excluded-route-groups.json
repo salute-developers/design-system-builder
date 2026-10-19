@@ -11,15 +11,6 @@
       "name": "legacy",
       "sources": ["src/routes/api/legacy.ts"],
       "reason": "Legacy compatibility routes remain in db-service during migration."
-    },
-    {
-      "name": "admin",
-      "sources": [
-        "src/routes/misc/tables.ts",
-        "src/routes/misc/queries.ts",
-        "src/routes/misc/schema.ts"
-      ],
-      "reason": "Administrative and schema-inspection routes are outside the DS domain."
     }
   ]
 }
