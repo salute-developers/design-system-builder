@@ -1,6 +1,8 @@
 import { http, PROJECTS_URL } from '.';
 import type { Meta, PlatformsVariations, ThemeMeta, ThemeSource, TokenType, VariationType } from '../controllers';
 import type { Parameters } from '../types';
+import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
+import { isComponentEditorEnabled } from '../utils/featureFlags';
 import type { DesignSystemDto, ProjectDto, TenantDto } from './contracts';
 
 export interface EditorContextKey {
@@ -43,6 +45,8 @@ export interface ThemeEditorSnapshot {
     tenant: TenantDto;
     themeData: ThemeSource;
     componentsData: Meta[];
+    /** Compose-компоненты дизайн-системы; пусто, пока Compose-preview не настроен. */
+    composeComponentsData: Meta[];
     parameters: Partial<Parameters>;
     editRevision: number;
     incompleteTokenIds: string[];
@@ -53,6 +57,26 @@ const apiRoot = (projectId: string) => `${PROJECTS_URL}/${projectId}/ds`;
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
 export class ThemeEditorRepository {
+    /**
+     * Compose-компоненты нужны только Compose-preview: без плагина их не запрашиваем, а сбой запроса
+     * не должен ломать редактор web-компонентов.
+     */
+    private async loadComposeComponents(root: string, designSystemName: string, signal?: AbortSignal) {
+        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
+        try {
+            const response = await http.get<Meta[]>(
+                `${root}/legacy/design-systems/${encodeURIComponent(designSystemName)}/component-configs`,
+                { params: { platform: 'compose' }, signal },
+            );
+            // Компоненты без конфигурации в дизайн-системе в редакторе не показываются: стилей для них нет.
+            return markComposeComponents(response.data.filter(hasConfiguration));
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            console.error('[ThemeEditorRepository] Не удалось загрузить Compose-компоненты', error);
+            return [];
+        }
+    }
+
     async load(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
         const root = apiRoot(context.projectId);
         const [project, designSystem, tenant, tokens, values] = await Promise.all([
@@ -65,14 +89,18 @@ export class ThemeEditorRepository {
         if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
 
         const [components, palette] = await Promise.all([
-            http.get<Meta[]>(
-                `${root}/legacy/design-systems/${encodeURIComponent(designSystem.data.name)}/component-configs`,
-                { signal },
-            ),
+            // Раздел компонентов выключен сборкой: его данные никому не нужны, запрос не выполняется.
+            isComponentEditorEnabled()
+                ? http.get<Meta[]>(
+                      `${root}/legacy/design-systems/${encodeURIComponent(designSystem.data.name)}/component-configs`,
+                      { params: { platform: 'web' }, signal },
+                  )
+                : Promise.resolve({ data: [] as Meta[] }),
             values.data.some((value) => value.paletteId)
                 ? http.get<PaletteDto[]>(`${root}/palette`, { signal })
                 : Promise.resolve({ data: [] as PaletteDto[] }),
         ]);
+        const composeComponents = await this.loadComposeComponents(root, designSystem.data.name, signal);
         const paletteById = new Map(palette.data.map((entry) => [entry.id, entry]));
         const valuesByToken = new Map<string, TenantTokenValueDto[]>();
         for (const value of values.data)
@@ -180,6 +208,7 @@ export class ThemeEditorRepository {
             tenant: tenant.data,
             themeData: { meta, variations },
             componentsData: components.data,
+            composeComponentsData: composeComponents,
             parameters: {
                 projectId: context.projectId,
                 projectName: project.data.name,

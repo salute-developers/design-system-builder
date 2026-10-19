@@ -1,4 +1,4 @@
-import { Fragment, MouseEvent, useEffect, useMemo, useState } from 'react';
+import { Fragment, MouseEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { IconEyeClosedOutline, IconEyeOutline, IconPlus, IconSearch } from '@salutejs/plasma-icons';
 import { lowerFirstLetter } from '@salutejs/plasma-tokens-utils';
 
@@ -39,6 +39,8 @@ export interface MenuProps {
     sectionTitle?: string;
     canDisable?: boolean;
     canAdd?: boolean;
+    /** Содержимое между шапкой и списком, например переключатель платформы. */
+    toolbar?: ReactNode;
     onTabSelect?: (index: number) => void;
     onItemSelect?: (groupIndex: number, itemIndex: number) => void;
     onItemAdd?: (groupName: string, itemName: string, tabName?: string, items?: (Token | Config)[]) => void;
@@ -54,6 +56,7 @@ export const MenuOld = (props: MenuProps) => {
         sectionTitle = 'Токены',
         canAdd = true,
         canDisable = true,
+        toolbar,
         onTabSelect,
         onItemSelect,
         onItemAdd,
@@ -247,6 +250,7 @@ export const MenuOld = (props: MenuProps) => {
                     <IconSearch size="xs" color="inherit" />
                 </IconButton>
             </Header>
+            {toolbar}
             {tabs && (
                 <List>
                     <ListSectionTitle>{tabs.name}</ListSectionTitle>

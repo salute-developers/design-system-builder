@@ -11,7 +11,7 @@ export const Root = styled.div<{ background?: string }>`
     background: ${backgroundSecondary};
 `;
 
-export const StyledPreviewShadow = styled.div`
+export const StyledPreviewShadow = styled.div<{ $scrollable?: boolean }>`
     position: relative;
 
     padding: 0.75rem;
@@ -23,6 +23,9 @@ export const StyledPreviewShadow = styled.div`
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+
+    /* Только при отладочном блоке: иначе обычная раскладка и выпадающие списки остаются как были. */
+    ${({ $scrollable }) => $scrollable && 'overflow-y: auto;'}
 `;
 
 export const StyledPreviewBackgroundEditor = styled.div`
@@ -60,17 +63,73 @@ export const StyledStorySelector = styled.div`
     top: 0.75rem;
 `;
 
-export const StyledComponentControls = styled.div`
+export const StyledComponentControls = styled.div<{ $reserveHeight?: boolean }>`
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
     width: 100%;
 
     flex: 1;
-    min-height: 0;
+    /* Отладочный блок не должен сжимать панель свойств до нуля: колонка прокручивается. */
+    min-height: ${({ $reserveHeight }) => ($reserveHeight ? '8rem' : '0')};
     overflow-y: auto;
 `;
 
 export const StyledDivider = styled.div`
     margin: 0.75rem 0;
+`;
+
+export const StyledPayloadDebug = styled.div`
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+`;
+
+export const StyledPayloadHeader = styled.div`
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+`;
+
+export const StyledPayloadToggle = styled.button`
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+`;
+
+export const StyledPayloadCount = styled.span`
+    margin-left: 0.5rem;
+    padding: 0 0.5rem;
+
+    border-radius: 0.75rem;
+    background: rgb(255 255 255 / 12%);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+`;
+
+export const StyledPayloadStatus = styled.span`
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+`;
+
+export const StyledPayloadJson = styled.pre`
+    margin: 0;
+    padding: 0.75rem;
+    box-sizing: border-box;
+
+    max-height: 12rem;
+    overflow: auto;
+
+    border-radius: 0.5rem;
+    background: rgb(0 0 0 / 30%);
+    color: var(--text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    line-height: 1rem;
 `;

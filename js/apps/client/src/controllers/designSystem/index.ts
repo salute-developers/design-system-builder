@@ -8,7 +8,7 @@ import {
     type PlatformsVariations,
     type ThemeMeta,
 } from '../themeBuilder';
-import { Config, type Meta } from '../componentBuilder';
+import { Config, resolveStyleReference, type Meta } from '../componentBuilder';
 import {
     kebabToCamel,
     loadDesignSystem,
@@ -37,6 +37,7 @@ export class DesignSystem {
 
     private themeData: ThemeSource;
     private componentsData: Meta[] = [];
+    private composeComponentsData: Meta[] = [];
 
     private constructor({ name, parameters }: DesignSystemProps) {
         this.name = name;
@@ -94,10 +95,12 @@ export class DesignSystem {
         parameters,
         themeData,
         componentsData,
-    }: DesignSystemProps & { componentsData: Meta[] }) {
+        composeComponentsData = [],
+    }: DesignSystemProps & { componentsData: Meta[]; composeComponentsData?: Meta[] }) {
         const instance = new DesignSystem({ name, parameters });
         instance.themeData = themeData ?? ({} as ThemeSource);
         instance.componentsData = componentsData;
+        instance.composeComponentsData = composeComponentsData;
         return instance;
     }
 
@@ -221,6 +224,18 @@ export class DesignSystem {
         return componentData || this.componentsData[0];
     }
 
+    /**
+     * API-метаданные компонента конфигурации с учётом платформы. Compose-компонент ищется только среди Compose-компонентов
+     * (имена с web совпадают, а API разный), без подмены чужим компонентом, если его нет.
+     */
+    public getComponentData(config: Config) {
+        if (config.getPlatform() === 'compose') {
+            return this.composeComponentsData.find((item) => item.name === config.getName());
+        }
+
+        return this.getComponentDataByName(config.getName());
+    }
+
     public getComponentsData() {
         return this.componentsData;
     }
@@ -231,6 +246,15 @@ export class DesignSystem {
 
     public createAllComponentInstances() {
         return this.componentsData.map((item) => new Config(item));
+    }
+
+    public createAllComposeComponentInstances() {
+        return this.composeComponentsData.map((item) => new Config(item));
+    }
+
+    /** Разворачивает ссылку на стиль Compose-компонента (`basic-button.xxs.default`). */
+    public resolveComposeStyleReference(reference: string) {
+        return resolveStyleReference(this.composeComponentsData, reference);
     }
 
     public createComponentInstance(data: { componentName: string }) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { useComponentData, useStory } from '../../../../hooks';
@@ -32,7 +32,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     const config = configs?.[0];
 
-    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getName());
+    const { storyArgs, Story, items: storyItems, selectedStory, setSelectedStory } = useStory(config?.getPlatform() === 'web' ? config.getName() : undefined);
 
     const [
         selectedVariation,
@@ -61,6 +61,11 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setComponentProps((current) => ({ ...current, [selection.variationName]: selection.styleID }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, storyArgs, preview]);
+    // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
+    const resolveStyleReference = useCallback(
+        (reference: string) => designSystem.resolveComposeStyleReference(reference),
+        [designSystem],
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const relatedConfigs = useMemo(() => new Map<string, Config>(), [designSystem, updated]);
 
@@ -97,11 +102,6 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
     const onChangeComponentControlValue = (name?: string, value?: unknown) => {
         if (!name) {
             return;
-        }
-
-        // TODO: Подумать уйти от хардкода свойств
-        if (name === 'size' || name === 'view' || name === 'shape') {
-            delete componentProps[name];
         }
 
         // INFO: Выключенный флаг (`pilled`) — отсутствие аргумента, а не значение.
@@ -176,6 +176,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 onStorySelect={setSelectedStory}
                 onChange={onChangeComponentControlValue}
                 onUpdateThemeMode={setThemeMode}
+                resolveStyleReference={resolveStyleReference}
             />
         </Root>
     );

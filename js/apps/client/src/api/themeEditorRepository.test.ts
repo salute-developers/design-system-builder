@@ -1,7 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, put } = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn() }));
+const { get, put, pluginUrl } = vi.hoisted(() => ({
+    get: vi.fn(),
+    put: vi.fn(),
+    pluginUrl: { value: undefined as string | undefined },
+}));
 vi.mock('./index', () => ({ http: { get, put }, PROJECTS_URL: '/api/projects' }));
+vi.mock('../composePreview', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../composePreview')>()),
+    getComposePreviewPluginUrl: () => pluginUrl.value,
+}));
 
 import { ThemeEditorRepository } from './themeEditorRepository';
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
@@ -39,8 +47,99 @@ const reply = (tenantId: string, color: string) => (url: string) => {
 };
 
 beforeEach(() => {
+    pluginUrl.value = undefined;
     get.mockReset();
     put.mockReset();
+});
+
+describe('ThemeEditorRepository with the component editor disabled', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+    });
+
+    it('does not request component configs and still loads the theme', async () => {
+        vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
+        pluginUrl.value = 'http://plugin.example/';
+        get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(0);
+        expect(snapshot.componentsData).toEqual([]);
+        expect(snapshot.composeComponentsData).toEqual([]);
+        expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
+    });
+
+    it('requests component configs when the section is enabled', async () => {
+        vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
+        get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
+
+        await new ThemeEditorRepository().load(context);
+
+        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(1);
+    });
+});
+
+describe('ThemeEditorRepository Compose components', () => {
+    const configsOf = (compose: unknown[], web: unknown[] = []) => (url: string, options?: { params?: any }) =>
+        url.endsWith('/component-configs')
+            ? Promise.resolve({ data: options?.params?.platform === 'compose' ? compose : web })
+            : Promise.resolve(reply('tenant-1', '#111111')(url));
+    const config = { id: 'default', name: 'default', config: { defaultVariations: [], invariantProps: [], variations: [] } };
+    const meta = (name: string, configs: unknown[] = [config]) => ({
+        name,
+        description: name,
+        sources: { api: [], variations: [], configs },
+    });
+
+    it('does not request Compose components without a plugin URL', async () => {
+        get.mockImplementation(configsOf([meta('BasicButton')]));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(snapshot.composeComponentsData).toEqual([]);
+        expect(get.mock.calls.filter(([, options]) => options?.params?.platform === 'compose')).toHaveLength(0);
+    });
+
+    it('loads Compose components separately and binds them to the plugin by name', async () => {
+        pluginUrl.value = 'http://plugin.example/';
+        get.mockImplementation(configsOf([meta('Avatar')], [meta('Avatar')]));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(snapshot.componentsData.map((item) => item.platform)).toEqual([undefined]);
+        expect(snapshot.composeComponentsData).toEqual([
+            expect.objectContaining({
+                name: 'Avatar',
+                platform: 'compose',
+                preview: { compose: { componentId: 'Avatar', storyId: 'Avatar' } },
+            }),
+        ]);
+    });
+
+    it('hides Compose components that have no configuration in the design system', async () => {
+        pluginUrl.value = 'http://plugin.example/';
+        get.mockImplementation(configsOf([meta('Avatar'), meta('DropdownLoadingState', []), meta('Wheel', [])]));
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(snapshot.composeComponentsData.map((item) => item.name)).toEqual(['Avatar']);
+    });
+
+    it('keeps the editor usable when Compose components fail to load', async () => {
+        pluginUrl.value = 'http://plugin.example/';
+        const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        get.mockImplementation((url: string, options?: { params?: any }) =>
+            options?.params?.platform === 'compose'
+                ? Promise.reject(new Error('HTTP 500'))
+                : Promise.resolve(reply('tenant-1', '#111111')(url)),
+        );
+
+        const snapshot = await new ThemeEditorRepository().load(context);
+
+        expect(snapshot.composeComponentsData).toEqual([]);
+        error.mockRestore();
+    });
 });
 
 describe('ThemeEditorRepository', () => {

@@ -1,9 +1,11 @@
 export { ColorProp } from './color';
 export { DimensionProp } from './dimension';
 export { FloatProp } from './float';
+export { IconProp } from './icon';
 export { ShadowProp } from './shadow';
 export { ShapeProp } from './shape';
 export { TypographyProp } from './typography';
+export { StyleReferenceProp } from './style-reference';
 export { ValueProp } from './value';
 export { Prop } from './prop';
 export { Props } from './props';

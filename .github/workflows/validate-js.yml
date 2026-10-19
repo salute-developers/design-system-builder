@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'js/**'
+      - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
   push:
@@ -12,6 +13,7 @@ on:
       - master
     paths:
       - 'js/**'
+      - 'backend-kt/preview/contract/**'
       - '.github/actions/prepare-environment/**'
       - '.github/workflows/validate-js.yml'
   workflow_dispatch:
@@ -58,6 +60,30 @@ jobs:
       - run: npm ci --no-progress
       - run: npm run typecheck
       - run: npm test
+
+  tests-client:
+    name: Tests (client)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          cache: npm
+          cache-dependency-path: js/apps/client/package-lock.json
+      - run: npm ci --no-progress
+        working-directory: js/apps/client
+      # Схема и общие фикстуры Preview Protocol читаются из backend-kt/preview/contract.
+      - run: npm test
+        working-directory: js/apps/client
+
+  contract-fingerprint:
+    name: Contract fingerprint
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # CONTRACT.sha256 читает CI plasma-android: он должен соответствовать схеме и общим фикстурам.
+      - run: backend-kt/preview/contract/fingerprint.sh --check
 
   build:
     name: Build (${{ matrix.project.name }})

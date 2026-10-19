@@ -1,4 +1,14 @@
-import type { ColorProp, DimensionProp, FloatProp, ShadowProp, ShapeProp, TypographyProp, ValueProp } from './props';
+import type {
+    ColorProp,
+    DimensionProp,
+    FloatProp,
+    IconProp,
+    ShadowProp,
+    ShapeProp,
+    StyleReferenceProp,
+    TypographyProp,
+    ValueProp,
+} from './props';
 
 export const DEFAULT_FONT_SIZE = 16;
 
@@ -20,13 +30,33 @@ export const DEFAULT_FONT_SIZE = 16;
 
 // ТИПЫ ПО ФАЙЛАМ
 
-export type PropType = 'color' | 'dimension' | 'float' | 'shadow' | 'shape' | 'typography' | 'value';
+export type PropType =
+    | 'color'
+    | 'dimension'
+    | 'float'
+    /** Иконка: имя в формате данных (`disclosure.down.fill.16`). */
+    | 'icon'
+    | 'shadow'
+    | 'shape'
+    | 'typography'
+    | 'value'
+    /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
+    | 'component_style';
 
 export type PropState = 'hovered' | 'pressed'; //| 'disabled' | 'loading' | 'focused';
 
 export type Intersections = Record<string, string[]>;
 
-export type PropUnion = ColorProp | FloatProp | ShadowProp | ShapeProp | DimensionProp | TypographyProp | ValueProp;
+export type PropUnion =
+    | ColorProp
+    | FloatProp
+    | IconProp
+    | ShadowProp
+    | ShapeProp
+    | DimensionProp
+    | TypographyProp
+    | ValueProp
+    | StyleReferenceProp;
 
 export interface WebToken {
     name: string;
@@ -62,6 +92,8 @@ export interface DefaultVariationConfig {
 export interface State {
     state: PropState[];
     value?: string;
+    /** Прозрачность значения 0..1; в Compose-превью накладывается на цвет или градиент. */
+    alpha?: number;
 }
 
 export interface PropConfig {
@@ -69,6 +101,8 @@ export interface PropConfig {
     value?: string | number;
     states?: State[] | null;
     adjustment?: string | number;
+    /** Прозрачность значения 0..1; в Compose-превью накладывается на цвет или градиент. */
+    alpha?: number;
 }
 
 export interface StyleConfig {
@@ -115,10 +149,20 @@ export interface Sources {
     configs: Config[];
 }
 
+export type ComponentPlatform = 'web' | 'compose';
+
 export interface Meta {
     name: string;
     description: string;
+    /** Платформа компонента; без значения — `web`. Проставляется клиентом при загрузке. */
+    platform?: ComponentPlatform;
     deps?: ComponentDep[];
+    preview?: {
+        compose?: {
+            componentId: string;
+            storyId: string;
+        };
+    };
     sources: Sources;
 }
 
