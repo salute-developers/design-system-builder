@@ -20,7 +20,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -326,13 +325,12 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
 
     // ── harness ────────────────────────────────────────────────────────────────────────────────────
 
-    private class Service(val postgres: PostgreSQLContainer<Nothing>, val builder: ApplicationTestBuilder)
+    private class Service(val postgres: IsolatedPostgresDatabase, val builder: ApplicationTestBuilder)
 
     private lateinit var service: Service
 
     private fun withService(body: suspend AppearanceAxisRolesHttpPostgresIntegrationTest.() -> Unit) {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
@@ -385,7 +383,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         header("X-System-Admin", admin.toString())
     }
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,

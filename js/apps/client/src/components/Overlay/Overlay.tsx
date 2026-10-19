@@ -88,10 +88,14 @@ export const trapDialogTabKey = (event: ReactKeyboardEvent<HTMLElement>) => {
 export const useAnchoredPopover = (
     open: boolean,
     anchorRef: RefObject<HTMLElement | null>,
-    preferredWidth?: number,
+    preferredWidth?: number | 'content',
 ) => {
     const popoverRef = useRef<HTMLDivElement>(null);
-    const [style, setStyle] = useState<CSSProperties>({ visibility: 'hidden' });
+    const [style, setStyle] = useState<CSSProperties>({
+        visibility: 'hidden',
+        width: preferredWidth === 'content' ? 'max-content' : undefined,
+        maxWidth: 'calc(100vw - 16px)',
+    });
     useLayoutEffect(() => {
         if (!open) return;
         const update = () => {
@@ -102,7 +106,8 @@ export const useAnchoredPopover = (
             const { left, top, width, maxHeight } = getAnchoredPopoverGeometry({
                 anchor: anchorRect,
                 naturalHeight,
-                preferredWidth,
+                preferredWidth: preferredWidth === 'content'
+                    ? popoverRef.current?.getBoundingClientRect().width || anchorRect.width : preferredWidth,
                 viewportWidth: window.innerWidth,
                 viewportHeight: window.innerHeight,
             });
@@ -111,7 +116,7 @@ export const useAnchoredPopover = (
                 top,
                 left,
                 zIndex: 2147483647,
-                width,
+                width: preferredWidth === 'content' ? 'max-content' : width,
                 maxWidth: 'calc(100vw - 16px)',
                 maxHeight,
                 overflowY: 'auto',
@@ -146,7 +151,7 @@ export const StyledSelect = ({
     name?: string;
     className?: string;
     disabled?: boolean;
-    popoverWidth?: number;
+    popoverWidth?: number | 'content';
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);

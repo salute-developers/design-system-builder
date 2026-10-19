@@ -23,6 +23,7 @@ export const State = ({
     projectName,
     projectId,
     kind = 'project',
+    embedded = false,
 }: {
     text: string;
     retry?: () => void;
@@ -31,11 +32,12 @@ export const State = ({
     projectName?: string;
     projectId?: string;
     kind?: 'project' | 'system' | 'theme';
+    embedded?: boolean;
 }) => {
     const loading = text.startsWith('Загружаем');
     const failed = text.startsWith('Не удалось');
     return (
-        <BuilderShell title={title} back={back} projectName={projectName} projectId={projectId}>
+        <BuilderShell title={title} back={back} projectName={projectName} projectId={projectId} embedded={embedded}>
             <section className="catalog-view">
                 <header className="catalog-header">
                     <h1>{title}</h1>

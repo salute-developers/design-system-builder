@@ -1,34 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
-import {
-    IconArrowLeft,
-    IconGroupOutline,
-    IconFolderOutline,
-    IconBookOutline,
-    IconSettingsOutline,
-} from '@salutejs/plasma-icons';
-
+import { IconArrowLeft, IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
 import styles from '@salutejs/plasma-themes/css/plasma_infra.module.css';
-
-import {
-    transliterateToSnakeCase,
-    hasDraft,
-    getDraftKey,
-    takeDraftSnapshot,
-    clearDraftIfUnchanged,
-    isDebugMode,
-    isComponentEditorEnabled,
-} from '../utils';
-import { IconColorSwatchOutline, IconPaletteOutline, IconShapeOutline, IconTypography } from '../icons';
+import { transliterateToSnakeCase, isDebugMode, isComponentEditorEnabled } from '../utils';
 import { useDesignSystem, useForceRerender } from '../hooks';
 import { GrayTone, Parameters } from '../types';
 import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
-import { SaveDesignSystemButton, isSuccessfulSave } from '../features';
 import { Debug } from './Debug';
-
-import { defaultParameters, designSystemSave, popupContentPages } from './Main.utils';
+import { defaultParameters, popupContentPages } from './Main.utils';
 import {
     EditorBody,
     EditorCanvas,
@@ -39,48 +20,69 @@ import {
     StyledPopup,
 } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
-import { EditorLoading } from '../components/EditorLoading';
-import { VersionJournalControls } from '../components/VersionJournalControls';
+
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
-import { all, any, choose, Visible } from '../components/rendering';
+import { EditorVersionSelect } from '../components/EditorVersionSelect';
+import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/useJournal';
+import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
     'not-found': 'Theme не найдена',
     failed: 'Не удалось загрузить Theme',
 } as const;
-
+const editorSectionLabels: Record<string, string> = {
+    colors: 'Цветовые токены',
+    typography: 'Типографика',
+    shapes: 'Размеры и радиусы',
+    components: 'Компоненты',
+    changes: 'Журнал изменений',
+    versions: 'Версии',
+    settings: 'Настройки темы',
+};
 export const Main = () => {
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
-    const currentPath = useLocation().pathname.split('/').filter(Boolean);
+    const [searchParams] = useSearchParams();
+    const editorVersionId = searchParams.get('versionId') ?? undefined;
+    const location = useLocation();
+    const [requestedPath, setRequestedPath] = useState<string>();
+    const isSectionSwitching = Boolean(requestedPath && requestedPath !== location.pathname);
+    const currentPath = (isSectionSwitching ? requestedPath! : location.pathname).split('/').filter(Boolean);
+    useLayoutEffect(() => {
+        if (requestedPath === location.pathname) setRequestedPath(undefined);
+    }, [location.pathname, requestedPath]);
 
     // TODO: Временное решение для обновления
     const [updated, rerender] = useForceRerender();
-
     const [isPopupOpen, setIsPopupOpen] = useState(false);
     const [popupContentPage, setPopupContentPage] = useState<keyof typeof popupContentPages | null>(
         popupContentPages.CREATE_FIRST_NAME,
     );
-
     const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
     const [grayTone, setGrayTone] = useState<GrayTone>('warmGray');
-
     const [parameters, setParameters] = useState<Parameters>(defaultParameters);
-
     const { accentColor, darkFillSaturation } = parameters;
-
     const { designSystemProjectId, designSystemName, designSystemVersion, projectId, designSystemId, tenantId } =
         useParams();
     const editorContext = useMemo(
         () =>
-            choose(all(projectId, designSystemId, tenantId), undefined, {
-                projectId: projectId!,
-                designSystemId: designSystemId!,
-                tenantId: tenantId!,
-                versionId: searchParams.get('versionId') ?? undefined,
-            }),
-        [projectId, designSystemId, tenantId, searchParams],
+            Boolean(projectId && designSystemId && tenantId)
+                ? {
+                      projectId: projectId!,
+                      designSystemId: designSystemId!,
+                      tenantId: tenantId!,
+                      versionId: editorVersionId,
+                  }
+                : undefined,
+        [projectId, designSystemId, tenantId, editorVersionId],
     );
+    const editorSection = currentPath[editorContext ? 6 : 3];
+    const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
+    const themeEditorPath = `/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/colors`;
+    const themeEditorSearch = editorVersionId
+        ? `?${new URLSearchParams({
+              versionId: editorVersionId,
+          })}`
+        : '';
     const {
         designSystem,
         theme,
@@ -94,129 +96,124 @@ export const Main = () => {
         paletteError,
         setPalette,
         autosaveStatus,
+        lastSavedAt,
         retryAutosave,
+        refreshChanges,
     } = useDesignSystem(
-        choose<string | NonNullable<typeof editorContext> | undefined>(
-            Boolean(editorContext),
-            designSystemProjectId,
-            editorContext!,
-        ),
+        Boolean(editorContext) ? editorContext! : designSystemProjectId,
         designSystemName,
         designSystemVersion,
     );
 
     // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
-    const isEditingDesignSystem = any(editorContext, all(designSystemName, designSystemVersion));
+    const isEditingDesignSystem = Boolean(editorContext || Boolean(designSystemName && designSystemVersion));
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
     const hasComponents = isComponentEditorEnabled() && Boolean(components?.length || composeComponents.length);
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
-    const isHome = all(!isPopupOpen, !isEditingDesignSystem);
-    // Ключ черновика задаёт контекст tenant, а без него — имя и версия ДС; в URL темы их нет, берём из ДС
-    const draftName = designSystem?.getName() ?? '';
-    const draftVersion = designSystem?.getVersion() ?? '';
-    const hasUnsavedChanges = Boolean(designSystem && hasDraft(draftName, draftVersion));
-    const isSaveButtonVisible = isEditingDesignSystem && !isReadOnly && !isPopupOpen && hasUnsavedChanges;
-    const isEditorLoading = all(editorContext, !designSystem, !loadError);
-
+    const isHome = Boolean(!isPopupOpen && !isEditingDesignSystem);
+    const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
+    const journalComponents = useMemo(() => designSystem?.getComponentsData() ?? [], [designSystem]);
+    const editorJournal = useJournal(
+        editorContext,
+        journalComponents,
+        designSystem,
+        designSystem?.getParameters()?.readOnly !== false,
+        Boolean(designSystem),
+    );
+    useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
-        setParameters((prev) => ({ ...prev, [name]: value }));
+        setParameters((prev) => ({
+            ...prev,
+            [name]: value,
+        }));
     };
-
     const onDesignSystemCreate = () => {
         setIsPopupOpen(true);
         setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
     };
-
     const onPopupClose = () => {
         setGrayTone('warmGray');
         setThemeMode('dark');
         setIsPopupOpen(false);
     };
-
     const onResetParameters = () => {
         setParameters(defaultParameters);
         setPopupContentPage(popupContentPages.CREATE_FIRST_NAME);
     };
-
     const onChangeGrayTone = (grayTone: string) => {
         setGrayTone(grayTone as GrayTone);
     };
-
     const onChangeThemeMode = (themeMode: ThemeMode) => {
         setThemeMode(themeMode);
     };
-
     const onNextPageCreateFirstName = (value: string) => {
         onChangeParameters('projectName', value);
         const transliteratedValue = transliterateToSnakeCase(value);
         onChangeParameters('packagesName', transliteratedValue);
-
         setPopupContentPage(popupContentPages.SETUP_PARAMETERS);
     };
-
     const onNextPageCreateSetupParameters = () => {
         setPopupContentPage(popupContentPages.CREATION_PROGRESS);
     };
-
     const onCreateComplete = (designSystemName: string, createdProjectId?: string) => {
         onPopupClose();
-
         const targetProjectId = createdProjectId ?? designSystemProjectId;
-
         if (targetProjectId) {
             navigate(`/${targetProjectId}/${designSystemName}/0.1.0/colors`);
         }
-
         onResetParameters();
     };
-
     const onClickPanelButton = (path: string) => {
         if (path === '') {
-            navigate('/', { replace: true });
+            navigate('/', {
+                replace: true,
+            });
             return;
         }
 
         // Раздел идёт сразу после версии, а у разделов могут быть вложенные сегменты
         // (например выбранный компонент в /components/:componentName) — строим путь от версии,
         // чтобы при переключении раздела они сбрасывались.
-        const newPath = choose(
-            Boolean(editorContext),
-            `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`,
-            `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`,
-        );
+        const newPath = Boolean(editorContext)
+            ? `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`
+            : `/${designSystemProjectId}/${designSystemName}/${designSystemVersion}/${path}`;
         const versionQuery = editorContext?.versionId
-            ? `?${new URLSearchParams({ versionId: editorContext.versionId }).toString()}`
+            ? `?${new URLSearchParams({
+                  versionId: editorContext.versionId,
+              }).toString()}`
             : '';
-
-        navigate(`${newPath}${versionQuery}`, { replace: true });
+        setRequestedPath(newPath !== location.pathname ? newPath : undefined);
+        navigate(`${newPath}${versionQuery}`, {
+            replace: true,
+        });
     };
-
     const onHomeClick = () => {
         if (isHome) {
             return;
         }
-
         onPopupClose();
-
         if (editorContext) {
             navigate(`/projects/${editorContext.projectId}/design-systems/${editorContext.designSystemId}`, {
                 replace: true,
             });
         } else if (designSystemProjectId) {
-            navigate(`/${designSystemProjectId}`, { replace: true });
+            navigate(`/${designSystemProjectId}`, {
+                replace: true,
+            });
         }
-
         rerender(null);
     };
 
     // TODO: Временное решение для получения projectId после создания дизайн-системы, придумать что-то получше
     useEffect(() => {
         if (designSystemProjectId) {
-            setParameters((prev) => ({ ...prev, projectId: designSystemProjectId }));
+            setParameters((prev) => ({
+                ...prev,
+                projectId: designSystemProjectId,
+            }));
         }
     }, [designSystemProjectId, projectId]);
-
     return (
         <Root className={styles[themeMode]} grayTone={grayTone} themeMode={themeMode} isPopupOpen={isPopupOpen}>
             <div className="builder-shell-gradient" aria-hidden="true" />
@@ -225,21 +222,7 @@ export const Main = () => {
                 projectName={designSystem?.getParameters()?.projectName}
                 main={
                     <MainItems>
-                        <Visible when={!editorContext}>
-                            <StyledIconButton
-                                className={`builder-rail-button ${isHome ? 'is-active' : ''}`}
-                                selected={isHome}
-                                onClick={onHomeClick}
-                            >
-                                {
-                                    [
-                                        <IconFolderOutline size="xs" color="inherit" />,
-                                        <IconArrowLeft size="xs" color="inherit" />,
-                                    ][Number(isPopupOpen)]
-                                }
-                            </StyledIconButton>
-                        </Visible>
-                        <Visible when={isEditingDesignSystem}>
+                        {!editorContext ? (
                             <>
                                 <Visible when={Boolean(editorContext)}>
                                     <StyledIconButton
@@ -252,113 +235,193 @@ export const Main = () => {
                                     </StyledIconButton>
                                 </Visible>
                                 <StyledIconButton
-                                    className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
-                                    data-testid="editor-nav-colors"
-                                    selected={currentPath.includes('colors')}
-                                    onClick={() => onClickPanelButton('colors')}
+                                    className={`builder-rail-button ${isHome ? 'is-active' : ''}`}
+                                    selected={isHome}
+                                    onClick={onHomeClick}
                                 >
-                                    <IconPaletteOutline size="xs" color="inherit" />
-                                </StyledIconButton>
-                                <StyledIconButton
-                                    className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
-                                    data-testid="editor-nav-typography"
-                                    selected={currentPath.includes('typography')}
-                                    onClick={() => onClickPanelButton('typography')}
-                                >
-                                    <IconTypography size="xs" color="inherit" />
-                                </StyledIconButton>
-                                <StyledIconButton
-                                    className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
-                                    data-testid="editor-nav-shapes"
-                                    selected={currentPath.includes('shapes')}
-                                    onClick={() => onClickPanelButton('shapes')}
-                                >
-                                    <IconShapeOutline size="xs" color="inherit" />
-                                </StyledIconButton>
-                                <Visible when={hasComponents}>
-                                    <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
-                                        data-testid="editor-nav-components"
-                                        selected={currentPath.includes('components')}
-                                        onClick={() => onClickPanelButton('components')}
-                                    >
-                                        <IconGroupOutline size="xs" color="inherit" />
-                                    </StyledIconButton>
-                                </Visible>
-                                <Separator />
-                                <StyledIconButton className="builder-rail-button" disabled>
-                                    <IconBookOutline size="xs" color="inherit" />
+                                    {
+                                        [
+                                            <IconFolderOutline size="xs" color="inherit" />,
+                                            <IconArrowLeft size="xs" color="inherit" />,
+                                        ][Number(isPopupOpen)]
+                                    }
                                 </StyledIconButton>
                             </>
-                        </Visible>
+                        ) : null}
+                        {isEditingDesignSystem ? (
+                            <>
+                                <>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-colors"
+                                        selected={currentPath.includes('colors')}
+                                        onClick={() => onClickPanelButton('colors')}
+                                    >
+                                        <img
+                                            className="builder-rail-icon"
+                                            src="/catalog/icons/rail-colors.svg"
+                                            alt=""
+                                        />
+                                    </StyledIconButton>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-typography"
+                                        selected={currentPath.includes('typography')}
+                                        onClick={() => onClickPanelButton('typography')}
+                                    >
+                                        <img
+                                            className="builder-rail-icon"
+                                            src="/catalog/icons/rail-typography.svg"
+                                            alt=""
+                                        />
+                                    </StyledIconButton>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-shapes"
+                                        selected={currentPath.includes('shapes')}
+                                        onClick={() => onClickPanelButton('shapes')}
+                                    >
+                                        <img
+                                            className="builder-rail-icon"
+                                            src="/catalog/icons/rail-corner-radius.svg"
+                                            alt=""
+                                        />
+                                    </StyledIconButton>
+                                    {hasComponents ? (
+                                        <>
+                                            <StyledIconButton
+                                                className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
+                                                data-testid="editor-nav-components"
+                                                selected={currentPath.includes('components')}
+                                                onClick={() => onClickPanelButton('components')}
+                                            >
+                                                <img
+                                                    className="builder-rail-icon"
+                                                    src="/catalog/icons/rail-components.svg"
+                                                    alt=""
+                                                />
+                                            </StyledIconButton>
+                                        </>
+                                    ) : null}
+                                    <Separator />
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('changes') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-changes"
+                                        selected={currentPath.includes('changes')}
+                                        onClick={() => onClickPanelButton('changes')}
+                                        aria-label="Изменения дизайн-системы"
+                                    >
+                                        <img
+                                            className="builder-rail-icon"
+                                            src="/catalog/icons/rail-changes.svg"
+                                            alt=""
+                                        />
+                                    </StyledIconButton>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('versions') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-versions"
+                                        selected={currentPath.includes('versions')}
+                                        onClick={() => onClickPanelButton('versions')}
+                                        aria-label="Версии дизайн-системы"
+                                    >
+                                        <img
+                                            className="builder-rail-icon"
+                                            src="/catalog/icons/rail-versions.svg"
+                                            alt=""
+                                        />
+                                    </StyledIconButton>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
+                                        selected={currentPath.includes('settings')}
+                                        onClick={() => onClickPanelButton('settings')}
+                                        disabled={Boolean(editorContext?.versionId)}
+                                        aria-label="Настройки темы"
+                                        title="Настройки темы"
+                                    >
+                                        <IconSettingsOutline size="xs" color="inherit" />
+                                    </StyledIconButton>
+                                </>
+                            </>
+                        ) : null}
                     </MainItems>
                 }
             />
             <EditorBody>
-                <Visible when={Boolean(editorContext)}>
-                    <BuilderHierarchyBar
-                        title={theme?.getName() ?? 'Тема'}
-                        projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
-                        projectId={projectId}
-                        ariaLabel="Навигация темы"
-                        loading={isEditorLoading}
-                        breadcrumbSegments={[
-                            {
-                                label: designSystem?.getParameters()?.projectName ?? 'Проект',
-                                to: `/projects/${projectId}`,
-                            },
-                            {
-                                label: designSystem?.getName() ?? 'Дизайн-система',
-                                to: `/projects/${projectId}/design-systems/${designSystemId}`,
-                            },
-                        ]}
-                        action={choose(
-                            isEditorLoading,
-                            <div className="editor-version-actions">
-                                <Visible when={all(editorContext, !editorContext?.versionId)}>
-                                    <AutosaveIndicator status={autosaveStatus} retry={retryAutosave} />
-                                </Visible>
-                                <Visible when={Boolean(editorContext)}>
-                                    <VersionJournalControls
-                                        context={editorContext!}
-                                        autosaveStatus={autosaveStatus}
-                                        onVersionChange={(versionId) => {
-                                            const next = new URLSearchParams(searchParams);
-                                            if (versionId) next.set('versionId', versionId);
-                                            else next.delete('versionId');
-                                            setSearchParams(next);
-                                        }}
-                                    />
-                                </Visible>
-                                <Link
-                                    className="builder-icon-button"
-                                    to={`/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/settings${
-                                        choose(
-                                            Boolean(editorContext?.versionId),
-                                            '',
-                                            `?${new URLSearchParams({
-                                                versionId: editorContext?.versionId ?? '',
-                                            }).toString()}`,
-                                        )
-                                    }`}
-                                    aria-disabled={Boolean(editorContext?.versionId)}
-                                    tabIndex={choose(Boolean(editorContext?.versionId), undefined, -1)}
-                                    onClick={(event) => {
-                                        if (editorContext?.versionId) event.preventDefault();
-                                    }}
-                                    aria-label="Настройки темы"
-                                    title="Настройки темы"
-                                >
-                                    <IconSettingsOutline size="xs" color="inherit" />
-                                </Link>
-                            </div>,
-                            <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />,
-                        )}
-                    />
-                </Visible>
+                {Boolean(editorContext) ? (
+                    <>
+                        <BuilderHierarchyBar
+                            title={editorSectionLabel}
+                            projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
+                            projectId={projectId}
+                            ariaLabel="Навигация темы"
+                            loading={isEditorLoading}
+                            breadcrumbSegments={[
+                                {
+                                    label: designSystem?.getParameters()?.projectName ?? 'Проект',
+                                    to: `/projects/${projectId}`,
+                                },
+                                {
+                                    label: designSystem?.getName() ?? 'Дизайн-система',
+                                    to: `/projects/${projectId}/design-systems/${designSystemId}`,
+                                },
+                                {
+                                    label: theme?.getName() ?? 'Тема',
+                                    to: `${themeEditorPath}${themeEditorSearch}`,
+                                },
+                            ]}
+                            action={
+                                isEditorLoading ? (
+                                    <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />
+                                ) : (
+                                    <div className="editor-version-actions">
+                                        {Boolean(
+                                            editorContext &&
+                                            !editorContext?.versionId &&
+                                            designSystem?.getParameters()?.readOnly === false,
+                                        ) ? (
+                                            <>
+                                                <AutosaveIndicator
+                                                    status={autosaveStatus}
+                                                    retry={retryAutosave}
+                                                    lastSavedAt={lastSavedAt}
+                                                />
+                                            </>
+                                        ) : null}
+                                        {editorContext && (
+                                            <EditorVersionSelect
+                                                context={editorContext}
+                                                draftId={designSystem?.getParameters()?.draftId}
+                                            />
+                                        )}
+                                        <JournalButton
+                                            className="primary"
+                                            type="button"
+                                            style={{
+                                                gap: 6,
+                                            }}
+                                            onClick={() => onClickPanelButton('changes')}
+                                        >
+                                            Изменения
+                                            {!editorJournal.loading &&
+                                                !editorJournal.error &&
+                                                editorJournal.actions.length > 0 && (
+                                                    <>
+                                                        <span aria-hidden="true">·</span>
+                                                        <span>{editorJournal.actions.length}</span>
+                                                    </>
+                                                )}
+                                        </JournalButton>
+                                    </div>
+                                )
+                            }
+                        />
+                    </>
+                ) : null}
                 <EditorCanvas>
-                    {isEditorLoading ? (
-                        <EditorLoading text="Загружаем тему…" />
+                    {isSectionSwitching || isEditorLoading ? (
+                        <div className="editor-section-loading" role="status" aria-label="Открываем раздел">
+                            <EditorLoadingSpinner aria-hidden="true" />
+                        </div>
                     ) : (
                         <Outlet
                             context={{
@@ -376,82 +439,75 @@ export const Main = () => {
                                 setPalette,
                                 tokenDefinitions,
                                 incompleteTokenIds,
+                                editorContext,
+                                autosaveStatus,
+                                editorJournal,
+                                refreshChanges,
                                 onDesignSystemCreate,
                             }}
                         />
                     )}
                 </EditorCanvas>
             </EditorBody>
-            <Visible when={isReadOnly}>
-                <div className="editor-readonly-status" role="status">
-                    Режим просмотра
-                </div>
-            </Visible>
-            <Visible when={Boolean(loadError)}>
-                <div role="alert">{loadErrorMessages[loadError!]}</div>
-            </Visible>
-            <Visible when={incompleteTokenIds.length > 0}>
-                <div role="alert">
-                    В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
-                    значениями другой темы.
-                </div>
-            </Visible>
-            {isSaveButtonVisible && designSystem && theme && components && (
-                <SaveDesignSystemButton
-                    save={async () => {
-                        // Снимок принадлежит этому запросу: параллельное сохранение другой темы его не перезапишет.
-                        const snapshot = takeDraftSnapshot(draftName, draftVersion);
-                        const result = await designSystemSave(designSystem, theme, components);
-                        if (isSuccessfulSave(result)) {
-                            // Черновик, изменённый во время сохранения, остаётся: reload применит его поверх сохранённого.
-                            clearDraftIfUnchanged(snapshot);
-                            // Редактор уже показывает другой tenant: его состояние этот ответ не затрагивает.
-                            if (getDraftKey(draftName, draftVersion) === snapshot.key) {
-                                reload();
-                            }
-                        }
-                        return result;
-                    }}
-                    onReload={reload}
-                />
-            )}
-            <Visible when={all(isEditingDesignSystem, !isReadOnly, isDebugMode())}>
-                <Debug
-                    designSystem={designSystem}
-                    theme={theme}
-                    components={components}
-                    rerender={rerender}
-                    reload={reload}
-                />
-            </Visible>
-            <Visible when={isPopupOpen}>
-                <StyledPopup>
-                    <Visible when={popupContentPage === popupContentPages.CREATE_FIRST_NAME}>
-                        <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
-                    </Visible>
-                    <Visible when={popupContentPage === popupContentPages.SETUP_PARAMETERS}>
-                        <SetupParameters
-                            parameters={parameters}
-                            themeMode={themeMode}
-                            onChangeParameters={onChangeParameters}
-                            onPrevPage={onPopupClose}
-                            onResetParameters={onResetParameters}
-                            onChangeGrayTone={onChangeGrayTone}
-                            onChangeThemeMode={onChangeThemeMode}
-                            onNextPage={onNextPageCreateSetupParameters}
-                        />
-                    </Visible>
-                    <Visible when={popupContentPage === popupContentPages.CREATION_PROGRESS}>
-                        <CreationProgress
-                            parameters={parameters}
-                            accentColor={general[accentColor][darkFillSaturation]}
-                            onPrevPage={onPopupClose}
-                            onNextPage={onCreateComplete}
-                        />
-                    </Visible>
-
-                </StyledPopup>
-            </Visible>
+            {Boolean(loadError) ? (
+                <>
+                    <div role="alert">{loadErrorMessages[loadError!]}</div>
+                </>
+            ) : null}
+            {incompleteTokenIds.length > 0 ? (
+                <>
+                    <div role="alert">
+                        В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
+                        значениями другой темы.
+                    </div>
+                </>
+            ) : null}
+            {Boolean(isEditingDesignSystem && !isReadOnly && isDebugMode()) ? (
+                <>
+                    <Debug
+                        designSystem={designSystem}
+                        theme={theme}
+                        components={components}
+                        rerender={rerender}
+                        reload={reload}
+                    />
+                </>
+            ) : null}
+            {isPopupOpen ? (
+                <>
+                    <StyledPopup>
+                        {popupContentPage === popupContentPages.CREATE_FIRST_NAME ? (
+                            <>
+                                <CreateFirstName onPrevPage={onPopupClose} onNextPage={onNextPageCreateFirstName} />
+                            </>
+                        ) : null}
+                        {popupContentPage === popupContentPages.SETUP_PARAMETERS ? (
+                            <>
+                                <SetupParameters
+                                    parameters={parameters}
+                                    themeMode={themeMode}
+                                    onChangeParameters={onChangeParameters}
+                                    onPrevPage={onPopupClose}
+                                    onResetParameters={onResetParameters}
+                                    onChangeGrayTone={onChangeGrayTone}
+                                    onChangeThemeMode={onChangeThemeMode}
+                                    onNextPage={onNextPageCreateSetupParameters}
+                                />
+                            </>
+                        ) : null}
+                        {popupContentPage === popupContentPages.CREATION_PROGRESS ? (
+                            <>
+                                <CreationProgress
+                                    parameters={parameters}
+                                    accentColor={general[accentColor][darkFillSaturation]}
+                                    onPrevPage={onPopupClose}
+                                    onNextPage={onCreateComplete}
+                                />
+                            </>
+                        ) : null}
+                    </StyledPopup>
+                </>
+            ) : null}
         </Root>
     );
 };

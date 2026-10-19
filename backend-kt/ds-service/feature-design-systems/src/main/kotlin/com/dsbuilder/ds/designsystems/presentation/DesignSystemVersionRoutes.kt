@@ -69,7 +69,7 @@ fun Route.designSystemVersionRoutes(
             val idempotencyKey = call.request.headers["Idempotency-Key"]
             if (
                 designSystemId == null || draftId == null || request.draftRevision < 0 ||
-                !VERSION_PATTERN.matches(request.version) || request.changelog.isBlank() ||
+                !VERSION_PATTERN.matches(request.version) ||
                 idempotencyKey.isNullOrBlank()
             ) {
                 return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))

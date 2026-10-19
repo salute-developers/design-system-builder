@@ -13,6 +13,6 @@ data class CreateDesignSystemVersionRequest(
     val draftRevision: Long,
     /** Продуктовый номер публикации. */
     val version: String,
-    /** Описание публикации. */
-    val changelog: String,
+    /** Необязательные примечания к публикации. */
+    val changelog: String = "",
 )

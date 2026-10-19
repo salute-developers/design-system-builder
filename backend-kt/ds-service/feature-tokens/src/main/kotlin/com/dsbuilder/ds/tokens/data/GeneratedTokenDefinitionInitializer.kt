@@ -8,8 +8,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -21,21 +20,23 @@ class GeneratedTokenDefinitionInitializer : DesignSystemTokenInitializer {
             (TokenVersionBoundariesTable.designSystemId eq designSystemId) and
                 (TokenVersionBoundariesTable.status eq TokenVersionBoundaryStatus.BASELINE)
         }.single()
-        definitions.forEach { definition ->
-            val tokenId = TokensTable.insertReturning {
-                it[TokensTable.designSystemId] = designSystemId
-            }.single()[TokensTable.id]
-            TokenRevisionsTable.insert {
-                it[TokenRevisionsTable.tokenId] = tokenId
-                it[TokenRevisionsTable.designSystemId] = designSystemId
-                it[designSystemVersionId] = baseline[TokenVersionBoundariesTable.id]
-                it[versionSequenceNumber] = baseline[TokenVersionBoundariesTable.sequenceNumber]
-                it[name] = definition.name
-                it[type] = definition.type
-                it[displayName] = definition.displayName
-                it[description] = definition.description
-                it[enabled] = definition.enabled
-                it[deleted] = false
+        definitions.chunked(250).forEach { definitions ->
+            val tokens = definitions.map { UUID.randomUUID() to it }
+            TokensTable.batchInsert(tokens, shouldReturnGeneratedValues = false) { (id, _) ->
+                this[TokensTable.id] = id
+                this[TokensTable.designSystemId] = designSystemId
+            }
+            TokenRevisionsTable.batchInsert(tokens, shouldReturnGeneratedValues = false) { (tokenId, definition) ->
+                this[TokenRevisionsTable.tokenId] = tokenId
+                this[TokenRevisionsTable.designSystemId] = designSystemId
+                this[TokenRevisionsTable.designSystemVersionId] = baseline[TokenVersionBoundariesTable.id]
+                this[TokenRevisionsTable.versionSequenceNumber] = baseline[TokenVersionBoundariesTable.sequenceNumber]
+                this[TokenRevisionsTable.name] = definition.name
+                this[TokenRevisionsTable.type] = definition.type
+                this[TokenRevisionsTable.displayName] = definition.displayName
+                this[TokenRevisionsTable.description] = definition.description
+                this[TokenRevisionsTable.enabled] = definition.enabled
+                this[TokenRevisionsTable.deleted] = false
             }
         }
     }

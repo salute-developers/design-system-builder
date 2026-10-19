@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.designsystems.presentation.CreateDesignSystemVersionRequest
+import com.dsbuilder.ds.designsystems.presentation.RevertDraftChangeRequest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -14,6 +16,47 @@ import kotlin.test.assertTrue
 class OpenApiDocumentResourceTest {
     private val document = OpenApiDocumentResource(Json).create()
     private val paths = document.getValue("paths").jsonObject
+
+    /** Отмена параметра расширяет существующий маршрут, не меняя смысл пустого запроса. */
+    @Test
+    fun `revert accepts optional parameter paths without adding a route`() {
+        val operation = paths.getValue("/api/ds/design-systems/{id}/changes/{changeId}/revert")
+            .jsonObject.getValue("post").jsonObject
+        assertEquals("false", operation.getValue("requestBody").jsonObject.getValue("required").jsonPrimitive.content)
+        assertTrue("400" in operation.getValue("responses").jsonObject)
+        val schemas = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+        assertTrue(
+            "parameterRevertSupported" in schemas.getValue("DraftChange").jsonObject
+                .getValue("properties").jsonObject,
+        )
+        assertEquals(
+            "32",
+            schemas.getValue("RevertDraftChange").jsonObject.getValue("properties")
+                .jsonObject.getValue("paths").jsonObject.getValue("maxItems").jsonPrimitive.content,
+        )
+        assertTrue(Json.decodeFromString<RevertDraftChangeRequest>("{}").paths.isEmpty())
+        assertEquals(
+            setOf("/value/fontSize"),
+            Json.decodeFromString<RevertDraftChangeRequest>(
+                """{"paths":["/value/fontSize"]}""",
+            ).paths,
+        )
+    }
+
+    /** Примечания не обязательны ни в контракте, ни при чтении запроса публикации. */
+    @Test
+    fun `publication notes are optional`() {
+        val schema = document.getValue("components").jsonObject.getValue("schemas").jsonObject
+            .getValue("CreateDesignSystemVersion").jsonObject
+        assertFalse(schema.getValue("required").jsonArray.any { it.jsonPrimitive.content == "changelog" })
+        val notes = schema.getValue("properties").jsonObject.getValue("changelog").jsonObject
+        assertFalse("minLength" in notes)
+
+        val request = Json.decodeFromString<CreateDesignSystemVersionRequest>(
+            """{"designSystemId":"ds","draftId":"draft","draftRevision":0,"version":"1.0.0"}""",
+        )
+        assertEquals("", request.changelog)
+    }
 
     /** Every manifest operation is represented exactly once. */
     @Test
@@ -140,7 +183,7 @@ class OpenApiDocumentResourceTest {
         assertEquals(
             setOf(
                 "changeId", "versionId", "entityType", "entityId", "operation", "changedPaths",
-                "previousValue", "currentValue", "actorId", "changedAt", "editRevision",
+                "previousValue", "currentValue", "actorId", "changedAt", "editRevision", "parameterRevertSupported",
             ),
             required("DraftChange"),
         )

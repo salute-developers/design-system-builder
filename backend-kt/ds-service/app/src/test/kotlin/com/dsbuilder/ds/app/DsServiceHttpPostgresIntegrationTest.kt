@@ -23,7 +23,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import java.time.Instant
 import java.util.UUID
@@ -38,8 +37,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     @Test
     fun `project resources are isolated and component config import is atomic`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             runTestWithRealTime(timeout = 240.seconds) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
@@ -341,7 +339,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyHistoricalComponentsAfterRenameAndDelete(
         client: HttpClient,
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         designSystemId: String,
         versionId: String,
     ) {
@@ -398,7 +396,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyEmptyTenantPatch(
         client: HttpClient,
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         tenantId: String,
     ) {
         val revisionBefore = entityEditRevision(postgres, "tenant", tenantId)
@@ -765,7 +763,7 @@ class DsServiceHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.NotFound, mismatchedVersion.status, mismatchedVersion.bodyAsText())
     }
 
-    private fun seedComponentPrerequisites(postgres: PostgreSQLContainer<Nothing>): Map<String, UUID> {
+    private fun seedComponentPrerequisites(postgres: IsolatedPostgresDatabase): Map<String, UUID> {
         val root = requireNotNull(javaClass.getResourceAsStream("/component-seeds.json"))
             .bufferedReader().use { json.parseToJsonElement(it.readText()).jsonObject }
         val componentIds = linkedMapOf<String, UUID>()
@@ -820,7 +818,7 @@ class DsServiceHttpPostgresIntegrationTest {
     }
     private suspend fun verifyThemeCreationWithoutComponentMetadata(
         client: HttpClient,
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
     ) {
         val designSystem = client.post("/api/ds/design-systems") {
             trusted("project-a", "owner")
@@ -894,7 +892,41 @@ class DsServiceHttpPostgresIntegrationTest {
         )
     }
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun collectPropertyNames(value: JsonElement, target: MutableSet<String>) {
+        when (value) {
+            is JsonArray -> value.forEach { collectPropertyNames(it, target) }
+            is JsonObject -> {
+                value["prop"]?.jsonPrimitive?.content?.let(target::add)
+                value.values.forEach { collectPropertyNames(it, target) }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun collectAdjustments(
+        value: JsonElement,
+        propertyName: String,
+        target: MutableSet<Pair<String, String>>,
+        currentProperty: String? = null,
+    ) {
+        when (value) {
+            is JsonArray -> value.forEach { collectAdjustments(it, propertyName, target, currentProperty) }
+            is JsonObject -> {
+                val property = value["prop"]?.jsonPrimitive?.content ?: currentProperty
+                if (property == propertyName) {
+                    value["adjust"]?.jsonArray?.forEach { adjustment ->
+                        val entry = adjustment.jsonObject
+                        target += entry.getValue("platform").jsonPrimitive.content to
+                            entry.getValue("param").jsonPrimitive.content
+                    }
+                }
+                value.values.forEach { collectAdjustments(it, propertyName, target, property) }
+            }
+            else -> Unit
+        }
+    }
+
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,
@@ -917,7 +949,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyStateImpactIsolation(
         client: HttpClient,
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         designSystemId: String,
     ) {
         val component = client.post("/api/ds/components") {
@@ -978,7 +1010,7 @@ class DsServiceHttpPostgresIntegrationTest {
 
     private suspend fun verifyHistoricalStateImpact(
         client: HttpClient,
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         designSystemId: String,
         propertyId: String,
         componentId: String,
@@ -1088,7 +1120,7 @@ class DsServiceHttpPostgresIntegrationTest {
         }
         """.trimIndent()
 
-    private fun counts(postgres: PostgreSQLContainer<Nothing>): Map<String, Int> =
+    private fun counts(postgres: IsolatedPostgresDatabase): Map<String, Int> =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             listOf("appearances", "invariant_property_values").associateWith { table ->
                 connection.createStatement().use { statement ->
@@ -1100,7 +1132,7 @@ class DsServiceHttpPostgresIntegrationTest {
             }
         }
 
-    private fun exists(postgres: PostgreSQLContainer<Nothing>, table: String, id: String): Boolean =
+    private fun exists(postgres: IsolatedPostgresDatabase, table: String, id: String): Boolean =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.prepareStatement("SELECT EXISTS(SELECT 1 FROM $table WHERE id = ?::uuid)").use { statement ->
                 statement.setString(1, id)
@@ -1108,7 +1140,7 @@ class DsServiceHttpPostgresIntegrationTest {
             }
         }
 
-    private fun rowCount(postgres: PostgreSQLContainer<Nothing>, table: String): Int =
+    private fun rowCount(postgres: IsolatedPostgresDatabase, table: String): Int =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT count(*) FROM $table").use { rows ->
@@ -1118,10 +1150,10 @@ class DsServiceHttpPostgresIntegrationTest {
             }
         }
 
-    private fun tenantTokenValueCount(postgres: PostgreSQLContainer<Nothing>, tenantId: String): Int =
+    private fun tenantTokenValueCount(postgres: IsolatedPostgresDatabase, tenantId: String): Int =
         tenantScopedCount(postgres, tenantId, "token_values value", "value.tenant_id")
 
-    private fun tenantCreationBaselineCount(postgres: PostgreSQLContainer<Nothing>, tenantId: String): Int =
+    private fun tenantCreationBaselineCount(postgres: IsolatedPostgresDatabase, tenantId: String): Int =
         tenantScopedCount(
             postgres,
             tenantId,
@@ -1130,7 +1162,7 @@ class DsServiceHttpPostgresIntegrationTest {
         )
 
     private fun tenantScopedCount(
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         tenantId: String,
         from: String,
         tenantColumn: String,
@@ -1145,7 +1177,7 @@ class DsServiceHttpPostgresIntegrationTest {
     }
 
     private fun entityEditRevision(
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         entityType: String,
         entityId: String,
     ): Long = DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
@@ -1162,7 +1194,7 @@ class DsServiceHttpPostgresIntegrationTest {
     }
 
     private fun versionBoundaryCount(
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         designSystemId: String,
         status: String,
     ): Int = DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
@@ -1179,7 +1211,7 @@ class DsServiceHttpPostgresIntegrationTest {
     }
 
     private fun activeDraft(
-        postgres: PostgreSQLContainer<Nothing>,
+        postgres: IsolatedPostgresDatabase,
         designSystemId: String,
     ): Pair<String, Long> =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Suspense } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
@@ -19,6 +20,7 @@ vi.mock('../hooks', () => ({
             : {
                   getName: () => 'System',
                   getVersion: () => '0.1.0',
+                  getComponentsData: () => [],
                   getParameters: () => ({
                       projectName: 'Platform',
                       packagesName: 'System',
@@ -34,6 +36,14 @@ vi.mock('../hooks', () => ({
         loadError: null,
         reload,
     }),
+}));
+
+vi.mock('../features/versionJournal/useJournal', () => ({
+    useJournal: () => ({ actions: [], loading: false, error: undefined, reload: vi.fn() }),
+    useReloadAfterAutosave: vi.fn(),
+}));
+vi.mock('../components/EditorVersionSelect', () => ({
+    EditorVersionSelect: () => <span>Выбор версии</span>,
 }));
 
 import { Main } from './Main';
@@ -68,6 +78,58 @@ afterEach(() => {
 });
 
 describe('Theme editor shell', () => {
+    it('does not retain the previous section while the next route is pending', async () => {
+        let ready = false;
+        let finish: () => void = () => undefined;
+        const completion = new Promise<void>((resolve) => { finish = resolve; });
+        const Settings = () => {
+            if (!ready) throw completion;
+            return <div>Новые настройки</div>;
+        };
+        render(
+            <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
+                <Suspense fallback={<div>Загрузка маршрута</div>}>
+                    <Routes>
+                        <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                            <Route path="colors" element={<div data-testid="previous-section">Старое содержимое</div>} />
+                            <Route path="settings" element={<Settings />} />
+                        </Route>
+                    </Routes>
+                </Suspense>
+            </MemoryRouter>,
+        );
+        const rail = screen.getByTestId('editor-rail');
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        expect(screen.queryByTestId('previous-section')).not.toBeInTheDocument();
+        expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
+        expect(screen.getByTestId('editor-rail')).toBe(rail);
+        await act(async () => { ready = true; finish(); await completion; });
+        expect(screen.getByText('Новые настройки')).toBeInTheDocument();
+        expect(screen.queryByRole('status', { name: 'Открываем раздел' })).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['colors', 'Цветовые токены'],
+        ['typography', 'Типографика'],
+        ['shapes', 'Размеры и радиусы'],
+        ['components/Button', 'Компоненты'],
+        ['changes', 'Журнал изменений'],
+        ['versions', 'Версии'],
+    ])('shows the section for %s and preserves the version in the theme breadcrumb', (section, label) => {
+        render(
+            <MemoryRouter initialEntries={[`/projects/project-1/design-systems/ds-1/themes/theme-1/${section}?versionId=published-1`]}>
+                <Routes>
+                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                        <Route path="*" element={<div />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+        const breadcrumbs = screen.getByRole('navigation', { name: 'Навигация темы' });
+        expect(breadcrumbs.querySelector('[aria-current="page"]')).toHaveTextContent(label);
+        expect(screen.getByRole('link', { name: 'Brand' })).toHaveAttribute('href', '/projects/project-1/design-systems/ds-1/themes/theme-1/colors?versionId=published-1');
+    });
+
     it('uses breadcrumbs for hierarchy, opens Theme settings, and omits the obsolete overview action', () => {
         const view = render(
             <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
@@ -77,6 +139,7 @@ describe('Theme editor shell', () => {
                         element={<Main />}
                     >
                         <Route path="colors" element={<div>Цветовые токены</div>} />
+                        <Route path="settings" element={<div>Параметры темы</div>} />
                     </Route>
                 </Routes>
             </MemoryRouter>,
@@ -84,20 +147,23 @@ describe('Theme editor shell', () => {
 
         const breadcrumbs = screen.getByRole('navigation', { name: 'Навигация темы' });
         expect(screen.getByTestId('editor-rail')).toHaveClass('builder-icon-sidebar');
+        expect(screen.getByRole('button', { name: 'Изменения' })).not.toHaveTextContent('0');
+        expect(screen.getByRole('button', { name: 'Изменения' })).not.toHaveTextContent('·');
         expect(breadcrumbs.closest('header')).toHaveClass('builder-hierarchy-bar');
-        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand');
+        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand/Цветовые токены');
         expect(breadcrumbs.querySelector('a[href="/projects/project-1"]')).toHaveTextContent('Platform');
         expect(breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1"]')).toHaveTextContent(
             'System',
         );
-        expect(screen.getByRole('link', { name: 'Настройки темы' })).toHaveAttribute(
-            'href',
-            '/projects/project-1/design-systems/ds-1/themes/theme-1/settings',
-        );
-        expect(screen.getByRole('link', { name: 'Настройки темы' })).toHaveClass('builder-icon-button');
+        expect(screen.getByRole('button', { name: 'Настройки темы' })).toHaveClass('builder-rail-button');
         expect(screen.getByTestId('editor-nav-colors')).toBeInTheDocument();
         expect(view.container.querySelector('[data-testid="editor-nav-overview"]')).not.toBeInTheDocument();
-        expect(screen.getByText('Цветовые токены')).toBeInTheDocument();
+        expect(screen.getAllByText('Цветовые токены').length).toBeGreaterThan(0);
+        const rail = screen.getByTestId('editor-rail');
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        expect(screen.getByTestId('editor-rail')).toBe(rail);
+        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand/Настройки темы');
+        expect(screen.getByText('Параметры темы')).toBeInTheDocument();
     });
 
     it('shows one centered loading indicator instead of the header spinner while the Theme loads', () => {
@@ -121,7 +187,7 @@ describe('Theme editor shell', () => {
         expect(loading.closest('header')).toBeNull();
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: 'Настройки темы' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Настройки темы' })).toBeInTheDocument();
     });
 
     it('shows «Сохранить» on the Theme route only when there is a local draft', () => {

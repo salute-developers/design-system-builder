@@ -47,13 +47,12 @@ vi.mock('./features/ComponentEditor', () => ({
     ),
 }));
 
-vi.mock('../../api/themeEditorRepository', () => ({
-    ThemeEditorRepository: class {
-        saveComponentMutation = mocks.saveComponentMutation;
-    },
+vi.mock('../../api/componentRepository', () => ({
+    componentRepository: { saveComponentMutation: mocks.saveComponentMutation },
 }));
 
 import { Components } from './Components';
+import { waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
 
 describe('Components autosave', () => {
     beforeEach(() => {
@@ -99,7 +98,7 @@ describe('Components autosave', () => {
         fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
 
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
-        await waitFor(() => expect(screen.getByText('Сохранено')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByRole('status', { name: /Последнее сохранение/ })).toBeInTheDocument());
     });
 
     it('ignores and removes corrupted revision metadata', async () => {
@@ -163,6 +162,51 @@ describe('Components autosave', () => {
         await waitFor(() =>
             expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toBeNull(),
         );
+    });
+
+    it('не разрешает публикацию, пока сохранение компонента после ухода со страницы не завершилось', async () => {
+        let finishSave: ((value: Record<string, number>) => void) | undefined;
+        const pendingSave = new Promise<Record<string, number>>((resolve) => {
+            finishSave = resolve;
+        });
+        mocks.saveComponentMutation.mockReturnValueOnce(pendingSave);
+        const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
+        const context = {
+            designSystem: {
+                getParameters: () => editorContext,
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        const view = render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        view.unmount();
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        let released = false;
+        const publicationBarrier = waitForDraftAutosaveIdle(editorContext, 1_000).then(() => {
+            released = true;
+        });
+        await Promise.resolve();
+        expect(released).toBe(false);
+
+        finishSave?.({ style: 1 });
+        await publicationBarrier;
+        expect(released).toBe(true);
     });
 
     it('serializes newer edits and does not let an old response remove the latest request', async () => {
