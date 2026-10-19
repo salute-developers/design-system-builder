@@ -492,6 +492,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 <ColorTokenTree
                     tree={tree}
                     groups={groups}
+                    tokens={views}
                     selectedId={selected?.id ?? null}
                     sort={sort}
                     query={query}

@@ -111,17 +111,23 @@ type Editing =
 
 type Dragged = { kind: 'token'; view: ColorTokenView } | { kind: 'group'; group: TokenGroupDto };
 
-/** Место вставки при перетаскивании: узел-получатель и позиция в нём. */
+/**
+ * Место вставки при перетаскивании: узел-получатель и позиция в нём. `area` — подсказка получателем целиком вместо
+ * линии над строкой: в режиме «А–Я» место токена в получателе определяет алфавит.
+ */
 interface Drop {
     targetId: string;
     containerId: string | null;
     position: number;
     warning: string | null;
+    area: boolean;
 }
 
 interface TreeProps {
     tree: TreeGroup[];
     groups: TokenGroupDto[];
+    /** Все токены без поиска и фильтра: от них считается позиция вставки в хранимом порядке. */
+    tokens: ColorTokenView[];
     selectedId: string | null;
     sort: TreeSort;
     query: string;
@@ -230,31 +236,47 @@ export const ColorTokenTree = (props: TreeProps) => {
             : null;
     const tokenTarget = (container: { group: TokenGroupDto; tokens: ColorTokenView[] }, target?: ColorTokenView) => ({
         onDragOver: (event: DragEvent) => {
-            if (dragged?.kind !== 'token' || container.group.id.startsWith('ungrouped:')) return;
+            if (dragged?.kind !== 'token') return;
+            // «Без группы» не принимает токены: подсказка прежнего получателя снимается.
+            if (container.group.id.startsWith('ungrouped:')) {
+                if (drop) setDrop(null);
+                return;
+            }
             const view = dragged.view;
             const sameContainer = view.groupId === container.group.id;
-            // В режиме «А–Я» порядок внутри узла не меняется перетаскиванием.
-            if (sameContainer && sort === 'az') return;
+            // В режиме «А–Я» порядок внутри узла не меняется перетаскиванием: подсказка прежнего получателя снимается.
+            if (sameContainer && sort === 'az') {
+                if (drop) setDrop(null);
+                return;
+            }
             event.preventDefault();
             event.stopPropagation();
-            const rest = stored(container.tokens, view);
-            const position = target
+            // Поиск и фильтр скрывают часть токенов получателя, а позиция считается по всем.
+            const rest = stored(
+                props.tokens.filter((token) => token.groupId === container.group.id),
+                view,
+            );
+            // В режиме «А–Я» получатель подсвечивается целиком, а токен встаёт в конец хранимого порядка.
+            const area = sort === 'az';
+            const row = area ? undefined : target;
+            const position = row
                 ? Math.max(
                       0,
-                      rest.findIndex((token) => token.id === target.id),
+                      rest.findIndex((token) => token.id === row.id),
                   )
                 : rest.length;
-            const targetId = target?.id ?? container.group.id;
-            if (drop?.targetId !== targetId || drop.position !== position)
+            const targetId = row?.id ?? container.group.id;
+            if (drop?.targetId !== targetId || drop.position !== position || drop.area !== area)
                 setDrop({
                     targetId,
                     containerId: container.group.id,
                     position,
                     warning: codeWarning(container.group.id),
+                    area,
                 });
         },
         onDrop: (event: DragEvent) => {
-            if (dragged?.kind !== 'token' || !drop) return;
+            if (dragged?.kind !== 'token' || drop?.containerId !== container.group.id) return;
             event.preventDefault();
             event.stopPropagation();
             props.onMoveToken(dragged.view, container.group.id, drop.position);
@@ -281,7 +303,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                           siblings.findIndex((item) => item.id === group.id),
                       );
             if (drop?.targetId !== group.id || drop.position !== position)
-                setDrop({ targetId: group.id, containerId: parentId, position, warning: null });
+                setDrop({ targetId: group.id, containerId: parentId, position, warning: null, area: false });
         },
         onDrop: (event: DragEvent) => {
             if (dragged?.kind !== 'group' || !drop || drop.targetId !== group.id) return;
@@ -302,10 +324,11 @@ export const ColorTokenTree = (props: TreeProps) => {
     };
     const dropHint = (id: string) =>
         drop?.targetId === id ? (
-            <span className="token-tree-drop" aria-hidden="true">
+            <span className={`token-tree-drop ${drop.area ? 'is-area' : ''}`} aria-hidden="true">
                 {drop.warning && <PublishedWarning version={drop.warning} />}
             </span>
         ) : null;
+    const dropArea = (groupId: string) => (drop?.area && drop.containerId === groupId ? 'is-drop-target' : '');
 
     const deleteButton = (label: string, onClick: () => void) =>
         canDelete && (
@@ -340,7 +363,11 @@ export const ColorTokenTree = (props: TreeProps) => {
         const save = status(token.id);
         const severity = token.issues.length ? 'is-error' : save.state === 'error' ? 'is-warning' : '';
         return (
-            <div key={token.id} className="token-row-wrap" {...tokenTarget(container, token)}>
+            <div
+                key={token.id}
+                className={`token-row-wrap ${dropArea(container.group.id)}`}
+                {...tokenTarget(container, token)}
+            >
                 {dropHint(token.id)}
                 <button
                     type="button"
@@ -389,7 +416,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                 : startEditing({ kind: 'new-token', groupId: group.id });
         return (
             <div
-                className={`token-tree-heading-row token-tree-${level}-row`}
+                className={`token-tree-heading-row token-tree-${level}-row ${dropArea(group.id)}`}
                 {...(node.synthetic ? {} : headingTarget(node))}
             >
                 {dropHint(group.id)}

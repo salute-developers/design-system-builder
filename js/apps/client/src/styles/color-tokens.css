@@ -4326,3 +4326,15 @@
 .color-tokens-screen .playground-workbench .component-preview-stage-inline > .workspace-tabs button:focus-visible {
     box-shadow: 0 0 0 2px #4284ff;
 }
+
+/* Получатель переноса в режиме «А–Я» (fix-color-token-drop-target-sorted): заголовок и строки токенов подсвечены
+ * целиком, линии места вставки нет — место токена определяет алфавит. */
+.color-tokens-screen .token-tree-drop.is-area {
+    top: 50%;
+    background: transparent;
+}
+
+.color-tokens-screen .token-tree-heading-row.is-drop-target,
+.color-tokens-screen .token-row-wrap.is-drop-target {
+    background: rgba(66, 132, 255, 0.16);
+}
