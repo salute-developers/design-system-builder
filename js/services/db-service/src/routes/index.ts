@@ -34,11 +34,6 @@ import componentConfigImportRouter from "./api/component-config-import";
 import componentConfigExportRouter from "./api/component-config-export";
 import componentConfigWebAdapterRouter from "./api/component-config-web-adapter";
 
-// Misc (legacy utility routes)
-import tablesRouter from "./misc/tables";
-import queriesRouter from "./misc/queries";
-import schemaRouter from "./misc/schema";
-
 const router = Router();
 
 router.get("/health", (_req, res) => {
@@ -83,10 +78,5 @@ router.use("/ds/component-config", componentConfigRouter);
 router.use("/ds/component-config", componentConfigImportRouter);
 router.use("/ds/component-config", componentConfigExportRouter);
 router.use("/ds/component-config", componentConfigWebAdapterRouter);
-
-// Misc utility routes
-router.use("/admin/tables", tablesRouter);
-router.use("/admin/queries", queriesRouter);
-router.use("/admin/schema", schemaRouter);
 
 export default router;

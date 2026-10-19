@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
+import { spec } from "../openapi/spec";
 
 type Operation = [string, string, string | null, string, number, string, string | null];
 type Manifest = {
@@ -100,8 +101,8 @@ const headers = {
   "x-system-admin": "true",
 };
 
-const openApi = JSON.parse(readFileSync(resolve(root, "js/apps/admin/src/api/openapi.json"), "utf8"));
-const schemas = openApi.components.schemas as Record<string, any>;
+const openApi = spec as Record<string, any>;
+const schemas = (openApi.components?.schemas ?? {}) as Record<string, any>;
 const entityBySegment: Record<string, string> = {
   "design-systems": "designSystem",
   "design-system-versions": "designSystemVersion",

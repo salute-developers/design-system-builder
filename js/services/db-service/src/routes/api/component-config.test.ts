@@ -222,8 +222,8 @@ describe("GET /ds/component-config", () => {
     const body = (await res.json()) as any[];
 
     expect(res.status).toBe(200);
-    // Ось отдаётся вместе с объявленными значениями в порядке position: по этой ручке
-    // админка переносит объявления при копировании дизайн-системы.
+    // Вариация отдаётся вместе с объявленными значениями в порядке position: этот порядок
+    // нужен клиенту и `dsbuilder components push` при переносе объявлений между дизайн-системами.
     expect(body.map((axis) => axis.values.length)).toEqual([2]);
     expect(body[0].defaultStyleId).not.toBeNull();
   });

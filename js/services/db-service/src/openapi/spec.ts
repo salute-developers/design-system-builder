@@ -435,7 +435,6 @@ const registerCrud = (
 // ─── Register all CRUD routes ─────────────────────────────────────────────────
 
 const DS_PREFIX = '/ds';
-const ADMIN_PREFIX = '/admin';
 
 // Health
 registry.registerPath({
@@ -1149,104 +1148,6 @@ registry.registerPath({
     responses: list(PaletteSchema),
 });
 
-// ─── Admin (introspection / catalog) ──────────────────────────────
-
-const TableSummarySchema = z.object({
-    name: z.string(),
-    columns: z.array(z.string()),
-    count: z.number(),
-});
-
-registry.registerPath({
-    method: 'get',
-    path: `${ADMIN_PREFIX}/tables`,
-    tags: ['Admin'],
-    summary: 'List all tables with columns and row counts',
-    responses: {
-        200: { description: 'Tables', ...json(z.object({ tables: z.array(TableSummarySchema) })) },
-        500: { description: 'Server error', ...json(ErrorResponseSchema) },
-    },
-});
-registry.registerPath({
-    method: 'get',
-    path: `${ADMIN_PREFIX}/tables/{name}`,
-    tags: ['Admin'],
-    summary: 'Paginated rows for a single table',
-    request: {
-        params: z.object({ name: z.string() }),
-        query: z.object({
-            limit: z.string().optional(),
-            offset: z.string().optional(),
-            all: z.string().optional(),
-        }),
-    },
-    responses: {
-        200: { description: 'Rows', ...json(z.object({ rows: z.array(z.record(z.string(), z.any())) })) },
-        404: { description: 'Not found', ...json(ErrorResponseSchema) },
-        500: { description: 'Server error', ...json(ErrorResponseSchema) },
-    },
-});
-
-const CatalogQueryParamSchema = z.object({
-    name: z.string(),
-    type: z.string(),
-    default: z.any().optional(),
-    options: z.array(z.any()).optional(),
-});
-
-const CatalogQuerySchema = z.object({
-    id: z.string(),
-    label: z.string(),
-    type: z.string(),
-    params: z.array(CatalogQueryParamSchema).optional(),
-});
-
-registry.registerPath({
-    method: 'get',
-    path: `${ADMIN_PREFIX}/queries`,
-    tags: ['Admin'],
-    summary: 'List queries from the catalog',
-    responses: {
-        200: { description: 'Queries', ...json(z.object({ queries: z.array(CatalogQuerySchema) })) },
-        500: { description: 'Server error', ...json(ErrorResponseSchema) },
-    },
-});
-registry.registerPath({
-    method: 'get',
-    path: `${ADMIN_PREFIX}/queries/{id}`,
-    tags: ['Admin'],
-    summary: 'Run a catalog query',
-    request: { params: z.object({ id: z.string() }) },
-    responses: {
-        200: {
-            description: 'Result',
-            ...json(
-                z.object({
-                    id: z.string(),
-                    label: z.string(),
-                    result: z.any(),
-                    count: z.number(),
-                }),
-            ),
-        },
-        404: { description: 'Not found', ...json(ErrorResponseSchema) },
-        500: { description: 'Server error', ...json(ErrorResponseSchema) },
-    },
-});
-
-registry.registerPath({
-    method: 'get',
-    path: `${ADMIN_PREFIX}/schema`,
-    tags: ['Admin'],
-    summary: 'Drizzle schema as DBML and Mermaid ER',
-    responses: {
-        200: {
-            description: 'Schema text',
-            ...json(z.object({ dbml: z.string(), mermaid: z.string() })),
-        },
-    },
-});
-
 // ─── Выгрузка компонентов ─────────────────────────────────────────────────────
 
 const ExportRequestSchema = registry.register(
@@ -1510,7 +1411,7 @@ const generator = new OpenApiGeneratorV3(registry.definitions);
 export const spec = generator.generateDocument({
     openapi: '3.0.3',
     info: {
-        title: 'Admin API',
+        title: 'DB Service API',
         version: '1.0.0',
         description: 'Design system management API',
     },
