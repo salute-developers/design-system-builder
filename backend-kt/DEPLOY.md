@@ -14,7 +14,7 @@ Production deployment использует готовые Docker images из Git
 - `ds-service`;
 - `db-service`.
 
-`admin` и `client` не входят в production compose. Их статика продолжает собираться отдельными frontend workflow и публиковаться в S3. Экспериментальный `project-publisher` также не входит в этот deployment.
+`client` не входит в production compose. Его статика продолжает собираться отдельным frontend workflow и публиковаться в S3. Экспериментальный `project-publisher` также не входит в этот deployment.
 
 Снаружи через Coolify proxy публикуется только `gateway` на внутреннем порту `8080`. Остальные компоненты доступны по service-name DNS внутри compose network. Keycloak admin console проксируется gateway по `/admin/`.
 

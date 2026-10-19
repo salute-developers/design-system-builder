@@ -38,18 +38,6 @@ jobs:
           npm run build --prefix="./apps/client"
           cp -R ./apps/client/dist ./s3_build/client
 
-      - name: Npm install admin
-        run: |
-          npm install --prefix="./apps/admin"
-
-      - name: Build admin
-        env:
-          VITE_DB_SERVICE_API: ${{ vars.VITE_DB_SERVICE_API_DEV }}
-          BASE_URL: '/dev/design-system-builder/admin/'
-        run: |
-          npm run build --prefix="./apps/admin"
-          cp -R ./apps/admin/dist ./s3_build/admin
-
       - name: Install s3cmd
         run: |
           pip3 install s3cmd
@@ -68,18 +56,3 @@ jobs:
           sync
           ./s3_build/client/
           s3://${{ secrets.AWS_S3_BUCKET_2 }}/dev/design-system-builder/client/
-
-      - name: s3 Upload admin build
-        run: >
-          s3cmd
-          --access_key ${{ secrets.AWS_ACCESS_KEY_ID }}
-          --secret_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          --host ${{ secrets.AWS_ENDPOINT }}
-          --host-bucket ${{ secrets.AWS_ENDPOINT }}
-          --bucket-location ${{ secrets.AWS_REGION }}
-          --signature-v2
-          --delete-removed
-          --no-mime-magic
-          sync
-          ./s3_build/admin/
-          s3://${{ secrets.AWS_S3_BUCKET_2 }}/dev/design-system-builder/admin/

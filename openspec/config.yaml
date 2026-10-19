@@ -47,8 +47,7 @@ context: |
   - js/services/db-service is the only remaining Node.js service.
   - js/cli generates the React design-system package locally; the generator code lives in
     js/cli/src/generator.
-  - js/apps/client and js/apps/admin are the React/Vite applications; js/apps/admin/src/api is
-    generated from the OpenAPI spec.
+  - js/apps/client is the only React/Vite application.
   - js/docs/db-schema.dbml is a hand-maintained mirror of the DB schema; drizzle does not generate it.
   - openspec/ holds ADRs and spec-driven artifacts for the whole product, across all three parts.
 

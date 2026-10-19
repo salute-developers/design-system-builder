@@ -10,10 +10,9 @@ For a public-facing overview see [README.md](README.md). **This file is for thin
 |---|---|---|---|
 | DB Service | [services/db-service](services/db-service/) | 3008 | Express + Drizzle + Postgres |
 | Client | [apps/client](apps/client/) | 3002 | React 18 + Vite + `@salutejs/plasma-*` |
-| Admin | [apps/admin](apps/admin/) | 3004 | React 18 + Vite + OpenAPI-typed client |
 | Postgres (db-service) | — | 5433 | postgres:16-alpine, DB `ds_registry` |
 
-**Data flow (the important one):** `Client` → `DB Service` (source of truth). The npm package is generated locally by [cli](cli/) from downloaded data; the generator code lives in [cli/src/generator](cli/src/generator/). The `Admin` app talks to `DB Service` directly through an OpenAPI-typed fetch client.
+**Data flow (the important one):** `Client` → `DB Service` (source of truth). The npm package is generated locally by [cli](cli/) from downloaded data; the generator code lives in [cli/src/generator](cli/src/generator/).
 
 ## How to run things
 
@@ -76,10 +75,10 @@ Whenever you touch certain files in `db-service`, generated artifacts must be re
 
 - **After editing [services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts)** (add/remove tables or columns):
   1. Run `npm run db:generate` in `services/db-service` to create a SQL migration.
-  2. Run `/sync-all` — it updates `validation/schema.ts`, `routes/api/*`, `openapi/spec.ts`, and regenerates `apps/admin/src/api/{openapi.json,types.gen.ts}`.
-- **After editing files under [services/db-service/src/routes/api/](services/db-service/src/routes/api/)** (adding/removing routes): run `/sync-spec` and `/sync-api-types` (or just `/sync-all`).
+  2. Run `/sync-all` — it updates `validation/schema.ts`, `routes/api/*` and `openapi/spec.ts`.
+- **After editing files under [services/db-service/src/routes/api/](services/db-service/src/routes/api/)** (adding/removing routes): run `/sync-spec` (or just `/sync-all`).
 - **Batch first, sync last.** If you're making a series of related edits to schema/routes, finish them all before running `/sync-all` — don't regenerate after each individual edit, it's wasteful.
-- The individual skills (`/sync-validation`, `/sync-routes`, `/sync-spec`, `/sync-api-types`) exist for when you know exactly what needs syncing. `/sync-all` runs them in the correct order.
+- The individual skills (`/sync-validation`, `/sync-routes`, `/sync-spec`) exist for when you know exactly what needs syncing. `/sync-all` runs them in the correct order.
 
 ### Scripts that look important but aren't
 - Root `npm run dev` / `npm run build` / `install:all` — only used for manual local dev. CI builds apps directly via `npm run build --prefix="./apps/<name>"` and doesn't touch root scripts.
@@ -87,18 +86,15 @@ Whenever you touch certain files in `db-service`, generated artifacts must be re
 ### Removed services — don't resurrect
 These were deleted intentionally. If you see stale references to them in code/docs, clean them up — do not reintroduce them:
 - `services/client-proxy`
-- `apps/frontend` (replaced by `apps/client` and `apps/admin`)
+- `apps/frontend` (replaced by `apps/client`)
 - `generate-ds` (old CLI)
 - `services/generator` (HTTP generation service; the generator code moved to `cli/src/generator`)
 - `services/publisher` (npm publishing service)
 - `services/documentation-generator` (Docusaurus documentation service; documentation now lives in Kotlin `documentation-service` and `dsbuilder docs`)
-
-### Admin app gotchas
-- Admin pages registered in [apps/admin/src/App.tsx](apps/admin/src/App.tsx): `/tables`, `/queries`, `/schema`, `/docs`, `/settings`. That's all of them.
-- The admin API client is **OpenAPI-typed**. When adding new routes to `db-service`, run `/sync-api-types` so `apps/admin/src/api/types.gen.ts` stays in sync.
+- `apps/admin` (registry inspector) together with the db-service routes `/api/admin/tables|queries|schema`, `routes/misc/*`, `queries/catalog.ts` and the `openapi:gen` script; the only `/api/admin/*` route left is `import-api-meta` in `ds-service`
 
 ### CI / deployment
-- [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` + `apps/admin` and syncs them to S3.
+- [production workflow](../.github/workflows/deploy-front-apps-prom.yml) — on push to `master`, builds `apps/client` and syncs it to S3.
 - [.github/workflows/design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same for PRs.
 - `db-service` is published by [publish-backend-images](../.github/workflows/publish-backend-images.yml) and runs from the root [docker-compose.prod.yml](../docker-compose.prod.yml).
 
@@ -106,10 +102,8 @@ These were deleted intentionally. If you see stale references to them in code/do
 
 - [services/db-service/src/db/schema.ts](services/db-service/src/db/schema.ts) — DB schema (source of truth)
 - [services/db-service/src/routes/api/](services/db-service/src/routes/api/) — CRUD routes (one file per table)
-- [services/db-service/src/routes/misc/](services/db-service/src/routes/misc/) — tables/queries/schema auxiliary routes
 - [services/db-service/src/openapi/spec.ts](services/db-service/src/openapi/spec.ts) — OpenAPI spec (generated via `/sync-spec`)
 - [services/db-service/src/validation/schema.ts](services/db-service/src/validation/schema.ts) — Zod validators (generated via `/sync-validation`)
-- [apps/admin/src/api/types.gen.ts](apps/admin/src/api/types.gen.ts) — admin's API types (generated via `/sync-api-types`)
 - [docker-compose.dev.yml](docker-compose.dev.yml) — full dev stack
 - [setup-docker.sh](setup-docker.sh) — one-shot dev setup
 - [docs/db-schema.dbml](docs/db-schema.dbml) — DBML mirror of the DB schema (hand-maintained)

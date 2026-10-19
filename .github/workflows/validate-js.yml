@@ -41,7 +41,6 @@ jobs:
         run: >-
           npm exec -- eslint
           "apps/client/src/**/*.{ts,tsx}"
-          "apps/admin/src/**/*.{ts,tsx}"
           "services/db-service/src/**/*.ts"
 
   cli:
@@ -94,8 +93,6 @@ jobs:
         project:
           - name: client
             directory: js/apps/client
-          - name: admin
-            directory: js/apps/admin
           - name: db-service
             directory: js/services/db-service
     steps:

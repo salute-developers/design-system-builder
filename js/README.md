@@ -11,19 +11,12 @@ It is the tooling layer behind several Salute design systems built on top of [@s
 - **Compose a design system** from a shared catalog of components and variations
 - **Tweak tokens** (colors, typography, spacing, shape, etc.) with live preview
 - **Generate** a ready-to-use npm package from your configuration locally with [cli](cli/)
-- **Inspect and query** the underlying registry through an admin panel (tables, schema, OpenAPI, NL queries)
 
 ## Architecture
 
 The platform is a small set of independent services around a central registry. All services are deployed and orchestrated through Docker Compose.
 
 ```
-                       ┌────────────────────┐
-                       │       Admin        │  React SPA — registry inspector,
-                       │   apps/admin :3004 │  schema browser, OpenAPI, NL queries
-                       └─────────┬──────────┘
-                                 │ REST (OpenAPI-typed)
-                                 ▼
 ┌────────────────────┐  REST   ┌────────────────────┐    ┌──────────────────┐
 │       Client       │ ──────▶ │     DB Service     │◀──▶│  PostgreSQL      │
 │  apps/client :3002 │         │   db-service :3008 │    │  (postgres-      │
@@ -39,35 +32,17 @@ The npm package of a design system is generated locally by [cli](cli/) (`npm run
 |---|---|---|---|---|
 | **DB Service** | [services/db-service](services/db-service/) | 3008 | Express, Drizzle ORM, Postgres, Zod, OpenAPI | Source of truth. Stores design systems, components, variations, tokens. Exposes a typed REST API and an auto-generated OpenAPI spec. |
 | **Client** | [apps/client](apps/client/) | 3002 | React 18, Vite, `@salutejs/plasma-*` | The end-user UI for composing a design system, editing tokens and saving them. |
-| **Admin** | [apps/admin](apps/admin/) | 3004 | React 18, Vite, OpenAPI types | Inspector for the registry: schema view, table browser, OpenAPI reference, query catalog. |
 
 ### How a design system flows through the system
 
 1. **Authoring.** A user opens the **Client** ([apps/client](apps/client/)) and composes a design system — picks components, edits tokens, previews the result. The client persists everything to the **DB Service** over REST.
 2. **Generation.** The npm package is generated locally from the downloaded design-system data by [cli](cli/) (`npm run generate:theme`, `generate:components`, `generate:ds`); `dsbuilder` runs the same scripts for the React platform.
-3. **Inspection.** The **Admin** app talks to the registry directly through its OpenAPI-typed client, used for debugging schema, browsing tables, and running ad-hoc queries.
 
 ## Repository layout
 
 ```
 design-system-builder/
 ├── apps/
-│   ├── admin/                          # React admin (registry inspector)
-│   │   ├── src/
-│   │   │   ├── api/
-│   │   │   │   ├── client.ts           # typed API client (openapi-fetch)
-│   │   │   │   ├── openapi.json        # generated OpenAPI spec (artifact)
-│   │   │   │   └── types.gen.ts        # generated TS types (artifact)
-│   │   │   ├── pages/
-│   │   │   │   ├── TablesPage.tsx      # /tables — DB table browser
-│   │   │   │   ├── QueriesPage.tsx     # /queries — query catalog
-│   │   │   │   ├── SchemaPage.tsx      # /schema — ER diagram
-│   │   │   │   ├── DocsPage.tsx        # /docs — Scalar API reference
-│   │   │   │   └── SettingsPage.tsx    # /settings
-│   │   │   ├── App.tsx
-│   │   │   └── main.tsx
-│   │   ├── vite.config.ts
-│   │   └── package.json
 │   └── client/                         # React DS builder UI (Plasma-based)
 │       ├── src/
 │       ├── vite.config.ts
@@ -120,7 +95,6 @@ design-system-builder/
 │       ├── sync-validation/            # /sync-validation — refresh Zod schemas
 │       ├── sync-routes/                # /sync-routes — create/remove routes
 │       ├── sync-spec/                  # /sync-spec — refresh OpenAPI spec
-│       └── sync-api-types/             # /sync-api-types — regenerate TS types
 ├── docker-compose.yml                  # Production compose (subset)
 ├── docker-compose.dev.yml              # Development compose (full stack)
 ├── setup-docker.sh                     # One-command dev setup
@@ -143,7 +117,7 @@ design-system-builder/
 git clone <repo-url>
 cd design-system-builder
 
-# Start everything (postgres + db-service + admin + client)
+# Start everything (postgres + db-service + client)
 ./setup-docker.sh
 ```
 
@@ -154,7 +128,6 @@ Once it's done:
 | Service | URL |
 |---|---|
 | Client (DS builder UI) | http://localhost:3002 |
-| Admin (registry inspector) | http://localhost:3004 |
 | DB Service API | http://localhost:3008/api |
 | Postgres (db-service) | localhost:5433 |
 
@@ -208,7 +181,6 @@ The root [package.json](package.json) exposes per-service scripts so you can als
 | `npm run dev:services` | Backend services only (db-service) |
 | `npm run dev:db-service` | DB Service only (port 3008) |
 | `npm run dev:client` | Client app only (port 3002) |
-| `npm run dev:admin` | Admin app only (port 3004) |
 | `npm run build` | Production build of every service and app |
 | `npm run install:all` | Install dependencies in every workspace |
 
@@ -254,7 +226,7 @@ npm run db:generate   # only if schema.ts changed
 npm run db:migrate    # only if schema.ts changed
 
 # From the repo root, via Claude Code
-/sync-all             # updates validation, routes, openapi spec, and admin types
+/sync-all             # updates validation, routes and openapi spec
 ```
 
 **Reset to a clean state:**
@@ -265,56 +237,22 @@ npm run db:migrate
 npm run db:seed:dev
 ```
 
-## Admin: API types
-
-The admin app uses a typed OpenAPI client. Types are generated from the registry's OpenAPI spec — no running backend required:
-
-```bash
-# Inside apps/admin
-npm run api:gen        # uses the spec checked into apps/admin/src/api/openapi.json
-npm run api:gen:live   # fetches it from http://localhost:3008/api/openapi.json
-```
-
-After regeneration the typed client in [apps/admin/src/api/client.ts](apps/admin/src/api/client.ts) is good to use:
-
-```typescript
-import { api } from "../api/client";
-
-const { data } = await api.GET("/users");
-const { data: user } = await api.GET("/users/{id}", {
-  params: { path: { id: "..." } },
-});
-```
-
-Run this after any schema/route changes — or just use `/sync-all`, which does it for you.
-
-## Admin: pages
-
-| Route | Description |
-|---|---|
-| `/tables` | Browse all DB tables, paginated |
-| `/queries` | Named query catalog with parameters |
-| `/schema` | Interactive ER diagram |
-| `/docs` | Scalar API reference (OpenAPI) |
-| `/settings` | Admin settings |
-
 ## Claude Code skills
 
 Skills for keeping the registry's generated artifacts in sync with the schema and routes. Live in [.claude/skills/](.claude/skills/).
 
 | Skill | What it does |
 |---|---|
-| `/sync-all` | Runs the four skills below in order |
+| `/sync-all` | Runs the three skills below in order |
 | `/sync-validation` | Updates `services/db-service/src/validation/schema.ts` |
 | `/sync-routes` | Creates/removes files in `services/db-service/src/routes/api/`, updates `routes/index.ts` |
 | `/sync-spec` | Updates `services/db-service/src/openapi/spec.ts` |
-| `/sync-api-types` | Regenerates `apps/admin/src/api/openapi.json` and `types.gen.ts` |
 
 ## CI / Deployment
 
-GitHub Actions in [.github/workflows/](.github/workflows/) build the two frontend apps and sync them to S3:
+GitHub Actions in [.github/workflows/](.github/workflows/) build the client app and sync it to S3:
 
-- [deploy-front-apps-prom.yml](../.github/workflows/deploy-front-apps-prom.yml) — runs on `master`, builds `apps/client` and `apps/admin` and uploads the dists to the production S3 bucket.
+- [deploy-front-apps-prom.yml](../.github/workflows/deploy-front-apps-prom.yml) — runs on `master`, builds `apps/client` and uploads the dist to the production S3 bucket.
 - [design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same flow for pull requests.
 
 `db-service` is published by the [publish-backend-images](../.github/workflows/publish-backend-images.yml) workflow and runs from the root `docker-compose.prod.yml`.

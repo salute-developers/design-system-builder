@@ -119,7 +119,7 @@ Backend production stack описан в [docker-compose.prod.yml](./docker-comp
 DEV или PROD resource в Coolify. Compose использует только готовые registry images; исходники на deployment server не
 собираются.
 
-`js/apps/client` и `js/apps/admin` не входят в Docker Compose: их environment-specific статика продолжает публиковаться
+`js/apps/client` не входит в Docker Compose: его environment-specific статика продолжает публиковаться
 существующими frontend workflow в S3. Снаружи Coolify публикует только `gateway`, а внутренние сервисы используют
 service-name DNS внутри compose network.
 
@@ -243,7 +243,7 @@ E2E запускает разработчик, CI или главный аген
 описаны в [`e2e/README.md`](./e2e/README.md).
 
 `js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes (отключается
-`DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает Node.js-сервисы,
-client и admin. Поэтому при таком запуске по умолчанию локальные данные JS-базы будут сброшены. Автономный запуск
+`DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает Node.js-сервисы
+и client. Поэтому при таком запуске по умолчанию локальные данные JS-базы будут сброшены. Автономный запуск
 подходит только для JS-контура: общий контур поднимайте через `./setup-local.sh`, где схему создаёт `ds-service`
 (`DS_SCHEMA_MIGRATION_OWNER=flyway`, затем `./setup-docker.sh --seed-only`).

@@ -42,26 +42,6 @@ services:
       - ./services/db-service:/home/node/app
       - /home/node/app/node_modules
 
-  # Admin Panel for DB Service (Development)
-  admin:
-    build:
-      context: ./apps/admin
-      dockerfile: Dockerfile.dev
-    container_name: ds-builder-admin-dev
-    restart: unless-stopped
-    environment:
-      VITE_DB_SERVICE_API: http://localhost:3008/api
-    ports:
-      - "3004:5173"
-    depends_on:
-      - db-service
-    networks:
-      - ds-builder-network
-    volumes:
-      - ./apps/admin:/app
-      - /app/node_modules
-    command: npm run dev -- --host 0.0.0.0
-
   # Client Application (Development)
   client:
     build:

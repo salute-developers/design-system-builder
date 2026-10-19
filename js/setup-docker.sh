@@ -5,7 +5,7 @@
 # =============================================================================
 # This script performs a complete setup of the Design System Builder
 # development environment including:
-# - Building and starting all services (postgres-registry, db-service, admin, client)
+# - Building and starting all services (postgres-registry, db-service, client)
 # - Running database migrations
 # - Seeding initial data (seed-prod.ts)
 # - Bootstrapping the user's project in projects-service (via gateway)
@@ -293,7 +293,7 @@ fi
 
 echo ""
 echo_header "🚀 Setting up development environment..."
-echo "   📦 Services: postgres-registry, db-service, admin, client"
+echo "   📦 Services: postgres-registry, db-service, client"
 echo "   🗄️ Database: migrations + seeding (prod seeds)"
 echo "   👤 Project: find/create user project via $GATEWAY_URL and bind it to DS 'base'"
 echo "   🔍 Health checks: all services"
@@ -370,14 +370,14 @@ else
     seed_and_bind
 fi
 
-# Now start the remaining services (client, admin)
+# Now start the remaining services (client)
 echo_info "Starting remaining services..."
 run_compose up -d
 
 # Wait for frontend services to be ready
 echo_step "Waiting for services to start..."
 timeout=30
-while ! curl -sf http://localhost:3002 > /dev/null 2>&1 || ! curl -sf http://localhost:3004 > /dev/null 2>&1; do
+while ! curl -sf http://localhost:3002 > /dev/null 2>&1; do
     sleep 2
     timeout=$((timeout - 2))
     if [ $timeout -le 0 ]; then
@@ -390,7 +390,7 @@ echo ""
 echo_header "🔍 Final health check..."
 
 services_healthy=true
-total_services=4
+total_services=3
 current_service=0
 
 # Check PostgreSQL (db-service)
@@ -413,16 +413,6 @@ else
     services_healthy=false
 fi
 
-# Check Admin
-current_service=$((current_service + 1))
-show_progress $current_service $total_services "Checking Admin..."
-if curl -f http://localhost:3004 > /dev/null 2>&1; then
-    echo_success "Admin is healthy"
-else
-    echo_error "Admin is not healthy"
-    services_healthy=false
-fi
-
 # Check Client
 current_service=$((current_service + 1))
 show_progress $current_service $total_services "Checking Client..."
@@ -438,7 +428,6 @@ if [ "$services_healthy" = true ]; then
     echo_header "🎉 Setup completed successfully!"
     echo ""
     echo_header "📋 Service Information:"
-    echo "   🛠️ Admin:          http://localhost:3004"
     echo "   🎨 Client:         http://localhost:3002"
     echo "   📋 DB Service:     http://localhost:3008"
     echo "   🗄️ DB (db-service):  localhost:5433"

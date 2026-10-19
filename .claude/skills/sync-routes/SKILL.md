@@ -116,7 +116,7 @@ Add import after the last existing api import:
 import myTableRouter from "./api/my-table";
 ```
 
-Add `router.use(...)` after the last existing resource route (before the misc section):
+Add `router.use(...)` after the last existing resource route:
 ```typescript
 router.use("/my-table", myTableRouter);
 ```
