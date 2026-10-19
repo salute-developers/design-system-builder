@@ -92,7 +92,7 @@ Stage: implementation | review-fix | full | external | ready
 
 1. прочитайте `AGENTS.md` по пути изменяемых файлов;
 2. прочитайте все OpenSpec artifacts Change;
-3. выполните `openspec validate <change> --type change --strict --no-interactive`;
+3. выполните `tools/openspec validate <change> --type change --strict --no-interactive` (OpenSpec закреплённой версии);
 4. проверьте branch, base ref и текущий diff;
 5. убедитесь, что существующие изменения понятны и принадлежат этой задаче.
 
@@ -186,7 +186,7 @@ Baseline Strictacode не меняется ради прохождения за�
 и обязательных внешних проверок. Затем выполните:
 
 ```bash
-openspec validate --specs --strict --no-interactive
+tools/openspec validate --specs --strict --no-interactive
 ```
 
 Код, тесты и архивированный Change остаются незакоммиченными. Разработчик может

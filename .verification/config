@@ -25,7 +25,7 @@ process_path .verification
 process_path .agents/workflows
 process_path .agents/skills/dsbuilder-task-workflow
 process_path .claude/skills/dsbuilder-task-workflow
-process_command . "bash -n tools/task tools/verify tools/strictacode"
+process_command . "bash -n tools/task tools/verify tools/strictacode tools/openspec"
 
 protected_path \
   architecture-tests \
@@ -42,7 +42,7 @@ protected_path \
 protected_path \
   agent-process \
   agent-process \
-  "tools/task|tools/verify|.verification/config|.agents/workflows|.agents/skills/dsbuilder-task-workflow|.claude/skills/dsbuilder-task-workflow" \
+  "tools/task|tools/verify|tools/openspec|.verification/config|.agents/workflows|.agents/skills/dsbuilder-task-workflow|.claude/skills/dsbuilder-task-workflow" \
   "agent workflow|tools/task|tools/verify|.verification/config|dsbuilder-task-workflow"
 
 contour \

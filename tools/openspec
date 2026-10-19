@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# OpenSpec CLI закреплённой версии: у всех разработчиков, агентов и в tools/verify одна валидация спек.
+# Глобально установленный openspec бывает разной версии и проверяет спеки по-разному: 1.4 ищет SHALL/MUST
+# только в начале текста требования, 1.14 со --strict считает ошибкой требование длиннее 500 символов.
+# Версия меняется только решением команды; после смены прогоните `tools/openspec validate --specs --strict`.
+OPENSPEC_VERSION="1.6.0"
+
+command -v npx >/dev/null 2>&1 || {
+  echo "[openspec] npx is not installed; install Node.js to run OpenSpec ${OPENSPEC_VERSION}" >&2
+  exit 1
+}
+
+exec npx --yes "@fission-ai/openspec@${OPENSPEC_VERSION}" "$@"

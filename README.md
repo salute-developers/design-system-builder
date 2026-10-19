@@ -19,11 +19,9 @@ Agent skills и команды OpenSpec находятся в корневых `
 - OpenSpec `1.6.0`;
 - Strictacode `0.0.12`.
 
-Установите OpenSpec глобально через npm:
-
-```bash
-npm install --global @fission-ai/openspec@1.6.0
-```
+OpenSpec запускайте через `tools/openspec`: обёртка вызывает закреплённую версию через `npx`, ставить её
+глобально не нужно. Ею же пользуется `tools/verify`. Глобальный `openspec` другой версии проверяет спеки
+иначе (например, 1.4 ищет SHALL/MUST только в начале требования), поэтому для проверок он не подходит.
 
 Strictacode устанавливается изолированно через [pipx](https://pipx.pypa.io/):
 
@@ -37,9 +35,9 @@ pipx install strictacode==0.0.12
 Проверьте установку:
 
 ```bash
-openspec --version
+tools/openspec --version
 strictacode --help
-openspec validate --all --strict --no-interactive
+tools/openspec validate --all --strict --no-interactive
 ```
 
 ### Agent workflow

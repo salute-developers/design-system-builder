@@ -311,14 +311,14 @@ validate_openspec() {
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     if [[ -d "$ROOT/$OPEN_SPEC_CHANGES_PATH/$name" ]]; then
-      run_argv . openspec validate "$name" --type change --strict --no-interactive
+      run_argv . tools/openspec validate "$name" --type change --strict --no-interactive
       continue
     fi
     archived="$(find_archived_change "$name")"
     [[ -n "$archived" ]] || fail "OpenSpec change not found: $name"
     [[ "$(printf '%s\n' "$archived" | sed '/^$/d' | wc -l | tr -d ' ')" == "1" ]] || \
       fail "More than one archived OpenSpec change matches: $name"
-    run_argv . openspec validate --specs --strict --no-interactive
+    run_argv . tools/openspec validate --specs --strict --no-interactive
   done < "$names_file"
   rm -f "$names_file"
 }
