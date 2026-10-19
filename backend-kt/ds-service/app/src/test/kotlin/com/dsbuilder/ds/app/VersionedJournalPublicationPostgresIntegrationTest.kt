@@ -31,11 +31,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.postgresql.PGConnection
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.Connection
 import java.sql.DriverManager
 import java.util.UUID
@@ -46,10 +44,136 @@ import kotlin.test.assertTrue
 
 class VersionedJournalPublicationPostgresIntegrationTest {
     @Test
+    fun `partial token revert preserves neighbours bumps revision and uses new theme baseline`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            val fixture = connection(postgres).use(::seed)
+            val database = Database.connect(
+                url = postgres.jdbcUrl,
+                driver = "org.postgresql.Driver",
+                user = postgres.username,
+                password = postgres.password,
+            )
+            val journal = testDraftChangeRepository()
+            val tenantId = UUID.randomUUID()
+            val valueId = UUID.randomUUID()
+            transaction(database) {
+                exec("INSERT INTO tenants(id, design_system_id) VALUES ('$tenantId', '${fixture.designSystemId}')")
+                exec(
+                    """
+                    INSERT INTO tenant_revisions(tenant_id, design_system_id, design_system_version_id,
+                        version_sequence_number, name, deleted)
+                    VALUES ('$tenantId', '${fixture.designSystemId}', '${fixture.draftId}', 1, 'New theme', false)
+                    """.trimIndent(),
+                )
+                exec(
+                    """
+                    INSERT INTO token_values(id, design_system_id, token_id, tenant_id, platform)
+                    VALUES ('$valueId', '${fixture.designSystemId}', '${fixture.tokenId}', '$tenantId', 'web')
+                    """.trimIndent(),
+                )
+                exec(
+                    """
+                    INSERT INTO token_value_revisions(token_value_id, design_system_id, design_system_version_id,
+                        version_sequence_number, value, deleted)
+                    VALUES ('$valueId', '${fixture.designSystemId}', '${fixture.draftId}', 1,
+                        '{"fontSize":14,"lineHeight":20}'::jsonb, false)
+                    """.trimIndent(),
+                )
+                exec(
+                    """
+                    INSERT INTO token_value_creation_baselines(design_system_version_id, token_value_id, design_system_id, value)
+                    VALUES ('${fixture.draftId}', '$valueId', '${fixture.designSystemId}',
+                        '{"fontSize":14,"lineHeight":20}'::jsonb)
+                    """.trimIndent(),
+                )
+            }
+            transaction(database) {
+                exec("DELETE FROM token_value_revisions WHERE token_value_id = '$valueId'")
+                exec(
+                    """
+                    INSERT INTO token_value_revisions(token_value_id, design_system_id, design_system_version_id,
+                        version_sequence_number, value, deleted)
+                    VALUES ('$valueId', '${fixture.designSystemId}', '${fixture.draftId}', 1,
+                        '{"fontSize":16,"lineHeight":24}'::jsonb, false)
+                    """.trimIndent(),
+                )
+            }
+            fun currentChange() = transaction(database) {
+                runBlocking { journal.list(ProjectId("project"), false, DesignSystemId(fixture.designSystemId), null) }
+                    ?.single { it.entityType == "token-value" }
+            }!!
+            val change = currentChange()
+            transaction(database) {
+                assertEquals(
+                    DraftChangeRevertResult.Reverted,
+                    runBlocking {
+                        journal.revert(
+                            ProjectId("project"),
+                            false,
+                            DesignSystemId(fixture.designSystemId),
+                            change.changeId,
+                            change.editRevision,
+                            setOf("/value/fontSize"),
+                        )
+                    },
+                )
+            }
+            val remaining = currentChange()
+            assertEquals(
+                Json.parseToJsonElement("""{"fontSize":14,"lineHeight":24}"""),
+                remaining.currentValue?.get("value"),
+            )
+            assertTrue(remaining.editRevision > change.editRevision)
+            transaction(database) {
+                assertIs<DraftChangeRevertResult.Stale>(
+                    runBlocking {
+                        journal.revert(
+                            ProjectId("project"),
+                            false,
+                            DesignSystemId(fixture.designSystemId),
+                            change.changeId,
+                            change.editRevision,
+                            setOf("/value/lineHeight"),
+                        )
+                    },
+                )
+                assertEquals(
+                    DraftChangeRevertResult.InvalidPaths,
+                    runBlocking {
+                        journal.revert(
+                            ProjectId("project"),
+                            false,
+                            DesignSystemId(fixture.designSystemId),
+                            remaining.changeId,
+                            remaining.editRevision,
+                            setOf("/tenant_id"),
+                        )
+                    },
+                )
+                assertEquals(
+                    DraftChangeRevertResult.Reverted,
+                    runBlocking {
+                        journal.revert(
+                            ProjectId("project"),
+                            false,
+                            DesignSystemId(fixture.designSystemId),
+                            remaining.changeId,
+                            remaining.editRevision,
+                            setOf("/value/lineHeight"),
+                        )
+                    },
+                )
+            }
+            val after = transaction(database) {
+                runBlocking { journal.list(ProjectId("project"), false, DesignSystemId(fixture.designSystemId), null) }
+            }!!
+            assertTrue(after.none { it.entityType == "token-value" })
+        }
+    }
+
+    @Test
     fun `committed draft mutation publishes one compact invalidation`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
 
             connection(postgres).use { listener ->
@@ -99,9 +223,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
 
     @Test
     fun `draft theme creation is one journal entry and reverts its initial values atomically`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
             val database = Database.connect(
                 url = postgres.jdbcUrl,
@@ -176,9 +298,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
 
     @Test
     fun `edited initial value of a new theme is journaled and reverts to its creation baseline`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
             val database = Database.connect(
                 url = postgres.jdbcUrl,
@@ -277,9 +397,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
 
     @Test
     fun `revert of restored token value keeps stable row and published history`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
             val database = Database.connect(
                 url = postgres.jdbcUrl,
@@ -344,9 +462,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
 
     @Test
     fun `concurrent update makes an in-flight revert stale instead of technical failure`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
             val database = Database.connect(
                 url = postgres.jdbcUrl,
@@ -423,9 +539,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
 
     @Test
     fun `journal is computed revert removes draft revision and publication creates empty next draft`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
-            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password).load().migrate()
+        IsolatedPostgresDatabase.create().use { postgres ->
             val fixture = connection(postgres).use(::seed)
             val database = Database.connect(
                 url = postgres.jdbcUrl,
@@ -929,16 +1043,16 @@ class VersionedJournalPublicationPostgresIntegrationTest {
         return fixture
     }
 
-    private fun connection(postgres: PostgreSQLContainer<Nothing>) =
+    private fun connection(postgres: IsolatedPostgresDatabase) =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password)
 
-    private suspend fun waitForEntityEditStateLock(postgres: PostgreSQLContainer<Nothing>): Boolean =
+    private suspend fun waitForEntityEditStateLock(postgres: IsolatedPostgresDatabase): Boolean =
         waitForLock(postgres, "entity_edit_states")
 
-    private suspend fun waitForTokenRevisionLock(postgres: PostgreSQLContainer<Nothing>): Boolean =
+    private suspend fun waitForTokenRevisionLock(postgres: IsolatedPostgresDatabase): Boolean =
         waitForLock(postgres, "token_revisions")
 
-    private suspend fun waitForLock(postgres: PostgreSQLContainer<Nothing>, queryFragment: String): Boolean {
+    private suspend fun waitForLock(postgres: IsolatedPostgresDatabase, queryFragment: String): Boolean {
         repeat(200) {
             val waiting = connection(postgres).use { connection ->
                 connection.prepareStatement(

@@ -13,8 +13,20 @@ vi.mock('../composePreview', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../composePreview')>()),
     getComposePreviewPluginUrl: () => pluginUrl.value,
 }));
+vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
+// Контракты репозиториев не зависят от реального времени сетевого планировщика;
+// его интервалы, отмена, объединение и повторы проверяются отдельно в editorReads.test.ts.
+vi.mock('./editorReads', () => ({
+    readEditor: (url: string, request: unknown, body?: unknown) =>
+        body === undefined ? get(url, request) : post(url, body, request),
+    invalidateEditorReads: vi.fn(),
+}));
 
-import { ThemeEditorRepository } from './themeEditorRepository';
+import { loadThemeEditor } from './themeEditorRepository';
+import { tokenRepository } from './tokenRepository';
+import { componentRepository } from './componentRepository';
+import { versionJournalRepository } from './versionJournalRepository';
+
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
 import { getMenuItems } from '../utils';
 import { getTokenValue } from '../pages/shapes/features/TokenShapeEditor/TokenShapeEditor.utils';
@@ -222,6 +234,7 @@ describe('ThemeEditorRepository', () => {
         expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
     });
 
+describe('Editor repositories', () => {
     it('limits parallel component detail requests below the gateway burst', async () => {
         const components = Array.from({ length: 24 }, (_, index) => ({
             id: `component-${index}`,
@@ -255,7 +268,7 @@ describe('ThemeEditorRepository', () => {
             throw new Error(`Unexpected GET ${url}`);
         });
 
-        const result = await new ThemeEditorRepository().loadComponentData(context);
+        const result = await componentRepository.loadComponentData(context);
 
         expect(result).toHaveLength(24);
         expect(maximum).toBeLessThanOrEqual(4);
@@ -313,7 +326,7 @@ describe('ThemeEditorRepository', () => {
             }),
         );
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
         expect(snapshot.componentsData).toHaveLength(1);
         expect(snapshot.componentsData[0].sources.configs[0]).toMatchObject({
             id: 'appearance-1',
@@ -327,11 +340,10 @@ describe('ThemeEditorRepository', () => {
     });
 
     it('loads only values of the selected tenant and keeps tenant snapshots independent', async () => {
-        const repository = new ThemeEditorRepository();
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
-        const first = await repository.load(context);
+        const first = await loadThemeEditor(context);
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-2', '#222222')(url)));
-        const second = await repository.load({ ...context, tenantId: 'tenant-2' });
+        const second = await loadThemeEditor({ ...context, tenantId: 'tenant-2' });
         expect(first.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
         expect(second.themeData.variations.color.web['light.surface.default.accent']).toBe('#222222');
         expect(first.parameters.tenantId).toBe('tenant-1');
@@ -370,7 +382,7 @@ describe('ThemeEditorRepository', () => {
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
         const gradient = new GradientToken(snapshot.themeData.meta.tokens[0], {
             web: new WebGradient(snapshot.themeData.variations.gradient.web['surface.default.gradient']),
             ios: new IOSGradient(snapshot.themeData.variations.gradient.ios['surface.default.gradient']),
@@ -451,7 +463,7 @@ describe('ThemeEditorRepository', () => {
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
         const single = snapshot.themeData.variations.shadow.web['down.soft.single'];
         const multi = snapshot.themeData.variations.shadow.web['down.soft.multi'];
 
@@ -470,7 +482,7 @@ describe('ThemeEditorRepository', () => {
                 });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
-        await expect(new ThemeEditorRepository().load(context)).rejects.toThrow('TENANT_DESIGN_SYSTEM_MISMATCH');
+        await expect(loadThemeEditor(context)).rejects.toThrow('TENANT_DESIGN_SYSTEM_MISMATCH');
     });
 
     it('saves the active tenant with its revision through the batch endpoint', async () => {
@@ -484,7 +496,7 @@ describe('ThemeEditorRepository', () => {
                 baseRevision: 2,
             },
         ];
-        await expect(new ThemeEditorRepository().saveTenantValues(context, 3, values)).resolves.toEqual({
+        await expect(tokenRepository.saveTenantValues(context, 3, values)).resolves.toEqual({
             editRevision: 4,
             values: [],
             mutationMetadata: [],
@@ -520,7 +532,7 @@ describe('ThemeEditorRepository', () => {
                 ]),
             },
         });
-        const result = await new ThemeEditorRepository().saveTokenMutation(
+        const result = await tokenRepository.saveTokenMutation(
             context,
             undefined,
             {
@@ -567,7 +579,7 @@ describe('ThemeEditorRepository', () => {
     it('does not send absent platform values but preserves an explicit null', async () => {
         put.mockResolvedValue({ data: { editRevision: 5, values: [] }, headers: {} });
 
-        await new ThemeEditorRepository().saveTokenMutation(
+        await tokenRepository.saveTokenMutation(
             context,
             'token-1',
             {
@@ -596,7 +608,7 @@ describe('ThemeEditorRepository', () => {
     it('patches only token definition fields explicitly selected by the editor', async () => {
         patch.mockResolvedValue({ data: {}, headers: {} });
 
-        await new ThemeEditorRepository().saveTokenMutation(
+        await tokenRepository.saveTokenMutation(
             context,
             'token-1',
             {
@@ -634,7 +646,7 @@ describe('ThemeEditorRepository', () => {
             },
         });
 
-        const result = await new ThemeEditorRepository().saveTokenMutation(
+        const result = await tokenRepository.saveTokenMutation(
             context,
             'token-1',
             {
@@ -729,7 +741,7 @@ describe('ThemeEditorRepository', () => {
         after.defaultVariations[0].styleID = 'style-2';
         after.variations[0].styles[0].props[0].value = 48;
 
-        const revisions = await new ThemeEditorRepository().saveComponentMutation(
+        const revisions = await componentRepository.saveComponentMutation(
             context,
             {
                 name: 'Button',
@@ -761,7 +773,7 @@ describe('ThemeEditorRepository', () => {
                 return Promise.resolve({ data: { effectiveRole: 'viewer', status: 'active' } });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
         expect(snapshot.parameters.readOnly).toBe(true);
     });
 
@@ -801,7 +813,7 @@ describe('ThemeEditorRepository', () => {
 
     it('passes versionId to every subject read and makes a historical snapshot read-only', async () => {
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
-        const snapshot = await new ThemeEditorRepository().load({ ...context, versionId: 'version-1' });
+        const snapshot = await loadThemeEditor({ ...context, versionId: 'version-1' });
         const subjectCalls = get.mock.calls.filter(([url]) => !String(url).endsWith('/projects/project-1'));
         expect(subjectCalls.every(([, config]) => config.params.versionId === 'version-1')).toBe(true);
         expect(snapshot.parameters.readOnly).toBe(true);
@@ -820,12 +832,13 @@ describe('ThemeEditorRepository', () => {
             actorId: 'user-1',
             changedAt: '2026-01-01T00:00:00Z',
             editRevision: 4,
+            parameterRevertSupported: true,
         };
         get.mockResolvedValueOnce({ data: [change] });
         post.mockResolvedValueOnce({ data: { ok: true } });
-        const repository = new ThemeEditorRepository();
-        await expect(repository.listChanges(context)).resolves.toEqual([change]);
-        await repository.revertChange(context, change);
+
+        await expect(versionJournalRepository.listChanges(context)).resolves.toEqual([change]);
+        await versionJournalRepository.revertChange(context, change);
         expect(post).toHaveBeenCalledWith(
             '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
             {},
@@ -836,5 +849,19 @@ describe('ThemeEditorRepository', () => {
                 },
             },
         );
+        post.mockResolvedValueOnce({ data: { ok: true } });
+        await versionJournalRepository.revertChange(context, change, ['/value/fontSize']);
+        expect(post).toHaveBeenLastCalledWith(
+            '/api/projects/project-1/ds/design-systems/ds-1/changes/change-1/revert',
+            { paths: ['/value/fontSize'] },
+            { headers: { 'X-DS-Base-Revision': '4', 'Idempotency-Key': expect.any(String) } },
+        );
+        const calls = post.mock.calls.length;
+        await expect(
+            versionJournalRepository.revertChange(context, { ...change, parameterRevertSupported: undefined }, [
+                '/value/fontSize',
+            ]),
+        ).rejects.toThrow('Сервер не подтвердил поддержку');
+        expect(post).toHaveBeenCalledTimes(calls);
     });
 });

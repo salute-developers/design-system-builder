@@ -917,6 +917,25 @@ describe('design system and Theme workflow', () => {
         await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1'));
     });
 
+    it('does not create a second shell for embedded theme settings, including loading', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
+        vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([{
+            id: 'theme-1', designSystemId: 'ds-1', name: 'Brand', editRevision: 0,
+            colorConfig: { profile: 'sber' },
+            preview: { accentLight: '#108E26', onAccentLight: '#fff', surfaceLight: '#fff', accentDark: '#1A9E32', surfaceDark: '#101010' },
+        }]);
+        const view = at('/projects/project-1/design-systems/ds-1/themes/theme-1/settings', <ThemeSettingsPage embedded />);
+        expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
+        expect(view.container.querySelector('.builder-hierarchy-bar')).not.toBeInTheDocument();
+        expect(await screen.findByText('Параметры темы')).toBeInTheDocument();
+        expect(view.container.querySelector('.builder-embedded-content > .project-settings')).toBeInTheDocument();
+        expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
+        expect(view.container.querySelector('.builder-hierarchy-bar')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
+        expect(screen.getByText('Опасная зона')).toBeVisible();
+        expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
+    });
+
     it('collapses settings composition safely at a phone viewport', async () => {
         Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
         window.dispatchEvent(new Event('resize'));

@@ -3,6 +3,7 @@ package com.dsbuilder.ds.tokens.data
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
+import kotlinx.serialization.json.JsonObject
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -53,6 +54,14 @@ private fun tokenValueDraftChangeHandler(): DraftChangeHandler {
         revisionValueColumns = listOf(TokenValueRevisionsTable.paletteId, TokenValueRevisionsTable.value),
     )
     return object : DraftChangeHandler by delegate {
+        override fun revertFields(
+            versionId: UUID,
+            entityId: UUID,
+            previous: JsonObject,
+            current: JsonObject,
+            paths: Set<String>,
+        ): Boolean = revertTokenValueFields(versionId, entityId, previous, current, paths)
+
         override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
             return if (removeStableEntity) {
                 delegate.revert(versionId, entityId, true)

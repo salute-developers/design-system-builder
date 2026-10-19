@@ -5,6 +5,9 @@ sealed interface DraftChangeRevertResult {
     /** Изменение успешно отменено. */
     data object Reverted : DraftChangeRevertResult
 
+    /** Указанные параметры не изменены либо не поддерживают отдельную отмену. */
+    data object InvalidPaths : DraftChangeRevertResult
+
     /** Изменение или дизайн-система не найдены. */
     data object NotFound : DraftChangeRevertResult
 

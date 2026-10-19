@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { SettingsFrame } from '../../components/BuilderShell/BuilderShell';
 import { Field, State } from '../../components/Catalog/Catalog';
@@ -9,9 +9,10 @@ import { can } from '../../features/projectPermissions';
 import { themeProfileLabels } from '../../modules/themes/domain/themeProfiles';
 import { isAccessDenied, useLoad } from '../../shared/data/useLoad';
 
-export const ThemeSettingsPage = () => {
+export const ThemeSettingsPage = ({ embedded = false }: { embedded?: boolean }) => {
     const { projectId = '', designSystemId = '', tenantId = '' } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const project = useLoad(() => projectsApi.get(projectId), [projectId], `project:${projectId}`);
     const system = useLoad(
         () => designSystemsApi.get(projectId, designSystemId),
@@ -29,6 +30,7 @@ export const ThemeSettingsPage = () => {
         return (
             <State
                 text="Нет доступа"
+                embedded={embedded}
                 title="Настройки Theme"
                 back={`/projects/${projectId}/design-systems/${designSystemId}`}
                 projectName={project.data?.name}
@@ -40,6 +42,7 @@ export const ThemeSettingsPage = () => {
         return (
             <State
                 text="Не удалось загрузить настройки Theme"
+                embedded={embedded}
                 title="Настройки Theme"
                 back={`/projects/${projectId}/design-systems/${designSystemId}`}
                 projectName={project.data?.name}
@@ -56,6 +59,7 @@ export const ThemeSettingsPage = () => {
         return (
             <State
                 text="Загружаем настройки…"
+                embedded={embedded}
                 title="Настройки Theme"
                 back={`/projects/${projectId}/design-systems/${designSystemId}`}
                 projectName={project.data?.name}
@@ -68,6 +72,7 @@ export const ThemeSettingsPage = () => {
         return (
             <State
                 text="Theme не найдена"
+                embedded={embedded}
                 title="Настройки Theme"
                 back={`/projects/${projectId}/design-systems/${designSystemId}`}
                 projectName={project.data.name}
@@ -75,12 +80,14 @@ export const ThemeSettingsPage = () => {
                 kind="theme"
             />
         );
-    const canWrite = project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:write');
-    const canDelete = project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:delete');
+    const isPublishedVersion = Boolean(searchParams.get('versionId'));
+    const canWrite = !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:write');
+    const canDelete = !isPublishedVersion && project.data.status === 'active' && can(project.data.effectiveRole, 'tenants:delete');
     if (system.data.isTechnical || (!canWrite && !canDelete))
         return (
             <State
                 text="Нет доступа"
+                embedded={embedded}
                 title="Настройки Theme"
                 back={`/projects/${projectId}/design-systems/${designSystemId}`}
                 projectName={project.data.name}
@@ -99,6 +106,7 @@ export const ThemeSettingsPage = () => {
     const back = `/projects/${projectId}/design-systems/${designSystemId}`;
     return (
         <SettingsFrame
+            embedded={embedded}
             title="Настройки Theme"
             entity={theme.name}
             projectName={project.data.name}

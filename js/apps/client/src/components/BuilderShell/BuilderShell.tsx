@@ -195,6 +195,7 @@ export const BuilderShell = ({
     projectId,
     breadcrumbSegments,
     children,
+    embedded = false,
 }: {
     title: string;
     back?: string;
@@ -203,7 +204,9 @@ export const BuilderShell = ({
     projectId?: string;
     breadcrumbSegments?: BreadcrumbSegment[];
     children: ReactNode;
+    embedded?: boolean;
 }) => {
+    if (embedded) return <div className="builder-embedded-content">{children}</div>;
     return (
         <div className="builder-shell">
             <div className="builder-shell-gradient" aria-hidden="true" />
@@ -235,6 +238,7 @@ export const SettingsFrame = ({
     aside,
     sectionActions,
     asideHeaders,
+    embedded = false,
 }: {
     title: string;
     entity: string;
@@ -248,6 +252,7 @@ export const SettingsFrame = ({
     aside?: ReactNode;
     sectionActions?: Partial<Record<string, ReactNode>>;
     asideHeaders?: Partial<Record<string, { title: string; subtitle: string }>>;
+    embedded?: boolean;
 }) => {
     const [searchParams, setSearchParams] = useSearchParams();
     const requestedSection = searchParams.get('section');
@@ -267,6 +272,7 @@ export const SettingsFrame = ({
     return (
         <BuilderShell
             title="Настройки"
+            embedded={embedded}
             back={back}
             projectName={projectName ?? entity}
             projectId={projectId}
@@ -283,7 +289,11 @@ export const SettingsFrame = ({
                             key={section}
                             className={`ps-nav-item ${active === section ? 'is-active' : ''}`}
                             aria-current={active === section ? 'page' : undefined}
-                            onClick={() => setSearchParams({ section: settingsSectionIds[section] })}
+                            onClick={() => setSearchParams((previous) => {
+                                const next = new URLSearchParams(previous);
+                                next.set('section', settingsSectionIds[section]);
+                                return next;
+                            })}
                         >
                             {section}
                         </button>

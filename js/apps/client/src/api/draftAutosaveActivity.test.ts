@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    hasPersistedComponentMutation,
     reloadWhenDraftAutosaveIsIdle,
     setDraftAutosaveActivity,
     waitForDraftAutosaveIdle,
@@ -9,6 +10,13 @@ import {
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 
 describe('draft autosave activity', () => {
+    it('находит ожидающее изменение компонента после перезагрузки', () => {
+        localStorage.setItem('ds_pending_component:project-1:ds-1:tenant-1:Button:request', '{"generation":"g-1"}');
+
+        expect(hasPersistedComponentMutation(context)).toBe(true);
+        localStorage.clear();
+        expect(hasPersistedComponentMutation(context)).toBe(false);
+    });
     it('defers remote reload until every local queue is saved', () => {
         const reload = vi.fn();
         setDraftAutosaveActivity(context, 'tokens', 'saving');

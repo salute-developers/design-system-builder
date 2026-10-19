@@ -64,6 +64,7 @@ class ExposedDraftChangeRepository(
         designSystemId: DesignSystemId,
         changeId: UUID,
         expectedRevision: Long,
+        paths: Set<String>,
     ): DraftChangeRevertResult {
         val target = boundary(projectId, systemAdmin, designSystemId, versionId = null)
             ?: return DraftChangeRevertResult.NotFound
@@ -108,6 +109,9 @@ class ExposedDraftChangeRepository(
         if (change.editRevision != expectedRevision) {
             return DraftChangeRevertResult.Stale(change.editRevision)
         }
+        if (paths.isNotEmpty()) {
+            return revertFields(subject, lockedTarget.id, change, paths)
+        }
         return if (change.operation == ChangeOperation.CREATED) {
             revertCreated(subject, lockedTarget.id, change.entityId)
         } else {
@@ -122,6 +126,24 @@ class ExposedDraftChangeRepository(
             } else {
                 DraftChangeRevertResult.NotFound
             }
+        }
+    }
+
+    private fun revertFields(
+        subject: DraftChangeHandler,
+        versionId: UUID,
+        change: DraftChange,
+        paths: Set<String>,
+    ): DraftChangeRevertResult {
+        val previous = change.previousValue
+        val current = change.currentValue
+        if (change.operation != ChangeOperation.UPDATED || previous == null || current == null) {
+            return DraftChangeRevertResult.InvalidPaths
+        }
+        return if (subject.revertFields(versionId, change.entityId, previous, current, paths)) {
+            DraftChangeRevertResult.Reverted
+        } else {
+            DraftChangeRevertResult.InvalidPaths
         }
     }
 

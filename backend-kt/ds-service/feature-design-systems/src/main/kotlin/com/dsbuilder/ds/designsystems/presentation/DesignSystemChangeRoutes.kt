@@ -13,10 +13,13 @@ import com.dsbuilder.ds.designsystems.application.RevertDraftChangeUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionId
 import com.dsbuilder.ds.designsystems.domain.DraftChange
+import io.ktor.server.request.receiveText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -29,6 +32,11 @@ fun Route.designSystemChangeRoutes(
     revert: RevertDraftChangeUseCase,
     json: Json,
 ) {
+    listChangeRoute(evaluator, list)
+    revertChangeRoute(evaluator, revert, json)
+}
+
+private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
     get("/api/ds/design-systems/{id}/changes") {
         val context = TrustedDsRequestContextMapper.map(
             call.request.headers,
@@ -52,6 +60,10 @@ fun Route.designSystemChangeRoutes(
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }
+}
+
+private fun Route.revertChangeRoute(evaluator: PolicyEvaluator, revert: RevertDraftChangeUseCase, json: Json) {
+    val revertJson = Json(json) { ignoreUnknownKeys = false }
     post("/api/ds/design-systems/{id}/changes/{changeId}/revert") {
         val context = TrustedDsRequestContextMapper.map(
             call.request.headers,
@@ -69,6 +81,10 @@ fun Route.designSystemChangeRoutes(
         if (idempotencyKey.isNullOrBlank()) {
             return@post call.respondFailure(DsFailure.InvalidRequest("idempotency_key_required"))
         }
+        val request = when (val parsed = parseRevertRequest(call.receiveText(), revertJson)) {
+            is DsResult.Success -> parsed.value
+            is DsResult.Failure -> return@post call.respondFailure(parsed.error)
+        }
         when (
             val result = revert.execute(
                 context.withIdempotentResponse { _: Unit -> json.encodeToString(OkResponse()) },
@@ -76,11 +92,21 @@ fun Route.designSystemChangeRoutes(
                 changeId,
                 revision,
                 idempotencyKey,
+                request.paths,
             )
         ) {
             is DsResult.Success -> call.respondSuccess(result, OkResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }
+    }
+}
+
+private fun parseRevertRequest(body: String, json: Json): DsResult<RevertDraftChangeRequest> {
+    if (body.length > 16_384) return DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_paths"))
+    return try {
+        DsResult.Success(if (body.isBlank()) RevertDraftChangeRequest() else json.decodeFromString(body))
+    } catch (_: SerializationException) {
+        DsResult.Failure(DsFailure.InvalidRequest("invalid_revert_request"))
     }
 }
 
@@ -111,6 +137,8 @@ data class DraftChangeResponse(
     val changedAt: String,
     /** Текущая техническая редакция. */
     val editRevision: Long,
+    /** Сервер поддерживает отдельную отмену параметров этой записи. */
+    val parameterRevertSupported: Boolean,
 ) {
     companion object {
         /** Создаёт внешний ответ из вычисленного отличия. */
@@ -126,6 +154,7 @@ data class DraftChangeResponse(
             change.actorId,
             change.changedAt.toString(),
             change.editRevision,
+            change.entityType == "token-value" && change.operation.wireValue == "updated",
         )
     }
 }

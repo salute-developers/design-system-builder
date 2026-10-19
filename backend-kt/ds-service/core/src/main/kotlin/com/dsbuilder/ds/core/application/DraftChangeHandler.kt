@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.core.application
 
+import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
 /** Предметный обработчик одного типа версионируемой сущности. */
@@ -21,4 +22,13 @@ interface DraftChangeHandler {
 
     /** Удаляет черновую редакцию и, для созданной сущности, её устойчивую строку. */
     fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean
+
+    /** Восстанавливает разрешённые параметры из состояния сравнения, сохраняя остальные поля. */
+    fun revertFields(
+        versionId: UUID,
+        entityId: UUID,
+        previous: JsonObject,
+        current: JsonObject,
+        paths: Set<String>,
+    ): Boolean = false
 }

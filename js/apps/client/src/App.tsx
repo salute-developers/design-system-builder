@@ -12,7 +12,18 @@ import {
     useParams,
 } from 'react-router-dom';
 
-import { Home, Colors, Palette, Shapes, Typography, ComponentsRoute, Main, Login } from './pages';
+import {
+    Home,
+    Colors,
+    Palette,
+    Shapes,
+    Typography,
+    ComponentsRoute,
+    DesignSystemChangesPage,
+    DesignSystemVersionsPage,
+    Main,
+    Login,
+} from './pages';
 
 import { authService, designSystemsApi } from './api';
 import { getBaseName } from './utils/baseName';
@@ -101,10 +112,6 @@ function App() {
                         element={<CreateThemePage />}
                     />
                     <Route
-                        path="projects/:projectId/design-systems/:designSystemId/themes/:tenantId/settings"
-                        element={<ThemeSettingsPage />}
-                    />
-                    <Route
                         path="projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
                         element={<Main />}
                     >
@@ -115,6 +122,9 @@ function App() {
                         <Route path="shapes" element={<Shapes />} />
                         <Route path="typography" element={<Typography />} />
                         <Route path="components/:componentName?" element={<ComponentsRoute />} />
+                        <Route path="changes" element={<DesignSystemChangesPage />} />
+                        <Route path="versions" element={<DesignSystemVersionsPage />} />
+                        <Route path="settings" element={<ThemeSettingsPage embedded />} />
                     </Route>
                     <Route path="/" element={<Main />}>
                         <Route index element={<Navigate to="/projects" replace />} />

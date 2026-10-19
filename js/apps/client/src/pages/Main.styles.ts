@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import { GrayTone } from '../types';
-import { Popup, IconButton } from '../components';
+import { Popup, BasicButton, IconButton } from '../components';
 import { getGrayTokens } from './Main.utils';
 
 export const Root = styled.div<{ grayTone: GrayTone; themeMode: ThemeMode; isPopupOpen?: boolean }>`
@@ -58,7 +58,7 @@ export const StyledPopup = styled(Popup)`
     padding: 3.75rem 5rem 0 22.5rem;
 `;
 
-export const StyledIconButton = styled(IconButton)`
+export const StyledIconButton = styled.button.withConfig({ shouldForwardProp: (prop: string | number) => prop !== 'selected' }).attrs({ type: 'button' })<{ selected?: boolean }>`
     box-sizing: border-box;
     width: 2rem;
     min-width: 2rem;
@@ -66,4 +66,8 @@ export const StyledIconButton = styled(IconButton)`
     min-height: 2rem;
     padding: 0.5rem;
     justify-content: center;
+    border: 0;
+    cursor: pointer;
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+    &:focus-visible { outline: 1px solid var(--p-accent, #2b8ced); outline-offset: 1px; }
 `;

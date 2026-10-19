@@ -1,7 +1,7 @@
 import { authService } from './authService';
 import { getEditorClientId } from './editorClientIdentity';
 import { PROJECTS_URL } from './constants';
-import type { EditorContextKey } from './themeEditorRepository';
+import type { EditorContextKey } from './editorContracts';
 
 export type DraftInvalidationScope =
     | 'theme-tokens'

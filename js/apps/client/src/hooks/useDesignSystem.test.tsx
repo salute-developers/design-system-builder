@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { load, loadTokenData, loadComponentData, saveTokenMutation } = vi.hoisted(() => ({
@@ -21,14 +21,9 @@ const { applyDraftChanges } = vi.hoisted(() => ({
     applyDraftChanges: vi.fn(),
 }));
 
-vi.mock('../api/themeEditorRepository', () => ({
-    ThemeEditorRepository: class {
-        load = load;
-        loadTokenData = loadTokenData;
-        loadComponentData = loadComponentData;
-        saveTokenMutation = saveTokenMutation;
-    },
-}));
+vi.mock('../api/themeEditorRepository', () => ({ loadThemeEditor: load }));
+vi.mock('../api/tokenRepository', () => ({ tokenRepository: { loadTokenData, saveTokenMutation } }));
+vi.mock('../api/componentRepository', () => ({ componentRepository: { loadComponentData } }));
 vi.mock('../api/draftInvalidationStream', () => ({ subscribeToDraftInvalidations }));
 vi.mock('../utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../utils')>()),
@@ -80,6 +75,8 @@ import {
     updateDraftToken,
 } from '../utils/designSystemDraft';
 import type { Token } from '../controllers';
+import type { DraftChangeDto } from '../api/editorContracts';
+import { setDraftAutosaveActivity } from '../api/draftAutosaveActivity';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const token = {
@@ -153,6 +150,64 @@ afterEach(() => {
 });
 
 describe('useDesignSystem server autosave', () => {
+    it('не применяет старый ответ, если другая очередь успела сохраниться во время чтения', async () => {
+        const { result } = renderHook(() => useDesignSystem(context));
+        await act(async () => Promise.resolve());
+        const previousTheme = result.current.theme;
+        const tokenData = await loadTokenData();
+        loadTokenData.mockClear();
+        let resolveOld!: (value: unknown) => void;
+        loadTokenData.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveOld = resolve;
+                }),
+        );
+        let refresh!: Promise<void>;
+        await act(async () => {
+            refresh = result.current.refreshChanges([{ entityType: 'token-value' } as DraftChangeDto]);
+        });
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'components', 'pending');
+            setDraftAutosaveActivity(context, 'components', 'saved');
+            resolveOld(tokenData);
+            await refresh;
+        });
+        setDraftAutosaveActivity(context, 'components', null);
+        expect(loadTokenData).toHaveBeenCalledTimes(2);
+        expect(result.current.theme).not.toBe(previousTheme);
+    });
+    it('явно обновляет токены после revert без SSE, полной загрузки и пересоздания компонентов', async () => {
+        const { result } = renderHook(() => useDesignSystem(context));
+        await act(async () => Promise.resolve());
+        const previousTheme = result.current.theme;
+        const previousComponents = result.current.components;
+        await act(async () => {
+            await result.current.refreshChanges([{ entityType: 'token-value' } as DraftChangeDto]);
+        });
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0');
+        expect(result.current.theme).not.toBe(previousTheme);
+        expect(result.current.components).toBe(previousComponents);
+        expect(loadComponentData).not.toHaveBeenCalled();
+    });
+    it('после revert ждёт подтверждения другой локальной очереди перед обновлением', async () => {
+        const { result } = renderHook(() => useDesignSystem(context));
+        await act(async () => Promise.resolve());
+        setDraftAutosaveActivity(context, 'components', 'pending');
+        let refresh!: Promise<void>;
+        await act(async () => {
+            refresh = result.current.refreshChanges([{ entityType: 'token-value' } as DraftChangeDto]);
+        });
+        expect(loadTokenData).not.toHaveBeenCalled();
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'components', 'saved');
+            await refresh;
+        });
+        setDraftAutosaveActivity(context, 'components', null);
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+    });
     it('reloads only token data for a token invalidation without rebuilding the full snapshot', async () => {
         render(<Probe />);
         await act(async () => Promise.resolve());
@@ -411,7 +466,9 @@ describe('useDesignSystem server autosave', () => {
 
         expect(saveTokenMutation).toHaveBeenCalledTimes(2);
         expect(saveTokenMutation.mock.calls[1][1]).toBeUndefined();
-        expect(saveTokenMutation.mock.calls[1][2]).toEqual(expect.objectContaining({ tokenName: 'accent', kind: 'create' }));
+        expect(saveTokenMutation.mock.calls[1][2]).toEqual(
+            expect.objectContaining({ tokenName: 'accent', kind: 'create' }),
+        );
     });
 
     it('creates a new token when an old name is reused after rename confirmation', async () => {
@@ -434,7 +491,9 @@ describe('useDesignSystem server autosave', () => {
 
         expect(saveTokenMutation).toHaveBeenCalledTimes(2);
         expect(saveTokenMutation.mock.calls[1][1]).toBeUndefined();
-        expect(saveTokenMutation.mock.calls[1][2]).toEqual(expect.objectContaining({ tokenName: 'accent', kind: 'create' }));
+        expect(saveTokenMutation.mock.calls[1][2]).toEqual(
+            expect.objectContaining({ tokenName: 'accent', kind: 'create' }),
+        );
     });
 
     it('restores the exact rename operation after reopening the editor', async () => {

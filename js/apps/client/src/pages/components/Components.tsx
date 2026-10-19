@@ -13,16 +13,9 @@ import { getComposeMenuItems, getOldMenuItems } from '../../utils';
 import type { Data } from '../../types';
 import { DesignSystem, Theme, Config } from '../../controllers';
 import { MenuOld, Workspace } from '../../layouts';
-import {
-    ThemeEditorRepository,
-    type EditorContextKey,
-    type PendingComponentMutation,
-} from '../../api/themeEditorRepository';
-import {
-    TokenAutosaveQueue,
-    type AutosaveOperation,
-    type AutosaveStatus,
-} from '../../api/tokenAutosaveQueue';
+import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
+import { componentRepository as repository } from '../../api/componentRepository';
+import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import { ComponentEditor } from './features/ComponentEditor';
 import { PlatformSwitch } from './Components.styles';
@@ -46,9 +39,6 @@ const platformItems: Record<Platform, SegmentButtonItem> = {
     web: { label: 'Web', value: 'web' },
     compose: { label: 'Compose', value: 'compose' },
 };
-
-const repository = new ThemeEditorRepository();
-
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
         metadataKey: string;
@@ -103,6 +93,7 @@ export const Components = () => {
         return item ? toComponentRoute(target, item.name) : undefined;
     };
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
+    const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
     const confirmedConfig = useRef<{
         componentName: string;
         value: PendingComponentMutation['before'];
@@ -191,6 +182,7 @@ export const Components = () => {
         let mounted = true;
         const componentName = config.getName();
         const activitySource = `component:${componentName}`;
+        let latestActivityStatus: AutosaveStatus = 'saved';
         const requestKey = `${storagePrefix}:${componentName}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
         const readRevisions = () => readStoredJson<Record<string, number>>(revisionKey, {});
@@ -220,6 +212,7 @@ export const Components = () => {
                 );
             },
             confirmed: (operation, revisions) => {
+                if (mounted) setLastSave({ key: storagePrefix, time: Date.now() });
                 persistStoredJson(revisionKey, revisions);
                 if (confirmedConfig.current?.componentName === operation.componentName) {
                     confirmedConfig.current = { componentName: operation.componentName, value: operation.after };
@@ -232,9 +225,12 @@ export const Components = () => {
             },
             retryable: isRetryableAutosaveError,
             statusChanged: (status) => {
+                latestActivityStatus = status;
+                setDraftAutosaveActivity(editorContext, activitySource, status);
                 if (mounted) {
-                    setDraftAutosaveActivity(editorContext, activitySource, status);
                     setAutosaveStatus(status);
+                } else if (status === 'saved') {
+                    setDraftAutosaveActivity(editorContext, activitySource, null);
                 }
             },
         });
@@ -263,7 +259,9 @@ export const Components = () => {
         return () => {
             mounted = false;
             queue.flushAll();
-            setDraftAutosaveActivity(editorContext, activitySource, null);
+            if (latestActivityStatus === 'saved') {
+                setDraftAutosaveActivity(editorContext, activitySource, null);
+            }
             if (autosaveQueue.current === queue) autosaveQueue.current = null;
         };
     }, [config, designSystem, editorContext, parameters?.readOnly, reload, storagePrefix]);
@@ -290,7 +288,6 @@ export const Components = () => {
         persistStoredJson(requestKey, pending);
         autosaveQueue.current?.enqueue(pending);
     }, [config, parameters?.readOnly, rerender, storagePrefix]);
-
 
     const onItemSelect = (groupIndex: number, itemIndex: number) => {
         const name = groups?.[groupIndex]?.items?.[itemIndex]?.name;
@@ -349,7 +346,11 @@ export const Components = () => {
             }
             content={
                 <>
-                    <AutosaveIndicator status={autosaveStatus} retry={() => autosaveQueue.current?.retryFailed()} />
+                    <AutosaveIndicator
+                        status={autosaveStatus}
+                        retry={() => autosaveQueue.current?.retryFailed()}
+                        lastSavedAt={lastSave?.key === storagePrefix ? lastSave.time : undefined}
+                    />
                     <ComponentEditor
                         designSystem={designSystem}
                         theme={theme}

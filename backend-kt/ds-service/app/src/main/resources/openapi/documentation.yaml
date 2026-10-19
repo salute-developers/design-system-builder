@@ -6716,6 +6716,19 @@ paths:
       tags:
         - Design Systems
       summary: Revert one current draft change
+      description: |
+        An omitted body, an empty object or empty paths reverts the complete entry.
+        For an updated token-value, paths selects changed parameters of value using JSON Pointer.
+        Shadow CSS strings expose offsetX, offsetY, blur, spread and color as logical parameters.
+        The server restores its comparison baseline and preserves unselected parameters.
+        Array insertions, removals and detected reordering cannot be partially reverted by index.
+        The base revision must still match the entire entry. Paths are included in the idempotency payload.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevertDraftChange'
       parameters:
         - name: id
           in: path
@@ -6741,6 +6754,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Invalid body or invalid_revert_paths (unknown, unchanged, unsupported or structural parameter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
           description: Stale journal entry or dependency conflict
           content:
@@ -8070,13 +8089,13 @@ components:
           pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$
         changelog:
           type: string
-          minLength: 1
+          default: ''
+          description: Необязательные примечания к публикации. Пустая строка означает отсутствие примечаний.
       required:
         - designSystemId
         - draftId
         - draftRevision
         - version
-        - changelog
     CreateComponent:
       type: object
       properties:
@@ -9882,6 +9901,11 @@ components:
     DraftChange:
       type: object
       properties:
+        parameterRevertSupported:
+          type: boolean
+          description: >-
+            Explicit server capability for parameter paths; absent in older servers. Clients must not send a
+            partial revert without true.
         changeId:
           type: string
           format: uuid
@@ -9923,6 +9947,7 @@ components:
           format: int64
           minimum: 0
       required:
+        - parameterRevertSupported
         - changeId
         - versionId
         - entityType
@@ -9934,6 +9959,21 @@ components:
         - actorId
         - changedAt
         - editRevision
+    RevertDraftChange:
+      type: object
+      additionalProperties: false
+      properties:
+        paths:
+          type: array
+          default: []
+          maxItems: 32
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 256
+            pattern: ^/value(?:/|$)
+          example:
+            - /value/fontSize
   parameters:
     VersionId:
       name: versionId

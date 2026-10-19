@@ -27,5 +27,6 @@ interface DraftChangeRepository {
         designSystemId: DesignSystemId,
         changeId: UUID,
         expectedRevision: Long,
+        paths: Set<String> = emptySet(),
     ): DraftChangeRevertResult
 }
