@@ -22,7 +22,7 @@ import { createHttpPaletteRepository, paletteSourceFromEnv } from '../modules/pa
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
 /** Предметный клиент с ограниченным набором операций. */
-export class TokenRepository {
+export const tokenRepository = {
     async loadTokenData(
         context: EditorContextKey,
         signal?: AbortSignal,
@@ -172,7 +172,7 @@ export class TokenRepository {
                 values.data.map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), value.id]),
             ),
         };
-    }
+    },
 
     async saveTenantValues(
         context: EditorContextKey,
@@ -193,7 +193,7 @@ export class TokenRepository {
             ...response.data,
             mutationMetadata: parseMutationMetadata(response.headers?.['x-ds-mutation-metadata']),
         };
-    }
+    },
 
     async saveTokenMutation(
         context: EditorContextKey,
@@ -288,7 +288,7 @@ export class TokenRepository {
                 ]),
             ),
         };
-    }
+    },
 
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {
         return (
@@ -297,7 +297,5 @@ export class TokenRepository {
                 readRequest(context, signal),
             )
         ).data;
-    }
-}
-
-export const tokenRepository = new TokenRepository();
+    },
+};

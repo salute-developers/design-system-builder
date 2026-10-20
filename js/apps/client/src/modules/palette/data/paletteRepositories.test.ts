@@ -208,7 +208,7 @@ describe('адаптер api', () => {
         mocked.get.mockResolvedValueOnce({ data: { tenantId: 't1' } });
         await repository.load(ctx);
         expect(mocked.get).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette', {
-            signal: undefined,
+            signal: expect.any(AbortSignal),
             params: undefined,
         });
 
@@ -229,6 +229,20 @@ describe('адаптер api', () => {
                 headers,
             },
         );
+    });
+
+    it('объединяет одновременные загрузки палитры общей координацией чтений', async () => {
+        vi.useFakeTimers();
+        try {
+            mocked.get.mockResolvedValue({ data: { tenantId: 't1' } });
+            const repository = createHttpPaletteRepository();
+            const requests = Promise.all([repository.load(ctx), repository.load(ctx)]);
+            await vi.runAllTimersAsync();
+            await requests;
+            expect(mocked.get).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('шлёт растяжку только как { type, shade }: сервер не принимает лишних полей', async () => {

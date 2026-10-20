@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { post, patch, get } = vi.hoisted(() => ({ post: vi.fn(), patch: vi.fn(), get: vi.fn() }));
 vi.mock('../../../api/http', () => ({ http: { post, patch, get } }));
-vi.mock('../../../api/editorReads', () => ({ invalidateEditorReads: vi.fn() }));
+vi.mock('../../../api/editorReads', () => ({
+    invalidateEditorReads: vi.fn(),
+    readEditor: (...args: unknown[]) => get(...args),
+}));
 import { getDraftAutosaveRevision, isDraftAutosaveIdle } from '../../../api/draftAutosaveActivity';
 import { createHttpPaletteRepository } from './httpPaletteRepository';
 import { observeSubjectAddresses } from '../../../api/subjectRevisions';

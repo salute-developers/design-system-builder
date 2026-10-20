@@ -101,7 +101,7 @@ const createRequestLimiter = (maximum: number) => {
 const COMPONENT_LOAD_CONCURRENCY = 4;
 
 /** Предметный клиент с ограниченным набором операций. */
-export class ComponentRepository {
+export const componentRepository = {
     async loadComponentData(
         context: EditorContextKey,
         signal?: AbortSignal,
@@ -206,7 +206,7 @@ export class ComponentRepository {
                 } as Meta;
             }),
         );
-    }
+    },
 
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
@@ -219,7 +219,7 @@ export class ComponentRepository {
             console.error('[ComponentRepository] Не удалось загрузить Compose-компоненты', error);
             return [];
         }
-    }
+    },
 
     async saveComponentMutation(
         context: EditorContextKey,
@@ -459,7 +459,5 @@ export class ComponentRepository {
             },
         );
         return revisions;
-    }
-}
-
-export const componentRepository = new ComponentRepository();
+    },
+};

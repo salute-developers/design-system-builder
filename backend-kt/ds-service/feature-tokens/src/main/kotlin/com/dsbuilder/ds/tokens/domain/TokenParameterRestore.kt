@@ -70,7 +70,12 @@ internal object TokenParameterRestore {
 
     private fun decoded(value: JsonElement): JsonElement {
         val text = (value as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return value
-        if (!text.trimStart().startsWith("{") && !text.trimStart().startsWith("[")) return value
+        // Ссылка палитры — строковое значение, не сериализованный массив JSON.
+        if (colorText.matches(text) ||
+            (!text.trimStart().startsWith("{") && !text.trimStart().startsWith("["))
+        ) {
+            return value
+        }
         return runCatching { Json.parseToJsonElement(text) }.getOrDefault(value)
     }
 

@@ -3,7 +3,12 @@ import { refreshTokens, logoutOnServer, loginWithPassword } from './keycloak';
 
 let refreshPromise: Promise<string> | null = null;
 const sessionResetListeners = new Set<() => void>();
-const notifySessionReset = () => sessionResetListeners.forEach((listener) => listener());
+let sessionGeneration = 0;
+const notifySessionReset = () => {
+    sessionGeneration += 1;
+    refreshPromise = null;
+    sessionResetListeners.forEach((listener) => listener());
+};
 
 export interface CurrentUser {
     id?: string;
@@ -101,21 +106,25 @@ export const authService = {
             return Promise.reject(new Error('no refresh token'));
         }
 
-        refreshPromise = refreshTokens(refresh)
+        const generation = sessionGeneration;
+        const pending = refreshTokens(refresh)
             .then((tokens) => {
+                if (generation !== sessionGeneration) throw new Error('Session changed during refresh');
                 tokenStore.save(tokens);
                 return tokens.access_token;
             })
             .catch((err) => {
-                tokenStore.clear();
-                notifySessionReset();
+                if (generation === sessionGeneration) {
+                    tokenStore.clear();
+                    notifySessionReset();
+                }
                 throw err;
             })
             .finally(() => {
-                refreshPromise = null;
+                if (refreshPromise === pending) refreshPromise = null;
             });
-
-        return refreshPromise;
+        refreshPromise = pending;
+        return pending;
     },
 
     onSessionReset(listener: () => void) {
