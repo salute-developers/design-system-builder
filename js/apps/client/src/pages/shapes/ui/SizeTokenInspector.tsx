@@ -425,7 +425,7 @@ const ShadowBody = ({
             />
             <section className="inspector-section figma-inspector-group">
                 <span className="inspector-heading">ANDROID</span>
-                <label className={`st-field ${elevationMessage ? 'has-error' : ''}`}>
+                <label className={`st-field st-field-wide ${elevationMessage ? 'has-error' : ''}`}>
                     <span>Elevation</span>
                     <CommitInput
                         aria-label="Запасная высота Android"
