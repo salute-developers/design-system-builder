@@ -125,7 +125,8 @@ SHALL сохранять остальные поля значения токен
 ### Requirement: Проверка значений стиля
 
 `ds-service` SHALL отклонять изменение стиля с неверным значением ответом
-`400 INVALID_TYPOGRAPHY_VALUE` с полями `field` и `message` и SHALL NOT сохранять ни одно значение запроса.
+`400 INVALID_TYPOGRAPHY_VALUE` с текстом в `message` и полем запроса в `details.field` и SHALL NOT сохранять
+ни одно значение запроса.
 
 #### Scenario: Размер или высота строки
 
@@ -145,7 +146,7 @@ SHALL сохранять остальные поля значения токен
 #### Scenario: Семейство вне дизайн-системы
 
 - **WHEN** `fontFamily` не совпадает с именем токена `fontFamily` дизайн-системы
-- **THEN** API MUST вернуть `400 INVALID_TYPOGRAPHY_VALUE` с `field: "fontFamily"`
+- **THEN** API MUST вернуть `400 INVALID_TYPOGRAPHY_VALUE` с `details.field: "fontFamily"`
 
 ### Requirement: Общая ревизия темы в изменении стиля
 
