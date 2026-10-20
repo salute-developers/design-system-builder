@@ -1,7 +1,7 @@
 # design-system-service-runtime Specification
 
 ## Purpose
-TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Update Purpose after archive.
+Определяет runtime ds-service: модульную архитектуру, владение схемой через Flyway, контейнерный и локальный запуск, readiness и наблюдаемость.
 ## Requirements
 ### Requirement: Модульная архитектура ds-service
 
@@ -49,13 +49,13 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 
 ### Requirement: Flyway управляет схемой предметной БД
 
-`ds-service` SHALL использовать Flyway как единственное средство применения будущих миграций предметной схемы и SHALL воспроизводить текущее состояние `schema.ts`, применённых Drizzle-миграций, ограничений, индексов, функций и триггеров.
+`ds-service` SHALL использовать Flyway как единственное средство применения миграций предметной схемы; baseline `V1` воспроизводит состояние схемы, унаследованной от прежнего db-service (ограничения, индексы, функции и триггеры).
 
 #### Scenario: Инициализация пустой БД
 
 - **WHEN** `ds-service` запускается с пустой поддерживаемой PostgreSQL-базой
 - **THEN** Flyway MUST создать всю предметную схему
-- **AND** итоговая схема и поведение триггеров MUST пройти автоматическое сравнение с эталоном `db-service`
+- **AND** итоговая схема и поведение триггеров MUST соответствовать контракту `contracts/schema-fingerprint.json` и интеграционным тестам ds-service
 
 #### Scenario: Принятие существующей БД
 
@@ -74,29 +74,7 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 
 - **WHEN** Flyway принял предметную схему
 - **THEN** Drizzle migration runner MUST быть отключён для этой БД
-- **AND** `db-service` MAY использовать схему для чтения, записи или отката runtime, но MUST NOT применять миграции
-
-### Requirement: Совместное существование и атомарное переключение
-
-`ds-service` SHALL разворачиваться рядом с `db-service` до cutover, SHALL запрещать двойную запись и SHALL поддерживать возврат всего перенесённого набора на прежний upstream.
-
-#### Scenario: Проверка чтений до переключения
-
-- **WHEN** `ds-service` развёрнут, но ещё не является основным upstream
-- **THEN** безопасные запросы чтения MAY сравниваться с `db-service`
-- **AND** теневой запрос MUST NOT изменять данные
-
-#### Scenario: Переключение предметного набора
-
-- **WHEN** контрактные, миграционные и эксплуатационные проверки завершены успешно
-- **THEN** Gateway MUST переключить весь разрешённый предметный набор на `ds-service` одной управляемой конфигурацией
-- **AND** production-трафик MUST NOT делиться между реализациями по сущностям
-
-#### Scenario: Откат runtime
-
-- **WHEN** после переключения обнаруживается критическое несовпадение
-- **THEN** Gateway MUST позволять вернуть весь перенесённый набор в `db-service`
-- **AND** откат MUST NOT требовать удаления данных или Flyway history
+- **AND** никакой другой сервис MUST NOT применять миграции к этой БД
 
 ### Requirement: Контейнерный и локальный запуск
 
@@ -112,7 +90,7 @@ TBD - created by archiving change migrate-db-service-to-kotlin-ds-service. Updat
 - **WHEN** разработчик запускает корневой `./setup-local.sh`
 - **THEN** `ds-service` MUST запускаться вместе с базой `ds-db` из `backend-kt/docker-compose.local.yml` и Gateway
 - **AND** healthcheck MUST отражать состояние приложения без ручной настройки внутри контейнера
-- **AND** JS-стек с db-service MUST NOT запускаться; из `js/docker-compose.dev.yml` поднимается только клиент
+- **AND** из `js/docker-compose.dev.yml` поднимается клиент
 
 #### Scenario: Схему общей базы создаёт Flyway
 

@@ -1,7 +1,7 @@
 # plasma-component-import Specification
 
 ## Purpose
-Определяет инструмент импорта web-компонента из репозитория plasma в prod-сид `db-service` и манифест генератора: источники, правила приведения конфига оформления к модели DS Builder, отчёт о спорных местах и режимы применения.
+Определяет инструмент импорта web-компонента из репозитория plasma в пакет `.sdds/components` и манифест генератора: источники, правила приведения конфига оформления к модели DS Builder, отчёт о спорных местах и режимы применения.
 ## Requirements
 ### Requirement: Import report classifies findings
 

@@ -1,7 +1,7 @@
 # local-base-bootstrap Specification
 
 ## Purpose
-TBD - created by archiving change local-contour-without-db-service. Update Purpose after archive.
+Определяет наполнение локального контура дизайн-системой `base` через Gateway скриптом `backend-kt/bootstrap-base.sh`.
 ## Requirements
 ### Requirement: Local base bootstrap fills the contour through the gateway
 

@@ -5,7 +5,7 @@
 ## Requirements
 ### Requirement: API meta import endpoint
 
-`ds-service` SHALL выполнять импорт API-меты, а Gateway SHALL предоставлять его клиентам как `POST /api/admin/component-config/import-api-meta`, принимающий манифест API-меты компонентов целиком одним запросом и записывающий его в глобальный слой компонентной модели в одной транзакции. Gateway MUST переписывать этот путь в `ds-service` как `POST /api/ds/admin/component-config/import-api-meta`; `db-service` MUST NOT обслуживать этот маршрут. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
+`ds-service` SHALL выполнять импорт API-меты, а Gateway SHALL предоставлять его клиентам как `POST /api/admin/component-config/import-api-meta`, принимающий манифест API-меты компонентов целиком одним запросом и записывающий его в глобальный слой компонентной модели в одной транзакции. Gateway MUST переписывать этот путь в `ds-service` как `POST /api/ds/admin/component-config/import-api-meta`. Проектный маршрут `POST /api/projects/{projectId}/ds/component-config/import-api-meta` MUST NOT существовать.
 
 #### Scenario: Манифест принимается одним запросом
 

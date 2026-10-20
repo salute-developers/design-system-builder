@@ -37,7 +37,7 @@
 ## 6. Presentation и контракт (ds-service)
 
 - [x] 6.1 Добавить DTO и маршруты групп (`GET …/design-systems/{id}/token-groups`, `POST`, `PATCH`, `DELETE …/tenants/{id}/token-groups…`) и `POST …/color-tokens/{tokenId}/move`; дополнить `CreateColorTokenRequest` полями `groupId` и `position`
-- [x] 6.2 Описать операции в `openapi/documentation.yaml` с `x-permission`, схемами и кодами ошибок, в `contracts/route-manifest.json` с `origin: ds-service`, обновить `consumer-route-audit.json` для `js/apps/client`, `OpenApiDocumentResourceTest`, счётчик операций в `DsServiceHttpPostgresIntegrationTest` и тесты манифеста db-service
+- [x] 6.2 Описать операции в `openapi/documentation.yaml` с `x-permission`, схемами и кодами ошибок, в `contracts/route-manifest.json` с `origin: ds-service`, обновить `OpenApiDocumentResourceTest` и счётчик операций в `DsServiceHttpPostgresIntegrationTest`
 - [x] 6.3 Покрыть интеграционными тестами на Testcontainers: миграцию V6 на наборе с разделами и категориями всех видов, создание, переименование, перестановку, перенос подгруппы с переименованием токенов, удаление группы с токенами во всех темах, перенос и переименование токена с сохранением идентификаторов, конфигурацию компонента после переименования (ds-service и legacy `component-configs` db-service), `403`, `404`, `409`, `400`
 
 ## 7. Клиент: данные и модель
