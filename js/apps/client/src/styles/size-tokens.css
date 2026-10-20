@@ -2022,7 +2022,8 @@
     border-bottom: 1px solid var(--builder-ui-outline-primary);
 }
 
-.size-tokens-screen .playground-workbench:not(.component-workbench) .figma-inspector-group > .inspector-heading {
+.size-tokens-screen .playground-workbench:not(.component-workbench) .figma-inspector-group > .inspector-heading,
+.size-tokens-screen .playground-workbench:not(.component-workbench) .figma-inspector-group > .st-heading-row > .inspector-heading {
     height: 28px;
     padding: 6px 12px;
     display: flex;
@@ -2464,6 +2465,12 @@
     align-items: center;
     gap: 6px;
     font-weight: 400;
+}
+
+/* Подпись поля вне сетки слоя: колонка шире, чтобы «Elevation» не прилипала к полю. */
+.size-tokens-screen .st-field.st-field-wide {
+    grid-template-columns: 76px 1fr;
+    gap: 8px;
 }
 
 .size-tokens-screen .st-field > span {
