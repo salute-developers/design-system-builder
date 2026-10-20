@@ -27,9 +27,7 @@ const loadErrorFor = (error: unknown): 'forbidden' | 'not-found' | 'failed' => {
 };
 
 export const useDesignSystem = (
-    designSystemProjectId?: string | EditorContextKey,
-    designSystemName?: string,
-    designSystemVersion?: string,
+    designSystemProjectId?: EditorContextKey,
     includeExtraTokens = true,
     selection?: { section: EditorSection; component?: string },
 ) => {
@@ -47,14 +45,11 @@ export const useDesignSystem = (
     const [loadError, setLoadError] = useState<'forbidden' | 'not-found' | 'failed' | null>(null);
     const [reloadTrigger, setReloadTrigger] = useState<object>({});
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
-    const autosaveContextKey =
-        typeof designSystemProjectId === 'object'
-            ? [
-                  designSystemProjectId.projectId,
-                  designSystemProjectId.designSystemId,
-                  designSystemProjectId.tenantId,
-              ].join(':')
-            : [designSystemProjectId, designSystemName, designSystemVersion].join(':');
+    const autosaveContextKey = designSystemProjectId
+        ? [designSystemProjectId.projectId, designSystemProjectId.designSystemId, designSystemProjectId.tenantId].join(
+              ':',
+          )
+        : '';
     const [lastSave, setLastSave] = useState<{ key: string; time: number }>();
     const autosaveSession = useRef<ThemeEditorSession | null>(null);
     const sectionData = useRef<EditorSectionData>();
@@ -286,28 +281,8 @@ export const useDesignSystem = (
                 }
                 return;
             }
-            if ([designSystemName, designSystemVersion].some((value) => !value)) {
-                return;
-            }
+            // Редактор открывается только в контексте темы: загрузки по имени и версии ДС больше нет.
             setActiveDraftContext(null);
-
-            try {
-                const ds = await DesignSystem.get({
-                    name: designSystemName!,
-                    version: designSystemVersion!,
-                    projectId: designSystemProjectId,
-                });
-                setDesignSystem(ds);
-
-                const themeInstance = ds.createThemeInstance({ includeExtraTokens });
-                applyDraftChanges(themeInstance, designSystemName!, designSystemVersion!);
-                setTheme(themeInstance);
-
-                setComponents(ds.createAllComponentInstances());
-            } catch (error) {
-                setLoadError(loadErrorFor(error));
-                console.error('[useDesignSystem] Не удалось загрузить дизайн-систему', error);
-            }
         };
 
         loadDesignSystems();
@@ -318,14 +293,7 @@ export const useDesignSystem = (
             setActivePalette(null);
             setPaletteSession(null);
         };
-    }, [
-        designSystemProjectId,
-        designSystemName,
-        designSystemVersion,
-        includeExtraTokens,
-        reloadTrigger,
-        autosaveContextKey,
-    ]);
+    }, [designSystemProjectId, includeExtraTokens, reloadTrigger, autosaveContextKey]);
 
     const reload = useCallback(() => {
         if (sectionData.current) {

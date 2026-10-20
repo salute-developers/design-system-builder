@@ -1,27 +1,9 @@
 import { ThemeMode } from '@salutejs/plasma-tokens-utils';
 import { general } from '@salutejs/plasma-colors';
 
-import { GrayTone, Parameters } from '../types';
+import { GrayTone } from '../types';
 import { Config, createMetaTokens, createVariationTokens, DesignSystem, Theme } from '../controllers';
 import { http, PROJECTS_URL } from '../api';
-
-export const popupContentPages = {
-    CREATE_FIRST_NAME: 'CREATE_FIRST_NAME',
-    SETUP_PARAMETERS: 'SETUP_PARAMETERS',
-    CREATION_PROGRESS: 'CREATION_PROGRESS',
-} as const;
-
-export const defaultParameters: Parameters = {
-    projectName: '',
-    packagesName: '',
-    projectId: '',
-    accentColor: 'blue',
-    grayTone: 'warmGray',
-    darkFillSaturation: 50,
-    darkStrokeSaturation: 50,
-    lightFillSaturation: 50,
-    lightStrokeSaturation: 50,
-};
 
 const grayTokenTones = {
     dark: [150, 300, 800, 500, 150, 950, 950, 800, 300, 50, 100, 800, 1000, 950, 900, 950, 250],
@@ -161,5 +143,6 @@ export const designSystemSave = async (designSystem: DesignSystem, theme: Theme,
         return saved;
     }
 
-    return await designSystem.updateDesignSystemData(themeData, componentsData);
+    // Сохранение идёт только в контексте темы: legacy-путь через db-service удалён.
+    throw new Error('THEME_CONTEXT_REQUIRED');
 };

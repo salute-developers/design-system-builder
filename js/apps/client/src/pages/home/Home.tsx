@@ -1,15 +1,13 @@
-import type { MouseEvent } from 'react';
 import { Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
-import { IconPlus, IconSettingsOutline } from '@salutejs/plasma-icons';
+import { IconSettingsOutline } from '@salutejs/plasma-icons';
 
 import { Workspace } from '../../layouts';
 import { IconButton } from '../../components';
 
-import { Root, Header, HeaderTitle, List, ListItem, ListItemText, ListItemContentRight } from './Home.styles';
+import { Root, Header, HeaderTitle, List, ListItem, ListItemText } from './Home.styles';
 
 interface HomeOutletContextProps {
     projectName?: string;
-    onDesignSystemCreate?: () => void;
 }
 
 export const Home = () => {
@@ -18,15 +16,6 @@ export const Home = () => {
     const navigate = useNavigate();
     const currentPage = useLocation().pathname.split('/').filter(Boolean).pop();
     const selectedListItem = currentPage === undefined ? 'projects' : currentPage;
-
-    const onDesignSystemCreate = (event: MouseEvent) => {
-        // Не даём клику всплыть на ListItem: иначе он уведёт на '/' и Home перемонтируется через RootRedirect
-        event.stopPropagation();
-
-        if (context.onDesignSystemCreate) {
-            context.onDesignSystemCreate();
-        }
-    };
 
     return (
         <Workspace
@@ -41,9 +30,6 @@ export const Home = () => {
                     <List>
                         <ListItem selected={selectedListItem === 'projects'}>
                             <ListItemText>Мои дизайн-системы</ListItemText>
-                            <ListItemContentRight onClick={onDesignSystemCreate}>
-                                <IconPlus size="xs" color="inherit" />
-                            </ListItemContentRight>
                         </ListItem>
                         {/* <ListItem selected={selectedListItem === 'drafts'} onClick={() => onChangeListItem('drafts')}>
                             <ListItemText>Черновики</ListItemText>
