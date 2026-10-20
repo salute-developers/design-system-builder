@@ -2215,6 +2215,238 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/size-tokens:
+    get:
+      tags:
+        - Size tokens
+      summary: Radius, spacing and shadow tokens of a theme in px with component usage and derived radii
+      description: Requires tenants:read. Tokens whose name is outside the rule of their type are not returned.
+        canEdit is true when the caller has tenants:write on a theme of its own project.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      responses:
+        "200":
+          description: Size tokens of the theme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SizeTokens"
+        "400":
+          description: Invalid tenant id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:read
+    post:
+      tags:
+        - Size tokens
+      summary: Create a radius, a spacing or a shadow size (four variants) with values in every theme
+      description: Requires tenants:write and tokens:write. Values are written to every theme of the design system with
+        overridden false. Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSizeTokenRequest"
+      responses:
+        "201":
+          description: Created tokens
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SizeTokenCreated"
+        "400":
+          description: Invalid request, token name (INVALID_TOKEN_NAME) or value (INVALID_SIZE_VALUE with details.field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict (TENANT_EDIT_CONFLICT with editRevision) or token name conflict (TOKEN_NAME_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/size-tokens/{tokenId}/value:
+    put:
+      tags:
+        - Size tokens
+      summary: Replace the value of a radius, spacing or shadow token in the theme
+      description: Requires tenants:write. valuePx for a radius or spacing, layers and fallbackElevation for a shadow.
+        Platforms listed in platforms are written with overridden true, the others are built from web with overridden
+        false. round.circle is not editable. Increments editRevision of the theme.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSizeTokenValueRequest"
+      responses:
+        "200":
+          description: Updated token and written values
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SizeTokenUpdated"
+        "400":
+          description: Invalid request, token outside of the section or full rounding (INVALID_SIZE_TOKEN) or value (INVALID_SIZE_VALUE with details.field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict (TENANT_EDIT_CONFLICT with editRevision)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/size-tokens/{tokenId}:
+    delete:
+      tags:
+        - Size tokens
+      summary: Delete a radius or spacing token, or a whole shadow size, with values in every theme
+      description: Requires tenants:write and tokens:delete. Component references to the deleted tokens become empty.
+        Increments editRevision of every theme of the design system.
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteSizeTokenRequest"
+      responses:
+        "200":
+          description: Deleted token ids
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SizeTokenDeleted"
+        "400":
+          description: Invalid request or token outside of the section (INVALID_SIZE_TOKEN)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tenant edit conflict (TENANT_EDIT_CONFLICT with editRevision)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
   /api/ds/tokens:
     get:
       tags:
@@ -10217,6 +10449,413 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    SizeComponentUsage:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+      required:
+        - name
+        - count
+    SizeShadowLayer:
+      type: object
+      properties:
+        offsetX:
+          type: integer
+          minimum: -200
+          maximum: 200
+        offsetY:
+          type: integer
+          minimum: -200
+          maximum: 200
+        blur:
+          type: integer
+          minimum: 0
+          maximum: 200
+        spread:
+          type: integer
+          minimum: -200
+          maximum: 200
+        color:
+          type: string
+          pattern: ^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$
+      required:
+        - offsetX
+        - offsetY
+        - blur
+        - spread
+        - color
+    SizeShadowLayers:
+      type: object
+      properties:
+        layers:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/SizeShadowLayer"
+      required:
+        - layers
+    SizeNativeNumbers:
+      type: object
+      description: Current numbers of ios and android regardless of overridden
+      properties:
+        ios:
+          type: integer
+          nullable: true
+        android:
+          type: integer
+          nullable: true
+      required:
+        - ios
+        - android
+    SizeOwnNumbers:
+      type: object
+      description: Own values of ios and android (overridden true)
+      properties:
+        ios:
+          type: integer
+        android:
+          type: integer
+    RadiusToken:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        valuePx:
+          type: integer
+          nullable: true
+          description: Web value in px; null only for full rounding
+        fullRounding:
+          type: boolean
+        platforms:
+          $ref: "#/components/schemas/SizeOwnNumbers"
+        native:
+          $ref: "#/components/schemas/SizeNativeNumbers"
+        platformsDiffer:
+          type: boolean
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SizeComponentUsage"
+        derived:
+          type: array
+          items:
+            type: object
+            properties:
+              offsetPx:
+                type: integer
+              valuePx:
+                type: integer
+                minimum: 0
+              usages:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    component:
+                      type: string
+                    platform:
+                      type: string
+                    parameter:
+                      type: string
+                      nullable: true
+                  required:
+                    - component
+                    - platform
+                    - parameter
+            required:
+              - offsetPx
+              - valuePx
+              - usages
+      required:
+        - tokenId
+        - name
+        - valuePx
+        - fullRounding
+        - platforms
+        - native
+        - platformsDiffer
+        - components
+        - derived
+    SpacingToken:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        valuePx:
+          type: integer
+          nullable: true
+        platforms:
+          $ref: "#/components/schemas/SizeOwnNumbers"
+        native:
+          $ref: "#/components/schemas/SizeNativeNumbers"
+        platformsDiffer:
+          type: boolean
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SizeComponentUsage"
+      required:
+        - tokenId
+        - name
+        - valuePx
+        - platforms
+        - native
+        - platformsDiffer
+        - components
+    ShadowToken:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        layers:
+          type: array
+          items:
+            $ref: "#/components/schemas/SizeShadowLayer"
+        fallbackElevation:
+          type: integer
+          minimum: 0
+        platforms:
+          type: object
+          description: Own layers of ios and android (overridden true)
+          properties:
+            ios:
+              $ref: "#/components/schemas/SizeShadowLayers"
+            android:
+              $ref: "#/components/schemas/SizeShadowLayers"
+        native:
+          type: object
+          description: Current layers of ios and android regardless of overridden
+          properties:
+            ios:
+              allOf:
+                - $ref: "#/components/schemas/SizeShadowLayers"
+              nullable: true
+            android:
+              allOf:
+                - $ref: "#/components/schemas/SizeShadowLayers"
+              nullable: true
+          required:
+            - ios
+            - android
+        platformsDiffer:
+          type: boolean
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/SizeComponentUsage"
+      required:
+        - tokenId
+        - name
+        - layers
+        - fallbackElevation
+        - platforms
+        - native
+        - platformsDiffer
+        - components
+    SizeToken:
+      oneOf:
+        - $ref: "#/components/schemas/RadiusToken"
+        - $ref: "#/components/schemas/SpacingToken"
+        - $ref: "#/components/schemas/ShadowToken"
+    SizeTokens:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        canEdit:
+          type: boolean
+        radii:
+          type: array
+          items:
+            $ref: "#/components/schemas/RadiusToken"
+        spacing:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpacingToken"
+        shadows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowToken"
+      required:
+        - editRevision
+        - canEdit
+        - radii
+        - spacing
+        - shadows
+    UpdateSizeTokenValueRequest:
+      type: object
+      description: valuePx for a radius or spacing; layers and fallbackElevation for a shadow. platforms holds own
+        values of ios and android in the same form as the web value (a number, or an object with layers).
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        valuePx:
+          type: integer
+        layers:
+          type: array
+          minItems: 1
+          maxItems: 4
+          items:
+            $ref: "#/components/schemas/SizeShadowLayer"
+        fallbackElevation:
+          type: integer
+          minimum: 0
+          maximum: 24
+        platforms:
+          type: object
+          properties:
+            ios:
+              anyOf:
+                - type: integer
+                - $ref: "#/components/schemas/SizeShadowLayers"
+            android:
+              anyOf:
+                - type: integer
+                - $ref: "#/components/schemas/SizeShadowLayers"
+          additionalProperties: false
+      required:
+        - editRevision
+    SizeTokenUpdated:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        token:
+          $ref: "#/components/schemas/SizeToken"
+        values:
+          type: array
+          items:
+            type: object
+            properties:
+              platform:
+                type: string
+                enum:
+                  - web
+                  - ios
+                  - android
+              value:
+                nullable: true
+                description: Value in the platform format
+              overridden:
+                type: boolean
+            required:
+              - platform
+              - value
+              - overridden
+      required:
+        - editRevision
+        - token
+        - values
+    CreateSizeTokenRequest:
+      type: object
+      description: valuePx for a radius or spacing; variants with down.soft, down.hard, up.soft and up.hard for a
+        shadow size.
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum:
+            - radius
+            - spacing
+            - shadow
+        name:
+          type: string
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+          description: Last name segment, e.g. xxxl for round.xxxl or xl for a shadow size
+        valuePx:
+          type: integer
+        variants:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: object
+            properties:
+              variant:
+                type: string
+                enum:
+                  - down.soft
+                  - down.hard
+                  - up.soft
+                  - up.hard
+              layers:
+                type: array
+                minItems: 1
+                maxItems: 4
+                items:
+                  $ref: "#/components/schemas/SizeShadowLayer"
+              fallbackElevation:
+                type: integer
+                minimum: 0
+                maximum: 24
+            required:
+              - variant
+              - layers
+      required:
+        - editRevision
+        - kind
+        - name
+    SizeTokenCreated:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        kind:
+          type: string
+          enum:
+            - radius
+            - spacing
+            - shadow
+        created:
+          type: array
+          items:
+            $ref: "#/components/schemas/SizeToken"
+      required:
+        - editRevision
+        - kind
+        - created
+    DeleteSizeTokenRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
+    SizeTokenDeleted:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        deletedTokenIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - editRevision
+        - deletedTokenIds
   parameters:
     OptionalBaseRevision:
       name: X-DS-Base-Revision
