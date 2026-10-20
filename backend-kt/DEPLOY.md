@@ -11,8 +11,7 @@ Production deployment использует готовые Docker images из Git
 - `auth-helper`;
 - `projects-service`;
 - `documentation-service`;
-- `ds-service`;
-- `db-service`.
+- `ds-service`.
 
 `client` не входит в production compose. Его статика продолжает собираться отдельным frontend workflow и публиковаться в S3. Экспериментальный `project-publisher` также не входит в этот deployment.
 
@@ -162,7 +161,7 @@ GitHub Actions summary сохраняет commit и digest каждого усп
 - публичные `OIDC_*`, `KEYCLOAK_ISSUER`, `KEYCLOAK_AUDIENCE` и `KC_HOSTNAME`;
 - bootstrap admin и PostgreSQL-настройки Keycloak;
 - `PROJECTS_DATABASE_URL`, credentials и `PROJECTS_INTERNAL_API_KEY`;
-- PostgreSQL URL для `db-service` и `documentation-service`;
+- PostgreSQL URL для `ds-service` и `documentation-service`;
 - S3 credentials для Kotlin `documentation-service`.
 
 `KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Не включайте для stack опцию Coolify `Connect to Predefined Network`, иначе одинаковые service names разных environments окажутся в общей сети и начнут конфликтовать. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.

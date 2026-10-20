@@ -140,7 +140,7 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
-Скрипт останавливает legacy JavaScript-стек (db-service и его Postgres), запускает Kotlin backend в detached-режиме,
+Скрипт запускает Kotlin backend в detached-режиме,
 наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,
 хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway в `ds-service`; Drizzle-миграции не
 запускаются. Наполнение делает `backend-kt/bootstrap-base.sh` только через Gateway: находит или создаёт проект
@@ -193,7 +193,7 @@ Kotlin backend можно запускать и отдельно, а напол�
 ./backend-kt/bootstrap-base.sh
 ```
 
-`./js/setup-docker.sh` поднимает только standalone legacy JS-стек с db-service и не совместим с `ds-db` по порту `5433`.
+Клиент отдельно: `docker compose -f js/docker-compose.dev.yml up -d --build client` или `npm run dev` в `js/apps/client`.
 
 ### Проверка API через Scalar
 
@@ -245,7 +245,5 @@ E2E запускает разработчик, CI или главный аген
 архивирования OpenSpec Change. Структура сценариев и правила тестовых данных
 описаны в [`e2e/README.md`](./e2e/README.md).
 
-`js/setup-docker.sh` выполняет полную подготовку standalone legacy JS-контура с db-service: пересоздаёт его Docker
-volumes (отключается `DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает
-Node.js-сервисы и client. Общий контур поднимайте через `./setup-local.sh`: там база `ds-db` и наполнение `base`
-принадлежат стеку `backend-kt`.
+JavaScript-часть репозитория — это клиент и локальный генератор (`js/cli`); Node.js-сервисов в ней нет. Общий контур
+поднимайте через `./setup-local.sh`: база `ds-db` и наполнение `base` принадлежат стеку `backend-kt`.

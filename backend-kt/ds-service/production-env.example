@@ -1,4 +1,4 @@
-# Same PostgreSQL database used by JS db-service; JDBC URL without credentials.
+# PostgreSQL database of ds-service (ds_registry); JDBC URL without credentials.
 DS_DATABASE_URL=jdbc:postgresql://replace-with-postgres-host:5432/ds_registry
 DS_DATABASE_USER=db_service
 DS_DATABASE_PASSWORD=replace-with-database-password

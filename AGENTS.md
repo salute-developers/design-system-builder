@@ -13,7 +13,7 @@
 
 - Для Kotlin backend сохранять направление `presentation -> application -> domain`, инфраструктуру размещать в `data`, DI — в `di`.
 - Для Kotlin frontend следовать дополнительным правилам из `frontend-kt/AGENTS.md` (модульный граф `core-*`/`feature-*`) и `frontend-kt/cli/AGENTS.md` (правила `:cli` как presentation-слоя).
-- Source of truth конфигурационной модели компонентов находится в `js/services/db-service`.
+- Source of truth конфигурационной модели компонентов и дизайн-систем — `backend-kt/ds-service` (схема во Flyway-миграциях, данные `base` в его ресурсах).
 - Новая клиентская, CLI и MCP-архитектура развивается в `frontend-kt`.
 - Изменения архитектурных контрактов отражать в `openspec`.
 

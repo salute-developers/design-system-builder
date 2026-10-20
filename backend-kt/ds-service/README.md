@@ -11,9 +11,9 @@ Required production configuration:
 - `DS_FLYWAY_ENABLED` — must remain `true` after schema ownership is transferred to Flyway;
 - `DS_FLYWAY_ADOPT_EXISTING` and `DS_EXPECTED_SCHEMA_SHA256` — controlled, fingerprint-checked adoption of a pre-Flyway database. Do not enable adoption without the reviewed fingerprint in `contracts/schema-fingerprint.json`.
 
-The fingerprint in `contracts/schema-fingerprint.json` describes the baseline schema (Flyway version `1`) that adoption accepts; later migrations, such as `V3__component_platform_split_and_axis_roles.sql`, are applied on top of it and do not change the fingerprint. `V3` contains the Flyway form of Drizzle `0007_component_platform_split.sql`: components are identified by `(name, platform)` and platform names carry `deprecated`; a database that already ran Drizzle `0007` no longer matches the baseline fingerprint and must be rebuilt from the baseline. `V3` also stores the root and colour-scheme axes on `appearances` (`root_variation_id`, `color_scheme_variation_id`); `appearance_variations.is_color_scheme` is kept equal to the colour-scheme reference so that `db-service` and an earlier `ds-service` keep reading the same role.
+The fingerprint in `contracts/schema-fingerprint.json` describes the baseline schema (Flyway version `1`) that adoption accepts; later migrations, such as `V3__component_platform_split_and_axis_roles.sql`, are applied on top of it and do not change the fingerprint. `V3` contains the Flyway form of Drizzle `0007_component_platform_split.sql`: components are identified by `(name, platform)` and platform names carry `deprecated`; a database that already ran Drizzle `0007` no longer matches the baseline fingerprint and must be rebuilt from the baseline. `V3` also stores the root and colour-scheme axes on `appearances` (`root_variation_id`, `color_scheme_variation_id`); `appearance_variations.is_color_scheme` is kept equal to the colour-scheme reference so that an earlier `ds-service` keeps reading the same role.
 
-`db-service` remains available for HTTP rollback, but it must not run a Drizzle migration job after Flyway adoption. Runtime `db-service` does not invoke Drizzle migrations; its migration command is an operator-only compatibility tool. The shared local contour (`./setup-local.sh`) does not adopt a Drizzle database at all: `ds-service` runs with its own Postgres `ds-db` from `backend-kt/docker-compose.local.yml` and `DS_FLYWAY_ADOPT_EXISTING=false`, so Flyway creates the whole schema in the empty database; the design system `base` is then filled through the gateway by `backend-kt/bootstrap-base.sh` (the component, token and palette resources of `ds-service` do the rest). A database created by the Drizzle runner is never reused: recreate the contour with `./setup-local.sh --reset`.
+JS `db-service` was removed after the adoption; its Drizzle migrations no longer exist, Flyway is the only owner of the schema. The shared local contour (`./setup-local.sh`) does not adopt a Drizzle database at all: `ds-service` runs with its own Postgres `ds-db` from `backend-kt/docker-compose.local.yml` and `DS_FLYWAY_ADOPT_EXISTING=false`, so Flyway creates the whole schema in the empty database; the design system `base` is then filled through the gateway by `backend-kt/bootstrap-base.sh` (the component, token and palette resources of `ds-service` do the rest). A database created by the Drizzle runner is never reused: recreate the contour with `./setup-local.sh --reset`.
 
 ## Переход существующей базы Drizzle на Flyway
 
@@ -53,7 +53,7 @@ V1–V6 из `dev` не изменяются. Обновление с этой �
 ### Настройки Coolify для первого запуска
 
 Сделайте резервную копию базы **с данными** и остановите приложения и задания,
-которые пишут в неё, включая JS `db-service`. PostgreSQL должен оставаться
+которые пишут в неё. PostgreSQL должен оставаться
 доступным. Для существующей базы после `0005`, без истории Flyway, задайте:
 
 ```env

@@ -189,7 +189,7 @@ cd frontend-kt
 
 ## 6. Проверка на живой базе
 
-Поднимите локальный контур (gateway, Keycloak, db-service из вашей ветки), соберите CLI
+Поднимите локальный контур (`./setup-local.sh`: gateway, Keycloak, ds-service из вашей ветки), соберите CLI
 (`frontend-kt/install-local-cli.sh`) и войдите администратором: импорт доступен только системному
 администратору (`dsbuilder auth login --username admin@example.com --api-url http://localhost:8080`).
 
