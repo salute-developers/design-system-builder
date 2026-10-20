@@ -1,266 +1,84 @@
-# Design System Builder
+# Design System Builder — JavaScript part
 
-A web platform for building, managing, and publishing design systems end-to-end.
+`js/` holds the React client of DS Builder and the local generator of the React design-system package. The data lives in the Kotlin `ds-service` ([backend-kt](../backend-kt/)) behind the gateway; there is no Node.js service any more.
 
-Design System Builder lets product teams compose their own design system from a shared component catalog, customize tokens (colors, typography, spacing, etc.), preview the result in real time, and then generate the resulting npm package.
+## What is here
 
-It is the tooling layer behind several Salute design systems built on top of [@salutejs/plasma](https://github.com/salute-developers/plasma).
-
-## What you can do with it
-
-- **Compose a design system** from a shared catalog of components and variations
-- **Tweak tokens** (colors, typography, spacing, shape, etc.) with live preview
-- **Generate** a ready-to-use npm package from your configuration locally with [cli](cli/)
-
-## Architecture
-
-The platform is a small set of independent services around a central registry. All services are deployed and orchestrated through Docker Compose.
-
-```
-┌────────────────────┐  REST   ┌────────────────────┐    ┌──────────────────┐
-│       Client       │ ──────▶ │     DB Service     │◀──▶│  PostgreSQL      │
-│  apps/client :3002 │         │   db-service :3008 │    │  (postgres-      │
-│  (DS builder UI)   │         │  Express + Drizzle │    │   registry :5433)│
-└────────────────────┘         └────────────────────┘    └──────────────────┘
-```
-
-The npm package of a design system is generated locally by [cli](cli/) (`npm run generate:ds`), not by a service.
-
-### Services
-
-| Service | Path | Port | Stack | Purpose |
+| Part | Path | Port | Stack | Purpose |
 |---|---|---|---|---|
-| **DB Service** | [services/db-service](services/db-service/) | 3008 | Express, Drizzle ORM, Postgres, Zod, OpenAPI | Source of truth. Stores design systems, components, variations, tokens. Exposes a typed REST API and an auto-generated OpenAPI spec. |
-| **Client** | [apps/client](apps/client/) | 3002 | React 18, Vite, `@salutejs/plasma-*` | The end-user UI for composing a design system, editing tokens and saving them. |
+| **Client** | [apps/client](apps/client/) | 3002 | React 18, Vite, `@salutejs/plasma-*` | The UI for composing a design system, editing tokens and previewing components. Talks to the gateway (`VITE_API_GATEWAY_URL`). |
+| **CLI generator** | [cli](cli/) | — | tsx, `@salutejs/plasma-new-hope` | Generates the npm package of a design system from local `.sdds` data (`npm run generate:ds`), imports plasma components (`npm run import:plasma`), builds the web API meta (`npm run generate:api-meta`). `dsbuilder` runs the same scripts for the React platform. |
 
 ### How a design system flows through the system
 
-1. **Authoring.** A user opens the **Client** ([apps/client](apps/client/)) and composes a design system — picks components, edits tokens, previews the result. The client persists everything to the **DB Service** over REST.
-2. **Generation.** The npm package is generated locally from the downloaded design-system data by [cli](cli/) (`npm run generate:theme`, `generate:components`, `generate:ds`); `dsbuilder` runs the same scripts for the React platform.
+1. **Authoring.** A user opens the **Client** and composes a design system — picks components, edits tokens, previews the result. The client reads and writes everything through the gateway into `ds-service`.
+2. **Generation.** `dsbuilder ds fetch` downloads the theme and the component configurations into `.sdds`, and [cli](cli/) generates the npm package from them (`generate:theme`, `generate:components`, `generate:ds`).
+3. **New components.** `npm run import:plasma` in [cli](cli/) turns a plasma component into a `.sdds/components` package, `dsbuilder components push --platform react` loads it into `ds-service`. The full procedure is in [docs/component-creation.md](docs/component-creation.md) and the `add-component` skill.
 
 ## Repository layout
 
 ```
-design-system-builder/
+js/
 ├── apps/
-│   └── client/                         # React DS builder UI (Plasma-based)
-│       ├── src/
-│       ├── vite.config.ts
-│       └── package.json
-├── services/
-│   └── db-service/                     # Express + Drizzle, central registry API
-│       ├── src/
-│       │   ├── db/
-│       │   │   ├── index.ts            # DB connection (postgres-js + Drizzle)
-│       │   │   ├── schema.ts           # Drizzle schema
-│       │   │   ├── seed-dev.ts         # dev seeding entry point
-│       │   │   ├── seed-prod.ts        # prod seeding entry point
-│       │   │   ├── reset.ts            # full schema reset
-│       │   │   ├── clear.ts            # truncate tables
-│       │   │   └── seeds/              # per-table seed files (data/dev/prod)
-│       │   ├── routes/
-│       │   │   ├── index.ts            # root router
-│       │   │   ├── api/                # CRUD routes (one file per resource)
-│       │   │   │   ├── utils.ts        # assertFound, tryCatch
-│       │   │   │   ├── design-systems.ts
-│       │   │   │   ├── components.ts
-│       │   │   │   ├── tokens.ts
-│       │   │   │   ├── legacy.ts       # /api/legacy/design-systems/:name/*
-│       │   │   │   └── …               # the rest of the resources
-│       │   │   └── misc/               # auxiliary routes
-│       │   │       ├── tables.ts       # /api/tables
-│       │   │       ├── queries.ts      # /api/queries
-│       │   │       └── schema.ts       # /api/schema
-│       │   ├── validation/
-│       │   │   ├── schema.ts           # Zod schemas for all tables
-│       │   │   └── middleware.ts       # validateBody, validateParams
-│       │   ├── openapi/
-│       │   │   ├── spec.ts             # OpenAPI 3 spec (auto-built from Drizzle + Zod)
-│       │   │   └── generate.ts         # writes openapi.json
-│       │   ├── queries/
-│       │   │   └── catalog.ts          # named query catalog
-│       │   ├── zod-extend.ts           # extendZodWithOpenApi (called once)
-│       │   └── index.ts                # Express server entry
-│       ├── drizzle/                    # generated SQL migrations
-│       ├── drizzle.config.ts
-│       ├── .env.example
-│       └── package.json
-├── docs/                               # Internal docs (schema, status, todo)
-├── .github/
-│   ├── workflows/                      # CI: build & deploy apps to S3
-│   └── actions/
-├── .claude/
-│   └── skills/                         # Claude Code skills
-│       ├── sync-all/                   # /sync-all — full sync
-│       ├── sync-validation/            # /sync-validation — refresh Zod schemas
-│       ├── sync-routes/                # /sync-routes — create/remove routes
-│       ├── sync-spec/                  # /sync-spec — refresh OpenAPI spec
-├── docker-compose.yml                  # Production compose (subset)
-├── docker-compose.dev.yml              # Development compose (full stack)
-├── setup-docker.sh                     # One-command dev setup
-└── package.json                        # Root scripts (dev / build / install:all)
+│   └── client/                 # React DS builder UI (Plasma-based)
+├── cli/                        # Local generator, plasma import, web API meta
+│   ├── src/generator/          # Theme and component generators, templates and manifests
+│   ├── src/import-plasma-component.ts
+│   └── README.md
+├── docs/                       # component-creation.md
+├── docker-compose.dev.yml      # Development compose: the client only
+└── package.json                # Root scripts (dev / build / test:cli / verify:*)
 ```
 
 ## Quick start
 
-> **Recommended path: Docker.** It is the only setup that's actively used and tested. Local (non-Docker) development still works for individual services but you have to wire ports and env vars yourself.
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Node.js ≥ 18 (only if you want to run services outside of Docker)
-
-### Run everything with Docker (recommended)
+The whole local contour (gateway, Keycloak, `ds-service` with its Postgres, documentation service and the client) is started from the repository root:
 
 ```bash
-# Clone
-git clone <repo-url>
-cd design-system-builder
-
-# Start everything (postgres + db-service + client)
-./setup-docker.sh
+../setup-local.sh
 ```
 
-The script builds the dev images, starts the stack via [docker-compose.dev.yml](docker-compose.dev.yml), runs the registry migrations, seeds dev data, and prints a health summary.
+It fills the design system `base` through the gateway and starts the client from [docker-compose.dev.yml](docker-compose.dev.yml). Details are in the root [README.md](../README.md).
 
 Once it's done:
 
 | Service | URL |
 |---|---|
 | Client (DS builder UI) | http://localhost:3002 |
-| DB Service API | http://localhost:3008/api |
-| Postgres (db-service) | localhost:5433 |
+| API gateway | http://localhost:8080 |
+| Postgres of `ds-service` | localhost:5433 (`ds_registry`) |
 
-Common commands:
-
-```bash
-# Logs
-docker-compose -f docker-compose.dev.yml logs -f
-
-# Stop (data persists)
-docker-compose -f docker-compose.dev.yml down
-
-# Stop and wipe data
-docker-compose -f docker-compose.dev.yml down -v
-
-# Re-run migrations / re-seed manually
-docker-compose -f docker-compose.dev.yml exec db-service npx drizzle-kit migrate
-docker-compose -f docker-compose.dev.yml exec db-service npx tsx src/db/seed-dev.ts
-```
-
-### Run locally without Docker
-
-You'll need a Postgres instance reachable from `db-service` and the right env vars in each service.
+### Run the client without Docker
 
 ```bash
-# 1. Start Postgres (you can still use the dev compose for the DB only)
-docker-compose -f docker-compose.dev.yml up -d postgres-registry
-
-# 2. Configure db-service
-cp services/db-service/.env.example services/db-service/.env
-# default values already point at localhost:5433/ds_registry
-
-# 3. Install dependencies for every workspace
-npm run install:all
-
-# 4. Apply migrations and seed
-cd services/db-service
-npm run db:migrate
-npm run db:seed:dev
-cd ../..
-
-# 5. Start everything in parallel
+cd apps/client
+npm ci
 npm run dev
 ```
 
-The root [package.json](package.json) exposes per-service scripts so you can also start them one by one:
+The client needs the gateway at `VITE_API_GATEWAY_URL` (default `http://localhost:8080`, see [apps/client](apps/client/)). The root [package.json](package.json) scripts:
 
 | Script | What it runs |
 |---|---|
-| `npm run dev` | All services and apps in parallel |
-| `npm run dev:services` | Backend services only (db-service) |
-| `npm run dev:db-service` | DB Service only (port 3008) |
-| `npm run dev:client` | Client app only (port 3002) |
-| `npm run build` | Production build of every service and app |
-| `npm run install:all` | Install dependencies in every workspace |
+| `npm run dev` | Client dev server (port 3002 in Docker, 5173 locally) |
+| `npm run build` | Production build of the client |
+| `npm run test:cli` | Typecheck and tests of [cli](cli/) |
+| `npm run verify:fast` | Build plus CLI tests (used by `tools/verify`) |
 
-## DB Service: database
-
-Postgres lives in the dev compose as `postgres-registry` (host port `5433`). The registry connects with:
-
-```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5433/ds_registry
-PORT=3008
-```
-
-Inside Docker the host becomes `postgres-registry:5432`. See [services/db-service/.env.example](services/db-service/.env.example).
-
-### Drizzle ORM commands
-
-Run from `services/db-service`:
-
-| Command | Description |
-|---|---|
-| `npm run db:generate` | Generate a SQL migration after changing `schema.ts` |
-| `npm run db:migrate` | Apply migrations to the database |
-| `npm run db:seed:dev` | Seed the DB with dev fixtures |
-| `npm run db:seed:prod` | Seed the DB with prod fixtures |
-| `npm run db:reset` | Drop the schema (run migrate + seed afterwards) |
-| `npm run db:clear` | Truncate tables (keeps the schema) |
-| `npm run db:studio` | Open Drizzle Studio |
-
-### Common scenarios
-
-**First run (without Docker):**
-```bash
-docker-compose -f docker-compose.dev.yml up -d postgres-registry
-cd services/db-service
-npm run db:migrate
-npm run db:seed:dev
-```
-
-**Schema (`schema.ts`) or routes (`routes/api/`) changed:**
-```bash
-# Inside services/db-service
-npm run db:generate   # only if schema.ts changed
-npm run db:migrate    # only if schema.ts changed
-
-# From the repo root, via Claude Code
-/sync-all             # updates validation, routes and openapi spec
-```
-
-**Reset to a clean state:**
-```bash
-cd services/db-service
-npm run db:reset
-npm run db:migrate
-npm run db:seed:dev
-```
-
-## Claude Code skills
-
-Skills for keeping the registry's generated artifacts in sync with the schema and routes. Live in [.claude/skills/](.claude/skills/).
-
-| Skill | What it does |
-|---|---|
-| `/sync-all` | Runs the three skills below in order |
-| `/sync-validation` | Updates `services/db-service/src/validation/schema.ts` |
-| `/sync-routes` | Creates/removes files in `services/db-service/src/routes/api/`, updates `routes/index.ts` |
-| `/sync-spec` | Updates `services/db-service/src/openapi/spec.ts` |
+There is no npm workspace: every app carries its own `package.json` and `node_modules`.
 
 ## CI / Deployment
 
-GitHub Actions in [.github/workflows/](.github/workflows/) build the client app and sync it to S3:
+GitHub Actions in [.github/workflows/](../.github/workflows/) build the client app and sync it to S3:
 
 - [deploy-front-apps-prom.yml](../.github/workflows/deploy-front-apps-prom.yml) — runs on `master`, builds `apps/client` and uploads the dist to the production S3 bucket.
-- [design-system-builder-pr.yml](.github/workflows/design-system-builder-pr.yml) — same flow for pull requests.
-
-`db-service` is published by the [publish-backend-images](../.github/workflows/publish-backend-images.yml) workflow and runs from the root `docker-compose.prod.yml`.
+- [deploy-front-apps-dev.yml](../.github/workflows/deploy-front-apps-dev.yml) — the same flow for the dev stand.
+- [validate-js.yml](../.github/workflows/validate-js.yml) — lint, CLI tests and the client build on pull requests.
 
 ## Documentation
 
-- [docs/database-schema.md](docs/database-schema.md) — registry database schema
-- [docs/component creation.md](docs/database-schema.md) — how to create a component
+- [docs/component-creation.md](docs/component-creation.md) — how to add a plasma component
+- [cli/README.md](cli/README.md) — local generation and plasma import
 
 ## License
 

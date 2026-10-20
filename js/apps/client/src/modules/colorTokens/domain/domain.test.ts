@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { values as buttonValues } from '../../../../../../services/db-service/src/db/seeds/prod/components/button/values';
-import { properties as buttonProperties } from '../../../../../../services/db-service/src/db/seeds/prod/components/button/properties';
+import { buttonViewValues, buttonWebProps } from './__fixtures__/buttonSeed';
 import {
     buildColorTokenViews,
     buildTree,
@@ -210,12 +209,12 @@ describe('новый токен', () => {
 });
 
 describe('пары контраста', () => {
-    /** Стили вариации `view` сида кнопки db-service. */
+    /** Стили вариации `view` кнопки базовой дизайн-системы (фикстура). */
     const buttonStyles = (): ComponentStyleSource[] => {
-        const web = new Set(buttonProperties.filter((item) => item.params.web).map((item) => item.name));
-        return Object.entries(buttonValues.view ?? {}).map(([style, entries]) => {
+        const web = buttonWebProps;
+        return Object.entries(buttonViewValues).map(([style, entries]) => {
             const props = new Map<string, { token: string; states: Array<{ state: string; token?: string }> }>();
-            for (const entry of entries as Array<{ prop: string; token?: string; state?: string }>) {
+            for (const entry of entries) {
                 if (!entry.token) continue;
                 const prop = props.get(entry.prop) ?? { token: '', states: [] };
                 if (entry.state) prop.states.push({ state: entry.state, token: entry.token });

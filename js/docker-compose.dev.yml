@@ -1,47 +1,4 @@
 services:
-  # PostgreSQL Database (db-service)
-  postgres-registry:
-    image: postgres:16-alpine
-    container_name: db-service-postgres-dev
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ds_registry
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_registry_data_dev:/var/lib/postgresql/data
-    networks:
-      - ds-builder-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ds_registry"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # DB Service API (Development)
-  db-service:
-    build:
-      context: ./services/db-service
-      dockerfile: Dockerfile.dev
-    container_name: db-service-dev
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3008
-      DATABASE_URL: postgresql://postgres:postgres@postgres-registry:5432/ds_registry
-    ports:
-      - "3008:3008"
-    depends_on:
-      postgres-registry:
-        condition: service_healthy
-    networks:
-      - ds-builder-network
-    volumes:
-      - ./services/db-service:/home/node/app
-      - /home/node/app/node_modules
-
   # Client Application (Development)
   client:
     build:
@@ -58,18 +15,12 @@ services:
       VITE_COMPONENT_EDITOR_ENABLED: ${VITE_COMPONENT_EDITOR_ENABLED:-true}
     ports:
       - "3002:5173"
-    depends_on:
-      - db-service
     networks:
       - ds-builder-network
     volumes:
       - ./apps/client:/app
       - /app/node_modules
     command: npm run dev -- --host 0.0.0.0
-
-volumes:
-  postgres_registry_data_dev:
-    driver: local
 
 networks:
   ds-builder-network:
