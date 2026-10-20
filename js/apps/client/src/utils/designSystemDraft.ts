@@ -117,6 +117,12 @@ export const draftEntriesOfTypes = (dsName: string, dsVersion: string, types: re
         .filter(([, change]) => types.includes(change.type))
         .map(([name, change]) => ({ name, type: change.type }));
 
+/** Записи черновика токенов заданных типов со значениями платформ. */
+export const draftValuesOfTypes = (dsName: string, dsVersion: string, types: readonly VariationType[]) =>
+    Object.entries(loadDraftChanges(dsName, dsVersion))
+        .filter(([, change]) => types.includes(change.type))
+        .map(([name, change]) => ({ name, type: change.type, values: change.values }));
+
 /** Удаляет из черновика записи [names]; остальные записи сохраняются. */
 export const removeDraftEntries = (dsName: string, dsVersion: string, names: readonly string[]) => {
     const changes = loadDraftChanges(dsName, dsVersion);
