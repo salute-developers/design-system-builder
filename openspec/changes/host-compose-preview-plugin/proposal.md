@@ -11,6 +11,7 @@ Compose-preview в редакторе компонентов работает с
 - **Хранилище**: порт `PluginBuildStorage` с реализацией на AWS SDK v2 (как в `documentation-service`), настройка через переменные окружения; публичное чтение префикса плагина в бакете.
 - **Авторизация CI**: служебная учётка Keycloak (`client_credentials`) с ролью `compose_preview_publisher`; gateway передаёт роль доверенным заголовком; публиковать могут эта роль и системный администратор; другие маршруты роль не открывает.
 - **CLI (`frontend-kt`)**: команда `dsbuilder preview-plugin publish --platform compose --from <zip>` (по умолчанию пробная отправка, `--apply` для записи), неинтерактивный вход служебной учёткой из переменных окружения, нормализация меты из архива, вывод итога и отчёта импорта.
+- **Поставка CLI**: JVM-дистрибутив CLI (архив со стартовыми скриптами) и workflow публикации релиза CLI, чтобы CI `plasma-android` мог скачать закреплённую версию.
 - **Клиент (`js/apps/client`)**: адрес плагина берётся из бэкенда; `VITE_COMPOSE_PREVIEW_PLUGIN_URL` остаётся прямым переопределением для локальной разработки.
 - **Локальный контур**: MinIO контура получает бакет и публичное чтение для плагина, Keycloak контура — служебную учётку для проверки.
 
@@ -34,6 +35,7 @@ Compose-preview в редакторе компонентов работает с
 - `backend-kt/identity-gateway`: `feature-auth` (роль `compose_preview_publisher`, доверенный заголовок `X-Compose-Preview-Publisher`), `gateway` (маршрут публикации с лимитом тела), `keycloak` (клиент, роль, аудитория; realm локального и production контура, bootstrap-скрипт).
 - `backend-kt/docker-compose.local.yml` и production-конфигурация: переменные S3 для `ds-service`, бакет и политика чтения MinIO.
 - `frontend-kt`: `feature-components` или новая feature `preview-plugin` (use case, порты, HTTP-источник, чтение архива, хеширование), `cli` (команда, вход служебной учёткой), `USAGE.md`.
+- `.github/workflows` и `frontend-kt/cli`: задача сборки JVM-дистрибутива CLI и workflow публикации релиза CLI.
 - `js/apps/client`: `src/composePreview` (получение адреса, кеш, условие включения), `src/api/themeEditorRepository.ts`, `README.md`.
 - Публичные API: два новых маршрута; контракт `import-api-meta` не меняется. `js/services/db-service` не затрагивается: таблица принадлежит `ds-service` (как `token_groups`).
 - Конфигурация и секреты: переменные S3 и публичный адрес плагина у `ds-service`; секрет служебной учётки живёт в секретах `plasma-android`.

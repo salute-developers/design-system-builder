@@ -15,7 +15,7 @@
 ## 2. Авторизация CI (backend-kt/identity-gateway)
 
 - [ ] 2.1 Добавить `GlobalRole.COMPOSE_PREVIEW_PUBLISHER("compose_preview_publisher")` и доверенный заголовок `X-Compose-Preview-Publisher` в `TrustedHeaders`; сопоставление роли в `KeycloakJwtVerifier`
-- [ ] 2.2 Проверить, что `KeycloakJwtVerifier` принимает токен service account (audience, отсутствие email, `sub`); при необходимости добавить audience mapper или поправить верификатор
+- [ ] 2.2 Тест `KeycloakJwtVerifier` на токене service account: issuer и audience проверяются как для пользователя, `sub` задан, `email` отсутствует (допустимо), роль берётся из `realm_access`; для клиента публикации добавить audience mapper в realm, чтобы токен проходил проверку audience
 - [ ] 2.3 Gateway: `location = /api/admin/compose-preview/plugin-builds` с лимитом тела под архив и `auth_request /_auth_user`, передача заголовка роли; обновить шаблоны nginx (prod и local) и smoke-проверки
 - [ ] 2.4 Keycloak: клиент `dsbuilder-preview-publisher` и роль `compose_preview_publisher` в `dsbuilder-realm.json`, `dsbuilder-realm.prod.json` и `bootstrap-production-keycloak.sh`
 - [ ] 2.5 ds-service: разрешить публикацию по `X-Compose-Preview-Publisher` или `X-System-Admin`, прочие маршруты оставить без изменения прав; обновить `TrustedDsRequestContextMapper`
@@ -25,9 +25,11 @@
 
 - [ ] 3.1 Домен и application: чтение `preview-plugin.json` и `api-meta.json` из zip, расчёт sha256, проверка соответствия, нормализация меты нормализатором `compose`
 - [ ] 3.2 Port и HTTP-источник: multipart-отправка архива и меты, разбор итога и отчёта, обработка `409 build_content_changed`
-- [ ] 3.3 Вход служебной учёткой: `client_credentials` через `/realms/<realm>/protocol/openid-connect/token` по `DSBUILDER_CLIENT_ID`, `DSBUILDER_CLIENT_SECRET`, `DSBUILDER_REALM`; токен не сохранять на диск; запрет секрета в аргументах; иначе сессия пользователя
+- [ ] 3.3 Вход служебной учёткой: `client_credentials` через `/auth/token` по `DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET` (расширить `TokenExchangeClient`); токен не сохранять на диск; запрет секрета в аргументах; иначе сессия пользователя
 - [ ] 3.4 Presentation: команда `preview-plugin publish` (`--platform`, `--from`, `--api-url`, `--apply`), печать итога, адреса, отчёта импорта; DI
 - [ ] 3.5 Обновить `frontend-kt/cli/USAGE.md`: команда, переменные окружения служебной учётки, пример для CI
+- [ ] 3.6 Gradle-задача JVM-дистрибутива CLI (архив со стартовыми скриптами `dsbuilder`, Java 17) в `frontend-kt/cli`
+- [ ] 3.7 Workflow публикации релиза CLI: сборка JVM-дистрибутива и вложение в GitHub Release по тегу `cli-vX.Y.Z`; согласовать доступ на чтение релиза для CI `plasma-android`
 
 ## 4. Клиент (js/apps/client)
 
@@ -42,7 +44,7 @@
 
 - [ ] 5.1 `backend-kt/docker-compose.local.yml`: переменные `DS_PLUGIN_S3_*` и `DS_PLUGIN_PUBLIC_BASE_URL` у `ds-service`, бакет плагина и публичное чтение через `mc` в `minio-init`
 - [ ] 5.2 Локальный realm: клиент и служебная учётка с известным dev-секретом для проверки публикации
-- [ ] 5.3 Согласовать с владельцем инфраструктуры: префикс плагина в бакете клиента (не вложенный в префикс клиента), публичное чтение, CORS, ключ записи `ds-service`, ограниченный этим префиксом
+- [ ] 5.3 Согласовать с владельцем инфраструктуры предложенные префиксы `dev/design-system-builder/compose-preview/` и `design-system-builder/compose-preview/` рядом с префиксами клиента, публичное чтение на них, CORS для origin клиентов dev и prom и ключ записи `ds-service`, ограниченный этим префиксом
 - [ ] 5.4 Production: переменные S3 и публичный адрес для dev и prom, секрет служебной учётки передать команде `plasma-android`
 
 ## 6. Тесты

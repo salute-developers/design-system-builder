@@ -51,7 +51,7 @@ CLI SHALL нормализовать `api-meta.json` нормализаторо�
 
 ### Requirement: CLI авторизуется служебной учёткой или сессией пользователя
 
-Если заданы переменные `DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET`, CLI SHALL получить токен `client_credentials` по пути `/realms/<realm>/protocol/openid-connect/token` указанного API (realm по умолчанию `dsbuilder`, переопределяется `DSBUILDER_REALM`) и использовать его, не сохраняя на диск. Иначе CLI SHALL использовать сохранённую сессию пользователя. Секрет клиента MUST NOT приниматься аргументом командной строки.
+Если заданы переменные `DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET`, CLI SHALL получить токен `client_credentials` по пути `/auth/token` указанного API (тот же путь, который CLI использует для входа и обновления токена) и использовать его, не сохраняя на диск. Иначе CLI SHALL использовать сохранённую сессию пользователя. Секрет клиента MUST NOT приниматься аргументом командной строки.
 
 #### Scenario: Служебная учётка в CI
 

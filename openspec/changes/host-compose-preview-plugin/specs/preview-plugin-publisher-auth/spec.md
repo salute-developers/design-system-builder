@@ -6,7 +6,7 @@ Realm Keycloak SHALL содержать confidential-клиент `dsbuilder-pre
 
 #### Scenario: Токен служебной учётки получается через gateway
 
-- **WHEN** CLI запрашивает токен `client_credentials` по пути `/realms/<realm>/protocol/openid-connect/token` gateway
+- **WHEN** CLI запрашивает токен `client_credentials` по пути `/auth/token` gateway
 - **THEN** Keycloak MUST выдать токен, содержащий роль `compose_preview_publisher` и audience API.
 
 #### Scenario: Вход по паролю закрыт
