@@ -28,10 +28,22 @@ const HEADER_LAYOUT: Record<string, [number, number, number]> = {
     h6: [49, 46, 2],
 };
 
-const rowLayout = (style: TypographyStyle): [number, number, number] => {
-    if (style.group === 'display') return [76, style.size === 's' ? 63 : 76, 0];
+/** Доля размера шрифта, которую занимают буквы образца от верха прописных до низа строчных. */
+const INK_RATIO = 0.75;
+const INK_PADDING = 8;
+
+/**
+ * Высоты строки и образца прототипа. Если буквы образца в них не помещаются (стиль увеличили), строка и образец
+ * растут на недостающую высоту: прототип рассчитан на значения темы по умолчанию и обрезает крупный образец.
+ */
+export const rowLayout = (style: TypographyStyle): [number, number, number] => {
     const fallback = Math.min(Math.max(style.lineHeightPx + 20, 48), 76);
-    return (style.group === 'header' && HEADER_LAYOUT[style.size]) || [fallback, fallback, 0];
+    const [row, sample, offset]: [number, number, number] =
+        style.group === 'display'
+            ? [76, style.size === 's' ? 63 : 76, 0]
+            : (style.group === 'header' && HEADER_LAYOUT[style.size]) || [fallback, fallback, 0];
+    const grow = Math.max(0, Math.ceil(style.sizePx * INK_RATIO) + INK_PADDING - sample);
+    return [row + grow, sample + grow, offset];
 };
 
 /** Шрифт стиля для образца: имя шрифта семейства дизайн-системы. */
