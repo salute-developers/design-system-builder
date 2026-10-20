@@ -138,7 +138,7 @@
 
 ### Requirement: Ошибка значения у поля
 
-Клиент SHALL показывать ошибку `400 INVALID_TYPOGRAPHY_VALUE` под полем из `field` текстом `message` и
+Клиент SHALL показывать ошибку `400 INVALID_TYPOGRAPHY_VALUE` под полем из `details.field` текстом `message` и
 SHALL оставлять у стиля последнее сохранённое значение.
 
 #### Scenario: Отрицательный размер
