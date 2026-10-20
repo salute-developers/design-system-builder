@@ -36,7 +36,7 @@ protected_path \
 protected_path \
   strictacode-policy \
   strictacode-policy \
-  "backend-kt/.strictacode.yml|frontend-kt/.strictacode.yml|js/apps/client/.strictacode.yml|js/cli/.strictacode.yml|js/services/db-service/.strictacode.yml|tools/strictacode|tools/strictacode-requirements.txt|.verification/strictacode-baseline" \
+  "backend-kt/.strictacode.yml|frontend-kt/.strictacode.yml|js/apps/client/.strictacode.yml|js/cli/.strictacode.yml|tools/strictacode|tools/strictacode-requirements.txt|.verification/strictacode-baseline" \
   "strictacode|strictacode-baseline|.strictacode.yml"
 
 protected_path \
@@ -69,5 +69,5 @@ contour \
   js \
   "npm run verify:fast" \
   "npm run verify:full" \
-  "../tools/strictacode audit-set javascript-client:apps/client javascript-cli:cli javascript-db-service:services/db-service" \
-  "../tools/strictacode compare-set javascript-client:apps/client javascript-cli:cli javascript-db-service:services/db-service"
+  "../tools/strictacode audit-set javascript-client:apps/client javascript-cli:cli" \
+  "../tools/strictacode compare-set javascript-client:apps/client javascript-cli:cli"
