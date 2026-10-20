@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import { http } from '../../../api/http';
+import { readEditor } from '../../../api/editorReads';
 import { subjectMutation, subjectMutationHeaders } from '../../../api/subjectMutation';
 import { subjectBaseRevision } from '../../../api/subjectRevisions';
 import { PaletteOperationError, type PaletteErrorCode, type PaletteRampRef } from '../domain';
@@ -74,11 +75,11 @@ export const createHttpPaletteRepository = (): PaletteRepository => ({
     source: 'api',
     load: (ctx, signal) =>
         call(() =>
-            http.get(palettePath(ctx), { signal, params: ctx.versionId ? { versionId: ctx.versionId } : undefined }),
+            readEditor(palettePath(ctx), { signal, params: ctx.versionId ? { versionId: ctx.versionId } : undefined }),
         ),
     links: (ctx, { slot, groupId, step }) =>
         call(() =>
-            http.get(palettePath(ctx, '/links'), {
+            readEditor(palettePath(ctx, '/links'), {
                 params: { type: slot.type, shade: slot.shade, groupId, step, versionId: ctx.versionId },
             }),
         ),

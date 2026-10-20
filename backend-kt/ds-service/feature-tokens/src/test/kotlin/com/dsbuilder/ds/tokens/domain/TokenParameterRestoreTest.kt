@@ -11,6 +11,23 @@ class TokenParameterRestoreTest {
     private fun json(value: String) = Json.parseToJsonElement(value)
 
     @Test
+    fun `color undo preserves palette reference as a native string`() {
+        for (reference in listOf("[general.green.500]", "[additional.herbal.400][0.5]")) {
+            val palette = json("""["$reference"]""")
+            val hex = json("""["#ABCDEF"]""")
+            assertEquals(palette, TokenParameterRestore.restore(palette, hex, setOf("/value"), TokenType.COLOR))
+            assertEquals(hex, TokenParameterRestore.restore(hex, palette, setOf("/value"), TokenType.COLOR))
+        }
+    }
+
+    @Test
+    fun `gradient layer palette reference is not decoded into a nested array`() {
+        val before = json("""["[general.green.500]","#FFFFFF"]""")
+        val after = json("""["#ABCDEF","#FFFFFF"]""")
+        assertEquals(before, TokenParameterRestore.restore(before, after, setOf("/value/0"), TokenType.GRADIENT))
+    }
+
+    @Test
     fun `color undo does not preserve accidental extra JSON quotes`() {
         assertEquals(
             json("""["#108E26"]"""),
