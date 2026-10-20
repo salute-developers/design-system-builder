@@ -1,98 +1,47 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useOutletContext, useParams } from 'react-router-dom';
 
-import { getOldMenuItems } from '../../utils';
-import { locateLegacyToken, useAddressedToken, useSelectItemInMenu } from '../../hooks';
-import { DesignSystem, Theme, Token } from '../../controllers';
-import { MenuOld, Workspace } from '../../layouts';
-import { shapeTokenActions } from '../../actions';
+import '../../styles/size-tokens.css';
 
-import { TokenShapeEditor } from './features/TokenShapeEditor';
+import type { DesignSystem, Theme } from '../../controllers';
 import type { EditorContextKey } from '../../api/editorContracts';
+import { SizeTokensScreen } from './SizeTokensScreen';
 
 interface ShapesOutletContextProps {
-    designSystem?: DesignSystem;
-    theme?: Theme;
+    designSystem?: DesignSystem | null;
+    theme?: Theme | null;
     updated: object;
     rerender: () => void;
+    reload: () => void;
     editorContext?: EditorContextKey;
 }
 
+/** Раздел «Отступы, радиусы и тени» темы по прототипу SDDS Portal с автосохранением правок. */
 export const Shapes = () => {
-    const { designSystem, theme, updated, rerender, editorContext } = useOutletContext<ShapesOutletContextProps>();
+    const outlet = useOutletContext<ShapesOutletContextProps>();
+    const { projectId, designSystemId, tenantId } = useParams();
+    const context = useMemo(
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId } : null),
+        [projectId, designSystemId, tenantId],
+    );
 
-    const [selectedItemIndexes, onItemSelect, onTabSelect] = useSelectItemInMenu();
-
-    const [tokens, setTokens] = useState<Token[] | undefined>([]);
-    const data = useMemo(() => getOldMenuItems(theme, 'shape'), [theme, updated]);
-    const addressedToken = useAddressedToken(editorContext, (name) => Boolean(data && locateLegacyToken(data, name)));
-
-    useEffect(() => {
-        if (!data || !addressedToken.requestedTokenName) return;
-        const located = locateLegacyToken(data, addressedToken.requestedTokenName);
-        if (located) {
-            onTabSelect(located.tabIndex);
-            onItemSelect(located.groupIndex, located.itemIndex);
-        }
-    }, [addressedToken.requestedTokenName, data]);
-
-    const onTokenAdd = (_: string, tokenName: string, __?: string, tokens?: (Token | unknown)[]) => {
-        shapeTokenActions.addToken({ tokenName, tokens, theme, designSystem });
-
-        rerender();
-    };
-
-    const onTokenDisable = (tokens: (Token | unknown)[], disabled: boolean) => {
-        shapeTokenActions.disableToken({ disabled, tokens, designSystem });
-
-        rerender();
-    };
-
-    useEffect(() => {
-        if (!data) {
-            return;
-        }
-
-        const [tabIndex, groupIndex, tokenIndex] = selectedItemIndexes;
-        const selectedTokens = data.groups?.[tabIndex]?.data?.[groupIndex]?.items?.[tokenIndex]?.data as
-            | Token[]
-            | undefined;
-
-        setTokens(selectedTokens);
-    }, [data, selectedItemIndexes]);
-
-    if (!data || !designSystem || !theme) {
-        return null;
+    if (!context || !outlet.designSystem || !outlet.theme) {
+        return (
+            <div className="size-tokens-screen st-shell st-theme-workspace" data-testid="size-tokens-loading">
+                <div className="st-empty" role="status">
+                    Загружаем радиусы, отступы и тени…
+                </div>
+            </div>
+        );
     }
 
     return (
-        <Workspace
-            section="shapes"
-            readOnly={designSystem.getParameters()?.readOnly}
-            menuBackground={'transparent'}
-            menu={
-                <MenuOld
-                    header={designSystem.getParameters()?.projectName}
-                    subheader={designSystem.getParameters()?.packagesName}
-                    data={data}
-                    selectedItemIndexes={selectedItemIndexes}
-                    onItemSelect={(groupIndex, itemIndex) => {
-                        onItemSelect(groupIndex, itemIndex);
-                        const token = data.groups?.[selectedItemIndexes[0]]?.data?.[groupIndex]?.items?.[itemIndex]
-                            ?.data?.[0] as Token | undefined;
-                        if (token) addressedToken.selectTokenName(token.getName());
-                    }}
-                    onItemAdd={onTokenAdd}
-                    onItemDisable={onTokenDisable}
-                />
-            }
-            content={
-                addressedToken.unavailable ? (
-                    <div role="status">Точный источник токена недоступен.</div>
-                ) : (
-                    <TokenShapeEditor designSystem={designSystem} theme={theme} tokens={tokens} rerender={rerender} />
-                )
-            }
+        <SizeTokensScreen
+            context={context}
+            designSystem={outlet.designSystem}
+            theme={outlet.theme}
+            rerender={outlet.rerender}
+            reload={outlet.reload}
         />
     );
 };
