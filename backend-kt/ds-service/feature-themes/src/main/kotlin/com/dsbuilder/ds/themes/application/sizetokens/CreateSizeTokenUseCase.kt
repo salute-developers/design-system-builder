@@ -6,8 +6,8 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.themes.application.colortokens.INVALID_TOKEN_NAME
 import com.dsbuilder.ds.themes.application.colortokens.TOKEN_NAME_CONFLICT
-import com.dsbuilder.ds.themes.application.colortokens.invalidTokenName
 import com.dsbuilder.ds.themes.application.colortokens.requireAll
 import com.dsbuilder.ds.themes.domain.sizetokens.SizePlatformValues
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
@@ -37,7 +37,10 @@ class CreateSizeTokenUseCase(
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         if (!SizeTokenNaming.validSegment(command.name)) {
-            return DsResult.Failure(invalidTokenName("Имя токена — латиница в нижнем регистре, цифры и дефис"))
+            val message = "Имя токена — латиница в нижнем регистре, цифры и дефис"
+            return DsResult.Failure(
+                DsFailure.InvalidRequest(INVALID_TOKEN_NAME, details = mapOf("field" to "name"), message = message),
+            )
         }
         val values = when (val check = values(command)) {
             is SizeValueCheck.Invalid -> return DsResult.Failure(check.violation.toFailure())

@@ -75,6 +75,7 @@ private fun Route.sizeTokenUpdateRoute(evaluator: PolicyEvaluator, useCases: Siz
             is DsResult.Success -> call.respond(
                 UpdateSizeTokenValueResponse(
                     editRevision = result.value.editRevision,
+                    kind = result.value.value.token.kind.wireValue,
                     token = result.value.value.token.toJson(),
                     values = result.value.value.values.map { it.toDto() },
                 ),
