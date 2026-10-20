@@ -8,6 +8,8 @@ import kotlinx.serialization.json.JsonElement
 data class UpdateSizeTokenValueResponse(
     /** Новая ревизия текущей темы. */
     val editRevision: Int,
+    /** Раздел токена: `radius`, `spacing` или `shadow`. */
+    val kind: String,
     /** Токен в формате чтения: [RadiusTokenDto], [SpacingTokenDto] или [ShadowTokenDto]. */
     val token: JsonElement,
     /** Записанные значения платформ. */

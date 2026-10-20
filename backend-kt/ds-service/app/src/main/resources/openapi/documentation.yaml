@@ -2331,7 +2331,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SizeTokenCreated"
         "400":
-          description: Invalid request, token name (INVALID_TOKEN_NAME) or value (INVALID_SIZE_VALUE with details.field)
+          description: "Invalid request, token name (INVALID_TOKEN_NAME with details.field name) or value (INVALID_SIZE_VALUE with details.field and message)"
           content:
             application/json:
               schema:
@@ -2396,7 +2396,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SizeTokenUpdated"
         "400":
-          description: Invalid request, token outside of the section or full rounding (INVALID_SIZE_TOKEN) or value (INVALID_SIZE_VALUE with details.field)
+          description: "Invalid request, token outside of the section or full rounding (INVALID_SIZE_TOKEN) or value (INVALID_SIZE_VALUE with details.field such as valuePx, platforms.android, layers[0].blur or platforms.ios.layers[0].offsetX, and message)"
           content:
             application/json:
               schema:
@@ -11864,6 +11864,12 @@ components:
         editRevision:
           type: integer
           minimum: 0
+        kind:
+          type: string
+          enum:
+            - radius
+            - spacing
+            - shadow
         token:
           $ref: "#/components/schemas/SizeToken"
         values:
@@ -11888,6 +11894,7 @@ components:
               - overridden
       required:
         - editRevision
+        - kind
         - token
         - values
     CreateSizeTokenRequest:

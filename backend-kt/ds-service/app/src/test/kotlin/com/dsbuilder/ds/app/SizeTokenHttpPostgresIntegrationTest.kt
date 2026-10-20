@@ -106,6 +106,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                 val roundMPath = "$base/$roundMId/value"
                 val edited = api.mutate("PUT", roundMPath, EDITOR, """{"editRevision":$revision,"valuePx":14}""")
                 revision = edited.number("editRevision")
+                assertEquals("radius", edited.text("kind"))
                 assertEquals(14, edited.obj("token").number("valuePx"))
                 assertEquals(11, edited.obj("token").array("components").size)
                 assertEquals(3, edited.array("values").size)
@@ -157,6 +158,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                 assertEquals("false", db.overridden(tenantA, hardM, "android"))
                 assertEquals(softMBefore, db.value(tenantA, softM, "web"))
                 assertEquals(4, shadow.obj("token").number("fallbackElevation"))
+                assertEquals("shadow", shadow.text("kind"))
 
                 // Отказы изменения: полное скругление, дробное значение, вид тела, ревизия, права, чужие токены.
                 val circleId = circle.text("tokenId")
@@ -212,7 +214,8 @@ class SizeTokenHttpPostgresIntegrationTest {
                 val duplicate = """{"editRevision":$revision,"kind":"radius","name":"xxxl","valuePx":40}"""
                 api.reject("POST", base, MAINTAINER, duplicate, 409, "TOKEN_NAME_CONFLICT")
                 val badName = """{"editRevision":$revision,"kind":"spacing","name":"Big Gap","valuePx":40}"""
-                api.reject("POST", base, MAINTAINER, badName, 400, "INVALID_TOKEN_NAME")
+                val nameError = api.reject("POST", base, MAINTAINER, badName, 400, "INVALID_TOKEN_NAME")
+                assertEquals("name", nameError.obj("details").text("field"))
                 api.reject("POST", base, VIEWER, radiusBody.replace("xxxl", "huge"), 403)
 
                 // Создание размера тени: четыре варианта; без одного варианта — отказ без записи.
