@@ -13,10 +13,10 @@ import { CtGlyph } from './CtGlyph';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
 /** Подсказка у опубликованного токена, имя которого меняется. */
-export const publishedWarning = (version: string) =>
+const publishedWarning = (version: string) =>
     `Токен опубликован в версии ${version}. Новое имя изменит переменную в пакете дизайн-системы`;
 
-export const PublishedWarning = ({ version }: { version: string }) => (
+const PublishedWarning = ({ version }: { version: string }) => (
     <span
         className="ct-published-warning"
         role="img"
@@ -34,6 +34,8 @@ interface InlineInputProps {
     error: string | null;
     busy: boolean;
     warning?: string | null;
+    /** Квадрат цвета строки токена: с ним строка ввода выглядит как строка токена, без поля с рамкой. */
+    swatch?: ReactNode;
     onSubmit: (value: string) => void;
     onCancel: () => void;
 }
@@ -49,6 +51,7 @@ const InlineInput = ({
     error,
     busy,
     warning,
+    swatch,
     onSubmit,
     onCancel,
 }: InlineInputProps) => {
@@ -78,8 +81,9 @@ const InlineInput = ({
         }
     };
     return (
-        <div className={`token-tree-input ${error ? 'is-error' : ''}`}>
-            <span className="token-tree-input-field">
+        <div className={`token-tree-input ${swatch ? 'is-token' : ''} ${error ? 'is-error' : ''}`}>
+            <span className={swatch ? 'token-row token-tree-input-field' : 'token-tree-input-field'}>
+                {swatch}
                 <input
                     ref={field}
                     autoFocus
@@ -143,6 +147,8 @@ interface TreeProps {
     onSearchOpen: (open: boolean) => void;
     onIssuesOnly: () => void;
     onToggle: (groupId: string) => void;
+    /** Раскрывает группу или подгруппу: в отличие от `onToggle` не сворачивает раскрытую. */
+    onExpand: (groupId: string) => void;
     /** Операции структуры: отказ бросает ошибку с текстом для строки ввода. */
     onCreateGroup: (parentId: string | null, label: string) => Promise<void>;
     onCreateToken: (groupId: string, label: string) => Promise<void>;
@@ -199,6 +205,9 @@ export const ColorTokenTree = (props: TreeProps) => {
         setEditing(next);
         setError(null);
         setMenu(null);
+        // Добавление в свёрнутую группу или подгруппу раскрывает её, иначе строка ввода не видна.
+        const target = next?.kind === 'new-token' ? next.groupId : next?.kind === 'new-subgroup' ? next.parentId : null;
+        if (target) props.onExpand(target);
     };
 
     // Enter и уход фокуса могут прийти подряд: операция структуры отправляется один раз.
@@ -346,15 +355,21 @@ export const ColorTokenTree = (props: TreeProps) => {
             </button>
         );
 
+    // Квадрат цвета строки токена; у строки нового токена — заглушка без цвета.
+    const swatch = (paint: string, severity = '') => (
+        <i className={`token-status token-color-preview alpha-swatch ${severity}`} style={alphaSwatchStyle(paint)} />
+    );
+
     const tokenRow = (container: { group: TokenGroupDto; tokens: ColorTokenView[] }, token: ColorTokenView) => {
         if (editing?.kind === 'rename-token' && editing.id === token.id) {
             return (
-                <div key={token.id} className="token-row is-editing">
+                <div key={token.id} className="token-row-wrap is-editing">
                     {input({
                         label: `Новое имя ${token.displayName}`,
                         initial: token.key.name,
                         placeholder: 'Имя токена',
                         warning: token.publishedIn,
+                        swatch: swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved)),
                         onSubmit: (value) => void submit(() => props.onRenameToken(token, value)),
                     })}
                 </div>
@@ -382,10 +397,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                     onClick={() => props.onSelect(token)}
                     onDoubleClick={() => editable && startEditing({ kind: 'rename-token', id: token.id })}
                 >
-                    <i
-                        className={`token-status token-color-preview alpha-swatch ${severity}`}
-                        style={alphaSwatchStyle(rowPreview(token.modes.light.resolved, token.modes.dark.resolved))}
-                    />
+                    {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
                     <span>{token.displayName}</span>
                     {token.incomplete && <b className="ct-row-flag">Нет значений</b>}
                     {save.state === 'error' && <b className="ct-row-flag is-error">Не сохранено</b>}
@@ -483,6 +495,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         input({
             label: 'Имя нового токена',
             placeholder: 'Например, Highlight',
+            swatch: swatch('', 'is-placeholder'),
             onSubmit: (value) => void submit(() => props.onCreateToken(groupId, value)),
         });
 

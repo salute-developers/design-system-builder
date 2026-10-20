@@ -195,6 +195,8 @@ beforeEach(() => {
     groupRepository.create.mockReset();
     groupRepository.update.mockReset();
     groupRepository.remove.mockReset();
+    groupRepository.list.mockImplementation(async () => groupState);
+    groupRepository.definitions.mockImplementation(async () => definitionState);
     setColorTokenRepository(repository, groupRepository);
 });
 
@@ -421,6 +423,9 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
         const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
+        // Строка нового токена выглядит как строка токена: заглушка цвета и ввод имени без поля с рамкой.
+        expect(field.closest('.token-tree-input')).toHaveClass('is-token');
+        expect(field.closest('.token-row')?.querySelector('.token-color-preview')).not.toBeNull();
         fireEvent.change(field, { target: { value: 'Accent' } });
         fireEvent.keyDown(field, { key: 'Enter' });
         expect(await screen.findByRole('alert')).toHaveTextContent('Имя accent уже занято.');
@@ -480,7 +485,7 @@ describe('ColorTokensScreen', () => {
         await waitFor(() =>
             expect(screen.getByTestId('color-token-row-color:text.brand')).toHaveTextContent('textBrand'),
         );
-        expect(within(inspector()).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('brand');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
     });
 
     it('уход фокуса из строки переименования сохраняет изменённое имя, а без изменений закрывает строку', async () => {
@@ -509,16 +514,60 @@ describe('ColorTokensScreen', () => {
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
     });
 
-    it('у опубликованного токена показывает предупреждение у поля имени', async () => {
+    it('у опубликованного токена показывает предупреждение в строке переименования, поля имени в инспекторе нет', async () => {
         published = '1.2.0';
         definitionState = definitions();
         await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
 
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        const row = screen.getByRole('textbox', { name: 'Новое имя textAccent' }).closest('.token-tree-input');
+        expect(row).toHaveClass('is-token');
+        expect(row?.querySelector('.token-color-preview')).not.toBeNull();
         expect(
-            await within(inspector()).findByRole('img', {
+            within(row as HTMLElement).getByRole('img', {
                 name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
             }),
         ).toBeInTheDocument();
+    });
+
+    it('«+» у свёрнутой подгруппы и группы раскрывает её и показывает строку ввода', async () => {
+        await renderScreen();
+        const status = await screen.findByTestId('token-subgroup-Status');
+        fireEvent.click(status.querySelector('.token-tree-heading') as HTMLElement);
+        expect(status).toHaveClass('is-collapsed');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
+        expect(status).toHaveClass('is-open');
+        expect(within(status).getByRole('textbox', { name: 'Имя нового токена' })).toBeInTheDocument();
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Имя нового токена' }), { key: 'Escape' });
+
+        const text = screen.getByTestId('token-group-Text & Icons');
+        fireEvent.click(text.querySelector('.token-tree-heading') as HTMLElement);
+        expect(text).toHaveClass('is-collapsed');
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить в Text & Icons' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить подгруппу' }));
+        expect(text).toHaveClass('is-open');
+        expect(within(text).getByRole('textbox', { name: 'Название новой подгруппы' })).toBeInTheDocument();
+    });
+
+    it('при первом открытии запрашивает определения после групп и показывает токены в их группах', async () => {
+        // Как `ds-service`: группы создаются при чтении списка, до этого у определений нет групп.
+        let initialized = false;
+        groupRepository.list.mockImplementation(async () => {
+            await Promise.resolve();
+            initialized = true;
+            return groupState;
+        });
+        groupRepository.definitions.mockImplementation(async () =>
+            initialized ? definitionState : definitionState.map((item) => ({ ...item, groupId: null })),
+        );
+        await renderScreen();
+
+        const accent = await screen.findByTestId('token-subgroup-Accent');
+        expect(within(accent).getByTestId('color-token-row-color:text.accent')).toBeInTheDocument();
+        expect(screen.queryByText('Без группы')).toBeNull();
     });
 
     it('переносит токен перетаскиванием в другую подгруппу и показывает отказ', async () => {

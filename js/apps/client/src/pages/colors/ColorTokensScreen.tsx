@@ -508,6 +508,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     onSearchOpen={setSearchOpen}
                     onIssuesOnly={() => setIssuesOnly((current) => !current)}
                     onToggle={(groupId) => setCollapsed((current) => ({ ...current, [groupId]: !current[groupId] }))}
+                    onExpand={(groupId) => setCollapsed((current) => ({ ...current, [groupId]: false }))}
                     onCreateGroup={createGroup}
                     onCreateToken={createToken}
                     onRenameGroup={renameGroup}
@@ -671,7 +672,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onDelete={() => requestDelete(selected)}
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
                             onRetry={() => editor.retry(selected.id)}
-                            onRename={(label) => renameToken(selected, label)}
                             addressLabel={addressLabel}
                         />
                     )}
