@@ -46,9 +46,13 @@ const server = createServer((req, res) => {
         '/api/projects/project-1/ds/components',
         '/api/projects/project-1/ds/appearances',
         '/api/projects/project-1/ds/design-systems/ds-1/changes',
+        '/api/projects/project-1/ds/property-platform-params',
+        '/api/projects/project-1/ds/property-variations',
     ].includes(path)) return send(res, []);
     if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/export')
         return send(res, { components: [] });
+    if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/web-adapter')
+        return send(res, []);
     if (path === '/api/projects') return send(res, [project]);
     if (path === '/api/projects/project-1') return send(res, project);
     if (path === '/api/projects/project-1/members')
@@ -73,14 +77,7 @@ const server = createServer((req, res) => {
     if (isApiPath && path.endsWith('/tenants/theme-1/token-values')) return send(res, []);
     if (isApiPath && path.endsWith('/tenants/theme-1')) return send(res, theme);
     if (isApiPath && path.endsWith('/design-systems/ds-1/tokens')) return send(res, []);
-    if (
-        isApiPath &&
-        path.endsWith('/legacy/design-systems/Большая%20корпоративная%20дизайн-система/component-configs')
-    )
-        return send(res, []);
     if (isApiPath && path.includes('/design-systems/ds-1/tenants')) return send(res, [theme]);
-    if (isApiPath && path.includes('/legacy/design-systems/') && path.endsWith('/component-configs'))
-        return send(res, []);
     if (isApiPath && path.endsWith('/design-systems'))
         return send(res, [
             {

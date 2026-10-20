@@ -25,6 +25,15 @@ import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
 import { camelToKebab } from '../utils/text';
+import {
+    enrichApi,
+    templateLookup,
+    variationNamesByProperty,
+    webParamsByProperty,
+    type PropertyPlatformParamDto,
+    type PropertyVariationDto,
+    type WebAdapterComponentDto,
+} from './componentModelEnrichment';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
@@ -149,7 +158,10 @@ export const componentRepository = {
         if (!isComponentEditorEnabled()) return [];
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
-        const [links, catalog, appearances, exported] = await Promise.all([
+        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose берёт имена из меты плагина.
+        const isWeb = platform === 'web';
+        const empty = <T>() => Promise.resolve({ data: [] as T[] });
+        const [links, catalog, appearances, exported, params, propertyVariations, adapter] = await Promise.all([
             readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
             readEditor<ComponentDto[]>(`${root}/components`, request),
             readEditor<AppearanceDto[]>(`${root}/appearances`, request),
@@ -162,7 +174,20 @@ export const componentRepository = {
                     }),
                 ),
             ),
+            isWeb
+                ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
+                : empty<PropertyPlatformParamDto>(),
+            isWeb
+                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
+                : empty<PropertyVariationDto>(),
+            isWeb
+                ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
+                      designSystemId: context.designSystemId,
+                  })
+                : empty<WebAdapterComponentDto>(),
         ]);
+        const webParams = webParamsByProperty(params.data);
+        const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
@@ -233,14 +258,25 @@ export const componentRepository = {
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
                     },
                     sources: {
-                        api: properties.data.map((property) => ({
-                            id: property.id,
-                            name: property.name,
-                            type: property.type as Meta['sources']['api'][number]['type'],
-                            description: property.description ?? undefined,
-                            variations: null,
-                            platformMappings: { xml: null, compose: null, ios: null, web: null },
-                        })),
+                        api: enrichApi(
+                            properties.data.map((property) => ({
+                                id: property.id,
+                                name: property.name,
+                                type: property.type as Meta['sources']['api'][number]['type'],
+                                description: property.description ?? undefined,
+                                variations: null,
+                                platformMappings: { xml: null, compose: null, ios: null, web: null },
+                            })),
+                            webParams,
+                            variationNamesByProperty(
+                                propertyVariations.data,
+                                new Map(variations.data.map((variation) => [variation.id, variation.name])),
+                            ),
+                            templateLookup(
+                                adapterByName.get(component.name),
+                                componentEntries.map((entry) => entry.styleName),
+                            ),
+                        ),
                         variations: variations.data,
                         configs: componentEntries.map((entry) => {
                             const appearance = componentAppearances.find(

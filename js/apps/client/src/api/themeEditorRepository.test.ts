@@ -18,7 +18,14 @@ vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
 // его интервалы, отмена, объединение и повторы проверяются отдельно в editorReads.test.ts.
 vi.mock('./editorReads', () => ({
     readEditor: (url: string, request: unknown, body?: unknown) =>
-        body === undefined ? get(url, request) : post(url, body, request),
+        // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки.
+        ['/property-platform-params', '/property-variations', '/component-config/web-adapter'].some((suffix) =>
+            url.endsWith(suffix),
+        )
+            ? Promise.resolve({ data: [] })
+            : body === undefined
+              ? get(url, request)
+              : post(url, body, request),
     invalidateEditorReads: vi.fn(),
 }));
 
