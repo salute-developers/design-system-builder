@@ -94,6 +94,22 @@ npm run generate:ds -- --package --name base
 React-компонентов. Метаданные связывают внутренние токены компонента со свойствами общего конфига,
 не меняя runtime компонента, и нужны генераторам конфигов и другим инструментам дизайн-системы.
 
+## Импорт компонента из plasma
+
+`npm run import:plasma -- --component=<X>` читает конфиг `packages/sdds-serv/src/components/<X>/<X>.config.ts`
+и токены `packages/plasma-new-hope/src/components/<X>/<X>.tokens.ts` из клона plasma (`--plasma=`, `PLASMA_DIR`,
+по умолчанию `~/Documents/work/plasma`) и пишет записи компонента в `.sdds/components` в том же native-формате,
+что отдаёт `dsbuilder components fetch`: файл `<component>_<style>_config.json` на каждый appearance и запись в
+`meta.json`. Имена токенов темы и web-значения формы берутся из выгрузки `dsbuilder theme fetch` в
+`.sdds/tenants/<тема>/` (`--theme=`, иначе единственная тема или `base_default`); без темы инструмент
+останавливается. Манифест генератора `src/generator/templates/<X>/component.json` он пишет сам, включая
+`webTemplates` — шаблоны многозначных CSS-значений (`0.25rem $1`), которые в ds-service не хранятся.
+Если рядом лежит `.sdds/web/web-api-meta.json` (вывод `generate:api-meta`), типы свойств сверяются с
+аннотациями глобального слоя, расхождения попадают в «ТРЕБУЕТ РЕШЕНИЯ»; радиус, не совпавший с `round.*`,
+закрывается токеном через `--shape=<prop>=<round.x>`. Без `--apply` — отчёт без записи; `--remove --apply`
+убирает записи компонента из пакета; `--manifest --apply` пересобирает только манифест. В базу пакет заливает `dsbuilder components push --platform react --from .sdds/components --apply`.
+Порядок шагов и правила модели — в `.claude/skills/add-component/SKILL.md`.
+
 ## Как это работает
 
 1. Компонент экспортирует объект `tokens` из `*.tokens.ts`.

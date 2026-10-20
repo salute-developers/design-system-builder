@@ -7,7 +7,8 @@
         "generate:ds": "tsx --env-file-if-exists=../.env src/ds.ts",
         "generate:api-meta": "tsx src/generate-api-meta.ts",
         "test": "tsx --test src/*.test.ts",
-        "typecheck": "tsc -p ."
+        "typecheck": "tsc -p .",
+        "import:plasma": "tsx src/import-plasma-component.ts"
     },
     "devDependencies": {
         "@babel/cli": "^7.29.7",
