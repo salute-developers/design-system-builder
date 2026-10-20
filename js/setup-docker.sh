@@ -9,13 +9,13 @@
 # - Running database migrations
 # - Seeding initial data (seed-prod.ts)
 # - Bootstrapping the user's project in projects-service (via gateway)
-#   and binding the 'base' design system to it
+#   (legacy Drizzle mode also seeds and binds the 'base' design system)
 # - Comprehensive health checks for all services
 #
 # Usage: ./setup-docker.sh [--seed-only]
-#   --seed-only  bootstrap a local project and its 'base' design system after the schema exists.
-#                In Flyway mode this uses the projects-service and ds-service HTTP APIs and never runs
-#                the legacy Drizzle seed against the ds-service schema.
+#   --seed-only  bootstrap the local project after the schema exists.
+#                In Flyway mode this uses the projects-service HTTP API without creating a design system
+#                and never runs the legacy Drizzle seed against the ds-service schema.
 #
 # Project bootstrap env (all optional):
 #   DSBUILDER_GATEWAY_URL       gateway of backend-kt stack, default http://localhost:8080
@@ -25,8 +25,8 @@
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   Keycloak realm/client, default dsbuilder / dsbuilder-api
 #   DSBUILDER_SKIP_PROJECT=1    skip the project bootstrap step entirely
 #   DS_SCHEMA_MIGRATION_OWNER   drizzle (default) or flyway. flyway: ds-service owns the shared schema, so the
-#                               Drizzle runner, the seed and the project binding are skipped here and run later
-#                               with --seed-only, after ds-service has created the schema
+#                               Drizzle runner, seed and project binding are skipped; only the project bootstrap
+#                               runs later with --seed-only, after ds-service has created the schema
 #   DSBUILDER_RESET_VOLUMES     1 (default) recreates the Docker volumes of this stack, 0 keeps the data
 # =============================================================================
 
@@ -254,10 +254,9 @@ seed_and_bind() {
 
 }
 
-# Creates the minimal local workspace only through current service APIs. Generated token definitions are initialized
-# by ds-service as part of design-system creation; a theme can then be created in the editor.
+# Creates only the local project through the current service API. Users create design systems in the editor.
 bootstrap_ds_service() {
-    local project_id token_response access_token systems http_status body
+    local project_id
     if [ "$SKIP_PROJECT" = "1" ]; then
         echo_info "Local project bootstrap skipped (DSBUILDER_SKIP_PROJECT=1)"
         return
@@ -266,43 +265,7 @@ bootstrap_ds_service() {
         echo_error "Could not bootstrap the local project"
         exit 1
     }
-    token_response="$(curl -sf -X POST "$GATEWAY_URL/realms/$REALM/protocol/openid-connect/token" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        --data-urlencode "grant_type=password" \
-        --data-urlencode "client_id=$CLIENT_ID" \
-        --data-urlencode "username=$PROJECT_USERNAME" \
-        --data-urlencode "password=$PROJECT_PASSWORD")" || {
-        echo_error "Could not obtain an access token for ds-service bootstrap"
-        exit 1
-    }
-    access_token="$(printf '%s' "$token_response" | json_field access_token)"
-    systems="$(curl -sf "$GATEWAY_URL/api/projects/$project_id/ds/design-systems" \
-        -H "Authorization: Bearer $access_token")" || {
-        echo_error "Could not list design systems through ds-service"
-        exit 1
-    }
-    if printf '%s' "$systems" | python3 -c '
-import json, sys
-raise SystemExit(0 if any(item.get("name") == "base" for item in json.load(sys.stdin)) else 1)
-'; then
-        echo_info "Design system 'base' already exists in project $project_id"
-        return
-    fi
-
-    body="$(mktemp)"
-    http_status="$(curl -sS -o "$body" -w "%{http_code}" -X POST \
-        "$GATEWAY_URL/api/projects/$project_id/ds/design-systems" \
-        -H "Authorization: Bearer $access_token" \
-        -H "Content-Type: application/json" \
-        -H "Idempotency-Key: local-base-$project_id" \
-        -d '{"name":"base","projectName":"Base"}')"
-    if [ "$http_status" != "201" ]; then
-        echo_error "Design-system bootstrap failed: HTTP $http_status $(cat "$body")"
-        rm -f "$body"
-        exit 1
-    fi
-    rm -f "$body"
-    echo_success "Created design system 'base' through ds-service for project $project_id"
+    echo_success "Local project $project_id is ready; create design systems in the editor"
 }
 
 echo_header "🐳 Design System Builder - Docker Setup (Development)"

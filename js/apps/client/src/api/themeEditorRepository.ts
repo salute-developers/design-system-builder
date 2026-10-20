@@ -12,22 +12,25 @@ export type * from './editorContracts';
 export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
     const root = apiRoot(context.projectId);
     const request = readRequest(context, signal);
-    const [project, designSystem, tokenData, components] = await Promise.all([
+    const [project, designSystem, tokenData, components, composeComponentsData] = await Promise.all([
         readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
         readEditor<DesignSystemDto>(`${root}/design-systems/${context.designSystemId}`, request),
         tokenRepository.loadTokenData(context, signal),
         componentRepository.loadComponentData(context, signal),
+        componentRepository.loadComposeComponentData(context, signal),
     ]);
     return {
         ...tokenData,
         designSystem: designSystem.data,
         componentsData: components,
+        composeComponentsData,
         parameters: {
             projectId: context.projectId,
             projectName: project.data.name,
             packagesName: designSystem.data.name,
             tenantId: context.tenantId,
             designSystemId: context.designSystemId,
+            effectiveRole: project.data.effectiveRole,
             editRevision: tokenData.tenant.editRevision,
             draftId: designSystem.data.draftId ?? undefined,
             draftRevision: designSystem.data.draftRevision ?? undefined,

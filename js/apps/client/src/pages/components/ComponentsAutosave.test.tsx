@@ -17,7 +17,8 @@ const mocks = vi.hoisted(() => ({
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
 }));
 
-vi.mock('../../utils', () => ({
+vi.mock('../../utils', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('../../utils')>()),
     getOldMenuItems: () => ({
         groups: [
             {

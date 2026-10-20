@@ -4,6 +4,7 @@ import type { VariationType } from '../controllers/themeBuilder/types/token';
 import type { Parameters } from '../types/other';
 import type { DesignSystemDto, TenantDto } from './contracts';
 import type { TokenChange } from '../utils/designSystemDraft';
+import type { ThemePalette } from '../modules/palette';
 
 export interface EditorContextKey {
     projectId: string;
@@ -19,6 +20,9 @@ export interface TokenDefinitionDto {
     displayName: string | null;
     description: string | null;
     enabled: boolean;
+    groupId?: string | null;
+    position?: number;
+    publishedIn?: string | null;
 }
 export interface TenantTokenValueDto {
     id: string;
@@ -27,6 +31,7 @@ export interface TenantTokenValueDto {
     platform: 'web' | 'ios' | 'android' | null;
     mode: 'light' | 'dark' | null;
     paletteId?: string | null;
+    paletteRef?: string | null;
     value: unknown;
     editRevision: number;
 }
@@ -130,12 +135,16 @@ export interface ThemeEditorTokenSnapshot {
     tokenIdsByName: Record<string, string>;
     tokenDefinitionsByName?: Record<string, TokenDefinitionDto>;
     tokenValueRevisionsByKey: Record<string, number>;
+    tokenValueEntityIdsByKey?: Record<string, string>;
     publicationVersion: string;
+    palette?: ThemePalette;
+    paletteError?: Error;
 }
 
 export interface ThemeEditorSnapshot extends ThemeEditorTokenSnapshot {
     designSystem: DesignSystemDto;
     componentsData: Meta[];
+    composeComponentsData?: Meta[];
     parameters: Partial<Parameters>;
 }
 

@@ -16,6 +16,7 @@ import {
 } from '../../features/versionJournal/journalPresenter';
 import { useJournal, useReloadAfterAutosave, errorCode } from '../../features/versionJournal/useJournal';
 import { journalColor, journalValueText, type JournalValue } from '../../features/versionJournal/journalFields';
+import type { JournalPaletteStep } from '../../features/versionJournal/paletteJournalPresentation';
 import {
     ActionRow,
     Button,
@@ -41,6 +42,7 @@ import {
     List,
     NotesLabel,
     Page,
+    PaletteComparison,
     ReleaseNotes,
     ReleaseSection,
     SecondaryButton,
@@ -110,8 +112,80 @@ const PreviewValue = ({ value, fieldLabel }: { value: JournalValue; fieldLabel?:
     );
 };
 
+const PaletteChanges = ({ steps }: { steps: JournalPaletteStep[] }) => {
+    const changed = steps.filter((step) => step.before?.toUpperCase() !== step.after?.toUpperCase());
+    const changedNumbers = new Set(changed.map(({ step }) => step));
+    return (
+        <PaletteComparison>
+            <p>
+                {changed.length
+                    ? `Изменено ступеней: ${changed.length} из ${steps.length}. Изменённые отмечены рамкой.`
+                    : 'Цвета ступеней не изменились. Изменились только параметры перестроения.'}
+            </p>
+            {(['before', 'after'] as const).map((side) => (
+                <div key={side}>
+                    <span>{side === 'before' ? 'Было' : 'Стало'}</span>
+                    <div className="palette-comparison-steps">
+                        {steps.map((step) => {
+                            const value = step[side];
+                            const modified = changedNumbers.has(step.step);
+                            const label = `Ступень ${step.step}: ${value ?? 'Не задано'}${modified ? ' · изменена' : ''}`;
+                            return (
+                                <div
+                                    key={step.step}
+                                    className="palette-comparison-step"
+                                    data-changed={modified}
+                                    title={label}
+                                    aria-label={label}
+                                >
+                                    <i aria-hidden="true" style={{ backgroundColor: journalColor(value) }} />
+                                    <span>
+                                        {step.step}
+                                        {modified ? ' •' : ''}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
+            {changed.length > 0 && (
+                <details>
+                    <summary>Точные значения изменённых ступеней</summary>
+                    <table aria-label="Изменённые цвета растяжки">
+                        <thead>
+                            <tr>
+                                <th scope="col">Ступень</th>
+                                <th scope="col">Было</th>
+                                <th scope="col">Стало</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {changed.map((step) => (
+                                <tr key={step.step}>
+                                    <th scope="row">{step.step}</th>
+                                    {(['before', 'after'] as const).map((side) => (
+                                        <td key={side}>
+                                            <span
+                                                className="palette-comparison-color"
+                                                aria-hidden="true"
+                                                style={{ backgroundColor: journalColor(step[side]) }}
+                                            />
+                                            <code>{step[side] ?? 'Не задано'}</code>
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </details>
+            )}
+        </PaletteComparison>
+    );
+};
+
 const ChangePreview = ({ action }: { action: JournalActionViewModel }) => {
-    if (action.structural || action.changedFields.length > 1) return null;
+    if (action.structural || action.paletteSteps || action.changedFields.length > 1) return null;
     const field = action.changedFields[0];
     if (!field) return <small>{operationLabels[action.operation]}</small>;
     return (
@@ -136,8 +210,8 @@ const useJournalRevert = (
     const pendingRefresh = useRef<JournalActionViewModel>();
     const running = useRef(false);
     const refresh = async (action: JournalActionViewModel) => {
-        await refreshChanges?.(action.changes);
-        await onReload();
+        if (context) await waitForDraftAutosaveIdle(context, 10_000);
+        await Promise.all([refreshChanges?.(action.changes), onReload()]);
         setRefreshFailed(false);
     };
     const revert = async (action: JournalActionViewModel) => {
@@ -224,7 +298,12 @@ const JournalDetails = ({
             <InspectorHeader>
                 <strong>{action.title}</strong>
                 <span>
-                    {[operationLabels[action.operation], action.platformLabel, action.actorLabel]
+                    {[
+                        operationLabels[action.operation],
+                        action.platformLabel,
+                        action.groupLabel && `Группа: ${action.groupLabel}`,
+                        action.actorLabel,
+                    ]
                         .filter(Boolean)
                         .join(' · ')}
                 </span>
@@ -253,6 +332,12 @@ const JournalDetails = ({
                         ))}
                     </FieldList>
                 </InspectorSection>
+                {action.paletteSteps && (
+                    <InspectorSection>
+                        <h2>Цвета растяжки</h2>
+                        <PaletteChanges steps={action.paletteSteps} />
+                    </InspectorSection>
+                )}
                 <InspectorSection>
                     <h2>Сведения</h2>
                     <InspectorRow>
@@ -438,6 +523,7 @@ export const DesignSystemChangesPage = () => {
                                                             ...new Set(action.changedFields.map(({ label }) => label)),
                                                         ].join(', '),
                                                         action.platformLabel,
+                                                        action.groupLabel && `Группа: ${action.groupLabel}`,
                                                     ]
                                                         .filter(Boolean)
                                                         .join(' · ')}
@@ -787,6 +873,7 @@ export const DesignSystemVersionsPage = () => {
                                                                           .join(', ')
                                                                     : sectionDescriptions[section],
                                                                 action.platformLabel,
+                                                                action.groupLabel && `Группа: ${action.groupLabel}`,
                                                             ]
                                                                 .filter(Boolean)
                                                                 .join(' · ')}

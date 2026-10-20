@@ -5,11 +5,19 @@ import {
     reloadWhenDraftAutosaveIsIdle,
     setDraftAutosaveActivity,
     waitForDraftAutosaveIdle,
+    getDraftAutosaveRevision,
 } from './draftAutosaveActivity';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 
 describe('draft autosave activity', () => {
+    it('помнит запись, которая началась и закончилась за время чтения даже без постоянной очереди', () => {
+        const isolated = { projectId: 'transient', designSystemId: 's', tenantId: 't' };
+        const before = getDraftAutosaveRevision(isolated);
+        setDraftAutosaveActivity(isolated, 'request', 'saving');
+        setDraftAutosaveActivity(isolated, 'request', null);
+        expect(getDraftAutosaveRevision(isolated)).not.toBe(before);
+    });
     it('находит ожидающее изменение компонента после перезагрузки', () => {
         localStorage.setItem('ds_pending_component:project-1:ds-1:tenant-1:Button:request', '{"generation":"g-1"}');
 

@@ -21,6 +21,8 @@ data class DsRequestContext(
     val clientId: String? = null,
     /** Кодирует публичное тело первого ответа для точного повтора ключа. */
     val idempotentResponseEncoder: ((Any) -> String)? = null,
+    /** Повторяемая предметная команда, выполняемая в одной транзакции с сохранением её результата. */
+    val mutationRequest: IdempotentMutationRequest? = null,
 ) {
     /** Project boundary derived exclusively from [principal]. */
     val projectId: ProjectId = ProjectId(principal.projectId)

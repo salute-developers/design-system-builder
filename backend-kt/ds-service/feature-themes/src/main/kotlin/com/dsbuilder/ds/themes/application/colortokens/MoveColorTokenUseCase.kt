@@ -38,7 +38,7 @@ class MoveColorTokenUseCase(
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         command.name?.let(::nameFailure)?.let { return DsResult.Failure(it) }
-        return transactions.required {
+        return transactions.required(context) {
             tokens.withAllThemes(context, tenantId, command.editRevision) { lock ->
                 move(tenantId, lock, tokenId, command)
             }

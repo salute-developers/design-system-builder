@@ -108,10 +108,14 @@ internal class FakeColorTokenRepository(
     }
 
     override suspend fun replaceValues(tenantId: UUID, values: Map<UUID, List<ColorTokenValue>>) {
-        values.forEach { (token, items) -> this.values[tenantId to token] = items }
+        values.forEach { (token, items) ->
+            val changed = items.map { it.platform to it.mode }.toSet()
+            this.values[tenantId to token] = this.values[tenantId to token].orEmpty()
+                .filter { (it.platform to it.mode) !in changed } + items
+        }
     }
 
-    override suspend fun deleteDefinitions(tokenIds: Collection<UUID>) {
+    override suspend fun deleteDefinitions(tokenIds: Collection<UUID>, primaryTokenId: UUID?) {
         definitions.removeAll { it.id in tokenIds }
         values.keys.removeAll { it.second in tokenIds }
     }

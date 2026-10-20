@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
 import type { Config, DesignSystem, Theme } from '../../controllers';
@@ -23,9 +23,11 @@ interface ColorsOutletContextProps {
 export const Colors = () => {
     const outlet = useOutletContext<ColorsOutletContextProps>();
     const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    const versionId = searchParams.get('versionId') ?? undefined;
     const context = useMemo(
-        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId } : null),
-        [projectId, designSystemId, tenantId],
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
     );
 
     if (!context || !outlet.designSystem || !outlet.theme) {

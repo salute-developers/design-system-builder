@@ -15,8 +15,15 @@ internal object TenantPaletteTemplateTable : Table("tenant_palette_template") {
     override val primaryKey = PrimaryKey(tenantId, type, shade, step)
 }
 
-internal object TenantPaletteGroupsTable : Table("tenant_palette_groups") {
+internal object TenantPaletteGroupsTable : PaletteResolvedTable(
+    "tenant_palette_groups",
+    "tenant_palette_group_revisions",
+    "group_id",
+    listOf("id", "design_system_id", "tenant_id", "kind", "system_key", "created_at"),
+    listOf("label", "position"),
+) {
     val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val tenantId = uuid("tenant_id")
     val kind = postgresEnum("kind", "palette_group_kind", PaletteGroupKind::fromWire, PaletteGroupKind::wireValue)
     val systemKey = text("system_key").nullable()
@@ -27,8 +34,15 @@ internal object TenantPaletteGroupsTable : Table("tenant_palette_groups") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object TenantPaletteRampsTable : Table("tenant_palette_ramps") {
+internal object TenantPaletteRampsTable : PaletteResolvedTable(
+    "tenant_palette_ramps",
+    "tenant_palette_ramp_revisions",
+    "ramp_id",
+    listOf("id", "design_system_id", "group_id", "slot_type", "slot_shade", "created_at"),
+    listOf("source_type", "source_shade", "added", "origin", "anchor_step", "anchor_value"),
+) {
     val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val groupId = uuid("group_id")
     val slotType = postgresEnum("slot_type", "palette_type", ThemePaletteType::fromWire, ThemePaletteType::wireValue)
     val slotShade = text("slot_shade")
@@ -45,16 +59,32 @@ internal object TenantPaletteRampsTable : Table("tenant_palette_ramps") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object TenantPaletteStepsTable : Table("tenant_palette_steps") {
+internal object TenantPaletteStepsTable : PaletteResolvedTable(
+    "tenant_palette_steps",
+    "tenant_palette_step_revisions",
+    "step_id",
+    listOf("id", "design_system_id", "ramp_id", "step"),
+    listOf("value"),
+) {
+    val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val rampId = uuid("ramp_id")
     val step = integer("step")
     val value = text("value")
-    override val primaryKey = PrimaryKey(rampId, step)
+    override val primaryKey = PrimaryKey(id)
 }
 
-internal object TenantPaletteTokenGroupsTable : Table("tenant_palette_token_groups") {
+internal object TenantPaletteTokenGroupsTable : PaletteResolvedTable(
+    "tenant_palette_token_groups",
+    "tenant_palette_token_group_revisions",
+    "assignment_id",
+    listOf("id", "design_system_id", "tenant_id", "token_id"),
+    listOf("group_id"),
+) {
+    val id = uuid("id")
+    val designSystemId = uuid("design_system_id")
     val tenantId = uuid("tenant_id")
     val tokenId = uuid("token_id")
     val groupId = uuid("group_id")
-    override val primaryKey = PrimaryKey(tenantId, tokenId)
+    override val primaryKey = PrimaryKey(id)
 }

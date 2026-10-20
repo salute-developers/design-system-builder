@@ -18,4 +18,6 @@ data class TokenGroup(
     val label: String,
     /** Позиция среди соседей одного родителя. */
     val position: Int,
+    /** Техническая редакция прочитанного состояния узла. */
+    val editRevision: Long = 0,
 )

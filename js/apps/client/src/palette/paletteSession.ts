@@ -38,7 +38,10 @@ export const setPaletteSession = (value: PaletteSession | null) => {
 export const getPaletteSession = () => session;
 
 const sameContext = (a: PaletteContext, b: PaletteContext) =>
-    a.projectId === b.projectId && a.designSystemId === b.designSystemId && a.tenantId === b.tenantId;
+    a.projectId === b.projectId &&
+    a.designSystemId === b.designSystemId &&
+    a.tenantId === b.tenantId &&
+    a.versionId === b.versionId;
 
 const colorTokens = (theme: Theme) => theme.getTokens('color');
 

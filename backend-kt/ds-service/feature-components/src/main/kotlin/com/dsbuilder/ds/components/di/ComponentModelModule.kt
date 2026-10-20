@@ -92,12 +92,16 @@ import com.dsbuilder.ds.components.application.UpdateStyleUseCase
 import com.dsbuilder.ds.components.application.UpdateVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
+import com.dsbuilder.ds.components.data.ComponentTokenRevertDependencyValidator
 import com.dsbuilder.ds.components.data.ExposedAppearanceRepository
 import com.dsbuilder.ds.components.data.ExposedComponentModelRepository
 import com.dsbuilder.ds.components.data.ExposedPropertyValueRepository
 import com.dsbuilder.ds.components.data.ExposedStateRepository
 import com.dsbuilder.ds.components.data.ExposedStyleCombinationRepository
 import com.dsbuilder.ds.components.data.ExposedStyleRepository
+import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
+import com.dsbuilder.ds.core.application.TokenReferenceCleaner
+import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 /** Dependency bindings for the component variation and property model. */
@@ -106,6 +110,10 @@ val componentModelModule = module {
     single<AppearanceRepository> { ExposedAppearanceRepository() }
     single<StyleRepository> { ExposedStyleRepository() }
     single<PropertyValueRepository> { ExposedPropertyValueRepository() }
+    single<TokenReferenceCleaner> { get<PropertyValueRepository>() as ExposedPropertyValueRepository }
+    single<DraftChangeDependencyValidator>(
+        named("component-token-revert"),
+    ) { ComponentTokenRevertDependencyValidator() }
     single<StateRepository> { ExposedStateRepository() }
     single<StyleCombinationRepository> { ExposedStyleCombinationRepository() }
     factory { ListVariationsUseCase(get(), get(), get()) }

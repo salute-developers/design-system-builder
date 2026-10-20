@@ -13,7 +13,6 @@ import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
 import com.dsbuilder.ds.core.application.IdempotentRequestLookup
 import com.dsbuilder.ds.core.application.IdempotentRequestRepository
 import com.dsbuilder.ds.core.application.IdempotentResponse
-import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.CreateTenant
@@ -76,6 +75,7 @@ class ThemeUseCaseTest {
             palette,
             IdempotentCreateExecutor(NoopIdempotentRequestRepository()),
             NoopUniqueKeyLockRepository(),
+            com.dsbuilder.ds.themes.application.tokengroups.FakeTokenGroupRepository(command.designSystemId),
         ).execute(ownerContext(), command)
 
         assertIs<DsResult.Success<Tenant>>(result)

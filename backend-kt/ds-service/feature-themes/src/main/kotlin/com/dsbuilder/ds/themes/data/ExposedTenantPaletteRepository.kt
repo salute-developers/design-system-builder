@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteLock
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
@@ -23,20 +24,10 @@ import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.notInList
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.batchInsert
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
-import java.time.Instant
 import java.util.UUID
 
 /** Exposed-хранилище палитры темы: таблицы `tenant_palette_*` и значения токенов темы. */
@@ -67,50 +58,34 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         val existing = groups(tenantId).mapNotNull { it.systemKey }.toSet()
         SystemPaletteGroup.entries.forEachIndexed { position, group ->
             if (group in existing) return@forEachIndexed
-            TenantPaletteGroupsTable.insertIgnore {
-                it[id] = UUID.randomUUID()
-                it[TenantPaletteGroupsTable.tenantId] = tenantId
-                it[kind] = SYSTEM
-                it[systemKey] = group.wireValue
-                it[label] = group.label
-                it[TenantPaletteGroupsTable.position] = position
-                it[createdAt] = Instant.now()
-                it[updatedAt] = Instant.now()
-            }
+            val owner = requireNotNull(
+                currentTenantRows(tenantId = tenantId).singleOrNull(),
+            )[TenantsTable.designSystemId]
+            insertPaletteGroup(
+                owner,
+                tenantId,
+                StoredPaletteGroup(UUID.randomUUID().toString(), SYSTEM, group, group.label),
+                position,
+            )
         }
     }
 
     override suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock {
-        val tenant = TenantsTable.innerJoin(ThemeDesignSystemsTable)
-            .selectAll()
-            .where { (TenantsTable.id eq tenantId) and (ThemeDesignSystemsTable.projectId eq projectId.value) }
-            // Только строка темы: операции над другими темами дизайн-системы и вставки, ссылающиеся на неё, не ждут.
-            .forUpdate(ForUpdateOption.PostgreSQL.ForUpdate(null, TenantsTable))
-            .limit(1)
-            .singleOrNull() ?: return TenantPaletteLock.NotFound
-        val current = tenant[TenantsTable.editRevision]
-        return if (current == editRevision) TenantPaletteLock.Locked else TenantPaletteLock.RevisionConflict(current)
+        val tenant = currentTenantRows(projectId, tenantId = tenantId).singleOrNull()
+            ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value } ?: return TenantPaletteLock.NotFound
+        lockDesignSystemMutation(tenant[TenantsTable.designSystemId])
+        return TenantPaletteLock.Locked
     }
 
-    override suspend fun snapshot(projectId: ProjectId, tenantId: UUID): TenantPaletteSnapshot? {
-        val tenant = TenantsTable.innerJoin(ThemeDesignSystemsTable)
-            .selectAll()
-            .where {
-                (TenantsTable.id eq tenantId) and
-                    (
-                        (ThemeDesignSystemsTable.projectId eq projectId.value) or
-                            ThemeDesignSystemsTable.projectId.isNull()
-                        )
-            }
-            // FOR SHARE OF tenants: операции палитры и `PUT token-values` берут тему FOR UPDATE, поэтому все чтения
-            // снимка видят одно зафиксированное состояние. Строка дизайн-системы не блокируется: иначе чтение ждало бы
-            // операции над другими темами этой дизайн-системы.
-            .forUpdate(ForUpdateOption.PostgreSQL.ForShare(null, TenantsTable))
-            .limit(1)
-            .singleOrNull() ?: return null
+    override suspend fun snapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        includeSubjectRevisions: Boolean,
+    ): TenantPaletteSnapshot? {
+        val tenant = currentTenantRows(projectId, tenantId = tenantId).singleOrNull() ?: return null
         val tokens = colorTokens(tenant[TenantsTable.designSystemId])
         val state = TenantPaletteState(
-            editRevision = tenant[TenantsTable.editRevision],
+            editRevision = 0,
             template = template(tenantId),
             groups = groups(tenantId),
             ramps = ramps(tenantId),
@@ -123,37 +98,18 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         )
         val values = colorValues(tenantId, tokens.map { UUID.fromString(it.id) })
         val owned = tenant[ThemeDesignSystemsTable.projectId] == projectId.value
-        return TenantPaletteSnapshot(state, tokens, values, owned)
+        return TenantPaletteSnapshot(
+            state,
+            tokens,
+            values,
+            owned,
+            if (includeSubjectRevisions) paletteSubjectRevisions(tenantId) else emptyMap(),
+        )
     }
 
-    override suspend fun save(tenantId: UUID, state: TenantPaletteState) {
-        val groupIds = state.groups.map { UUID.fromString(it.id) }
-        TenantPaletteGroupsTable.deleteWhere {
-            (TenantPaletteGroupsTable.tenantId eq tenantId) and (TenantPaletteGroupsTable.id notInList groupIds)
-        }
-        val existing = TenantPaletteGroupsTable.selectAll()
-            .where { TenantPaletteGroupsTable.tenantId eq tenantId }
-            .map { it[TenantPaletteGroupsTable.id] }
-            .toSet()
-        state.groups.forEachIndexed { position, group ->
-            if (UUID.fromString(group.id) in existing) {
-                updateGroup(group, position)
-            } else {
-                insertGroup(tenantId, group, position)
-            }
-        }
-        TenantPaletteRampsTable.deleteWhere { TenantPaletteRampsTable.groupId inList groupIds }
-        state.ramps.forEach(::insertRamp)
-        TenantPaletteTokenGroupsTable.deleteWhere { TenantPaletteTokenGroupsTable.tenantId eq tenantId }
-        TenantPaletteTokenGroupsTable.batchInsert(state.tokenGroups.entries) { (tokenId, groupId) ->
-            this[TenantPaletteTokenGroupsTable.tenantId] = tenantId
-            this[TenantPaletteTokenGroupsTable.tokenId] = UUID.fromString(tokenId)
-            this[TenantPaletteTokenGroupsTable.groupId] = UUID.fromString(groupId)
-        }
-        TenantsTable.update({ TenantsTable.id eq tenantId }) {
-            it[editRevision] = state.editRevision
-            it[updatedAt] = Instant.now()
-        }
+    override suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState) {
+        val owner = requireNotNull(currentTenantRows(tenantId = tenantId).singleOrNull())[TenantsTable.designSystemId]
+        PaletteStateWriter(owner, tenantId).save(before, state)
     }
 
     override suspend fun rewriteTokenReferences(
@@ -163,36 +119,32 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
     ): Int {
         val tokenIds = rewrite.tokenIds.map(UUID::fromString)
         val paletteRows = paletteRows()
-        val rows = ThemeTokenValuesTable.selectAll()
-            .where { (ThemeTokenValuesTable.tenantId eq tenantId) and (ThemeTokenValuesTable.tokenId inList tokenIds) }
-            .toList()
+        if (tokenIds.isEmpty()) return 0
+        val rows = currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
         return rows.count { row ->
             val reference = reference(row, paletteRows) ?: return@count false
             val next = rewrite.rewrite(reference, resolveHex) ?: return@count false
-            ThemeTokenValuesTable.update({ ThemeTokenValuesTable.id eq row[ThemeTokenValuesTable.id] }) {
-                // Та же форма, что пишет `PUT /tenants/{id}/token-values` из клиента:
-                // строка в массиве, без `palette_id`.
-                it[paletteId] = null
-                it[value] = JsonArray(listOf(JsonPrimitive(next)))
-                it[updatedAt] = Instant.now()
-            }
+            writeThemeValueRevision(
+                row[ThemeTokenValuesTable.id],
+                row[ThemeTokenValuesTable.designSystemId],
+                null,
+                JsonArray(listOf(JsonPrimitive(next))),
+            )
             true
         }
     }
 
-    private fun colorTokens(designSystemId: UUID): List<PaletteTokenRef> = ThemeTokensTable.selectAll()
-        .where {
-            (ThemeTokensTable.designSystemId eq designSystemId) and (ThemeTokensTable.type eq ThemeTokenType.COLOR)
-        }
+    private fun colorTokens(designSystemId: UUID): List<PaletteTokenRef> = currentThemeTokenRows(designSystemId)
+        .filter { it[ThemeTokenRevisionsTable.type] == ThemeTokenType.COLOR }
         .map { row ->
             val id = row[ThemeTokensTable.id].toString()
-            PaletteTokenRef(id, row[ThemeTokensTable.name], row[ThemeTokensTable.displayName])
+            PaletteTokenRef(id, row[ThemeTokenRevisionsTable.name], row[ThemeTokenRevisionsTable.displayName])
         }
 
     private fun colorValues(tenantId: UUID, tokenIds: List<UUID>): List<PaletteTokenValue> {
         val paletteRows = paletteRows()
-        return ThemeTokenValuesTable.selectAll()
-            .where { (ThemeTokenValuesTable.tenantId eq tenantId) and (ThemeTokenValuesTable.tokenId inList tokenIds) }
+        if (tokenIds.isEmpty()) return emptyList()
+        return currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
             .mapNotNull { row ->
                 val platform = row[ThemeTokenValuesTable.platform] ?: return@mapNotNull null
                 PaletteTokenValue(
@@ -259,50 +211,6 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         steps = steps,
     )
 
-    private fun insertGroup(tenantId: UUID, group: StoredPaletteGroup, position: Int) {
-        TenantPaletteGroupsTable.insert {
-            it[id] = UUID.fromString(group.id)
-            it[TenantPaletteGroupsTable.tenantId] = tenantId
-            it[kind] = group.kind
-            it[systemKey] = group.systemKey?.wireValue
-            it[label] = group.label
-            it[TenantPaletteGroupsTable.position] = position
-            it[createdAt] = Instant.now()
-            it[updatedAt] = Instant.now()
-        }
-    }
-
-    private fun updateGroup(group: StoredPaletteGroup, position: Int) {
-        TenantPaletteGroupsTable.update({ TenantPaletteGroupsTable.id eq UUID.fromString(group.id) }) {
-            it[label] = group.label
-            it[TenantPaletteGroupsTable.position] = position
-            it[updatedAt] = Instant.now()
-        }
-    }
-
-    private fun insertRamp(ramp: StoredPaletteRamp) {
-        val rampId = UUID.randomUUID()
-        TenantPaletteRampsTable.insert {
-            it[id] = rampId
-            it[groupId] = UUID.fromString(ramp.groupId)
-            it[slotType] = ramp.slot.type
-            it[slotShade] = ramp.slot.shade
-            it[sourceType] = ramp.source.type
-            it[sourceShade] = ramp.source.shade
-            it[added] = ramp.added
-            it[origin] = ramp.origin
-            it[anchorStep] = ramp.anchor?.step
-            it[anchorValue] = ramp.anchor?.value
-            it[createdAt] = Instant.now()
-            it[updatedAt] = Instant.now()
-        }
-        TenantPaletteStepsTable.batchInsert(ramp.steps.entries) { (step, value) ->
-            this[TenantPaletteStepsTable.rampId] = rampId
-            this[TenantPaletteStepsTable.step] = step
-            this[TenantPaletteStepsTable.value] = value
-        }
-    }
-
     private fun paletteRows(): Map<UUID, Pair<PaletteRampRef, Int>> = ThemePaletteTable.selectAll().associate { row ->
         val ramp = PaletteRampRef(row[ThemePaletteTable.type], row[ThemePaletteTable.shade])
         row[ThemePaletteTable.id] to (ramp to row[ThemePaletteTable.saturation])
@@ -310,9 +218,9 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
 
     /** Ссылка значения: `palette_id` с прозрачностью `null`/`["0.56"]` или строка `[type.shade.step][opacity]`. */
     private fun reference(row: ResultRow, paletteRows: Map<UUID, Pair<PaletteRampRef, Int>>): PaletteReference? {
-        val value = row[ThemeTokenValuesTable.value]
+        val value = row[ThemeTokenValueRevisionsTable.value]
         val text = value.singleText()
-        val entry = row[ThemeTokenValuesTable.paletteId]?.let(paletteRows::get)
+        val entry = row[ThemeTokenValueRevisionsTable.paletteId]?.let(paletteRows::get)
         val opacity = text?.toDoubleOrNull()
         return when {
             entry != null && (value.isEmptyValue() || opacity != null) ->

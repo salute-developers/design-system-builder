@@ -92,7 +92,10 @@ class RevertDraftChangeUseCase(
                 code = "JOURNAL_LIMIT_EXCEEDED",
                 message = "The journal exceeds the supported limit of 10000 changes",
             )
-            is DraftChangeRevertResult.Stale -> DsFailure.Conflict("DRAFT_CHANGE_STALE", result.currentRevision.toInt())
+            is DraftChangeRevertResult.Stale -> DsFailure.Conflict(
+                "DRAFT_CHANGE_STALE",
+                result.currentRevision.takeIf { it <= Int.MAX_VALUE }?.toInt(),
+            )
             DraftChangeRevertResult.Reverted -> error("Successful revert has no failure")
         },
     )

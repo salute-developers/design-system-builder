@@ -186,9 +186,9 @@ object PaletteOperations {
         if (ramp.origin == PaletteRampOrigin.TEMPLATE && sourceValue == hex) {
             return ramp.copy(steps = ramp.steps - step)
         }
-        val rebuiltAnchor = ramp.origin == PaletteRampOrigin.REBUILD && ramp.anchor?.step == step
-        val anchor = if (rebuiltAnchor) PaletteAnchor(step, hex) else ramp.anchor
-        return ramp.copy(steps = ramp.steps + (step to hex), anchor = anchor)
+        // Опорный цвет описывает расчёт всей растяжки. Ручная правка даже опорной ступени
+        // не меняет этот расчёт и должна отменяться независимо от перестроения.
+        return ramp.copy(steps = ramp.steps + (step to hex))
     }
 
     private fun rebuildValues(

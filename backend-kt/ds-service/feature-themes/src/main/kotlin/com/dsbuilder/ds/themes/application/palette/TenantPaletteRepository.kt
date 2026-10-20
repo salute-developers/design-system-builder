@@ -17,17 +17,20 @@ interface TenantPaletteRepository {
     /** Копия шаблона палитры темы; пустая, если темы ещё не инициализировали. Доступ к теме проверяет вызывающий. */
     suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>>
 
-    /** Блокирует тему проекта `forUpdate` и сверяет ревизию. */
+    /** Проверяет принадлежность темы; конкурентная запись согласуется по изменяемым сущностям. */
     suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock
 
     /**
-     * Палитра темы, доступной проекту, или `null`. Берёт тему `FOR SHARE`, поэтому вызывается в изменяющей
-     * транзакции: все чтения снимка согласованы с операциями палитры и `PUT token-values`.
+     * Палитра темы на выбранной границе, доступной проекту, или `null`. Не выполняет записей.
      */
-    suspend fun snapshot(projectId: ProjectId, tenantId: UUID): TenantPaletteSnapshot?
+    suspend fun snapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        includeSubjectRevisions: Boolean = false,
+    ): TenantPaletteSnapshot?
 
-    /** Записывает группы, растяжки, ступени и привязки и ревизию темы из [state]. */
-    suspend fun save(tenantId: UUID, state: TenantPaletteState)
+    /** Записывает только различия [before] и [state], сохраняя соседние конкурентные изменения. */
+    suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState)
 
     /**
      * Переписывает ссылки значений токенов темы при удалении растяжки в той же форме, что `PUT token-values`;

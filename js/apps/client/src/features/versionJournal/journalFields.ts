@@ -1,6 +1,8 @@
 import type { DraftChangeDto } from '../../api/editorContracts';
 import type { VariationType } from '../../controllers/themeBuilder/types/token';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
+import { templateRampName } from '../../modules/palette/domain/names';
+import { normalizedColorValue } from '../../api/colorValue';
 import { journalObject, journalTokenValue, journalValueStructureChanged } from './journalTokenValues';
 
 export type JournalValue = string | number | boolean | null | undefined;
@@ -88,6 +90,16 @@ const fieldLabels: Record<string, string> = {
     dark: 'Темный режим',
     strokesaturation: 'Насыщенность границ',
     fillsaturation: 'Насыщенность заливки',
+    label: 'Название',
+    code: 'Код группы',
+    groupid: 'Группа',
+    parentid: 'Родительская группа',
+    sourcetype: 'Тип исходной палитры',
+    sourceshade: 'Исходная растяжка',
+    added: 'Добавлена в группу',
+    origin: 'Способ построения',
+    anchorstep: 'Опорная ступень',
+    anchorvalue: 'Опорный цвет',
 };
 
 const normalize = (name: string) => {
@@ -117,7 +129,7 @@ const technicalFields = new Set([
     'mode',
     'paletteid',
 ]);
-const referenceFields = new Set(['defaultstyleid', 'statesetids']);
+const referenceFields = new Set(['defaultstyleid', 'statesetids', 'groupid', 'parentid']);
 const isTechnical = (name: string) => {
     const normalized = normalize(name);
     if (referenceFields.has(normalized)) return false;
@@ -247,10 +259,15 @@ export const presentChangedFields = (
 
 /** Подписи значений соответствуют понятиям редактора, а не сериализации предметной модели. */
 export const journalValueText = (value: JournalValue, label = '') => {
+    value = normalizedColorValue(value) as JournalValue;
     if (value === null || value === undefined || value === '') return 'Не задано';
     if (typeof value === 'string') {
-        const palette = /^\[((?:general|additional)\.[a-zA-Z]+\.\d+)\](?:\[(\d+(?:\.\d+)?)\])?$/.exec(value);
-        if (palette) return [palette[1], palette[2]].filter(Boolean).join(' · ');
+        const palette = /^\[(general|additional)\.([a-zA-Z0-9]+)\.(\d+)\](?:\[(\d+(?:\.\d+)?)\])?$/.exec(value);
+        if (palette) {
+            const type = palette[1] as 'general' | 'additional';
+            const name = `${templateRampName({ type, shade: palette[2] })} ${palette[3]}`;
+            return [name, palette[4]].filter(Boolean).join(' · ');
+        }
     }
     if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
     if (label.includes('Цветовой профиль')) {
@@ -284,6 +301,7 @@ export const journalValueText = (value: JournalValue, label = '') => {
 };
 
 export const journalColor = (value: JournalValue): string | undefined => {
+    value = normalizedColorValue(value) as JournalValue;
     if (typeof value !== 'string') return undefined;
     const color = value.trim();
     if (/^(?:#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})|(?:rgba?|hsla?)\([\d\s.,%/+\-]+\))$/i.test(color)) return color;

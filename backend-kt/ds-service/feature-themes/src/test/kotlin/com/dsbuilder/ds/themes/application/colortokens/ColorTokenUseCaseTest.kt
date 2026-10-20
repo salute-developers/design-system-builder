@@ -145,6 +145,21 @@ class ColorTokenUseCaseTest {
     }
 
     @Test
+    fun `отрицательная предметная редакция отклоняется до блокировки и записи`() = runBlocking {
+        val id = tokens.define("text.default.accent")
+        val value = complete("#000000").first().copy(baseRevision = -1)
+        val result = update.execute(
+            context("editor"),
+            current,
+            id,
+            UpdateColorTokenValues(0, mapOf(id to listOf(value))),
+        )
+        assertEquals("invalid_base_revision", assertIs<DsFailure.InvalidRequest>(failure(result)).code)
+        assertNull(tokens.lockedAllThemes)
+        assertTrue(tokens.values.isEmpty())
+    }
+
+    @Test
     fun `изменение заменяет значения только членов семейства в текущей теме`() = runBlocking {
         val base = tokens.define("text.default.accent")
         val hover = tokens.define("text.default.accent-hover")
@@ -216,10 +231,10 @@ class ColorTokenUseCaseTest {
     }
 
     @Test
-    fun `неполный набор значений при изменении отклоняется до транзакции`() = runBlocking {
+    fun `пустой набор и повтор платформы при изменении отклоняются до транзакции`() = runBlocking {
         val base = tokens.define("text.default.accent")
-        val partial = UpdateColorTokenValues(0, mapOf(base to black().take(1)))
-        assertEquals(INVALID_TOKEN_FAMILY, code(update.execute(context("editor"), current, base, partial)))
+        val duplicate = UpdateColorTokenValues(0, mapOf(base to listOf(black().first(), black().first())))
+        assertEquals(INVALID_TOKEN_FAMILY, code(update.execute(context("editor"), current, base, duplicate)))
         val empty = UpdateColorTokenValues(0, mapOf(base to emptyList()))
         assertEquals(INVALID_TOKEN_FAMILY, code(update.execute(context("editor"), current, base, empty)))
         assertEquals(null, tokens.lockedAllThemes)
@@ -307,6 +322,7 @@ class ColorTokenUseCaseTest {
             ThemeTokenMode.DARK,
             null,
             JsonArray(listOf(JsonPrimitive(value))),
+            baseRevision = 0,
         )
 
         val validValues = listOf(input(color, reference), input(typography, "x"))
@@ -358,7 +374,7 @@ class ColorTokenUseCaseTest {
             projectId: com.dsbuilder.ds.core.domain.ProjectId,
             id: UUID,
             command: SaveTenantTokenValues,
-        ) = TenantTokenValuesSaveOutcome.Saved(command.expectedEditRevision + 1)
+        ) = TenantTokenValuesSaveOutcome.Saved(command.expectedEditRevision + 1, emptyList())
     }
 }
 

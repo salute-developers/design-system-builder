@@ -18,6 +18,8 @@ data class TokenGroupDto(
     val position: Int,
     /** Вид токенов. */
     val kind: String,
+    /** Базовая предметная редакция для следующего изменения этой группы. */
+    val editRevision: Long = 0,
 ) {
     companion object {
         /** DTO узла. */
@@ -28,6 +30,7 @@ data class TokenGroupDto(
             label = group.label,
             position = group.position,
             kind = group.kind.wireValue,
+            editRevision = group.editRevision,
         )
     }
 }

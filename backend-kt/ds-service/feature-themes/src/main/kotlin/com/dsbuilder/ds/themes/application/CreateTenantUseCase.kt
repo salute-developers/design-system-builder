@@ -8,8 +8,9 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
 import com.dsbuilder.ds.core.application.TransactionRunner
-import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
+import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
+import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
 import com.dsbuilder.ds.themes.domain.Tenant
 
 /** Creates a theme only below an accessible design system, with token values and its own palette copy. */
@@ -22,6 +23,7 @@ class CreateTenantUseCase(
     private val paletteRepository: TenantPaletteRepository,
     private val repeatedCreates: IdempotentCreateExecutor,
     private val uniqueKeys: UniqueKeyLockRepository,
+    private val tokenGroups: TokenGroupRepository,
 ) {
     /** Performs the execute operation. */
     suspend fun execute(
@@ -44,6 +46,7 @@ class CreateTenantUseCase(
                         componentInitializer.initialize(tenant.designSystemId)
                         tokenValueInitializer.initialize(tenant)
                         paletteRepository.initialize(tenant.id)
+                        tokenGroups.initializeColor(tenant.designSystemId)
                     }
                 },
                 Tenant::id,

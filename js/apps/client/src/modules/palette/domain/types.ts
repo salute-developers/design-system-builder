@@ -65,6 +65,7 @@ export interface ThemePalette {
     groups: PaletteGroup[];
     tokens: PaletteTokenAssignment[];
     template: PaletteTemplateRamp[];
+    subjectRevisions?: Record<string, number>;
 }
 
 export interface PaletteLink {

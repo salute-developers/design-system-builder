@@ -6,12 +6,14 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
 import com.dsbuilder.ds.themes.application.tokengroups.CreateTokenGroup
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.UpdateTokenGroup
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroup
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroupKind
+import com.dsbuilder.ds.themes.presentation.repeatableThemeMutation
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -41,19 +43,29 @@ fun Route.tokenGroupRoutes(evaluator: PolicyEvaluator, useCases: TokenGroupUseCa
         post {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
             val command = call.body<CreateTokenGroupRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
-            call.respondGroup(useCases.create.execute(context, tenantId, command), HttpStatusCode.Created)
+            call.respondGroup(
+                useCases.create.execute(call.groupContext(context, command, 201), tenantId, command),
+                HttpStatusCode.Created,
+            )
         }
         patch("/{groupId}") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@patch
             val groupId = call.groupId() ?: return@patch
             val command = call.body<UpdateTokenGroupRequest>()?.toCommand() ?: return@patch call.respondFailure(BODY)
-            call.respondGroup(useCases.update.execute(context, tenantId, groupId, command), HttpStatusCode.OK)
+            call.respondGroup(
+                useCases.update.execute(call.groupContext(context, command), tenantId, groupId, command),
+                HttpStatusCode.OK,
+            )
         }
         delete("/{groupId}") {
             val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
             val groupId = call.groupId() ?: return@delete
             val body = call.body<DeleteTokenGroupRequest>() ?: return@delete call.respondFailure(BODY)
-            call.respondRevision(useCases.delete.execute(context, tenantId, groupId, body.editRevision))
+            val requestContext = call.repeatableThemeMutation(
+                context,
+                body,
+            ) { value: Int -> TokenGroupRevisionResponse(value) }
+            call.respondRevision(useCases.delete.execute(requestContext, tenantId, groupId, body.editRevision))
         }
     }
 }
@@ -75,7 +87,9 @@ private fun uuid(value: String?): UUID? = value?.let { runCatching { UUID.fromSt
 
 /** Контекст запроса; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.context(evaluator: PolicyEvaluator): DsRequestContext? =
-    TrustedDsRequestContextMapper.map(request.headers, evaluator) ?: null.also { respondFailure(DsFailure.Forbidden) }
+    TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"]) ?: null.also {
+        respondFailure(DsFailure.Forbidden)
+    }
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.tenantTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
@@ -107,7 +121,8 @@ private suspend fun ApplicationCall.respondGroup(
 ) =
     when (result) {
         is DsResult.Success ->
-            respond(
+            respondSuccess(
+                result,
                 status,
                 TokenGroupMutationResponse(result.value.editRevision, TokenGroupDto.from(result.value.value)),
             )
@@ -115,7 +130,7 @@ private suspend fun ApplicationCall.respondGroup(
     }
 
 private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = when (result) {
-    is DsResult.Success -> respond(TokenGroupRevisionResponse(result.value))
+    is DsResult.Success -> respondSuccess(result, TokenGroupRevisionResponse(result.value))
     is DsResult.Failure -> respondFailure(result.error)
 }
 
@@ -123,3 +138,8 @@ private suspend fun ApplicationCall.respondRevision(result: DsResult<Int>) = whe
 private fun invalidId(subject: String) =
     DsFailure.InvalidRequest("invalid_id", message = "Некорректный идентификатор $subject")
 private val BODY = DsFailure.InvalidRequest("invalid_body", message = "Некорректное тело запроса")
+
+private fun ApplicationCall.groupContext(context: DsRequestContext, body: Any, status: Int = 200) =
+    repeatableThemeMutation(context, body, status) { value: ColorTokenMutation<TokenGroup> ->
+        TokenGroupMutationResponse(value.editRevision, TokenGroupDto.from(value.value))
+    }

@@ -41,7 +41,7 @@ class CreateColorTokenUseCase(
         val allowed = policy.requireAll(context, ProjectScope.TENANTS_WRITE, ProjectScope.TOKENS_WRITE)
         if (allowed is DsResult.Failure) return allowed
         command.structureFailure()?.let { return DsResult.Failure(it) }
-        return transactions.required {
+        return transactions.required(context) {
             val lock = tokens.lock(context.projectId, tenantId, command.editRevision, allThemes = true)
             when (lock) {
                 is ColorTokenLock.Locked -> create(context, tenantId, lock, command)
@@ -127,7 +127,7 @@ class CreateColorTokenUseCase(
                 is PaletteOperationResult.Applied -> state = result.state
             }
         }
-        palette.save(tenantId, state.copy(editRevision = revision))
+        palette.save(tenantId, snapshot.state, state.copy(editRevision = revision))
         return DsResult.Success(revision)
     }
 }

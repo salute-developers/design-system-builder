@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
 import com.dsbuilder.ds.themes.domain.Tenant
@@ -44,6 +45,18 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
             PaletteKey(row[ThemePaletteTable.type], row[ThemePaletteTable.shade], row[ThemePaletteTable.saturation]) to
                 row[ThemePaletteTable.id]
         }
+        if (!ThemeTokenValuesTable.selectAll().where { ThemeTokenValuesTable.tenantId eq tenantId }.limit(1).any()) {
+            SubjectMutationPaths.withoutBaseComparison {
+                insertInitialTenantValues(
+                    tenantId,
+                    designSystemId,
+                    draft[ThemeVersionBoundariesTable.id],
+                    draft[ThemeVersionBoundariesTable.sequenceNumber],
+                    initialValues(tokens, palettes, configuration),
+                )
+            }
+            return
+        }
         currentThemeTokenValueRows(designSystemId, tenantIds = setOf(tenantId))
             .forEach { row ->
                 saveValue(
@@ -73,6 +86,42 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         insertMissingColorValues(tenantId, designSystemId, tokens, draft)
         overrideProfileAnchors(tenantId, tokens, configuration, draft)
         captureCreationBaselines(tenantId, designSystemId, draft)
+    }
+
+    private fun initialValues(
+        tokens: Map<String, Token>,
+        palettes: Map<PaletteKey, UUID>,
+        configuration: ColorConfiguration,
+    ): Map<InitialValueKey, InitialValuePayload> = buildMap {
+        definitions.forEach { definition ->
+            val token = tokens[definition.name] ?: return@forEach
+            val paletteId = definition.palette?.let { key ->
+                requireNotNull(palettes[key]) { "Required palette is missing" }
+            }
+            put(
+                InitialValueKey(token.id, definition.platform, definition.mode),
+                InitialValuePayload(paletteId, definition.value),
+            )
+        }
+        tokens.filter { (name, token) -> token.type == ThemeTokenType.COLOR && name !in baseColorTokenNames }
+            .forEach { (name, token) ->
+                ThemeTokenMode.entries.forEach { mode ->
+                    ThemeTokenPlatform.entries.forEach { platform ->
+                        put(
+                            InitialValueKey(token.id, platform, mode),
+                            InitialValuePayload(null, colorValueJson(fallbackColorValue(name, mode))),
+                        )
+                    }
+                }
+            }
+        val names = tokens.entries.associate { it.value.id to it.key }
+        entries.toList().forEach { (key, payload) ->
+            val name = names[key.tokenId]
+            if (name in PROFILE_ANCHORS && key.mode != null) {
+                val value = fallbackColorValue(requireNotNull(name), key.mode, configuration)
+                put(key, payload.copy(paletteId = null, value = colorValueJson(value)))
+            }
+        }
     }
 
     private fun captureCreationBaselines(

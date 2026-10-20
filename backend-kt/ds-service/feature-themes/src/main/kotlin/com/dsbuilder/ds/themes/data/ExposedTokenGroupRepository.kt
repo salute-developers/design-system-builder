@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.tokengroups.NewTokenGroup
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
@@ -9,14 +10,10 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
-import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 import java.util.UUID
 
@@ -52,40 +49,59 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
             .singleOrNull()
             ?.let(::group)
 
-    override suspend fun insert(group: NewTokenGroup): TokenGroup =
-        TokenGroupsTable.insertReturning {
+    override suspend fun insert(group: NewTokenGroup): TokenGroup {
+        val id = UUID.randomUUID()
+        StableTokenGroups.insert {
+            it[StableTokenGroups.id] = id
             it[designSystemId] = group.designSystemId
             it[kind] = group.kind
-            it[parentId] = group.parentId
-            it[code] = group.code
-            it[label] = group.label
-            it[position] = group.position
-        }.single().let(::group)
+            it[createdAt] = Instant.now()
+        }
+        TokenGroupRevisions.replace(id, group.designSystemId, setOf("/")) {
+            it[TokenGroupRevisions.parentId] = group.parentId
+            it[TokenGroupRevisions.code] = group.code
+            it[TokenGroupRevisions.label] = group.label
+            it[TokenGroupRevisions.position] = group.position
+        }
+        return requireNotNull(find(group.designSystemId, id))
+    }
 
     override suspend fun arrange(parentId: UUID?, order: List<UUID>) {
-        order.forEachIndexed { index, groupId ->
-            TokenGroupsTable.update({ TokenGroupsTable.id eq groupId }) {
-                it[TokenGroupsTable.parentId] = parentId
-                it[position] = index
-                it[updatedAt] = Instant.now()
-            }
+        order.withIndex().sortedBy { it.value }.forEach { (position, id) ->
+            revise(id, setOf("/parent_id", "/position")) { it.copy(parentId = parentId, position = position) }
         }
     }
 
     override suspend fun rename(groupId: UUID, label: String) {
-        TokenGroupsTable.update({ TokenGroupsTable.id eq groupId }) {
-            it[TokenGroupsTable.label] = label
-            it[updatedAt] = Instant.now()
-        }
+        revise(groupId, setOf("/label")) { it.copy(label = label) }
     }
 
     override suspend fun delete(groupIds: Collection<UUID>) {
-        if (groupIds.isNotEmpty()) TokenGroupsTable.deleteWhere { TokenGroupsTable.id inList groupIds }
+        groupIds.sorted().forEach { id ->
+            val row = StableTokenGroups.selectAll().where { StableTokenGroups.id eq id }.singleOrNull()
+                ?: return@forEach
+            TokenGroupRevisions.replace(id, row[StableTokenGroups.designSystemId], setOf("/deleted"), removed = true)
+        }
     }
 
     override suspend fun initializeColor(designSystemId: UUID) {
-        // Раскладка — функция миграции V6: правила разделов и категорий записаны один раз, в SQL.
-        TransactionManager.current().exec("SELECT token_groups_initialize_color('$designSystemId'::uuid)")
+        initializeColorTokenGroups(designSystemId, this)
+    }
+
+    private fun revise(id: UUID, paths: Set<String>, transform: (TokenGroup) -> TokenGroup) {
+        val stable = StableTokenGroups.selectAll().where { StableTokenGroups.id eq id }.singleOrNull() ?: return
+        val owner = stable[StableTokenGroups.designSystemId]
+        lockDraftSubject(owner, "token-group", id)
+        val row = TokenGroupsTable.selectAll().where { TokenGroupsTable.id eq id }.singleOrNull() ?: return
+        val before = group(row)
+        val next = transform(before)
+        if (next == before) return
+        TokenGroupRevisions.replace(id, owner, paths) {
+            it[TokenGroupRevisions.parentId] = next.parentId
+            it[TokenGroupRevisions.code] = next.code
+            it[TokenGroupRevisions.label] = next.label
+            it[TokenGroupRevisions.position] = next.position
+        }
     }
 
     private fun group(row: ResultRow) = TokenGroup(
@@ -96,5 +112,6 @@ class ExposedTokenGroupRepository : TokenGroupRepository {
         code = row[TokenGroupsTable.code],
         label = row[TokenGroupsTable.label],
         position = row[TokenGroupsTable.position],
+        editRevision = row[TokenGroupsTable.editRevision],
     )
 }

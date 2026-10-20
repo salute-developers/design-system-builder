@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.designsystems.data
 
 import com.dsbuilder.ds.core.application.DraftChangeCandidate
+import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.DraftSubjectChange
@@ -29,6 +30,7 @@ import java.util.UUID
 class ExposedDraftChangeRepository(
     private val handlers: List<DraftChangeHandler> = listOf(designSystemDraftChangeHandler()),
     private val policies: List<DraftChangePolicy> = emptyList(),
+    private val dependencies: List<DraftChangeDependencyValidator> = emptyList(),
 ) : DraftChangeRepository {
     override suspend fun list(
         projectId: ProjectId,
@@ -57,8 +59,19 @@ class ExposedDraftChangeRepository(
         }
     }
 
-    @Suppress("ReturnCount", "LongMethod")
     override suspend fun revert(
+        projectId: ProjectId,
+        systemAdmin: Boolean,
+        designSystemId: DesignSystemId,
+        changeId: UUID,
+        expectedRevision: Long,
+        paths: Set<String>,
+    ): DraftChangeRevertResult = checkedRevert {
+        revertSubject(projectId, systemAdmin, designSystemId, changeId, expectedRevision, paths)
+    }
+
+    @Suppress("ReturnCount") // Прежние предметные отказы остаются явными защитными условиями.
+    private suspend fun revertSubject(
         projectId: ProjectId,
         systemAdmin: Boolean,
         designSystemId: DesignSystemId,
@@ -68,36 +81,23 @@ class ExposedDraftChangeRepository(
     ): DraftChangeRevertResult {
         val target = boundary(projectId, systemAdmin, designSystemId, versionId = null)
             ?: return DraftChangeRevertResult.NotFound
-        val previousSequence = previousSequence(designSystemId, target.sequenceNumber)
-        val discoveredDifferences = boundedDifferences(
-            target.id,
-            designSystemId.value,
-            target.sequenceNumber,
-            previousSequence,
-        ) ?: return DraftChangeRevertResult.LimitExceeded
-        val discoveredChange = discoveredDifferences
-            .firstOrNull { stableChangeId(target.id, it.subject.entityType, it.difference.entityId) == changeId }
-            ?: return DraftChangeRevertResult.NotFound
-        if (!lockDraftSubject(
+        val lookup = trackedSubject(target.id, designSystemId.value, changeId)
+        if (lookup.exceeded) return DraftChangeRevertResult.LimitExceeded
+        val tracked = lookup.subject ?: return DraftChangeRevertResult.NotFound
+        if (!tracked.handler.prepareRevert(designSystemId.value, tracked.entityId) ||
+            !lockDraftSubject(
                 designSystemId.value,
-                discoveredChange.subject.entityType,
-                discoveredChange.difference.entityId,
+                tracked.handler.entityType,
+                tracked.entityId,
             )
         ) {
             return DraftChangeRevertResult.NotFound
         }
         val lockedTarget = boundary(projectId, systemAdmin, designSystemId, versionId = null)
             ?: return DraftChangeRevertResult.NotFound
-        val subject = discoveredChange.subject
-        val lockedDifferences = boundedDifferences(
-            lockedTarget.id,
-            designSystemId.value,
-            lockedTarget.sequenceNumber,
-            previousSequence(designSystemId, lockedTarget.sequenceNumber),
-        ) ?: return DraftChangeRevertResult.LimitExceeded
-        val difference = lockedDifferences
-            .firstOrNull { stableChangeId(lockedTarget.id, it.subject.entityType, it.difference.entityId) == changeId }
-            ?.difference
+        if (lockedTarget.id != target.id) return DraftChangeRevertResult.NotFound
+        val subject = tracked.handler
+        val difference = visibleEntity(lockedTarget, designSystemId, tracked)
             ?: return DraftChangeRevertResult.NotFound
         val change = change(
             subject,
@@ -109,15 +109,75 @@ class ExposedDraftChangeRepository(
         if (change.editRevision != expectedRevision) {
             return DraftChangeRevertResult.Stale(change.editRevision)
         }
-        if (paths.isNotEmpty()) {
-            return revertFields(subject, lockedTarget.id, change, paths)
-        }
-        return if (change.operation == ChangeOperation.CREATED) {
-            revertCreated(subject, lockedTarget.id, change.entityId)
+        val result = applyRevert(subject, lockedTarget.id, change, paths)
+        return if (result == DraftChangeRevertResult.Reverted &&
+            dependencies.any { !it.valid(designSystemId.value, subject.entityType, change.entityId) }
+        ) {
+            DraftChangeRevertResult.DependencyConflict
         } else {
-            if (subject.revert(lockedTarget.id, change.entityId, removeStableEntity = false)) {
+            result
+        }
+    }
+
+    private fun visibleEntity(
+        target: BoundaryRow,
+        designSystemId: DesignSystemId,
+        tracked: TrackedSubject,
+    ): DraftSubjectChange? {
+        val previous = previousSequence(designSystemId, target.sequenceNumber)
+        fun related(type: String, id: UUID): DraftSubjectChange? = handlers.firstOrNull { it.entityType == type }
+            ?.describeEntity(designSystemId.value, target.sequenceNumber, previous, id)
+        var candidate = related(tracked.handler.entityType, tracked.entityId)
+            ?.let { DraftChangeCandidate(tracked.handler.entityType, it) } ?: return null
+        for (policy in policies) {
+            candidate = policy.visibleEntity(target.id, candidate, ::related) ?: return null
+        }
+        return candidate.change
+    }
+
+    private fun trackedSubject(versionId: UUID, owner: UUID, changeId: UUID): SubjectLookup {
+        val byType = handlers.associateBy(DraftChangeHandler::entityType)
+        if (byType.isEmpty()) return SubjectLookup(null)
+        val types = byType.keys.sorted()
+        val sql = """
+            SELECT entity_type, entity_id FROM entity_edit_states
+            WHERE design_system_version_id = ? AND design_system_id = ? AND revision > 0
+              AND entity_type IN (${types.joinToString(",") { "?" }})
+            ORDER BY entity_type, entity_id LIMIT ${MAX_JOURNAL_CANDIDATES_PER_TYPE + 1}
+        """.trimIndent()
+        return TransactionManager.current().exec(
+            sql,
+            listOf(UUIDColumnType() to versionId, UUIDColumnType() to owner) + types.map { TextColumnType() to it },
+        ) { rows ->
+            var count = 0
+            var found: TrackedSubject? = null
+            while (rows.next()) {
+                if (++count > MAX_JOURNAL_CANDIDATES_PER_TYPE) return@exec SubjectLookup(null, exceeded = true)
+                val type = rows.getString("entity_type")
+                val entity = rows.getObject("entity_id", UUID::class.java)
+                if (stableChangeId(versionId, type, entity) == changeId) {
+                    found = TrackedSubject(requireNotNull(byType[type]), entity)
+                    break
+                }
+            }
+            SubjectLookup(found)
+        } ?: SubjectLookup(null)
+    }
+
+    private fun applyRevert(
+        subject: DraftChangeHandler,
+        versionId: UUID,
+        change: DraftChange,
+        paths: Set<String>,
+    ): DraftChangeRevertResult =
+        if (paths.isNotEmpty()) {
+            revertFields(subject, versionId, change, paths)
+        } else if (change.operation == ChangeOperation.CREATED) {
+            revertCreated(subject, versionId, change.entityId)
+        } else {
+            if (subject.revert(versionId, change.entityId, removeStableEntity = false)) {
                 discardRevertedEntityEditTracking(
-                    lockedTarget.id,
+                    versionId,
                     subject.entityType,
                     change.entityId,
                     removeState = false,
@@ -125,6 +185,32 @@ class ExposedDraftChangeRepository(
                 DraftChangeRevertResult.Reverted
             } else {
                 DraftChangeRevertResult.NotFound
+            }
+        }
+
+    private suspend fun checkedRevert(operation: suspend () -> DraftChangeRevertResult): DraftChangeRevertResult {
+        val transaction = TransactionManager.current()
+        transaction.exec("SAVEPOINT checked_revert")
+        return try {
+            val result = operation()
+            if (result == DraftChangeRevertResult.Reverted) {
+                // Отмена обязана проверить итоговый граф до сохранения успешного ответа, а не при COMMIT.
+                transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
+                transaction.exec("SET CONSTRAINTS ALL IMMEDIATE")
+                transaction.exec("SET CONSTRAINTS ALL DEFERRED")
+                transaction.exec("SELECT set_config('ds.palette_checked_boundaries', '', true)")
+            } else {
+                transaction.exec("ROLLBACK TO SAVEPOINT checked_revert")
+            }
+            transaction.exec("RELEASE SAVEPOINT checked_revert")
+            result
+        } catch (@Suppress("TooGenericExceptionCaught") failure: Exception) {
+            transaction.exec("ROLLBACK TO SAVEPOINT checked_revert")
+            transaction.exec("RELEASE SAVEPOINT checked_revert")
+            if (listOf("23503", "23505", "23514").any(failure::hasSqlState)) {
+                DraftChangeRevertResult.DependencyConflict
+            } else {
+                throw failure
             }
         }
     }
@@ -148,6 +234,7 @@ class ExposedDraftChangeRepository(
     }
 
     private fun revertCreated(subject: DraftChangeHandler, versionId: UUID, entityId: UUID): DraftChangeRevertResult {
+        if (!subject.canRemoveCreated(versionId, entityId)) return DraftChangeRevertResult.DependencyConflict
         val transaction = TransactionManager.current()
         transaction.exec("SAVEPOINT revert_created_entity")
         return try {
@@ -195,7 +282,7 @@ class ExposedDraftChangeRepository(
             currentValue = current,
             actorId = edit?.actorId,
             changedAt = edit?.changedAt ?: target.createdAt,
-            editRevision = edit?.revision ?: 0,
+            editRevision = difference.comparisonRevision ?: edit?.revision ?: 0,
         )
     }
 
@@ -343,6 +430,8 @@ class ExposedDraftChangeRepository(
     private data class BoundaryRow(val id: UUID, val sequenceNumber: Long, val createdAt: Instant)
     private data class EditRow(val revision: Long, val actorId: String, val changedAt: Instant)
     private data class TypedDifference(val subject: DraftChangeHandler, val difference: DraftSubjectChange)
+    private data class TrackedSubject(val handler: DraftChangeHandler, val entityId: UUID)
+    private data class SubjectLookup(val subject: TrackedSubject?, val exceeded: Boolean = false)
 }
 
 internal fun hasAnyDraftChanges(

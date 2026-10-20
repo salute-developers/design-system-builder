@@ -14,4 +14,6 @@ data class ColorTokenValueItem(
     val paletteId: String? = null,
     /** JSON-значение. */
     val value: JsonElement,
+    /** Базовая редакция этой пары платформа/режим. */
+    val baseRevision: Long? = null,
 )

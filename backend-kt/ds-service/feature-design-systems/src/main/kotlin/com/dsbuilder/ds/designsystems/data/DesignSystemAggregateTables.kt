@@ -37,7 +37,7 @@ internal object AggregateTokensTable : AggregateResolvedRevisionTable(
         "token_revisions",
         "token_id",
         listOf("id", "design_system_id", "created_at"),
-        listOf("name", "type", "display_name", "description", "enabled"),
+        listOf("name", "type", "display_name", "description", "enabled", "group_id", "position"),
     ),
 ) {
     val id = uuid("id")

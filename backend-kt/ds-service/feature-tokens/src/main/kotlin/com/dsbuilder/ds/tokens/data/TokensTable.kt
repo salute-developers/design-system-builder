@@ -23,6 +23,8 @@ internal object TokenRevisionsTable : Table("token_revisions") {
     val displayName = text("display_name").nullable()
     val description = text("description").nullable()
     val enabled = bool("enabled")
+    val groupId = uuid("group_id").nullable()
+    val position = integer("position").default(0)
     val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at").databaseGenerated()
 }

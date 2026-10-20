@@ -95,8 +95,8 @@ class VersionBoundaryMigrationPostgresIntegrationTest {
                     ),
                 )
                 assertEquals(
-                    "SELECT 1",
-                    scalar(connection, "SELECT sql FROM saved_queries WHERE id = '${fixture.savedQueryId}'"),
+                    "0",
+                    scalar(connection, "SELECT count(*) FROM pg_class WHERE relname = 'saved_queries'"),
                 )
 
                 assertFailsWith<SQLException> {

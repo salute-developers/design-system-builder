@@ -19,7 +19,7 @@ Options:
 
 The setup starts the JavaScript stack without Drizzle migrations or legacy seeding, then starts
 the Kotlin backend, whose ds-service manages the shared database schema with Flyway. Finally it
-creates the local project and its 'base' design system through current service APIs.
+creates the local project through the current service API. Design systems are created in the editor.
 
 To list the Compose components in the component editor, run ./import-compose-components.sh afterwards.
 USAGE
@@ -122,7 +122,7 @@ check_schema_owner
 log "Starting Kotlin backend"
 DS_FLYWAY_ADOPT_EXISTING=false "$ROOT_DIR/backend-kt/start-local.sh" --detach
 
-log "Creating the local project and design system 'base' through service APIs"
+log "Creating the local project through the service API"
 (
   cd "$ROOT_DIR/js"
   DS_SCHEMA_MIGRATION_OWNER=flyway ./setup-docker.sh --seed-only

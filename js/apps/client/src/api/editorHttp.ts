@@ -18,7 +18,17 @@ export const parseMutationMetadata = (
 ): Array<{ entityType: string; entityId: string; revision: number }> => {
     if (typeof raw !== 'string') return [];
     try {
-        return JSON.parse(raw);
+        const parsed: unknown = JSON.parse(raw);
+        return Array.isArray(parsed)
+            ? parsed.filter(
+                  (item) =>
+                      item &&
+                      typeof item.entityType === 'string' &&
+                      typeof item.entityId === 'string' &&
+                      Number.isSafeInteger(item.revision) &&
+                      item.revision >= 0,
+              )
+            : [];
     } catch {
         return [];
     }

@@ -3,6 +3,12 @@ package com.dsbuilder.ds.core.data
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.IdempotentMutationRequest
+import com.dsbuilder.ds.core.application.IdempotentReplayException
+import com.dsbuilder.ds.core.application.IdempotentRequestLookup
+import com.dsbuilder.ds.core.application.IdempotentResponse
+import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
+import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionFailureMapper
 import com.dsbuilder.ds.core.application.TransactionRunner
 import kotlinx.coroutines.CancellationException
@@ -35,10 +41,48 @@ class ExposedTransactionRunner(
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
         configure(context)
+        val request = context.mutationRequest
+        if (request != null) {
+            if (request.key.isBlank() || request.key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
+                return@execute DsResult.Failure(DsFailure.InvalidRequest("invalid_idempotency_key"))
+            }
+            when (
+                val lookup = ExposedIdempotentRequestRepository().lookup(
+                    context.projectId,
+                    request.key,
+                    request.operation,
+                    RequestHash.canonical(request.body),
+                )
+            ) {
+                IdempotentRequestLookup.PayloadMismatch ->
+                    return@execute DsResult.Failure(DsFailure.Conflict("IDEMPOTENCY_KEY_REUSED"))
+                is IdempotentRequestLookup.Replayed -> throw IdempotentReplayException(lookup.response)
+                IdempotentRequestLookup.New -> Unit
+            }
+        }
         when (val result = block()) {
             is DsResult.Failure -> result
-            is DsResult.Success -> result.copy(mutationMetadata = mutationMetadata())
+            is DsResult.Success -> {
+                if (request != null) saveMutationResponse(context, request, requireNotNull(result.value))
+                result.copy(mutationMetadata = mutationMetadata())
+            }
         }
+    }
+
+    private suspend fun saveMutationResponse(
+        context: DsRequestContext,
+        request: IdempotentMutationRequest,
+        value: Any,
+    ) {
+        val encoder = requireNotNull(context.idempotentResponseEncoder) { "Mutation response encoder is required" }
+        ExposedIdempotentRequestRepository().save(
+            context.projectId,
+            request.key,
+            context.principal.actorId,
+            request.operation,
+            RequestHash.canonical(request.body),
+            IdempotentResponse(request.responseStatus, encoder(value)),
+        )
     }
 
     override suspend fun <T> rollback(block: suspend () -> DsResult<T>): DsResult<T> = try {
@@ -136,7 +180,11 @@ class ExposedTransactionRunner(
                 return withContext(Dispatchers.IO) {
                     transaction(database) {
                         connection.readOnly = readOnly
-                        if (!readOnly) connection.transactionIsolation = Connection.TRANSACTION_SERIALIZABLE
+                        connection.transactionIsolation = if (readOnly) {
+                            Connection.TRANSACTION_REPEATABLE_READ
+                        } else {
+                            Connection.TRANSACTION_SERIALIZABLE
+                        }
                         val result = runBlocking { block() }
                         if (result is DsResult.Failure) rollback()
                         result

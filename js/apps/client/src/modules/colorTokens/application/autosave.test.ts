@@ -153,4 +153,34 @@ describe('автосохранение цветовых токенов', () => {
         expect(autosave.hasUnsaved()).toBe(false);
         expect(autosave.overall().state).toBe('saved');
     });
+
+    it('подтверждает снимок отправленных значений, не изменившийся объект редактора', async () => {
+        let finish!: (value: { editRevision: number }) => void;
+        const onConfirmed = vi.fn();
+        const first = payload('a', '#111');
+        const repository = {
+            updateValues: vi.fn(
+                () =>
+                    new Promise((resolve) => {
+                        finish = resolve;
+                    }),
+            ),
+        } as unknown as ColorTokenRepository;
+        const autosave = createColorTokenAutosave({
+            repository,
+            context,
+            revision: { get: () => 0, set: vi.fn() },
+            onConfirmed,
+        });
+        autosave.schedule('a', () => first);
+        const waiting = autosave.flush();
+        await vi.advanceTimersByTimeAsync(0);
+        (first.update.members[0].values[0].value as string[])[0] = '#222';
+        autosave.schedule('a', () => first);
+        finish({ editRevision: 1 });
+        await waiting;
+        expect(onConfirmed).toHaveBeenCalledWith(payload('a', '#111'));
+        expect(autosave.status('a').state).toBe('pending');
+        autosave.dispose();
+    });
 });

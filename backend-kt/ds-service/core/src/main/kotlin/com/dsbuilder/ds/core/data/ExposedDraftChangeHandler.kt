@@ -50,6 +50,20 @@ class ExposedDraftChangeHandler(
     override fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =
         differences(designSystemId, sequenceNumber, previousSequenceNumber, limit = 1).isNotEmpty()
 
+    override fun describeEntity(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityId: UUID,
+    ): DraftSubjectChange? =
+        differences(
+            designSystemId,
+            sequenceNumber,
+            previousSequenceNumber,
+            limit = 1,
+            entityId = entityId,
+        ).singleOrNull()
+
     override fun revert(versionId: UUID, entityId: UUID, removeStableEntity: Boolean): Boolean {
         val hasHistoricalRevision = removeStableEntity && revisionTable.selectAll().where {
             (revisionEntityId eq entityId) and (revisionVersionId neq versionId)
@@ -66,12 +80,14 @@ class ExposedDraftChangeHandler(
         sequenceNumber: Long,
         previousSequenceNumber: Long,
         limit: Int?,
+        entityId: UUID? = null,
     ): List<DraftSubjectChange> {
         val previousValue = valueExpression("previous")
         val currentValue = valueExpression("current")
         val previousResolved = resolvedValueExpression("previous", previousValue)
         val currentResolved = resolvedValueExpression("current", currentValue)
         val limitClause = limit?.let { "LIMIT $it" }.orEmpty()
+        val entityClause = if (entityId == null) "" else "AND entity.${stableId.quotedName()} = ?"
         val sql = """
             SELECT ${stableTable.qualified(stableId)} AS entity_id,
                    previous.${revisionEntityId.quotedName()} AS previous_exists,
@@ -98,6 +114,7 @@ class ExposedDraftChangeHandler(
                 LIMIT 1
             ) current ON true
             WHERE entity.${stableDesignSystemId.quotedName()} = ?
+              $entityClause
               AND ($previousResolved) IS DISTINCT FROM ($currentResolved)
             ORDER BY ${stableTable.qualified(stableId)}
             $limitClause
@@ -108,7 +125,7 @@ class ExposedDraftChangeHandler(
                 LongColumnType() to previousSequenceNumber,
                 LongColumnType() to sequenceNumber,
                 UUIDColumnType() to designSystemId,
-            ),
+            ) + listOfNotNull(entityId?.let { UUIDColumnType() to it }),
         ) { rows ->
             buildList {
                 while (rows.next()) {

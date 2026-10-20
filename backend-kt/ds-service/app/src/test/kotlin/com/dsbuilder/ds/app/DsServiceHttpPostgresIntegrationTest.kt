@@ -21,6 +21,10 @@ import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.sql.DriverManager
@@ -46,7 +50,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(146, operations.size)
+                    assertEquals(166, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }

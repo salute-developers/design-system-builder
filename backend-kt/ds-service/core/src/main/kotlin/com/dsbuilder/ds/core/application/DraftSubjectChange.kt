@@ -13,4 +13,6 @@ data class DraftSubjectChange(
     val currentValue: JsonObject?,
     /** Точные предметные пути изменившихся полей. */
     val changedPaths: Set<String>,
+    /** Непрозрачная редакция составного изменения, учитывающая его дочерние значения. */
+    val comparisonRevision: Long? = null,
 )

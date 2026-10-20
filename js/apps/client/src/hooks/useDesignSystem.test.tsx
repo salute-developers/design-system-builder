@@ -23,7 +23,9 @@ const { applyDraftChanges } = vi.hoisted(() => ({
 
 vi.mock('../api/themeEditorRepository', () => ({ loadThemeEditor: load }));
 vi.mock('../api/tokenRepository', () => ({ tokenRepository: { loadTokenData, saveTokenMutation } }));
-vi.mock('../api/componentRepository', () => ({ componentRepository: { loadComponentData } }));
+vi.mock('../api/componentRepository', () => ({
+    componentRepository: { loadComponentData, loadComposeComponentData: async () => [] },
+}));
 vi.mock('../api/draftInvalidationStream', () => ({ subscribeToDraftInvalidations }));
 vi.mock('../utils', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../utils')>()),
@@ -35,6 +37,7 @@ vi.mock('../controllers', () => ({
         fromSnapshot: () => ({
             createThemeInstance: () => ({ getToken: () => undefined, addToken: vi.fn() }),
             createAllComponentInstances: () => [],
+            createAllComposeComponentInstances: () => [],
         }),
     },
     Config: class {},
@@ -77,6 +80,10 @@ import {
 import type { Token } from '../controllers';
 import type { DraftChangeDto } from '../api/editorContracts';
 import { setDraftAutosaveActivity } from '../api/draftAutosaveActivity';
+import { reportIncompleteMutationMetadata } from '../api/incompleteMutationMetadata';
+import { paletteRepository } from '../palette/paletteSession';
+import { getActivePalette } from '../palette/activePalette';
+import type { ThemePalette } from '../modules/palette';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const token = {
@@ -150,6 +157,36 @@ afterEach(() => {
 });
 
 describe('useDesignSystem server autosave', () => {
+    it('перечитывает неполные метаданные только после подтверждения всех очередей без пересоздания компонентов', async () => {
+        const { result, unmount } = renderHook(() => useDesignSystem(context));
+        await act(async () => Promise.resolve());
+        const components = result.current.components;
+        setDraftAutosaveActivity(context, 'palette', 'saving');
+        setDraftAutosaveActivity(context, 'components', 'pending');
+        await act(async () => {
+            reportIncompleteMutationMetadata({
+                headers: { 'x-ds-mutation-metadata-truncated': 'true' },
+                config: { url: '/api/projects/project-1/ds/tenants/tenant-1/color-tokens' },
+            });
+            setDraftAutosaveActivity(context, 'palette', 'saved');
+        });
+        expect(loadTokenData).not.toHaveBeenCalled();
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'components', 'saved');
+        });
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(loadComponentData).not.toHaveBeenCalled();
+        expect(result.current.components).toBe(components);
+        setDraftAutosaveActivity(context, 'palette', null);
+        setDraftAutosaveActivity(context, 'components', null);
+        unmount();
+        reportIncompleteMutationMetadata({
+            headers: { 'x-ds-mutation-metadata-truncated': 'true' },
+            config: { url: '/api/projects/project-1/ds/tenants/tenant-1/color-tokens' },
+        });
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+    });
     it('не применяет старый ответ, если другая очередь успела сохраниться во время чтения', async () => {
         const { result } = renderHook(() => useDesignSystem(context));
         await act(async () => Promise.resolve());
@@ -178,20 +215,43 @@ describe('useDesignSystem server autosave', () => {
         expect(loadTokenData).toHaveBeenCalledTimes(2);
         expect(result.current.theme).not.toBe(previousTheme);
     });
-    it('явно обновляет токены после revert без SSE, полной загрузки и пересоздания компонентов', async () => {
-        const { result } = renderHook(() => useDesignSystem(context));
-        await act(async () => Promise.resolve());
-        const previousTheme = result.current.theme;
-        const previousComponents = result.current.components;
-        await act(async () => {
-            await result.current.refreshChanges([{ entityType: 'token-value' } as DraftChangeDto]);
-        });
-        expect(load).toHaveBeenCalledTimes(1);
-        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0');
-        expect(result.current.theme).not.toBe(previousTheme);
-        expect(result.current.components).toBe(previousComponents);
-        expect(loadComponentData).not.toHaveBeenCalled();
+    it('сохраняет local-палитру при обновлении токенов после отмены', async () => {
+        const source = paletteRepository.source;
+        const palette = { tenantId: context.tenantId, groups: [] } as unknown as ThemePalette;
+        const loadPalette = vi.spyOn(paletteRepository, 'load').mockResolvedValue(palette);
+        Object.assign(paletteRepository, { source: 'local' });
+        try {
+            const { result } = renderHook(() => useDesignSystem(context));
+            await act(async () => Promise.resolve());
+            expect(result.current.palette).toBe(palette);
+            await act(async () => {
+                await result.current.refreshChanges([{ entityType: 'token-value' } as DraftChangeDto]);
+            });
+            expect(result.current.palette).toBe(palette);
+            expect(getActivePalette()).toBe(palette);
+            expect(loadTokenData).toHaveBeenCalledTimes(1);
+        } finally {
+            Object.assign(paletteRepository, { source });
+            loadPalette.mockRestore();
+        }
     });
+    it.each(['token-value', 'palette-step', 'palette-ramp', 'palette-group', 'palette-token-group', 'token-group'])(
+        'явно обновляет %s после отмены без SSE, полной загрузки и пересоздания компонентов',
+        async (entityType) => {
+            const { result } = renderHook(() => useDesignSystem(context));
+            await act(async () => Promise.resolve());
+            const previousTheme = result.current.theme;
+            const previousComponents = result.current.components;
+            await act(async () => {
+                await result.current.refreshChanges([{ entityType } as DraftChangeDto]);
+            });
+            expect(load).toHaveBeenCalledTimes(1);
+            expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0');
+            expect(result.current.theme).not.toBe(previousTheme);
+            expect(result.current.components).toBe(previousComponents);
+            expect(loadComponentData).not.toHaveBeenCalled();
+        },
+    );
     it('после revert ждёт подтверждения другой локальной очереди перед обновлением', async () => {
         const { result } = renderHook(() => useDesignSystem(context));
         await act(async () => Promise.resolve());
