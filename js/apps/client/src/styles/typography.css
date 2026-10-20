@@ -1999,6 +1999,17 @@
     color: var(--builder-ui-text-paragraph);
 }
 
+/* Борд на всю ширину холста: в прототипе он фиксирован под окно 1440 px (719 px, строка 723 px, образец
+ * до 516 px) и на широком экране оставляет пустоту справа. Колонки названия и значений прежние, растёт образец. */
+.typography-screen .editor-fonts-workbench .typography-board {
+    width: auto;
+}
+
+.typography-screen .editor-fonts-workbench .typography-canvas-row {
+    width: 100%;
+    grid-template-columns: 64px minmax(0, 1fr) 99px;
+}
+
 /* Начертания: вес у каждого из трёх токенов стиля вместо одного поля «Вес» прототипа. */
 .typography-screen .typography-weights {
     display: grid;
