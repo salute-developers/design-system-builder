@@ -198,10 +198,12 @@ import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
+import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.di.themesModule
 import com.dsbuilder.ds.themes.presentation.colortokens.colorTokenRoutes
 import com.dsbuilder.ds.themes.presentation.palette.tenantPaletteRoutes
+import com.dsbuilder.ds.themes.presentation.sizetokens.sizeTokenRoutes
 import com.dsbuilder.ds.themes.presentation.tenantRoutes
 import com.dsbuilder.ds.themes.presentation.tokengroups.tokenGroupRoutes
 import com.dsbuilder.ds.tokens.application.CreatePaletteEntryUseCase
@@ -665,6 +667,7 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
     tenantPaletteRoutes(runtime.evaluator, koin.get<TenantPaletteUseCases>())
     colorTokenRoutes(runtime.evaluator, koin.get<ColorTokenUseCases>())
     tokenGroupRoutes(runtime.evaluator, koin.get<TokenGroupUseCases>())
+    sizeTokenRoutes(runtime.evaluator, koin.get<SizeTokenUseCases>())
 }
 
 private fun Route.registerTokensFeature(runtime: DsRuntime, json: Json, koin: Koin) {
