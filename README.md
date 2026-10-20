@@ -140,21 +140,22 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 ./setup-local.sh
 ```
 
-Скрипт сначала поднимает JavaScript-контур без схемы БД, затем запускает Kotlin backend в detached-режиме, а потом через
-API `projects-service` и `ds-service` создаёт локальный проект и дизайн-систему `base`. Схему общей базы `ds_registry` создаёт Flyway в `ds-service`
-(`V1`–`V3`), Drizzle-миграции в этом контуре не запускаются: иначе схема не совпадёт с baseline Flyway и `ds-service`
-остановится с `Schema fingerprint mismatch`. Порядок нужен ещё и потому, что `documentation-service` использует JS
-`db-service` по адресу `host.docker.internal:3008`.
+Скрипт останавливает legacy JavaScript-стек (db-service и его Postgres), запускает Kotlin backend в detached-режиме,
+наполняет дизайн-систему `base` и поднимает клиент. База `ds_registry` живёт в стеке `backend-kt` (сервис `ds-db`,
+хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway в `ds-service`; Drizzle-миграции не
+запускаются. Наполнение делает `backend-kt/bootstrap-base.sh` только через Gateway: находит или создаёт проект
+пользователя `admin@example.com`, заливает глобальный слой web-компонентов (`dsbuilder components import-api` по
+`web-api-meta.json` из `js/cli`), создаёт дизайн-систему `base` с темой `base_default`; версию он не публикует, `base` остаётся черновиком.
+Токены, их значения, палитру и компоненты темы `ds-service` заводит сам из своих ресурсов. Для bootstrap нужны JVM-дистрибутив
+CLI (`frontend-kt/gradlew :cli:installJvmDist`, собирается автоматически) и установленные зависимости `js/cli`
+(`cd js/cli && npm ci`) для генерации `web-api-meta.json`; готовый файл можно передать через `DSBUILDER_WEB_API_META`.
 
-По умолчанию локальные данные сохраняются. Чтобы удалить данные обоих контуров (все Docker volumes) и начать с чистой базы,
-запустите с явной опцией:
+По умолчанию локальные данные сохраняются, повторный запуск ничего не дублирует. Чтобы удалить данные обоих стеков
+(все Docker volumes) и начать с чистой базы, запустите с явной опцией:
 
 ```bash
 ./setup-local.sh --reset
 ```
-
-Если в `ds_registry` лежит схема, созданная Drizzle (например, после запуска `js/setup-docker.sh` без Flyway), скрипт
-остановится с подсказкой выполнить `./setup-local.sh --reset`.
 
 Для сборки Kotlin backend нужен JDK 17. `backend-kt/start-local.sh` автоматически использует JDK 17 из
 `DSBUILDER_JAVA_HOME`, `JAVA_HOME`, `PATH` или стандартных системных установок. JetBrains IDE для запуска не требуется.
@@ -185,12 +186,14 @@ cp js/.env.example js/.env
 Для локального запуска `NPM_PACKAGE_SCOPE` по умолчанию равен `@sddsjs`. `NPM_TOKEN` JS-контуром не используется:
 сервиса публикации npm-пакета в нём больше нет.
 
-Контуры можно запускать и отдельно:
+Kotlin backend можно запускать и отдельно, а наполнить базу повторным bootstrap:
 
 ```bash
-./js/setup-docker.sh
 ./backend-kt/start-local.sh --detach
+./backend-kt/bootstrap-base.sh
 ```
+
+`./js/setup-docker.sh` поднимает только standalone legacy JS-стек с db-service и не совместим с `ds-db` по порту `5433`.
 
 ### Проверка API через Scalar
 
@@ -242,8 +245,7 @@ E2E запускает разработчик, CI или главный аген
 архивирования OpenSpec Change. Структура сценариев и правила тестовых данных
 описаны в [`e2e/README.md`](./e2e/README.md).
 
-`js/setup-docker.sh` выполняет полную подготовку JS dev-контура: пересоздаёт его Docker volumes (отключается
-`DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает Node.js-сервисы
-и client. Поэтому при таком запуске по умолчанию локальные данные JS-базы будут сброшены. Автономный запуск
-подходит только для JS-контура: общий контур поднимайте через `./setup-local.sh`, где схему создаёт `ds-service`
-(`DS_SCHEMA_MIGRATION_OWNER=flyway`, затем `./setup-docker.sh --seed-only`).
+`js/setup-docker.sh` выполняет полную подготовку standalone legacy JS-контура с db-service: пересоздаёт его Docker
+volumes (отключается `DSBUILDER_RESET_VOLUMES=0`), собирает контейнеры, запускает миграции и seed базы, а затем поднимает
+Node.js-сервисы и client. Общий контур поднимайте через `./setup-local.sh`: там база `ds-db` и наполнение `base`
+принадлежат стеку `backend-kt`.
