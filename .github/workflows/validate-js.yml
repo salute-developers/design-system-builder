@@ -41,7 +41,6 @@ jobs:
         run: >-
           npm exec -- eslint
           "apps/client/src/**/*.{ts,tsx}"
-          "services/db-service/src/**/*.ts"
 
   cli:
     name: Typecheck and tests (cli)
@@ -93,8 +92,6 @@ jobs:
         project:
           - name: client
             directory: js/apps/client
-          - name: db-service
-            directory: js/services/db-service
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

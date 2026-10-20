@@ -6,11 +6,9 @@ cd "$SCRIPT_DIR"
 
 for config in nginx.local.conf nginx.prod.conf.template; do
   ds_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
-  compatibility_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/ds/legacy(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
   documentation_block=$(awk 'index($0, "location ~ ^/api/projects/([^/]+)/documentation(/.*)?$ {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
   test -n "$ds_block"
-  test -n "$compatibility_block"
   test -n "$documentation_block"
 
   printf '%s' "$ds_block" | grep -Fq 'set $project_id $1;'
@@ -19,9 +17,11 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   printf '%s' "$ds_block" | grep -Fq 'proxy_set_header X-Project-Id $trusted_project_id;'
   printf '%s' "$ds_block" | grep -Fq 'rewrite ^/api/projects/[^/]+/ds(/.*)?$ /api/ds$1 break;'
   printf '%s' "$ds_block" | grep -Fq 'ds_service_api'
-  printf '%s' "$compatibility_block" | grep -Fq 'auth_request /_auth_project;'
-  printf '%s' "$compatibility_block" | grep -Fq 'proxy_set_header X-Project-Id $trusted_project_id;'
-  printf '%s' "$compatibility_block" | grep -Fq 'db_service_api'
+  # db-service удалён: ни legacy-маршрута /ds/legacy, ни его upstream быть не должно.
+  if grep -Fq 'ds/legacy' "$config" || grep -Fq 'db_service_api' "$config"; then
+    echo "$config: the legacy db-service route and upstream must not exist" >&2
+    exit 1
+  fi
 
   # Сервис documentation-generator удалён: маршрута /docs и его upstream нет.
   # `! grep` под `set -e` скрипт не останавливает, поэтому выход явный.
