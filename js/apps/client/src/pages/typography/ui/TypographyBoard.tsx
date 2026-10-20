@@ -50,11 +50,14 @@ export const rowLayout = (style: TypographyStyle): [number, number, number] => {
 export const fontNameOf = (families: TypographyFamily[], family: string) =>
     families.find((item) => item.name === family)?.fontName || family;
 
-/** Образец текста стилем: семейство, размер, высота строки, вес начертания и трекинг. */
+/**
+ * Образец текста стилем: семейство, размер, вес начертания и трекинг. Образец — одна строка, поэтому высота строки
+ * не меньше размера: при меньшей браузер выталкивает буквы за строку, и их срезает граница образца.
+ */
 export const sampleStyle = (families: TypographyFamily[], style: TypographyStyle): CSSProperties => ({
     fontFamily: `'${fontNameOf(families, style.fontFamily)}', sans-serif`,
     fontSize: `${style.sizePx}px`,
-    lineHeight: `${style.lineHeightPx}px`,
+    lineHeight: `${Math.max(style.lineHeightPx, style.sizePx)}px`,
     fontWeight: style.variants.normal?.weight ?? 400,
     letterSpacing: `${style.letterSpacingEm}em`,
 });
