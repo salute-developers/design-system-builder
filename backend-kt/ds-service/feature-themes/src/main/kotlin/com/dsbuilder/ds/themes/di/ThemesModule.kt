@@ -36,10 +36,17 @@ import com.dsbuilder.ds.themes.application.tokengroups.ListTokenGroupsUseCase
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupRepository
 import com.dsbuilder.ds.themes.application.tokengroups.TokenGroupUseCases
 import com.dsbuilder.ds.themes.application.tokengroups.UpdateTokenGroupUseCase
+import com.dsbuilder.ds.themes.application.typography.GetTypographyStylesUseCase
+import com.dsbuilder.ds.themes.application.typography.TypographyStyleRepository
+import com.dsbuilder.ds.themes.application.typography.TypographyStyleUseCases
+import com.dsbuilder.ds.themes.application.typography.TypographyUsageRepository
+import com.dsbuilder.ds.themes.application.typography.UpdateTypographyStyleUseCase
 import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
 import com.dsbuilder.ds.themes.data.ExposedTokenGroupRepository
+import com.dsbuilder.ds.themes.data.ExposedTypographyStyleRepository
+import com.dsbuilder.ds.themes.data.ExposedTypographyUsageRepository
 import com.dsbuilder.ds.themes.data.GeneratedTenantTokenValueInitializer
 import org.koin.dsl.module
 
@@ -83,4 +90,9 @@ val themesModule = module {
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { DeleteTokenGroupUseCase(get(), get(), get(), get()) }
     factory { TokenGroupUseCases(get(), get(), get(), get()) }
+    single<TypographyStyleRepository> { ExposedTypographyStyleRepository() }
+    single<TypographyUsageRepository> { ExposedTypographyUsageRepository() }
+    factory { GetTypographyStylesUseCase(get(), get(), get(), get()) }
+    factory { UpdateTypographyStyleUseCase(get(), get(), get(), get()) }
+    factory { TypographyStyleUseCases(get(), get()) }
 }

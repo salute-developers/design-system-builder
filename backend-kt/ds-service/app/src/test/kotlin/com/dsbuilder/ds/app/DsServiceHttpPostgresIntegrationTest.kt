@@ -42,7 +42,7 @@ class DsServiceHttpPostgresIntegrationTest {
                 val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                     pathItem.jsonObject.keys.map { method -> template to method }
                 }
-                assertEquals(177, operations.size)
+                assertEquals(179, operations.size)
                 operations.forEach { (template, method) ->
                     val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                     val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
