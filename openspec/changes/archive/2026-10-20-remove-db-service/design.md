@@ -34,6 +34,7 @@
 - Разработчики с прежним JS-стеком: `./setup-local.sh` гасит его `docker compose down --remove-orphans` (контейнеры `db-service-dev`, `db-service-postgres-dev` больше не описаны в compose), `--reset` удаляет и их тома.
 - GitHub: удалить пакет GHCR `db-service`; удалить секреты/переменные, которые использовались только db-service (`DATABASE_URL`); проверить, что `publish-backend-images` после слияния собирает четыре образа.
 - `.env.prod.example`: убрать блок `JS db-service (Drizzle)` отдельным коммитом с `--allow-protected`.
+- Отложено: переименовать в documentation-service `DB_SERVICE_CONNECT_TIMEOUT_MS`, `DB_SERVICE_REQUEST_TIMEOUT_MS` и код `DB_SERVICE_UNAVAILABLE` в `DS_SERVICE_*` (таймауты и код ошибки нужны, адресат — ds-service); при переименовании перенести значения переменных в Coolify.
 
 ## Risks / Trade-offs
 
