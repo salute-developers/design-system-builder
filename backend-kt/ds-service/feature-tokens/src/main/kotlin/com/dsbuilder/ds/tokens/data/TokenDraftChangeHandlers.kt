@@ -29,6 +29,8 @@ fun tokenDraftChangeHandlers(): List<DraftChangeHandler> = listOf(
             TokenRevisionsTable.displayName,
             TokenRevisionsTable.description,
             TokenRevisionsTable.enabled,
+            TokenRevisionsTable.groupId,
+            TokenRevisionsTable.position,
         ),
     ),
     tokenValueDraftChangeHandler(),

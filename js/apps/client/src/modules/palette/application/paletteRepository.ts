@@ -12,6 +12,7 @@ export interface PaletteContext {
     projectId: string;
     designSystemId: string;
     tenantId: string;
+    versionId?: string;
 }
 
 export interface PaletteLinksQuery {
@@ -47,7 +48,12 @@ export interface PaletteRepository {
     load(ctx: PaletteContext, signal?: AbortSignal): Promise<ThemePalette>;
     links(ctx: PaletteContext, query: PaletteLinksQuery): Promise<PaletteLink[]>;
     createGroup(ctx: PaletteContext, label: string, editRevision: number): Promise<PaletteMutation<PaletteGroup>>;
-    renameGroup(ctx: PaletteContext, groupId: string, label: string, editRevision: number): Promise<PaletteMutation<PaletteGroup>>;
+    renameGroup(
+        ctx: PaletteContext,
+        groupId: string,
+        label: string,
+        editRevision: number,
+    ): Promise<PaletteMutation<PaletteGroup>>;
     deleteGroup(ctx: PaletteContext, groupId: string, editRevision: number): Promise<PaletteMutation<void>>;
     assignTokenGroup(
         ctx: PaletteContext,

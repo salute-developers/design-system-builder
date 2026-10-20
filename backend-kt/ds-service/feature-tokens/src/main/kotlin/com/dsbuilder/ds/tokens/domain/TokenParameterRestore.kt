@@ -12,6 +12,10 @@ internal object TokenParameterRestore {
     private const val LENGTH = "(-?(?:[0-9]+(?:\\.[0-9]+)?|\\.[0-9]+)(?:rem|px)?)"
     private val shadow = Regex("^$LENGTH\\s+$LENGTH\\s+$LENGTH\\s+$LENGTH\\s+(.+)$")
     private val shadowFields = listOf("offsetX", "offsetY", "blur", "spread", "color")
+    private val colorText = Regex(
+        "^(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|" +
+            "\\[(?:general|additional)\\.[a-zA-Z0-9]+\\.[0-9]+\\](?:\\[[0-9]+(?:\\.[0-9]+)?\\])?)$",
+    )
 
     /** Возвращает новое значение либо null, если путь не является отдельно отменяемым изменением. */
     fun restore(
@@ -25,7 +29,26 @@ internal object TokenParameterRestore {
         val allowed = differences(before, after, "/value")
         if (paths.isEmpty() || !allowed.containsAll(paths)) return null
         val restored = patch(before, after, "/value", paths) ?: return null
-        return encodeRoot(current, restored, type)
+        val encoded = encodeRoot(current, restored, type)
+        return if (type == TokenType.COLOR) normalizedColor(encoded) else encoded
+    }
+
+    private fun normalizedColor(value: JsonElement): JsonElement = when (value) {
+        is JsonArray -> JsonArray(value.map(::normalizedColor))
+        is JsonPrimitive -> {
+            val decoded = if (value.isString && value.content.trimStart().startsWith('"')) {
+                runCatching { Json.parseToJsonElement(value.content) }.getOrNull()
+            } else {
+                null
+            }
+            val text = (decoded as? JsonPrimitive)?.takeIf { it.isString }?.content
+            if (text != null && colorText.matches(text)) {
+                JsonPrimitive(text)
+            } else {
+                value
+            }
+        }
+        else -> value
     }
 
     private fun isScalar(type: TokenType?): Boolean = type != TokenType.SHADOW && type != TokenType.GRADIENT

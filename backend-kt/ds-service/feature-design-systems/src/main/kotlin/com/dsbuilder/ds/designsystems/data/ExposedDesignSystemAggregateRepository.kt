@@ -9,7 +9,7 @@ import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.domain.DesignSystemStyleSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTenantSummary
 import com.dsbuilder.ds.designsystems.domain.DesignSystemTokenSummary
-import com.dsbuilder.ds.designsystems.domain.PublicationStatus
+import com.dsbuilder.ds.designsystems.domain.DesignSystemVersionStatus
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
@@ -96,16 +96,20 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
     }
 
     /** Номер и время последней опубликованной версии дизайн-системы. */
-    private fun latestPublished(designSystemId: DesignSystemId): Pair<String, Instant>? = DesignSystemVersionsTable
+    private fun latestPublished(designSystemId: DesignSystemId): Pair<String, Instant>? = VersionBoundariesTable
         .selectAll()
         .where {
-            (DesignSystemVersionsTable.designSystemId eq designSystemId.value) and
-                (DesignSystemVersionsTable.publicationStatus eq PublicationStatus.PUBLISHED)
+            (VersionBoundariesTable.designSystemId eq designSystemId.value) and
+                (VersionBoundariesTable.status eq DesignSystemVersionStatus.PUBLISHED)
         }
-        .orderBy(DesignSystemVersionsTable.publishedAt to SortOrder.DESC)
+        .orderBy(VersionBoundariesTable.publishedAt to SortOrder.DESC)
         .limit(1)
         .singleOrNull()
-        ?.let { it[DesignSystemVersionsTable.version] to it[DesignSystemVersionsTable.publishedAt] }
+        ?.let { row ->
+            val version = row[VersionBoundariesTable.version]
+            val publishedAt = row[VersionBoundariesTable.publishedAt]
+            if (version != null && publishedAt != null) version to publishedAt else null
+        }
 
     @Suppress("ReturnCount")
     override suspend fun listComponentStyles(

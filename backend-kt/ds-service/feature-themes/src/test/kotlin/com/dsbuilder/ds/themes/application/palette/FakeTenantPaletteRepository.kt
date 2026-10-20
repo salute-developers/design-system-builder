@@ -29,17 +29,13 @@ internal class FakeTenantPaletteRepository(
 
     override suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock {
         // Как в базе: изменять можно только тему дизайн-системы своего проекта.
-        val current = snapshot?.takeIf { it.owned } ?: return TenantPaletteLock.NotFound
-        return if (current.state.editRevision == editRevision) {
-            TenantPaletteLock.Locked
-        } else {
-            TenantPaletteLock.RevisionConflict(current.state.editRevision)
-        }
+        snapshot?.takeIf { it.owned } ?: return TenantPaletteLock.NotFound
+        return TenantPaletteLock.Locked
     }
 
-    override suspend fun snapshot(projectId: ProjectId, tenantId: UUID) = snapshot
+    override suspend fun snapshot(projectId: ProjectId, tenantId: UUID, includeSubjectRevisions: Boolean) = snapshot
 
-    override suspend fun save(tenantId: UUID, state: TenantPaletteState) {
+    override suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState) {
         saved = state
         snapshot = snapshot?.copy(state = state)
     }

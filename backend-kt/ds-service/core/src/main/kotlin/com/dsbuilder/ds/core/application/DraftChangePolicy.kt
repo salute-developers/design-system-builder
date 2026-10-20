@@ -10,4 +10,13 @@ fun interface DraftChangePolicy {
 
     /** Возвращает изменения, которые должны быть видимы пользователю. */
     fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate>
+
+    /** Применяет правила к выбранному отличию, адресно запрашивая необходимые связанные сущности. */
+    fun visibleEntity(
+        versionId: UUID,
+        candidate: DraftChangeCandidate,
+        related: (String, UUID) -> DraftSubjectChange?,
+    ): DraftChangeCandidate? = visible(versionId, listOf(candidate)).firstOrNull {
+        it.entityType == candidate.entityType && it.change.entityId == candidate.change.entityId
+    }
 }

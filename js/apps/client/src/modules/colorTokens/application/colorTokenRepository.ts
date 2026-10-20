@@ -5,6 +5,7 @@ export interface ColorTokenContext {
     projectId: string;
     designSystemId: string;
     tenantId: string;
+    versionId?: string;
 }
 
 export type ColorPlatform = 'web' | 'ios' | 'android';
@@ -14,6 +15,7 @@ export interface ColorTokenValueItem {
     mode: ColorMode;
     paletteId?: string | null;
     value: unknown;
+    baseRevision?: number;
 }
 
 export interface CreateColorTokenInput {

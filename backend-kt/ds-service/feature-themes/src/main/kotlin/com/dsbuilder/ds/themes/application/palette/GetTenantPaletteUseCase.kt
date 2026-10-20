@@ -17,15 +17,16 @@ class GetTenantPaletteUseCase(
     private val repository: TenantPaletteRepository,
 ) {
     /**
-     * Читает палитру темы; `canEdit` — право `tenants:write` на тему своего проекта. Транзакция изменяющая:
-     * теме без палитры (создана в обход `ds-service`) копия шаблона и системные группы создаются при чтении.
+     * Читает палитру без ленивой инициализации. Опубликованная граница доступна только для просмотра.
      */
     suspend fun execute(context: DsRequestContext, tenantId: UUID): DsResult<ThemePalette> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.required {
-                val writable = policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
-                repository.initializedSnapshot(context.projectId, tenantId)?.let { snapshot ->
+            is DsResult.Success -> transactions.readOnly(context) {
+                val writable = context.versionId == null &&
+                    policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
+                repository.snapshot(context.projectId, tenantId, includeSubjectRevisions = true)?.let { snapshot ->
+                    if (!snapshot.hasSystemGroups()) return@readOnly DsResult.Failure(DsFailure.NotFound)
                     val palette = ThemePaletteBuilder.build(
                         tenantId.toString(),
                         writable && snapshot.owned,
@@ -33,7 +34,7 @@ class GetTenantPaletteUseCase(
                         snapshot.tokens,
                         snapshot.values,
                     )
-                    DsResult.Success(palette)
+                    DsResult.Success(palette.copy(subjectRevisions = snapshot.subjectRevisions))
                 } ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

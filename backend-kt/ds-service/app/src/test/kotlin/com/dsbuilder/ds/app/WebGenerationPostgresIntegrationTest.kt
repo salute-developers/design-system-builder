@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.flywaydb.core.Flyway
 import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
@@ -31,11 +33,22 @@ class WebGenerationPostgresIntegrationTest {
     fun `web adapter and export offsets match the reference contract`() {
         PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
             postgres.start()
+            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+                .locations("classpath:db/migration").target("6").load().migrate()
+            val designSystemId = UUID.randomUUID().toString()
+            DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                connection.prepareStatement(
+                    "INSERT INTO design_systems(id, name, project_name, project_id) " +
+                        "VALUES (?::uuid, 'alpha', 'alpha', 'project-a')",
+                ).use { statement ->
+                    statement.setString(1, designSystemId)
+                    statement.executeUpdate()
+                }
+            }
+            seedFixture(postgres, designSystemId)
             testApplication {
                 application { module(configuration(postgres)) }
-
-                val designSystemId = createPublishedDesignSystem(client, "alpha")
-                seedFixture(postgres, designSystemId)
+                publish(client, designSystemId)
 
                 verifyWebAdapter(client, designSystemId)
                 verifyWebAdapterAccess(client, designSystemId)
@@ -133,14 +146,29 @@ class WebGenerationPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, designSystem.status, designSystem.bodyAsText())
         val id = json.parseToJsonElement(designSystem.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        publish(client, id)
+        return id
+    }
+
+    private suspend fun publish(client: HttpClient, id: String) {
+        val changed = client.patch("/api/ds/design-systems/$id") {
+            trusted("project-a", "owner")
+            header("X-DS-Base-Revision", "0")
+            jsonBody("""{"description":"Fixture publication"}""")
+        }
+        assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
+        val current = client.get("/api/ds/design-systems/$id") { trusted("project-a", "owner") }
+        assertEquals(HttpStatusCode.OK, current.status, current.bodyAsText())
+        val draft = json.parseToJsonElement(current.bodyAsText()).jsonObject
         val version = client.post("/api/ds/design-system-versions") {
             trusted("project-a", "owner")
+            header("Idempotency-Key", UUID.randomUUID().toString())
             jsonBody(
-                """{"designSystemId":"$id","version":"1.0.0","snapshot":{},"publicationStatus":"published"}""",
+                """{"designSystemId":"$id","draftId":"${draft.getValue("draftId").jsonPrimitive.content}",""" +
+                    """"draftRevision":${draft.getValue("draftRevision").jsonPrimitive.content},"version":"1.0.0"}""",
             )
         }
         assertEquals(HttpStatusCode.Created, version.status, version.bodyAsText())
-        return id
     }
 
     /**

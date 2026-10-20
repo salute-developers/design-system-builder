@@ -1,10 +1,15 @@
 package com.dsbuilder.ds.themes.data
 
 import com.dsbuilder.ds.themes.domain.tokengroups.TokenGroupKind
-import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.javatime.timestamp
 
-internal object TokenGroupsTable : Table("token_groups") {
+internal object TokenGroupsTable : PaletteResolvedTable(
+    "token_groups",
+    "token_group_revisions",
+    "group_id",
+    listOf("id", "design_system_id", "kind", "created_at"),
+    listOf("parent_id", "code", "label", "position"),
+) {
     val id = uuid("id")
     val designSystemId = uuid("design_system_id")
     val kind = postgresEnum("kind", "token_group_kind", TokenGroupKind::fromWire, TokenGroupKind::wireValue)

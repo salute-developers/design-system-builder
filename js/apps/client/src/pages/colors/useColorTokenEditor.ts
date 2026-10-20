@@ -42,7 +42,7 @@ export const useColorTokenEditor = (input: EditorInput) => {
     const { context, designSystem, theme, palette, tokenDefinitions, incompleteTokenIds, updated, reload } = input;
     const session = useMemo(
         () => colorTokenSession(context),
-        [context.projectId, context.designSystemId, context.tenantId],
+        [context.projectId, context.designSystemId, context.tenantId, context.versionId],
     );
     const [version, refresh] = useReducer((value: number) => value + 1, 0);
 

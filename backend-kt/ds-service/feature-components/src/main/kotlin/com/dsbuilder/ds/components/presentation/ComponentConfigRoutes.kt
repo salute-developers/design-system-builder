@@ -100,7 +100,9 @@ fun Route.componentConfigRoutes(
         // Временная ручка рядом с `/export`: адресация та же, а ответ CLI сохраняет как есть
         // в `.sdds/web/web-adapter.json`.
         post("/web-adapter") {
-            val context = TrustedDsRequestContextMapper.map(call.request.headers, evaluator)
+            val context = TrustedDsRequestContextMapper.map(
+                call.request.headers, evaluator, call.request.queryParameters["versionId"],
+            )
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             val id = runCatching { call.receive<ComponentWebAdapterRequest>() }.getOrNull()
                 ?.designSystemId?.toUuidOrNull()

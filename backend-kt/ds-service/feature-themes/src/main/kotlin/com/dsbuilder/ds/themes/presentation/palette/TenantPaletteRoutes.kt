@@ -6,13 +6,19 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.respondFailure
+import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteMutation
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRampTarget
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteUseCases
 import com.dsbuilder.ds.themes.domain.ThemePaletteType
 import com.dsbuilder.ds.themes.domain.palette.PaletteAnchor
+import com.dsbuilder.ds.themes.domain.palette.PaletteGroupView
 import com.dsbuilder.ds.themes.domain.palette.PaletteRampRef
+import com.dsbuilder.ds.themes.domain.palette.PaletteRampView
+import com.dsbuilder.ds.themes.domain.palette.PaletteTokenAssignment
 import com.dsbuilder.ds.themes.domain.palette.RemoveRampStrategy
+import com.dsbuilder.ds.themes.domain.palette.RemovedRamp
+import com.dsbuilder.ds.themes.presentation.repeatableThemeMutation
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -65,28 +71,50 @@ private fun Route.paletteGroupRoutes(evaluator: PolicyEvaluator, useCases: Tenan
     post("/groups") {
         val (context, tenantId) = call.paletteTarget(evaluator) ?: return@post
         val body = call.body<PaletteGroupLabelRequest>() ?: return@post
-        val result = useCases.createGroup.execute(context, tenantId, body.label, body.editRevision)
+        val result = useCases.createGroup.execute(
+            call.groupContext(context, body, 201),
+            tenantId,
+            body.label,
+            body.editRevision,
+        )
         call.respondMutation(result, HttpStatusCode.Created) { it.toDto() }
     }
     patch("/groups/{groupId}") {
         val (context, tenantId) = call.paletteTarget(evaluator) ?: return@patch
         val body = call.body<PaletteGroupLabelRequest>() ?: return@patch
         val groupId = call.parameters["groupId"].orEmpty()
-        val result = useCases.renameGroup.execute(context, tenantId, groupId, body.label, body.editRevision)
+        val result = useCases.renameGroup.execute(
+            call.groupContext(context, body),
+            tenantId,
+            groupId,
+            body.label,
+            body.editRevision,
+        )
         call.respondMutation(result) { it.toDto() }
     }
     delete("/groups/{groupId}") {
         val (context, tenantId) = call.paletteTarget(evaluator) ?: return@delete
         val body = call.body<PaletteRevisionRequest>() ?: return@delete
         val groupId = call.parameters["groupId"].orEmpty()
-        val result = useCases.deleteGroup.execute(context, tenantId, groupId, body.editRevision)
+        val result = useCases.deleteGroup.execute(
+            call.emptyContext(context, body),
+            tenantId,
+            groupId,
+            body.editRevision,
+        )
         call.respondMutation(result) { JsonNull }
     }
     put("/token-groups/{tokenId}") {
         val (context, tenantId) = call.paletteTarget(evaluator) ?: return@put
         val body = call.body<PaletteTokenGroupRequest>() ?: return@put
         val tokenId = call.parameters["tokenId"].orEmpty()
-        val result = useCases.assignTokenGroup.execute(context, tenantId, tokenId, body.groupId, body.editRevision)
+        val result = useCases.assignTokenGroup.execute(
+            call.assignmentContext(context, body),
+            tenantId,
+            tokenId,
+            body.groupId,
+            body.editRevision,
+        )
         call.respondMutation(result) { it.toDto() }
     }
 }
@@ -97,7 +125,7 @@ private fun Route.paletteRampRoutes(evaluator: PolicyEvaluator, useCases: Tenant
         val body = call.body<PaletteRampRequest>() ?: return@post
         val slot = rampRef(body.type, body.shade) ?: return@post call.respondFailure(INVALID_BODY)
         val target = TenantPaletteRampTarget(call.parameters["groupId"].orEmpty(), slot)
-        val result = useCases.addRamp.execute(context, tenantId, target, body.editRevision)
+        val result = useCases.addRamp.execute(call.rampContext(context, body, 201), tenantId, target, body.editRevision)
         call.respondMutation(result, HttpStatusCode.Created) { it.toDto() }
     }
     put("/{type}/{shade}/source") {
@@ -105,7 +133,13 @@ private fun Route.paletteRampRoutes(evaluator: PolicyEvaluator, useCases: Tenant
         val target = call.rampTarget() ?: return@put
         val body = call.body<PaletteRampRequest>() ?: return@put
         val source = rampRef(body.type, body.shade) ?: return@put call.respondFailure(INVALID_BODY)
-        val result = useCases.replaceSource.execute(context, tenantId, target, source, body.editRevision)
+        val result = useCases.replaceSource.execute(
+            call.rampContext(context, body),
+            tenantId,
+            target,
+            source,
+            body.editRevision,
+        )
         call.respondMutation(result) { it.toDto() }
     }
     post("/{type}/{shade}/rebuild") {
@@ -122,7 +156,14 @@ private fun Route.paletteRampEditRoutes(evaluator: PolicyEvaluator, useCases: Te
         val target = call.rampTarget() ?: return@patch
         val step = call.parameters["step"]?.toIntOrNull() ?: return@patch call.respondFailure(INVALID_RAMP)
         val body = call.body<PaletteStepRequest>() ?: return@patch
-        val result = useCases.updateStep.execute(context, tenantId, target, step, body.value, body.editRevision)
+        val result = useCases.updateStep.execute(
+            call.rampContext(context, body),
+            tenantId,
+            target,
+            step,
+            body.value,
+            body.editRevision,
+        )
         call.respondMutation(result) { it.toDto() }
     }
     delete("/{type}/{shade}") {
@@ -142,7 +183,9 @@ private suspend fun ApplicationCall.respondRebuild(
 ) {
     val anchor = PaletteAnchor(body.anchorStep, body.value)
     if (!body.preview) {
-        return respondMutation(useCases.rebuild.execute(context, tenantId, target, anchor, body.editRevision)) {
+        return respondMutation(
+            useCases.rebuild.execute(rampContext(context, body), tenantId, target, anchor, body.editRevision),
+        ) {
             it.toDto()
         }
     }
@@ -161,13 +204,20 @@ private suspend fun ApplicationCall.respondRemoveRamp(
 ) {
     val strategy = body.strategy?.let { RemoveRampStrategy.fromWire(it) ?: return respondFailure(INVALID_BODY) }
     val replacement = body.replacement?.let { rampRef(it.type, it.shade) ?: return respondFailure(INVALID_BODY) }
-    val result = useCases.removeRamp.execute(context, tenantId, target, strategy, replacement, body.editRevision)
+    val result = useCases.removeRamp.execute(
+        removedContext(context, body),
+        tenantId,
+        target,
+        strategy,
+        replacement,
+        body.editRevision,
+    )
     respondMutation(result) { RemovedRampDto(it.reassigned) }
 }
 
 /** Контекст запроса и тема; `null`, если ответ с ошибкой уже отправлен. */
 private suspend fun ApplicationCall.paletteTarget(evaluator: PolicyEvaluator): Pair<DsRequestContext, UUID>? {
-    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator)
+    val context = TrustedDsRequestContextMapper.map(request.headers, evaluator, request.queryParameters["versionId"])
         ?: return null.also { respondFailure(DsFailure.Forbidden) }
     val tenantId = parameters["tenantId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         ?: return null.also { respondFailure(INVALID_TENANT) }
@@ -191,7 +241,7 @@ private suspend inline fun <T, reified R : Any> ApplicationCall.respondMutation(
     status: HttpStatusCode = HttpStatusCode.OK,
     dto: (T) -> R,
 ) = when (result) {
-    is DsResult.Success -> respond(status, PaletteMutationResponse(result.value.editRevision, dto(result.value.value)))
+    is DsResult.Success -> respondSuccess(result, status, PaletteMutationResponse(0, dto(result.value.value)))
     is DsResult.Failure -> respondFailure(result.error)
 }
 
@@ -210,3 +260,28 @@ private val INVALID_RAMP = DsFailure.InvalidRequest(
 )
 private val INVALID_BODY = DsFailure.InvalidRequest("invalid_body", message = "Некорректное тело запроса")
 private val INVALID_QUERY = DsFailure.InvalidRequest("invalid_body", message = "Нужны type и shade, step — число")
+
+private fun ApplicationCall.groupContext(context: DsRequestContext, body: Any, status: Int = 200) =
+    repeatableThemeMutation(context, body, status) { value: TenantPaletteMutation<PaletteGroupView> ->
+        PaletteMutationResponse(0, value.value.toDto())
+    }
+
+private fun ApplicationCall.rampContext(context: DsRequestContext, body: Any, status: Int = 200) =
+    repeatableThemeMutation(context, body, status) { value: TenantPaletteMutation<PaletteRampView> ->
+        PaletteMutationResponse(0, value.value.toDto())
+    }
+
+private fun ApplicationCall.assignmentContext(context: DsRequestContext, body: Any) =
+    repeatableThemeMutation(context, body) { value: TenantPaletteMutation<PaletteTokenAssignment> ->
+        PaletteMutationResponse(0, value.value.toDto())
+    }
+
+private fun ApplicationCall.emptyContext(context: DsRequestContext, body: Any) =
+    repeatableThemeMutation(context, body) { value: TenantPaletteMutation<Unit> ->
+        PaletteMutationResponse(0, JsonNull)
+    }
+
+private fun ApplicationCall.removedContext(context: DsRequestContext, body: Any) =
+    repeatableThemeMutation(context, body) { value: TenantPaletteMutation<RemovedRamp> ->
+        PaletteMutationResponse(0, RemovedRampDto(value.value.reassigned))
+    }

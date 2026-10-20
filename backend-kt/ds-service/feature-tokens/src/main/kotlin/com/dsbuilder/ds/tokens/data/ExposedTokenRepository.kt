@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.tokens.data
 
+import com.dsbuilder.ds.core.application.TokenReferenceCleaner
 import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
@@ -29,7 +30,9 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Exposed token repository with ownership resolved through design systems. */
-class ExposedTokenRepository : TokenRepository {
+class ExposedTokenRepository(
+    private val referenceCleaners: List<TokenReferenceCleaner> = emptyList(),
+) : TokenRepository {
     override suspend fun listAccessible(projectId: ProjectId): List<Token> = currentRows(projectId = projectId)
         .map(TokenRowMapper::map)
 
@@ -119,6 +122,8 @@ class ExposedTokenRepository : TokenRepository {
                 } else {
                     current[TokenRevisionsTable.enabled]
                 }
+                it[groupId] = current[TokenRevisionsTable.groupId]
+                it[position] = current[TokenRevisionsTable.position]
                 it[deleted] = false
             }
         }
@@ -133,7 +138,8 @@ class ExposedTokenRepository : TokenRepository {
         val designSystemId = requireNotNull(current[TokensTable.designSystemId])
         val draft = draft(designSystemId) ?: return false
         if (!lockDraftSubject(designSystemId, "token", id)) return false
-        if (removeDraftOnlyToken(id, draft)) return true
+        referenceCleaners.forEach { it.clear(designSystemId, setOf(id)) }
+        removeDraftOnlyValues(id, draft)
         TokenRevisionsTable.deleteWhere {
             (TokenRevisionsTable.tokenId eq id) and
                 (TokenRevisionsTable.designSystemVersionId eq draft[TokenVersionBoundariesTable.id])
@@ -155,13 +161,13 @@ class ExposedTokenRepository : TokenRepository {
         return true
     }
 
-    /** Removes an unpublished token and all of its unpublished values as one aggregate. */
-    private fun removeDraftOnlyToken(id: UUID, draft: ResultRow): Boolean {
+    /** Убирает неопубликованные значения; сам токен удаляет или сохраняет отметкой удаления штатный триггер. */
+    private fun removeDraftOnlyValues(id: UUID, draft: ResultRow) {
         val draftId = draft[TokenVersionBoundariesTable.id]
         val tokenVersions = TokenRevisionsTable.selectAll()
             .where { TokenRevisionsTable.tokenId eq id }
             .map { it[TokenRevisionsTable.designSystemVersionId] }
-        if (tokenVersions != listOf(draftId)) return false
+        if (tokenVersions != listOf(draftId)) return
 
         val valueIds = TokenValuesTable.selectAll()
             .where { TokenValuesTable.tokenId eq id }
@@ -170,15 +176,12 @@ class ExposedTokenRepository : TokenRepository {
             (TokenValueRevisionsTable.tokenValueId inList valueIds) and
                 (TokenValueRevisionsTable.designSystemVersionId neq draftId)
         }.limit(1).any()
-        if (hasHistoricalValue) return false
+        if (hasHistoricalValue) return
 
         if (valueIds.isNotEmpty()) {
             TokenValueRevisionsTable.deleteWhere { TokenValueRevisionsTable.tokenValueId inList valueIds }
             TokenValuesTable.deleteWhere { TokenValuesTable.id inList valueIds }
         }
-        TokenRevisionsTable.deleteWhere { TokenRevisionsTable.tokenId eq id }
-        TokensTable.deleteWhere { TokensTable.id eq id }
-        return true
     }
 
     override suspend fun values(

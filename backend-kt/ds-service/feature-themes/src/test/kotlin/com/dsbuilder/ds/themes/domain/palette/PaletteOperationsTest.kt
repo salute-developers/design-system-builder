@@ -71,8 +71,12 @@ class PaletteOperationsTest {
         assertEquals(PaletteError.Kind.INVALID, invalid.kind)
 
         val edited = applied(Ops.updateStep(rebuilt, "g-accent", green, 500, "#e8114d", palette(rebuilt))).state
-        assertEquals(PaletteAnchor(500, "#E8114D"), edited.ramps.single { it.groupId == "g-accent" }.anchor)
-        assertEquals("Coral", palette(edited).ramp("g-accent", green)!!.displayName)
+        assertEquals(ramp.anchor, edited.ramps.single { it.groupId == "g-accent" }.anchor)
+        assertEquals("#E8114D", edited.ramps.single { it.groupId == "g-accent" }.steps[500])
+        assertEquals(
+            palette(rebuilt).ramp("g-accent", green)!!.displayName,
+            palette(edited).ramp("g-accent", green)!!.displayName,
+        )
 
         val templateValue = state.template.getValue(h130).getValue(300).lowercase()
         val reset = applied(Ops.updateStep(state, "g-avatars", h130, 300, templateValue, palette(state))).state

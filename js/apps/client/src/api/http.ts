@@ -4,6 +4,7 @@ import { API_GATEWAY_URL } from './constants';
 import { authService } from './authService';
 import { getBaseName } from '../utils/baseName';
 import { getEditorClientId } from './editorClientIdentity';
+import { reportIncompleteMutationMetadata } from './incompleteMutationMetadata';
 
 export const http = axios.create({ baseURL: API_GATEWAY_URL });
 
@@ -32,7 +33,10 @@ http.interceptors.request.use(async (config) => {
 });
 
 http.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        reportIncompleteMutationMetadata(response);
+        return response;
+    },
     async (error) => {
         const original = error.config;
 

@@ -190,18 +190,27 @@ class FlywayAdoptionIntegrationTest {
         connection(url, postgres).use { connection ->
             applySchema(connection)
             insertThemes(connection)
-            val preparationFlyway = flyway(url, postgres, "4")
-            assertEquals(3, adoptAndMigrate(connection, preparationFlyway))
-            assertEquals("4", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
-            assertEquals("0", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
+            val preparationFlyway = flyway(url, postgres, "6")
+            assertEquals(5, adoptAndMigrate(connection, preparationFlyway))
+            assertEquals("6", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             connection.createStatement().use {
                 it.execute(
                     """
                     CREATE FUNCTION reject_test_backfill() RETURNS trigger LANGUAGE plpgsql AS $$
                     BEGIN RAISE EXCEPTION 'injected backfill failure'; END;
                     $$;
-                    CREATE TRIGGER reject_test_backfill BEFORE INSERT ON token_value_revisions
-                    FOR EACH ROW EXECUTE FUNCTION reject_test_backfill();
+                    CREATE FUNCTION attach_test_backfill_guard() RETURNS event_trigger LANGUAGE plpgsql AS $$
+                    BEGIN
+                        IF to_regclass('public.token_value_revisions') IS NOT NULL AND NOT EXISTS (
+                            SELECT 1 FROM pg_trigger WHERE tgname = 'reject_test_backfill'
+                        ) THEN
+                            CREATE TRIGGER reject_test_backfill BEFORE INSERT ON token_value_revisions
+                            FOR EACH ROW EXECUTE FUNCTION reject_test_backfill();
+                        END IF;
+                    END;
+                    $$;
+                    CREATE EVENT TRIGGER attach_test_backfill_guard ON ddl_command_end
+                    WHEN TAG IN ('CREATE TABLE') EXECUTE FUNCTION attach_test_backfill_guard();
                     """.trimIndent(),
                 )
             }
@@ -209,15 +218,21 @@ class FlywayAdoptionIntegrationTest {
             val flyway = flyway(url, postgres)
             assertFailsWith<org.flywaydb.core.api.FlywayException> { flyway.migrate() }
             assertEquals(preparedFingerprint, fingerprint(connection))
-            assertEquals("0", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
-            assertEquals("4", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals(
+                "0",
+                scalar(
+                    connection,
+                    "SELECT count(*) FROM pg_class WHERE oid = to_regclass('public.token_value_revisions')",
+                ),
+            )
+            assertEquals("6", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             connection.createStatement().use {
                 it.execute(
-                    "DROP TRIGGER reject_test_backfill ON token_value_revisions; " +
-                        "DROP FUNCTION reject_test_backfill();",
+                    "DROP EVENT TRIGGER attach_test_backfill_guard; " +
+                        "DROP FUNCTION attach_test_backfill_guard(); DROP FUNCTION reject_test_backfill();",
                 )
             }
-            assertEquals(3, adoptAndMigrate(connection, flyway))
+            assertEquals(1, adoptAndMigrate(connection, flyway))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
         }
@@ -228,8 +243,8 @@ class FlywayAdoptionIntegrationTest {
         connection(url, postgres).use { connection ->
             applySchema(connection)
             insertThemes(connection)
-            assertEquals(4, adoptAndMigrate(connection, flyway(url, postgres, "5")))
-            assertEquals("5", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
+            assertEquals(6, adoptAndMigrate(connection, flyway(url, postgres)))
+            assertEquals("7", scalar(connection, "SELECT count(*) FROM flyway_schema_history WHERE success"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM tenant_revisions"))
             assertEquals("2", scalar(connection, "SELECT count(*) FROM token_value_revisions"))
             assertEquals(
@@ -242,7 +257,7 @@ class FlywayAdoptionIntegrationTest {
             )
         }
         connection(url, postgres).use { connection ->
-            assertEquals(2, adoptAndMigrate(connection, flyway(url, postgres)))
+            assertEquals(0, adoptAndMigrate(connection, flyway(url, postgres)))
             assertEquals(FINAL_FINGERPRINT, fingerprint(connection))
             assertEquals(
                 "Alpha Theme",
@@ -354,7 +369,7 @@ class FlywayAdoptionIntegrationTest {
 
     private companion object {
         const val BASELINE_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val FINAL_FINGERPRINT = "ffcf49bf55ba7a1b5a9403c8e43a415b2b2063c2261027ce644dca87a6d0ead5"
+        const val FINAL_FINGERPRINT = "b2ef481cc0b70c0a32c913df0f4111a0fe5baaf4146db7627ccb2ad1e23162ec"
         const val DESIGN_SYSTEM = "11111111-1111-4111-8111-111111111111"
         const val FIRST_THEME = "22222222-2222-4222-8222-222222222222"
         const val SECOND_THEME = "33333333-3333-4333-8333-333333333333"

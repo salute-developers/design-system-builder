@@ -8,6 +8,12 @@ interface DraftChangeHandler {
     /** Устойчивое имя типа в журнале и технических редакциях. */
     val entityType: String
 
+    /** Блокирует предметного родителя до общей блокировки сущности при составной отмене. */
+    fun prepareRevert(designSystemId: UUID, entityId: UUID): Boolean = true
+
+    /** Проверяет зависимости до физического удаления составной созданной сущности под её блокировкой. */
+    fun canRemoveCreated(versionId: UUID, entityId: UUID): Boolean = true
+
     /** Описывает отличия выбранной границы от предыдущей опубликованной. */
     fun describe(
         designSystemId: UUID,
@@ -15,6 +21,15 @@ interface DraftChangeHandler {
         previousSequenceNumber: Long,
         limit: Int? = null,
     ): List<DraftSubjectChange>
+
+    /** Описывает одну сущность без вычисления остальных предметных отличий ДС. */
+    fun describeEntity(
+        designSystemId: UUID,
+        sequenceNumber: Long,
+        previousSequenceNumber: Long,
+        entityId: UUID,
+    ): DraftSubjectChange? = describe(designSystemId, sequenceNumber, previousSequenceNumber)
+        .firstOrNull { it.entityId == entityId }
 
     /** Проверяет наличие хотя бы одного предметного отличия без построения публичного журнала. */
     fun hasChanges(designSystemId: UUID, sequenceNumber: Long, previousSequenceNumber: Long): Boolean =

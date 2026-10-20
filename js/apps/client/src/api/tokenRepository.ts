@@ -16,6 +16,8 @@ import type {
 } from './editorContracts';
 import { apiRoot, tokenValueKey, parseMutationMetadata, readRequest, keepaliveRequest } from './editorHttp';
 import { nextPatchVersion } from './versionNumbers';
+import { normalizedColorValue } from './colorValue';
+import { createHttpPaletteRepository, paletteSourceFromEnv } from '../modules/palette';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
@@ -28,6 +30,18 @@ export class TokenRepository {
     ): Promise<ThemeEditorTokenSnapshot> {
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
+        const themePalette =
+            paletteSourceFromEnv() === 'api'
+                ? createHttpPaletteRepository()
+                      .load(context, signal)
+                      .then(
+                          (palette) => ({ palette, paletteError: undefined }),
+                          (error: unknown) => ({
+                              palette: undefined,
+                              paletteError: error instanceof Error ? error : new Error(String(error)),
+                          }),
+                      )
+                : Promise.resolve({ palette: undefined, paletteError: undefined });
         const [tenant, tokens, values, versions] = await Promise.all([
             readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
             readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
@@ -62,9 +76,10 @@ export class TokenRepository {
 
         for (const token of tokens.data) {
             const tokenValues = valuesByToken.get(token.id) ?? [];
-            const modes = [...new Set(tokenValues.map((value) => value.mode).filter(Boolean))] as Array<
-                'light' | 'dark'
-            >;
+            const usesModes = token.type === 'color' || token.type === 'gradient';
+            const modes = (
+                usesModes ? ['light', 'dark'] : [...new Set(tokenValues.map((value) => value.mode).filter(Boolean))]
+            ) as Array<'light' | 'dark'>;
             const names = modes.length ? modes.map((mode) => `${mode}.${token.name}`) : [token.name];
             const complete = names.every((name) =>
                 ['web', 'ios', 'android'].every((platform) =>
@@ -85,6 +100,12 @@ export class TokenRepository {
                     description: token.description ?? undefined,
                     enabled: token.enabled,
                 });
+            if (usesModes) {
+                const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
+                for (const name of names)
+                    for (const platform of ['web', 'ios', 'android'])
+                        group[platform][name] ??= token.type === 'gradient' ? [] : '';
+            }
             for (const value of tokenValues) {
                 if (!value.platform) continue;
                 const name = value.mode ? `${value.mode}.${token.name}` : token.name;
@@ -94,9 +115,18 @@ export class TokenRepository {
                 const storedValue = [unwrapValue(value.value), ([] as unknown[]).concat(value.value as never)][
                     Number(preservesArrayShape)
                 ];
-                group[value.platform][name] = paletteEntry
-                    ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]`
-                    : storedValue;
+                const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
+                const opacity =
+                    typeof rawOpacity === 'number' || (typeof rawOpacity === 'string' && rawOpacity.trim() !== '')
+                        ? Number(rawOpacity)
+                        : NaN;
+                group[value.platform][name] =
+                    value.paletteRef ??
+                    (paletteEntry
+                        ? `[${paletteEntry.type}.${paletteEntry.shade}.${paletteEntry.saturation}]${Number.isFinite(opacity) && opacity >= 0 && opacity < 1 ? `[${opacity}]` : ''}`
+                        : token.type === 'color'
+                          ? normalizedColorValue(storedValue)
+                          : storedValue);
             }
         }
         const emptyMeta = {
@@ -124,6 +154,7 @@ export class TokenRepository {
             fontFamily: emptyMeta,
         } as unknown as ThemeMeta;
         return {
+            ...(await themePalette),
             tenant: tenant.data,
             themeData: { meta, variations },
             editRevision: tenant.data.editRevision,
@@ -137,6 +168,9 @@ export class TokenRepository {
                 ]),
             ),
             publicationVersion,
+            tokenValueEntityIdsByKey: Object.fromEntries(
+                values.data.map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), value.id]),
+            ),
         };
     }
 
@@ -230,7 +264,10 @@ export class TokenRepository {
                 tokenId: stableTokenId!,
                 platform,
                 mode,
-                value: mutation.change.values[platform],
+                value:
+                    mutation.change.type === 'color'
+                        ? normalizedColorValue(mutation.change.values[platform])
+                        : mutation.change.values[platform],
                 baseRevision: valueBaseRevisions[tokenValueKey(stableTokenId!, platform, mode)] ?? 0,
             }));
         const saved = values.length

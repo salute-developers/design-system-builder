@@ -2,6 +2,7 @@ import type { Meta } from '../../controllers/componentBuilder/type';
 import type { VariationType } from '../../controllers/themeBuilder/types/token';
 import type { DraftChangeDto, EditorContextKey, TokenDefinitionDto } from '../../api/editorContracts';
 import { presentChangedFields, tokenValueHasStructuralChanges, type JournalChangedField } from './journalFields';
+import { presentPaletteChange, type JournalPaletteStep } from './paletteJournalPresentation';
 export type JournalSection = 'themes' | 'tokens' | 'components';
 export type JournalSource = 'themes' | 'palette' | 'colors' | 'typography' | 'sizes' | 'components';
 export const journalSources: Array<{
@@ -53,6 +54,8 @@ export interface JournalActionViewModel {
     source: JournalSource;
     title: string;
     platformLabel?: string;
+    groupLabel?: string;
+    paletteSteps?: JournalPaletteStep[];
     revertPaths?: string[];
     structural?: boolean;
     operation: DraftChangeDto['operation'];
@@ -162,12 +165,19 @@ export const buildComponentEntityIndex = (components: Meta[]) => {
 };
 const sectionFor = (entityType: string): JournalSection => {
     if (entityType === 'tenant') return 'themes';
-    if (entityType === 'token' || entityType === 'token-value') return 'tokens';
+    if (
+        entityType === 'token' ||
+        entityType === 'token-value' ||
+        entityType === 'token-group' ||
+        entityType.startsWith('palette-')
+    )
+        return 'tokens';
     return 'components';
 };
 const sourceFor = (change: DraftChangeDto, tokenType?: VariationType): JournalSource => {
     if (change.entityType === 'tenant') return 'themes';
-    if (change.entityType === 'palette') return 'palette';
+    if (change.entityType === 'palette' || change.entityType.startsWith('palette-')) return 'palette';
+    if (change.entityType === 'token-group') return 'colors';
     if (change.entityType !== 'token' && change.entityType !== 'token-value') return 'components';
     return tokenPresentation.get(tokenType ?? '')?.source ?? 'sizes';
 };
@@ -191,6 +201,32 @@ const navigationFor = (
     tokensById: Map<string, TokenDefinitionDto>,
     componentIndex: Map<string, string>,
 ): JournalNavigationTarget => {
+    if (change.entityType.startsWith('palette-')) {
+        const tenantId = String(field(change, 'tenant_id') ?? context.tenantId);
+        const params = new URLSearchParams(query(undefined, context.versionId));
+        const groupId = change.entityType === 'palette-group' ? change.entityId : field(change, 'group_id');
+        if (groupId) params.set('groupId', String(groupId));
+        for (const [fieldName, param] of [
+            ['slot_type', 'type'],
+            ['slot_shade', 'shade'],
+            ['step', 'step'],
+        ] as const) {
+            const value = field(change, fieldName);
+            if (value !== undefined) params.set(param, String(value));
+        }
+        return {
+            kind: 'section',
+            pathname: `${themeRoot(context, tenantId)}/palette`,
+            search: params.size ? `?${params}` : '',
+        };
+    }
+    if (change.entityType === 'token-group') {
+        return {
+            kind: 'section',
+            pathname: `${themeRoot(context)}/colors`,
+            search: query(undefined, context.versionId),
+        };
+    }
     if (change.entityType === 'tenant') {
         if (change.operation === 'deleted')
             return {
@@ -241,6 +277,20 @@ const titleFor = (
     componentIndex: Map<string, string>,
 ) => {
     const prefix = operationLabels[change.operation];
+    if (change.entityType === 'palette-group')
+        return `Группа палитры: ${String(field(change, 'label') ?? 'Без названия')}`;
+    if (change.entityType === 'token-group')
+        return `Группа токенов: ${String(field(change, 'label') ?? 'Без названия')}`;
+    if (change.entityType === 'palette-ramp' || change.entityType === 'palette-step') {
+        const slot = [field(change, 'slot_type'), field(change, 'slot_shade'), field(change, 'step')]
+            .filter((value) => value !== undefined)
+            .join('.');
+        return `${change.entityType === 'palette-step' ? 'Ступень палитры' : 'Растяжка палитры'}: ${slot || 'Без названия'}`;
+    }
+    if (change.entityType === 'palette-token-group') {
+        const token = tokensById.get(String(field(change, 'token_id')));
+        return `Группа палитры токена: ${token?.displayName ?? token?.name ?? 'Без названия'}`;
+    }
     if (change.entityType === 'tenant') {
         return `${prefix} темы «${String(field(change, 'name') ?? 'Без названия')}»`;
     }
@@ -270,6 +320,12 @@ export const presentJournal = ({
     const tokensById = new Map(tokens.map((token) => [token.id, token]));
     const componentIndex = buildComponentEntityIndex(components);
     const namesById = new Map(tokens.map((token) => [token.id, token.displayName ?? token.name]));
+    changes
+        .filter((change) => change.entityType === 'palette-group' || change.entityType === 'token-group')
+        .forEach((change) => {
+            const label = field(change, 'label');
+            if (typeof label === 'string') namesById.set(change.entityId, label);
+        });
     components.forEach((component) => collectReferenceNames(component.sources, namesById));
     return changes
         .flatMap((first) => {
@@ -277,6 +333,7 @@ export const presentJournal = ({
             const tokenId = String(field(first, 'token_id', 'tokenId') ?? first.entityId);
             const tokenType = tokensById.get(tokenId)?.type ?? (field(first, 'type') as VariationType | undefined);
             const label = first.actorId ? actorLabels[first.actorId] : undefined;
+            const palette = presentPaletteChange(first, namesById);
             const actorLabel = first.actorId
                 ? label && label !== first.actorId
                     ? label
@@ -286,7 +343,9 @@ export const presentJournal = ({
                 key,
                 section: sectionFor(first.entityType),
                 source: sourceFor(first, tokenType),
-                title: titleFor(first, tokensById, componentIndex),
+                title: palette?.title ?? titleFor(first, tokensById, componentIndex),
+                groupLabel: palette?.groupLabel,
+                paletteSteps: palette?.paletteSteps,
                 platformLabel:
                     first.entityType === 'token-value' && field(first, 'platform')
                         ? ((
@@ -301,7 +360,7 @@ export const presentJournal = ({
                 actorId: first.actorId,
                 actorLabel,
                 changedAt: first.changedAt,
-                changedFields: presentChangedFields([first], namesById, tokenType),
+                changedFields: palette?.fields ?? presentChangedFields([first], namesById, tokenType),
                 changes: [first],
                 navigation: navigationFor(first, context, tokensById, componentIndex),
                 canRevert: !context.versionId && !readOnly,

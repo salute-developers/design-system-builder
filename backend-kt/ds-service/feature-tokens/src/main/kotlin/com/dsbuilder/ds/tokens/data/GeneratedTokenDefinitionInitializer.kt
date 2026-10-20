@@ -1,6 +1,8 @@
 package com.dsbuilder.ds.tokens.data
 
 import com.dsbuilder.ds.core.application.DesignSystemTokenInitializer
+import com.dsbuilder.ds.core.application.DesignSystemTokenPlacementInitializer
+import com.dsbuilder.ds.core.application.InitialTokenDefinition
 import com.dsbuilder.ds.tokens.domain.TokenType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -13,13 +15,22 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Создаёт определения токенов из канонического ресурса ds-service. */
-class GeneratedTokenDefinitionInitializer : DesignSystemTokenInitializer {
+class GeneratedTokenDefinitionInitializer(
+    private val placements: DesignSystemTokenPlacementInitializer =
+        DesignSystemTokenPlacementInitializer { _, _ -> emptyMap() },
+) : DesignSystemTokenInitializer {
     override suspend fun initialize(designSystemId: UUID) {
         if (TokensTable.selectAll().where { TokensTable.designSystemId eq designSystemId }.limit(1).any()) return
         val baseline = TokenVersionBoundariesTable.selectAll().where {
             (TokenVersionBoundariesTable.designSystemId eq designSystemId) and
                 (TokenVersionBoundariesTable.status eq TokenVersionBoundaryStatus.BASELINE)
         }.single()
+        val initialPlacements = placements.initialize(
+            designSystemId,
+            definitions.map {
+                InitialTokenDefinition(it.name, it.type.wireValue)
+            },
+        )
         definitions.chunked(250).forEach { definitions ->
             val tokens = definitions.map { UUID.randomUUID() to it }
             TokensTable.batchInsert(tokens, shouldReturnGeneratedValues = false) { (id, _) ->
@@ -36,6 +47,8 @@ class GeneratedTokenDefinitionInitializer : DesignSystemTokenInitializer {
                 this[TokenRevisionsTable.displayName] = definition.displayName
                 this[TokenRevisionsTable.description] = definition.description
                 this[TokenRevisionsTable.enabled] = definition.enabled
+                this[TokenRevisionsTable.groupId] = initialPlacements[definition.name]?.groupId
+                this[TokenRevisionsTable.position] = initialPlacements[definition.name]?.position ?: 0
                 this[TokenRevisionsTable.deleted] = false
             }
         }

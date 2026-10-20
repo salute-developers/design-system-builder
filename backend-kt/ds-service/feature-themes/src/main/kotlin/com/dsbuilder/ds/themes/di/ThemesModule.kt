@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.themes.di
 
+import com.dsbuilder.ds.core.application.DesignSystemTokenPlacementInitializer
+import com.dsbuilder.ds.core.application.DraftChangeDependencyValidator
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
 import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
@@ -44,6 +46,8 @@ import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
 import com.dsbuilder.ds.themes.data.ExposedTokenGroupRepository
 import com.dsbuilder.ds.themes.data.GeneratedTenantTokenValueInitializer
+import com.dsbuilder.ds.themes.data.InitialTokenPlacementInitializer
+import com.dsbuilder.ds.themes.data.PaletteRevertDependencyValidator
 import com.dsbuilder.ds.themes.data.themeDraftChangeHandlers
 import com.dsbuilder.ds.themes.data.themeDraftChangePolicy
 import org.koin.core.qualifier.named
@@ -51,15 +55,25 @@ import org.koin.dsl.module
 
 /** Dependency bindings owned by the themes feature. */
 val themesModule = module {
+    single<DesignSystemTokenPlacementInitializer> { InitialTokenPlacementInitializer() }
     themeDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
     single<DraftChangePolicy>(named("theme-journal")) { themeDraftChangePolicy() }
+    single<DraftChangeDependencyValidator>(named("palette-revert")) { PaletteRevertDependencyValidator() }
     single<TenantRepository> { ExposedTenantRepository() }
     single<TenantTokenValueInitializer> { GeneratedTenantTokenValueInitializer() }
     factory { ListTenantsUseCase(get(), get(), get()) }
     factory { GetTenantUseCase(get(), get(), get()) }
-    factory { CreateTenantUseCase(get(), get(), get(), get(), get(), get(), IdempotentCreateExecutor(get()), get()) }
+    factory {
+        CreateTenantUseCase(
+            get(), get(), get(), get(), get(), get(),
+            IdempotentCreateExecutor(
+                get(),
+            ),
+            get(), get(),
+        )
+    }
     factory { UpdateTenantUseCase(get(), get(), get(), get()) }
     factory { DeleteTenantUseCase(get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get(), get()) }
@@ -81,7 +95,7 @@ val themesModule = module {
     factory {
         TenantPaletteUseCases(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get())
     }
-    single<ColorTokenRepository> { ExposedColorTokenRepository() }
+    single<ColorTokenRepository> { ExposedColorTokenRepository(getAll()) }
     single<TokenGroupRepository> { ExposedTokenGroupRepository() }
     factory { CreateColorTokenUseCase(get(), get(), get(), get(), get()) }
     factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get()) }

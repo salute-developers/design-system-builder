@@ -16,6 +16,7 @@ internal fun ThemePalette.toResponse() = ThemePaletteResponse(
     groups = groups.map { it.toDto() },
     tokens = tokens.map { it.toDto() },
     template = template.map { PaletteTemplateRampDto(it.ramp.type.wireValue, it.ramp.shade, it.steps.toStepValues()) },
+    subjectRevisions = subjectRevisions,
 )
 
 /** Группа палитры в контракте. */

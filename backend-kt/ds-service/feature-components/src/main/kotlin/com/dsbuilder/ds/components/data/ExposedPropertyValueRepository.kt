@@ -5,17 +5,120 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.PropertyValueRepository
 import com.dsbuilder.ds.components.domain.InvariantPropertyValue
 import com.dsbuilder.ds.components.domain.VariationPropertyValue
+import com.dsbuilder.ds.core.application.TokenReferenceCleaner
+import com.dsbuilder.ds.core.data.SubjectMutationPaths
+import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Exposed persistence for variation and invariant property values. */
 @Suppress("TooManyFunctions")
-class ExposedPropertyValueRepository : PropertyValueRepository {
+class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCleaner {
+    override suspend fun clear(designSystemId: UUID, tokenIds: Set<UUID>) {
+        if (tokenIds.isEmpty()) return
+        // Редакция удаляемого токена не является базовой редакцией зависимого свойства.
+        SubjectMutationPaths.withoutBaseComparison {
+            clearInvariantReferences(designSystemId, tokenIds)
+            clearStyleCombinationReferences(designSystemId, tokenIds)
+            clearVariationReferences(designSystemId, tokenIds)
+        }
+    }
+
+    private fun clearStyleCombinationReferences(designSystemId: UUID, tokenIds: Set<UUID>) {
+        val ids = StyleCombinationsTable.selectAll().where {
+            (StyleCombinationsTable.designSystemId eq designSystemId) and
+                (StyleCombinationsTable.tokenId inList tokenIds)
+        }.map { it[StyleCombinationsTable.id] }.sorted()
+        if (ids.isEmpty()) return
+        check(lockDraftSubjects(designSystemId, "style-combination", ids))
+        ids.chunked(250).forEach { batch ->
+            val rows = StyleCombinationsTable.selectAll().where {
+                (StyleCombinationsTable.id inList batch) and
+                    (StyleCombinationsTable.designSystemId eq designSystemId) and
+                    (StyleCombinationsTable.tokenId inList tokenIds)
+            }.map { it[StyleCombinationsTable.id] to it }.sortedBy { it.first }
+            StyleCombinationRevisionsTable.detachTokenReferences(
+                StyleCombinationRevisionsTable.entityId,
+                designSystemId,
+                rows,
+                changedPaths = setOf("/token_id"),
+            ) { statement, current ->
+                statement[tokenId] = null
+                statement[combinationKey] = current[StyleCombinationsTable.combinationKey]
+                statement[value] = current[StyleCombinationsTable.value]
+                statement[alpha] = current[StyleCombinationsTable.alpha]
+                statement[adjustment] = current[StyleCombinationsTable.adjustment]
+                statement[position] = current[StyleCombinationsTable.position]
+                statement[stateSetId] = current[StyleCombinationsTable.stateSetId]
+            }
+        }
+    }
+
+    private fun clearVariationReferences(designSystemId: UUID, tokenIds: Set<UUID>) {
+        val ids =
+            VariationPropertyValuesTable.selectAll().where {
+                (VariationPropertyValuesTable.designSystemId eq designSystemId) and
+                    (VariationPropertyValuesTable.tokenId inList tokenIds)
+            }.map { it[VariationPropertyValuesTable.id] }.sorted()
+        if (ids.isEmpty()) return
+        check(lockDraftSubjects(designSystemId, "variation-property-value", ids))
+        // После блокировки читаем заново: параллельное редактирование могло уже сменить ссылку или параметры.
+        ids.chunked(250).forEach { batch ->
+            val rows = VariationPropertyValuesTable.selectAll().where {
+                (VariationPropertyValuesTable.id inList batch) and
+                    (VariationPropertyValuesTable.designSystemId eq designSystemId) and
+                    (VariationPropertyValuesTable.tokenId inList tokenIds)
+            }.map { it[VariationPropertyValuesTable.id] to it }.sortedBy { it.first }
+            VariationPropertyValueRevisionsTable.detachTokenReferences(
+                VariationPropertyValueRevisionsTable.entityId,
+                designSystemId,
+                rows,
+            ) { statement, current ->
+                statement[tokenId] = null
+                statement[value] = null
+                statement[alpha] = current[VariationPropertyValuesTable.alpha]
+                statement[adjustment] = current[VariationPropertyValuesTable.adjustment]
+                statement[position] = current[VariationPropertyValuesTable.position]
+                statement[stateSetId] = current[VariationPropertyValuesTable.stateSetId]
+            }
+        }
+    }
+
+    private fun clearInvariantReferences(designSystemId: UUID, tokenIds: Set<UUID>) {
+        val ids =
+            InvariantPropertyValuesTable.selectAll().where {
+                (InvariantPropertyValuesTable.designSystemId eq designSystemId) and
+                    (InvariantPropertyValuesTable.tokenId inList tokenIds)
+            }.map { it[InvariantPropertyValuesTable.id] }.sorted()
+        if (ids.isEmpty()) return
+        check(lockDraftSubjects(designSystemId, "invariant-property-value", ids))
+        ids.chunked(250).forEach { batch ->
+            val rows = InvariantPropertyValuesTable.selectAll().where {
+                (InvariantPropertyValuesTable.id inList batch) and
+                    (InvariantPropertyValuesTable.designSystemId eq designSystemId) and
+                    (InvariantPropertyValuesTable.tokenId inList tokenIds)
+            }.map { it[InvariantPropertyValuesTable.id] to it }.sortedBy { it.first }
+            InvariantPropertyValueRevisionsTable.detachTokenReferences(
+                InvariantPropertyValueRevisionsTable.entityId,
+                designSystemId,
+                rows,
+            ) { statement, current ->
+                statement[tokenId] = null
+                statement[value] = null
+                statement[alpha] = current[InvariantPropertyValuesTable.alpha]
+                statement[adjustment] = current[InvariantPropertyValuesTable.adjustment]
+                statement[position] = current[InvariantPropertyValuesTable.position]
+                statement[stateSetId] = current[InvariantPropertyValuesTable.stateSetId]
+            }
+        }
+    }
+
     override suspend fun listVariation(projectId: ProjectId, systemAdmin: Boolean): List<VariationPropertyValue> =
         VariationPropertyValuesTable.selectAll().where {
             readableVariationValue(projectId, systemAdmin)
@@ -262,16 +365,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             deleted,
             changedPaths,
         ) {
-            it[tokenId] = if (command?.tokenIdPresent == true) {
+            val nextTokenId = if (command?.tokenIdPresent == true) {
                 command.tokenId
             } else {
                 current[VariationPropertyValuesTable.tokenId]
             }
-            it[value] = if (command?.valuePresent == true) {
+            it[tokenId] = nextTokenId
+            val nextValue = if (command?.valuePresent == true) {
                 command.value
             } else {
                 current[VariationPropertyValuesTable.value]
             }
+            it[value] = nextValue.takeIf { nextTokenId == null }
             it[alpha] = if (command?.alphaPresent == true) {
                 command.alpha
             } else {
@@ -310,16 +415,18 @@ class ExposedPropertyValueRepository : PropertyValueRepository {
             deleted,
             changedPaths,
         ) {
-            it[tokenId] = if (command?.tokenIdPresent == true) {
+            val nextTokenId = if (command?.tokenIdPresent == true) {
                 command.tokenId
             } else {
                 current[InvariantPropertyValuesTable.tokenId]
             }
-            it[value] = if (command?.valuePresent == true) {
+            it[tokenId] = nextTokenId
+            val nextValue = if (command?.valuePresent == true) {
                 command.value
             } else {
                 current[InvariantPropertyValuesTable.value]
             }
+            it[value] = nextValue.takeIf { nextTokenId == null }
             it[alpha] = if (command?.alphaPresent == true) {
                 command.alpha
             } else {

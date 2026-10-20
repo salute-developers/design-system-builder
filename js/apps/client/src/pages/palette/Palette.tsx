@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import '../../styles/palette.css';
 
@@ -14,6 +14,7 @@ import { StepColorEditor } from './StepColorEditor';
 import { displaySteps, isChanged, middleStep } from './Palette.utils';
 import { usePaletteEditor } from './usePaletteEditor';
 import { EditorLoading } from '../../components';
+import type { DraftChangeDto } from '../../api/editorContracts';
 
 export interface PaletteOutletContext {
     designSystem: DesignSystem | null;
@@ -23,21 +24,27 @@ export interface PaletteOutletContext {
     setPalette: (palette: ThemePalette) => void;
     rerender: () => void;
     reload: () => void;
+    refreshChanges: (changes: DraftChangeDto[]) => Promise<void>;
 }
 
 /** Раздел «Палитра» темы по `paletteEditorV3` прототипа SDDS Portal. */
 export const Palette = () => {
     const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    const versionId = searchParams.get('versionId') ?? undefined;
     const outlet = useOutletContext<PaletteOutletContext>();
     const context = useMemo<PaletteContext | null>(
-        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId } : null),
-        [projectId, designSystemId, tenantId],
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
     );
 
     if (!context) return null;
     if (outlet.paletteError)
         return (
-            <section className="workspace-page source-palette-v3 source-palette-placeholder" data-testid="palette-error">
+            <section
+                className="workspace-page source-palette-v3 source-palette-placeholder"
+                data-testid="palette-error"
+            >
                 <div className="source-palette-board-empty" role="alert">
                     <strong>Не удалось загрузить палитру</strong>
                     <span>{outlet.paletteError.message}</span>
@@ -50,7 +57,10 @@ export const Palette = () => {
     // Палитра прежней темы, пока загружается новая, не показывается.
     if (!outlet.palette || outlet.palette.tenantId !== context.tenantId)
         return (
-            <section className="workspace-page source-palette-v3 source-palette-placeholder" data-testid="palette-loading">
+            <section
+                className="workspace-page source-palette-v3 source-palette-placeholder"
+                data-testid="palette-loading"
+            >
                 {/* Тот же индикатор, что у загрузки темы в редакторе, на том же месте. */}
                 <EditorLoading text="Загружаем палитру…" />
             </section>
@@ -68,13 +78,22 @@ const PaletteScreen = ({
     outlet: PaletteOutletContext;
 }) => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const refreshTokens = useCallback(
+        () =>
+            outlet.refreshChanges([
+                { entityType: 'palette-ramp' } as DraftChangeDto,
+                { entityType: 'token-value' } as DraftChangeDto,
+            ]),
+        [outlet.refreshChanges],
+    );
     const editor = usePaletteEditor({
         context,
         palette,
         designSystem: outlet.designSystem,
         setPalette: outlet.setPalette,
         rerender: outlet.rerender,
-        reload: outlet.reload,
+        refreshTokens,
     });
     const steps = useMemo(() => displaySteps(palette), [palette]);
     // Как `paletteEditCount` прототипа: число правок палитры — изменённые растяжки, как у фильтра «Изменённые».
@@ -82,7 +101,7 @@ const PaletteScreen = ({
         () => palette.groups.reduce((total, group) => total + group.ramps.filter(isChanged).length, 0),
         [palette],
     );
-    const readOnly = outlet.designSystem?.getParameters()?.readOnly === true;
+    const readOnly = Boolean(context.versionId) || outlet.designSystem?.getParameters()?.readOnly === true;
     const canEdit = palette.canEdit && !readOnly;
     const paletteMode = editor.mode === 'palette';
 
@@ -111,6 +130,21 @@ const PaletteScreen = ({
 
     // Как в прототипе: при открытии выбрана первая растяжка первой непустой группы.
     useEffect(() => {
+        const requestedGroup = searchParams.get('groupId');
+        const requestedShade = searchParams.get('shade');
+        const requestedType = searchParams.get('type');
+        const group = palette.groups.find((item) => item.id === requestedGroup);
+        const ramp = group?.ramps.find(
+            (item) => item.slot.type === requestedType && item.slot.shade === requestedShade,
+        );
+        if (group && ramp) {
+            const step = Number(searchParams.get('step'));
+            const selectedStep = ramp.steps.some((item) => item.step === step) ? step : middleStep(ramp);
+            editor.setSelection({ groupId: group.id, slot: ramp.slot, step: selectedStep });
+        }
+    }, [searchParams, palette, editor.setSelection]);
+
+    useEffect(() => {
         if (editor.selection) return;
         const group = palette.groups.find((item) => item.ramps.length);
         const ramp = group?.ramps[0];
@@ -118,10 +152,19 @@ const PaletteScreen = ({
     }, [editor, palette]);
 
     const openToken = (tokenName: string, mode: string | null) =>
-        navigate('../colors', { state: { tokenName: mode ? `${mode}.${tokenName}` : tokenName } });
+        navigate(
+            {
+                pathname: '../colors',
+                search: context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : '',
+            },
+            { state: { tokenName: mode ? `${mode}.${tokenName}` : tokenName } },
+        );
 
     return (
-        <section className="workspace-page palette-page source-palette-page source-palette-v3" data-testid="palette-page">
+        <section
+            className="workspace-page palette-page source-palette-page source-palette-v3"
+            data-testid="palette-page"
+        >
             {paletteRepository.source === 'local' && (
                 <div className="viewer-banner" role="status">
                     <span>Палитра хранится в этом браузере и не публикуется</span>
@@ -129,7 +172,9 @@ const PaletteScreen = ({
             )}
             <div className="workspace-page-header source-palette-hero">
                 <h1>Палитра</h1>
-                {palette.offBrand && <span className="source-palette-state is-warning">Custom · вне брендовой палитры</span>}
+                {palette.offBrand && (
+                    <span className="source-palette-state is-warning">Custom · вне брендовой палитры</span>
+                )}
             </div>
             {!canEdit && (
                 <div className="viewer-banner" role="status">
@@ -192,7 +237,13 @@ const PaletteScreen = ({
                         role="tabpanel"
                         aria-labelledby={`source-palette-mode-${paletteMode ? 'palette' : 'color'}`}
                     >
-                        <PaletteBoard context={context} palette={palette} editor={editor} canEdit={canEdit} steps={steps} />
+                        <PaletteBoard
+                            context={context}
+                            palette={palette}
+                            editor={editor}
+                            canEdit={canEdit}
+                            steps={steps}
+                        />
                     </div>
                 </div>
                 {!editor.inspectorCollapsed && (

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, put, post, patch, remove } = vi.hoisted(() => ({
+const { pluginUrl, get, put, post, patch, remove } = vi.hoisted(() => ({
     pluginUrl: { value: undefined as string | undefined },
     get: vi.fn(),
     put: vi.fn(),
@@ -108,9 +108,9 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         pluginUrl.value = 'http://plugin.example/';
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
 
-        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(0);
+        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(0);
         expect(snapshot.componentsData).toEqual([]);
         expect(snapshot.composeComponentsData).toEqual([]);
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
@@ -120,18 +120,61 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
-        await new ThemeEditorRepository().load(context);
+        await loadThemeEditor(context);
 
-        expect(get.mock.calls.filter(([url]) => String(url).endsWith('/component-configs'))).toHaveLength(1);
+        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(1);
     });
 });
 
 describe('ThemeEditorRepository Compose components', () => {
-    const configsOf = (compose: unknown[], web: unknown[] = []) => (url: string, options?: { params?: any }) =>
-        url.endsWith('/component-configs')
-            ? Promise.resolve({ data: options?.params?.platform === 'compose' ? compose : web })
-            : Promise.resolve(reply('tenant-1', '#111111')(url));
-    const config = { id: 'default', name: 'default', config: { defaultVariations: [], invariantProps: [], variations: [] } };
+    const configsOf = (compose: ReturnType<typeof meta>[], web: ReturnType<typeof meta>[] = []) => {
+        const catalog = [
+            ...web.map((item) => ({
+                id: `web-${item.name}`,
+                name: item.name,
+                platform: 'web',
+                description: item.description,
+            })),
+            ...compose.map((item) => ({
+                id: `compose-${item.name}`,
+                name: item.name,
+                platform: 'compose',
+                description: item.description,
+            })),
+        ];
+        post.mockImplementation((url: string, body?: { platform?: string }) => {
+            if (!url.endsWith('/component-config/export')) throw new Error(`Unexpected POST ${url}`);
+            return Promise.resolve({
+                data: {
+                    components: (body?.platform === 'compose' ? compose : web).flatMap((item) =>
+                        item.sources.configs.map(() => ({
+                            componentName: item.name,
+                            styleName: 'default',
+                            config: { invariants: {}, defaults: [], variations: [] },
+                        })),
+                    ),
+                },
+            });
+        });
+        return (url: string) => {
+            if (url.endsWith('/components')) return Promise.resolve({ data: catalog });
+            if (url.endsWith('/design-system-components'))
+                return Promise.resolve({
+                    data: catalog.map((item) => ({
+                        id: `link-${item.id}`,
+                        designSystemId: 'ds-1',
+                        componentId: item.id,
+                    })),
+                });
+            if (url.includes('/properties') || url.includes('/variations')) return Promise.resolve({ data: [] });
+            return Promise.resolve(reply('tenant-1', '#111111')(url));
+        };
+    };
+    const config = {
+        id: 'default',
+        name: 'default',
+        config: { defaultVariations: [], invariantProps: [], variations: [] },
+    };
     const meta = (name: string, configs: unknown[] = [config]) => ({
         name,
         description: name,
@@ -141,7 +184,7 @@ describe('ThemeEditorRepository Compose components', () => {
     it('does not request Compose components without a plugin URL', async () => {
         get.mockImplementation(configsOf([meta('BasicButton')]));
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
 
         expect(snapshot.composeComponentsData).toEqual([]);
         expect(get.mock.calls.filter(([, options]) => options?.params?.platform === 'compose')).toHaveLength(0);
@@ -151,9 +194,9 @@ describe('ThemeEditorRepository Compose components', () => {
         pluginUrl.value = 'http://plugin.example/';
         get.mockImplementation(configsOf([meta('Avatar')], [meta('Avatar')]));
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
 
-        expect(snapshot.componentsData.map((item) => item.platform)).toEqual([undefined]);
+        expect(snapshot.componentsData.map((item) => item.platform)).toEqual(['web']);
         expect(snapshot.composeComponentsData).toEqual([
             expect.objectContaining({
                 name: 'Avatar',
@@ -167,7 +210,7 @@ describe('ThemeEditorRepository Compose components', () => {
         pluginUrl.value = 'http://plugin.example/';
         get.mockImplementation(configsOf([meta('Avatar'), meta('DropdownLoadingState', []), meta('Wheel', [])]));
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
 
         expect(snapshot.composeComponentsData.map((item) => item.name)).toEqual(['Avatar']);
     });
@@ -175,28 +218,48 @@ describe('ThemeEditorRepository Compose components', () => {
     it('keeps the editor usable when Compose components fail to load', async () => {
         pluginUrl.value = 'http://plugin.example/';
         const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        post.mockImplementation((url: string, body?: { platform?: string }) =>
+            body?.platform === 'compose'
+                ? Promise.reject(new Error('HTTP 500'))
+                : Promise.resolve({ data: { components: [] } }),
+        );
         get.mockImplementation((url: string, options?: { params?: any }) =>
             options?.params?.platform === 'compose'
                 ? Promise.reject(new Error('HTTP 500'))
                 : Promise.resolve(reply('tenant-1', '#111111')(url)),
         );
 
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
 
         expect(snapshot.composeComponentsData).toEqual([]);
+        expect(error).toHaveBeenCalled();
         error.mockRestore();
     });
 });
 
 describe('ThemeEditorRepository', () => {
     it('keeps the opacity of palette references stored through paletteId', async () => {
-        const repository = new ThemeEditorRepository();
+        const repository = { load: loadThemeEditor };
         get.mockImplementation((url: string) => {
             if (url.endsWith('/tenants/tenant-1/token-values'))
                 return Promise.resolve({
                     data: [
-                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'dark', paletteId: 'p1', value: ['0.56'] },
-                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'light', paletteId: 'p1', value: null },
+                        {
+                            tokenId: 'token-1',
+                            tenantId: 'tenant-1',
+                            platform: 'web',
+                            mode: 'dark',
+                            paletteId: 'p1',
+                            value: ['0.56'],
+                        },
+                        {
+                            tokenId: 'token-1',
+                            tenantId: 'tenant-1',
+                            platform: 'web',
+                            mode: 'light',
+                            paletteId: 'p1',
+                            value: null,
+                        },
                     ],
                 });
             if (url.endsWith('/ds/palette'))
@@ -204,12 +267,14 @@ describe('ThemeEditorRepository', () => {
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
         const snapshot = await repository.load(context);
-        expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe('[general.amber.300][0.56]');
+        expect(snapshot.themeData.variations.color.web['dark.surface.default.accent']).toBe(
+            '[general.amber.300][0.56]',
+        );
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('[general.amber.300]');
     });
 
     it('edits the palette reference of a color resolved by the theme palette', async () => {
-        const repository = new ThemeEditorRepository();
+        const repository = { load: loadThemeEditor };
         get.mockImplementation((url: string) => {
             if (url.endsWith('/tenants/tenant-1/token-values'))
                 return Promise.resolve({
@@ -223,7 +288,13 @@ describe('ThemeEditorRepository', () => {
                             paletteRef: '[general.green.500][0.8]',
                             value: ['#1F8A70CC'],
                         },
-                        { tokenId: 'token-1', tenantId: 'tenant-1', platform: 'web', mode: 'light', value: ['#FFFFFF'] },
+                        {
+                            tokenId: 'token-1',
+                            tenantId: 'tenant-1',
+                            platform: 'web',
+                            mode: 'light',
+                            value: ['#FFFFFF'],
+                        },
                     ],
                 });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
@@ -233,6 +304,7 @@ describe('ThemeEditorRepository', () => {
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#FFFFFF');
         expect(get).not.toHaveBeenCalledWith(expect.stringMatching(/\/ds\/palette$/), expect.anything());
     });
+});
 
 describe('Editor repositories', () => {
     it('limits parallel component detail requests below the gateway burst', async () => {
@@ -796,7 +868,7 @@ describe('Editor repositories', () => {
                 });
             return Promise.resolve(reply('tenant-1', '#111111')(url));
         });
-        const snapshot = await new ThemeEditorRepository().load(context);
+        const snapshot = await loadThemeEditor(context);
         expect(snapshot.incompleteTokenIds).toEqual(['token-new']);
         expect(snapshot.parameters.effectiveRole).toBe('editor');
         const { DesignSystem } = await import('../controllers');

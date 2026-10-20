@@ -36,10 +36,10 @@ val tokensModule = module {
     tokenDraftChangeHandlers().forEach { handler ->
         single<DraftChangeHandler>(named(handler.entityType)) { handler }
     }
-    single<TokenRepository> { ExposedTokenRepository() }
+    single<TokenRepository> { ExposedTokenRepository(getAll()) }
     single<TokenValueRepository> { ExposedTokenValueRepository() }
     single<PaletteRepository> { ExposedPaletteRepository() }
-    single<DesignSystemTokenInitializer> { GeneratedTokenDefinitionInitializer() }
+    single<DesignSystemTokenInitializer> { GeneratedTokenDefinitionInitializer(get()) }
     factory { ListTokensUseCase(get(), get(), get()) }
     factory { GetTokenUseCase(get(), get(), get()) }
     factory { CreateTokenUseCase(get(), get(), get(), IdempotentCreateExecutor(get()), get()) }

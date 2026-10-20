@@ -53,6 +53,7 @@ const Host = () => {
                 setPalette,
                 rerender: () => undefined,
                 reload: () => undefined,
+                refreshChanges: async () => undefined,
             }}
         />
     );
@@ -121,7 +122,9 @@ describe('раздел «Палитра»', () => {
         expect(within(inspector).queryByText('Слот')).toBeNull();
         expect(within(inspector).queryByText('Источник')).toBeNull();
         expect(inspector.querySelector('.source-palette-usage-group')).toBeNull();
-        const names = [...inspector.querySelectorAll('.source-palette-usage-link strong')].map((item) => item.textContent);
+        const names = [...inspector.querySelectorAll('.source-palette-usage-link strong')].map(
+            (item) => item.textContent,
+        );
         expect(new Set(names).size).toBe(names.length); // одна строка на токен, режимы объединены
     });
 
@@ -208,7 +211,14 @@ describe('раздел «Палитра»', () => {
 
     it('режим «Цвет»: щелчок выбирает ступень, выбор цвета открывают двойной щелчок и «Изменить цвет»', async () => {
         // Выбору цвета (ColorConstructor и компоненты Plasma) нужны API браузера, которых нет в jsdom.
-        vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+        vi.stubGlobal(
+            'ResizeObserver',
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        );
         Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
         await renderPalette();
         fireEvent.click(screen.getByRole('tab', { name: 'Цвет' }));
@@ -242,7 +252,14 @@ describe('раздел «Палитра»', () => {
     });
 
     it('«Изменить»: свотч опорного цвета открывает тот же выбор цвета, что и правка ступени', async () => {
-        vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+        vi.stubGlobal(
+            'ResizeObserver',
+            class {
+                observe() {}
+                unobserve() {}
+                disconnect() {}
+            },
+        );
         Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, configurable: true });
         await renderPalette();
         fireEvent.click(card('Green', 'Neutral'));
@@ -291,7 +308,9 @@ describe('раздел «Палитра»', () => {
         const toggle = screen.getByRole('button', { name: 'Скрыть Inspector' });
         expect(toggle).toHaveTextContent('0');
         fireEvent.click(card('Green', 'Neutral'));
-        fireEvent.click(within(await screen.findByRole('dialog', { name: 'Настройка палитры Green' })).getByText('Azure'));
+        fireEvent.click(
+            within(await screen.findByRole('dialog', { name: 'Настройка палитры Green' })).getByText('Azure'),
+        );
         await waitFor(() => expect(toggle).toHaveTextContent('1'));
         fireEvent.click(screen.getByRole('button', { name: 'Создать группу' }));
         fireEvent.keyDown(await screen.findByRole('textbox', { name: 'Название группы' }), { key: 'Escape' });

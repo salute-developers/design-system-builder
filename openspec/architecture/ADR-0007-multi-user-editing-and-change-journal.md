@@ -36,6 +36,8 @@ description: ADR по версионному хранению, общему че
 - вычисляемый журнал отличий без отдельных таблиц продуктового журнала;
 - откат создания, изменения и удаления до публикации;
 - публикация черновика с номером версии;
+- предметные редакции палитры темы, групп токенов и существующих цветовых операций;
+- обновление данных других сессий через SSE после фиксации изменений;
 - защита небезопасных повторных запросов.
 
 Не входят:
@@ -43,12 +45,9 @@ description: ADR по версионному хранению, общему че
 - полный аудит каждого промежуточного автосохранения;
 - изменение уже опубликованной версии;
 - новые предметные HTTP-методы токенов или компонентов;
-- CRDT, отдельная служба совместного редактирования, WebSocket/SSE и присутствие пользователей;
+- CRDT, отдельная служба совместного редактирования, WebSocket и присутствие пользователей;
 - обязательный диалог подтверждения отката;
 - показ предупреждений о параллельной записи в первой версии интерфейса;
-- реализация палитры в текущем изменении.
-
-Палитра в будущем подключается к той же модели предметных редакций.
 
 ## Решение
 
@@ -173,9 +172,15 @@ style и другие сущности также используют сост�
 | `design_system_versions` | Добавить `status`, `sequence_number`, `revision`, `created_at`; сделать `snapshot` допускающим `NULL`. Старые строки со снимком сохранить как архивные вне новой временной шкалы, новые строки создавать только без снимка. |
 | `design_system_changes` | Удалить после переключения на вычисляемый журнал. |
 | `tenants` | Оставить `id`, `design_system_id`, `created_at`; `name`, `description`, `color_config` и признак удаления перенести в `tenant_revisions`. `edit_revision` заменить общим техническим механизмом редактирования. |
-| `tokens` | Оставить `id`, `design_system_id`, `created_at`; `name`, `type`, `display_name`, `description`, `enabled` и признак удаления перенести в `token_revisions`. |
+| `tokens` | Оставить `id`, `design_system_id`, `created_at`; `name`, `type`, `display_name`, `description`, `enabled`, `group_id`, `position` и признак удаления перенести в `token_revisions`. |
 | `token_values` | Оставить `id`, добавить явный `design_system_id`, сохранить неизменяемые `token_id`, `tenant_id`, `platform`, `mode`, `created_at`; `palette_id`, `value` и признак удаления перенести в `token_value_revisions`. |
-| `palette` | Не менять в этом изменении; версионность палитры проектируется отдельно. |
+| `palette` | Общий шаблон только для создания новых тем; существующие темы не читают из него изменяемые цвета. |
+| `tenant_palette_template` | Неизменяемая копия шаблона темы; сохранить составной ключ, без нового UUID и без редакций. Сохраняется и для исторических версий. |
+| `tenant_palette_groups` → `tenant_palette_group_revisions` | В устойчивой строке: UUID, ДС, тема, вид и системный ключ. В редакции: подпись, порядок, признак удаления. |
+| `tenant_palette_ramps` → `tenant_palette_ramp_revisions` | В устойчивой строке: UUID, ДС, группа, слот. В редакции: источник, происхождение, опорная ступень и цвет, признак добавления и удаления. |
+| `tenant_palette_steps` → `tenant_palette_step_revisions` | Добавить устойчивый серверный UUID и ДС, сохранить уникальность растяжки и ступени. Значение правки и признак удаления — в редакции. |
+| `tenant_palette_token_groups` → `tenant_palette_token_group_revisions` | Добавить устойчивый серверный UUID и ДС, сохранить уникальность темы и токена. Выбранная группа и признак удаления — в редакции. |
+| `token_groups` → `token_group_revisions` | В устойчивой строке: UUID, ДС, вид. В редакции: родитель, код, подпись, порядок и признак удаления. |
 | `documentation_pages`, `saved_queries` | Не менять: они не являются публикуемым предметным состоянием дизайн-системы в рамках этого решения. |
 
 Общие сведения API компонентов остаются общими для всех дизайн-систем и не получают редакций:
@@ -237,6 +242,36 @@ style и другие сущности также используют сост�
 ролей, также одновременно очищает соответствующую ссылку в редакции внешнего вида. Так контракт API остаётся
 совместимым, но исторический источник ролей остаётся единственным.
 
+### Палитра и цветовые операции
+
+Палитра разрешается на той же границе версии, что и токены. Историческое чтение не инициализирует
+отсутствующие данные и не пишет в БД. Изменение общей палитры не меняет сохранённую копию шаблона темы.
+Начальная инициализация палитры входит в одну запись создания темы, а не порождает отдельные строки
+каждой начальной ступени.
+
+Изменение ступени даёт одну запись палитры. Изменение только вычисленного цвета зависимых токенов
+не создаёт их редакции и строки журнала: сохранённые ссылки остаются прежними. Если удаление растяжки
+действительно переписывает ссылки на другую растяжку или HEX, это отдельные изменения значений токенов.
+Их отмена независима: восстановление растяжки не возвращает ссылки автоматически. Отмена ссылки на
+отсутствующую растяжку отклоняется ошибкой зависимости; сначала нужно восстановить растяжку.
+Каждая отмена возвращает состояние относительно последней публикации, не промежуточное состояние
+перед удалением. Связанные группы отмены и дополнительная история операций не вводятся.
+
+Перестроение растяжки от опорного цвета — одна составная запись журнала, а не отдельная запись
+на каждую рассчитанную ступень. Её отмена атомарно восстанавливает опубликованные параметры
+растяжки и рассчитанные цвета. Ручные отклонения от расчёта показываются отдельными ступенями:
+их отмена возвращает расчёт текущей растяжки, а отмена перестроения сохраняет эти ручные правки.
+Опорный цвет описывает расчёт всей растяжки и не меняется при ручном редактировании ступени.
+Все сравнения вычисляются по предметным редакциям и неизменяемому шаблону темы, без новой
+таблицы журнала, сохранения промежуточных действий или снимка палитры в БД.
+Составная редакция проверяет актуальность дочерних цветов; порядок блокировок при отмене
+и записи одинаков: растяжка, затем ступени. Интерфейс не показывает служебные поля хранения.
+
+Новые операции цветов, групп и палитры используют доверенный контекст, предметные блокировки,
+редакции и ключи повторяемости существующего механизма. Общий счётчик темы не создаёт конфликтов
+при изменении разных токенов. Подтверждённые изменения обновляют палитру и зависимые цвета других
+сессий через SSE без размонтирования редактора и потери неподтверждённых локальных правок.
+
 ### ER-схема целевой модели
 
 ```mermaid
@@ -253,6 +288,25 @@ erDiagram
     TOKEN_VALUES ||--o{ TOKEN_VALUE_REVISIONS : changes
     DESIGN_SYSTEM_VERSIONS ||--o{ TOKEN_REVISIONS : contains
     DESIGN_SYSTEM_VERSIONS ||--o{ TOKEN_VALUE_REVISIONS : contains
+    TENANTS ||--o{ TENANT_PALETTE_TEMPLATE : owns
+    TENANTS ||--o{ TENANT_PALETTE_GROUPS : owns
+    TENANT_PALETTE_GROUPS ||--o{ TENANT_PALETTE_GROUP_REVISIONS : changes
+    TENANT_PALETTE_GROUPS ||--o{ TENANT_PALETTE_RAMPS : owns
+    TENANT_PALETTE_RAMPS ||--o{ TENANT_PALETTE_RAMP_REVISIONS : changes
+    TENANT_PALETTE_RAMPS ||--o{ TENANT_PALETTE_STEPS : owns
+    TENANT_PALETTE_STEPS ||--o{ TENANT_PALETTE_STEP_REVISIONS : changes
+    TENANTS ||--o{ TENANT_PALETTE_TOKEN_GROUPS : owns
+    TOKENS ||--o{ TENANT_PALETTE_TOKEN_GROUPS : selects
+    TENANT_PALETTE_TOKEN_GROUPS ||--o{ TENANT_PALETTE_TOKEN_GROUP_REVISIONS : changes
+    TENANT_PALETTE_GROUPS ||--o{ TENANT_PALETTE_TOKEN_GROUP_REVISIONS : selects
+    DESIGN_SYSTEMS ||--o{ TOKEN_GROUPS : owns
+    TOKEN_GROUPS ||--o{ TOKEN_GROUP_REVISIONS : changes
+    TOKEN_GROUPS ||--o{ TOKEN_REVISIONS : selects
+    DESIGN_SYSTEM_VERSIONS ||--o{ TENANT_PALETTE_GROUP_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ TENANT_PALETTE_RAMP_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ TENANT_PALETTE_STEP_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ TENANT_PALETTE_TOKEN_GROUP_REVISIONS : contains
+    DESIGN_SYSTEM_VERSIONS ||--o{ TOKEN_GROUP_REVISIONS : contains
     DESIGN_SYSTEM_VERSIONS ||--o{ ENTITY_EDIT_STATES : tracks
     ENTITY_EDIT_STATES ||--o{ ENTITY_EDIT_PATHS : tracks
     DESIGN_SYSTEMS {
@@ -305,6 +359,8 @@ erDiagram
         string name
         string token_type
         boolean enabled
+        uuid group_id FK
+        int position
         boolean deleted
         timestamp updated_at
     }
@@ -316,6 +372,106 @@ erDiagram
         string platform
         string mode
         timestamp created_at
+    }
+    TENANT_PALETTE_TEMPLATE {
+        uuid tenant_id PK,FK
+        string type PK
+        string shade PK
+        int step PK
+        string value "неизменяемая копия"
+    }
+    TENANT_PALETTE_GROUPS {
+        uuid id PK
+        uuid design_system_id FK
+        uuid tenant_id FK
+        string kind
+        string system_key
+        timestamp created_at
+    }
+    TENANT_PALETTE_GROUP_REVISIONS {
+        uuid id PK
+        uuid group_id FK
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        string label
+        int position
+        boolean deleted
+        timestamp updated_at
+    }
+    TENANT_PALETTE_RAMPS {
+        uuid id PK
+        uuid design_system_id FK
+        uuid group_id FK
+        string slot_type
+        string slot_shade
+        timestamp created_at
+    }
+    TENANT_PALETTE_RAMP_REVISIONS {
+        uuid id PK
+        uuid ramp_id FK
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        string source_type
+        string source_shade
+        boolean added
+        string origin
+        int anchor_step
+        string anchor_value
+        boolean deleted
+        timestamp updated_at
+    }
+    TENANT_PALETTE_STEPS {
+        uuid id PK
+        uuid design_system_id FK
+        uuid ramp_id FK
+        int step
+    }
+    TENANT_PALETTE_STEP_REVISIONS {
+        uuid id PK
+        uuid step_id FK
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        string value
+        boolean deleted
+        timestamp updated_at
+    }
+    TENANT_PALETTE_TOKEN_GROUPS {
+        uuid id PK
+        uuid design_system_id FK
+        uuid tenant_id FK
+        uuid token_id FK
+    }
+    TENANT_PALETTE_TOKEN_GROUP_REVISIONS {
+        uuid id PK
+        uuid assignment_id FK
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        uuid group_id FK
+        boolean deleted
+        timestamp updated_at
+    }
+    TOKEN_GROUPS {
+        uuid id PK
+        uuid design_system_id FK
+        string kind
+        timestamp created_at
+    }
+    TOKEN_GROUP_REVISIONS {
+        uuid id PK
+        uuid group_id FK
+        uuid design_system_id FK
+        uuid design_system_version_id FK
+        bigint version_sequence_number
+        uuid parent_id FK
+        string code
+        string label
+        int position
+        boolean deleted
+        timestamp updated_at
     }
     TOKEN_VALUE_REVISIONS {
         uuid token_value_id FK
@@ -573,6 +729,12 @@ X-DS-Base-Revision: 17
 Предметный DTO содержит только намеренно изменённые поля. Разные пути устаревшей сущности объединяются. При записи
 одного пути побеждает последняя успешно зафиксированная запись; сервер возвращает машиночитаемое предупреждение, но
 первая версия интерфейса его не показывает. Обычная гонка не приводит к `409 Conflict`.
+
+Технические редакции передаются в `X-DS-Mutation-Metadata`; размер заголовка ограничен 2048 байтами UTF-8.
+При большом числе сущностей возвращается корректный начальный фрагмент массива и
+`X-DS-Mutation-Metadata-Truncated: true`. Это не ошибка сохранения: вся предметная операция уже выполнена.
+Клиент не повторяет мутацию, а после подтверждения всех локальных очередей перечитывает затронутую область.
+Оба заголовка доступны браузеру через CORS. Ограничение защищает от 502 на стандартном буфере nginx.
 
 ### Транзакция изменения
 
@@ -870,8 +1032,6 @@ PostgreSQL
 Ограничения и стоимость:
 
 - прежние версии со `snapshot` сохраняются в БД, но не показываются и не читаются через новый предметный API;
-- до отдельного изменения палитры историческое чтение не гарантирует прежнее содержимое изменяемой записи `palette`,
-  на которую ссылается `palette_id`;
 - общий каталог API компонентов не версионируется: старая версия дизайн-системы использует актуальные описания,
   платформы и признаки устаревания общих сущностей;
 - чтение должно выбирать последнюю предметную редакцию на заданной временной границе;
@@ -901,6 +1061,5 @@ PostgreSQL
 
 ## Отложенное развитие
 
-- предметные редакции палитры;
 - отображение предупреждений о параллельной перезаписи;
 - новые предметные команды токенов и компонентов, если они понадобятся продукту.

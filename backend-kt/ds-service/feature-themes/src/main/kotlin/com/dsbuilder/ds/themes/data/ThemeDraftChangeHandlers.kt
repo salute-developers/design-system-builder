@@ -3,6 +3,7 @@ package com.dsbuilder.ds.themes.data
 import com.dsbuilder.ds.core.application.DraftChangeCandidate
 import com.dsbuilder.ds.core.application.DraftChangeHandler
 import com.dsbuilder.ds.core.application.DraftChangePolicy
+import com.dsbuilder.ds.core.application.DraftSubjectChange
 import com.dsbuilder.ds.core.data.ExposedDraftChangeHandler
 import com.dsbuilder.ds.core.data.discardRevertedEntityEditTracking
 import kotlinx.serialization.json.JsonElement
@@ -18,7 +19,8 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /** Предметные обработчики журнала тем. */
-fun themeDraftChangeHandlers(): List<DraftChangeHandler> = listOf(themeDraftChangeHandler())
+fun themeDraftChangeHandlers(): List<DraftChangeHandler> =
+    listOf(themeDraftChangeHandler()) + paletteDraftChangeHandlers()
 
 /** Скрывает технические создания начальных значений новой темы за одной записью tenant. */
 fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
@@ -26,6 +28,21 @@ fun themeDraftChangePolicy(): DraftChangePolicy = object : DraftChangePolicy {
 
     override fun visible(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> =
         visibleThemeChanges(versionId, candidates)
+
+    override fun visibleEntity(
+        versionId: UUID,
+        candidate: DraftChangeCandidate,
+        related: (String, UUID) -> DraftSubjectChange?,
+    ): DraftChangeCandidate? {
+        val tenant = candidate.change.currentValue?.get("tenant_id")?.jsonPrimitive?.content
+            ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            ?.takeIf { candidate.change.previousValue == null }
+            ?.let { related(TENANT_ENTITY_TYPE, it) }
+        val context = listOfNotNull(candidate, tenant?.let { DraftChangeCandidate(TENANT_ENTITY_TYPE, it) })
+        return visibleThemeChanges(versionId, context).firstOrNull {
+            it.entityType == candidate.entityType && it.change.entityId == candidate.change.entityId
+        }
+    }
 }
 
 private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCandidate>): List<DraftChangeCandidate> {
@@ -52,6 +69,14 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
         }
     }
     return candidates.mapNotNull { candidate ->
+        if (candidate.entityType == "palette-group" && candidate.change.previousValue == null) {
+            val current = candidate.change.currentValue
+            if (current?.get("kind")?.jsonPrimitive?.content == "system" &&
+                current["tenant_id"]?.jsonPrimitive?.content in createdTenantIds
+            ) {
+                return@mapNotNull null
+            }
+        }
         if (candidate.entityType != TOKEN_VALUE_ENTITY_TYPE || candidate.change.entityId !in newThemeValueIds) {
             return@mapNotNull candidate
         }

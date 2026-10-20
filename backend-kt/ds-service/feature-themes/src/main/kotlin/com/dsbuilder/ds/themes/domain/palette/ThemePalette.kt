@@ -18,6 +18,8 @@ data class ThemePalette(
     val template: List<PaletteTemplateRamp>,
     /** Связи токенов со слотами. */
     val links: List<PaletteLink>,
+    /** Технические редакции прочитанных предметных адресов; не общий счётчик темы. */
+    val subjectRevisions: Map<String, Long> = emptyMap(),
 ) {
     /** Растяжка группы по слоту. */
     fun ramp(groupId: String, slot: PaletteRampRef): PaletteRampView? =

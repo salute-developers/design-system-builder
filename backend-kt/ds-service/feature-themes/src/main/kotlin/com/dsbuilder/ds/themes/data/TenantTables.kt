@@ -101,10 +101,12 @@ internal object ThemeTokenValueCreationBaselinesTable : Table("token_value_creat
 internal object ThemeTokensTable : Table("tokens") {
     val id = uuid("id")
     val designSystemId = uuid("design_system_id").nullable()
+    val createdAt = timestamp("created_at")
     override val primaryKey = PrimaryKey(id)
 }
 
 internal object ThemeTokenRevisionsTable : Table("token_revisions") {
+    val id = uuid("id")
     val tokenId = reference("token_id", ThemeTokensTable.id)
     val designSystemId = uuid("design_system_id")
     val designSystemVersionId = uuid("design_system_version_id")
@@ -115,6 +117,7 @@ internal object ThemeTokenRevisionsTable : Table("token_revisions") {
     val type = postgresEnum("type", "token_type", ThemeTokenType::fromWire, ThemeTokenType::wireValue).nullable()
     val groupId = uuid("group_id").nullable()
     val position = integer("position")
+    val enabled = bool("enabled")
     val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
 }

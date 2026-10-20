@@ -44,6 +44,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -120,6 +122,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -162,6 +166,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -236,6 +242,7 @@ paths:
       summary: List token groups and subgroups of a design system
       description: Includes empty groups. Ordered by level, parent and position.
       parameters:
+        - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
             format: uuid
@@ -538,6 +545,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -661,6 +670,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -737,6 +748,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -779,6 +792,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -897,6 +912,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -937,6 +954,7 @@ paths:
         - Tenant palette
       summary: Theme palette of a tenant
       parameters:
+        - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
             format: uuid
@@ -981,6 +999,7 @@ paths:
         - Tenant palette
       summary: Token links of a palette slot
       parameters:
+        - $ref: '#/components/parameters/VersionId'
         - schema:
             type: string
             format: uuid
@@ -1050,6 +1069,8 @@ paths:
         - Tenant palette
       summary: Create a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1065,6 +1086,11 @@ paths:
       responses:
         '201':
           description: Created group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1106,6 +1132,7 @@ paths:
         - Tenant palette
       summary: Rename a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1126,6 +1153,11 @@ paths:
       responses:
         '200':
           description: Renamed group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1166,6 +1198,7 @@ paths:
         - Tenant palette
       summary: Delete a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1186,6 +1219,11 @@ paths:
       responses:
         '200':
           description: Deleted
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1227,6 +1265,7 @@ paths:
         - Tenant palette
       summary: Assign a color token to a palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1248,6 +1287,11 @@ paths:
       responses:
         '200':
           description: Token group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1289,6 +1333,8 @@ paths:
         - Tenant palette
       summary: Add a template ramp to a group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1309,6 +1355,11 @@ paths:
       responses:
         '201':
           description: Added ramp
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1350,6 +1401,7 @@ paths:
         - Tenant palette
       summary: Remove a ramp from a group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1383,6 +1435,11 @@ paths:
       responses:
         '200':
           description: Removed ramp
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1424,6 +1481,7 @@ paths:
         - Tenant palette
       summary: Replace the ramp source within a group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1457,6 +1515,11 @@ paths:
       responses:
         '200':
           description: Ramp
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1498,6 +1561,9 @@ paths:
         - Tenant palette
       summary: Rebuild a ramp from an anchor color or preview it
       parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1531,6 +1597,11 @@ paths:
       responses:
         '200':
           description: Ramp, or step values when preview is true
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1574,6 +1645,7 @@ paths:
         - Tenant palette
       summary: Edit one step of a ramp in a group
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1612,6 +1684,11 @@ paths:
       responses:
         '200':
           description: Ramp
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1654,8 +1731,10 @@ paths:
       summary: >-
         Create a color token with its family in a token group, values in every theme and optional palette
         group
-      description: Requires tenants:write and tokens:write. Increments editRevision of every theme of the design system.
+      description: Требует tenants:write и tokens:write. Атомарно создаёт предметные редакции во всех темах. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1671,6 +1750,11 @@ paths:
       responses:
         '201':
           description: Created color token family
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1713,8 +1797,9 @@ paths:
       tags:
         - Color tokens
       summary: Replace values of color token family members in the theme
-      description: Requires tenants:write. Every member needs values for web, ios and android in light and dark.
+      description: Требует tenants:write. Передаются только изменённые пары платформы и режима; остальные сохраняются. Повтор пары запрещён. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1736,6 +1821,11 @@ paths:
       responses:
         '200':
           description: New theme revision
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1778,8 +1868,9 @@ paths:
       tags:
         - Color tokens
       summary: Delete a color token family with values in every theme
-      description: Requires tenants:write and tokens:delete. Increments editRevision of every theme of the design system.
+      description: Требует tenants:write и tokens:delete. Логическое удаление сохраняет опубликованные данные. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1801,6 +1892,11 @@ paths:
       responses:
         '200':
           description: New theme revision
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1846,6 +1942,8 @@ paths:
         changes the first name segment, display names are recomputed. Increments editRevision of every theme
         of the design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1867,6 +1965,11 @@ paths:
       responses:
         '200':
           description: Moved color token family
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1913,6 +2016,8 @@ paths:
         Requires tenants:write and tokens:write. A top-level group gets a code derived from its label.
         Increments editRevision of every theme of the design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
         - schema:
             type: string
             format: uuid
@@ -1928,6 +2033,11 @@ paths:
       responses:
         '201':
           description: Created token group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -1972,6 +2082,7 @@ paths:
         Requires tenants:write and tokens:write. Moving a subgroup to a group with another code renames its
         tokens keeping definition ids. Increments editRevision of every theme of the design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -1993,6 +2104,11 @@ paths:
       responses:
         '200':
           description: Updated token group
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2037,6 +2153,7 @@ paths:
         deleted, component value references become null. Increments editRevision of every theme of the design
         system.
       parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
         - schema:
             type: string
             format: uuid
@@ -2058,6 +2175,11 @@ paths:
       responses:
         '200':
           description: New theme revision
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2135,6 +2257,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2211,6 +2335,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2253,6 +2379,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2384,6 +2512,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2460,6 +2590,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2502,6 +2634,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -2990,6 +3124,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -3060,6 +3196,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -3252,6 +3390,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -3328,6 +3468,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -3370,6 +3512,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4007,6 +4151,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4083,6 +4229,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4125,6 +4273,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4184,6 +4334,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4260,6 +4412,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4302,6 +4456,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4361,6 +4517,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4437,6 +4595,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4479,6 +4639,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4573,6 +4735,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4649,6 +4813,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4691,6 +4857,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4750,6 +4918,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4826,6 +4996,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4868,6 +5040,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -4927,6 +5101,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5003,6 +5179,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5045,6 +5223,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5141,6 +5321,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5217,6 +5399,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5259,6 +5443,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5378,6 +5564,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5454,6 +5642,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5496,6 +5686,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5902,6 +6094,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -5978,6 +6172,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6020,6 +6216,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6093,6 +6291,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6152,6 +6352,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6222,6 +6424,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6555,6 +6759,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -6750,6 +6956,8 @@ paths:
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
           content:
             application/json:
               schema:
@@ -9360,6 +9568,13 @@ components:
     ThemePalette:
       type: object
       properties:
+        subjectRevisions:
+          type: object
+          description: Предметные редакции адресов group/id, ramp/group/type/shade, step/group/type/shade/step и assignment/token для следующего изменения. Не общий счётчик темы.
+          additionalProperties:
+            type: integer
+            format: int64
+            minimum: 0
         tenantId:
           type: string
         editRevision:
@@ -9464,6 +9679,11 @@ components:
           nullable: true
         value:
           nullable: true
+        baseRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Базовая предметная редакция конкретной пары платформа/режим. Если не передана, используется X-DS-Base-Revision.
       required:
         - platform
         - mode
@@ -9488,6 +9708,8 @@ components:
           format: uuid
         values:
           type: array
+          minItems: 1
+          description: Только изменённые платформы и режимы; отсутствующие пары остаются без изменений. Повторы запрещены.
           items:
             $ref: '#/components/schemas/ColorTokenValueItem'
       required:
@@ -9628,6 +9850,11 @@ components:
     TokenGroup:
       type: object
       properties:
+        editRevision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Базовая предметная редакция этой группы, передаваемая в X-DS-Base-Revision при изменении.
         id:
           type: string
           format: uuid
@@ -9932,10 +10159,18 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+          description: >-
+            Предметное состояние сравнения. Для перестроения palette-ramp содержит параметры растяжки
+            и steps — отображение номера ступени в HEX. Рассчитанные ступени входят в одну запись
+            растяжки, ручные отклонения показываются отдельными palette-step.
         currentValue:
           type: object
           nullable: true
           additionalProperties: true
+          description: >-
+            Текущее предметное состояние. При перестроении palette-ramp поле steps описывает расчёт
+            без независимых ручных отклонений. Отмена записи растяжки атомарно восстанавливает её
+            параметры и рассчитанные ступени, сохраняя ручные отклонения.
         actorId:
           type: string
           nullable: true
@@ -9946,6 +10181,9 @@ components:
           type: integer
           format: int64
           minimum: 0
+          description: >-
+            Непрозрачная редакция для передачи обратно при отмене. Для составного изменения
+            учитывает дочерние значения; клиент не вычисляет и не увеличивает её самостоятельно.
       required:
         - parameterRevertSupported
         - changeId
@@ -9975,6 +10213,24 @@ components:
           example:
             - /value/fontSize
   parameters:
+    OptionalBaseRevision:
+      name: X-DS-Base-Revision
+      in: header
+      required: false
+      description: Базовая предметная редакция. При отсутствии заголовка операция применяется без определения пересечений; общий editRevision темы не используется. Для отдельных значений можно передать baseRevision в теле.
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    OptionalIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Точный повтор POST-команды возвращает прежний ответ; другой запрос с тем же ключом даёт 409 IDEMPOTENCY_KEY_REUSED. Без ключа запрос выполняется как новая команда. При preview=true ключ не сохраняется. PUT/PATCH/DELETE не сохраняют результат запроса.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 255
     VersionId:
       name: versionId
       in: query
@@ -10003,6 +10259,16 @@ components:
     MutationMetadata:
       description: >
         JSON-массив технических редакций изменённых сущностей. Поле warnings содержит пути, которые после
-        базовой редакции уже менял другой запрос.
+        базовой редакции уже менял другой запрос. Размер ограничен 2048 байтами UTF-8.
+        При превышении возвращается корректный начальный фрагмент массива и заголовок
+        X-DS-Mutation-Metadata-Truncated. Сама операция сохранена полностью; для получения
+        всех редакций клиент перечитывает подтверждённые данные после завершения локальных очередей.
       schema:
         type: string
+    MutationMetadataTruncated:
+      description: >
+        Присутствует со значением true, только если заголовок технических редакций содержит
+        не все изменённые сущности. Это не ошибка сохранения и не повод повторять мутацию.
+      schema:
+        type: boolean
+        enum: [true]

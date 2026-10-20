@@ -119,7 +119,7 @@ describe('DesignSystemChangesPage', () => {
         fireEvent.click(undo);
         await waitFor(() => expect(operations.refreshChanges).toHaveBeenCalledWith([change]));
         expect(screen.getByRole('button', { name: 'Перейти к источнику' })).toBeDisabled();
-        expect(operations.listChanges).toHaveBeenCalledTimes(1);
+        expect(operations.listChanges).toHaveBeenCalledTimes(2);
         finish();
         await waitFor(() => expect(operations.listChanges).toHaveBeenCalledTimes(2));
         expect(screen.getByRole('button', { name: 'Перейти к источнику' })).toBeEnabled();

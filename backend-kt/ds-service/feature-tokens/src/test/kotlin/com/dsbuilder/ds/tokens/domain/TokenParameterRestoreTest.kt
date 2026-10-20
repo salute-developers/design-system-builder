@@ -11,6 +11,28 @@ class TokenParameterRestoreTest {
     private fun json(value: String) = Json.parseToJsonElement(value)
 
     @Test
+    fun `color undo does not preserve accidental extra JSON quotes`() {
+        assertEquals(
+            json("""["#108E26"]"""),
+            TokenParameterRestore.restore(
+                json("""["#108E26"]"""),
+                json("""["\"#108E26\""]"""),
+                setOf("/value"),
+                TokenType.COLOR,
+            ),
+        )
+        assertEquals(
+            json("""["#108E26"]"""),
+            TokenParameterRestore.restore(
+                json("""["\"#108E26\""]"""),
+                json("""["#FFFFFF"]"""),
+                setOf("/value"),
+                TokenType.COLOR,
+            ),
+        )
+    }
+
+    @Test
     fun `restores only the selected typography parameter`() {
         val before = json("""{"fontSize":"8.125rem","lineHeight":"8.75rem"}""")
         val after = json("""{"fontSize":"7.5rem","lineHeight":"8.25rem"}""")

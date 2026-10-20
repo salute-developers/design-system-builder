@@ -8,12 +8,16 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.core.statements.InsertStatement
 import org.jetbrains.exposed.v1.javatime.timestamp
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.postgresql.util.PGobject
+import java.time.Instant
 import java.util.UUID
 
 internal object ComponentVersionBoundariesTable : Table("design_system_versions") {
@@ -327,4 +331,35 @@ internal fun <T : ComponentRevisionTable> T.replaceRevision(
     }
     val effectivePaths = changedPaths ?: if (deleted) setOf("/deleted") else null
     if (effectivePaths == null) write() else SubjectMutationPaths.with(effectivePaths, write)
+}
+
+/** Заменяет редакции уже заблокированных сущностей, сохраняя предметные проверки и журнал каждой строки. */
+internal fun <T : ComponentRevisionTable> T.detachTokenReferences(
+    entityColumn: Column<UUID>,
+    designSystemId: UUID,
+    rows: List<Pair<UUID, ResultRow>>,
+    changedPaths: Set<String> = setOf("/token_id", "/value"),
+    body: T.(BatchInsertStatement, ResultRow) -> Unit,
+) {
+    if (rows.isEmpty()) return
+    val draft = componentDraft(designSystemId)
+    SubjectMutationPaths.with(changedPaths) {
+        rows.chunked(250).forEach { batch ->
+            deleteWhere {
+                (entityColumn inList batch.map { it.first }) and
+                    (this.designSystemId eq designSystemId) and
+                    (designSystemVersionId eq draft[ComponentVersionBoundariesTable.id])
+            }
+            batchInsert(batch, shouldReturnGeneratedValues = false) { (entityId, row) ->
+                this[id] = UUID.randomUUID()
+                this[updatedAt] = Instant.now()
+                this[entityColumn] = entityId
+                this[this@detachTokenReferences.designSystemId] = designSystemId
+                this[designSystemVersionId] = draft[ComponentVersionBoundariesTable.id]
+                this[versionSequenceNumber] = draft[ComponentVersionBoundariesTable.sequenceNumber]
+                this[deleted] = false
+                body(this, row)
+            }
+        }
+    }
 }

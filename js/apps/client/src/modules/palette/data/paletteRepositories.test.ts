@@ -46,7 +46,13 @@ describe('адаптер local', () => {
     it('копирует шаблон при первом открытии и дальше использует копию', async () => {
         const { storage, repository } = setup();
         const palette = await repository.load(ctx);
-        expect(palette.groups.map((group) => group.systemKey)).toEqual(['neutral', 'accent', 'status', 'data', 'syntax']);
+        expect(palette.groups.map((group) => group.systemKey)).toEqual([
+            'neutral',
+            'accent',
+            'status',
+            'data',
+            'syntax',
+        ]);
         const saved = JSON.parse(storage.items.get(localPaletteKey(ctx))!);
         expect(saved.template['general.green']['500']).toBe(golden.template['general.green']['500']);
         const again = await repository.load(ctx);
@@ -105,7 +111,10 @@ describe('адаптер local', () => {
         expect(rebuilt.value).toMatchObject({ origin: 'rebuild', displayName: 'Teal', modified: true });
 
         const edited = await repository.updateStep(ctx, avatars.id, green, 300, '#abcdef', rebuilt.editRevision);
-        expect(edited.value.steps.find((step) => step.step === 300)).toMatchObject({ value: '#ABCDEF', overridden: true });
+        expect(edited.value.steps.find((step) => step.step === 300)).toMatchObject({
+            value: '#ABCDEF',
+            overridden: true,
+        });
 
         const links = await repository.links(ctx, { slot: green, groupId: avatars.id });
         expect(links.map((link) => [link.tokenId, link.mode, link.step])).toEqual([
@@ -140,9 +149,9 @@ describe('адаптер local', () => {
             throw new Error('QuotaExceededError');
         };
         const accent = (await repository.load(ctx)).groups.find((group) => group.systemKey === 'accent')!;
-        await expect(repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 })).rejects.toThrow(
-            'QuotaExceededError',
-        );
+        await expect(
+            repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 }),
+        ).rejects.toThrow('QuotaExceededError');
         expect(applyRewrite).toHaveBeenCalledTimes(1);
         expect(undo).toHaveBeenCalledTimes(1);
         storage.setItem = original;
@@ -157,9 +166,9 @@ describe('адаптер local', () => {
             throw new Error('draft write failed');
         });
         const accent = (await repository.load(ctx)).groups.find((group) => group.systemKey === 'accent')!;
-        await expect(repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 })).rejects.toThrow(
-            'draft write failed',
-        );
+        await expect(
+            repository.removeRamp(ctx, accent.id, green, { strategy: 'detach', editRevision: 0 }),
+        ).rejects.toThrow('draft write failed');
         expect(storage.items.get(localPaletteKey(ctx))).toBe(saved);
     });
 
@@ -168,7 +177,10 @@ describe('адаптер local', () => {
         const palette = await repository.load(ctx);
         const created = await repository.createGroup(ctx, 'Новая группа', palette.editRevision);
         const renamed = await repository.renameGroup(ctx, created.value.id, 'Icons', created.editRevision);
-        expect(renamed).toMatchObject({ editRevision: 2, value: { id: created.value.id, label: 'Icons', kind: 'custom' } });
+        expect(renamed).toMatchObject({
+            editRevision: 2,
+            value: { id: created.value.id, label: 'Icons', kind: 'custom' },
+        });
     });
 
     it('без права изменения операции отклоняются', async () => {
@@ -188,26 +200,35 @@ describe('адаптер local', () => {
 
 describe('адаптер api', () => {
     const mocked = vi.mocked(http);
+    const headers = { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) };
     beforeEach(() => vi.clearAllMocks());
 
     it('ходит по контракту палитры темы', async () => {
         const repository = createHttpPaletteRepository();
         mocked.get.mockResolvedValueOnce({ data: { tenantId: 't1' } });
         await repository.load(ctx);
-        expect(mocked.get).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette', { signal: undefined });
+        expect(mocked.get).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette', {
+            signal: undefined,
+            params: undefined,
+        });
 
         mocked.put.mockResolvedValueOnce({ data: { editRevision: 2, value: {} } });
         await repository.replaceSource(ctx, 'g-1', green, h190, 1);
         expect(mocked.put).toHaveBeenCalledWith(
             '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green/source',
             { type: 'additional', shade: 'h190', editRevision: 1 },
+            { headers },
         );
 
         mocked.delete.mockResolvedValueOnce({ data: { editRevision: 3, value: { reassigned: 1 } } });
         await repository.removeRamp(ctx, 'g-1', green, { strategy: 'replace', replacement: h190, editRevision: 2 });
-        expect(mocked.delete).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green', {
-            data: { strategy: 'replace', replacement: h190, editRevision: 2 },
-        });
+        expect(mocked.delete).toHaveBeenCalledWith(
+            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green',
+            {
+                data: { strategy: 'replace', replacement: h190, editRevision: 2 },
+                headers,
+            },
+        );
     });
 
     it('шлёт растяжку только как { type, shade }: сервер не принимает лишних полей', async () => {
@@ -215,19 +236,30 @@ describe('адаптер api', () => {
         const templateRamp = { ...h190, steps: [{ step: 500, value: '#00AACC' }] };
         mocked.post.mockResolvedValueOnce({ data: { editRevision: 2, value: {} } });
         await repository.addRamp(ctx, 'g-1', templateRamp, 1);
-        expect(mocked.post).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps', {
-            type: 'additional',
-            shade: 'h190',
-            editRevision: 1,
-        });
+        expect(mocked.post).toHaveBeenCalledWith(
+            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps',
+            {
+                type: 'additional',
+                shade: 'h190',
+                editRevision: 1,
+            },
+            { headers },
+        );
 
         mocked.put.mockResolvedValueOnce({ data: { editRevision: 3, value: {} } });
         await repository.replaceSource(ctx, 'g-1', green, templateRamp, 2);
         expect(mocked.put.mock.calls[0][1]).toEqual({ type: 'additional', shade: 'h190', editRevision: 2 });
 
         mocked.delete.mockResolvedValueOnce({ data: { editRevision: 4, value: { reassigned: 0 } } });
-        await repository.removeRamp(ctx, 'g-1', green, { strategy: 'replace', replacement: templateRamp, editRevision: 3 });
-        expect(mocked.delete.mock.calls[0][1]).toEqual({ data: { strategy: 'replace', replacement: h190, editRevision: 3 } });
+        await repository.removeRamp(ctx, 'g-1', green, {
+            strategy: 'replace',
+            replacement: templateRamp,
+            editRevision: 3,
+        });
+        expect(mocked.delete.mock.calls[0][1]).toEqual({
+            data: { strategy: 'replace', replacement: h190, editRevision: 3 },
+            headers,
+        });
     });
 
     it('rebuild с preview: true возвращает ступени без ревизии', async () => {
@@ -238,6 +270,7 @@ describe('адаптер api', () => {
         expect(mocked.post).toHaveBeenCalledWith(
             '/api/projects/p1/ds/tenants/t1/palette/groups/g-1/ramps/general/green/rebuild',
             input,
+            { params: { versionId: undefined } },
         );
         expect(isRebuildPreview(result) && result.steps).toEqual([{ step: 500, value: '#1F8A70' }]);
     });
@@ -246,10 +279,14 @@ describe('адаптер api', () => {
         const repository = createHttpPaletteRepository();
         mocked.patch.mockResolvedValueOnce({ data: { editRevision: 5, value: { id: 'g-1', label: 'Icons' } } });
         await repository.renameGroup(ctx, 'g-1', 'Icons', 4);
-        expect(mocked.patch).toHaveBeenCalledWith('/api/projects/p1/ds/tenants/t1/palette/groups/g-1', {
-            label: 'Icons',
-            editRevision: 4,
-        });
+        expect(mocked.patch).toHaveBeenCalledWith(
+            '/api/projects/p1/ds/tenants/t1/palette/groups/g-1',
+            {
+                label: 'Icons',
+                editRevision: 4,
+            },
+            { headers },
+        );
     });
 
     it('переводит ошибки сервера в PaletteOperationError', async () => {

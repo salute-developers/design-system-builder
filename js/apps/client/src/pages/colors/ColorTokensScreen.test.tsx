@@ -3,10 +3,16 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '/api/projects' }));
+vi.mock('../../api/http', () => ({ http: { get, post } }));
+vi.mock('../../api/editorReads', () => ({
+    readEditor: (url: string, config: unknown, body?: unknown) =>
+        body === undefined ? get(url, config) : post(url, body, config),
+    invalidateEditorReads: vi.fn(),
+}));
 
-import { ThemeEditorRepository } from '../../api/themeEditorRepository';
+import { loadThemeEditor } from '../../api/themeEditorRepository';
 import { DesignSystem, type Config, type Theme } from '../../controllers';
 import {
     ColorTokenOperationError,
@@ -14,7 +20,9 @@ import {
     type TokenGroupDto,
     type TokenGroupRepository,
 } from '../../modules/colorTokens';
-import { setColorTokenRepository } from './colorTokenEditor';
+import { colorTokenSession, refreshStructure, setColorTokenRepository } from './colorTokenEditor';
+import { subjectBaseRevision } from '../../api/subjectRevisions';
+import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { ColorTokensScreen } from './ColorTokensScreen';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
@@ -91,7 +99,11 @@ const reply =
                         ),
                     ),
             };
-        if (url.endsWith('/component-configs')) return { data: [] };
+        if (url.endsWith('/design-system-components') || url.endsWith('/components') || url.endsWith('/appearances'))
+            return { data: [] };
+        if (url.endsWith('/design-system-versions/by-design-system/ds-1')) return { data: [] };
+        if (url.endsWith('/palette'))
+            return { data: { tenantId: 'tenant-1', editRevision: 3, groups: [], tokens: [], template: [], links: [] } };
         throw new Error(`Unexpected URL ${url}`);
     };
 
@@ -137,7 +149,7 @@ const componentUsing = (name: string, token: string) =>
 
 const renderScreen = async (role = 'maintainer', missing: string[] = [], components: Config[] = []) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
-    const snapshot = await new ThemeEditorRepository().load(context);
+    const snapshot = await loadThemeEditor(context);
     const designSystem = DesignSystem.fromSnapshot({
         name: snapshot.designSystem.name,
         parameters: snapshot.parameters,
@@ -163,7 +175,7 @@ const renderScreen = async (role = 'maintainer', missing: string[] = [], compone
                 theme={current}
                 components={components}
                 palette={null}
-                tokenDefinitions={snapshot.tokenDefinitions}
+                tokenDefinitions={Object.values(snapshot.tokenDefinitionsByName)}
                 incompleteTokenIds={snapshot.incompleteTokenIds}
                 updated={{ updated }}
                 rerender={rerender}
@@ -191,6 +203,7 @@ beforeEach(() => {
     published = null;
     extraTokens = [];
     invalidTokens = [];
+    post.mockImplementation(async () => ({ data: { components: [] } }));
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
@@ -211,6 +224,45 @@ afterEach(() => {
 });
 
 describe('ColorTokensScreen', () => {
+    it('не применяет устаревшие группы и редакции из параллельного чтения', async () => {
+        const session = colorTokenSession(context);
+        let resolveOld!: (groups: TokenGroupDto[]) => void;
+        groupRepository.list.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveOld = resolve;
+                }),
+        );
+        const first = refreshStructure(session);
+        await Promise.resolve();
+        groupRepository.list.mockResolvedValueOnce([{ ...GROUPS[0], label: 'New', editRevision: 8 }]);
+        await refreshStructure(session);
+        resolveOld([{ ...GROUPS[0], label: 'Old', editRevision: 1 }]);
+        await first;
+        expect(session.groups[0].label).toBe('New');
+        expect(subjectBaseRevision(context, `token-group:${GROUPS[0].id}`)).toBe(8);
+    });
+
+    it('перечитывает структуру если запись успела завершиться во время чтения', async () => {
+        const session = colorTokenSession(context);
+        let resolveOld!: (groups: TokenGroupDto[]) => void;
+        groupRepository.list.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    resolveOld = resolve;
+                }),
+        );
+        const reading = refreshStructure(session);
+        await Promise.resolve();
+        setDraftAutosaveActivity(context, 'structure-race', 'saving');
+        setDraftAutosaveActivity(context, 'structure-race', null);
+        groupRepository.list.mockResolvedValueOnce([{ ...GROUPS[0], label: 'Confirmed', editRevision: 9 }]);
+        resolveOld([{ ...GROUPS[0], label: 'Stale', editRevision: 2 }]);
+        await reading;
+        expect(session.groups[0].label).toBe('Confirmed');
+        expect(subjectBaseRevision(context, `token-group:${GROUPS[0].id}`)).toBe(9);
+    });
+
     it('показывает токен в дереве и инспекторе с наследованием подтем', async () => {
         await renderScreen();
         expect(screen.getByTestId('color-token-row-color:text.accent')).toHaveTextContent('textAccent');
@@ -296,7 +348,8 @@ describe('ColorTokensScreen', () => {
         // OnDark наследует Dark, заданные Light и Dark не меняются.
         expect(value('accent-1', 'light')).toEqual([DARK]);
         expect(value('accent-1', 'dark')).toEqual([DARK]);
-        expect(value('accent-0', 'light')).toEqual([LIGHT]);
+        expect(value('accent-0', 'light')).toBeUndefined(); // Уже заданные пары вообще не отправляются.
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('118833');
     });
 
     it('сохраняет правки прежнего черновика и оставляет черновик при ошибке', async () => {

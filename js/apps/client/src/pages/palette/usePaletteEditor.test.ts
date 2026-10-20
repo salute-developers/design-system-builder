@@ -16,7 +16,14 @@ const designSystem = (editRevision?: number) => {
 const context = { projectId: 'p', designSystemId: 'd', tenantId: 't' };
 
 const renderEditor = (ds: DesignSystem) => {
-    const props = { context, palette, designSystem: ds, setPalette: vi.fn(), rerender: vi.fn(), reload: vi.fn() };
+    const props = {
+        context,
+        palette,
+        designSystem: ds,
+        setPalette: vi.fn(),
+        rerender: vi.fn(),
+        refreshTokens: vi.fn(async () => undefined),
+    };
     const hook = renderHook(() => usePaletteEditor(props));
     return { ...hook, props };
 };
@@ -55,22 +62,32 @@ describe('usePaletteEditor.run', () => {
         expect(result.current.toast).toMatchObject({ tone: 'success', title: 'Готово' });
     });
 
-    it('api: конфликт перечитывает тему, уведомление показывает новый экран', async () => {
+    it('api: конфликт обновляет данные без размонтирования и сохраняет состояние экрана', async () => {
         repository.source = 'api';
-        const { result, props, unmount } = renderEditor(designSystem(7));
-        await act(() => result.current.run(() => Promise.reject(conflict()), () => ({ title: 'Готово' })));
-        expect(props.reload).toHaveBeenCalledTimes(1);
+        const { result, props } = renderEditor(designSystem(7));
+        act(() => result.current.setSearch('accent'));
+        await act(() =>
+            result.current.run(
+                () => Promise.reject(conflict()),
+                () => ({ title: 'Готово' }),
+            ),
+        );
+        expect(props.refreshTokens).toHaveBeenCalledTimes(1);
         expect(repository.load).not.toHaveBeenCalled();
-        unmount();
-        const next = renderEditor(designSystem(9));
-        expect(next.result.current.toast).toMatchObject({ tone: 'error', title: 'Тема изменена в другом месте' });
+        expect(result.current.search).toBe('accent');
+        expect(result.current.toast).toMatchObject({ tone: 'error', title: 'Тема изменена в другом месте' });
     });
 
     it('local: конфликт перечитывает только палитру', async () => {
         repository.source = 'local';
         const { result, props } = renderEditor(designSystem());
-        await act(() => result.current.run(() => Promise.reject(conflict()), () => ({ title: 'Готово' })));
-        expect(props.reload).not.toHaveBeenCalled();
+        await act(() =>
+            result.current.run(
+                () => Promise.reject(conflict()),
+                () => ({ title: 'Готово' }),
+            ),
+        );
+        expect(props.refreshTokens).not.toHaveBeenCalled();
         expect(props.setPalette).toHaveBeenCalledWith(palette);
         expect(result.current.toast).toMatchObject({ tone: 'error' });
     });
@@ -78,8 +95,33 @@ describe('usePaletteEditor.run', () => {
     it('другая ошибка не меняет палитру и показывает текст ошибки', async () => {
         repository.source = 'local';
         const { result, props } = renderEditor(designSystem());
-        await act(() => result.current.run(() => Promise.reject(new Error('Сбой')), () => ({ title: 'Готово' })));
+        await act(() =>
+            result.current.run(
+                () => Promise.reject(new Error('Сбой')),
+                () => ({ title: 'Готово' }),
+            ),
+        );
         expect(props.setPalette).not.toHaveBeenCalled();
-        expect(result.current.toast).toMatchObject({ tone: 'error', title: 'Не удалось изменить палитру', text: 'Сбой' });
+        expect(result.current.toast).toMatchObject({
+            tone: 'error',
+            title: 'Не удалось изменить палитру',
+            text: 'Сбой',
+        });
+    });
+
+    it('api: замена ссылок обновляет токены без сброса выбора и поиска палитры', async () => {
+        repository.source = 'api';
+        const { result, props } = renderEditor(designSystem(7));
+        act(() => result.current.setSearch('green'));
+        await act(() =>
+            result.current.run(
+                async () => ({ editRevision: 0, value: 'ok' }),
+                () => ({ title: 'Растяжка удалена' }),
+                { tokensChanged: true },
+            ),
+        );
+        expect(props.refreshTokens).toHaveBeenCalledOnce();
+        expect(result.current.search).toBe('green');
+        expect(result.current.toast).toMatchObject({ tone: 'success', title: 'Растяжка удалена' });
     });
 });

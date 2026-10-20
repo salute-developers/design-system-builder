@@ -1,6 +1,8 @@
 import { loadThemeEditor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import { componentRepository } from '../../api/componentRepository';
+import { invalidateEditorReads } from '../../api/editorReads';
+import { subscribeIncompleteMutationMetadata } from '../../api/incompleteMutationMetadata';
 import type {
     EditorContextKey,
     ThemeEditorSnapshot,
@@ -86,6 +88,7 @@ export class ThemeEditorSession {
     private readonly latestGenerationByMetadataKey = new Map<string, string>();
     private readonly queue: TokenAutosaveQueue<PendingTokenSave, TokenSaveResult>;
     private cancelDeferredReload: () => void = () => undefined;
+    private cancelIncompleteMetadataRefresh: () => void = () => undefined;
     private retryRemoteReload: number | undefined;
     private remoteReloadRunning = false;
     private reloadChain: Promise<void> = Promise.resolve();
@@ -113,6 +116,13 @@ export class ThemeEditorSession {
     }
 
     start() {
+        this.cancelIncompleteMetadataRefresh = subscribeIncompleteMutationMetadata(this.context, (scope) => {
+            if (this.signal.aborted) return;
+            invalidateEditorReads();
+            this.latestRemoteEvent = undefined;
+            this.pendingRemoteScopes.add(scope);
+            this.scheduleRemoteReload();
+        });
         setDraftAutosaveActivity(this.context, 'tokens', 'saved');
         setPendingMutationListener(this.handleMutation.bind(this));
         this.restorePending();
@@ -145,6 +155,7 @@ export class ThemeEditorSession {
         if (!this.mounted) return;
         this.mounted = false;
         this.cancelDeferredReload();
+        this.cancelIncompleteMetadataRefresh();
         if (this.retryRemoteReload !== undefined) window.clearTimeout(this.retryRemoteReload);
         setPendingMutationListener(null);
         window.removeEventListener('pagehide', this.flushOnPageHide);
@@ -318,7 +329,7 @@ export class ThemeEditorSession {
     }
 
     private async runRemoteReload() {
-        if (this.remoteReloadRunning || this.pendingRemoteScopes.size === 0 || !this.latestRemoteEvent) return;
+        if (this.remoteReloadRunning || this.pendingRemoteScopes.size === 0) return;
         this.remoteReloadRunning = true;
         const event = this.latestRemoteEvent;
         const scopes = new Set(this.pendingRemoteScopes);
@@ -343,7 +354,13 @@ export class ThemeEditorSession {
     refreshChanges(changes: DraftChangeDto[]) {
         const scopes = new Set<DraftInvalidationScope>();
         for (const change of changes) {
-            if (change.entityType === 'token' || change.entityType === 'token-value') scopes.add('theme-tokens');
+            if (
+                change.entityType === 'token' ||
+                change.entityType === 'token-value' ||
+                change.entityType === 'token-group' ||
+                change.entityType.startsWith('palette-')
+            )
+                scopes.add('theme-tokens');
             else if (change.entityType === 'tenant') scopes.add('theme-metadata');
             else scopes.add('all');
         }
@@ -368,7 +385,7 @@ export class ThemeEditorSession {
                     if (fullReload) {
                         next = await loadThemeEditor(this.context, this.signal);
                     } else {
-                        const [tokenData, componentData] = await Promise.all([
+                        const [tokenData, componentData, composeData] = await Promise.all([
                             tokensChanged
                                 ? tokenRepository.loadTokenData(
                                       this.context,
@@ -379,11 +396,16 @@ export class ThemeEditorSession {
                             componentsChanged
                                 ? componentRepository.loadComponentData(this.context, this.signal)
                                 : Promise.resolve(null),
+                            componentsChanged
+                                ? componentRepository.loadComposeComponentData(this.context, this.signal)
+                                : Promise.resolve(null),
                         ]);
+                        if (tokenData?.paletteError) throw tokenData.paletteError;
                         next = {
                             ...this.snapshot,
                             ...(tokenData ?? {}),
                             componentsData: componentData ?? this.snapshot.componentsData,
+                            composeComponentsData: composeData ?? this.snapshot.composeComponentsData,
                             designSystem: {
                                 ...this.snapshot.designSystem,
                                 draftId: event?.draftId ?? this.snapshot.designSystem.draftId ?? undefined,

@@ -22,6 +22,8 @@ import type {
     PendingComponentMutation,
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
+import { isComponentEditorEnabled } from '../utils/featureFlags';
+import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
@@ -100,7 +102,12 @@ const COMPONENT_LOAD_CONCURRENCY = 4;
 
 /** Предметный клиент с ограниченным набором операций. */
 export class ComponentRepository {
-    async loadComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
+    async loadComponentData(
+        context: EditorContextKey,
+        signal?: AbortSignal,
+        platform: ComponentDto['platform'] = 'web',
+    ): Promise<Meta[]> {
+        if (!isComponentEditorEnabled()) return [];
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
         const [links, catalog, appearances, exported] = await Promise.all([
@@ -108,7 +115,7 @@ export class ComponentRepository {
             readEditor<ComponentDto[]>(`${root}/components`, request),
             readEditor<AppearanceDto[]>(`${root}/appearances`, request),
             Promise.all(
-                (['web', 'compose', 'xml', 'ios'] as const).map((platform) =>
+                [platform].map((platform) =>
                     readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
                         designSystemId: context.designSystemId,
                         platform,
@@ -119,7 +126,9 @@ export class ComponentRepository {
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
-        const components = catalog.data.filter((component) => linkedIds.has(component.id));
+        const components = catalog.data.filter(
+            (component) => linkedIds.has(component.id) && component.platform === platform,
+        );
         const entries = exported.flatMap((response) => response.data.components);
         const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
@@ -197,6 +206,19 @@ export class ComponentRepository {
                 } as Meta;
             }),
         );
+    }
+
+    async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
+        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
+        try {
+            return markComposeComponents(
+                (await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration),
+            );
+        } catch (error) {
+            if (signal?.aborted) throw error;
+            console.error('[ComponentRepository] Не удалось загрузить Compose-компоненты', error);
+            return [];
+        }
     }
 
     async saveComponentMutation(

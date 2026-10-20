@@ -8,7 +8,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
-import com.dsbuilder.ds.themes.application.palette.initializedSnapshot
+import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
@@ -29,11 +29,8 @@ class GetTenantTokenValuesUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<TenantTokenValue>> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
-            // Снимок палитры берёт тему FOR SHARE до чтения значений: оба чтения видят одно состояние, и сопоставление
-            // значений по `id` не теряется из-за параллельного `PUT token-values`. Транзакция изменяющая — теме без
-            // палитры копия шаблона создаётся здесь же.
-            is DsResult.Success -> transactions.required(context) {
-                val snapshot = paletteRepository.initializedSnapshot(context.projectId, id)
+            is DsResult.Success -> transactions.readOnly(context) {
+                val snapshot = paletteRepository.snapshot(context.projectId, id)?.takeIf { it.hasSystemGroups() }
                 values(context, id) { values -> snapshot?.let { resolved(id, it, values) } ?: values }
             }
         }

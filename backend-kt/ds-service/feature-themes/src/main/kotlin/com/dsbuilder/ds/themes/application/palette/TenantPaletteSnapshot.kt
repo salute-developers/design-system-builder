@@ -14,4 +14,6 @@ data class TenantPaletteSnapshot(
     val values: List<PaletteTokenValue>,
     /** Принадлежит ли дизайн-система темы проекту; общую дизайн-систему (`project_id IS NULL`) проект только читает. */
     val owned: Boolean = true,
+    /** Предметные редакции групп, растяжек, ступеней и привязок для адресной записи клиента. */
+    val subjectRevisions: Map<String, Long> = emptyMap(),
 )

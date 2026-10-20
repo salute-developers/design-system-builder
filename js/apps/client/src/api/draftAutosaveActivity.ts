@@ -1,14 +1,60 @@
 import type { EditorContextKey } from './editorContracts';
 import type { AutosaveStatus } from './tokenAutosaveQueue';
+import { authService } from './authService';
 
 const statuses = new Map<string, Map<string, AutosaveStatus>>();
 const idleListeners = new Map<string, Set<() => void>>();
 const activityRevisions = new Map<string, number>();
+const savedAtByContext = new Map<string, number>();
+const statusListeners = new Map<string, Set<(status: AutosaveStatus, savedAt?: number) => void>>();
 let activityRevision = 0;
+authService.onSessionReset(() => {
+    statuses.clear();
+    idleListeners.clear();
+    activityRevisions.clear();
+    savedAtByContext.clear();
+    statusListeners.clear();
+});
 
 const contextKey = (context: EditorContextKey) => `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
 
 const isIdle = (key: string) => [...(statuses.get(key)?.values() ?? [])].every((status) => status === 'saved');
+
+const statusOf = (key: string): AutosaveStatus => {
+    const values = [...(statuses.get(key)?.values() ?? [])];
+    return (
+        (['error', 'saving', 'pending'].find((value) => values.includes(value as AutosaveStatus)) as AutosaveStatus) ??
+        'saved'
+    );
+};
+
+const notifyStatus = (key: string) =>
+    statusListeners.get(key)?.forEach((listener) => listener(statusOf(key), savedAtByContext.get(key)));
+
+export const getDraftAutosaveStatus = (context: EditorContextKey) => statusOf(contextKey(context));
+
+/** Фиксирует только подтверждённое сервером сохранение, не завершение неуспешного запроса. */
+export const recordDraftSave = (context: EditorContextKey) => {
+    const key = contextKey(context);
+    savedAtByContext.set(key, Date.now());
+    notifyStatus(key);
+};
+
+/** Единый статус всех очередей открытого редактора. */
+export const subscribeDraftAutosaveStatus = (
+    context: EditorContextKey,
+    listener: (status: AutosaveStatus, savedAt?: number) => void,
+) => {
+    const key = contextKey(context);
+    const listeners = statusListeners.get(key) ?? new Set();
+    listeners.add(listener);
+    statusListeners.set(key, listeners);
+    listener(statusOf(key), savedAtByContext.get(key));
+    return () => {
+        listeners.delete(listener);
+        if (!listeners.size) statusListeners.delete(key);
+    };
+};
 
 /** Проверяет, что ни одна очередь выбранного редактора не содержит неподтверждённую операцию. */
 export const isDraftAutosaveIdle = (context: EditorContextKey) => isIdle(contextKey(context));
@@ -20,13 +66,28 @@ export const getDraftAutosaveRevision = (context: EditorContextKey) => activityR
 export const setDraftAutosaveActivity = (context: EditorContextKey, source: string, status: AutosaveStatus | null) => {
     const key = contextKey(context);
     const contextStatuses = statuses.get(key) ?? new Map<string, AutosaveStatus>();
-    if (contextStatuses.get(source) !== (status ?? undefined)) activityRevisions.set(key, ++activityRevision);
+    if (contextStatuses.get(source) !== (status ?? undefined)) {
+        activityRevisions.delete(key);
+        activityRevisions.set(key, ++activityRevision);
+    }
     if (status == null) contextStatuses.delete(source);
     else contextStatuses.set(source, status);
     if (contextStatuses.size === 0) {
         statuses.delete(key);
-        activityRevisions.delete(key);
     } else statuses.set(key, contextStatuses);
+    if (activityRevisions.size > 128) {
+        for (const candidate of activityRevisions.keys()) {
+            if (activityRevisions.size <= 128) break;
+            if (
+                candidate !== key &&
+                !statuses.has(candidate) &&
+                !statusListeners.has(candidate) &&
+                !idleListeners.has(candidate)
+            )
+                activityRevisions.delete(candidate);
+        }
+    }
+    notifyStatus(key);
     if (!isIdle(key)) return;
     const listeners = [...(idleListeners.get(key) ?? [])];
     idleListeners.delete(key);

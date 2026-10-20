@@ -3,9 +3,10 @@ import { Suspense } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
-const { hookState, reload, mainUtils } = vi.hoisted(() => ({
-    hookState: { loading: false, components: [] as unknown[] },
+const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
+    hookState: { loading: false, components: [] as unknown[], autosaveStatus: 'saved' as 'saved' | 'saving' | 'error' },
     reload: vi.fn(),
+    retryAutosave: vi.fn(),
     mainUtils: { designSystemSave: vi.fn() },
 }));
 vi.mock('./Main.utils', async (importOriginal) => ({
@@ -34,6 +35,9 @@ vi.mock('../hooks', () => ({
         composeComponents: [],
         incompleteTokenIds: [],
         loadError: null,
+        autosaveStatus: hookState.autosaveStatus,
+        retryAutosave,
+        lastSavedAt: 1_000,
         reload,
     }),
 }));
@@ -71,6 +75,7 @@ afterEach(() => {
     setActiveDraftContext(null);
     hookState.loading = false;
     hookState.components = [];
+    hookState.autosaveStatus = 'saved';
     localStorage.clear();
     vi.clearAllMocks();
     cleanup();
@@ -81,7 +86,9 @@ describe('Theme editor shell', () => {
     it('does not retain the previous section while the next route is pending', async () => {
         let ready = false;
         let finish: () => void = () => undefined;
-        const completion = new Promise<void>((resolve) => { finish = resolve; });
+        const completion = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
         const Settings = () => {
             if (!ready) throw completion;
             return <div>Новые настройки</div>;
@@ -90,8 +97,14 @@ describe('Theme editor shell', () => {
             <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
                 <Suspense fallback={<div>Загрузка маршрута</div>}>
                     <Routes>
-                        <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
-                            <Route path="colors" element={<div data-testid="previous-section">Старое содержимое</div>} />
+                        <Route
+                            path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                            element={<Main />}
+                        >
+                            <Route
+                                path="colors"
+                                element={<div data-testid="previous-section">Старое содержимое</div>}
+                            />
                             <Route path="settings" element={<Settings />} />
                         </Route>
                     </Routes>
@@ -103,7 +116,11 @@ describe('Theme editor shell', () => {
         expect(screen.queryByTestId('previous-section')).not.toBeInTheDocument();
         expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
         expect(screen.getByTestId('editor-rail')).toBe(rail);
-        await act(async () => { ready = true; finish(); await completion; });
+        await act(async () => {
+            ready = true;
+            finish();
+            await completion;
+        });
         expect(screen.getByText('Новые настройки')).toBeInTheDocument();
         expect(screen.queryByRole('status', { name: 'Открываем раздел' })).not.toBeInTheDocument();
     });
@@ -117,9 +134,16 @@ describe('Theme editor shell', () => {
         ['versions', 'Версии'],
     ])('shows the section for %s and preserves the version in the theme breadcrumb', (section, label) => {
         render(
-            <MemoryRouter initialEntries={[`/projects/project-1/design-systems/ds-1/themes/theme-1/${section}?versionId=published-1`]}>
+            <MemoryRouter
+                initialEntries={[
+                    `/projects/project-1/design-systems/ds-1/themes/theme-1/${section}?versionId=published-1`,
+                ]}
+            >
                 <Routes>
-                    <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
                         <Route path="*" element={<div />} />
                     </Route>
                 </Routes>
@@ -127,7 +151,10 @@ describe('Theme editor shell', () => {
         );
         const breadcrumbs = screen.getByRole('navigation', { name: 'Навигация темы' });
         expect(breadcrumbs.querySelector('[aria-current="page"]')).toHaveTextContent(label);
-        expect(screen.getByRole('link', { name: 'Brand' })).toHaveAttribute('href', '/projects/project-1/design-systems/ds-1/themes/theme-1/colors?versionId=published-1');
+        expect(screen.getByRole('link', { name: 'Brand' })).toHaveAttribute(
+            'href',
+            '/projects/project-1/design-systems/ds-1/themes/theme-1/colors?versionId=published-1',
+        );
     });
 
     it('uses breadcrumbs for hierarchy, opens Theme settings, and omits the obsolete overview action', () => {
@@ -183,100 +210,66 @@ describe('Theme editor shell', () => {
 
         // Один индикатор по центру холста; в шапке спиннера нет (ревью QA, PR #101).
         const loading = screen.getByRole('status');
-        expect(loading).toHaveTextContent('Загружаем тему…');
+        expect(loading).toHaveAccessibleName('Загружаем тему…');
         expect(loading.closest('header')).toBeNull();
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Настройки темы' })).toBeInTheDocument();
     });
 
-    it('shows «Сохранить» on the Theme route only when there is a local draft', () => {
+    it('не показывает ручное сохранение даже при наличии прежнего локального черновика', () => {
+        localStorage.setItem(DRAFT_KEY, '{}');
         renderEditor();
         expect(screen.queryByText('Сохранить')).not.toBeInTheDocument();
-        cleanup();
-
-        localStorage.setItem(DRAFT_KEY, '{}');
-        renderEditor();
-        expect(screen.getByText('Сохранить')).toBeInTheDocument();
         expect(screen.queryByText('Опубликовать')).not.toBeInTheDocument();
+        expect(mainUtils.designSystemSave).not.toHaveBeenCalled();
     });
 
-    it('saves, clears the draft and reloads', async () => {
-        localStorage.setItem(DRAFT_KEY, '{}');
-        mainUtils.designSystemSave.mockResolvedValueOnce({ editRevision: 2 });
+    it('показывает состояние серверного сохранения вместо ручной кнопки', () => {
+        hookState.autosaveStatus = 'saving';
         renderEditor();
-
-        fireEvent.click(screen.getByText('Сохранить'));
-
-        await waitFor(() => expect(reload).toHaveBeenCalledOnce());
-        expect(mainUtils.designSystemSave).toHaveBeenCalledOnce();
-        expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+        expect(screen.getByRole('status', { name: /Сохраняется/ })).toBeInTheDocument();
+        expect(screen.queryByText('Сохранить')).not.toBeInTheDocument();
     });
 
-    it('keeps the draft changed while the save was running', async () => {
+    it('не очищает изменившийся локальный черновик при смене статуса серверной очереди', () => {
         localStorage.setItem(DRAFT_KEY, '{}');
-        mainUtils.designSystemSave.mockImplementationOnce(async () => {
-            localStorage.setItem(DRAFT_KEY, '{"edited":true}');
-            return { editRevision: 2 };
-        });
-        renderEditor();
-
-        fireEvent.click(screen.getByText('Сохранить'));
-
-        await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+        hookState.autosaveStatus = 'saving';
+        const view = renderEditor();
+        localStorage.setItem(DRAFT_KEY, '{"edited":true}');
+        hookState.autosaveStatus = 'saved';
+        view.rerender(
+            <MemoryRouter>
+                <Main />
+            </MemoryRouter>,
+        );
         expect(localStorage.getItem(DRAFT_KEY)).toBe('{"edited":true}');
+        expect(mainUtils.designSystemSave).not.toHaveBeenCalled();
     });
 
-    it('does not clear the draft of another tenant opened while the save was running', async () => {
-        localStorage.setItem(DRAFT_KEY, '{}');
-        const otherTenantKey = 'ds_draft:project-1:ds-1:theme-2';
-        mainUtils.designSystemSave.mockImplementationOnce(async () => {
-            setActiveDraftContext({ projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'theme-2' });
-            localStorage.setItem(otherTenantKey, '{}');
-            return { editRevision: 2 };
-        });
-        renderEditor();
-
-        fireEvent.click(screen.getByText('Сохранить'));
-
-        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
-        expect(localStorage.getItem(otherTenantKey)).toBe('{}');
-        // Редактор уже на другом tenant: ответ прежнего не перезагружает его.
-        expect(reload).not.toHaveBeenCalled();
-    });
-
-    it('binds the draft snapshot to its own save when another tenant is saved meanwhile', async () => {
-        const otherTenantKey = 'ds_draft:project-1:ds-1:theme-2';
-        let resolveFirst: (value: { editRevision: number }) => void = () => {};
-        let resolveSecond: (value: { editRevision: number }) => void = () => {};
-        mainUtils.designSystemSave
-            .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
-            .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
-
-        // Сохранение темы A ещё идёт.
+    it('не очищает черновик соседней темы при отображении подтверждённого сохранения', () => {
+        const other = 'ds_draft:project-1:ds-1:theme-2';
         localStorage.setItem(DRAFT_KEY, '{"a":1}');
+        localStorage.setItem(other, '{"b":1}');
         renderEditor();
-        fireEvent.click(screen.getByText('Сохранить'));
-        await screen.findByText('Сохраняем…');
-
-        // Пользователь открыл тему B и запустил её сохранение: кнопка создана заново.
-        cleanup();
-        setActiveDraftContext({ projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'theme-2' });
-        localStorage.setItem(otherTenantKey, '{"b":1}');
-        renderEditor();
-        fireEvent.click(screen.getByText('Сохранить'));
-        await screen.findByText('Сохраняем…');
-
-        // Ответ A очищает только черновик A и не перезагружает редактор темы B.
-        resolveFirst({ editRevision: 2 });
-        await waitFor(() => expect(localStorage.getItem(DRAFT_KEY)).toBeNull());
-        expect(localStorage.getItem(otherTenantKey)).toBe('{"b":1}');
+        expect(localStorage.getItem(DRAFT_KEY)).toBe('{"a":1}');
+        expect(localStorage.getItem(other)).toBe('{"b":1}');
         expect(reload).not.toHaveBeenCalled();
+    });
 
-        // Ответ B очищает свой черновик и перезагружает редактор.
-        resolveSecond({ editRevision: 3 });
-        await waitFor(() => expect(reload).toHaveBeenCalledOnce());
-        expect(localStorage.getItem(otherTenantKey)).toBeNull();
+    it('повторяет только серверную очередь при ошибке, не вызывает прежний общий способ сохранения', () => {
+        hookState.autosaveStatus = 'error';
+        renderEditor();
+        fireEvent.click(screen.getByRole('button', { name: 'Повторить сохранение' }));
+        expect(retryAutosave).toHaveBeenCalledOnce();
+        expect(mainUtils.designSystemSave).not.toHaveBeenCalled();
+    });
+
+    it('показывает время успешного сохранения в подсказке, без перезагрузки редактора', () => {
+        renderEditor();
+        fireEvent.mouseEnter(screen.getByRole('status', { name: /Последнее сохранение/ }));
+        expect(screen.getByRole('tooltip')).toHaveTextContent('Последнее сохранение');
+        expect(reload).not.toHaveBeenCalled();
     });
 
     describe('component editor section', () => {

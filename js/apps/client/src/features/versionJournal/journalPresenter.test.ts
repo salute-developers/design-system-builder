@@ -31,6 +31,76 @@ const change = (overrides: Partial<DraftChangeDto> = {}): DraftChangeDto => ({
 });
 
 describe('presentJournal', () => {
+    it('показывает изменение ступени палитры и ведёт к её источнику в выбранной версии', () => {
+        const [result] = presentJournal({
+            changes: [
+                change({
+                    entityType: 'palette-step',
+                    entityId: 'step-1',
+                    changedPaths: ['/value'],
+                    previousValue: {
+                        tenant_id: 'tenant-2',
+                        group_id: 'group-1',
+                        slot_type: 'general',
+                        slot_shade: 'red',
+                        step: 500,
+                        value: '#112233',
+                    },
+                    currentValue: {
+                        tenant_id: 'tenant-2',
+                        group_id: 'group-1',
+                        slot_type: 'general',
+                        slot_shade: 'red',
+                        step: 500,
+                        value: '#445566',
+                    },
+                }),
+            ],
+            tokens: [],
+            components: [],
+            actorLabels: {},
+            context: { ...context, versionId: 'published-1' },
+        });
+        expect(result.title).toBe('Ступень палитры: Red 500');
+        expect(result.source).toBe('palette');
+        expect(result.changedFields).toEqual([{ path: '/value', label: 'Цвет', before: '#112233', after: '#445566' }]);
+        expect(result.navigation).toMatchObject({
+            pathname: '/projects/project-1/design-systems/ds-1/themes/tenant-2/palette',
+        });
+        expect(new URLSearchParams(result.navigation.kind !== 'unavailable' ? result.navigation.search : '')).toEqual(
+            new URLSearchParams({
+                versionId: 'published-1',
+                groupId: 'group-1',
+                type: 'general',
+                shade: 'red',
+                step: '500',
+            }),
+        );
+        expect(result.canRevert).toBe(false);
+    });
+
+    it('относит группы токенов к цветам, а не к компонентам', () => {
+        const [result] = presentJournal({
+            changes: [
+                change({
+                    entityType: 'token-group',
+                    previousValue: { label: 'Прежняя' },
+                    currentValue: { label: 'Новая' },
+                    changedPaths: ['/label'],
+                }),
+            ],
+            tokens: [],
+            components: [],
+            actorLabels: {},
+            context,
+        });
+        expect(result.title).toBe('Группа токенов: Новая');
+        expect(result.source).toBe('colors');
+        expect(result.section).toBe('tokens');
+        expect(result.changedFields[0].label).toBe('Название');
+        expect(result.canRevert).toBe(true);
+    });
+
     it.each([
         ['color', 'Цвет'],
         ['gradient', 'Градиент'],

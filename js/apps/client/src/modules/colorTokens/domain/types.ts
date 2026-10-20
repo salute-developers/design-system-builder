@@ -68,6 +68,7 @@ export interface TokenGroupDto {
     label: string;
     position: number;
     kind: 'color';
+    editRevision?: number;
 }
 
 /** Место определения в группах и признак публикации. */

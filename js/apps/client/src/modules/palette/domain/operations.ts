@@ -103,7 +103,11 @@ export const nextGroupLabel = (groups: { label: string }[], base = 'Новая �
     return `${base} ${index}`;
 };
 
-export const createGroup = (state: PaletteState, label: string, ctx: OperationContext): OperationResult<StoredGroup> => {
+export const createGroup = (
+    state: PaletteState,
+    label: string,
+    ctx: OperationContext,
+): OperationResult<StoredGroup> => {
     const trimmed = groupLabel(state, label);
     const next = clone(state);
     const group: StoredGroup = { id: ctx.newId(), kind: 'custom', systemKey: null, label: trimmed };
@@ -245,7 +249,7 @@ export const updateStep = (
         return { state: bump(next), value: slot };
     }
     stored.steps[String(step)] = hex;
-    if (stored.origin === 'rebuild' && stored.anchor?.step === step) stored.anchor = { step, value: hex };
+    // Опорный цвет — параметры перестроения; ручная правка ступени не меняет расчёт остальных цветов.
     return { state: bump(next), value: slot };
 };
 

@@ -9,6 +9,78 @@ const secondaryText = 'var(--builder-text-secondary, #dbdbdc)';
 const mutedText = 'var(--p-muted, #9e9fa2)';
 const accent = 'var(--p-accent, #2b8ced)';
 
+export const PaletteComparison = styled.div`
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 0 12px 8px;
+    > p {
+        margin: 0;
+        color: ${mutedText};
+        font-size: 11px;
+    }
+    > div > span {
+        display: block;
+        margin-bottom: 6px;
+        color: ${mutedText};
+    }
+    .palette-comparison-steps {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
+        gap: 4px;
+    }
+    .palette-comparison-step {
+        min-width: 0;
+        text-align: center;
+        color: ${mutedText};
+        font-size: 10px;
+    }
+    i {
+        display: block;
+        height: 28px;
+        margin-bottom: 4px;
+        border: 1px solid ${outline};
+        border-radius: 4px;
+    }
+    .palette-comparison-step[data-changed='true'] i {
+        outline: 1px solid ${accent};
+        outline-offset: 1px;
+    }
+    summary {
+        color: ${secondaryText};
+        cursor: pointer;
+        font-size: 11px;
+    }
+    table {
+        width: 100%;
+        margin-top: 8px;
+        border-collapse: collapse;
+        font-size: 11px;
+        text-align: left;
+    }
+    th,
+    td {
+        padding: 6px 4px;
+        border-bottom: 1px solid ${outline};
+    }
+    th {
+        color: ${mutedText};
+        font-weight: 400;
+    }
+    td:not(:first-child) {
+        white-space: nowrap;
+    }
+    .palette-comparison-color {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        margin-right: 4px;
+        border: 1px solid ${outline};
+        border-radius: 2px;
+        vertical-align: middle;
+    }
+`;
+
 export const CountBadge = styled.span`
     display: inline-flex;
     min-width: 16px;

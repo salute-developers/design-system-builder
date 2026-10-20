@@ -25,6 +25,9 @@ export interface AutosaveDeps {
     revision: { get(): number; set(value: number): void };
     /** Изменилось состояние сохранения. */
     onChange?: () => void;
+    /** Подтверждены только переданные значения; используется как основа следующего адресного изменения. */
+    onConfirmed?: (payload: PendingUpdate) => void;
+    onSaved?: () => void;
     /** Сервер вернул `TENANT_EDIT_CONFLICT`: очередь остановлена до `retry`. */
     onConflict?: (error: ColorTokenOperationError) => void;
     delayMs?: number;
@@ -69,6 +72,8 @@ export const createColorTokenAutosave = ({
     context,
     revision,
     onChange = () => undefined,
+    onConfirmed = () => undefined,
+    onSaved = () => undefined,
     onConflict = () => undefined,
     delayMs = 400,
 }: AutosaveDeps): ColorTokenAutosave => {
@@ -76,6 +81,7 @@ export const createColorTokenAutosave = ({
     let chain: Promise<unknown> = Promise.resolve();
     let paused = false;
     let disposed = false;
+    let activeOperations = 0;
 
     const enqueue = <T>(task: () => Promise<T>) => {
         const result = chain.then(task);
@@ -86,20 +92,26 @@ export const createColorTokenAutosave = ({
     const send = async (key: string) => {
         const entry = entries.get(key);
         if (!entry || entry.timer || entry.state !== 'pending' || paused || disposed) return;
-        const payload = entry.build();
-        if (!payload) {
+        const built = entry.build();
+        if (!built) {
             entries.delete(key);
             onChange();
             return;
         }
+        // Модели редактора изменяемые: подтверждение относится к отправленному состоянию, не к новому вводу.
+        const payload = structuredClone(built);
         const version = entry.version;
         entry.state = 'saving';
         onChange();
         try {
             const result = await repository.updateValues(context, payload.tokenId, payload.update, revision.get());
+            if (disposed) return;
             revision.set(result.editRevision);
+            onConfirmed(payload);
+            onSaved();
             if (entry.version === version) entries.delete(key);
         } catch (raw) {
+            if (disposed) return;
             const error = asOperationError(raw);
             if (entry.version === version || entry.state === 'saving') {
                 entry.state = 'error';
@@ -154,11 +166,12 @@ export const createColorTokenAutosave = ({
             const all = [...entries.values()];
             const failed = all.find((entry) => entry.state === 'error');
             if (failed) return { state: 'error', error: failed.error };
+            if (activeOperations > 0) return { state: 'saving', error: null };
             if (all.some((entry) => entry.state === 'saving')) return { state: 'saving', error: null };
             if (all.length) return { state: 'pending', error: null };
             return { state: 'saved', error: null };
         },
-        hasUnsaved: () => entries.size > 0,
+        hasUnsaved: () => entries.size > 0 || activeOperations > 0,
         unsavedKeys: () => [...entries.keys()],
         async flush() {
             [...entries.entries()].forEach(([key, entry]) => {
@@ -167,12 +180,22 @@ export const createColorTokenAutosave = ({
             await chain;
         },
         async run(operation) {
-            await this.flush();
-            return enqueue(async () => {
-                const result = await operation(revision.get());
-                revision.set(result.editRevision);
-                return result.value;
-            });
+            activeOperations += 1;
+            onChange();
+            try {
+                await this.flush();
+                return await enqueue(async () => {
+                    const result = await operation(revision.get());
+                    if (!disposed) {
+                        revision.set(result.editRevision);
+                        onSaved();
+                    }
+                    return result.value;
+                });
+            } finally {
+                activeOperations -= 1;
+                if (!disposed) onChange();
+            }
         },
         forget(key) {
             const entry = entries.get(key);
@@ -184,6 +207,7 @@ export const createColorTokenAutosave = ({
         dispose() {
             disposed = true;
             entries.forEach((entry) => entry.timer && clearTimeout(entry.timer));
+            entries.clear();
         },
     };
 };

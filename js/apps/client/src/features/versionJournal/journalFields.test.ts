@@ -18,6 +18,11 @@ const change: DraftChangeDto = {
 };
 
 describe('предметные значения журнала', () => {
+    it('показывает цветовой свотч и HEX без лишних кавычек в старом сохранённом значении', () => {
+        expect(journalColor('"#108E26"')).toBe('#108E26');
+        expect(journalValueText('"#108E26"')).toBe('#108E26');
+        expect(journalValueText('"[general.herbal.400]"')).toBe('Herbal 400');
+    });
     it('раскладывает тень в параметры редактора и показывает только изменённое размытие', () => {
         expect(presentChangedFields([change], new Map(), 'shadow')).toEqual([
             { path: '/value/0/blur', label: 'Слой 1 · Размытие', before: 112, after: 113 },
@@ -57,8 +62,11 @@ describe('предметные значения журнала', () => {
     it('разрешает палитровую ссылку в цвет и сохраняет подпись источника', () => {
         const reference = '[general.orange.500]';
         expect(journalColor(reference)).toMatch(/^#/);
-        expect(journalValueText(reference)).toBe('general.orange.500');
-        expect(journalValueText('[general.orange.500][50]')).toBe('general.orange.500 · 50');
+        expect(journalValueText(reference)).toBe('Orange 500');
+        expect(journalValueText('[general.orange.500][50]')).toBe('Orange 500 · 50');
+        expect(journalValueText('[general.herbal.400]')).toBe('Herbal 400');
+        expect(journalValueText('[general.coolGray.400]')).toBe('Cool Gray 400');
+        expect(journalValueText('[additional.h130.400]')).toBe('Green 400');
         expect(journalColor('[general.unknownShade.9999]')).toBeUndefined();
     });
 

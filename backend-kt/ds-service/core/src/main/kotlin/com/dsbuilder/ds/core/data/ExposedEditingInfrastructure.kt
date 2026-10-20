@@ -13,6 +13,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.javatime.timestamp
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -90,7 +91,15 @@ fun lockDesignSystemPublication(designSystemId: UUID) {
  * subject revision is read. The revision trigger advances the same row after
  * the new subject revision is inserted.
  */
-fun lockDraftSubject(designSystemId: UUID, entityType: String, entityId: UUID): Boolean {
+fun lockDraftSubject(designSystemId: UUID, entityType: String, entityId: UUID): Boolean =
+    lockDraftSubjects(designSystemId, entityType, listOf(entityId))
+
+/** Пакетно блокирует независимые предметные адреса в едином порядке без повторения проверок для каждой строки. */
+fun lockDraftSubjects(designSystemId: UUID, entityType: String, entityIds: Collection<UUID>): Boolean =
+    entityIds.isEmpty() || lockExistingDraftSubjects(designSystemId, entityType, entityIds)
+
+private fun lockExistingDraftSubjects(designSystemId: UUID, entityType: String, entityIds: Collection<UUID>): Boolean {
+    val orderedIds = entityIds.distinct().sorted()
     val requestScope = org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager.current().exec(
         """
             SELECT NULLIF(current_setting('ds.project_id', true), '') AS project_id,
@@ -116,21 +125,22 @@ fun lockDraftSubject(designSystemId: UUID, entityType: String, entityId: UUID): 
     val actorId = org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager.current().exec(
         "SELECT COALESCE(NULLIF(current_setting('ds.actor_id', true), ''), 'system')",
     ) { rows -> if (rows.next()) rows.getString(1) else "system" } ?: "system"
-    EntityEditStatesTable.insertIgnore {
-        it[designSystemVersionId] = boundaryId
-        it[EntityEditStatesTable.designSystemId] = designSystemId
-        it[EntityEditStatesTable.entityType] = entityType
-        it[EntityEditStatesTable.entityId] = entityId
-        it[revision] = 0
-        it[lastActorId] = actorId
-        it[updatedAt] = Instant.now()
+    orderedIds.chunked(500).forEach { ids ->
+        EntityEditStatesTable.batchInsert(ids, ignore = true, shouldReturnGeneratedValues = false) { id ->
+            this[EntityEditStatesTable.designSystemVersionId] = boundaryId
+            this[EntityEditStatesTable.designSystemId] = designSystemId
+            this[EntityEditStatesTable.entityType] = entityType
+            this[EntityEditStatesTable.entityId] = id
+            this[EntityEditStatesTable.revision] = 0
+            this[EntityEditStatesTable.lastActorId] = actorId
+            this[EntityEditStatesTable.updatedAt] = Instant.now()
+        }
     }
-    EntityEditStatesTable.selectAll().where {
+    return EntityEditStatesTable.selectAll().where {
         (EntityEditStatesTable.designSystemVersionId eq boundaryId) and
             (EntityEditStatesTable.entityType eq entityType) and
-            (EntityEditStatesTable.entityId eq entityId)
-    }.forUpdate().single()
-    return true
+            (EntityEditStatesTable.entityId inList orderedIds)
+    }.orderBy(EntityEditStatesTable.entityId).forUpdate().toList().size == orderedIds.size
 }
 
 /** PostgreSQL-реализация технических редакций сущности и её путей. */

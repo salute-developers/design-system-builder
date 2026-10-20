@@ -10,16 +10,11 @@ import { GrayTone, Parameters } from '../types';
 import { CreateFirstName, SetupParameters, CreationProgress } from '../popup';
 import { Debug } from './Debug';
 import { defaultParameters, popupContentPages } from './Main.utils';
-import {
-    EditorBody,
-    EditorCanvas,
-    MainItems,
-    Root,
-    Separator,
-    StyledIconButton,
-    StyledPopup,
-} from './Main.styles';
+import { EditorBody, EditorCanvas, MainItems, Root, Separator, StyledIconButton, StyledPopup } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { Visible } from '../components/rendering';
+import { IconColorSwatchOutline } from '../icons';
+import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
 
 import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { EditorVersionSelect } from '../components/EditorVersionSelect';
@@ -31,6 +26,7 @@ const loadErrorMessages = {
     failed: 'Не удалось загрузить Theme',
 } as const;
 const editorSectionLabels: Record<string, string> = {
+    palette: 'Палитра',
     colors: 'Цветовые токены',
     typography: 'Типографика',
     shapes: 'Размеры и радиусы',
@@ -224,16 +220,6 @@ export const Main = () => {
                     <MainItems>
                         {!editorContext ? (
                             <>
-                                <Visible when={Boolean(editorContext)}>
-                                    <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('palette') ? 'is-active' : ''}`}
-                                        data-testid="editor-nav-palette"
-                                        selected={currentPath.includes('palette')}
-                                        onClick={() => onClickPanelButton('palette')}
-                                    >
-                                        <IconColorSwatchOutline size="xs" color="inherit" />
-                                    </StyledIconButton>
-                                </Visible>
                                 <StyledIconButton
                                     className={`builder-rail-button ${isHome ? 'is-active' : ''}`}
                                     selected={isHome}
@@ -250,6 +236,18 @@ export const Main = () => {
                         ) : null}
                         {isEditingDesignSystem ? (
                             <>
+                                <Visible when={Boolean(editorContext)}>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('palette') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-palette"
+                                        aria-label="Палитра"
+                                        title="Палитра"
+                                        selected={currentPath.includes('palette')}
+                                        onClick={() => onClickPanelButton('palette')}
+                                    >
+                                        <IconColorSwatchOutline size="xs" color="inherit" />
+                                    </StyledIconButton>
+                                </Visible>
                                 <>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
@@ -370,9 +368,7 @@ export const Main = () => {
                                 },
                             ]}
                             action={
-                                isEditorLoading ? (
-                                    <EditorLoadingSpinner role="status" aria-label="Загрузка темы" />
-                                ) : (
+                                isEditorLoading ? null : (
                                     <div className="editor-version-actions">
                                         {Boolean(
                                             editorContext &&
@@ -419,7 +415,11 @@ export const Main = () => {
                 ) : null}
                 <EditorCanvas>
                     {isSectionSwitching || isEditorLoading ? (
-                        <div className="editor-section-loading" role="status" aria-label="Открываем раздел">
+                        <div
+                            className="editor-section-loading"
+                            role="status"
+                            aria-label={isEditorLoading ? 'Загружаем тему…' : 'Открываем раздел'}
+                        >
                             <EditorLoadingSpinner aria-hidden="true" />
                         </div>
                     ) : (
