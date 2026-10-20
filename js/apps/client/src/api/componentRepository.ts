@@ -26,10 +26,12 @@ import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
 import { camelToKebab } from '../utils/text';
 import {
+    collectDependencies,
     enrichApi,
     templateLookup,
     variationNamesByProperty,
     webParamsByProperty,
+    type ComponentDependencyDto,
     type PropertyPlatformParamDto,
     type PropertyVariationDto,
     type WebAdapterComponentDto,
@@ -161,31 +163,33 @@ export const componentRepository = {
         // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose берёт имена из меты плагина.
         const isWeb = platform === 'web';
         const empty = <T>() => Promise.resolve({ data: [] as T[] });
-        const [links, catalog, appearances, exported, params, propertyVariations, adapter] = await Promise.all([
-            readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-            readEditor<ComponentDto[]>(`${root}/components`, request),
-            readEditor<AppearanceDto[]>(`${root}/appearances`, request),
-            Promise.all(
-                [platform].map((platform) =>
-                    readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
-                        designSystemId: context.designSystemId,
-                        platform,
-                        ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
-                    }),
+        const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
+            await Promise.all([
+                readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
+                readEditor<ComponentDto[]>(`${root}/components`, request),
+                readEditor<AppearanceDto[]>(`${root}/appearances`, request),
+                Promise.all(
+                    [platform].map((platform) =>
+                        readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
+                            designSystemId: context.designSystemId,
+                            platform,
+                            ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+                        }),
+                    ),
                 ),
-            ),
-            isWeb
-                ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
-                : empty<PropertyPlatformParamDto>(),
-            isWeb
-                ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
-                : empty<PropertyVariationDto>(),
-            isWeb
-                ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
-                      designSystemId: context.designSystemId,
-                  })
-                : empty<WebAdapterComponentDto>(),
-        ]);
+                isWeb
+                    ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
+                    : empty<PropertyPlatformParamDto>(),
+                isWeb
+                    ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request)
+                    : empty<PropertyVariationDto>(),
+                isWeb
+                    ? readEditor<WebAdapterComponentDto[]>(`${root}/component-config/web-adapter`, request, {
+                          designSystemId: context.designSystemId,
+                      })
+                    : empty<WebAdapterComponentDto>(),
+                readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
+            ]);
         const webParams = webParamsByProperty(params.data);
         const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
         const linkedIds = new Set(
@@ -199,6 +203,14 @@ export const componentRepository = {
                 component.platform === platform &&
                 (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
                 configuredNames.has(normalizeComponentName(component.name)),
+        );
+        const depsByParent = collectDependencies(
+            dependencies.data,
+            new Map(
+                catalog.data
+                    .filter((component) => linkedIds.has(component.id) && component.platform === platform)
+                    .map((component) => [component.id, component.name]),
+            ),
         );
         const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
@@ -253,6 +265,7 @@ export const componentRepository = {
                     name: component.name,
                     description: component.description ?? '',
                     platform: component.platform,
+                    deps: depsByParent.get(component.name) ?? [],
                     serverBinding: {
                         componentId: component.id,
                         appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',

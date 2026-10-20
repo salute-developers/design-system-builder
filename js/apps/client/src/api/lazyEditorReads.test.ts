@@ -22,6 +22,18 @@ const appearances = catalog.map((component) => ({
     name: 'default',
 }));
 
+const exportResponse = {
+    data: {
+        components: [
+            {
+                componentName: 'C50',
+                styleName: 'default',
+                config: { invariants: {}, defaults: [], variations: [] },
+            },
+        ],
+    },
+};
+
 beforeEach(() => {
     vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
     vi.stubEnv('VITE_PALETTE_SOURCE', 'api');
@@ -45,19 +57,14 @@ beforeEach(() => {
         if (url.endsWith('/design-systems/system/components/c50/styles')) return { data: [] };
         if (url.endsWith('/design-systems/system/tokens')) return { data: [] };
         if (url.endsWith('/tenants/theme/token-values')) return { data: [] };
+        if (url.endsWith('/property-platform-params')) return { data: [] };
+        if (url.endsWith('/property-variations')) return { data: [] };
+        if (url.endsWith('/component-deps')) return { data: [] };
         throw new Error(`Unexpected read ${url}`);
     });
-    http.post.mockResolvedValue({
-        data: {
-            components: [
-                {
-                    componentName: 'C50',
-                    styleName: 'default',
-                    config: { invariants: {}, defaults: [], variations: [] },
-                },
-            ],
-        },
-    });
+    http.post.mockImplementation(async (url: string) =>
+        url.endsWith('/component-config/web-adapter') ? { data: [] } : exportResponse,
+    );
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -120,7 +127,7 @@ it('список ста компонентов требует только ка�
 it('данные C50 читаются адресно и стили всех его осей объединены одним запросом', async () => {
     const values = await componentRepository.loadComponentData(context, undefined, 'web', 'C50');
     expect(values.map((item) => item.name)).toEqual(['C50']);
-    expect(http.post).toHaveBeenCalledExactlyOnceWith(
+    expect(http.post).toHaveBeenCalledWith(
         '/api/projects/project/ds/component-config/export',
         { designSystemId: 'system', platform: 'web', components: ['c50'] },
         expect.anything(),
@@ -129,7 +136,8 @@ it('данные C50 читаются адресно и стили всех ег
     expect(urls).toContain('/api/projects/project/ds/design-systems/system/components/c50/styles');
     expect(urls.filter((url) => /\/components\/c\d+\/(properties|variations)/.test(url))).toHaveLength(2);
     expect(urls.filter((url) => /\/variations\/axis\d\/styles/.test(url))).toHaveLength(0);
-    expect(http.get).toHaveBeenCalledTimes(6);
+    expect(http.get).toHaveBeenCalledTimes(9);
+    expect(http.post).toHaveBeenCalledTimes(2);
 });
 
 it('типографика фильтруется сервером и не запускает чтение палитры или компонентов', async () => {
@@ -167,23 +175,27 @@ it.each([
                 : original(url, request),
         );
         // Реальная ручка фильтрует именно по экспортному kebab-name, не по имени глобального каталога.
-        http.post.mockImplementation(async (_url, body) => ({
-            data: {
-                components: body.components?.includes(exportedName)
-                    ? [
-                          {
-                              componentName: exportedName,
-                              styleName: 'default',
-                              config: {
-                                  invariants: { height: { type: 'dimension', value: 12 } },
-                                  defaults: [],
-                                  variations: [],
-                              },
-                          },
-                      ]
-                    : [],
-            },
-        }));
+        http.post.mockImplementation(async (url, body) =>
+            url.endsWith('/component-config/web-adapter')
+                ? { data: [] }
+                : {
+                      data: {
+                          components: body.components?.includes(exportedName)
+                              ? [
+                                    {
+                                        componentName: exportedName,
+                                        styleName: 'default',
+                                        config: {
+                                            invariants: { height: { type: 'dimension', value: 12 } },
+                                            defaults: [],
+                                            variations: [],
+                                        },
+                                    },
+                                ]
+                              : [],
+                      },
+                  },
+        );
         const values = await componentRepository.loadComponentData(context, undefined, 'web', name);
         expect(values).toHaveLength(1);
         expect(values[0].name).toBe(name);

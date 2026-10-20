@@ -14,7 +14,7 @@ import { componentRepository } from './componentRepository';
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const root = '/api/projects/project-1/ds';
 
-/** Ответы ds-service: Button со свойствами height (web, шаблон) и focusColor (только compose), AvatarGroup и Avatar. */
+/** Ответы ds-service: Button со свойствами height (web, шаблон) и focusColor (только compose), AvatarGroup → Avatar. */
 const getResponses: Record<string, unknown> = {
     [`${root}/design-system-components`]: [
         { id: 'l-1', designSystemId: 'ds-1', componentId: 'c-button' },
@@ -42,6 +42,9 @@ const getResponses: Record<string, unknown> = {
         { id: '2', propertyId: 'p-focus', platform: 'compose', name: 'focusColor' },
     ],
     [`${root}/property-variations`]: [{ propertyId: 'p-height', variationId: 'v-size' }],
+    [`${root}/component-deps`]: [
+        { id: 'd-1', parentId: 'c-avatar-group', childId: 'c-avatar', type: 'reuse', order: 1 },
+    ],
 };
 
 beforeEach(() => {
@@ -58,6 +61,11 @@ beforeEach(() => {
                     components: [
                         {
                             componentName: 'button',
+                            styleName: 'default',
+                            config: { invariants: {}, defaults: [], variations: [] },
+                        },
+                        {
+                            componentName: 'avatar-group',
                             styleName: 'default',
                             config: { invariants: {}, defaults: [], variations: [] },
                         },
@@ -89,9 +97,15 @@ describe('componentRepository.loadComponentData', () => {
         expect(focus.platformMappings.web).toBeNull();
     });
 
+    it('passes reuse dependencies to the preview', async () => {
+        const meta = await componentRepository.loadComponentData(context);
+        const avatarGroup = meta.find((item) => item.name === 'AvatarGroup')!;
+        expect(avatarGroup.deps).toEqual([{ childId: 'c-avatar', childName: 'Avatar', type: 'reuse', order: 0 }]);
+    });
+
     it('reads the published version boundary for every enrichment request', async () => {
         await componentRepository.loadComponentData({ ...context, versionId: 'version-1' });
-        for (const suffix of ['/property-platform-params', '/property-variations']) {
+        for (const suffix of ['/property-platform-params', '/property-variations', '/component-deps']) {
             const call = get.mock.calls.find(([url]) => String(url).endsWith(suffix));
             expect(call?.[1]).toMatchObject({ params: { versionId: 'version-1' } });
         }

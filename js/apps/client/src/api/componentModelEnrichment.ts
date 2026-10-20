@@ -89,3 +89,37 @@ export const enrichApi = (
             platformMappings: { ...item.platformMappings, web },
         };
     });
+
+/** Связь компонентов из `GET /component-deps`: слой общий для всех дизайн-систем, ссылки по id. */
+export interface ComponentDependencyDto {
+    parentId: string;
+    childId: string;
+    type: 'compose' | 'reuse';
+    order: number | null;
+}
+
+/**
+ * Зависимости по имени родителя: связи обоих типов (`compose` раскладывает элемент в папку родителя,
+ * `reuse` отдаёт ребёнку полный конфиг темы в превью). Связь с компонентом вне дизайн-системы
+ * пропускается; порядок — по `order` (отсутствующий считается 0, как в web-адаптере), при равенстве по имени ребёнка.
+ */
+export const collectDependencies = (
+    dependencies: ComponentDependencyDto[],
+    componentNameById: ReadonlyMap<string, string>,
+) => {
+    const byParent = new Map<string, ComponentDep[]>();
+    const sorted = [...dependencies].sort(
+        (a, b) =>
+            (a.order ?? 0) - (b.order ?? 0) ||
+            (componentNameById.get(a.childId) ?? '').localeCompare(componentNameById.get(b.childId) ?? ''),
+    );
+    for (const dependency of sorted) {
+        const parent = componentNameById.get(dependency.parentId);
+        const child = componentNameById.get(dependency.childId);
+        if (!parent || !child) continue;
+        const deps = byParent.get(parent) ?? [];
+        deps.push({ childId: dependency.childId, childName: child, type: dependency.type, order: deps.length });
+        byParent.set(parent, deps);
+    }
+    return byParent;
+};

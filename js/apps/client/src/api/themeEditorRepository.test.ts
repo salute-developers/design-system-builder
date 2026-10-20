@@ -19,8 +19,8 @@ vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
 vi.mock('./editorReads', () => ({
     readEditor: (url: string, request: unknown, body?: unknown) =>
         // Дополнения модели компонентов (web-параметры, вариации свойств, шаблоны, связи) — пустые списки.
-        ['/property-platform-params', '/property-variations', '/component-config/web-adapter'].some((suffix) =>
-            url.endsWith(suffix),
+        ['/property-platform-params', '/property-variations', '/component-config/web-adapter', '/component-deps'].some(
+            (suffix) => url.endsWith(suffix),
         )
             ? Promise.resolve({ data: [] })
             : body === undefined

@@ -48,6 +48,7 @@ const server = createServer((req, res) => {
         '/api/projects/project-1/ds/design-systems/ds-1/changes',
         '/api/projects/project-1/ds/property-platform-params',
         '/api/projects/project-1/ds/property-variations',
+        '/api/projects/project-1/ds/component-deps',
     ].includes(path)) return send(res, []);
     if (req.method === 'POST' && path === '/api/projects/project-1/ds/component-config/export')
         return send(res, { components: [] });
