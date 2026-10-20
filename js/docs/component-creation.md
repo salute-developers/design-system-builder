@@ -27,11 +27,11 @@ $ npm run db:seed:prod
 
 ## II / Добавление компонента
 
-Компонент заводится через инструмент импорта `npm run component:import` в `js/services/db-service` (см. скилл `.claude/skills/add-component`): он создаёт сиды компонента с названием (так же как оно написано в ядре) и описанием.
+Компонент заводится через инструмент импорта `npm run import:plasma` в `js/cli` (см. скилл `.claude/skills/add-component`): он пишет конфиг компонента в пакет `.sdds/components` с названием (так же как оно написано в ядре), а в базу пакет заливает `dsbuilder components push --platform react`.
 
 ## III / Добавление пропсов компонента
 
-В примере указанного файла лежат все пропсы компонента. Инструмент импорта переносит их в сиды компонента с соответствующими типами; спорные пункты из его отчёта правятся в сидах руками:
+В примере указанного файла лежат все пропсы компонента. Инструмент импорта переносит их в конфиг пакета с соответствующими типами; спорные пункты из его отчёта правятся в конфиге руками:
 
 Пример токена | Тип | Пример значения
 |---|---|---|
@@ -123,6 +123,8 @@ Eсли значение в конфигах указано в rem, то нуж�
 
 ## IX / Генерация готового компонента в прод сида
 
+Этот путь относится к сидам db-service и с `import:plasma` не связан: компонент, заведённый через пакет и `dsbuilder components push`, в сиды не попадает, его состояние снимается `dsbuilder components fetch`.
+
 Когда компонент полностью оформлен, необходимо дополнить продовый сид, для переноса этих данных в облачную инфраструктуру.
 
 Для этого нужно перейти в следующую директорию
@@ -143,17 +145,18 @@ $ npm run db:seed-generate:prod -- --component="<component_name>"
 
 ## Импорт из plasma (быстрый путь)
 
-Шаги II–V и VIII–IX можно заменить инструментом, который читает конфиг компонента из `sdds-serv` и API из `plasma-new-hope` и пишет prod-сид компонента:
+Шаги II–V и VIII–IX можно заменить инструментом в `js/cli`, который читает конфиг компонента из `sdds-serv` и API из `plasma-new-hope` и пишет пакет компонента в формате `dsbuilder components fetch`:
 
 ```
-$ cd services/db-service
-$ npm run component:import -- --component=TextArea            # отчёт, файлы не трогает
-$ npm run component:import -- --component=TextArea --apply    # пишет папку seeds/prod/components/textArea/
-$ docker exec db-service-dev npm run db:seed:prod -- --component=TextArea
-$ npm run component:import -- --component=TextArea --remove --apply   # удалить папку перед повторным импортом
+$ cd cli
+$ dsbuilder theme fetch                                           # тема в .sdds/tenants/<тема>/: имена токенов и значения формы
+$ npm run import:plasma -- --component=TextArea                   # отчёт, файлы не трогает
+$ npm run import:plasma -- --component=TextArea --apply           # пишет .sdds/components/text_area_default_config.json и манифест генератора
+$ dsbuilder components push --platform react --from .sdds/components --apply   # заливает пакет в ds-service
+$ npm run import:plasma -- --component=TextArea --remove --apply  # убрать записи компонента из пакета
 ```
 
-Клон plasma ожидается в `~/Documents/work/plasma` (`--plasma=` или `PLASMA_DIR`). Отчёт делит находки на «требует решения», «приближения» и «пропущено»; спорные места инструмент в сиды не пишет. Правила, по которым он работает, описаны в `.claude/skills/add-component/SKILL.md`; там же порядок проверок. Компонент заводится только в базовой ДС: в пользовательские дизайн-системы его не копируют.
+Клон plasma ожидается в `~/Documents/work/plasma` (`--plasma=` или `PLASMA_DIR`), каталог `.sdds` — `js/cli/.sdds` (`--sdds=`), тема — `--theme=` или единственная в `.sdds/tenants`. Отчёт делит находки на «требует решения», «приближения» и «пропущено»; спорные места инструмент в пакет не пишет. Связи `compose` между составным компонентом и его элементами инструмент печатает в отчёте, они заводятся через `POST /ds/component-deps`. Правила, по которым он работает, описаны в `.claude/skills/add-component/SKILL.md`; там же порядок проверок. Компонент заводится только в базовой ДС: в пользовательские дизайн-системы его не копируют.
 
 Шаги VI (включение в меню) и VII (стори) остаются ручными.
 
