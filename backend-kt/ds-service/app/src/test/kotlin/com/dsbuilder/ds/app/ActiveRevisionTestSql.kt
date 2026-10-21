@@ -4,7 +4,7 @@ package com.dsbuilder.ds.app
 internal fun activeRevisionTestSql(sql: String): String {
     val subjects = listOf(
         Triple("tokens", "token", "name, type, display_name, description, enabled, group_id, position"),
-        Triple("token_values", "token_value", "palette_id, value"),
+        Triple("token_values", "token_value", "palette_id, value, overridden"),
         Triple("token_groups", "token_group", "parent_id, code, label, position"),
         Triple("tenant_palette_token_groups", "tenant_palette_token_group", "group_id"),
         Triple(
