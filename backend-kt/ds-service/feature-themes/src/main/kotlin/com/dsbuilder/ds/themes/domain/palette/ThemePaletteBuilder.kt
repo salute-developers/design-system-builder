@@ -2,16 +2,23 @@ package com.dsbuilder.ds.themes.domain.palette
 
 /** Собирает палитру темы из состояния, токенов и их значений — перенос `buildThemePalette` клиента. */
 object ThemePaletteBuilder {
-    /** Палитра темы со связями токенов. */
+    /**
+     * Палитра темы со связями токенов. [layerTokens] и [layerValues] — тени и ссылки цветов их слоёв: они дают связи
+     * растяжек (и удаление растяжки переписывает их ссылки), но не входят в принадлежность цветовых токенов группам;
+     * группа тени — по правилу имени.
+     */
+    @Suppress("LongParameterList")
     fun build(
         tenantId: String,
         canEdit: Boolean,
         state: TenantPaletteState,
         tokens: List<PaletteTokenRef>,
         values: List<PaletteTokenValue>,
+        layerTokens: List<PaletteTokenRef> = emptyList(),
+        layerValues: List<PaletteTokenValue> = emptyList(),
     ): ThemePalette {
         val assignments = assign(state, tokens)
-        val links = links(state, tokens, values, assignments)
+        val links = links(state, tokens + layerTokens, values + layerValues, assignments + assign(state, layerTokens))
         val groups = order(state).map { group -> groupView(state, group, links.filter { it.groupId == group.id }) }
         val offBrand = state.ramps.any { it.steps.isNotEmpty() || it.slot != it.source }
         val template = state.template.keys.sortedWith(PaletteRampOrder).map { ramp ->

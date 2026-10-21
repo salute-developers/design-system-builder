@@ -9,7 +9,6 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.palette.PaletteOperationResult
 import com.dsbuilder.ds.themes.domain.palette.TenantPaletteState
 import com.dsbuilder.ds.themes.domain.palette.ThemePalette
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import java.util.UUID
 
 /**
@@ -91,7 +90,7 @@ class TenantPaletteMutator(
     }
 
     private fun palette(tenantId: UUID, snapshot: TenantPaletteSnapshot): ThemePalette =
-        ThemePaletteBuilder.build(tenantId.toString(), true, snapshot.state, snapshot.tokens, snapshot.values)
+        snapshot.palette(tenantId.toString(), true)
 
     private companion object {
         const val EDIT_CONFLICT = "TENANT_EDIT_CONFLICT"

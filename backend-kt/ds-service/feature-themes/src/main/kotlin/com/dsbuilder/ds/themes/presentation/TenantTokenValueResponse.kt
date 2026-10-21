@@ -34,6 +34,9 @@ data class TenantTokenValueResponse(
     /** Исходная ссылка на палитру, если `value` вычислен по палитре темы. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val paletteRef: String? = null,
+    /** Исходное значение со ссылками цветов слоёв тени, если в `value` они раскрыты в HEX по палитре темы. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val sourceValue: JsonElement? = null,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -49,6 +52,7 @@ data class TenantTokenValueResponse(
             value.createdAt.toString(),
             value.updatedAt.toString(),
             value.paletteRef,
+            value.sourceValue?.let(Json::parseToJsonElement),
         )
     }
 }

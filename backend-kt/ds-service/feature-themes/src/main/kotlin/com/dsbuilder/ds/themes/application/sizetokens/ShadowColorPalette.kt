@@ -4,7 +4,6 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.palette.PaletteReference
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import com.dsbuilder.ds.themes.domain.palette.ThemePaletteResolver
 import java.util.UUID
 
@@ -35,13 +34,7 @@ internal class ShadowColorPalette(private val palette: TenantPaletteRepository) 
     suspend fun resolver(projectId: ProjectId, tenantId: UUID): ShadowColorResolver {
         val snapshot = palette.snapshot(projectId, tenantId)?.takeIf { it.hasSystemGroups() }
             ?: return { _, _ -> null }
-        val built = ThemePaletteBuilder.build(
-            tenantId.toString(),
-            false,
-            snapshot.state,
-            snapshot.tokens,
-            snapshot.values,
-        )
+        val built = snapshot.palette(tenantId.toString(), false)
         return { tokenName, reference -> ThemePaletteResolver.resolve(built, tokenName, reference) }
     }
 }
