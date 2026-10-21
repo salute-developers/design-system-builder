@@ -101,7 +101,7 @@ sequenceDiagram
 
 ### 5. Идемпотентность и активный билд
 
-Публикация идемпотентна по содержимому и не использует заголовок `Idempotency-Key`, который есть у импорта меты: повторная отправка того же архива безопасна сама по себе. Идентификатор билда — `build_id`. Если строка уже есть и `zip_sha256` совпадает: билд не перезаливается, импорт меты выполняется повторно (аддитивен и идемпотентен), активным становится этот билд; итог `unchanged`, если он уже был активным, и `activated` иначе (повторная публикация старого билда — откат). Если `zip_sha256` отличается — конфликт `409` с кодом `build_content_changed`, ничего не меняется. Новый `build_id` — итог `published`.
+Публикация идемпотентна по содержимому и не использует заголовок `Idempotency-Key`, который есть у импорта меты: повторная отправка того же архива безопасна сама по себе. Идентификатор билда — `build_id`. Если строка уже есть и `zip_sha256` совпадает: билд не перезаливается, импорт меты выполняется повторно (аддитивен и идемпотентен), активным становится этот билд; итог `unchanged`, если он уже был активным, и `activated` иначе (повторная публикация старого билда — откат). Если `zip_sha256` отличается — конфликт `409` с кодом `BUILD_CONTENT_CHANGED`, ничего не меняется. Новый `build_id` — итог `published`.
 
 ### 6. Выдача адреса клиенту
 
@@ -111,13 +111,13 @@ sequenceDiagram
 
 ### 7. Хранилище
 
-Порт `PluginBuildStorage` (`put` с типом содержимого и `Cache-Control`, `list` префикса, `delete` префикса) и реализация на AWS SDK v2: endpoint, регион, path-style (для MinIO), бакет, ключи и префикс из `DS_PLUGIN_S3_*`, публичный адрес из `DS_PLUGIN_PUBLIC_BASE_URL`. Типы содержимого заданы явной таблицей расширений (`.wasm` → `application/wasm`, `.js` → `text/javascript`, `.html`, `.json`, шрифты, изображения; неизвестные — `application/octet-stream`). Все файлы билда получают `Cache-Control: public, max-age=31536000, immutable`: каталог содержит `build_id` и не меняется. Без настройки хранилища публикация отвечает `503` с кодом `storage_not_configured`, а выдача адреса — `404`.
+Порт `PluginBuildStorage` (`put` с типом содержимого и `Cache-Control`, `list` префикса, `delete` префикса) и реализация на AWS SDK v2: endpoint, регион, path-style (для MinIO), бакет, ключи и префикс из `DS_PLUGIN_S3_*`, публичный адрес из `DS_PLUGIN_PUBLIC_BASE_URL`. Типы содержимого заданы явной таблицей расширений (`.wasm` → `application/wasm`, `.js` → `text/javascript`, `.html`, `.json`, шрифты, изображения; неизвестные — `application/octet-stream`). Все файлы билда получают `Cache-Control: public, max-age=31536000, immutable`: каталог содержит `build_id` и не меняется. Без настройки хранилища публикация отвечает `503`, а выдача адреса — `404`.
 
 Предлагаемая раскладка префиксов повторяет соглашение клиента (`dev/design-system-builder/client/` для dev и `design-system-builder/client/` для prom): плагин лежит в `dev/design-system-builder/compose-preview/` и `design-system-builder/compose-preview/` (задаётся `DS_PLUGIN_S3_PREFIX`). Плагин лежит в собственном префиксе бакета, не вложенном в префикс клиента: выкладка клиента делает `s3cmd sync --delete-removed` в `.../client/` и удалила бы вложенные файлы. Ключ записи `ds-service` ограничен префиксом плагина.
 
 ### 8. Очистка
 
-После успешной публикации `ds-service` оставляет активный билд и пять последних по `published_at`, остальные удаляет (объекты S3, затем строки). Дополнительно удаляются префиксы `builds/<id>/` без строки в БД старше 24 часов (осиротевшие). Количество хранимых билдов задаётся настройкой. Очистка не влияет на ответ публикации: ошибки пишутся в лог, следующая публикация повторит попытку.
+После успешной публикации `ds-service` оставляет активный билд и пять последних неактивных по `published_at`, остальные удаляет (объекты S3, затем строки). Дополнительно удаляются префиксы `builds/<id>/` без строки в БД старше 24 часов (осиротевшие). Количество хранимых билдов задаётся настройкой. Очистка не влияет на ответ публикации: ошибки пишутся в лог, следующая публикация повторит попытку.
 
 ### 9. Авторизация CI
 
@@ -157,7 +157,7 @@ sealed interface PublishOutcome {
     data class Published(val build: PluginBuild, val report: ApiMetaImportReport) : PublishOutcome
     data class Activated(val build: PluginBuild, val report: ApiMetaImportReport) : PublishOutcome
     data class Unchanged(val build: PluginBuild, val report: ApiMetaImportReport) : PublishOutcome
-    data class Conflict(val existing: PluginBuild) : PublishOutcome        // build_content_changed
+    data class Conflict(val existing: PluginBuild) : PublishOutcome        // BUILD_CONTENT_CHANGED
     data class Invalid(val code: String, val message: String) : PublishOutcome
 }
 
