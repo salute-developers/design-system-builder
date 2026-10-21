@@ -2061,9 +2061,13 @@
     border-radius: 4px;
     background: var(--builder-ui-surface-transparent-secondary);
     color: var(--builder-ui-text-secondary);
-    font-size: 14px;
-    line-height: 1;
     opacity: 0;
+}
+
+/* Значок «+», а не символ шрифта: у символа плюс сидит выше или ниже центра строки. */
+.typography-screen .editor-fonts-workbench .typography-override-add > button .ui-glyph {
+    width: 12px;
+    height: 12px;
 }
 
 .typography-screen .editor-fonts-workbench .typography-overridable:hover > .typography-override-add > button,

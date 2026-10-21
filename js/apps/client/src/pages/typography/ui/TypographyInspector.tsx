@@ -205,7 +205,7 @@ const OverrideAdd = ({
                 aria-expanded={open}
                 onClick={() => setOpen((value) => !value)}
             >
-                +
+                <TyGlyph name="add" />
             </button>
             {open && (
                 <div className="font-family-menu typography-override-menu" role="menu">
