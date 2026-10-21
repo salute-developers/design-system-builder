@@ -369,7 +369,7 @@ class FlywayAdoptionIntegrationTest {
 
     private companion object {
         const val BASELINE_FINGERPRINT = "7770cff86df2e5b81da0e0461da2f2bec1f3bb7e2c1cfc1afc230b5a3368ea55"
-        const val FINAL_FINGERPRINT = "44de42efc4bfda48c56adfb4ba703ded5e73b86b1c43043c13658691cba22"
+        const val FINAL_FINGERPRINT = "1ede2d0856f8660943dff28092774d2fbc6ac3f338f01998c09224210c3c0351"
         const val DESIGN_SYSTEM = "11111111-1111-4111-8111-111111111111"
         const val FIRST_THEME = "22222222-2222-4222-8222-222222222222"
         const val SECOND_THEME = "33333333-3333-4333-8333-333333333333"
