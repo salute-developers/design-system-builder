@@ -50,6 +50,11 @@ for config in nginx.local.conf nginx.prod.conf.template; do
   test -n "$import_meta_block"
   test -n "$plugin_builds_block"
 
+  auth_user_block=$(awk 'index($0, "location = /_auth_user {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+  test -n "$auth_user_block"
+  # Подзапрос проверки токена сам отсекает большое тело по общему лимиту, поэтому ему нужен лимит не меньше, чем у архива.
+  printf '%s' "$auth_user_block" | grep -Fq 'client_max_body_size 64m;'
+
   # Импорт API-меты живёт в ds-service: только токен пользователя, служебный проект `global`,
   # роль системного администратора проверяет сам сервис.
   printf '%s' "$import_meta_block" | grep -Fq 'auth_request /_auth_user;'
