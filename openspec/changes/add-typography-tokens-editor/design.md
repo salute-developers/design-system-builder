@@ -1,6 +1,8 @@
 ## Контекст
 
-Типографика темы хранится в `tokens` и `token_values` как токены типа `typography`. Имя токена —
+Типографика темы хранится как токены типа `typography`: устойчивые строки `tokens` и `token_values`, предметные
+поля — в неизменяемых редакциях `token_revisions` и `token_value_revisions` по временным границам дизайн-системы
+(модель `add-versioned-multi-user-editing`, ADR-0007). Имя токена —
 `<экран>.<группа>.<размер>.<начертание>`, например `screen-l.body.m.normal`:
 
 - экран — `screen-s`, `screen-m`, `screen-l` (в прототипе «Мелкие», «Средние», «Крупные»);
@@ -21,9 +23,9 @@
   (`display`, `header`, `body`, `text`), стили используют два или четыре из них;
 - конфигурации компонентов ссылаются на типографию текстом без экрана: `body.m.normal`.
 
-Сейчас раздел «Типографика» клиента — прежний экран: правки по платформам копятся в черновике и уходят
-общим `PUT /tenants/{id}/token-values`. Разделы «Палитра» и «Цвета» уже сделаны по прототипу SDDS Portal и
-сохраняют правки операциями `ds-service`.
+Сейчас раздел «Типографика» клиента — прежний экран: правки по платформам копятся в локальной очереди и уходят
+общими маршрутами `tokens` и `token-values`. Разделы «Палитра» и «Цвета» уже сделаны по прототипу SDDS Portal и
+сохраняют правки операциями `ds-service` в активный черновик; опубликованные версии читаются по `versionId`.
 
 ## Цели / Вне целей
 
@@ -40,7 +42,8 @@
 - создание, удаление, переименование стилей и групп: в прототипе набор фиксирован;
 - управление шрифтами: новые семейства, файлы шрифта, проверка наличия веса;
 - переопределение значения для отдельной платформы;
-- отслеживание изменений, сброс к опубликованной версии, отметки изменений в дереве;
+- отметки изменений в дереве и сброс стиля внутри раздела: изменения значений видны в общем журнале
+  черновика и откатываются его средствами;
 - хранимые группы токенов (`add-color-token-groups`) для типографии;
 - показ стиля внутри компонента на холсте.
 
@@ -93,6 +96,12 @@
 `tokenId` начертаний, семейства дизайн-системы с именем шрифта из текущей темы и компоненты, которые
 используют стиль. Клиент не пересчитывает `rem` сам и не загружает конфигурации компонентов.
 
+Чтение идёт в транзакции `readOnly(context)`: без `versionId` — на границе активного черновика, с ним — на
+границе опубликованной версии (недоступная версия — `404`), `canEdit` тогда `false`. Определения и значения
+разрешаются общими запросами модуля тем по последним редакциям на границе. У каждого начертания ответ отдаёт
+`valueRevisions: [{ platform, valueId, revision }]` — устойчивый идентификатор значения и его техническую
+редакцию; общего счётчика темы `editRevision` в ответе нет.
+
 ### Использование стиля в компонентах
 
 Значение свойства компонента считается ссылкой на стиль, если оно равно имени начертания стиля без экрана
@@ -101,30 +110,51 @@
 `count` — число значений свойств по всем трём начертаниям. Использование одно для всех экранов: ссылки в
 данных не содержат экрана.
 
+Значения свойств вариаций и инвариантов, стили компонентов и токены читаются по последней редакции на той же
+границе, что и стили (`ds.version_id` или активный черновик): удалённое в черновике значение не учитывается, а
+опубликованная версия показывает использование на момент публикации. Запрос живёт в `data` модуля тем и повторяет
+правило разрешения редакций `feature-components` (`ResolvedRevisionTable`): модули не зависят друг от друга, а
+таблицы компонентов — внутренние для своего модуля.
+
 ### Одна операция изменения стиля
 
 `PATCH /api/ds/tenants/{tenantId}/typography-styles/{tokenId}` принимает необязательные части: значения
-экрана (`size`, `lineHeight`, `letterSpacing`), `weights` начертаний и `fontFamily`. Всё переданное
-пишется в одной транзакции по правилам выше. Ревизия `editRevision` сверяется и увеличивается только у
-текущей темы; значения других тем не меняются.
+экрана (`size`, `lineHeight`, `letterSpacing`), `weights` начертаний, `fontFamily` и базовые редакции
+значений `baseRevisions: [{ tokenId, platform, baseRevision }]`. Всё переданное пишется в одной транзакции по
+правилам выше только в текущей теме активного черновика.
+
+Каждое значение токена на платформе — логическая сущность `token-value`. Операция берёт разделяемую блокировку
+дизайн-системы (`lockDesignSystemMutation`), блокирует технические состояния затронутых значений в устойчивом
+порядке, перечитывает их актуальное содержимое и только затем переводит изменение в формат платформ. Поэтому
+параллельные правки разных полей одного значения (размер у одного пользователя, вес у другого) сливаются, а не
+перезаписывают друг друга. Запись — новая редакция `token_value_revisions` черновика с путём `/value` и базовой
+редакцией значения: элемент `baseRevisions` приоритетнее заголовка `X-DS-Base-Revision`. Если путь `/value`
+значения изменился после базовой редакции, запись всё равно применяется («последняя запись побеждает»), а путь
+попадает в `warnings` заголовка `X-DS-Mutation-Metadata`; `409` операция не возвращает. Значение, которое после
+перевода не изменилось, не пишется. Технические редакции, журнал, сжатие черновика и SSE-сигнал ведут триггеры
+таблиц редакций, поэтому журнал и откат значений типографии работают общими обработчиками `token-value`.
 
 ```mermaid
 sequenceDiagram
   participant C as Клиент
   participant R as typography-styles
   participant U as UpdateTypographyStyleUseCase
-  participant DB as tokens / token_values
-  C->>R: PATCH {editRevision, size?, lineHeight?, letterSpacing?, weights?, fontFamily?}
-  R->>U: команда
-  U->>DB: блокировка темы, сверка editRevision
-  U->>U: проверка значений, перевод в формат платформ
-  U->>DB: запись значений токенов стиля, editRevision + 1
-  U-->>R: стиль в px, записанные значения токенов, editRevision
-  R-->>C: 200
+  participant DB as token_value_revisions
+  C->>R: PATCH {size?, lineHeight?, letterSpacing?, weights?, fontFamily?, baseRevisions?}
+  R->>U: команда (versionId → 400 historical_version_read_only)
+  U->>U: проверка значений
+  U->>DB: блокировка ДС и значений стиля, перечитывание
+  U->>U: перевод в формат платформ
+  U->>DB: редакции изменённых значений (путь /value, базовая редакция)
+  DB-->>U: технические редакции и warnings
+  U-->>R: стиль в px, записанные значения
+  R-->>C: 200 + X-DS-Mutation-Metadata
 ```
 
-Отвергнуто: переиспользовать `PUT /tenants/{id}/token-values`. Он заменяет все значения темы, не
-проверяет типографию и не знает о стиле.
+Отвергнуто: переиспользовать `PUT /tenants/{id}/token-values`. Он не проверяет типографию и не знает о стиле, а
+клиенту пришлось бы самому переводить px в формат платформ. Отвергнуто: общий счётчик темы `editRevision` с
+`409 TENANT_EDIT_CONFLICT`, как было до модели версий: он блокирует независимые правки разных стилей и требует
+перезагрузки при любом параллельном изменении темы.
 
 ### Проверка значений
 
@@ -133,64 +163,90 @@ sequenceDiagram
 отвечает `400 INVALID_TYPOGRAPHY_VALUE` с полем и текстом прототипа. В прототипе неверное значение
 сохраняется в черновик с пометкой; здесь черновика нет, поэтому ошибка показывается у поля.
 
-### Клиент: модуль и автосохранение как у «Цветов»
+### Клиент: модуль, автосохранение и модель версий
 
 Модуль `modules/typographyTokens` повторяет устройство `modules/colorTokens`: домен стиля, порт и
-HTTP-адаптер. Очередь сохранения та же: одна операция на стиль после паузы 400 мс, операции по одной с
-ревизией предыдущей, «Сохранение…» и «Сохранено» в панели инструментов, перезагрузка темы при
-`409 TENANT_EDIT_CONFLICT`. После ответа клиент обновляет значения токенов в модели темы, чтобы другие
-разделы видели новую типографию без перезагрузки.
+HTTP-адаптер. Очередь сохранения своя, как у «Цветов»: одна операция на стиль после паузы 400 мс, операции по
+одной, «Сохранение…» и «Сохранено» в панели инструментов. Отличия от прежней очереди «Цветов» — по модели
+`add-versioned-multi-user-editing`:
+
+- мутация оборачивается в `api/subjectMutation.ts`: он запрещает запись при `versionId`, принимает технические
+  редакции из `X-DS-Mutation-Metadata` (`observeSubjectRevisions`) и отмечает подтверждённое сохранение;
+- базовые редакции значений берутся в момент отправки из `api/subjectRevisions.ts`
+  (`tokenValueBaseRevision`): их наполняет чтение стилей (`observeTokenValueRevisions` по `valueRevisions`),
+  снимок редактора темы и метаданные предыдущих операций; правка передаёт значения стиля на всех экранах, а
+  сервер использует только те, что пишет;
+- состояние очереди сообщается `setDraftAutosaveActivity(context, 'typography', status)`: общий индикатор,
+  публикация и отложенное перечитывание по SSE ждут подтверждения правок типографии;
+- ошибка сети или `5xx` повторяется автоматически через 1 с с удвоением до 30 с, «Повторить» отправляет
+  сразу; `403` и `404` ждут «Повторить»; `400 INVALID_TYPOGRAPHY_VALUE` снимает правку и показывается у поля;
+- путь `typography-styles` добавлен в `api/incompleteMutationMetadata.ts`: при обрезанных метаданных (правка
+  семейства пишет до 27 значений) редактор перечитывает токены темы, а за ними и стили.
+
+После ответа клиент обновляет значения токенов в модели темы, чтобы другие разделы видели новую типографию без
+перезагрузки. Когда `ThemeEditorSession` по SSE-сигналу заменяет модель темы в контексте маршрута, раздел
+перечитывает стили через `reloadWhenDraftAutosaveIsIdle` — только после подтверждения всех локальных очередей,
+поэтому серверное состояние не заменяет локальный ввод. Перечитывание по каждому `updated` не делается:
+`rerender` вызывает и собственное сохранение раздела.
+
+Неподтверждённые записи прежнего локального черновика (`ds_draft:…`) отправляет `ThemeEditorSession.restorePending`
+общими маршрутами `tokens` и `token-values`, поэтому отдельного баннера «Сохранить» / «Отбросить» в разделе нет.
+`versionId` из маршрута (`?versionId=`) передаётся чтению и делает раздел доступным только для чтения; адрес
+`?tokenId=` из журнала выбирает экран и стиль через `hooks/useAddressedToken.ts`, а выбор стиля в разделе,
+открытом по адресу, заменяет `tokenId` на токен `normal` выбранного стиля.
 
 ### Программное проектирование
 
 ```kotlin
-/** Стиль типографии на экране темы: три начертания с общими размерами. */
-data class TypographyStyleView(
-    val screen: TypographyScreen,
-    val group: String,
-    val size: String,
-    val sizePx: Double,
-    val lineHeightPx: Double,
-    val letterSpacingEm: Double,
-    val fontFamily: String,
-    val variants: Map<TypographyVariant, TypographyVariantView>,
+/** Начертание стиля: токен, вес и технические редакции его значений. */
+data class TypographyVariantView(
+    val tokenId: UUID,
+    val weight: Int,
+    val valueRevisions: List<TypographyValueRevision>,
 )
 
-/** Начертание стиля: токен и вес. */
-data class TypographyVariantView(val tokenId: UUID, val weight: Int)
+/** Техническая редакция значения токена темы на платформе. */
+data class TypographyValueRevision(val platform: ThemeTokenPlatform, val valueId: UUID, val revision: Long)
 
 /** Изменение стиля; null — часть не меняется. */
 data class UpdateTypographyStyle(
-    val editRevision: Int,
-    val screenValues: TypographyScreenValues?,
-    val weights: Map<TypographyVariant, Int>?,
+    val size: Double?,
+    val lineHeight: Double?,
+    val letterSpacing: Double?,
+    val weights: Map<TypographyVariant, Int>,
     val fontFamily: String?,
+    val baseRevisions: List<TypographyBaseRevision>,
 )
 
-/** Хранилище стилей типографии темы. */
+/** Хранилище стилей типографии темы поверх предметных редакций. */
 interface TypographyStyleRepository {
-    suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TypographyStyleLock
-    suspend fun styles(tenantId: UUID): List<StoredTypographyToken>
+    suspend fun tenant(projectId: ProjectId, tenantId: UUID): TypographyTenant?
+    suspend fun lock(projectId: ProjectId, tenantId: UUID): TypographyStyleLock
+    suspend fun token(designSystemId: UUID, tokenId: UUID): TypographyTokenLookup
+    suspend fun styles(designSystemId: UUID, tenantId: UUID, style: TypographyStyleKey? = null): List<StoredTypographyToken>
+    suspend fun lockStyle(designSystemId: UUID, tenantId: UUID, style: TypographyStyleKey): List<StoredTypographyToken>
     suspend fun families(designSystemId: UUID, tenantId: UUID): List<TypographyFamily>
-    suspend fun replaceValues(tenantId: UUID, values: Map<UUID, List<TenantTokenValueInput>>)
-    suspend fun bumpRevision(tenantId: UUID): Int
+    suspend fun themeCount(designSystemId: UUID): Int
+    suspend fun writeValues(designSystemId: UUID, values: List<TypographyValueWrite>)
 }
 
-/** Использование стилей в конфигурациях компонентов дизайн-системы. */
+/** Ссылки значений свойств компонентов дизайн-системы на границе транзакции. */
 interface TypographyUsageRepository {
-    suspend fun usage(designSystemId: UUID): Map<TypographyStyleKey, List<ComponentUsage>>
+    suspend fun references(designSystemId: UUID): List<ComponentPropertyReference>
 }
 
 /** Перевод значений стиля в формат платформ. */
 object TypographyPlatformValues {
-    fun write(current: JsonObject, platform: ThemeTokenPlatform, change: TypographyTokenChange): JsonObject
+    fun write(current: JsonElement?, platform: ThemeTokenPlatform, change: TypographyTokenChange): JsonElement
 }
 
 class GetTypographyStylesUseCase(/* policy, transactions, repository, usage */) {
+    /** `transactions.readOnly(context)`: граница `versionId` или активного черновика. */
     suspend fun execute(context: DsRequestContext, tenantId: UUID): DsResult<TypographyStyles>
 }
 
-class UpdateTypographyStyleUseCase(/* policy, transactions, repository */) {
+class UpdateTypographyStyleUseCase(/* policy, transactions, repository, usage */) {
+    /** `transactions.required(context)`: `versionId` → `400 historical_version_read_only`. */
     suspend fun execute(
         context: DsRequestContext,
         tenantId: UUID,
@@ -200,11 +256,21 @@ class UpdateTypographyStyleUseCase(/* policy, transactions, repository */) {
 }
 ```
 
+`ExposedTypographyStyleRepository` читает через `currentThemeTokenRows` и `currentThemeTokenValueRows`,
+блокирует значения `lockDraftSubjects(designSystemId, "token-value", ids)` и пишет `writeThemeValueRevision` с
+путём `/value` и базовой редакцией значения. Маршрут отвечает `respondSuccess`, который переносит метаданные
+транзакции в заголовки.
+
 ```ts
-/** Порт стилей типографии в клиенте. */
+/** Порт стилей типографии в клиенте; `TypographyContext` — `EditorContextKey` с необязательным `versionId`. */
 export interface TypographyStyleRepository {
-    load(context: ThemeContext): Promise<TypographyStyles>;
-    update(context: ThemeContext, tokenId: string, change: TypographyStyleChange, editRevision: number): Promise<UpdatedTypographyStyle>;
+    load(context: TypographyContext, signal?: AbortSignal): Promise<TypographyStyles>;
+    update(
+        context: TypographyContext,
+        tokenId: string,
+        change: TypographyStyleChange,
+        values: TypographyValueAddress[],
+    ): Promise<UpdatedTypographyStyle>;
 }
 ```
 
@@ -226,7 +292,7 @@ export interface TypographyStyleRepository {
 | Ширина борда | фиксирована под окно 1440 px (719 px), справа на широком экране пусто | на всю ширину холста, растёт колонка образца | борд не оставляет пустоту и меньше обрезает длинные образцы |
 | Высота строк борда | фиксирована под значения темы по умолчанию, крупный образец обрезается | растёт до высоты букв образца (0,75 размера + 8 px), если она больше высоты прототипа | увеличенный стиль должен быть виден на борде целиком |
 | Шапка | Импорт, Экспорт, Сбросить, Изменения | шапка клиента | общая шапка редактора не меняется |
-| Панель инструментов | только выбор холста | ещё состояние сохранения и «Повторить» | правки сохраняются сразу, как в «Цветах» |
+| Панель инструментов | только выбор холста | ещё состояние сохранения и «Повторить» | правки сохраняются сразу, как в «Цветах»; «Повторить» отправляет правку, не дожидаясь автоматического повтора |
 
 ## Риски / Компромиссы
 
@@ -236,19 +302,34 @@ export interface TypographyStyleRepository {
   управляет `theme fetch` и общий `PUT token-values`.
 - [Ссылки компонентов на типографию в другом формате] → использование учитывает три формы ссылки; если
   импорт конфигураций начнёт писать иначе, правило нужно будет расширить.
-- [Старый черновик с типографскими записями] → баннер «Сохранить» / «Отбросить», как в «Цветах»;
-  записи по платформам переводятся в стиль через значения `web`; из черновика удаляются только
-  сохранённые записи, при ошибке записи остаются и баннер показывается снова.
+- [Старый черновик с типографскими записями] → их отправляет общее автосохранение редактора
+  (`ThemeEditorSession.restorePending`) прежними маршрутами по платформам; раздел их не переносит. У «Цветов»
+  баннер прежнего черновика в модели версий остался — это несогласованность вне изменения.
+- [Параллельная правка одного значения] → поля значения сливаются на сервере (перечитывание под блокировкой), а
+  пересекающийся путь `/value` попадает в `warnings`; первая версия интерфейса предупреждение не показывает, как
+  и для цветов.
+- [Метаданные правки семейства обрезаются] → 27 значений не помещаются в 2048 байт заголовка; клиент
+  перечитывает токены темы и стили, и базовые редакции снова полные.
+- [Устаревшая метка в манифесте] → `contracts/route-manifest.json` оставляет у изменения стиля
+  `ownershipOverride: "tenant-edit-revision"`, как у операций цветов в модели версий: поле не читает ни один
+  потребитель манифеста, переименование меток всех операций темы — вне изменения.
 
 ## Миграция и совместимость
 
-Схема данных не меняется. Сначала развёртывается `ds-service` с новыми маршрутами, затем клиент. Откат —
-прежний образ клиента: прежний экран продолжит работать через `PUT token-values`, данные совместимы.
+Схема данных не меняется, миграций нет: операции пишут существующие таблицы редакций модели версий. Сначала
+развёртывается `ds-service` с новыми маршрутами, затем клиент. Откат — прежний образ клиента: прежний экран
+продолжит работать через общие маршруты `tokens` и `token-values`, данные совместимы, а изменения стилей
+остаются обычными редакциями значений в журнале черновика.
 
 ## План проверки и развёртывания
 
-- **Локально:** тесты use case, перевода в формат платформ, проверки значений, маршрутов и контракта
-  OpenAPI в `ds-service`; тесты домена, адаптера и экрана в клиенте; `tools/verify fast` и `full`.
+- **Локально:** тесты use case (области записи, базовые редакции, неизменные значения, отказы без записи),
+  перевода в формат платформ и проверки значений; HTTP-тест на Testcontainers: чтение в px с редакциями
+  значений, области записи, слияние параллельной правки с `warnings`, обрезка метаданных, отказы, чтение
+  опубликованной версии и `400` записи в неё, использование по редакциям компонентов в черновике и версии,
+  журнал и откат значения; контрактные счётчики OpenAPI; тесты домена, адаптера, очереди (повтор с задержкой) и
+  экрана (перечитывание по новой модели темы, `versionId`, `?tokenId`) в клиенте; `tools/verify fast` и
+  `full`.
 - **[внешняя проверка] на локальном контуре с копией рабочей базы:**
   - правка размера Body M на «Крупных» меняет три токена `screen-l.body.m.*` на трёх платформах и не
     меняет `screen-m` и `screen-s`;
