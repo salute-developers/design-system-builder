@@ -11,5 +11,6 @@ dependencies {
     implementation(libs.aws.s3)
 
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.aws.url.connection.client)
     testImplementation(libs.kotlin.test.junit)
 }
