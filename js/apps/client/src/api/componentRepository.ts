@@ -157,7 +157,8 @@ export const componentRepository = {
         platform: ComponentDto['platform'] = 'web',
         componentName?: string,
     ): Promise<Meta[]> {
-        if (!isComponentEditorEnabled()) return [];
+        // Модель web-компонентов нужна не только разделу «Компоненты»: «Цвета» берут из неё связи токенов,
+        // пары контраста и канвас. Флаг прячет раздел, а не данные, поэтому здесь не проверяется.
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
         // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose берёт имена из меты плагина.

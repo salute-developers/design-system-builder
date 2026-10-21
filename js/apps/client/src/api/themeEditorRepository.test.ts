@@ -111,15 +111,17 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
         vi.unstubAllEnvs();
     });
 
-    it('does not request component configs and still loads the theme', async () => {
+    it('loads web components for the colour screen but not Compose ones', async () => {
         vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'false');
         pluginUrl.value = 'http://plugin.example/';
         get.mockImplementation((url: string) => Promise.resolve(reply('tenant-1', '#111111')(url)));
 
         const snapshot = await loadThemeEditor(context);
 
-        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(0);
-        expect(snapshot.componentsData).toEqual([]);
+        // «Цвета» берут из модели web-компонентов связи токенов, пары контраста и канвас: флаг их не отключает.
+        const exports = post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'));
+        expect(exports).toHaveLength(1);
+        expect(exports[0][1]).toMatchObject({ platform: 'web' });
         expect(snapshot.composeComponentsData).toEqual([]);
         expect(snapshot.themeData.variations.color.web['light.surface.default.accent']).toBe('#111111');
     });
