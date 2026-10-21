@@ -1,11 +1,13 @@
-import { useEffect, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import '../../styles/typography.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
+import { useAddressedToken } from '../../hooks/useAddressedToken';
 import {
     DEFAULT_STYLE_KEY,
+    parseStyleTokenName,
     screenLabel,
     screenStyles,
     styleKey,
@@ -50,15 +52,14 @@ const writeStorage = (key: string, value: unknown) => {
 const clampWidth = (value: number, { min, max }: { min: number; max: number }) =>
     Math.min(max, Math.max(min, Math.round(value)));
 
-const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
 /** Экран Typography темы по ветке `editorTab === 'fonts'` функции `editor` прототипа. */
 export const TypographyScreen = (props: TypographyScreenProps) => {
     const { context, designSystem, theme, rerender } = props;
     const navigate = useNavigate();
-    const editor = useTypographyEditor({ context, designSystem, theme, rerender });
-    const { styles, status, conflict } = editor;
-    const readOnly = designSystem.getParameters()?.readOnly === true || styles?.canEdit === false;
+    const readOnlyAccess = designSystem.getParameters()?.readOnly === true || Boolean(context.versionId);
+    const editor = useTypographyEditor({ context, designSystem, theme, rerender, readOnly: readOnlyAccess });
+    const { styles, status } = editor;
+    const readOnly = readOnlyAccess || styles?.canEdit === false;
 
     const [screen, setScreen] = useState<Screen>('screen-l');
     const [selectedKey, setSelectedKey] = useState(DEFAULT_STYLE_KEY);
@@ -66,11 +67,34 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
     const [panels, setPanels] = useState(() => readStorage(PANELS_KEY, { left: LEFT.initial, right: RIGHT.initial }));
-    const [legacyBusy, setLegacyBusy] = useState(false);
-    const [notice, setNotice] = useState<string | null>(null);
 
     useEffect(() => writeStorage(PANELS_KEY, panels), [panels]);
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
+
+    // Адрес из журнала: `?tokenId` выбирает экран и стиль токена; токен вне стилей темы — недоступный источник.
+    const addressed = useAddressedToken(context, (name) => {
+        if (!styles) return true;
+        const target = parseStyleTokenName(name);
+        return Boolean(target && screenStyles(styles, target.screen).some((style) => styleKey(style) === target.key));
+    });
+    const appliedAddress = useRef<string | null>(null);
+    useEffect(() => {
+        const target = addressed.requestedTokenName ? parseStyleTokenName(addressed.requestedTokenName) : null;
+        if (!target || !styles || appliedAddress.current === addressed.tokenId) return;
+        appliedAddress.current = addressed.tokenId ?? null;
+        setScreen(target.screen);
+        setSelectedKey(target.key);
+    }, [addressed.requestedTokenName, addressed.tokenId, styles]);
+    /** Выбор стиля сохраняет адрес в маршруте, если раздел открыт по адресу. */
+    const address = (nextScreen: Screen, key: string) => {
+        if (!addressed.tokenId) return;
+        appliedAddress.current = null;
+        addressed.selectTokenName(`${nextScreen}.${key}.normal`);
+    };
+    const selectStyle = (key: string) => {
+        setSelectedKey(key);
+        address(screen, key);
+    };
 
     const current = screenStyles(styles, screen);
     const selected =
@@ -82,8 +106,11 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
     /** Стиль, которого нет на новом экране, сменяется на Body M. */
     const changeScreen = (next: Screen) => {
         setScreen(next);
-        if (!screenStyles(styles, next).some((style) => styleKey(style) === selectedKey))
-            setSelectedKey(DEFAULT_STYLE_KEY);
+        const key = screenStyles(styles, next).some((style) => styleKey(style) === selectedKey)
+            ? selectedKey
+            : DEFAULT_STYLE_KEY;
+        setSelectedKey(key);
+        address(next, key);
     };
 
     const resize = (side: 'left' | 'right') => ({
@@ -125,68 +152,21 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         },
     });
 
-    const saveLabel = conflict
-        ? 'Тема изменена в другом месте'
-        : status.state === 'error'
-          ? 'Не сохранено'
-          : status.state === 'saved'
-            ? 'Сохранено'
-            : 'Сохранение…';
+    const saveLabel =
+        status.state === 'error' ? 'Не сохранено' : status.state === 'saved' ? 'Сохранено' : 'Сохранение…';
     const title = designSystem.getName() || 'Design System';
     const themeName = theme.getName?.() || '';
 
     const banners = (
         <>
-            {conflict && (
+            {status.state === 'error' && status.error && (
                 <div className="ty-banner" role="alert">
-                    Тема изменена в другом месте, стили перезагружены. Ваши несохранённые правки сохранены в редакторе —
-                    нажмите «Повторить», чтобы отправить их.
-                </div>
-            )}
-            {status.state === 'error' && status.error && !conflict && (
-                <div className="ty-banner" role="alert">
-                    {status.error.message}
-                </div>
-            )}
-            {notice && (
-                <div className="ty-banner" role="status">
-                    {notice}
+                    {status.error.retryable ? `${status.error.message}. Повторим автоматически.` : status.error.message}
                 </div>
             )}
             {readOnly && (
                 <div className="viewer-banner">
                     <span>Read-only access</span>
-                </div>
-            )}
-            {editor.legacyCount > 0 && !readOnly && (
-                <div className="ty-banner" role="status" data-testid="typography-legacy-draft">
-                    <span>В черновике есть несохранённые правки типографии: {editor.legacyCount}</span>
-                    <button
-                        type="button"
-                        className="ty-inline-action"
-                        disabled={legacyBusy}
-                        onClick={async () => {
-                            if (legacyBusy) return;
-                            setLegacyBusy(true);
-                            try {
-                                await editor.saveLegacyDraft();
-                                setNotice('Правки из черновика сохранены.');
-                            } catch (error) {
-                                setNotice(`Не удалось сохранить черновик: ${errorText(error)}`);
-                            }
-                            setLegacyBusy(false);
-                        }}
-                    >
-                        Сохранить
-                    </button>
-                    <button
-                        type="button"
-                        className="ty-inline-action"
-                        disabled={legacyBusy}
-                        onClick={editor.discardLegacyDraft}
-                    >
-                        Отбросить
-                    </button>
                 </div>
             )}
         </>
@@ -231,7 +211,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     searchOpen={searchOpen}
                     collapsed={collapsed}
                     onScreen={changeScreen}
-                    onSelect={setSelectedKey}
+                    onSelect={selectStyle}
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onToggle={(group) => setCollapsed((value) => ({ ...value, [group]: !value[group] }))}
@@ -240,14 +220,14 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     <div className="preview-toolbar">
                         <div className="editor-header-controls">
                             <span
-                                className={`ty-save-status ${status.state === 'error' || conflict ? 'is-error' : ''}`}
+                                className={`ty-save-status ${status.state === 'error' ? 'is-error' : ''}`}
                                 role="status"
                                 data-testid="typography-save-status"
                             >
                                 <span className="ty-save-label" title={saveLabel}>
                                     {saveLabel}
                                 </span>
-                                {(status.state === 'error' || conflict) && (
+                                {status.state === 'error' && (
                                     <button type="button" onClick={editor.retry}>
                                         Повторить
                                     </button>
@@ -275,6 +255,11 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             </button>
                         </div>
                     )}
+                    {addressed.unavailable && (
+                        <div className="ty-banner" role="status">
+                            Точный источник токена недоступен.
+                        </div>
+                    )}
                     {selected && styles && (
                         <TypographyInspector
                             style={selected}
@@ -284,7 +269,11 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             banners={banners}
                             error={(field) => editor.fieldError(selected, field)}
                             onChange={(change) => editor.edit(selected, change)}
-                            onOpenComponent={(name) => navigate(`../components/${name}`)}
+                            onOpenComponent={(name) =>
+                                navigate(
+                                    `../components/${name}${context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : ''}`,
+                                )
+                            }
                         />
                     )}
                 </aside>
@@ -302,7 +291,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             styles={current}
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
-                            onSelect={setSelectedKey}
+                            onSelect={selectStyle}
                         />
                     ) : (
                         !editor.loadError && (

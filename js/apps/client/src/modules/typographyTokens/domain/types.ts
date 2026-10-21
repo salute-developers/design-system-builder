@@ -16,10 +16,21 @@ export const TYPOGRAPHY_VARIANTS: ReadonlyArray<{ id: TypographyVariant; label: 
     { id: 'bold', label: 'Bold' },
 ];
 
-/** Начертание стиля на экране: токен и вес. */
+export type TypographyPlatform = 'web' | 'ios' | 'android';
+
+/** Техническая редакция значения токена темы на платформе: базовая редакция следующей правки. */
+export interface TypographyValueRevision {
+    platform: TypographyPlatform;
+    /** Устойчивый идентификатор значения. */
+    valueId: string;
+    revision: number;
+}
+
+/** Начертание стиля на экране: токен, вес и технические редакции его значений. */
 export interface TypographyVariantView {
     tokenId: string;
     weight: number;
+    valueRevisions: TypographyValueRevision[];
 }
 
 /** Компонент, который использует стиль, и число значений свойств со ссылкой. */
@@ -50,7 +61,7 @@ export interface TypographyFamily {
 
 /** Стили темы для раздела «Типографика». */
 export interface TypographyStyles {
-    editRevision: number;
+    /** Право правки темы и активный черновик; `false` для опубликованной версии. */
     canEdit: boolean;
     themeCount: number;
     families: TypographyFamily[];
@@ -66,11 +77,17 @@ export interface TypographyStyleChange {
     fontFamily?: string;
 }
 
-export type TypographyPlatform = 'web' | 'ios' | 'android';
+/** Значение токена стиля на платформе, которое может изменить правка. */
+export interface TypographyValueAddress {
+    tokenId: string;
+    platform: TypographyPlatform;
+}
 
-/** Ответ изменения стиля: новая ревизия, стиль на экране токена и записанные значения токенов. */
+/**
+ * Ответ изменения стиля: стиль на экране токена и записанные значения токенов. Технические редакции записанных
+ * значений приходят в заголовке `X-DS-Mutation-Metadata`.
+ */
 export interface UpdatedTypographyStyle {
-    editRevision: number;
     style: TypographyStyle;
     tokens: Array<{ tokenId: string; name: string; values: Array<{ platform: TypographyPlatform; value: unknown }> }>;
 }

@@ -1,10 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DesignSystem, Theme } from '../../controllers';
+import { getDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
 import {
     TypographyOperationError,
+    type TypographyContext,
     type TypographyStyleRepository,
     type TypographyStyles,
 } from '../../modules/typographyTokens';
@@ -12,42 +14,72 @@ import { bodyM, typographyStyles, updated } from '../../modules/typographyTokens
 import { TypographyScreen } from './TypographyScreen';
 import { setTypographyStyleRepository } from './useTypographyEditor';
 
+vi.mock('../../api/tokenRepository', () => ({
+    tokenRepository: {
+        async listDefinitions() {
+            return [
+                ...['screen-l', 'screen-m', 'screen-s'].flatMap((screenId) =>
+                    ['normal', 'medium', 'bold'].map((variant) => ({
+                        id: `id:${screenId}.body.m.${variant}`,
+                        name: `${screenId}.body.m.${variant}`,
+                    })),
+                ),
+                { id: 'id:screen-l.header.h1.normal', name: 'screen-l.header.h1.normal' },
+                { id: 'id:text.default.primary', name: 'text.default.primary' },
+            ];
+        },
+    },
+}));
+
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 
-const setup = (styles: TypographyStyles = typographyStyles(), update?: TypographyStyleRepository['update']) => {
-    const view = mount(styles, update);
-    return view;
-};
+const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
 
-const mount = (styles: TypographyStyles, update?: TypographyStyleRepository['update']) => {
-    const parameters = { editRevision: 3, readOnly: false } as Record<string, unknown>;
+interface MountOptions {
+    update?: TypographyStyleRepository['update'];
+    context?: TypographyContext;
+    route?: string;
+    readOnly?: boolean;
+}
+
+const setup = (styles: TypographyStyles = typographyStyles(), update?: TypographyStyleRepository['update']) =>
+    mount(styles, { update });
+
+const mount = (styles: TypographyStyles, options: MountOptions = {}) => {
+    const parameters = { readOnly: options.readOnly ?? false } as Record<string, unknown>;
     const setValue = vi.fn();
     const designSystem = {
         getName: () => 'base',
         getParameters: () => parameters,
     } as unknown as DesignSystem;
-    const theme = {
-        getName: () => 'base_default',
-        getToken: () => ({ setValue }),
-    } as unknown as Theme;
+    const createTheme = () =>
+        ({
+            getName: () => 'base_default',
+            getToken: () => ({ setValue }),
+        }) as unknown as Theme;
     const repository: TypographyStyleRepository = {
         load: vi.fn(async () => styles),
         update: vi.fn(
-            update ??
-                (async (_c, tokenId, change, editRevision) => {
+            options.update ??
+                (async (_c, tokenId, change) => {
                     const screenId = tokenId.split('.')[0] as 'screen-l';
-                    return updated(bodyM(screenId, { sizePx: change.size ?? 16 }), editRevision + 1);
+                    return updated(bodyM(screenId, { sizePx: change.size ?? 16 }));
                 }),
         ),
     };
     setTypographyStyleRepository(repository);
     const rerender = vi.fn();
-    const { unmount } = render(
-        <MemoryRouter>
-            <TypographyScreen context={context} designSystem={designSystem} theme={theme} rerender={rerender} />
-        </MemoryRouter>,
+    const screenContext = options.context ?? context;
+    const view = (theme: Theme) => (
+        <MemoryRouter initialEntries={[options.route ?? '/']}>
+            <TypographyScreen context={screenContext} designSystem={designSystem} theme={theme} rerender={rerender} />
+            <LocationProbe />
+        </MemoryRouter>
     );
-    return { repository, parameters, setValue, rerender, unmount };
+    const result = render(view(createTheme()));
+    /** Новая модель темы — как после сигнала об изменении черновика в другом месте. */
+    const replaceTheme = () => result.rerender(view(createTheme()));
+    return { repository, setValue, rerender, unmount: result.unmount, replaceTheme };
 };
 
 const tree = () => within(document.querySelector('.token-tree') as HTMLElement);
@@ -101,21 +133,22 @@ describe('экран «Типографика»', () => {
         expect(tree().getByText('H1')).toBeTruthy();
     });
 
-    it('сохраняет размер выбранного экрана и обновляет модель темы', async () => {
-        const { repository, parameters, setValue, rerender } = setup();
+    it('сохраняет размер выбранного экрана с базовыми редакциями значений стиля и обновляет модель темы', async () => {
+        const { repository, setValue, rerender } = setup();
         await screen.findByRole('heading', { name: 'Body / Body M' });
         const size = inspector().getByLabelText('Size');
         fireEvent.change(size, { target: { value: '18' } });
         fireEvent.blur(size);
         expect(screen.getByTestId('typography-save-status').textContent).toContain('Сохранение…');
+        expect(getDraftAutosaveStatus(context)).toBe('pending');
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
-        expect(vi.mocked(repository.update).mock.calls[0].slice(1)).toEqual([
-            'screen-l.body.m.normal',
-            { size: 18 },
-            3,
-        ]);
+        const [, tokenId, change, values] = vi.mocked(repository.update).mock.calls[0];
+        expect([tokenId, change]).toEqual(['screen-l.body.m.normal', { size: 18 }]);
+        // Значения Body M трёх экранов: три начертания × три платформы на каждом.
+        expect(values).toHaveLength(27);
+        expect(values).toContainEqual({ tokenId: 'screen-s.body.m.bold', platform: 'android' });
         await waitFor(() => expect(screen.getByTestId('typography-save-status').textContent).toContain('Сохранено'));
-        expect(parameters.editRevision).toBe(4);
+        expect(getDraftAutosaveStatus(context)).toBe('saved');
         expect(setValue).toHaveBeenCalledWith('web', { fontSize: '1.125rem' });
         expect(rerender).toHaveBeenCalled();
         expect(tree().getByText('Body M').closest('button')?.textContent).toContain('18/20');
@@ -166,11 +199,12 @@ describe('экран «Типографика»', () => {
         expect(await inspector().findByText('Letter spacing должен быть в диапазоне от -0.2em до 1em.')).toBeTruthy();
     });
 
-    it('при ошибке сети оставляет значение и предлагает повторить', async () => {
-        let fail = true;
-        const { repository } = setup(typographyStyles(), async (_c, tokenId, change, editRevision) => {
-            if (fail) throw new TypographyOperationError('network', 'Сервис недоступен, изменения не сохранены');
-            return updated(bodyM('screen-l', { sizePx: change.size ?? 16 }), editRevision + 1);
+    it('при ошибке сети оставляет значение, повторяет автоматически и по «Повторить»', async () => {
+        let failures = 2;
+        const { repository } = setup(typographyStyles(), async (_c, _tokenId, change) => {
+            if (failures-- > 0)
+                throw new TypographyOperationError('network', 'Сервис недоступен, изменения не сохранены');
+            return updated(bodyM('screen-l', { sizePx: change.size ?? 16 }));
         });
         await screen.findByRole('heading', { name: 'Body / Body M' });
         const size = inspector().getByLabelText('Size') as HTMLInputElement;
@@ -179,33 +213,51 @@ describe('экран «Типографика»', () => {
         const status = screen.getByTestId('typography-save-status');
         await waitFor(() => expect(status.textContent).toContain('Не сохранено'));
         expect(size.value).toBe('18');
-        fail = false;
+        expect(getDraftAutosaveStatus(context)).toBe('error');
+        // Первый повтор — автоматически через секунду.
+        await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(2), { timeout: 2_000 });
+        await waitFor(() => expect(status.textContent).toContain('Не сохранено'));
         fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
         await waitFor(() => expect(status.textContent).toContain('Сохранено'));
-        expect(repository.update).toHaveBeenCalledTimes(2);
+        expect(repository.update).toHaveBeenCalledTimes(3);
+        expect(getDraftAutosaveStatus(context)).toBe('saved');
     });
 
-    it('при конфликте перезагружает стили и ждёт «Повторить»', async () => {
-        let conflict = true;
-        const { repository } = setup(typographyStyles(), async (_c, _tokenId, change, editRevision) => {
-            if (conflict) throw new TypographyOperationError('conflict', 'Конфликт', 'TENANT_EDIT_CONFLICT', null, 9);
-            return updated(bodyM('screen-l', { sizePx: change.size ?? 16 }), editRevision + 1);
+    it('перечитывает стили, когда модель темы обновилась после изменения в другом месте', async () => {
+        const changed = typographyStyles({
+            screens: typographyStyles().screens.map((item) => ({
+                ...item,
+                styles: item.styles.map((style) => (style.group === 'body' ? { ...style, sizePx: 22 } : style)),
+            })),
         });
+        const { repository, replaceTheme } = setup();
+        await screen.findByRole('heading', { name: 'Body / Body M' });
+        vi.mocked(repository.load).mockResolvedValue(changed);
+        replaceTheme();
+        await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(tree().getByText('Body M').closest('button')?.textContent).toContain('22/20'));
+    });
+
+    it('не заменяет локальный ввод до подтверждения очереди', async () => {
+        let release = () => undefined as void;
+        const { repository, replaceTheme } = setup(
+            typographyStyles(),
+            (_c, _t, change) =>
+                new Promise((resolve) => {
+                    release = () => resolve(updated(bodyM('screen-l', { sizePx: change.size ?? 16 })));
+                }),
+        );
         await screen.findByRole('heading', { name: 'Body / Body M' });
         const size = inspector().getByLabelText('Size');
         fireEvent.change(size, { target: { value: '18' } });
         fireEvent.blur(size);
-        await waitFor(() =>
-            expect(screen.getByTestId('typography-save-status').textContent).toContain('Тема изменена в другом месте'),
-        );
+        await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
+        replaceTheme();
+        await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+        expect(repository.load).toHaveBeenCalledTimes(1);
+        expect(tree().getByText('Body M').closest('button')?.textContent).toContain('18/20');
+        release();
         await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(2));
-        expect(repository.update).toHaveBeenCalledTimes(1);
-        conflict = false;
-        fireEvent.click(
-            within(screen.getByTestId('typography-save-status')).getByRole('button', { name: 'Повторить' }),
-        );
-        await waitFor(() => expect(screen.getByTestId('typography-save-status').textContent).toContain('Сохранено'));
-        expect(repository.update).toHaveBeenCalledTimes(2);
     });
 
     it('в режиме просмотра поля недоступны, а дерево и экраны работают', async () => {
@@ -221,44 +273,6 @@ describe('экран «Типографика»', () => {
         expect(repository.update).not.toHaveBeenCalled();
     });
 
-    it('сохраняет записи прежнего черновика и удаляет из него только сохранённые', async () => {
-        localStorage.setItem(
-            'ds_draft:base:0.1.0',
-            JSON.stringify({
-                'screen-l.body.m.normal': {
-                    type: 'typography',
-                    enabled: true,
-                    values: { web: { fontSize: '1.125rem', lineHeight: '1.5rem', fontWeight: '400' } },
-                },
-                'screen-m.header.h1.bold': {
-                    type: 'typography',
-                    enabled: true,
-                    values: { web: { fontSize: '2.75rem', fontWeight: '700' } },
-                },
-                'light.text.default.primary': { type: 'color', enabled: true, values: { web: '#000' } },
-            }),
-        );
-        const { repository } = setup(typographyStyles(), async (_c, tokenId, change, editRevision) => {
-            if (tokenId.startsWith('screen-m')) throw new TypographyOperationError('network', 'Сервис недоступен');
-            return updated(bodyM('screen-l', { sizePx: change.size ?? 16 }), editRevision + 1);
-        });
-        const banner = await screen.findByTestId('typography-legacy-draft');
-        expect(banner.textContent).toContain('2');
-        fireEvent.click(within(banner).getByRole('button', { name: 'Сохранить' }));
-        await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(2));
-        await screen.findByText(/Не удалось сохранить черновик/);
-        const draft = JSON.parse(localStorage.getItem('ds_draft:base:0.1.0') ?? '{}');
-        expect(Object.keys(draft).sort()).toEqual(['light.text.default.primary', 'screen-m.header.h1.bold']);
-        expect(screen.getByTestId('typography-legacy-draft').textContent).toContain('1');
-        fireEvent.click(
-            within(screen.getByTestId('typography-legacy-draft')).getByRole('button', { name: 'Отбросить' }),
-        );
-        expect(Object.keys(JSON.parse(localStorage.getItem('ds_draft:base:0.1.0') ?? '{}'))).toEqual([
-            'light.text.default.primary',
-        ]);
-        expect(screen.queryByTestId('typography-legacy-draft')).toBeNull();
-    });
-
     it('при уходе с экрана сразу отправляет несохранённые правки', async () => {
         const { repository, unmount } = setup();
         await screen.findByRole('heading', { name: 'Body / Body M' });
@@ -270,52 +284,52 @@ describe('экран «Типографика»', () => {
         expect(vi.mocked(repository.update).mock.calls[0][2]).toEqual({ size: 18 });
     });
 
-    it('после конфликта при сохранении черновика перечитывает ревизию и сохраняет повторно', async () => {
-        localStorage.setItem(
-            'ds_draft:base:0.1.0',
-            JSON.stringify({
-                'screen-l.body.m.normal': {
-                    type: 'typography',
-                    enabled: true,
-                    values: { web: { fontSize: '1.125rem', fontWeight: '400' } },
-                },
-            }),
-        );
-        let conflict = true;
-        const { repository, parameters } = setup(
-            typographyStyles({ editRevision: 5 }),
-            async (_c, _t, change, editRevision) => {
-                if (conflict)
-                    throw new TypographyOperationError('conflict', 'Конфликт', 'TENANT_EDIT_CONFLICT', null, 5);
-                return updated(bodyM('screen-l', { sizePx: change.size ?? 16 }), editRevision + 1);
-            },
-        );
-        const banner = await screen.findByTestId('typography-legacy-draft');
-        parameters.editRevision = 4;
-        fireEvent.click(within(banner).getByRole('button', { name: 'Сохранить' }));
-        await screen.findByText(/Не удалось сохранить черновик/);
-        await waitFor(() => expect(parameters.editRevision).toBe(5));
-        conflict = false;
-        fireEvent.click(
-            within(screen.getByTestId('typography-legacy-draft')).getByRole('button', { name: 'Сохранить' }),
-        );
-        await screen.findByText('Правки из черновика сохранены.');
-        expect(vi.mocked(repository.update).mock.calls[1][3]).toBe(5);
-        expect(screen.queryByTestId('typography-legacy-draft')).toBeNull();
+    it('опубликованную версию читает по versionId и показывает только для чтения', async () => {
+        const historical = { ...context, versionId: 'version-1' };
+        const { repository } = mount(typographyStyles({ canEdit: false }), { context: historical, readOnly: true });
+        await screen.findByRole('heading', { name: 'Body / Body M' });
+        expect(vi.mocked(repository.load).mock.calls[0][0]).toEqual(historical);
+        expect(screen.getByText('Read-only access')).toBeTruthy();
+        expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
+        expect(repository.update).not.toHaveBeenCalled();
+        expect(getDraftAutosaveStatus(historical)).toBe('saved');
     });
 
-    it('позволяет отбросить записи черновика, которые не относятся к стилям темы', async () => {
+    it('не показывает баннер прежнего черновика: записи отправляет общее автосохранение', async () => {
         localStorage.setItem(
             'ds_draft:base:0.1.0',
             JSON.stringify({
-                'screen-l.body.custom.normal': { type: 'typography', enabled: true, values: { web: {} } },
+                'screen-l.body.m.normal': { type: 'typography', enabled: true, values: { web: { fontSize: '1rem' } } },
             }),
         );
         setup();
-        const banner = await screen.findByTestId('typography-legacy-draft');
-        expect(banner.textContent).toContain('1');
-        fireEvent.click(within(banner).getByRole('button', { name: 'Отбросить' }));
-        expect(JSON.parse(localStorage.getItem('ds_draft:base:0.1.0') ?? '{}')).toEqual({});
+        await screen.findByRole('heading', { name: 'Body / Body M' });
         expect(screen.queryByTestId('typography-legacy-draft')).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Отбросить' })).toBeNull();
+        expect(Object.keys(JSON.parse(localStorage.getItem('ds_draft:base:0.1.0') ?? '{}'))).toEqual([
+            'screen-l.body.m.normal',
+        ]);
+    });
+
+    it('открывает стиль по tokenId из журнала и сохраняет выбор в адресе', async () => {
+        mount(typographyStyles(), { route: '/?tokenId=id:screen-s.body.m.bold&versionId=v1' });
+        await waitFor(() =>
+            expect(screen.getByRole('tab', { name: 'Мелкие' }).getAttribute('aria-selected')).toBe('true'),
+        );
+        expect(screen.getByRole('heading', { name: 'Body / Body M' })).toBeTruthy();
+        expect(tree().getByText('Body M').closest('button')?.textContent).toContain('14/20');
+        fireEvent.click(screen.getByRole('tab', { name: 'Крупные' }));
+        fireEvent.click(tree().getByText('H1'));
+        await waitFor(() =>
+            expect(screen.getByTestId('location').textContent).toContain('tokenId=id%3Ascreen-l.header.h1.normal'),
+        );
+        expect(screen.getByTestId('location').textContent).toContain('versionId=v1');
+        expect(screen.getByRole('heading', { name: 'Header / H1' })).toBeTruthy();
+    });
+
+    it('сообщает, что токен вне стилей темы недоступен как источник', async () => {
+        mount(typographyStyles(), { route: '/?tokenId=id:text.default.primary' });
+        expect(await screen.findByText('Точный источник токена недоступен.')).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Body / Body M' })).toBeTruthy();
     });
 });

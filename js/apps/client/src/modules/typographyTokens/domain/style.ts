@@ -4,6 +4,7 @@ import {
     type TypographyStyle,
     type TypographyStyleChange,
     type TypographyStyles,
+    type TypographyValueAddress,
     type TypographyVariant,
 } from './types';
 
@@ -149,6 +150,34 @@ export const applyUpdatedStyle = (
             }),
         })),
     };
+};
+
+/** Значения стиля [key] на всех экранах: их технические редакции — базовые редакции правки стиля. */
+export const styleValueAddresses = (styles: TypographyStyles | null, key: string): TypographyValueAddress[] =>
+    (styles?.screens ?? []).flatMap((item) =>
+        item.styles
+            .filter((style) => styleKey(style) === key)
+            .flatMap((style) =>
+                definedEntries(style.variants).flatMap(([, variant]) =>
+                    (variant.valueRevisions ?? []).map(({ platform }) => ({ tokenId: variant.tokenId, platform })),
+                ),
+            ),
+    );
+
+/** Технические редакции всех значений токенов стилей из ответа чтения. */
+export const styleValueRevisions = (styles: TypographyStyles) =>
+    styles.screens.flatMap((item) =>
+        item.styles.flatMap((style) =>
+            definedEntries(style.variants).flatMap(([, variant]) =>
+                (variant.valueRevisions ?? []).map((value) => ({ tokenId: variant.tokenId, ...value })),
+            ),
+        ),
+    );
+
+/** Экран и стиль токена `<экран>.<группа>.<размер>.<начертание>` или `null` вне правила стиля. */
+export const parseStyleTokenName = (name: string): { screen: TypographyScreen; key: string } | null => {
+    const match = /^(screen-[sml])\.([a-z]+)\.([a-z0-9]+)\.(normal|medium|bold)$/.exec(name);
+    return match ? { screen: match[1] as TypographyScreen, key: `${match[2]}.${match[3]}` } : null;
 };
 
 /** Число без лишних знаков для поля ввода. */
