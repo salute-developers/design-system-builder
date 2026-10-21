@@ -209,10 +209,10 @@ const syncTheme = (session: ColorTokenSession, definitions: PlacedDefinition[]) 
 
 /** Перечитывает группы и места определений; после операций над структурой приводит к ним тему. */
 export const refreshStructure = async (session: ColorTokenSession, sync = false) => {
-    const [groups, definitions] = await Promise.all([
-        groupRepository.list(session.context),
-        groupRepository.definitions(session.context),
-    ]);
+    // Определения — после групп: у дизайн-системы без групп `ds-service` создаёт их и раскладывает токены при
+    // чтении списка, а прочитанные одновременно определения пришли бы без групп.
+    const groups = await groupRepository.list(session.context);
+    const definitions = await groupRepository.definitions(session.context);
     if (sync) syncTheme(session, definitions);
     session.groups = groups;
     setPlacements(session, definitions);

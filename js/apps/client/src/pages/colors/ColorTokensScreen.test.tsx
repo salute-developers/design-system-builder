@@ -19,19 +19,27 @@ import { ColorTokensScreen } from './ColorTokensScreen';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
 let published: string | null = null;
-const definitions = () =>
+/** Токены группы `text` сверх `textAccent`: имя, группа и позиция в хранимом порядке. */
+let extraTokens: { name: string; groupId: string; position: number }[] = [];
+/** Токены, значения которых не проходят проверку: их показывает фильтр «Только токены с ошибками». */
+let invalidTokens: string[] = [];
+const family = (name: string, groupId: string, position: number) =>
     SUBGROUPS.map((subgroup, index) => ({
-        id: `accent-${index}`,
+        id: `${name}-${index}`,
         designSystemId: 'ds-1',
-        name: `text.${subgroup}.accent`,
+        name: `text.${subgroup}.${name}`,
         type: 'color',
         displayName: null,
         description: null,
         enabled: true,
-        groupId: 'g-accent',
-        position: 0,
+        groupId,
+        position,
         publishedIn: published,
     }));
+const definitions = () => [
+    ...family('accent', 'g-accent', 0),
+    ...extraTokens.flatMap((token) => family(token.name, token.groupId, token.position)),
+];
 
 const group = (id: string, label: string, position: number, parentId: string | null = null): TokenGroupDto => ({
     id,
@@ -76,7 +84,9 @@ const reply =
                                 tenantId: 'tenant-1',
                                 platform,
                                 mode,
-                                value: INHERITED[token.name.split('.')[1]][mode],
+                                value: invalidTokens.includes(token.name.split('.')[2])
+                                    ? 'not-a-color'
+                                    : INHERITED[token.name.split('.')[1]][mode],
                             })),
                         ),
                     ),
@@ -179,6 +189,8 @@ const commitLight = (value: string) => {
 beforeEach(() => {
     localStorage.clear();
     published = null;
+    extraTokens = [];
+    invalidTokens = [];
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
@@ -188,6 +200,8 @@ beforeEach(() => {
     groupRepository.create.mockReset();
     groupRepository.update.mockReset();
     groupRepository.remove.mockReset();
+    groupRepository.list.mockImplementation(async () => groupState);
+    groupRepository.definitions.mockImplementation(async () => definitionState);
     setColorTokenRepository(repository, groupRepository);
 });
 
@@ -376,6 +390,9 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
         const field = screen.getByRole('textbox', { name: 'Название новой группы' });
+        // Строка ввода группы выглядит как её заголовок: стрелка и название без поля с рамкой.
+        expect(field.closest('.token-tree-input')).toHaveClass('is-row');
+        expect(field.closest('.token-tree-heading')?.querySelector('.token-tree-chevron')).not.toBeNull();
         fireEvent.change(field, { target: { value: 'Brand' } });
         fireEvent.keyDown(field, { key: 'Enter' });
 
@@ -414,6 +431,9 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
         const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
+        // Строка нового токена выглядит как строка токена: заглушка цвета и ввод имени без поля с рамкой.
+        expect(field.closest('.token-tree-input')).toHaveClass('is-row');
+        expect(field.closest('.token-row')?.querySelector('.token-color-preview')).not.toBeNull();
         fireEvent.change(field, { target: { value: 'Accent' } });
         fireEvent.keyDown(field, { key: 'Enter' });
         expect(await screen.findByRole('alert')).toHaveTextContent('Имя accent уже занято.');
@@ -473,7 +493,7 @@ describe('ColorTokensScreen', () => {
         await waitFor(() =>
             expect(screen.getByTestId('color-token-row-color:text.brand')).toHaveTextContent('textBrand'),
         );
-        expect(within(inspector()).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('brand');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
     });
 
     it('уход фокуса из строки переименования сохраняет изменённое имя, а без изменений закрывает строку', async () => {
@@ -502,16 +522,63 @@ describe('ColorTokensScreen', () => {
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
     });
 
-    it('у опубликованного токена показывает предупреждение у поля имени', async () => {
+    it('у опубликованного токена показывает предупреждение в строке переименования, поля имени в инспекторе нет', async () => {
         published = '1.2.0';
         definitionState = definitions();
         await renderScreen();
+        await screen.findByTestId('token-subgroup-Accent');
+        expect(within(inspector()).queryByRole('textbox', { name: 'Имя токена' })).toBeNull();
 
+        fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
+        const row = screen.getByRole('textbox', { name: 'Новое имя textAccent' }).closest('.token-tree-input');
+        expect(row).toHaveClass('is-row');
+        expect(row?.querySelector('.token-color-preview')).not.toBeNull();
         expect(
-            await within(inspector()).findByRole('img', {
+            within(row as HTMLElement).getByRole('img', {
                 name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
             }),
         ).toBeInTheDocument();
+    });
+
+    it('«+» у свёрнутой подгруппы и группы раскрывает её и показывает строку ввода', async () => {
+        await renderScreen();
+        const status = await screen.findByTestId('token-subgroup-Status');
+        fireEvent.click(status.querySelector('.token-tree-heading') as HTMLElement);
+        expect(status).toHaveClass('is-collapsed');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
+        expect(status).toHaveClass('is-open');
+        expect(within(status).getByRole('textbox', { name: 'Имя нового токена' })).toBeInTheDocument();
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Имя нового токена' }), { key: 'Escape' });
+
+        const text = screen.getByTestId('token-group-Text & Icons');
+        fireEvent.click(text.querySelector('.token-tree-heading') as HTMLElement);
+        expect(text).toHaveClass('is-collapsed');
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить в Text & Icons' }));
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить подгруппу' }));
+        expect(text).toHaveClass('is-open');
+        expect(
+            within(text).getByRole('textbox', { name: 'Название новой подгруппы' }).closest('.token-tree-subheading'),
+        ).not.toBeNull();
+        expect(within(text).getByRole('textbox', { name: 'Название новой подгруппы' })).toBeInTheDocument();
+    });
+
+    it('при первом открытии запрашивает определения после групп и показывает токены в их группах', async () => {
+        // Как `ds-service`: группы создаются при чтении списка, до этого у определений нет групп.
+        let initialized = false;
+        groupRepository.list.mockImplementation(async () => {
+            await Promise.resolve();
+            initialized = true;
+            return groupState;
+        });
+        groupRepository.definitions.mockImplementation(async () =>
+            initialized ? definitionState : definitionState.map((item) => ({ ...item, groupId: null })),
+        );
+        await renderScreen();
+
+        const accent = await screen.findByTestId('token-subgroup-Accent');
+        expect(within(accent).getByTestId('color-token-row-color:text.accent')).toBeInTheDocument();
+        expect(screen.queryByText('Без группы')).toBeNull();
     });
 
     it('переносит токен перетаскиванием в другую подгруппу и показывает отказ', async () => {
@@ -547,6 +614,189 @@ describe('ColorTokensScreen', () => {
             { groupId: 'g-status', position: 0 },
             3,
         );
+    });
+
+    describe('подсказка при перетаскивании токена', () => {
+        // В Status хранимый порядок — Zeta, Beta, а в режиме «А–Я» дерево показывает Beta, Zeta.
+        const STATUS = [
+            { name: 'zeta', groupId: 'g-status', position: 0 },
+            { name: 'beta', groupId: 'g-status', position: 1 },
+        ];
+        const renderWithStatus = async (tokens = STATUS) => {
+            extraTokens = tokens;
+            definitionState = definitions();
+            repository.move.mockResolvedValue({
+                editRevision: 4,
+                value: { type: 'color', group: 'text', name: 'accent', members: [] },
+            });
+            await renderScreen();
+            await screen.findByTestId('token-subgroup-Status');
+        };
+        const row = (name: string) => screen.getByTestId(`color-token-row-color:text.${name}`);
+        const wrap = (name: string) => row(name).parentElement as HTMLElement;
+        const statusHeading = () =>
+            screen.getByTestId('token-subgroup-Status').querySelector('.token-tree-subgroup-row') as HTMLElement;
+        const line = () => document.querySelector('.token-tree-drop:not(.is-area)');
+        const statusRows = () =>
+            [...screen.getByTestId('token-subgroup-Status').querySelectorAll('.token-row > span')].map(
+                (item) => item.textContent,
+            );
+        const dataTransfer = { setData: vi.fn() };
+
+        it('в режиме «А–Я» подсвечивает чужую подгруппу целиком и переносит токен в её конец', async () => {
+            await renderWithStatus();
+            expect(screen.getByRole('button', { name: 'Порядок токенов' })).toHaveTextContent('А–Я');
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            fireEvent.dragOver(wrap('beta'), { dataTransfer });
+
+            expect(statusHeading()).toHaveClass('is-drop-target');
+            expect(wrap('beta')).toHaveClass('is-drop-target');
+            expect(wrap('zeta')).toHaveClass('is-drop-target');
+            expect(wrap('accent')).not.toHaveClass('is-drop-target');
+            expect(line()).toBeNull();
+
+            repository.move.mockImplementation(async () => {
+                definitionState = definitionState.map((item) =>
+                    item.id.startsWith('accent-') ? { ...item, groupId: 'g-status', position: 2 } : item,
+                );
+                return { editRevision: 4, value: { type: 'color', group: 'text', name: 'accent', members: [] } };
+            });
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'accent-0',
+                    { groupId: 'g-status', position: 2 },
+                    3,
+                ),
+            );
+            // После переноса токен стоит на своём месте по алфавиту, а не под строкой, над которой его отпустили.
+            await waitFor(() => expect(statusRows()).toEqual(['textAccent', 'textBeta', 'textZeta']));
+        });
+
+        it('с фильтром ошибок считает позицию по всем токенам получателя, а не только по видимым', async () => {
+            invalidTokens = ['accent', 'zeta', 'beta'];
+            await renderWithStatus([...STATUS, { name: 'mint', groupId: 'g-status', position: 2 }]);
+            fireEvent.click(screen.getByRole('button', { name: 'Только токены с ошибками' }));
+            await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.mint')).toBeNull());
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            fireEvent.dragOver(wrap('beta'), { dataTransfer });
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'accent-0',
+                    { groupId: 'g-status', position: 3 },
+                    3,
+                ),
+            );
+        });
+
+        it('при поиске показывает только найденные токены без групп и не даёт их перетаскивать', async () => {
+            await renderWithStatus([...STATUS, { name: 'mint', groupId: 'g-status', position: 2 }]);
+            fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+            fireEvent.change(screen.getByRole('textbox', { name: 'Найти токен' }), { target: { value: 'eta' } });
+
+            await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
+            expect(screen.queryByTestId('token-group-Text & Icons')).toBeNull();
+            const rows = [...document.querySelectorAll('.token-tree .token-row > span')].map(
+                (item) => item.textContent,
+            );
+            expect(rows).toEqual(['textBeta', 'textZeta']);
+            expect(row('beta')).toHaveAttribute('draggable', 'false');
+        });
+
+        it('в режиме «А–Я» заголовок группы подсвечивает группу и её токены без подгрупп', async () => {
+            await renderWithStatus([...STATUS, { name: 'gamma', groupId: 'g-text', position: 0 }]);
+            const textHeading = screen
+                .getByTestId('token-group-Text & Icons')
+                .querySelector('.token-tree-group-row') as HTMLElement;
+
+            fireEvent.dragStart(row('beta'), { dataTransfer });
+            fireEvent.dragOver(textHeading, { dataTransfer });
+
+            expect(textHeading).toHaveClass('is-drop-target');
+            expect(wrap('gamma')).toHaveClass('is-drop-target');
+            expect(statusHeading()).not.toHaveClass('is-drop-target');
+            expect(wrap('accent')).not.toHaveClass('is-drop-target');
+            expect(document.querySelectorAll('.is-drop-target')).toHaveLength(2);
+            expect(line()).toBeNull();
+
+            fireEvent.drop(textHeading, { dataTransfer });
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'beta-0',
+                    { groupId: 'g-text', position: 1 },
+                    3,
+                ),
+            );
+        });
+
+        it('в режиме «Исходные» показывает линию над строкой и переносит токен на её место', async () => {
+            await renderWithStatus();
+            fireEvent.click(screen.getByRole('button', { name: 'Порядок токенов' }));
+            expect(screen.getByRole('button', { name: 'Порядок токенов' })).toHaveTextContent('Исходные');
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            fireEvent.dragOver(wrap('beta'), { dataTransfer });
+
+            expect(wrap('beta').querySelector('.token-tree-drop')).not.toBeNull();
+            expect(line()).not.toBeNull();
+            expect(document.querySelector('.is-drop-target')).toBeNull();
+
+            fireEvent.drop(wrap('beta'), { dataTransfer });
+            await waitFor(() =>
+                expect(repository.move).toHaveBeenCalledWith(
+                    expect.anything(),
+                    'accent-0',
+                    { groupId: 'g-status', position: 1 },
+                    3,
+                ),
+            );
+        });
+
+        it('в режиме «А–Я» над своей подгруппой снимает подсказку и не переносит токен', async () => {
+            await renderWithStatus();
+
+            fireEvent.dragStart(row('beta'), { dataTransfer });
+            fireEvent.dragOver(wrap('accent'), { dataTransfer });
+            expect(wrap('accent')).toHaveClass('is-drop-target');
+
+            fireEvent.dragOver(wrap('zeta'), { dataTransfer });
+            expect(document.querySelector('.is-drop-target')).toBeNull();
+            expect(document.querySelector('.token-tree-drop')).toBeNull();
+
+            fireEvent.drop(wrap('zeta'), { dataTransfer });
+            expect(repository.move).not.toHaveBeenCalled();
+        });
+
+        it('показывает предупреждение о смене опубликованного имени вместе с подсветкой получателя', async () => {
+            published = '1.2.0';
+            groupState = [...GROUPS, group('g-surface', 'Surfaces', 1)].map((item) =>
+                item.id === 'g-surface' ? { ...item, code: 'surface' } : item,
+            );
+            await renderWithStatus();
+            const surfaces = screen
+                .getByTestId('token-group-Surfaces')
+                .querySelector('.token-tree-group-row') as HTMLElement;
+
+            fireEvent.dragStart(row('accent'), { dataTransfer });
+            fireEvent.dragOver(surfaces, { dataTransfer });
+
+            expect(surfaces).toHaveClass('is-drop-target');
+            expect(
+                // Подсказка места вставки скрыта от скринридера, как и прежняя линия.
+                within(surfaces).getByRole('img', {
+                    hidden: true,
+                    name: 'Токен опубликован в версии 1.2.0. Новое имя изменит переменную в пакете дизайн-системы',
+                }),
+            ).toBeInTheDocument();
+            expect(line()).toBeNull();
+        });
     });
 
     it('удаляет пустую подгруппу сразу, а группу с токенами — после подтверждения', async () => {
