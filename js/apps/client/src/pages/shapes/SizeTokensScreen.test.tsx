@@ -20,6 +20,7 @@ import {
     type SizeTokenResult,
     type SizeTokens,
 } from '../../modules/sizeTokens';
+import type { ThemePalette } from '../../modules/palette';
 import { SizeTokensScreen } from './SizeTokensScreen';
 
 vi.mock('../../api/tokenRepository', () => ({
@@ -116,12 +117,34 @@ interface UpdateBody {
     platforms: Partial<Record<'ios' | 'android', number | { layers: ShadowLayer[] }>>;
 }
 
+/** Палитра темы с одной растяжкой: Gray 900 — `#1A1A1A`. */
+const PALETTE: ThemePalette = {
+    tenantId: 'tenant',
+    editRevision: 0,
+    canEdit: true,
+    offBrand: false,
+    groups: [{ id: 'neutral', kind: 'system', systemKey: 'neutral', label: 'Neutral', ramps: [] }],
+    tokens: [],
+    template: [{ type: 'general', shade: 'gray', steps: [{ step: 900, value: '#1A1A1A' }] }],
+};
+
+/** Ссылка цвета слоя раскрывается в HEX ступени, как в ответе `ds-service`: `color` и `colorRef`. */
+const resolveLayer = (layer: ShadowLayer): ShadowLayer => {
+    const match = /^\[general\.gray\.900\](?:\[([\d.]+)\])?$/.exec(layer.color);
+    if (!match) return layer;
+    const alpha = Math.round(Number(match[1] ?? 1) * 255)
+        .toString(16)
+        .padStart(2, '0')
+        .toUpperCase();
+    return { ...layer, color: `#1A1A1A${alpha}`, colorRef: layer.color };
+};
+
 /** Ответ изменения по телу команды: токен в формате чтения с новым значением. */
 const applyBody = (token: SizeToken, body: UpdateBody): SizeToken => {
     if (token.kind === 'shadow') {
         const own = (platform: 'ios' | 'android') =>
-            (body.platforms[platform] as { layers: ShadowLayer[] } | undefined)?.layers;
-        const layers = body.layers ?? token.layers;
+            (body.platforms[platform] as { layers: ShadowLayer[] } | undefined)?.layers.map(resolveLayer);
+        const layers = (body.layers ?? token.layers).map(resolveLayer);
         return {
             ...token,
             layers,
@@ -217,13 +240,20 @@ const LocationProbe = () => <output data-testid="location">{useLocation().search
 let tenantSeq = 0;
 
 interface MountOptions {
+    palette?: ThemePalette | null;
     role?: string;
     readOnly?: boolean;
     versionId?: string;
     route?: string;
 }
 
-const renderScreen = async ({ role = 'maintainer', readOnly = false, versionId, route = '/' }: MountOptions = {}) => {
+const renderScreen = async ({
+    role = 'maintainer',
+    readOnly = false,
+    versionId,
+    route = '/',
+    palette = null,
+}: MountOptions = {}) => {
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
     const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: `tenant-${++tenantSeq}`, versionId };
     const parameters = { readOnly, effectiveRole: role };
@@ -236,7 +266,7 @@ const renderScreen = async ({ role = 'maintainer', readOnly = false, versionId, 
                 context={context}
                 designSystem={designSystem}
                 theme={theme}
-                palette={null}
+                palette={palette}
                 rerender={rerender}
             />
             <LocationProbe />
@@ -546,6 +576,36 @@ describe('SizeTokensScreen', () => {
         fireEvent.click(within(own).getByRole('button', { name: 'Убрать свои слои iOS' }));
         await waitFor(() => expect(updates()).toHaveLength(5));
         expect(updates()[4].platforms).toEqual({});
+    });
+
+    it('выбирает цвет слоя из палитры ссылкой на ступень и заменяет ссылку HEX-цветом', async () => {
+        await renderScreen({ palette: PALETTE });
+        fireEvent.click(row('down.hard.m'));
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Веб, слой 1, выбор цвета' }));
+        const picker = screen.getByRole('dialog', { name: 'Color picker: down.hard.m, слой 1' });
+        fireEvent.click(within(picker).getByRole('button', { name: 'Library' }));
+        fireEvent.click(within(picker).getByRole('button', { name: 'Gray 900 #1A1A1A' }));
+        // Прозрачность слоя (16 %) сохраняется в ссылке.
+        expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('Gray 900');
+        expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, прозрачность' })).toHaveValue('16');
+        await waitFor(() => expect(updates()).toHaveLength(1));
+        expect(updates()[0].layers?.[0].color).toBe('[general.gray.900][0.16]');
+        await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
+        expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('Gray 900');
+        expect(
+            within(inspector())
+                .getByRole('button', { name: 'Веб, слой 1, выбор цвета' })
+                .style.getPropertyValue('--swatch-color'),
+        ).toBe('#1A1A1A29');
+
+        commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, прозрачность' }), '24');
+        await waitFor(() => expect(updates()).toHaveLength(2));
+        expect(updates()[1].layers?.[0].color).toBe('[general.gray.900][0.24]');
+
+        commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' }), '000000');
+        await waitFor(() => expect(updates()).toHaveLength(3));
+        expect(updates()[2].layers?.[0].color).toBe('#0000003D');
+        expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('000000');
     });
 
     it('создаёт радиус, отступ и размер тени в окне «Новый токен»', async () => {

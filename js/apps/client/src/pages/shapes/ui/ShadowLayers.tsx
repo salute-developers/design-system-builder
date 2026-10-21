@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
 import {
-    colorWithOpacity,
     DEFAULT_SHADOW_LAYER,
     LAYER_RANGES,
+    layerOpacity,
+    layerWithHex,
+    layerWithOpacity,
     MAX_SHADOW_LAYERS,
-    opacityOf,
     parseHex,
     parseOpacity,
     parsePx,
@@ -33,11 +34,26 @@ interface ShadowLayersProps {
     fieldPrefix: string;
     /** Ошибка сервера поля с путём, начинающимся с [prefix]. */
     serverError: (prefix: string) => string | null;
+    /** Название ступени палитры цвета слоя («Gray 900») или `null` у HEX. */
+    colorLabel: (layer: ShadowLayer) => string | null;
+    /** Открыт ли выбор цвета слоя [index]. */
+    pickerOpen: (index: number) => boolean;
+    onOpenPicker: (index: number) => void;
     onChange: (layers: ShadowLayer[]) => void;
 }
 
-/** Слои тени: X, Y, Blur, Spread, HEX и прозрачность; добавление и удаление слоя. */
-export const ShadowLayers = ({ layers, editable, scope, fieldPrefix, serverError, onChange }: ShadowLayersProps) => {
+/** Слои тени: X, Y, Blur, Spread, цвет (HEX или ступень палитры) и прозрачность; добавление и удаление слоя. */
+export const ShadowLayers = ({
+    layers,
+    editable,
+    scope,
+    fieldPrefix,
+    serverError,
+    colorLabel,
+    pickerOpen,
+    onOpenPicker,
+    onChange,
+}: ShadowLayersProps) => {
     const [errors, setErrors] = useState<Record<string, string | null>>({});
     const setError = (key: string, message: string | null) => setErrors((current) => ({ ...current, [key]: message }));
     const change = (index: number, patch: Partial<ShadowLayer>) =>
@@ -87,38 +103,52 @@ export const ShadowLayers = ({ layers, editable, scope, fieldPrefix, serverError
                                 </label>
                             ))}
                         </div>
-                        {/* Поле цвета по `colorInspectorField` прототипа: свотч внутри поля HEX, прозрачность справа. */}
+                        {/* Поле цвета по `colorInspectorField` прототипа: свотч внутри поля открывает выбор цвета,
+                            HEX или название ступени палитры, прозрачность справа. */}
                         <div className="st-color">
                             <span>Цвет</span>
                             <div className="figma-value-control">
                                 <div className="figma-value-main">
-                                    <span
-                                        className="swatch-button alpha-swatch"
+                                    <button
+                                        type="button"
+                                        className={`swatch-button alpha-swatch ${pickerOpen(index) ? 'is-open' : ''}`}
                                         style={alphaSwatchStyle(layer.color)}
-                                        aria-hidden="true"
+                                        aria-label={`${scope}, слой ${index + 1}, выбор цвета`}
+                                        aria-expanded={pickerOpen(index)}
+                                        disabled={!editable}
+                                        onClick={() => onOpenPicker(index)}
                                     />
                                     <CommitInput
                                         aria-label={`${scope}, слой ${index + 1}, HEX`}
-                                        value={layer.color.slice(1, 7).toUpperCase()}
+                                        value={colorLabel(layer) ?? layer.color.slice(1, 7).toUpperCase()}
                                         disabled={!editable}
                                         validate={(raw) => (parseHex(raw) ? null : SIZE_MESSAGES.hex)}
                                         onIssue={(message) => setError(`${index}.hex`, message)}
+                                        // Введённый HEX заменяет ссылку на ступень палитры.
                                         onCommit={(raw) =>
-                                            change(index, {
-                                                color: colorWithOpacity(parseHex(raw)!, opacityOf(layer.color)),
-                                            })
+                                            onChange(
+                                                layers.map((item, position) =>
+                                                    position === index ? layerWithHex(item, parseHex(raw)!) : item,
+                                                ),
+                                            )
                                         }
                                     />
                                 </div>
                                 <div className="figma-value-alpha">
                                     <CommitInput
                                         aria-label={`${scope}, слой ${index + 1}, прозрачность`}
-                                        value={String(opacityOf(layer.color))}
+                                        value={String(layerOpacity(layer))}
                                         disabled={!editable}
                                         validate={(raw) => (parseOpacity(raw) === null ? SIZE_MESSAGES.opacity : null)}
                                         onIssue={(message) => setError(`${index}.opacity`, message)}
                                         onCommit={(raw) =>
-                                            change(index, { color: colorWithOpacity(layer.color, parseOpacity(raw)!) })
+                                            onChange(
+                                                layers.map((item, position) =>
+                                                    position === index
+                                                        ? layerWithOpacity(item, parseOpacity(raw)!)
+                                                        : item,
+                                                ),
+                                            )
                                         }
                                     />
                                     <i>%</i>

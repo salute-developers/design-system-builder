@@ -9,6 +9,11 @@ import {
     deletionUsage,
     differingPlatforms,
     kindOfThemeToken,
+    layerColorLabel,
+    layerOpacity,
+    layerWithColor,
+    layerWithHex,
+    layerWithOpacity,
     newShadowVariants,
     newTokenRequest,
     normalizeTokenName,
@@ -21,6 +26,7 @@ import {
     toRem,
     validateLayers,
     validatePx,
+    withLayer,
     withValue,
     RANGES,
     type DimensionToken,
@@ -291,5 +297,43 @@ describe('значения платформ', () => {
     it('хранит в модели темы тень массивом, а остальное — одним значением', () => {
         expect(themeModelValue('radius', ['0.75rem'])).toBe('0.75rem');
         expect(themeModelValue('shadow', ['a'])).toEqual(['a']);
+    });
+});
+
+describe('цвет слоя тени', () => {
+    const hex: ShadowLayer = { offsetX: 0, offsetY: 4, blur: 14, spread: -4, color: '#00000029' };
+    const linked: ShadowLayer = { ...hex, color: '#1A1A1A29', colorRef: '[general.gray.900][0.16]' };
+
+    it('показывает название ступени и прозрачность ссылки', () => {
+        expect(layerColorLabel(hex)).toBeNull();
+        expect(layerColorLabel(linked)).toBe('Gray 900');
+        expect(layerColorLabel(linked, () => 'Steel')).toBe('Steel 900');
+        expect(layerOpacity(linked)).toBe(16);
+        expect(layerOpacity(hex)).toBe(16);
+    });
+
+    it('ступень из Library становится ссылкой, HEX и Custom заменяют ссылку', () => {
+        expect(layerWithColor(hex, '[general.gray.900][0.16]', '#1A1A1A')).toEqual(linked);
+        expect(layerWithColor(linked, '#000000')).toEqual({ ...hex, color: '#000000FF' });
+        expect(layerWithColor(linked, '#0000003D')).toEqual({ ...hex, color: '#0000003D' });
+        expect(layerWithHex(linked, '#000000')).toEqual({ ...hex, color: '#00000029' });
+    });
+
+    it('прозрачность ссылки меняет прозрачность ссылки', () => {
+        expect(layerWithOpacity(linked, 24)).toEqual({
+            ...linked,
+            color: '#1A1A1A3D',
+            colorRef: '[general.gray.900][0.24]',
+        });
+        expect(layerWithOpacity(linked, 100).colorRef).toBe('[general.gray.900]');
+        expect(layerWithOpacity(hex, 24).color).toBe('#0000003D');
+    });
+
+    it('меняет слой веба или своих слоёв платформы', () => {
+        const value = { kind: 'shadow' as const, layers: [hex], fallbackElevation: 2, platforms: { ios: [hex] } };
+        const changed = withLayer(value, 'ios', 0, (layer) => ({ ...layer, offsetX: 3 }));
+        expect(changed).toEqual({ ...value, platforms: { ios: [{ ...hex, offsetX: 3 }] } });
+        expect(withLayer(value, 'android', 0, (layer) => layer)).toBe(value);
+        expect(withLayer(value, 'web', 0, () => linked)).toEqual({ ...value, layers: [linked] });
     });
 });
