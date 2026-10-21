@@ -163,7 +163,7 @@ GitHub Actions summary сохраняет commit и digest каждого усп
 - `PROJECTS_DATABASE_URL`, credentials и `PROJECTS_INTERNAL_API_KEY`;
 - PostgreSQL URL для `ds-service` и `documentation-service`;
 - S3 credentials для Kotlin `documentation-service`;
-- публикация Compose preview plugin: `DS_PLUGIN_S3_*` и `DS_PLUGIN_PUBLIC_BASE_URL` у `ds-service` (пусто: публикация отвечает `503`, адрес плагина `404`), `PREVIEW_PUBLISHER_CLIENT_SECRET` для служебной учётки CI.
+- публикация Compose preview plugin: `DS_PLUGIN_S3_*` и `DS_PLUGIN_PUBLIC_BASE_URL` у `ds-service` (пусто: публикация отвечает `503`, адрес плагина `404`), `PREVIEW_PUBLISHER_CLIENT_SECRET` для служебной учётки CI. Адрес плагина строится как `DS_PLUGIN_PUBLIC_BASE_URL/builds/<buildId>/` и префикс `DS_PLUGIN_S3_PREFIX` сам не добавляет: при заданном префиксе `DS_PLUGIN_PUBLIC_BASE_URL` должен указывать на этот префикс (файлы лежат в `<prefix>/builds/<buildId>/`), иначе адрес вернёт `404`.
 
 `KEYCLOAK_ISSUER` должен совпадать с публичным issuer URL. Внутренние адреса сервисов уже заданы через compose service-name DNS. Не включайте для stack опцию Coolify `Connect to Predefined Network`, иначе одинаковые service names разных environments окажутся в общей сети и начнут конфликтовать. Реальные `.env`, GHCR PAT, Coolify tokens и webhook URLs не должны попадать в git или логи.
 

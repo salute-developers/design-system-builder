@@ -160,7 +160,8 @@ services:
       DS_PLUGIN_S3_ACCESS_KEY: minio
       DS_PLUGIN_S3_SECRET_KEY: minio123
       DS_PLUGIN_S3_PATH_STYLE: "true"
-      DS_PLUGIN_PUBLIC_BASE_URL: http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview
+      DS_PLUGIN_S3_PREFIX: ${DS_PLUGIN_S3_PREFIX:-}
+      DS_PLUGIN_PUBLIC_BASE_URL: ${DS_PLUGIN_PUBLIC_BASE_URL:-http://localhost:${MINIO_PUBLIC_PORT:-9000}/compose-preview}
     expose:
       - "8085"
     volumes:
