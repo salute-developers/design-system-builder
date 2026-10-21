@@ -2,7 +2,7 @@
 
 ### Requirement: Маршруты операций редактора оформления входят в разрешённый набор
 
-Перечень предметных маршрутов `ds-service` SHALL быть дополнен маршрутами операций редактора оформления (относительно `P = /api/projects/{projectId}/ds`): `GET /appearances/{id}/editor-model`, `POST /appearances/{id}/axes`, `POST /appearances/{id}/axis-order`, `POST /appearances/{id}/property-values`, `PUT /appearances/{id}/property-values`, `DELETE /appearances/{id}/property-values`, `PUT /appearances/{id}/state-order` и остальные операции change `component-editor-model-api`. Эти маршруты MUST NOT считаться предметными маршрутами вне набора, запрещёнными требованием «Полный разрешённый набор предметных маршрутов»: их добавление выполняется этим OpenSpec-изменением.
+Перечень предметных маршрутов `ds-service` SHALL быть дополнен маршрутами операций редактора оформления (относительно `P = /api/projects/{projectId}/ds`): `GET /appearances/{id}/editor-model`, `POST /appearances/{id}/axes`, `POST /appearances/{id}/axis-order`, `POST /appearances/{id}/property-values`, `PUT /appearances/{id}/property-values`, `DELETE /appearances/{id}/property-values`, `PUT /appearances/{id}/state-order`, `POST /appearances/new`, `POST /appearances/{id}/duplicate` и остальные операции change `component-editor-model-api`. Эти маршруты MUST NOT считаться предметными маршрутами вне набора, запрещёнными требованием «Полный разрешённый набор предметных маршрутов»: их добавление выполняется этим OpenSpec-изменением.
 
 #### Scenario: Проверка route manifest
 
