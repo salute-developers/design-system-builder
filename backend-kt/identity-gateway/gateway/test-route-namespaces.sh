@@ -45,7 +45,10 @@ for config in nginx.local.conf nginx.prod.conf.template; do
 
   import_meta_block=$(awk 'index($0, "location = /api/admin/component-config/import-api-meta {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
 
+  plugin_builds_block=$(awk 'index($0, "location = /api/admin/compose-preview/plugin-builds {") { found=1 } found { print } found && /^        }/ { exit }' "$config")
+
   test -n "$import_meta_block"
+  test -n "$plugin_builds_block"
 
   # Импорт API-меты живёт в ds-service: только токен пользователя, служебный проект `global`,
   # роль системного администратора проверяет сам сервис.
@@ -64,6 +67,18 @@ for config in nginx.local.conf nginx.prod.conf.template; do
     echo "$config: the /api/admin block of the removed admin routes must not exist" >&2
     exit 1
   fi
+
+  # Публикация Compose preview plugin: только токен пользователя, служебный проект `global`, лимит тела под архив,
+  # роль публикации передаётся доверенным заголовком, остальные маршруты его сбрасывают.
+  printf '%s' "$plugin_builds_block" | grep -Fq 'auth_request /_auth_user;'
+  ! printf '%s' "$plugin_builds_block" | grep -Fq 'auth_request /_auth_project;'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'client_max_body_size 64m;'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'proxy_set_header X-Project-Id "global";'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'auth_request_set $trusted_compose_preview_publisher $upstream_http_x_compose_preview_publisher;'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'proxy_set_header X-Compose-Preview-Publisher $trusted_compose_preview_publisher;'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'rewrite ^/api/admin/compose-preview/plugin-builds$ /api/ds/admin/compose-preview/plugin-builds break;'
+  printf '%s' "$plugin_builds_block" | grep -Fq 'ds_service_api'
+  ! printf '%s' "$import_meta_block" | grep -Fq '$trusted_compose_preview_publisher'
 
   ! grep -Fq 'location /documentation' "$config"
   ! grep -Fq 'location = /documentation' "$config"

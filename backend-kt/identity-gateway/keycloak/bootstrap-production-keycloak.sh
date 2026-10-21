@@ -8,6 +8,10 @@ oidc_redirect_uri="${OIDC_REDIRECT_URI:?OIDC_REDIRECT_URI is required}"
 oidc_web_origin="${OIDC_WEB_ORIGIN:?OIDC_WEB_ORIGIN is required}"
 projects_client_id="${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID:?PROJECTS_IDENTITY_KEYCLOAK_CLIENT_ID is required}"
 projects_client_secret="${PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET:?PROJECTS_IDENTITY_KEYCLOAK_CLIENT_SECRET is required}"
+# Служебная учётка публикации Compose preview plugin: создаётся только если задан секрет.
+preview_publisher_client_id="${PREVIEW_PUBLISHER_CLIENT_ID:-dsbuilder-preview-publisher}"
+preview_publisher_client_secret="${PREVIEW_PUBLISHER_CLIENT_SECRET:-}"
+preview_publisher_role="compose_preview_publisher"
 
 extract_first_id() {
   sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
@@ -260,5 +264,57 @@ service_account_username="service-account-$projects_client_id"
   --cclientid realm-management \
   --rolename query-users \
   --rolename view-users || true
+
+if [ -n "$preview_publisher_client_secret" ]; then
+  /opt/keycloak/bin/kcadm.sh get "roles/$preview_publisher_role" -r "$realm" >/dev/null 2>&1 \
+    || /opt/keycloak/bin/kcadm.sh create roles -r "$realm" \
+      -s "name=$preview_publisher_role" \
+      -s "description=Publishes Compose preview plugin builds"
+
+  preview_publisher_uuid="$(
+    /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$preview_publisher_client_id" | extract_first_id
+  )"
+
+  if [ -z "$preview_publisher_uuid" ]; then
+    /opt/keycloak/bin/kcadm.sh create clients -r "$realm" \
+      -s "clientId=$preview_publisher_client_id" \
+      -s "name=DS Builder Compose preview publisher" \
+      -s "enabled=true" \
+      -s "protocol=openid-connect" \
+      -s "publicClient=false" \
+      -s "clientAuthenticatorType=client-secret" \
+      -s "secret=$preview_publisher_client_secret" \
+      -s "standardFlowEnabled=false" \
+      -s "directAccessGrantsEnabled=false" \
+      -s "serviceAccountsEnabled=true"
+
+    preview_publisher_uuid="$(
+      /opt/keycloak/bin/kcadm.sh get clients -r "$realm" -q "clientId=$preview_publisher_client_id" | extract_first_id
+    )"
+  else
+    /opt/keycloak/bin/kcadm.sh update "clients/$preview_publisher_uuid" -r "$realm" \
+      -s "enabled=true" \
+      -s "publicClient=false" \
+      -s "clientAuthenticatorType=client-secret" \
+      -s "secret=$preview_publisher_client_secret" \
+      -s "standardFlowEnabled=false" \
+      -s "directAccessGrantsEnabled=false" \
+      -s "serviceAccountsEnabled=true"
+  fi
+
+  if ! /opt/keycloak/bin/kcadm.sh get "clients/$preview_publisher_uuid/protocol-mappers/models" -r "$realm" | grep -q '"name" : "dsbuilder-api-audience"'; then
+    /opt/keycloak/bin/kcadm.sh create "clients/$preview_publisher_uuid/protocol-mappers/models" -r "$realm" \
+      -s "name=dsbuilder-api-audience" \
+      -s "protocol=openid-connect" \
+      -s "protocolMapper=oidc-audience-mapper" \
+      -s "config.\"included.client.audience\"=$oidc_client_id" \
+      -s 'config."access.token.claim"=true'
+  fi
+
+  /opt/keycloak/bin/kcadm.sh add-roles \
+    -r "$realm" \
+    --uusername "service-account-$preview_publisher_client_id" \
+    --rolename "$preview_publisher_role"
+fi
 
 echo "Keycloak production bootstrap completed"

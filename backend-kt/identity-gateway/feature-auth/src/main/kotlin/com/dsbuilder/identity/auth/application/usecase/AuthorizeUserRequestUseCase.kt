@@ -19,6 +19,7 @@ internal class AuthorizeUserRequestUseCase(
                     actorType = verified.actor.type.headerValue,
                     userId = verified.actor.userId,
                     systemAdmin = verified.actor.isSystemAdmin.toString(),
+                    composePreviewPublisher = verified.actor.isComposePreviewPublisher.toString(),
                 ),
             )
         }

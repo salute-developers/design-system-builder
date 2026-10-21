@@ -15,6 +15,10 @@
       {
         "name": "system_admin",
         "description": "Platform administrator"
+      },
+      {
+        "name": "compose_preview_publisher",
+        "description": "Publishes Compose preview plugin builds (service account of the plasma-android CI)"
       }
     ]
   },
