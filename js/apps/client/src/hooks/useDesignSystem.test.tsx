@@ -1,8 +1,9 @@
 import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, loadTokenData, loadComponentData, saveTokenMutation } = vi.hoisted(() => ({
+const { load, loadDesignSystemCursor, loadTokenData, loadComponentData, saveTokenMutation } = vi.hoisted(() => ({
     load: vi.fn(),
+    loadDesignSystemCursor: vi.fn(),
     loadTokenData: vi.fn(),
     loadComponentData: vi.fn(),
     saveTokenMutation: vi.fn(),
@@ -21,7 +22,7 @@ const { applyDraftChanges } = vi.hoisted(() => ({
     applyDraftChanges: vi.fn(),
 }));
 
-vi.mock('../api/themeEditorRepository', () => ({ loadThemeEditor: load }));
+vi.mock('../api/themeEditorRepository', () => ({ loadThemeEditor: load, loadDesignSystemCursor }));
 vi.mock('../api/tokenRepository', () => ({ tokenRepository: { loadTokenData, saveTokenMutation } }));
 vi.mock('../api/componentRepository', () => ({
     componentRepository: { loadComponentData, loadComposeComponentData: async () => [] },
@@ -140,6 +141,9 @@ beforeEach(() => {
         parameters: { draftId: 'draft-1', draftRevision: 1 },
     });
     loadTokenData.mockReset().mockResolvedValue(tokenData);
+    loadDesignSystemCursor
+        .mockReset()
+        .mockResolvedValue({ id: 'ds-1', name: 'System', draftId: 'draft-1', draftRevision: 2 });
     loadComponentData.mockReset().mockResolvedValue([]);
     subscribeToDraftInvalidations.mockClear();
     saveTokenMutation.mockReset().mockResolvedValue({
@@ -420,6 +424,7 @@ describe('useDesignSystem server autosave', () => {
             },
             expect.any(String),
             false,
+            expect.any(AbortSignal),
         );
         expect(localStorage.getItem(getDraftKey('System', '0.1.0'))).toBeNull();
     });
@@ -453,6 +458,7 @@ describe('useDesignSystem server autosave', () => {
             expect.any(Object),
             expect.any(String),
             false,
+            expect.any(AbortSignal),
         );
     });
 
@@ -610,6 +616,7 @@ describe('useDesignSystem server autosave', () => {
             expect.any(Object),
             'rename-request',
             false,
+            expect.any(AbortSignal),
         );
     });
 
@@ -690,7 +697,7 @@ describe('useDesignSystem server autosave', () => {
         });
 
         expect(localStorage.getItem(secondDraftKey)).toContain('#123456');
-        expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toBeNull();
+        expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toContain('#123456');
     });
 
     it('does not remove a newer change of the same token when the old request finishes', async () => {
@@ -730,7 +737,70 @@ describe('useDesignSystem server autosave', () => {
         expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toBeNull();
     });
 
-    it('flushes a delayed operation with keepalive when the editor unmounts', async () => {
+    it('does not remove recovery data of a newer session in the same tenant', async () => {
+        let finish!: (value: unknown) => void;
+        saveTokenMutation.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        const first = render(<Probe />);
+        await act(async () => Promise.resolve());
+        act(() => updateDraftToken('System', '0.1.0', token));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        first.unmount();
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+        act(() =>
+            updateDraftToken('System', '0.1.0', {
+                ...token,
+                getValue: () => '#654321',
+            } as unknown as Token),
+        );
+        await act(async () => {
+            finish({ tokenId: 'token-1', editRevision: 4, baseRevision: 5, valueBaseRevisions: {} });
+            await Promise.resolve();
+        });
+        expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toContain('#654321');
+    });
+
+    it('recovers a delete whose committed entity is absent without deleting its replacement', async () => {
+        let finish!: (value: unknown) => void;
+        saveTokenMutation.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        const first = render(<Probe />);
+        await act(async () => Promise.resolve());
+        act(() => updateDraftToken('System', '0.1.0', token, 'remove'));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        first.unmount();
+        const snapshot = await load();
+        load.mockResolvedValue({
+            ...snapshot,
+            tokenIdsByName: { accent: 'replacement' },
+            tokenDefinitionsByName: { accent: { ...snapshot.tokenDefinitionsByName.accent, id: 'replacement' } },
+        });
+        render(<Probe />);
+        await act(async () => {
+            await Promise.resolve();
+            await vi.advanceTimersByTimeAsync(400);
+        });
+        expect(saveTokenMutation).toHaveBeenCalledOnce();
+        expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toBeNull();
+        await act(async () => {
+            finish({ tokenId: 'token-1', editRevision: 4, baseRevision: 5, valueBaseRevisions: {} });
+            await Promise.resolve();
+        });
+        act(() => updateDraftToken('System', '0.1.0', token));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(saveTokenMutation.mock.calls.at(-1)?.[1]).toBe('replacement');
+    });
+
+    it('retains a delayed operation for recovery without sending from a closed editor', async () => {
         const view = render(<Probe />);
         await act(async () => Promise.resolve());
         act(() => updateDraftToken('System', '0.1.0', token));
@@ -738,15 +808,8 @@ describe('useDesignSystem server autosave', () => {
         view.unmount();
         await act(async () => Promise.resolve());
 
-        expect(saveTokenMutation).toHaveBeenCalledWith(
-            context,
-            'token-1',
-            expect.objectContaining({ tokenName: 'accent' }),
-            3,
-            0,
-            expect.any(Object),
-            expect.any(String),
-            true,
-        );
+        await act(async () => vi.runAllTimersAsync());
+        expect(saveTokenMutation).not.toHaveBeenCalled();
+        expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).not.toBeNull();
     });
 });

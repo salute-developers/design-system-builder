@@ -69,6 +69,46 @@ describe('Components autosave', () => {
         vi.restoreAllMocks();
     });
 
+    it('сохраняет исходную базу частично выполненной операции после открытия редактора', async () => {
+        const before = { enabled: true, localStyle: 'old' };
+        localStorage.setItem(
+            'ds_pending_component:project:ds:tenant:Button:request',
+            JSON.stringify({
+                componentName: 'Button',
+                before,
+                after: { enabled: false, localStyle: 'local-id' },
+                idempotencyKeys: { 'style:local-id': 'original-key' },
+                prepared: true,
+                generation: 'recovered',
+                retryCount: 0,
+            }),
+        );
+        mocks.currentMeta = { enabled: false, localStyle: 'server-id' };
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledOnce());
+        expect(mocks.saveComponentMutation.mock.calls[0][2].before).toEqual(before);
+    });
+
     it('отправляет изменение даже при переполненном localStorage', async () => {
         vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
             throw new DOMException('quota', 'QuotaExceededError');
@@ -100,6 +140,72 @@ describe('Components autosave', () => {
 
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
         await waitFor(() => expect(screen.getByRole('status', { name: /Последнее сохранение/ })).toBeInTheDocument());
+    });
+
+    it('восстанавливает создание до следующей правки удаления с новой базой', async () => {
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        const predecessor = {
+            componentName: 'Button',
+            before: { enabled: true },
+            after: { enabled: false, value: 1 },
+            prepared: true,
+            idempotencyKeys: { property: 'original-key' },
+            requestBodies: {},
+            generation: 'first',
+            tokenKey: 'Button',
+            operationKey: 'Button',
+            retryCount: 0,
+            metadataKey: key,
+        };
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                ...predecessor,
+                generation: 'second',
+                prepared: false,
+                idempotencyKeys: {},
+                after: { enabled: true },
+                predecessor,
+            }),
+        );
+        const context = {
+            designSystem: {
+                getParameters: () => ({ projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' }),
+                getComponentDataByName: () => ({}),
+            },
+            theme: {},
+            components: [mocks.config],
+            updated: {},
+            rerender: vi.fn(),
+            reload: vi.fn(),
+        };
+        const Parent = () => <Outlet context={context} />;
+        render(
+            <MemoryRouter initialEntries={['/components/Button']}>
+                <Routes>
+                    <Route element={<Parent />}>
+                        <Route path="components/:componentName" element={<Components />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+        expect(mocks.saveComponentMutation.mock.calls[0][2]).toEqual(
+            expect.objectContaining({
+                generation: 'first',
+                before: { enabled: true },
+                idempotencyKeys: { property: 'original-key' },
+            }),
+        );
+        expect(mocks.saveComponentMutation.mock.calls[1][2]).toEqual(
+            expect.objectContaining({
+                generation: 'second',
+                before: predecessor.after,
+                after: { enabled: true },
+                idempotencyKeys: {},
+            }),
+        );
+        await waitFor(() => expect(localStorage.getItem(key)).toBeNull());
     });
 
     it('ignores and removes corrupted revision metadata', async () => {
@@ -242,24 +348,37 @@ describe('Components autosave', () => {
         mocks.currentMeta = { enabled: false, value: 1 };
         fireEvent.click(edit);
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
-        mocks.currentMeta = { enabled: false, value: 2 };
+        mocks.saveComponentMutation.mock.calls[0][2].idempotencyKeys.property = 'first-create-key';
+        mocks.saveComponentMutation.mock.calls[0][2].styleAliases = { 'local-style': 'server-style' };
+        mocks.saveComponentMutation.mock.calls[0][4]?.({ style: 1 });
+        mocks.currentMeta = { enabled: true };
         fireEvent.click(edit);
         expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1);
         const firstProgress = mocks.saveComponentMutation.mock.calls[0][4] as
             | ((revisions: Record<string, number>) => void)
             | undefined;
         firstProgress?.({ style: 1 });
-        expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toContain('"value":2');
+        const recovered = JSON.parse(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')!);
+        expect(recovered.after).toEqual({ enabled: true });
+        expect(recovered.predecessor.idempotencyKeys).toEqual({ property: 'first-create-key' });
 
         finishFirst?.({ style: 1 });
         await firstSave;
         await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
         expect(mocks.saveComponentMutation.mock.calls[1][2]).toEqual(
-            expect.objectContaining({ after: { enabled: false, value: 2 } }),
+            expect.objectContaining({
+                before: { enabled: false, value: 1 },
+                after: { enabled: true },
+                idempotencyKeys: {},
+                styleAliases: { 'local-style': 'server-style' },
+            }),
         );
         await waitFor(() =>
             expect(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')).toBeNull(),
         );
+        expect(
+            JSON.parse(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:style-aliases')!),
+        ).toEqual({ 'local-style': 'server-style' });
     });
 
     it('does not use a late confirmation from the previous component as the new component baseline', async () => {

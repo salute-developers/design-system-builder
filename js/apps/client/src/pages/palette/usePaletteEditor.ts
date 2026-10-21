@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    getDraftAutosaveRevision,
-    isDraftAutosaveIdle,
-    reloadWhenDraftAutosaveIsIdle,
-    waitForDraftAutosaveIdle,
-} from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveRevision, reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
 
 import type { DesignSystem } from '../../controllers';
 import {
@@ -67,12 +62,12 @@ export const usePaletteEditor = ({
 }: UsePaletteEditorProps) => {
     const contextKey = JSON.stringify(context);
     const activeContext = useRef(contextKey);
-    const delayedRefresh = useRef<(() => void) | undefined>();
+    const delayedTokensRefresh = useRef<(() => void) | undefined>();
     useEffect(() => {
         activeContext.current = contextKey;
         return () => {
             activeContext.current = '';
-            delayedRefresh.current?.();
+            delayedTokensRefresh.current?.();
         };
     }, [contextKey]);
     const [mode, setMode] = useState<PaletteMode>('palette');
@@ -104,19 +99,11 @@ export const usePaletteEditor = ({
     }, []);
 
     const refresh = useCallback(async (): Promise<ThemePalette> => {
-        if (paletteRepository.source === 'api') await waitForDraftAutosaveIdle(context, 8_000);
         const revision = getDraftAutosaveRevision(context);
         const next = await paletteRepository.load(context);
         if (activeContext.current !== contextKey) return next;
-        if (
-            paletteRepository.source === 'api' &&
-            (!isDraftAutosaveIdle(context) || revision !== getDraftAutosaveRevision(context))
-        ) {
-            delayedRefresh.current?.();
-            delayedRefresh.current = reloadWhenDraftAutosaveIsIdle(context, () => {
-                void refresh().catch(() => undefined);
-            });
-            return next;
+        if (paletteRepository.source === 'api' && revision !== getDraftAutosaveRevision(context)) {
+            return refresh();
         }
         setPalette(next);
         return next;
@@ -159,12 +146,29 @@ export const usePaletteEditor = ({
                     if (parameters) parameters.editRevision = result.editRevision;
                 }
                 const notice: PaletteToast = { tone: 'success', ...success(result.value) };
-                if (options.tokensChanged && api) {
-                    await refreshTokens();
-                    if (!options.silent) showToast(notice);
+                try {
+                    await refresh();
+                } catch {
+                    showToast({
+                        tone: 'error',
+                        title: 'Изменения сохранены',
+                        text: 'Не удалось обновить данные палитры.',
+                    });
                     return result.value;
                 }
-                await refresh();
+                if (options.tokensChanged && api) {
+                    delayedTokensRefresh.current?.();
+                    delayedTokensRefresh.current = reloadWhenDraftAutosaveIsIdle(context, () => {
+                        void refreshTokens().catch(() => {
+                            if (activeContext.current === contextKey)
+                                showToast({
+                                    tone: 'error',
+                                    title: 'Изменения сохранены',
+                                    text: 'Не удалось обновить значения токенов.',
+                                });
+                        });
+                    });
+                }
                 rerender();
                 if (!options.silent) showToast(notice);
                 return result.value;

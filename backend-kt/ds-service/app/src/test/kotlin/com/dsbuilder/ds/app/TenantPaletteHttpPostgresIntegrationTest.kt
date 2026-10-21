@@ -333,6 +333,61 @@ class TenantPaletteHttpPostgresIntegrationTest {
         }
     }
 
+    @Test
+    fun `palette seed batches preserve every canonical color and roll back a late failure`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            testApplication {
+                application { module(configuration(postgres)) }
+                val api = PaletteApi(client)
+                val system = api.create("/api/ds/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use {
+                        it.execute(
+                            """
+                            CREATE FUNCTION fail_late_palette_batch() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN
+                                IF (SELECT count(*) FROM palette) >= 300 THEN RAISE EXCEPTION 'late_palette_batch'; END IF;
+                                RETURN NEW;
+                            END; ${'$'}${'$'};
+                            CREATE TRIGGER fail_late_palette_batch BEFORE INSERT ON palette
+                                FOR EACH ROW EXECUTE FUNCTION fail_late_palette_batch();
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val failed = api.call("POST", "/api/ds/tenants", EDITOR, """{"designSystemId":"$system","name":"a"}""")
+                assertEquals(HttpStatusCode.InternalServerError, failed.status, failed.bodyAsText())
+                assertEquals(0, count(postgres, "SELECT count(*) FROM palette"))
+                assertEquals(0, count(postgres, "SELECT count(*) FROM tenants"))
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { it.execute("DROP TRIGGER fail_late_palette_batch ON palette") }
+                }
+                api.createTenant(system, "a")
+                assertCanonicalPalette(postgres)
+                api.createTenant(system, "b")
+                assertCanonicalPalette(postgres)
+            }
+        }
+    }
+
+    private fun assertCanonicalPalette(postgres: IsolatedPostgresDatabase) {
+        val resource = requireNotNull(javaClass.classLoader.getResourceAsStream("token-initial-values.json"))
+            .bufferedReader().use { it.readText() }
+        val expected = json.parseToJsonElement(resource).array("palettes").associate { entry ->
+            listOf("type", "shade", "saturation").joinToString(":") { entry.text(it) } to entry.text("value")
+        }
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    "SELECT type::text || ':' || shade || ':' || saturation, value FROM palette",
+                ).use { rows ->
+                    val actual = buildMap { while (rows.next()) put(rows.getString(1), rows.getString(2)) }
+                    assertEquals(expected, actual)
+                }
+            }
+        }
+    }
+
     /** Запросы к ds-service; [revision] — ревизия темы после последней операции. */
     private inner class PaletteApi(private val client: HttpClient) {
         var revision = 0

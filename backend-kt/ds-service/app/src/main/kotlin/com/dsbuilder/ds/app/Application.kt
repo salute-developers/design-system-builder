@@ -139,10 +139,12 @@ import com.dsbuilder.ds.core.application.EntityEditStateRepository
 import com.dsbuilder.ds.core.application.IdGenerator
 import com.dsbuilder.ds.core.application.IdempotentReplayException
 import com.dsbuilder.ds.core.application.IdempotentRequestRepository
+import com.dsbuilder.ds.core.application.PublicationTransactionRunner
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
 import com.dsbuilder.ds.core.data.ExposedEntityEditStateRepository
 import com.dsbuilder.ds.core.data.ExposedIdempotentRequestRepository
+import com.dsbuilder.ds.core.data.ExposedPublicationTransactionRunner
 import com.dsbuilder.ds.core.data.ExposedTransactionRunner
 import com.dsbuilder.ds.core.data.PostgresDatabasePool
 import com.dsbuilder.ds.core.data.PostgresDraftInvalidationStream
@@ -284,6 +286,9 @@ private fun Application.installDependencyGraph(configuration: DsServiceConfigura
                         runtime.database,
                         PostgresTransactionFailureMapper(),
                     )
+                }
+                single<PublicationTransactionRunner> {
+                    ExposedPublicationTransactionRunner(runtime.databasePool, PostgresTransactionFailureMapper())
                 }
                 single<Clock> { Clock(Instant::now) }
                 single<IdGenerator> { IdGenerator(UUID::randomUUID) }

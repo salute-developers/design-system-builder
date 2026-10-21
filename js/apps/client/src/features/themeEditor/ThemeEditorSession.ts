@@ -1,4 +1,4 @@
-import { loadThemeEditor } from '../../api/themeEditorRepository';
+import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import { componentRepository } from '../../api/componentRepository';
 import { invalidateEditorReads } from '../../api/editorReads';
@@ -159,7 +159,7 @@ export class ThemeEditorSession {
         if (this.retryRemoteReload !== undefined) window.clearTimeout(this.retryRemoteReload);
         setPendingMutationListener(null);
         window.removeEventListener('pagehide', this.flushOnPageHide);
-        this.queue.flushAll(true);
+        this.queue.dispose();
         setDraftAutosaveActivity(this.context, 'tokens', null);
         this.options.onDisposed();
     }
@@ -385,7 +385,7 @@ export class ThemeEditorSession {
                     if (fullReload) {
                         next = await loadThemeEditor(this.context, this.signal);
                     } else {
-                        const [tokenData, componentData, composeData] = await Promise.all([
+                        const [tokenData, componentData, composeData, designSystem] = await Promise.all([
                             tokensChanged
                                 ? tokenRepository.loadTokenData(
                                       this.context,
@@ -399,6 +399,7 @@ export class ThemeEditorSession {
                             componentsChanged
                                 ? componentRepository.loadComposeComponentData(this.context, this.signal)
                                 : Promise.resolve(null),
+                            loadDesignSystemCursor(this.context, this.signal),
                         ]);
                         if (tokenData?.paletteError) throw tokenData.paletteError;
                         next = {
@@ -406,18 +407,12 @@ export class ThemeEditorSession {
                             ...(tokenData ?? {}),
                             componentsData: componentData ?? this.snapshot.componentsData,
                             composeComponentsData: composeData ?? this.snapshot.composeComponentsData,
-                            designSystem: {
-                                ...this.snapshot.designSystem,
-                                draftId: event?.draftId ?? this.snapshot.designSystem.draftId ?? undefined,
-                                draftRevision:
-                                    event?.draftRevision ?? this.snapshot.designSystem.draftRevision ?? undefined,
-                            },
+                            designSystem,
                             parameters: {
                                 ...this.snapshot.parameters,
                                 ...(tokenData ? { editRevision: tokenData.editRevision } : {}),
-                                draftId: event?.draftId ?? this.snapshot.designSystem.draftId ?? undefined,
-                                draftRevision:
-                                    event?.draftRevision ?? this.snapshot.designSystem.draftRevision ?? undefined,
+                                draftId: designSystem.draftId ?? undefined,
+                                draftRevision: designSystem.draftRevision ?? undefined,
                             },
                         };
                     }
@@ -439,8 +434,19 @@ export class ThemeEditorSession {
     }
 
     private send(operation: PendingTokenSave, keepalive: boolean) {
+        if (!this.mounted || this.signal.aborted) throw new Error('EDITOR_CLOSED');
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
+        const tokenId = this.tokenIdByLogicalKey.get(operation.entityKey);
+        if (operation.kind === 'delete' && !tokenId) {
+            // После потери ответа удалённая сущность уже отсутствует в подтверждённом снимке.
+            return Promise.resolve({
+                tokenId: operation.entityKey.replace(/^token:/, ''),
+                editRevision: this.editRevision,
+                baseRevision: operation.tokenBaseRevision,
+                valueBaseRevisions: operation.valueBaseRevisions,
+            });
+        }
         const currentValueRevisions = {
             ...operation.valueBaseRevisions,
             ...this.relevantValueRevisions(this.tokenIdByLogicalKey.get(operation.entityKey), operation.tokenName),
@@ -460,26 +466,29 @@ export class ThemeEditorSession {
             currentValueRevisions,
             operation.idempotencyKey,
             keepalive,
+            this.signal,
         );
     }
 
     private confirmed(operation: PendingTokenSave, result: TokenSaveResult) {
+        if (!this.mounted || this.signal.aborted) return;
         if (this.mounted) this.options.onSaved();
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
         if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) delete this.tokenIds[previousBaseName!];
-        this.tokenIds[baseName] = result.tokenId;
-        this.tokenIdByLogicalKey.set(operation.entityKey, result.tokenId);
-        this.logicalKeyByName.set(baseName, operation.entityKey);
+        const affectsCurrentName = operation.kind !== 'delete' || this.tokenIds[baseName] === result.tokenId;
         if ([previousBaseName, previousBaseName !== baseName].every(Boolean)) {
             this.logicalKeyByName.delete(previousBaseName!);
             this.renamedAwayNames.delete(previousBaseName!);
         }
         if (operation.kind === 'delete') {
-            delete this.tokenIds[baseName];
+            if (this.tokenIds[baseName] === result.tokenId) delete this.tokenIds[baseName];
             this.tokenIdByLogicalKey.delete(operation.entityKey);
             this.definitionByLogicalKey.delete(operation.entityKey);
         } else {
+            this.tokenIds[baseName] = result.tokenId;
+            this.tokenIdByLogicalKey.set(operation.entityKey, result.tokenId);
+            this.logicalKeyByName.set(baseName, operation.entityKey);
             const previousDefinition = this.definitionByLogicalKey.get(operation.entityKey);
             this.definitionByLogicalKey.set(operation.entityKey, {
                 ...(previousDefinition ?? {
@@ -496,11 +505,14 @@ export class ThemeEditorSession {
             });
         }
         this.editRevision = Math.max(this.editRevision, result.editRevision);
-        this.baseRevisions.set(baseName, Math.max(this.baseRevisions.get(baseName) ?? 0, result.baseRevision));
+        if (affectsCurrentName)
+            this.baseRevisions.set(baseName, Math.max(this.baseRevisions.get(baseName) ?? 0, result.baseRevision));
         Object.entries(result.valueBaseRevisions).forEach(([key, revision]) =>
             this.valueBaseRevisions.set(key, Math.max(this.valueBaseRevisions.get(key) ?? 0, revision)),
         );
         if (this.latestGenerationByMetadataKey.get(operation.metadataKey) !== operation.generation) return;
+        const stored = this.readMetadata(operation.metadataKey);
+        if (stored && stored.generation !== operation.generation) return;
         const confirmedNames =
             operation.kind === 'delete' ? [baseName, `light.${baseName}`, `dark.${baseName}`] : [operation.tokenName];
         confirmedNames.forEach((confirmedName) =>

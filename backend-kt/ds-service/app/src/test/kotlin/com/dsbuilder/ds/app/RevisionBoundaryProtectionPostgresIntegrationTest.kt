@@ -121,7 +121,7 @@ class RevisionBoundaryProtectionPostgresIntegrationTest {
                         assertEquals(0, rows.getInt(1))
                     }
                 }
-                verification.prepareStatement("SELECT revision FROM design_system_versions WHERE id = ?").use {
+                verification.prepareStatement("SELECT resolved_draft_revision(?)").use {
                     it.setObject(1, draftId)
                     it.executeQuery().use { rows ->
                         assertTrue(rows.next())

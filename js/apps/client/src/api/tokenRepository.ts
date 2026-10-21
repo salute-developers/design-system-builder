@@ -179,12 +179,14 @@ export const tokenRepository = {
         editRevision: number,
         values: TenantTokenValueInputDto[],
         keepalive = false,
+        signal?: AbortSignal,
     ) {
         const response = await http.put<{ editRevision: number; values: TenantTokenValueDto[] }>(
             `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
             { editRevision, values },
             {
                 headers: { 'X-DS-Base-Revision': '0' },
+                ...(signal ? { signal } : {}),
                 ...keepaliveRequest(keepalive),
             },
         );
@@ -204,6 +206,7 @@ export const tokenRepository = {
         valueBaseRevisions: Record<string, number>,
         idempotencyKey: string,
         keepalive = false,
+        signal?: AbortSignal,
     ) {
         const root = apiRoot(context.projectId);
         const mode: 'light' | 'dark' | null = mutation.tokenName.startsWith('light.')
@@ -214,11 +217,12 @@ export const tokenRepository = {
         const tokenName = mode ? mutation.tokenName.slice(mode.length + 1) : mutation.tokenName;
         let stableTokenId = tokenId;
         const headers = { 'X-DS-Base-Revision': String(baseRevision) };
+        const transport = { ...keepaliveRequest(keepalive), ...(signal ? { signal } : {}) };
         if (mutation.kind === 'delete') {
             if (!stableTokenId) throw new Error('TOKEN_ID_REQUIRED_FOR_DELETE');
             const deleted = await http.delete(`${root}/tokens/${stableTokenId}`, {
                 headers,
-                ...keepaliveRequest(keepalive),
+                ...transport,
             });
             const metadata = parseMutationMetadata(deleted.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads();
@@ -244,7 +248,7 @@ export const tokenRepository = {
                 },
                 {
                     headers: { ...headers, 'Idempotency-Key': idempotencyKey },
-                    ...keepaliveRequest(keepalive),
+                    ...transport,
                 },
             );
             stableTokenId = created.data.id;
@@ -253,7 +257,7 @@ export const tokenRepository = {
         } else if (mutation.definitionPatch && Object.keys(mutation.definitionPatch).length > 0) {
             const updated = await http.patch(`${root}/tokens/${stableTokenId}`, mutation.definitionPatch, {
                 headers,
-                ...keepaliveRequest(keepalive),
+                ...transport,
             });
             tokenMutationMetadata = parseMutationMetadata(updated.headers?.['x-ds-mutation-metadata']);
             invalidateEditorReads();
@@ -271,7 +275,7 @@ export const tokenRepository = {
                 baseRevision: valueBaseRevisions[tokenValueKey(stableTokenId!, platform, mode)] ?? 0,
             }));
         const saved = values.length
-            ? await this.saveTenantValues(context, editRevision, values, keepalive)
+            ? await this.saveTenantValues(context, editRevision, values, keepalive, signal)
             : { editRevision, values: [] as TenantTokenValueDto[], mutationMetadata: [] };
         const tokenRevision = tokenMutationMetadata.reduce(
             (latest, item) => Math.max(latest, item.revision),

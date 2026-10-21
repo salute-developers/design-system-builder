@@ -210,7 +210,8 @@ class VersionedJournalPublicationPostgresIntegrationTest {
                     payload.getValue("designSystemId").jsonPrimitive.content,
                 )
                 assertEquals(fixture.draftId.toString(), payload.getValue("draftId").jsonPrimitive.content)
-                assertEquals("1", payload.getValue("draftRevision").jsonPrimitive.content)
+                UUID.fromString(payload.getValue("eventId").jsonPrimitive.content)
+                assertTrue("draftRevision" !in payload)
                 assertEquals("editor-1", payload.getValue("actorId").jsonPrimitive.content)
                 assertEquals("tab-1", payload.getValue("clientId").jsonPrimitive.content)
                 assertEquals(
@@ -826,7 +827,7 @@ class VersionedJournalPublicationPostgresIntegrationTest {
             val currentDraftRevision = connection(postgres).use { connection ->
                 scalar(
                     connection,
-                    "SELECT revision FROM design_system_versions WHERE id = '${fixture.draftId}'",
+                    "SELECT resolved_draft_revision('${fixture.draftId}')",
                 ).toLong()
             }
             val racedPublication = connection(postgres).use { blockingConnection ->

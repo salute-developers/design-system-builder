@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.designsystems.data
 
 import com.dsbuilder.ds.core.data.lockDesignSystemPublication
+import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersion
 import com.dsbuilder.ds.designsystems.application.DesignSystemVersionRepository
@@ -14,10 +15,12 @@ import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.updateReturning
 import java.time.Instant
 
@@ -52,7 +55,7 @@ class ExposedDesignSystemVersionRepository(
                 (VersionBoundariesTable.status eq DesignSystemVersionStatus.DRAFT)
         }.forUpdate().singleOrNull() ?: return PublishDesignSystemResult.NotFound
         val actualId = DesignSystemVersionId(draft[VersionBoundariesTable.id])
-        val actualRevision = draft[VersionBoundariesTable.revision]
+        val actualRevision = resolvedDraftRevision(draft[VersionBoundariesTable.id])
         if (actualId != command.draftId || actualRevision != command.draftRevision) {
             return PublishDesignSystemResult.DraftStale(actualId, actualRevision)
         }
@@ -69,10 +72,15 @@ class ExposedDesignSystemVersionRepository(
             where = { VersionBoundariesTable.id eq actualId.value },
         ) {
             it[status] = DesignSystemVersionStatus.PUBLISHED
+            it[revision] = actualRevision
             it[version] = command.version
             it[changelog] = command.changelog
             it[publishedAt] = Instant.now()
         }.single()
+        TransactionManager.current().exec(
+            "DELETE FROM draft_transaction_markers WHERE design_system_version_id = ?",
+            listOf(UUIDColumnType() to actualId.value),
+        )
         VersionBoundariesTable.insert {
             it[designSystemId] = command.designSystemId.value
             it[status] = DesignSystemVersionStatus.DRAFT

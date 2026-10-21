@@ -8,6 +8,16 @@ import { componentRepository } from './componentRepository';
 
 export type * from './editorContracts';
 
+/** Получает курсор подтверждённого состояния чтением, независимо от идентичности SSE-события. */
+export async function loadDesignSystemCursor(context: EditorContextKey, signal?: AbortSignal) {
+    return (
+        await readEditor<DesignSystemDto>(
+            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}`,
+            readRequest(context, signal),
+        )
+    ).data;
+}
+
 /** Первичная загрузка редактора объединяет независимые предметные данные. */
 export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
     const root = apiRoot(context.projectId);

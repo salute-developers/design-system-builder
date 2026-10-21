@@ -11,9 +11,10 @@ export type DraftInvalidationScope =
     | 'all';
 
 export interface DraftInvalidationEvent {
+    eventId?: string;
     designSystemId: string;
     draftId: string;
-    draftRevision: number;
+    draftRevision?: number;
     actorId: string;
     clientId: string | null;
     changedAt: string;
@@ -36,8 +37,8 @@ export const subscribeToDraftInvalidations = async ({
     signal,
     received,
 }: DraftInvalidationSubscription) => {
-    let knownDraftId = draftId;
-    let knownDraftRevision = draftRevision;
+    const knownDraftId = draftId;
+    const knownDraftRevision = draftRevision;
     while (!signal.aborted) {
         try {
             const token = await authService.getValidAccessToken();
@@ -63,8 +64,8 @@ export const subscribeToDraftInvalidations = async ({
             }
             if (!response.ok || !response.body) throw new Error(`draft event stream failed: ${response.status}`);
             for await (const event of parseDraftEventStream(response.body, signal)) {
-                knownDraftId = event.draftId;
-                knownDraftRevision = event.draftRevision;
+                // Сигнал не подтверждает загрузку состояния. Для восстановления передаётся
+                // курсор исходного предметного чтения, а не последнего полученного события.
                 received(event);
             }
             if (!signal.aborted) await abortableDelay(RECONNECT_DELAY_MILLIS, signal);
@@ -103,7 +104,7 @@ export async function* parseDraftEventStream(
 
 const parseEventBlock = (block: string): DraftInvalidationEvent | null => {
     const lines = block.split('\n');
-    if (!lines.some((line) => line === 'event: draft-invalidated')) return null;
+    if (!lines.some((line) => line === 'event: draft-invalidated' || line === 'event: draft-reconciled')) return null;
     const data = lines
         .filter((line) => line.startsWith('data:'))
         .map((line) => line.slice(5).trimStart())
@@ -114,16 +115,14 @@ const parseEventBlock = (block: string): DraftInvalidationEvent | null => {
         if (
             typeof value.designSystemId !== 'string' ||
             typeof value.draftId !== 'string' ||
-            typeof value.draftRevision !== 'number' ||
+            (typeof value.eventId !== 'string' && typeof value.draftRevision !== 'number') ||
             typeof value.actorId !== 'string' ||
             typeof value.changedAt !== 'string'
         ) {
             return null;
         }
         const wireScopes = Array.isArray(value.scopes) ? value.scopes : [];
-        const scopes = wireScopes.filter(
-            (scope): scope is DraftInvalidationScope => invalidationScopes.has(scope),
-        );
+        const scopes = wireScopes.filter((scope): scope is DraftInvalidationScope => invalidationScopes.has(scope));
         return {
             ...value,
             clientId: typeof value.clientId === 'string' ? value.clientId : null,

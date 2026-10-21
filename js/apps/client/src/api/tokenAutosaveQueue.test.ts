@@ -16,6 +16,54 @@ describe('TokenAutosaveQueue', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
+    it('stops pending sends and retries when disposed', async () => {
+        const send = vi.fn().mockRejectedValue(new Error('offline'));
+        const confirmed = vi.fn();
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed,
+            retryable: () => true,
+            statusChanged: () => undefined,
+        });
+        queue.enqueue(operation('first', '#111'), true);
+        await vi.advanceTimersByTimeAsync(0);
+        queue.dispose();
+        queue.enqueue(operation('second', '#222'), true);
+        queue.flushAll();
+        queue.retryFailed();
+        await vi.runAllTimersAsync();
+        expect(send).toHaveBeenCalledOnce();
+        expect(confirmed).not.toHaveBeenCalled();
+    });
+
+    it('ignores a late success belonging to a disposed session', async () => {
+        let finish!: (value: string) => void;
+        const send = vi.fn(
+            () =>
+                new Promise<string>((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        const confirmed = vi.fn();
+        const statusChanged = vi.fn();
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed,
+            retryable: () => true,
+            statusChanged,
+        });
+        queue.enqueue(operation('first', '#111'), true);
+        await vi.advanceTimersByTimeAsync(0);
+        queue.enqueue(operation('second', '#222'));
+        queue.dispose();
+        statusChanged.mockClear();
+        finish('ok');
+        await vi.runAllTimersAsync();
+        expect(send).toHaveBeenCalledOnce();
+        expect(confirmed).not.toHaveBeenCalled();
+        expect(statusChanged).not.toHaveBeenCalled();
+    });
+
     it('does not lose a newer change when an older request completes', async () => {
         let finishFirst: ((value: string) => void) | undefined;
         const send = vi

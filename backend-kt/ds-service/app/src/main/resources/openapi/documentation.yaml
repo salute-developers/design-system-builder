@@ -7015,8 +7015,13 @@ paths:
       responses:
         '200':
           description: >-
-            Stream of active draft invalidations. Each draft-invalidated event contains the draft cursor and
-            unique scopes theme-tokens, theme-metadata, component-configurations, design-system or all.
+            Stream of active draft invalidations. A draft-invalidated event contains a UUID eventId,
+            designSystemId, draftId, actorId, optional clientId, changedAt and unique scopes
+            theme-tokens, theme-metadata, component-configurations, design-system or all.
+            Live events do not carry draftRevision and must not be numerically ordered.
+            A draft-reconciled event additionally contains the current numeric draftRevision and scope all;
+            it requires a full refresh after reconnect, draft replacement or notification buffer overflow.
+            Reconnect with the cursor of the last completed read, not the last received event.
           content:
             text/event-stream:
               schema:

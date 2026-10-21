@@ -16,7 +16,8 @@ class PostgresTransactionFailureMapper : TransactionFailureMapper {
         return when {
             "23505" in sqlStates && (
                 "tenants_design_system_id_name_ci_unique" in messages ||
-                    "tenant_revisions_version_name_ci_unique" in messages
+                    "tenant_revisions_version_name_ci_unique" in messages ||
+                    "tenant_resolved_name_unique" in messages
                 ) ->
                 DsFailure.Conflict("TENANT_NAME_CONFLICT", transactionFailure = true)
             "23505" in sqlStates -> DsFailure.Conflict("constraint_conflict", transactionFailure = true)

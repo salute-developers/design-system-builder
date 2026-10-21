@@ -10,7 +10,7 @@ data class DraftInvalidation(
     /** Активный черновик после изменения. */
     val draftId: UUID,
     /** Общая редакция активного черновика после изменения. */
-    val draftRevision: Long,
+    val draftRevision: Long?,
     /** Автор подтверждённой транзакции. */
     val actorId: String,
     /** Вкладка, отправившая изменение, если запрос пришёл из редактора. */
@@ -19,4 +19,6 @@ data class DraftInvalidation(
     val changedAt: Instant,
     /** Объединённые области данных, изменённые одной транзакцией. */
     val scopes: Set<DraftInvalidationScope>,
+    /** Идентичность события, не задающая порядок фиксации транзакций. */
+    val eventId: UUID? = null,
 )

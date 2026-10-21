@@ -26,6 +26,7 @@ import { loadThemeEditor } from './themeEditorRepository';
 import { tokenRepository } from './tokenRepository';
 import { componentRepository } from './componentRepository';
 import { versionJournalRepository } from './versionJournalRepository';
+import type { PendingComponentMutation } from './editorContracts';
 
 import { AndroidGradient, GradientToken, IOSGradient, Theme, WebGradient } from '../controllers';
 import { getMenuItems } from '../utils';
@@ -316,6 +317,15 @@ describe('Editor repositories', () => {
         }));
         let active = 0;
         let maximum = 0;
+        post.mockResolvedValue({
+            data: {
+                components: components.map((component) => ({
+                    componentName: component.name,
+                    styleName: 'default',
+                    config: { invariants: {}, defaults: [], variations: [] },
+                })),
+            },
+        });
         const detail = async (data: unknown[]) => {
             active += 1;
             maximum = Math.max(maximum, active);
@@ -344,6 +354,18 @@ describe('Editor repositories', () => {
 
         expect(result).toHaveLength(24);
         expect(maximum).toBeLessThanOrEqual(4);
+    });
+
+    it('does not load per-component metadata for links with no exported configuration', async () => {
+        get.mockImplementation(async (url: string) => {
+            if (url.endsWith('/design-system-components'))
+                return { data: [{ componentId: 'empty', designSystemId: 'ds-1' }] };
+            if (url.endsWith('/components')) return { data: [{ id: 'empty', name: 'Empty', platform: 'web' }] };
+            if (url.endsWith('/appearances')) return { data: [] };
+            throw new Error(`Unnecessary GET ${url}`);
+        });
+        expect(await componentRepository.loadComponentData(context)).toEqual([]);
+        expect(get).toHaveBeenCalledTimes(3);
     });
 
     it('loads component configurations only through ds-service versioned endpoints', async () => {
@@ -742,6 +764,184 @@ describe('Editor repositories', () => {
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();
+    });
+
+    it('replays the original axis-link body after partial success and recovery', async () => {
+        const links: unknown[] = [];
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [{ id: 'axis', appearanceId: 'appearance', variationId: 'variation' }],
+                });
+            if (url.endsWith('/appearance-variation-values')) return Promise.resolve({ data: [...links] });
+            return Promise.resolve({ data: [] });
+        });
+        post.mockImplementation(async (url: string, body: unknown) => {
+            if (url.endsWith('/styles'))
+                return { data: { id: `${(body as { name: string }).name}-server` }, headers: {} };
+            links.push(body);
+            return { data: { id: `link-${(body as { styleId: string }).styleId}`, ...(body as object) }, headers: {} };
+        });
+        patch.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ data: {}, headers: {} });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [],
+            invariantProps: [],
+            variations: [{ id: 'variation', styles: [] }],
+        };
+        const mutation: PendingComponentMutation = {
+            componentName: 'Button',
+            before,
+            idempotencyKeys: {},
+            after: {
+                ...before,
+                defaultVariations: [{ variationID: 'variation', styleID: 'local-style' }],
+                variations: [
+                    {
+                        id: 'variation',
+                        styles: [
+                            { id: 'local-style', name: 'm', intersections: null, props: [] },
+                            { id: 'local-style-2', name: 'l', intersections: null, props: [] },
+                        ],
+                    },
+                ],
+            },
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+        await expect(componentRepository.saveComponentMutation(context, meta, mutation, {})).rejects.toThrow('offline');
+        const recovered: PendingComponentMutation = JSON.parse(JSON.stringify(mutation));
+        await componentRepository.saveComponentMutation(context, meta, recovered, {});
+        const requests = post.mock.calls.filter(([url]) => String(url).endsWith('/appearance-variation-values'));
+        expect(requests).toHaveLength(4);
+        expect(requests[0][1]).toEqual({ appearanceVariationId: 'axis', styleId: 'm-server', position: 0 });
+        expect(requests[1][1]).toEqual({ appearanceVariationId: 'axis', styleId: 'l-server', position: 1 });
+        expect(requests[2][1]).toEqual(requests[0][1]);
+        expect(requests[2][2]).toEqual(requests[0][2]);
+        expect(requests[3][1]).toEqual(requests[1][1]);
+    });
+
+    it('uses recovered server style IDs across creation, editing, property removal and style removal', async () => {
+        let links: Array<{ id: string; appearanceVariationId: string; styleId: string; position: number }> = [];
+        let values: Array<{ id: string; propertyId: string; styleId: string; stateSetId: string; value: string }> = [];
+        get.mockImplementation(async (url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return { data: [{ id: 'axis', appearanceId: 'appearance', variationId: 'variation' }] };
+            if (url.endsWith('/appearance-variation-values')) return { data: links };
+            if (url.includes('/variation-property-values/by-appearance/')) return { data: values };
+            if (url.endsWith('/state-sets')) return { data: [{ id: 'empty-set', stateIds: [] }] };
+            return { data: [] };
+        });
+        post.mockImplementation(async (url: string, body: Record<string, unknown>) => {
+            if (url.endsWith('/styles')) return { data: { id: 'server-style' }, headers: {} };
+            if (url.endsWith('/appearance-variation-values')) {
+                links = [{ id: 'link', ...body } as (typeof links)[number]];
+                return { data: links[0], headers: {} };
+            }
+            if (url.endsWith('/variation-property-values')) {
+                values = [{ id: 'property-value', ...body } as (typeof values)[number]];
+                return { data: values[0], headers: {} };
+            }
+            throw new Error(`Unexpected POST ${url}`);
+        });
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        remove.mockImplementation(async (url: string) => {
+            if (url.endsWith('/property-value')) values = [];
+            if (url.endsWith('/link')) links = [];
+            return { data: {}, headers: {} };
+        });
+        const before: PendingComponentMutation['before'] = {
+            defaultVariations: [],
+            invariantProps: [],
+            variations: [{ id: 'variation', styles: [] }],
+        };
+        const after: PendingComponentMutation['after'] = {
+            ...before,
+            defaultVariations: [{ variationID: 'variation', styleID: 'local-style' }],
+            variations: [
+                {
+                    id: 'variation',
+                    styles: [
+                        { id: 'local-style', name: 'm', intersections: null, props: [{ id: 'width', value: 40 }] },
+                    ],
+                },
+            ],
+        };
+        const meta = {
+            name: 'Button',
+            description: '',
+            serverBinding: { componentId: 'component', appearanceId: 'appearance' },
+            sources: { api: [], variations: [], configs: [] },
+        };
+        const created: PendingComponentMutation = { componentName: 'Button', before, after, idempotencyKeys: {} };
+        const persistedAliases: Record<string, string>[] = [];
+        await componentRepository.saveComponentMutation(context, meta, created, {}, () => {
+            persistedAliases.push(structuredClone(created.styleAliases ?? {}));
+        });
+        expect(persistedAliases).toContainEqual({ 'local-style': 'server-style' });
+        const recovered: PendingComponentMutation = JSON.parse(JSON.stringify(created));
+        const edited = structuredClone(after);
+        edited.variations[0].styles![0].props![0].value = 48;
+        const serverBefore = structuredClone(after);
+        serverBefore.variations[0].styles![0].id = 'server-style';
+        serverBefore.defaultVariations[0].styleID = 'server-style';
+        await componentRepository.saveComponentMutation(
+            context,
+            meta,
+            {
+                componentName: 'Button',
+                before: serverBefore,
+                after: edited,
+                idempotencyKeys: {},
+                styleAliases: recovered.styleAliases,
+            },
+            {},
+        );
+        expect(patch).toHaveBeenCalledWith(
+            expect.stringMatching('/variation-property-values/property-value$'),
+            { tokenId: null, value: '48', adjustment: null },
+            expect.anything(),
+        );
+        const cleared = structuredClone(edited);
+        cleared.variations[0].styles![0].props = [];
+        await componentRepository.saveComponentMutation(
+            context,
+            meta,
+            {
+                componentName: 'Button',
+                before: edited,
+                after: cleared,
+                idempotencyKeys: {},
+                styleAliases: recovered.styleAliases,
+            },
+            {},
+        );
+        expect(remove).toHaveBeenCalledWith(
+            expect.stringMatching('/variation-property-values/property-value$'),
+            expect.anything(),
+        );
+        await componentRepository.saveComponentMutation(
+            context,
+            meta,
+            {
+                componentName: 'Button',
+                before: cleared,
+                after: before,
+                idempotencyKeys: {},
+                styleAliases: recovered.styleAliases,
+            },
+            {},
+        );
+        expect(remove).toHaveBeenCalledWith(
+            expect.stringMatching('/appearance-variation-values/link$'),
+            expect.anything(),
+        );
+        expect(remove).toHaveBeenCalledWith(expect.stringMatching('/styles/server-style$'), expect.anything());
+        expect(remove.mock.calls.some(([url]) => String(url).endsWith('/local-style'))).toBe(false);
+        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/styles'))).toHaveLength(1);
     });
 
     it('autosaves a component property and default through their subject endpoints', async () => {
