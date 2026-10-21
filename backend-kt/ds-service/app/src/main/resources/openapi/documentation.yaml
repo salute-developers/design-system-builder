@@ -4736,6 +4736,723 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
+  /api/ds/appearances/{id}/editor-model:
+    get:
+      tags:
+        - Appearance editor
+      summary: Appearance model for the editor
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Model
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppearanceEditorModel'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  /api/ds/appearances/{id}/axes:
+    post:
+      tags:
+        - Appearance editor
+      summary: Add an axis with values
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAppearanceAxis'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorAxis'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/{id}/axes/{axisId}:
+    delete:
+      tags:
+        - Appearance editor
+      summary: Remove an axis with dependent values
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: axisId
+          in: path
+        - schema:
+            type: boolean
+          required: false
+          name: confirmCascade
+          in: query
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      responses:
+        '200':
+          description: Removed
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorRemoval'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:delete
+  /api/ds/appearances/{id}/axis-order:
+    post:
+      tags:
+        - Appearance editor
+      summary: Set the order of axes
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderAppearanceAxes'
+      responses:
+        '200':
+          description: Ordered
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EditorAxis'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/{id}/axes/{axisId}/values:
+    post:
+      tags:
+        - Appearance editor
+      summary: Add an axis value
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: axisId
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddAppearanceAxisValue'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorAxisValue'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/{id}/axis-values/{valueId}:
+    delete:
+      tags:
+        - Appearance editor
+      summary: Remove an axis value with dependent values
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: valueId
+          in: path
+        - schema:
+            type: boolean
+          required: false
+          name: confirmCascade
+          in: query
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      responses:
+        '200':
+          description: Removed
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorRemoval'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:delete
+  /api/ds/appearances/{id}/axes/{axisId}/value-order:
+    put:
+      tags:
+        - Appearance editor
+      summary: Set the order of axis values
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: axisId
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderAppearanceAxisValues'
+      responses:
+        '200':
+          description: Ordered
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorAxis'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/{id}/property-values:
+    put:
+      tags:
+        - Appearance editor
+      summary: Set a property value for a scope and a state set
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetAppearancePropertyValue'
+      responses:
+        '200':
+          description: Value
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EditorPropertyValue'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+    delete:
+      tags:
+        - Appearance editor
+      summary: Remove a property value of a scope and a state set
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: propertyId
+          in: query
+        - schema:
+            type: string
+          required: false
+          name: styleIds
+          in: query
+          description: Comma-separated style ids of the scope; empty for the base of the configuration.
+        - schema:
+            type: string
+          required: false
+          name: states
+          in: query
+          description: Comma-separated state names of the state set.
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      responses:
+        '200':
+          description: Removed
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:delete
+  /api/ds/appearances/{id}/state-order:
+    put:
+      tags:
+        - Appearance editor
+      summary: Set the order of state values of a property
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderAppearanceStates'
+      responses:
+        '200':
+          description: Ordered
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EditorPropertyValue'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/new:
+    post:
+      tags:
+        - Appearance editor
+      summary: Create an empty configuration
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppearanceConfiguration'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appearance'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
+  /api/ds/appearances/{id}/duplicate:
+    post:
+      tags:
+        - Appearance editor
+      summary: Duplicate a configuration
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DuplicateAppearanceConfiguration'
+      responses:
+        '201':
+          description: Created
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appearance'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Rule violation, the operation is rejected with a stable code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:write
   /api/ds/appearance-variations:
     get:
       tags:
@@ -7538,6 +8255,8 @@ components:
         name:
           type: string
           nullable: true
+        isDefault:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -7551,6 +8270,7 @@ components:
         - designSystemId
         - componentId
         - name
+        - isDefault
         - createdAt
         - updatedAt
     Style:
@@ -7586,6 +8306,350 @@ components:
         - description
         - createdAt
         - updatedAt
+    EditorAxisValue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        styleId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        authoredId:
+          type: string
+          nullable: true
+        revision:
+          type: integer
+          nullable: true
+          format: int64
+      required:
+        - id
+        - styleId
+        - name
+        - displayName
+        - position
+        - authoredId
+        - revision
+    EditorAxis:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        variationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        isRoot:
+          type: boolean
+        isColorScheme:
+          type: boolean
+        locked:
+          type: boolean
+        defaultStyleId:
+          type: string
+          format: uuid
+          nullable: true
+        declaredType:
+          type: string
+          nullable: true
+        revision:
+          type: integer
+          nullable: true
+          format: int64
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/EditorAxisValue'
+      required:
+        - id
+        - variationId
+        - name
+        - displayName
+        - position
+        - isRoot
+        - isColorScheme
+        - locked
+        - defaultStyleId
+        - declaredType
+        - revision
+        - values
+    EditorStyleReference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        targetAppearanceId:
+          type: string
+          format: uuid
+        styleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        reference:
+          type: string
+      required:
+        - id
+        - targetAppearanceId
+        - styleIds
+        - reference
+    EditorPropertyValue:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum:
+            - invariant
+            - variation
+            - combination
+        propertyId:
+          type: string
+          format: uuid
+        propertyName:
+          type: string
+        styleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        states:
+          type: array
+          items:
+            type: string
+        stateSetId:
+          type: string
+          format: uuid
+        tokenId:
+          type: string
+          format: uuid
+          nullable: true
+        value:
+          type: string
+          nullable: true
+        alpha:
+          type: string
+          nullable: true
+        adjustment:
+          type: string
+          nullable: true
+        position:
+          type: integer
+        reference:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/EditorStyleReference'
+        revision:
+          type: integer
+          nullable: true
+          format: int64
+        tokenName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - kind
+        - propertyId
+        - propertyName
+        - styleIds
+        - states
+        - stateSetId
+        - tokenId
+        - value
+        - alpha
+        - adjustment
+        - position
+        - reference
+        - revision
+        - tokenName
+    AppearanceEditorModel:
+      type: object
+      properties:
+        appearance:
+          $ref: '#/components/schemas/Appearance'
+        revision:
+          type: integer
+          nullable: true
+          format: int64
+        axes:
+          type: array
+          items:
+            $ref: '#/components/schemas/EditorAxis'
+        propertyValues:
+          type: array
+          items:
+            $ref: '#/components/schemas/EditorPropertyValue'
+      required:
+        - appearance
+        - revision
+        - axes
+        - propertyValues
+    EditorRemoval:
+      type: object
+      properties:
+        removedDependents:
+          type: integer
+      required:
+        - removedDependents
+    AddAppearanceAxis:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        values:
+          type: array
+          items:
+            type: string
+        position:
+          type: integer
+          nullable: true
+        defaultValue:
+          type: string
+          nullable: true
+      required:
+        - name
+    AddAppearanceAxisValue:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        position:
+          type: integer
+          nullable: true
+      required:
+        - name
+    ReorderAppearanceAxes:
+      type: object
+      properties:
+        axisIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - axisIds
+    ReorderAppearanceAxisValues:
+      type: object
+      properties:
+        valueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - valueIds
+    StyleReferenceInput:
+      type: object
+      properties:
+        targetAppearanceId:
+          type: string
+          format: uuid
+        styleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+        - targetAppearanceId
+    SetAppearancePropertyValue:
+      type: object
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+        styleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        states:
+          type: array
+          items:
+            type: string
+        type:
+          type: string
+          nullable: true
+        tokenId:
+          type: string
+          format: uuid
+          nullable: true
+        value:
+          type: string
+          nullable: true
+        alpha:
+          type: string
+          nullable: true
+        adjustment:
+          type: string
+          nullable: true
+        reference:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/StyleReferenceInput'
+      required:
+        - propertyId
+    ReorderAppearanceStates:
+      type: object
+      properties:
+        propertyId:
+          type: string
+          format: uuid
+        styleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        states:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+      required:
+        - propertyId
+        - states
+    CreateAppearanceConfiguration:
+      type: object
+      properties:
+        designSystemId:
+          type: string
+          format: uuid
+        componentId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+          maxLength: 255
+      required:
+        - designSystemId
+        - componentId
+    DuplicateAppearanceConfiguration:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          maxLength: 255
     AppearanceVariation:
       type: object
       properties:
@@ -7611,6 +8675,11 @@ components:
         declaredType:
           type: string
           nullable: true
+        isRoot:
+          type: boolean
+        displayName:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -7627,6 +8696,8 @@ components:
         - defaultStyleId
         - isColorScheme
         - declaredType
+        - isRoot
+        - displayName
         - createdAt
         - updatedAt
     AppearanceVariationValue:
@@ -7648,6 +8719,9 @@ components:
         authoredId:
           type: string
           nullable: true
+        displayName:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -7662,6 +8736,7 @@ components:
         - styleId
         - position
         - authoredId
+        - displayName
         - createdAt
         - updatedAt
     Token:
@@ -8677,6 +9752,10 @@ components:
           type: string
           nullable: true
           maxLength: 255
+        displayName:
+          type: string
+          nullable: true
+          maxLength: 255
     CreateAppearanceVariationValue:
       type: object
       properties:
@@ -8702,6 +9781,10 @@ components:
         position:
           type: integer
         authoredId:
+          type: string
+          nullable: true
+          maxLength: 255
+        displayName:
           type: string
           nullable: true
           maxLength: 255

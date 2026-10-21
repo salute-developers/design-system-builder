@@ -15,4 +15,6 @@ data class UpdateAppearanceVariationRequest(
     val isRoot: Boolean? = null,
     /** Declared type carried by this contract. */
     val declaredType: String? = null,
+    /** Отображаемое имя оси в оформлении; `null` в теле сбрасывает его на имя каталога. */
+    val displayName: String? = null,
 )

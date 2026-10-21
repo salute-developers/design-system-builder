@@ -30,6 +30,7 @@ internal fun componentDraftChangeHandlers(): List<DraftChangeHandler> = listOf(
             AppearanceRevisionsTable.name,
             AppearanceRevisionsTable.rootVariationId,
             AppearanceRevisionsTable.colorSchemeVariationId,
+            AppearanceRevisionsTable.isDefault,
         ),
     ),
     componentHandler(
@@ -71,6 +72,7 @@ internal fun componentDraftChangeHandlers(): List<DraftChangeHandler> = listOf(
             AppearanceVariationRevisionsTable.position,
             AppearanceVariationRevisionsTable.defaultStyleId,
             AppearanceVariationRevisionsTable.declaredType,
+            AppearanceVariationRevisionsTable.displayName,
         ),
     ),
     componentHandler(
@@ -85,6 +87,7 @@ internal fun componentDraftChangeHandlers(): List<DraftChangeHandler> = listOf(
             AppearanceVariationValueRevisionsTable.styleId,
             AppearanceVariationValueRevisionsTable.position,
             AppearanceVariationValueRevisionsTable.authoredId,
+            AppearanceVariationValueRevisionsTable.displayName,
         ),
     ),
     componentHandler(

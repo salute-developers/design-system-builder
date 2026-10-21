@@ -21,6 +21,8 @@ data class AppearanceVariation(
     val isRoot: Boolean,
     /** Declared type carried by this contract. */
     val declaredType: String?,
+    /** Отображаемое имя оси в этом оформлении; `null`, если действует имя вариации каталога. */
+    val displayName: String?,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

@@ -29,6 +29,7 @@ class CreateAppearanceUseCase(
         Appearance::id,
         validateCreate = {
             val normalizedName = command.name?.trim()?.lowercase()
+            uniqueKeys.lock(command.designSystemId, "appearance-default", command.componentId.toString())
             uniqueKeys.lock(
                 command.designSystemId,
                 "appearance",

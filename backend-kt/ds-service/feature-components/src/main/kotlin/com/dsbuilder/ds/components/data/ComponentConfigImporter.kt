@@ -67,10 +67,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 it[designSystemId] = ds
                 it[StableAppearancesTable.componentId] = componentId
             }.single()[StableAppearancesTable.id]
+            val first = isFirstAppearanceOfComponent(ds, componentId, id)
             AppearanceRevisionsTable.replaceRevision(AppearanceRevisionsTable.entityId, id, ds) { statement ->
                 statement[name] = entry.styleName
                 statement[rootVariationId] = null
                 statement[colorSchemeVariationId] = null
+                statement[isDefault] = first
             }
             id
         }
@@ -83,9 +85,10 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         )
         val before = old?.let { builder.build(descriptor, true, linkedSetOf()) }
         context.appearances += appearanceId
-        val axes = upsertAxes(componentId, entry.config)
-        val styles = upsertStyles(ds, entry.config, axes)
-        declareAxes(appearanceId, entry.config, axes, styles, context)
+        val names = if (old != null) EffectiveNameSnapshot.capture(appearanceId) else EffectiveNameSnapshot.EMPTY
+        val axes = upsertAxes(componentId, entry.config, names)
+        val styles = upsertStyles(ds, entry.config, axes, names)
+        declareAxes(appearanceId, entry.config, axes, styles, names, context)
         val properties = properties(componentId, entry, context)
         writeInvariants(ds, componentId, appearanceId, entry.config, properties, context)
         writeVariations(appearanceId, entry.config, axes, styles, properties, context)
@@ -325,9 +328,13 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
-    private fun upsertAxes(component: UUID, config: ComponentConfig) = axes(config).associate { (key, name) ->
+    private fun upsertAxes(
+        component: UUID,
+        config: ComponentConfig,
+        names: EffectiveNameSnapshot,
+    ) = axes(config).associate { (key, name) ->
         key to (
-            VariationsTable.selectAll().where {
+            names.axis(name)?.variationId ?: VariationsTable.selectAll().where {
                 (VariationsTable.componentId eq component) and (VariationsTable.name eq name)
             }.singleOrNull()?.get(VariationsTable.id) ?: VariationsTable.insertReturning {
                 it[componentId] = component
@@ -337,11 +344,16 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             )
     }
 
-    private fun upsertStyles(ds: UUID, config: ComponentConfig, axes: Map<String, UUID>) =
+    private fun upsertStyles(
+        ds: UUID,
+        config: ComponentConfig,
+        axes: Map<String, UUID>,
+        names: EffectiveNameSnapshot,
+    ) =
         axisValues(config).associate { (axis, value) ->
             val variation = axes.getValue(axis)
             styleKey(axis, value) to (
-                ComponentStylesTable.selectAll().where {
+                names.value(variation, value)?.styleId ?: ComponentStylesTable.selectAll().where {
                     (ComponentStylesTable.designSystemId eq ds) and
                         (ComponentStylesTable.variationId eq variation) and (ComponentStylesTable.name eq value)
                 }.singleOrNull()?.get(ComponentStylesTable.id) ?: run {
@@ -363,11 +375,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         config: ComponentConfig,
         axes: Map<String, UUID>,
         styles: Map<String, UUID>,
+        names: EffectiveNameSnapshot,
         context: ComponentConfigImportContext,
     ) {
         val values = axisValues(config).groupBy({ it.first }, { it.second })
         val defaults = config.defaults.associate { it.id to it.value.text() }
-        axes(config).forEachIndexed { position, (axisId, _) ->
+        axes(config).forEachIndexed { position, (axisId, axisName) ->
             val declared = config.variations.firstOrNull { it.id == axisId }
             val existing = StableAppearanceVariationsTable.selectAll().where {
                 (StableAppearanceVariationsTable.appearanceId eq id) and
@@ -391,6 +404,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 statement[AppearanceVariationRevisionsTable.position] = position
                 statement[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
                 statement[declaredType] = declared?.declaredType
+                statement[AppearanceVariationRevisionsTable.displayName] =
+                    names.axis(axisName)?.takeIf { it.variationId == axes.getValue(axisId) }?.displayName
             }
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
             ordered.distinct().forEachIndexed { valuePosition, value ->
@@ -415,6 +430,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                     statement[authoredId] = declared?.values?.firstOrNull {
                         it.name == value && it.targets.isNullOrEmpty()
                     }?.authoredId
+                    statement[AppearanceVariationValueRevisionsTable.displayName] =
+                        names.value(axes.getValue(axisId), value)?.displayName
                 }
             }
         }
@@ -742,7 +759,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         source: ComponentStyleSource,
         context: ComponentConfigImportContext,
     ) {
-        if (property.type == componentStyle && value.states.isEmpty() && value.value != null) {
+        if (property.type == componentStyle && value.value != null) {
             context.pendingReferences += PendingComponentStyleReference(value.value, source)
         }
     }

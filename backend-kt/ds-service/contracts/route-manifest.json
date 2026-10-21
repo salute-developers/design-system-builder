@@ -302,6 +302,26 @@
       ]
     },
     {
+      "name": "appearance-editor",
+      "router": "src/routes/api/appearance-editor.ts",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        ["GET", "/appearances/{id}/editor-model", null, "AppearanceEditorModel", 200, "components:variations:read", null],
+        ["POST", "/appearances/{id}/axes", "AddAppearanceAxis", "EditorAxis", 201, "components:variations:write", null],
+        ["DELETE", "/appearances/{id}/axes/{axisId}", null, "EditorRemoval", 200, "components:variations:delete", null],
+        ["POST", "/appearances/{id}/axis-order", "ReorderAppearanceAxes", "EditorAxis[]", 200, "components:variations:write", null],
+        ["POST", "/appearances/{id}/axes/{axisId}/values", "AddAppearanceAxisValue", "EditorAxisValue", 201, "components:variations:write", null],
+        ["DELETE", "/appearances/{id}/axis-values/{valueId}", null, "EditorRemoval", 200, "components:variations:delete", null],
+        ["PUT", "/appearances/{id}/axes/{axisId}/value-order", "ReorderAppearanceAxisValues", "EditorAxis", 200, "components:variations:write", null],
+        ["PUT", "/appearances/{id}/property-values", "SetAppearancePropertyValue", "EditorPropertyValue", 200, "components:variations:write", null],
+        ["DELETE", "/appearances/{id}/property-values", null, "OkResponse", 200, "components:variations:delete", null],
+        ["PUT", "/appearances/{id}/state-order", "ReorderAppearanceStates", "EditorPropertyValue[]", 200, "components:variations:write", null],
+        ["POST", "/appearances/new", "CreateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null],
+        ["POST", "/appearances/{id}/duplicate", "DuplicateAppearanceConfiguration", "Appearance", 201, "components:variations:write", null]
+      ]
+    },
+    {
       "name": "appearance-variations",
       "router": "src/routes/api/appearance-variations.ts",
       "included": true,

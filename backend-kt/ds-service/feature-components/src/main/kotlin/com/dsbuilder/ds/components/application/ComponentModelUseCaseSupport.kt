@@ -43,6 +43,19 @@ internal suspend fun <T> modelFindList(
     }
 }
 
+/** Превращает нарушение предметного правила редактора в отказ `422`; транзакция откатывается по отказу. */
+internal suspend fun <T> guardEditorRules(block: suspend () -> DsResult<T>): DsResult<T> = try {
+    block()
+} catch (violation: EditorRuleViolationException) {
+    DsResult.Failure(
+        if (violation.conflict) {
+            DsFailure.Conflict(violation.code, message = violation.message)
+        } else {
+            DsFailure.Unprocessable(violation.code, violation.message.orEmpty())
+        },
+    )
+}
+
 internal suspend fun <T : Any> modelMutate(
     policy: DsAccessPolicy,
     transactions: TransactionRunner,
@@ -50,7 +63,9 @@ internal suspend fun <T : Any> modelMutate(
     permission: String = ProjectScope.COMPONENT_VARIATIONS_WRITE,
     block: suspend () -> T?,
 ): DsResult<T> = policy.read(context, permission) {
-    transactions.required(context) { block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound) }
+    transactions.required(context) {
+        guardEditorRules { block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound) }
+    }
 }
 
 internal suspend fun <T : Any> modelCreate(
@@ -67,16 +82,18 @@ internal suspend fun <T : Any> modelCreate(
     validateCreate: suspend () -> DsFailure? = { null },
 ): DsResult<T> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
     transactions.required(context) {
-        IdempotentCreateExecutor(repeatedRequests).execute(
-            context = context,
-            key = idempotencyKey,
-            operation = operation,
-            requestBody = requestBody,
-            find = find,
-            create = create,
-            id = id,
-            validateCreate = validateCreate,
-        )
+        guardEditorRules {
+            IdempotentCreateExecutor(repeatedRequests).execute(
+                context = context,
+                key = idempotencyKey,
+                operation = operation,
+                requestBody = requestBody,
+                find = find,
+                create = create,
+                id = id,
+                validateCreate = validateCreate,
+            )
+        }
     }
 }
 
@@ -121,7 +138,7 @@ internal suspend fun <T : Any> modelMutateAxisRoles(
 ): DsResult<T> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_WRITE) {
     transactions.required(context) {
         try {
-            block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
+            guardEditorRules { block()?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound) }
         } catch (conflict: AxisRoleConflictException) {
             DsResult.Failure(DsFailure.Conflict(conflict.message.orEmpty()))
         }
@@ -135,7 +152,7 @@ internal suspend fun modelDelete(
     block: suspend () -> Boolean,
 ): DsResult<Unit> = policy.read(context, ProjectScope.COMPONENT_VARIATIONS_DELETE) {
     transactions.required(context) {
-        if (block()) DsResult.Success(Unit) else DsResult.Failure(DsFailure.NotFound)
+        guardEditorRules { if (block()) DsResult.Success(Unit) else DsResult.Failure(DsFailure.NotFound) }
     }
 }
 
