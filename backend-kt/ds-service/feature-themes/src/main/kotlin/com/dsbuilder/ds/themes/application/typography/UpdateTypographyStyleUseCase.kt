@@ -9,6 +9,7 @@ import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.typography.StoredTypographyToken
+import com.dsbuilder.ds.themes.domain.typography.TypographyOverrides
 import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformValues
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleBuilder
 import com.dsbuilder.ds.themes.domain.typography.TypographyTokenChange
@@ -40,6 +41,10 @@ class UpdateTypographyStyleUseCase(
         if (allowed is DsResult.Failure) return allowed
         if (command.isEmpty) {
             return DsResult.Failure(DsFailure.InvalidRequest("invalid_body", message = "Нет изменений стиля"))
+        }
+        if (command.platform == ThemeTokenPlatform.WEB || (command.platform != null && command.fontFamily != null)) {
+            val message = "Своё значение задаётся для iOS или Android, кроме семейства шрифта"
+            return DsResult.Failure(DsFailure.InvalidRequest("invalid_body", message = message))
         }
         if (command.baseRevisions.any { it.baseRevision < 0 }) {
             return DsResult.Failure(DsFailure.InvalidRequest("invalid_base_revision"))
@@ -78,7 +83,10 @@ class UpdateTypographyStyleUseCase(
         // Значения перечитываются под блокировкой: параллельная правка другого поля того же значения не теряется.
         val tokens = repository.lockStyle(designSystemId, tenantId, target.style)
         // Токен, которого касается правка, без значений в теме: ответ 200 без записи выглядел бы сохранённой правкой.
-        tokens.filter { it.values.isEmpty() && !change(it, target, command).isEmpty }
+        tokens.filter { token ->
+            !change(token, target, command).isEmpty &&
+                (token.values.isEmpty() || command.platform?.let { it !in token.values } == true)
+        }
             .takeIf { it.isNotEmpty() }
             ?.let { missing -> return DsResult.Failure(typographyValuesMissing(missing.map { it.name.toString() })) }
         val bases = command.baseRevisions.associate { (it.tokenId to it.platform) to it.baseRevision }
@@ -132,9 +140,19 @@ class UpdateTypographyStyleUseCase(
         val change = change(token, target, command)
         if (change.isEmpty) return null
         // Пишутся платформы, значения которых есть у токена: новая строка неполного значения не создаётся, а
-        // значение, которое после перевода не изменилось, не получает лишней редакции.
+        // значение, которое после перевода не изменилось, не получает лишней редакции. Своё значение платформы
+        // правка веба не перезаписывает; правка своего значения не трогает веб и другую платформу.
         val values: Map<ThemeTokenPlatform, JsonElement> = token.values
-            .mapValues { (platform, current) -> TypographyPlatformValues.write(current, platform, change) }
+            .mapNotNull { (platform, current) ->
+                val platformChange = when {
+                    command.platform != null -> change.takeIf { platform == command.platform }
+                    platform == ThemeTokenPlatform.WEB -> change
+                    else -> change.without(TypographyOverrides.differing(token.values, platform))
+                }
+                platformChange?.takeUnless { it.isEmpty }
+                    ?.let { platform to TypographyPlatformValues.write(current, platform, it) }
+            }
+            .toMap()
             .filter { (platform, value) -> value != token.values[platform] }
         return values.takeIf { it.isNotEmpty() }?.let { WrittenTypographyToken(token.id, token.name.toString(), it) }
     }

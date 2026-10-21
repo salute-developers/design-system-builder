@@ -11555,6 +11555,11 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TypographyComponentUsage"
+        overrides:
+          type: object
+          description: Own iOS and Android values; only fields that differ from web
+          additionalProperties:
+            $ref: "#/components/schemas/TypographyOverride"
       required:
         - screen
         - group
@@ -11565,6 +11570,20 @@ components:
         - fontFamily
         - variants
         - components
+        - overrides
+    TypographyOverride:
+      type: object
+      properties:
+        sizePx:
+          type: number
+        lineHeightPx:
+          type: number
+        letterSpacingEm:
+          type: number
+        weights:
+          type: object
+          additionalProperties:
+            type: integer
     TypographyVariant:
       type: object
       properties:
@@ -11658,6 +11677,14 @@ components:
             bold:
               type: integer
           additionalProperties: false
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+          description: >-
+            Own value of the platform. With it size, line height, letter spacing and weights are written only to
+            this platform; without it they go to web and to platforms whose field is not overridden
         fontFamily:
           type: string
           description: Name of a fontFamily token of the design system

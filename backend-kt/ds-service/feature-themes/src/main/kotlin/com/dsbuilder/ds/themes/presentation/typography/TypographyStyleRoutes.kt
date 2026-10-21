@@ -59,7 +59,9 @@ private fun UpdateTypographyStyleRequest.toCommand(): UpdateTypographyStyle? {
             baseRevision = item.baseRevision,
         )
     }
+    val target = platform?.let { ThemeTokenPlatform.fromWire(it) ?: return null }
     return UpdateTypographyStyle(
+        platform = target,
         size = size,
         lineHeight = lineHeight,
         letterSpacing = letterSpacing,

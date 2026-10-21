@@ -15,6 +15,8 @@ data class UpdateTypographyStyleRequest(
     val weights: Map<String, Int>? = null,
     /** Семейство шрифта: имя токена `fontFamily`. */
     val fontFamily: String? = null,
+    /** Платформа своего значения: `ios` или `android`; без неё правка относится к вебу. */
+    val platform: String? = null,
     /** Базовые редакции значений токенов стиля; приоритетнее заголовка `X-DS-Base-Revision`. */
     val baseRevisions: List<TypographyBaseRevisionDto>? = null,
 )
