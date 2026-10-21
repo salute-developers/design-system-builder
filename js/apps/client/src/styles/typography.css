@@ -2035,30 +2035,7 @@
     line-height: 1.35;
 }
 
-/* Состояние сохранения и баннеры — как у раздела «Цвета». */
-.typography-screen .ty-save-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    margin-left: auto;
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--builder-ui-text-paragraph);
-    white-space: nowrap;
-}
-
-.typography-screen .ty-save-label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.typography-screen .ty-save-status.is-error {
-    color: var(--builder-ui-negative, #ff6b5f);
-}
-
-.typography-screen .ty-save-status button,
+/* Баннеры — как у раздела «Цвета». */
 .typography-screen .ty-inline-action {
     padding: 2px 8px;
     border: 1px solid var(--builder-ui-outline-primary);

@@ -152,16 +152,17 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         },
     });
 
-    const saveLabel =
-        status.state === 'error' ? 'Не сохранено' : status.state === 'saved' ? 'Сохранено' : 'Сохранение…';
     const title = designSystem.getName() || 'Design System';
     const themeName = theme.getName?.() || '';
 
     const banners = (
         <>
             {status.state === 'error' && status.error && (
-                <div className="ty-banner" role="alert">
+                <div className="ty-banner" role="alert" data-testid="typography-save-error">
                     {status.error.retryable ? `${status.error.message}. Повторим автоматически.` : status.error.message}
+                    <button type="button" className="ty-inline-action" onClick={editor.retry}>
+                        Повторить
+                    </button>
                 </div>
             )}
             {readOnly && (
@@ -219,20 +220,6 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                 <header className="editor-toolbar">
                     <div className="preview-toolbar">
                         <div className="editor-header-controls">
-                            <span
-                                className={`ty-save-status ${status.state === 'error' ? 'is-error' : ''}`}
-                                role="status"
-                                data-testid="typography-save-status"
-                            >
-                                <span className="ty-save-label" title={saveLabel}>
-                                    {saveLabel}
-                                </span>
-                                {status.state === 'error' && (
-                                    <button type="button" onClick={editor.retry}>
-                                        Повторить
-                                    </button>
-                                )}
-                            </span>
                             <div className="editor-canvas-picker">
                                 <button
                                     type="button"

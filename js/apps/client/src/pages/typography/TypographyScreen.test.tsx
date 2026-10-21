@@ -139,7 +139,8 @@ describe('экран «Типографика»', () => {
         const size = inspector().getByLabelText('Size');
         fireEvent.change(size, { target: { value: '18' } });
         fireEvent.blur(size);
-        expect(screen.getByTestId('typography-save-status').textContent).toContain('Сохранение…');
+        // Состояние сохранения показывает индикатор черновика в шапке редактора, своего у экрана нет.
+        expect(screen.queryByTestId('typography-save-status')).toBeNull();
         expect(getDraftAutosaveStatus(context)).toBe('pending');
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
         const [, tokenId, change, values] = vi.mocked(repository.update).mock.calls[0];
@@ -147,8 +148,7 @@ describe('экран «Типографика»', () => {
         // Значения Body M трёх экранов: три начертания × три платформы на каждом.
         expect(values).toHaveLength(27);
         expect(values).toContainEqual({ tokenId: 'screen-s.body.m.bold', platform: 'android' });
-        await waitFor(() => expect(screen.getByTestId('typography-save-status').textContent).toContain('Сохранено'));
-        expect(getDraftAutosaveStatus(context)).toBe('saved');
+        await waitFor(() => expect(getDraftAutosaveStatus(context)).toBe('saved'));
         expect(setValue).toHaveBeenCalledWith('web', { fontSize: '1.125rem' });
         expect(rerender).toHaveBeenCalled();
         expect(tree().getByText('Body M').closest('button')?.textContent).toContain('18/20');
@@ -215,15 +215,14 @@ describe('экран «Типографика»', () => {
         const size = inspector().getByLabelText('Size') as HTMLInputElement;
         fireEvent.change(size, { target: { value: '18' } });
         fireEvent.blur(size);
-        const status = screen.getByTestId('typography-save-status');
-        await waitFor(() => expect(status.textContent).toContain('Не сохранено'));
+        await screen.findByTestId('typography-save-error');
         expect(size.value).toBe('18');
         expect(getDraftAutosaveStatus(context)).toBe('error');
         // Первый повтор — автоматически через секунду.
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(2), { timeout: 2_000 });
-        await waitFor(() => expect(status.textContent).toContain('Не сохранено'));
-        fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
-        await waitFor(() => expect(status.textContent).toContain('Сохранено'));
+        const banner = await screen.findByTestId('typography-save-error');
+        fireEvent.click(within(banner).getByRole('button', { name: 'Повторить' }));
+        await waitFor(() => expect(screen.queryByTestId('typography-save-error')).toBeNull());
         expect(repository.update).toHaveBeenCalledTimes(3);
         expect(getDraftAutosaveStatus(context)).toBe('saved');
     });
