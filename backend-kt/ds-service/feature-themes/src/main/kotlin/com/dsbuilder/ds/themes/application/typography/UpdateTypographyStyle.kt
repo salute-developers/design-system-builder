@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.application.typography
 
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.typography.TypographyVariant
 
 /** Изменение стиля типографии; `null` — часть не меняется. */
@@ -14,6 +15,11 @@ data class UpdateTypographyStyle(
     val weights: Map<TypographyVariant, Int> = emptyMap(),
     /** Семейство шрифта на всех экранах: имя токена `fontFamily`. */
     val fontFamily: String? = null,
+    /**
+     * Платформа своего значения: `ios` или `android`. С ней размеры и веса пишутся только в эту платформу; без неё —
+     * в веб и в платформы, у которых это поле не переопределено.
+     */
+    val platform: ThemeTokenPlatform? = null,
     /** Базовые редакции значений; значение без элемента сравнивается с базовой редакцией запроса. */
     val baseRevisions: List<TypographyBaseRevision> = emptyList(),
 ) {

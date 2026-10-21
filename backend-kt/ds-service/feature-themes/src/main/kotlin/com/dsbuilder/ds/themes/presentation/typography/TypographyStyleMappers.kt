@@ -43,6 +43,14 @@ private fun TypographyStyleView.toDto() = TypographyStyleDto(
         )
     },
     components = components.map { it.toDto() },
+    overrides = overrides.entries.associate { (platform, override) ->
+        platform.wireValue to TypographyOverrideDto(
+            sizePx = override.sizePx,
+            lineHeightPx = override.lineHeightPx,
+            letterSpacingEm = override.letterSpacingEm,
+            weights = override.weights.mapKeys { (variant, _) -> variant.wireValue },
+        )
+    },
 )
 
 private fun TypographyValueRevision.toDto() =

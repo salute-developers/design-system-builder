@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.themes.domain.typography
 
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
+
 /** Стиль типографии на экране темы: три начертания с общими размерами. */
 data class TypographyStyleView(
     /** Экран. */
@@ -18,4 +20,6 @@ data class TypographyStyleView(
     val variants: Map<TypographyVariant, TypographyVariantView>,
     /** Компоненты, которые используют стиль. */
     val components: List<TypographyComponentUsage>,
+    /** Свои значения iOS и Android: только поля, которые отличаются от веба. */
+    val overrides: Map<ThemeTokenPlatform, TypographyPlatformOverride> = emptyMap(),
 )

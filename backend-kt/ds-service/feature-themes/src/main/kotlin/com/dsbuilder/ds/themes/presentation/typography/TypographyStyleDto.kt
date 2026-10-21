@@ -23,4 +23,6 @@ data class TypographyStyleDto(
     val variants: Map<String, TypographyVariantDto>,
     /** Компоненты, которые используют стиль. */
     val components: List<TypographyComponentDto>,
+    /** Свои значения платформ: `ios`, `android` → поля, которые отличаются от веба. */
+    val overrides: Map<String, TypographyOverrideDto>,
 )

@@ -40,6 +40,7 @@ object TypographyStyleBuilder {
                 )
             },
             components = components,
+            overrides = TypographyOverrides.of(members),
         )
     }
 }

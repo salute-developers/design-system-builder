@@ -14,6 +14,7 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.typography.ComponentPropertyReference
 import com.dsbuilder.ds.themes.domain.typography.TypographyComponentUsage
 import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
+import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformOverride
 import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformValues
 import com.dsbuilder.ds.themes.domain.typography.TypographyScreen
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueRules
@@ -174,6 +175,44 @@ class TypographyStyleUseCaseTest {
     }
 
     @Test
+    fun `своё значение платформы пишется только в неё и не перезаписывается правкой веба`() = runBlocking {
+        val token = ids.getValue("screen-l.body.m.normal")
+        val editor = context("editor")
+        val ios = UpdateTypographyStyle(size = 17.0, weights = mapOf(TypographyVariant.BOLD to 700), platform = IOS)
+        val own = success(update.execute(editor, tenantA, token, ios))
+        assertEquals(16.0, own.style.sizePx)
+        assertEquals(
+            TypographyPlatformOverride(sizePx = 17.0, weights = mapOf(TypographyVariant.BOLD to 700)),
+            own.style.overrides[IOS],
+        )
+        assertEquals(null, own.style.overrides[ThemeTokenPlatform.ANDROID])
+        VARIANTS.forEach { variant ->
+            assertEquals("17", field(tenantA, "screen-l.body.m.$variant", IOS, "size"))
+            assertEquals("1rem", field(tenantA, "screen-l.body.m.$variant", ThemeTokenPlatform.WEB, "fontSize"))
+            assertEquals("16", field(tenantA, "screen-l.body.m.$variant", ThemeTokenPlatform.ANDROID, "textSize"))
+        }
+        assertEquals("bold", field(tenantA, "screen-m.body.m.bold", IOS, "weight"))
+        assertEquals("600", field(tenantA, "screen-m.body.m.bold", ThemeTokenPlatform.WEB, "fontWeight"))
+
+        // Правка веба меняет веб и Android, а своё значение iOS остаётся.
+        val web = success(update.execute(editor, tenantA, token, UpdateTypographyStyle(size = 18.0, lineHeight = 22.0)))
+        assertEquals(18.0, web.style.sizePx)
+        assertEquals("17", field(tenantA, "screen-l.body.m.normal", IOS, "size"))
+        assertEquals("22", field(tenantA, "screen-l.body.m.normal", IOS, "lineHeight"))
+        assertEquals("18", field(tenantA, "screen-l.body.m.normal", ThemeTokenPlatform.ANDROID, "textSize"))
+        assertEquals(17.0, web.style.overrides.getValue(IOS).sizePx)
+
+        // Значение, равное вебу, снимает своё: поле снова строится из веба.
+        val reset = success(update.execute(editor, tenantA, token, UpdateTypographyStyle(size = 18.0, platform = IOS)))
+        assertEquals(null, reset.style.overrides[IOS]?.sizePx)
+
+        val family = UpdateTypographyStyle(fontFamily = "display", platform = IOS)
+        assertEquals("invalid_body", invalid(update.execute(editor, tenantA, token, family)).code)
+        val webPlatform = UpdateTypographyStyle(size = 18.0, platform = ThemeTokenPlatform.WEB)
+        assertEquals("invalid_body", invalid(update.execute(editor, tenantA, token, webPlatform)).code)
+    }
+
+    @Test
     fun `отказы не меняют данные`() = runBlocking {
         val token = ids.getValue("screen-l.body.m.normal")
         val editor = context("editor")
@@ -245,6 +284,7 @@ class TypographyStyleUseCaseTest {
     )
 
     private companion object {
+        val IOS = ThemeTokenPlatform.IOS
         val SCREENS = listOf("screen-l", "screen-m", "screen-s")
         val VARIANTS = listOf("normal", "medium", "bold")
         val WEIGHTS = mapOf("normal" to 400, "medium" to 500, "bold" to 600)

@@ -45,6 +45,31 @@ object TypographyPlatformValues {
         else -> JsonObject(emptyMap())
     }
 
+    /** Поля значения платформы [platform] в единицах редактора. */
+    fun fields(platform: ThemeTokenPlatform, value: JsonElement?): TypographyPlatformFields {
+        val fields = objectOf(value)
+        return when (platform) {
+            ThemeTokenPlatform.WEB -> TypographyPlatformFields(
+                fields.length("fontSize"),
+                fields.length("lineHeight"),
+                fields.letterSpacing(),
+                fields.cssWeight(),
+            )
+            ThemeTokenPlatform.ANDROID -> TypographyPlatformFields(
+                fields.number("textSize"),
+                fields.number("lineHeight"),
+                fields.number("letterSpacing"),
+                fields.number("fontWeight")?.toInt(),
+            )
+            ThemeTokenPlatform.IOS -> TypographyPlatformFields(
+                fields.number("size"),
+                fields.number("lineHeight"),
+                fields.number("kerning"),
+                fields.iosWeight(),
+            )
+        }
+    }
+
     /**
      * Значения токена в единицах редактора. Источник — значение `web`; если его нет или поле не разобрано,
      * берётся `android`, затем `ios`.
