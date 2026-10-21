@@ -1051,7 +1051,7 @@ class VersionedPalettePostgresIntegrationTest {
         suspend fun publish(): UUID {
             val cursor = transaction(database) {
                 var revision = 0L
-                exec("SELECT revision FROM design_system_versions WHERE id = '$draft'") { rows ->
+                exec("SELECT resolved_draft_revision('$draft')") { rows ->
                     check(rows.next())
                     revision = rows.getLong(1)
                 }

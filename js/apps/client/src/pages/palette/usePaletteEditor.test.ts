@@ -7,6 +7,7 @@ vi.mock('../../palette/paletteSession', () => ({ paletteRepository: repository }
 import type { DesignSystem } from '../../controllers';
 import { PaletteOperationError, type ThemePalette } from '../../modules/palette';
 import { paletteRevision, usePaletteEditor } from './usePaletteEditor';
+import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 
 const palette = { tenantId: 't', editRevision: 3 } as ThemePalette;
 const designSystem = (editRevision?: number) => {
@@ -50,6 +51,46 @@ describe('paletteRevision', () => {
 });
 
 describe('usePaletteEditor.run', () => {
+    it('returns a committed detach immediately and defers token reload until recovery', async () => {
+        repository.source = 'api';
+        const { result, props } = renderEditor(designSystem(7));
+        setDraftAutosaveActivity(context, 'tokens', 'error');
+        try {
+            let value: unknown;
+            await act(async () => {
+                value = await result.current.run(
+                    async () => ({ editRevision: 8, value: 'removed' }),
+                    () => ({ title: 'Удалено' }),
+                    { tokensChanged: true },
+                );
+            });
+            expect(value).toBe('removed');
+            expect(props.setPalette).toHaveBeenCalledWith(palette);
+            expect(props.refreshTokens).not.toHaveBeenCalled();
+            expect(result.current.toast).toMatchObject({ tone: 'success' });
+            await act(async () => setDraftAutosaveActivity(context, 'tokens', 'saved'));
+            expect(props.refreshTokens).toHaveBeenCalledOnce();
+        } finally {
+            setDraftAutosaveActivity(context, 'tokens', null);
+        }
+    });
+    it('refreshes a successful palette mutation despite an unrelated failed token queue', async () => {
+        repository.source = 'api';
+        const { result, props } = renderEditor(designSystem(7));
+        setDraftAutosaveActivity(context, 'tokens', 'error');
+        try {
+            await act(() =>
+                result.current.run(
+                    async () => ({ editRevision: 8, value: 'saved' }),
+                    () => ({ title: 'Готово' }),
+                ),
+            );
+            expect(props.setPalette).toHaveBeenCalledWith(palette);
+            expect(result.current.toast).toMatchObject({ tone: 'success' });
+        } finally {
+            setDraftAutosaveActivity(context, 'tokens', null);
+        }
+    });
     it('api: операция идёт с ревизией темы, новая ревизия записывается в параметры темы', async () => {
         repository.source = 'api';
         const ds = designSystem(7);

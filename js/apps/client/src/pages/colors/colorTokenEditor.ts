@@ -1,9 +1,5 @@
 import { colorTokenActions, gradientTokenActions } from '../../actions';
-import {
-    getDraftAutosaveRevision,
-    setDraftAutosaveActivity,
-    waitForDraftAutosaveIdle,
-} from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { observeSubjectAddresses } from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
 import { getAdditionalColorValues } from '../../actions/colors';
@@ -242,7 +238,8 @@ export const refreshStructure = async (session: ColorTokenSession, sync = false)
     const read = { sync: sync || previous?.sync === true };
     structureReads.set(session, read);
     while (structureReads.get(session) === read && sessions.get(sessionKey(session.context)) === session) {
-        await waitForDraftAutosaveIdle(session.context, 30_000);
+        // Здесь перечитывается структура, не значения: чужая неуспешная очередь
+        // не должна превращать уже выполненную команду в ошибку обновления дерева.
         const revision = getDraftAutosaveRevision(session.context);
         // Сначала группы: их инициализация может разложить определения по группам.
         const groups = await groupRepository.list(session.context);

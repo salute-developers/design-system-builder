@@ -42,6 +42,7 @@ const platformItems: Record<Platform, SegmentButtonItem> = {
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
         metadataKey: string;
+        predecessor?: PendingComponentSave;
     };
 
 export const Components = () => {
@@ -81,13 +82,12 @@ export const Components = () => {
     );
     const platforms = (Object.keys(menus) as Platform[]).sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : 0));
     const routePlatform = componentName ? parseComponentRoute(componentName).platform : undefined;
-    const platform: Platform | undefined =
-        routePlatform && menus[routePlatform] ? routePlatform : platforms[0];
+    const platform: Platform | undefined = routePlatform && menus[routePlatform] ? routePlatform : platforms[0];
     const data = platform ? menus[platform] : undefined;
 
     const firstEnabledRoute = (target: Platform) => {
-        const item = menus[target]
-            ?.groups?.[0]?.data?.flatMap(({ items }) => items)
+        const item = menus[target]?.groups?.[0]?.data
+            ?.flatMap(({ items }) => items)
             .find((candidate) => !candidate.disabled);
 
         return item ? toComponentRoute(target, item.name) : undefined;
@@ -99,7 +99,6 @@ export const Components = () => {
         value: PendingComponentMutation['before'];
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
-
 
     // TODO: Маппинг имени компонента в индексы — временный мост к MenuOld, который работает
     // на индексах [tab, group, item]. Когда MenuOld заменят на новый Menu, выбирающий по имени,
@@ -134,7 +133,9 @@ export const Components = () => {
 
         if (componentName) {
             const { name } = parseComponentRoute(componentName);
-            const inMenu = groups?.some(({ items }) => items.some((item) => item.name.toLowerCase() === name.toLowerCase()));
+            const inMenu = groups?.some(({ items }) =>
+                items.some((item) => item.name.toLowerCase() === name.toLowerCase()),
+            );
 
             if (inMenu) {
                 return;
@@ -145,7 +146,9 @@ export const Components = () => {
 
         if (route) {
             // С параметром маршрута относительный путь считается от него, поэтому, как в onItemSelect, идём через `../components`.
-            navigate(componentNavigationTarget(componentName ? `../components/${route}` : route, location.search), { replace: true });
+            navigate(componentNavigationTarget(componentName ? `../components/${route}` : route, location.search), {
+                replace: true,
+            });
         }
     }, [platform, menus, componentName, navigate, location.search]);
 
@@ -185,17 +188,27 @@ export const Components = () => {
         let latestActivityStatus: AutosaveStatus = 'saved';
         const requestKey = `${storagePrefix}:${componentName}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
+        const aliasesKey = `${storagePrefix}:${componentName}:style-aliases`;
+        let styleAliases = readStoredJson<Record<string, string>>(aliasesKey, {});
         const readRevisions = () => readStoredJson<Record<string, number>>(revisionKey, {});
         const queue = new TokenAutosaveQueue<PendingComponentSave, Record<string, number>>({
             send: (operation) => {
-                const meta = designSystem.getComponentDataByName(operation.componentName);
-                const currentOperation = {
-                    ...operation,
-                    before:
-                        confirmedConfig.current?.componentName === operation.componentName
-                            ? confirmedConfig.current.value
-                            : operation.before,
+                operation.requestBodies ??= {};
+                operation.styleAliases = {
+                    ...operation.styleAliases,
+                    ...styleAliases,
+                    ...readStoredJson<Record<string, string>>(aliasesKey, {}),
                 };
+                const meta = designSystem.getComponentDataByName(operation.componentName);
+                if (!operation.prepared) {
+                    if (confirmedConfig.current?.componentName === operation.componentName)
+                        operation.before = confirmedConfig.current.value;
+                    delete operation.predecessor;
+                }
+                operation.prepared = true;
+                const currentOperation = operation;
+                const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
                 return repository.saveComponentMutation(
                     editorContext,
                     meta,
@@ -203,10 +216,14 @@ export const Components = () => {
                     readRevisions(),
                     (revisions) => {
                         persistStoredJson(revisionKey, revisions);
+                        styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
+                        persistStoredJson(aliasesKey, styleAliases);
                         const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                         if (!stored) return;
                         if (stored.generation === operation.generation) {
                             persistStoredJson(requestKey, currentOperation);
+                        } else if (stored.predecessor?.generation === operation.generation) {
+                            persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
                         }
                     },
                 );
@@ -220,6 +237,9 @@ export const Components = () => {
                 const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (stored?.generation === operation.generation) {
                     removeStoredValue(requestKey);
+                } else if (stored?.predecessor?.generation === operation.generation) {
+                    delete stored.predecessor;
+                    persistStoredJson(requestKey, stored);
                 }
                 reload();
             },
@@ -244,6 +264,7 @@ export const Components = () => {
             try {
                 const operation: PendingComponentSave = {
                     ...stored,
+                    prepared: stored.prepared ?? Object.keys(stored.idempotencyKeys).length > 0,
                     tokenKey: componentName,
                     operationKey: componentName,
                     generation: stored.generation ?? crypto.randomUUID(),
@@ -251,6 +272,15 @@ export const Components = () => {
                     metadataKey: requestKey,
                 };
                 persistStoredJson(requestKey, operation);
+                if (operation.predecessor) {
+                    queue.enqueue(
+                        {
+                            ...operation.predecessor,
+                            operationKey: `${componentName}:predecessor`,
+                        },
+                        true,
+                    );
+                }
                 queue.enqueue(operation, true);
             } catch {
                 removeStoredValue(requestKey);
@@ -278,7 +308,9 @@ export const Components = () => {
             componentName: config.getName(),
             before,
             after: config.getMeta(),
-            idempotencyKeys: previous?.idempotencyKeys ?? {},
+            idempotencyKeys: {},
+            requestBodies: {},
+            predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,
             tokenKey: config.getName(),
             operationKey: config.getName(),
             generation: crypto.randomUUID(),

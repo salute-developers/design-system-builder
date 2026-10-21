@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.lockDraftSubject
+import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystem
@@ -57,7 +58,7 @@ class ExposedDesignSystemRepository : DesignSystemRepository {
         if (row[VersionBoundariesTable.status] != DesignSystemVersionStatus.DRAFT) return@let null
         DesignSystemDraftCursor(
             draftId = row[VersionBoundariesTable.id],
-            draftRevision = row[VersionBoundariesTable.revision],
+            draftRevision = resolvedDraftRevision(row[VersionBoundariesTable.id]),
         )
     }
 
@@ -193,7 +194,11 @@ class ExposedDesignSystemRepository : DesignSystemRepository {
             createdAt = row[DesignSystemsTable.createdAt],
             updatedAt = row[DesignSystemRevisionTable.updatedAt],
             draftId = selectedDraft?.get(VersionBoundariesTable.id),
-            draftRevision = selectedDraft?.get(VersionBoundariesTable.revision),
+            draftRevision = if (TransactionManager.current().connection.readOnly) {
+                selectedDraft?.get(VersionBoundariesTable.id)?.let(::resolvedDraftRevision)
+            } else {
+                null
+            },
         )
     }
 

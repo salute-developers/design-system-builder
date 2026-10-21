@@ -126,10 +126,14 @@ export const componentRepository = {
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
         );
-        const components = catalog.data.filter(
-            (component) => linkedIds.has(component.id) && component.platform === platform,
-        );
         const entries = exported.flatMap((response) => response.data.components);
+        const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
+        const components = catalog.data.filter(
+            (component) =>
+                linkedIds.has(component.id) &&
+                component.platform === platform &&
+                configuredNames.has(normalizeComponentName(component.name)),
+        );
         const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
         return Promise.all(
             components.map(async (component) => {
@@ -298,8 +302,30 @@ export const componentRepository = {
                 onPendingUpdate?.({ ...revisions });
                 return value;
             })();
-        const styleIds = new Map<string, string>();
-        const changes = componentChanges(mutation.before, mutation.after);
+        const aliases = (mutation.styleAliases ??= {});
+        Object.entries(mutation.requestBodies ?? {}).forEach(([key, body]) => {
+            if (key.startsWith('axis-value:')) aliases[key.slice('axis-value:'.length)] ??= body.styleId;
+        });
+        const createdStyleIds = new Map<string, string>();
+        const actualStyleId = (id: string) => createdStyleIds.get(id) ?? aliases[id] ?? id;
+        const normalizeStyleIds = (config: PendingComponentMutation['before']) => ({
+            ...config,
+            defaultVariations: config.defaultVariations.map((item) => ({
+                ...item,
+                styleID: actualStyleId(item.styleID),
+            })),
+            variations: config.variations.map((variation) => ({
+                ...variation,
+                styles: variation.styles?.map((style) => ({ ...style, id: actualStyleId(style.id) })),
+            })),
+        });
+        // Идентичность сравнивается по серверному ID, но ключи подготовленного создания остаются локальными.
+        const originalStyleIds = new Map(
+            mutation.after.variations.flatMap(
+                (variation) => variation.styles?.map((style) => [actualStyleId(style.id), style.id] as const) ?? [],
+            ),
+        );
+        const changes = componentChanges(normalizeStyleIds(mutation.before), normalizeStyleIds(mutation.after));
 
         await applySequentially(
             changes.filter(
@@ -307,7 +333,12 @@ export const componentRepository = {
                     item.kind === 'property' && item.action === 'delete',
             ),
             async (change) => {
-                const existing = valueByKey.get(propertyKey(change));
+                const existing = valueByKey.get(
+                    propertyKey({
+                        ...change,
+                        styleId: change.styleId ? actualStyleId(change.styleId) : undefined,
+                    }),
+                );
                 if (!existing) return;
                 const entityType = change.styleId ? 'variation-property-value' : 'invariant-property-value';
                 const response = await http.delete(
@@ -324,6 +355,7 @@ export const componentRepository = {
                     item.kind === 'style' && item.action === 'create',
             ),
             async (change) => {
+                const originalStyleId = originalStyleIds.get(change.styleId) ?? change.styleId;
                 const created = await http.post<ComponentStyleDto>(
                     `${root}/styles`,
                     {
@@ -331,29 +363,33 @@ export const componentRepository = {
                         variationId: change.variationId,
                         name: change.name,
                     },
-                    { headers: entityHeaders('style', change.styleId, idempotency(`style:${change.styleId}`)) },
+                    { headers: entityHeaders('style', originalStyleId, idempotency(`style:${originalStyleId}`)) },
                 );
+                aliases[originalStyleId] = created.data.id;
+                createdStyleIds.set(change.styleId, created.data.id);
                 acceptMetadata(created.headers);
-                styleIds.set(change.styleId, created.data.id);
                 const axis = axisByVariation.get(change.variationId);
                 if (!axis) throw new Error('APPEARANCE_VARIATION_NOT_FOUND');
-                const linked = await http.post<AppearanceVariationValueDto>(
-                    `${root}/appearance-variation-values`,
-                    {
+                const operationKey = `axis-value:${originalStyleId}`;
+                const bodies = (mutation.requestBodies ??= {});
+                if (!bodies[operationKey]) {
+                    bodies[operationKey] = {
                         appearanceVariationId: axis.id,
                         styleId: created.data.id,
                         position: axisValues.data.filter((value) => value.appearanceVariationId === axis.id).length,
-                    },
+                    };
+                    onPendingUpdate?.({ ...revisions });
+                }
+                const linked = await http.post<AppearanceVariationValueDto>(
+                    `${root}/appearance-variation-values`,
+                    bodies[operationKey],
                     {
-                        headers: entityHeaders(
-                            'appearance-variation-value',
-                            change.styleId,
-                            idempotency(`axis-value:${change.styleId}`),
-                        ),
+                        headers: entityHeaders('appearance-variation-value', change.styleId, idempotency(operationKey)),
                     },
                 );
                 acceptMetadata(linked.headers);
                 axisValueByStyle.set(created.data.id, linked.data);
+                if (!axisValues.data.some(({ id }) => id === linked.data.id)) axisValues.data.push(linked.data);
             },
         );
 
@@ -364,7 +400,7 @@ export const componentRepository = {
                 if (!axis) throw new Error('APPEARANCE_VARIATION_NOT_FOUND');
                 const response = await http.patch(
                     `${root}/appearance-variations/${axis.id}`,
-                    { defaultStyleId: change.styleId ? (styleIds.get(change.styleId) ?? change.styleId) : null },
+                    { defaultStyleId: change.styleId ? actualStyleId(change.styleId) : null },
                     { headers: entityHeaders('appearance-variation', axis.id) },
                 );
                 acceptMetadata(response.headers);
@@ -391,8 +427,8 @@ export const componentRepository = {
                     item.kind === 'property' && item.action === 'upsert',
             ),
             async (change) => {
-                const actualStyleId = change.styleId ? (styleIds.get(change.styleId) ?? change.styleId) : undefined;
-                const actual = { ...change, styleId: actualStyleId };
+                const resolvedStyleId = change.styleId ? actualStyleId(change.styleId) : undefined;
+                const actual = { ...change, styleId: resolvedStyleId };
                 const existing = valueByKey.get(propertyKey(actual));
                 const rawValue = change.value == null ? null : String(change.value).replace(/^\[|\]$/g, '');
                 const tokenName = rawValue?.replace(/^(light|dark)\./, '') ?? '';
@@ -402,10 +438,10 @@ export const componentRepository = {
                     value: tokenId ? null : rawValue,
                     adjustment: change.adjustment == null ? null : String(change.adjustment),
                 };
-                const entityType = actualStyleId ? 'variation-property-value' : 'invariant-property-value';
+                const entityType = resolvedStyleId ? 'variation-property-value' : 'invariant-property-value';
                 if (existing) {
                     const response = await http.patch(
-                        `${root}/${actualStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
+                        `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
                         body,
                         { headers: entityHeaders(entityType, existing.id) },
                     );
@@ -413,11 +449,11 @@ export const componentRepository = {
                     return;
                 }
                 const stateSetId = await resolveStateSet(change.stateNames);
-                const createBody = actualStyleId
+                const createBody = resolvedStyleId
                     ? {
                           ...body,
                           propertyId: change.propertyId,
-                          styleId: actualStyleId,
+                          styleId: resolvedStyleId,
                           appearanceId: stableBinding.appearanceId,
                           stateSetId,
                       }
@@ -431,7 +467,7 @@ export const componentRepository = {
                       };
                 const operationKey = `property:${propertyKey(actual)}`;
                 const response = await http.post<PropertyValueDto>(
-                    `${root}/${actualStyleId ? 'variation' : 'invariant'}-property-values`,
+                    `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
                     createBody,
                     { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
                 );
@@ -445,15 +481,16 @@ export const componentRepository = {
                     item.kind === 'style' && item.action === 'delete',
             ),
             async (change) => {
-                const axisValue = axisValueByStyle.get(change.styleId);
+                const serverStyleId = actualStyleId(change.styleId);
+                const axisValue = axisValueByStyle.get(serverStyleId);
                 if (axisValue) {
                     const unlinked = await http.delete(`${root}/appearance-variation-values/${axisValue.id}`, {
                         headers: entityHeaders('appearance-variation-value', axisValue.id),
                     });
                     acceptMetadata(unlinked.headers);
                 }
-                const deleted = await http.delete(`${root}/styles/${change.styleId}`, {
-                    headers: entityHeaders('style', change.styleId),
+                const deleted = await http.delete(`${root}/styles/${serverStyleId}`, {
+                    headers: entityHeaders('style', serverStyleId),
                 });
                 acceptMetadata(deleted.headers);
             },

@@ -999,7 +999,6 @@ class DsServiceHttpPostgresIntegrationTest {
             client,
             postgres,
             designSystemId,
-            propertyId,
             componentId,
             appearanceId,
             stateId,
@@ -1016,7 +1015,6 @@ class DsServiceHttpPostgresIntegrationTest {
         client: HttpClient,
         postgres: IsolatedPostgresDatabase,
         designSystemId: String,
-        propertyId: String,
         componentId: String,
         appearanceId: String,
         stateId: String,
@@ -1038,10 +1036,17 @@ class DsServiceHttpPostgresIntegrationTest {
             trusted("project-b", "viewer")
         }
         assertEquals(HttpStatusCode.OK, impactBefore.status, impactBefore.bodyAsText())
+        // Дополнительное значение занимает другой логический слот, а не дублирует опубликованный.
+        val draftProperty = client.post("/api/ds/properties") {
+            trustedSystemAdmin()
+            jsonBody("""{"componentId":"$componentId","name":"foreignDraft","type":"value"}""")
+        }
+        assertEquals(HttpStatusCode.Created, draftProperty.status, draftProperty.bodyAsText())
+        val draftPropertyId = id(draftProperty.bodyAsText())
         val draftOnlyValue = client.post("/api/ds/invariant-property-values") {
             trusted("project-b", "editor")
             jsonBody(
-                """{"propertyId":"$propertyId","designSystemId":"$designSystemId",""" +
+                """{"propertyId":"$draftPropertyId","designSystemId":"$designSystemId",""" +
                     """"componentId":"$componentId","appearanceId":"$appearanceId",""" +
                     """"value":"draft-only","stateSetId":"$stateSetId"}""",
             )
@@ -1220,7 +1225,7 @@ class DsServiceHttpPostgresIntegrationTest {
     ): Pair<String, Long> =
         DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
             connection.prepareStatement(
-                "SELECT id::text, revision FROM design_system_versions " +
+                "SELECT id::text, resolved_draft_revision(id) FROM design_system_versions " +
                     "WHERE design_system_id = ?::uuid AND status = 'draft'",
             ).use { statement ->
                 statement.setString(1, designSystemId)

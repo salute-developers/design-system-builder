@@ -26,6 +26,9 @@ import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
 import java.time.Instant
 import java.util.UUID
 
@@ -75,6 +78,7 @@ fun Route.draftInvalidationRoutes(
                     call.respondTextWriter(contentType = EVENT_STREAM_CONTENT_TYPE) {
                         var lastDraftId = knownDraftId
                         var lastRevision = knownRevision
+                        val delivered = linkedSetOf<UUID>()
                         write("retry: $RETRY_MILLIS\n\n")
                         flush()
                         if (knownDraftId != activeCursor.draftId || knownRevision != activeCursor.draftRevision) {
@@ -82,10 +86,10 @@ fun Route.draftInvalidationRoutes(
                                 missedInvalidation(designSystemId, activeCursor.draftId, activeCursor.draftRevision)
                             writeEvent(json, missed)
                             lastDraftId = missed.draftId
-                            lastRevision = missed.draftRevision
+                            lastRevision = activeCursor.draftRevision
                         }
-                        withTimeoutOrNull(CONNECTION_MAX_MILLIS) {
-                            stream@ while (true) {
+                        withTimeoutOrNull(CONNECTION_MAX_MILLIS) stream@{
+                            while (true) {
                                 when (val signal = withTimeoutOrNull(HEARTBEAT_MILLIS) { signals.receive() }) {
                                     null -> {
                                         write(": heartbeat\n\n")
@@ -93,18 +97,36 @@ fun Route.draftInvalidationRoutes(
                                     }
                                     is DraftStreamSignal.Invalidated -> {
                                         val event = signal.event
-                                        val isNewer = event.draftId != lastDraftId || event.draftRevision > lastRevision
-                                        if (isNewer) {
-                                            val missedEvents = draftInvalidationGap(event, lastDraftId, lastRevision)
-                                            lastDraftId = event.draftId
-                                            lastRevision = event.draftRevision
-                                            val isOwnEvent = isOwnDraftInvalidation(
-                                                context.principal.actorId,
-                                                context.clientId,
-                                                event,
+                                        val eventId = event.eventId
+                                        if (eventId == null || event.draftId != lastDraftId) {
+                                            val current = when (
+                                                val result = getDraftCursor.execute(
+                                                    context,
+                                                    DesignSystemId(designSystemId),
+                                                )
+                                            ) {
+                                                is DsResult.Success -> result.value
+                                                is DsResult.Failure -> return@stream
+                                            }
+                                            writeEvent(
+                                                json,
+                                                missedInvalidation(
+                                                    designSystemId,
+                                                    current.draftId,
+                                                    current.draftRevision,
+                                                ),
                                             )
-                                            if (!isOwnEvent || missedEvents) {
-                                                writeEvent(json, event.withFullRefreshIf(missedEvents))
+                                            lastDraftId = current.draftId
+                                            lastRevision = current.draftRevision
+                                        } else if (delivered.add(eventId)) {
+                                            if (delivered.size > 512) delivered.remove(delivered.first())
+                                            if (!isOwnDraftInvalidation(
+                                                    context.principal.actorId,
+                                                    context.clientId,
+                                                    event,
+                                                )
+                                            ) {
+                                                writeEvent(json, event)
                                             }
                                         }
                                     }
@@ -117,7 +139,7 @@ fun Route.draftInvalidationRoutes(
                                             )
                                         ) {
                                             is DsResult.Success -> result.value
-                                            is DsResult.Failure -> break@stream
+                                            is DsResult.Failure -> return@stream
                                         }
                                         if (draftCursorChanged(
                                                 current.draftId,
@@ -133,7 +155,7 @@ fun Route.draftInvalidationRoutes(
                                             )
                                             writeEvent(json, missed)
                                             lastDraftId = missed.draftId
-                                            lastRevision = missed.draftRevision
+                                            lastRevision = current.draftRevision
                                         }
                                     }
                                 }
@@ -152,9 +174,9 @@ fun Route.draftInvalidationRoutes(
 
 @Serializable
 private data class DraftInvalidationResponse(
+    val eventId: String,
     val designSystemId: String,
     val draftId: String,
-    val draftRevision: Long,
     val actorId: String,
     val clientId: String?,
     val changedAt: String,
@@ -162,9 +184,9 @@ private data class DraftInvalidationResponse(
 ) {
     companion object {
         fun from(value: DraftInvalidation) = DraftInvalidationResponse(
+            eventId = (value.eventId ?: UUID.randomUUID()).toString(),
             designSystemId = value.designSystemId.toString(),
             draftId = value.draftId.toString(),
-            draftRevision = value.draftRevision,
             actorId = value.actorId,
             clientId = value.clientId,
             changedAt = value.changedAt.toString(),
@@ -174,13 +196,13 @@ private data class DraftInvalidationResponse(
 }
 
 private suspend fun java.io.Writer.writeEvent(json: Json, event: DraftInvalidation) {
-    write("event: draft-invalidated\n")
-    write("id: ${event.draftId}:${event.draftRevision}\n")
+    val dto = DraftInvalidationResponse.from(event)
+    val payload = json.encodeToJsonElement(DraftInvalidationResponse.serializer(), dto).jsonObject
+    val response = event.draftRevision?.let { JsonObject(payload + ("draftRevision" to JsonPrimitive(it))) } ?: payload
+    write("event: ${if (event.draftRevision == null) "draft-invalidated" else "draft-reconciled"}\n")
+    write("id: ${dto.eventId}\n")
     write(
-        "data: ${json.encodeToString(
-            DraftInvalidationResponse.serializer(),
-            DraftInvalidationResponse.from(event),
-        )}\n\n",
+        "data: ${json.encodeToString(JsonObject.serializer(), response)}\n\n",
     )
     flush()
 }
@@ -202,10 +224,7 @@ internal fun isOwnDraftInvalidation(
 ): Boolean = clientId != null && event.clientId == clientId && event.actorId == actorId
 
 internal fun draftInvalidationGap(event: DraftInvalidation, lastDraftId: UUID, lastRevision: Long): Boolean =
-    event.draftId != lastDraftId || event.draftRevision > lastRevision + 1
-
-private fun DraftInvalidation.withFullRefreshIf(required: Boolean): DraftInvalidation =
-    if (required) copy(scopes = setOf(DraftInvalidationScope.ALL)) else this
+    event.draftId != lastDraftId || (event.draftRevision?.let { it > lastRevision + 1 } ?: false)
 
 private sealed interface DraftStreamSignal {
     data class Invalidated(val event: DraftInvalidation) : DraftStreamSignal

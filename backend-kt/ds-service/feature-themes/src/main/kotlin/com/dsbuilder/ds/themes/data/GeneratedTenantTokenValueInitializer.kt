@@ -19,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -330,12 +331,13 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         val existing = ThemePaletteTable.selectAll().associateBy { row ->
             PaletteKey(row[ThemePaletteTable.type], row[ThemePaletteTable.shade], row[ThemePaletteTable.saturation])
         }
-        paletteDefinitions.filter { definition -> definition.key !in existing }.forEach { definition ->
-            ThemePaletteTable.insert { statement ->
-                statement[type] = definition.key.type
-                statement[shade] = definition.key.shade
-                statement[saturation] = definition.key.saturation
-                statement[value] = definition.value
+        paletteDefinitions.filter { definition -> definition.key !in existing }.chunked(250).forEach { batch ->
+            ThemePaletteTable.batchInsert(batch, shouldReturnGeneratedValues = false) { definition ->
+                this[ThemePaletteTable.id] = UUID.randomUUID()
+                this[ThemePaletteTable.type] = definition.key.type
+                this[ThemePaletteTable.shade] = definition.key.shade
+                this[ThemePaletteTable.saturation] = definition.key.saturation
+                this[ThemePaletteTable.value] = definition.value
             }
         }
     }

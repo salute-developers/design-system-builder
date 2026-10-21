@@ -121,17 +121,15 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         val paletteRows = paletteRows()
         if (tokenIds.isEmpty()) return 0
         val rows = currentThemeTokenValueRows(tenantIds = setOf(tenantId), tokenIds = tokenIds.toSet())
-        return rows.count { row ->
-            val reference = reference(row, paletteRows) ?: return@count false
-            val next = rewrite.rewrite(reference, resolveHex) ?: return@count false
-            writeThemeValueRevision(
-                row[ThemeTokenValuesTable.id],
-                row[ThemeTokenValuesTable.designSystemId],
-                null,
-                JsonArray(listOf(JsonPrimitive(next))),
-            )
-            true
+        val updates = rows.mapNotNull { row ->
+            val reference = reference(row, paletteRows) ?: return@mapNotNull null
+            val next = rewrite.rewrite(reference, resolveHex) ?: return@mapNotNull null
+            row[ThemeTokenValuesTable.id] to ThemeValuePayload(null, JsonArray(listOf(JsonPrimitive(next))))
+        }.toMap()
+        if (updates.isNotEmpty()) {
+            writeThemeValueRevisions(rows.first()[ThemeTokenValuesTable.designSystemId], updates)
         }
+        return updates.size
     }
 
     private fun colorTokens(designSystemId: UUID): List<PaletteTokenRef> = currentThemeTokenRows(designSystemId)

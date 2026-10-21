@@ -6,6 +6,7 @@ import type { DesignSystemVersionDto, DraftChangeDto, EditorContextKey } from '.
 import { versionJournalRepository as repository } from '../../api/versionJournalRepository';
 import { nextPatchVersion } from '../../api/versionNumbers';
 import { useVersionList } from '../../features/versionJournal/useVersionList';
+import { VirtualJournalRows } from '../../features/versionJournal/VirtualJournalRows';
 import type { AutosaveStatus } from '../../api/tokenAutosaveQueue';
 import { hasPersistedComponentMutation, waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
 import {
@@ -507,56 +508,62 @@ export const DesignSystemChangesPage = () => {
                                 <h2>
                                     {label} · {actions.length}
                                 </h2>
-                                {actions.map((action) => (
-                                    <ChangeRow key={action.key} $selected={selected?.key === action.key}>
-                                        <ItemButton
-                                            type="button"
-                                            $selected={selected?.key === action.key}
-                                            aria-pressed={selected?.key === action.key}
-                                            onClick={() => setSelectedKey(action.key)}
-                                        >
-                                            <span>
-                                                <strong>{action.title}</strong>
-                                                <small>
-                                                    {[
-                                                        [
-                                                            ...new Set(action.changedFields.map(({ label }) => label)),
-                                                        ].join(', '),
-                                                        action.platformLabel,
-                                                        action.groupLabel && `Группа: ${action.groupLabel}`,
-                                                    ]
-                                                        .filter(Boolean)
-                                                        .join(' · ')}
-                                                </small>
-                                            </span>
-                                            <ChangePreview action={action} />
-                                        </ItemButton>
-                                        {action.canRevert && (
-                                            <UndoButton
+                                <VirtualJournalRows items={actions}>
+                                    {(action) => (
+                                        <ChangeRow key={action.key} $selected={selected?.key === action.key}>
+                                            <ItemButton
                                                 type="button"
-                                                aria-label={`Отменить изменение: ${[action.title, action.revertPaths && action.changedFields[0]?.label, action.platformLabel].filter(Boolean).join(' · ')}`}
-                                                title="Отменить изменение"
-                                                disabled={Boolean(revertState.reverting) || revertState.refreshFailed}
-                                                onClick={() => void revertState.revert(action)}
+                                                $selected={selected?.key === action.key}
+                                                aria-pressed={selected?.key === action.key}
+                                                onClick={() => setSelectedKey(action.key)}
                                             >
-                                                <svg
-                                                    viewBox="0 0 24 24"
-                                                    width="16"
-                                                    height="16"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="1.5"
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    aria-hidden="true"
+                                                <span>
+                                                    <strong>{action.title}</strong>
+                                                    <small>
+                                                        {[
+                                                            [
+                                                                ...new Set(
+                                                                    action.changedFields.map(({ label }) => label),
+                                                                ),
+                                                            ].join(', '),
+                                                            action.platformLabel,
+                                                            action.groupLabel && `Группа: ${action.groupLabel}`,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                    </small>
+                                                </span>
+                                                <ChangePreview action={action} />
+                                            </ItemButton>
+                                            {action.canRevert && (
+                                                <UndoButton
+                                                    type="button"
+                                                    aria-label={`Отменить изменение: ${[action.title, action.revertPaths && action.changedFields[0]?.label, action.platformLabel].filter(Boolean).join(' · ')}`}
+                                                    title="Отменить изменение"
+                                                    disabled={
+                                                        Boolean(revertState.reverting) || revertState.refreshFailed
+                                                    }
+                                                    onClick={() => void revertState.revert(action)}
                                                 >
-                                                    <path d="M4.5 8.5A8 8 0 1 1 4 14" />
-                                                    <path d="M4.5 4v4.5H9" />
-                                                </svg>
-                                            </UndoButton>
-                                        )}
-                                    </ChangeRow>
-                                ))}
+                                                    <svg
+                                                        viewBox="0 0 24 24"
+                                                        width="16"
+                                                        height="16"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.5"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        aria-hidden="true"
+                                                    >
+                                                        <path d="M4.5 8.5A8 8 0 1 1 4 14" />
+                                                        <path d="M4.5 4v4.5H9" />
+                                                    </svg>
+                                                </UndoButton>
+                                            )}
+                                        </ChangeRow>
+                                    )}
+                                </VirtualJournalRows>
                             </ChangeGroup>
                         ))}
                 </CenterBody>
@@ -857,33 +864,35 @@ export const DesignSystemVersionsPage = () => {
                                             <h2>
                                                 {sectionLabels[section]} · {actions.length}
                                             </h2>
-                                            {actions.map((action) => (
-                                                <ItemButton
-                                                    type="button"
-                                                    key={action.key}
-                                                    onClick={() => selectAction(action)}
-                                                >
-                                                    <span>
-                                                        <strong>{action.title}</strong>
+                                            <VirtualJournalRows items={actions}>
+                                                {(action) => (
+                                                    <ItemButton
+                                                        type="button"
+                                                        key={action.key}
+                                                        onClick={() => selectAction(action)}
+                                                    >
+                                                        <span>
+                                                            <strong>{action.title}</strong>
+                                                            <small>
+                                                                {[
+                                                                    action.revertPaths
+                                                                        ? action.changedFields
+                                                                              .map(({ label }) => label)
+                                                                              .join(', ')
+                                                                        : sectionDescriptions[section],
+                                                                    action.platformLabel,
+                                                                    action.groupLabel && `Группа: ${action.groupLabel}`,
+                                                                ]
+                                                                    .filter(Boolean)
+                                                                    .join(' · ')}
+                                                            </small>
+                                                        </span>
                                                         <small>
-                                                            {[
-                                                                action.revertPaths
-                                                                    ? action.changedFields
-                                                                          .map(({ label }) => label)
-                                                                          .join(', ')
-                                                                    : sectionDescriptions[section],
-                                                                action.platformLabel,
-                                                                action.groupLabel && `Группа: ${action.groupLabel}`,
-                                                            ]
-                                                                .filter(Boolean)
-                                                                .join(' · ')}
+                                                            {action.actorLabel} · {formattedDate(action.changedAt)}
                                                         </small>
-                                                    </span>
-                                                    <small>
-                                                        {action.actorLabel} · {formattedDate(action.changedAt)}
-                                                    </small>
-                                                </ItemButton>
-                                            ))}
+                                                    </ItemButton>
+                                                )}
+                                            </VirtualJournalRows>
                                         </ChangeGroup>
                                     ))}
                             </ReleaseSection>

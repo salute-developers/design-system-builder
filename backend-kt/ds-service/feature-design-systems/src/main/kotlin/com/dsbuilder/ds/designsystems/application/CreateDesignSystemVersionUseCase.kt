@@ -9,8 +9,8 @@ import com.dsbuilder.ds.core.application.IdempotentRequestLookup
 import com.dsbuilder.ds.core.application.IdempotentRequestRepository
 import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
+import com.dsbuilder.ds.core.application.PublicationTransactionRunner
 import com.dsbuilder.ds.core.application.RequestHash
-import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.designsystems.domain.DesignSystemVersion
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -18,7 +18,7 @@ import kotlinx.serialization.json.put
 /** Атомарно публикует активный черновик дизайн-системы. */
 class CreateDesignSystemVersionUseCase(
     private val policy: DsAccessPolicy,
-    private val transactions: TransactionRunner,
+    private val transactions: PublicationTransactionRunner,
     private val repository: DesignSystemVersionRepository,
     private val repeatedRequests: IdempotentRequestRepository,
 ) {
@@ -33,7 +33,7 @@ class CreateDesignSystemVersionUseCase(
         } else {
             when (val allowed = policy.require(context, "design-systems:write")) {
                 is DsResult.Failure -> allowed
-                is DsResult.Success -> transactions.required(context) {
+                is DsResult.Success -> transactions.required(context, command.designSystemId.value) {
                     val requestHash = RequestHash.canonical(command)
                     when (
                         val previous = repeatedRequests.lookup(

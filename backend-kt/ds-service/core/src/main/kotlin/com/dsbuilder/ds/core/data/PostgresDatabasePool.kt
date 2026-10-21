@@ -3,6 +3,8 @@ package com.dsbuilder.ds.core.data
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import java.sql.Connection
 
 /**
  * Bounded PostgreSQL connection pool and its Exposed handle.
@@ -13,6 +15,8 @@ class PostgresDatabasePool private constructor(
     private val dataSource: HikariDataSource,
     val database: Database,
 ) : AutoCloseable {
+    private val ownedDatabases = mutableListOf(database)
+
     /** Number of connections currently borrowed from the pool. */
     val activeConnections: Int
         get() = dataSource.hikariPoolMXBean.activeConnections
@@ -29,7 +33,28 @@ class PostgresDatabasePool private constructor(
     val totalConnections: Int
         get() = dataSource.hikariPoolMXBean.totalConnections
 
-    override fun close() = dataSource.close()
+    @Synchronized
+    override fun close() {
+        try {
+            dataSource.close()
+        } finally {
+            ownedDatabases.forEach(TransactionManager::closeAndUnregister)
+            ownedDatabases.clear()
+        }
+    }
+
+    @Synchronized
+    internal fun ownDatabase(database: Database) {
+        if (dataSource.isClosed) {
+            TransactionManager.closeAndUnregister(database)
+            error("PostgreSQL pool is closed")
+        }
+        ownedDatabases += database
+    }
+
+    internal fun borrowPublicationConnection(): Connection = dataSource.connection
+
+    internal fun evictPublicationConnection(connection: Connection) = dataSource.evictConnection(connection)
 
     companion object {
         /** Creates a validated bounded PostgreSQL pool. */

@@ -186,4 +186,9 @@ export interface PendingComponentMutation {
     before: ComponentConfig;
     after: ComponentConfig;
     idempotencyKeys: Record<string, string>;
+    /** Тела шагов, вычисляемые по серверному состоянию, сохраняются до первой отправки. */
+    requestBodies?: Record<string, { appearanceVariationId: string; styleId: string; position: number }>;
+    /** Соответствия локальных идентификаторов стилей серверным, в том числе после восстановления. */
+    styleAliases?: Record<string, string>;
+    prepared?: boolean;
 }

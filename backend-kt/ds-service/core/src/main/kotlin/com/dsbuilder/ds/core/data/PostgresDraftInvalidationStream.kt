@@ -33,8 +33,8 @@ class PostgresDraftInvalidationStream(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val currentConnection = AtomicReference<Connection?>()
     private val mutableEvents = MutableSharedFlow<DraftInvalidation>(
-        replay = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        replay = 0,
+        extraBufferCapacity = 256,
     )
     private val mutableReconnections = MutableSharedFlow<Long>(
         extraBufferCapacity = 1,
@@ -54,13 +54,12 @@ class PostgresDraftInvalidationStream(
     }
 
     private suspend fun listenForever() {
-        var subscribedBefore = false
         var reconnectionGeneration = 0L
         while (scope.isActive) {
             try {
                 listenOnce {
-                    if (subscribedBefore) mutableReconnections.tryEmit(++reconnectionGeneration)
-                    subscribedBefore = true
+                    // Первая подписка тоже закрывает окно между стартом сервиса и LISTEN.
+                    mutableReconnections.tryEmit(++reconnectionGeneration)
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -80,11 +79,16 @@ class PostgresDraftInvalidationStream(
             onSubscribed()
             val postgres = connection.unwrap(PGConnection::class.java)
             while (scope.isActive && !connection.isClosed) {
-                postgres.getNotifications(HEARTBEAT_MILLIS)?.forEach { notification ->
-                    parseDraftInvalidation(notification.parameter)?.let(mutableEvents::tryEmit)
-                }
+                postgres.getNotifications(
+                    HEARTBEAT_MILLIS,
+                )?.forEach { notification -> emitNotification(notification.parameter) }
             }
         }
+    }
+
+    private fun emitNotification(payload: String) {
+        val event = parseDraftInvalidation(payload) ?: return
+        if (!mutableEvents.tryEmit(event)) mutableReconnections.tryEmit(System.nanoTime())
     }
 
     companion object {
@@ -102,14 +106,18 @@ internal fun parseDraftInvalidation(payload: String): DraftInvalidation? = runCa
     val value = Json.parseToJsonElement(payload).jsonObject
     val wireScopes = value["scopes"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
     val parsedScopes = wireScopes.mapNotNull(DraftInvalidationScope::fromWire).toSet()
+    val eventId = value["eventId"]?.jsonPrimitive?.content?.let(UUID::fromString)
+    val revision = value["draftRevision"]?.jsonPrimitive?.content?.toLongOrNull()?.takeIf { it >= 0 }
+    require(eventId != null || revision != null) { "Missing invalidation identity" }
     DraftInvalidation(
         designSystemId = UUID.fromString(value.getValue("designSystemId").jsonPrimitive.content),
         draftId = UUID.fromString(value.getValue("draftId").jsonPrimitive.content),
-        draftRevision = value.getValue("draftRevision").jsonPrimitive.content.toLong(),
+        draftRevision = revision,
         actorId = value.getValue("actorId").jsonPrimitive.content,
         clientId = value["clientId"]?.takeUnless { it is JsonNull }?.jsonPrimitive?.content,
         changedAt = Instant.parse(value.getValue("changedAt").jsonPrimitive.content),
         scopes = parsedScopes.takeIf { it.isNotEmpty() && it.size == wireScopes.size }
             ?: setOf(DraftInvalidationScope.ALL),
+        eventId = eventId,
     )
 }.getOrNull()

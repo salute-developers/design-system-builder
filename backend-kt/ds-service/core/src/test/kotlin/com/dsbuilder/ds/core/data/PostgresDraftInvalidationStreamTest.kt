@@ -8,6 +8,28 @@ import kotlin.test.assertNull
 /** Проверяет безопасный разбор компактного PostgreSQL-уведомления. */
 class PostgresDraftInvalidationStreamTest {
     @Test
+    fun `live marker carries unordered identity without revision`() {
+        val payload = """{
+            "designSystemId":"11111111-1111-1111-1111-111111111111",
+            "draftId":"22222222-2222-2222-2222-222222222222",
+            "eventId":"33333333-3333-3333-3333-333333333333",
+            "actorId":"system","changedAt":"2026-10-21T09:00:00Z","scopes":["theme-tokens"]
+        }
+        """.trimIndent()
+        val event = parseDraftInvalidation(payload)
+        assertEquals("33333333-3333-3333-3333-333333333333", event?.eventId.toString())
+        assertNull(event?.draftRevision)
+        assertNull(
+            parseDraftInvalidation(
+                payload.replace(
+                    "\"eventId\":\"33333333-3333-3333-3333-333333333333\",",
+                    "",
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun `parses committed draft invalidation`() {
         val event = parseDraftInvalidation(
             """{

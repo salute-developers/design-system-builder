@@ -30,6 +30,7 @@ interface TokenAutosaveQueueOptions<T extends AutosaveOperation, R> {
 
 /** Последовательная по токену очередь, не позволяющая старому ответу подтвердить более новое изменение. */
 export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
+    private disposed = false;
     private readonly groups = new Map<string, OperationGroup<T>>();
     private readonly options: TokenAutosaveQueueOptions<T, R>;
     private readonly debounceMs: number;
@@ -44,6 +45,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     }
 
     enqueue(operation: T, immediate = false) {
+        if (this.disposed) return;
         const group = this.group(operation.tokenKey);
         group.pending.set(operation.operationKey, operation);
         group.debounceUntil = immediate ? undefined : Date.now() + this.debounceMs;
@@ -64,6 +66,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     }
 
     flushAll(keepalive = false) {
+        if (this.disposed) return;
         this.groups.forEach((group, tokenKey) => {
             group.forceKeepalive = [group.forceKeepalive, keepalive].some(Boolean);
             group.debounceUntil = undefined;
@@ -74,6 +77,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     }
 
     retryFailed() {
+        if (this.disposed) return;
         this.groups.forEach((group, tokenKey) => {
             if (group.failed.size === 0) return;
             const failed = [...group.failed.values()];
@@ -89,6 +93,16 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
         return group;
     }
 
+    /** Останавливает отправку и поздние подтверждения; восстановлением владеет хранилище вызывающей сессии. */
+    dispose() {
+        this.disposed = true;
+        this.groups.forEach((group) => {
+            clearTimeout(group.timer);
+            clearTimeout(group.retryTimer);
+        });
+        this.groups.clear();
+    }
+
     private schedule(tokenKey: string, delay: number) {
         const group = this.group(tokenKey);
         if (group.timer) clearTimeout(group.timer);
@@ -99,6 +113,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     }
 
     private async flush(tokenKey: string, keepalive: boolean) {
+        if (this.disposed) return;
         const group = this.groups.get(tokenKey);
         if (!group) return;
         if ([group.inFlight, group.failed.size].some(Boolean)) return;
@@ -117,16 +132,15 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
         this.publishStatus();
         try {
             const result = await this.options.send(operation, [keepalive, group.forceKeepalive].some(Boolean));
+            if (this.disposed) return;
             this.options.confirmed(operation, result);
             group.failed.delete(operation.operationKey);
         } catch (error) {
+            if (this.disposed) return;
             const retry = { ...operation, retryCount: operation.retryCount + 1 };
             if (this.options.retryable(error)) {
                 group.retryPending = retry;
-                const delay = Math.min(
-                    this.retryBaseMs * 2 ** Math.max(0, retry.retryCount - 1),
-                    this.retryMaxMs,
-                );
+                const delay = Math.min(this.retryBaseMs * 2 ** Math.max(0, retry.retryCount - 1), this.retryMaxMs);
                 group.retryTimer = setTimeout(() => {
                     group.retryTimer = undefined;
                     void this.flush(tokenKey, false);
@@ -137,10 +151,8 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
         } finally {
             group.inFlight = undefined;
             const shouldContinue = [group.retryPending, group.pending.size].some(Boolean);
-            if ([shouldContinue, group.failed.size === 0, !group.retryTimer].every(Boolean)) {
-                const delay = group.retryPending
-                    ? 0
-                    : Math.max(0, (group.debounceUntil ?? Date.now()) - Date.now());
+            if (!this.disposed && [shouldContinue, group.failed.size === 0, !group.retryTimer].every(Boolean)) {
+                const delay = group.retryPending ? 0 : Math.max(0, (group.debounceUntil ?? Date.now()) - Date.now());
                 this.schedule(tokenKey, delay);
             }
             this.removeEmptyGroup(tokenKey, group);
@@ -161,6 +173,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
     }
 
     private publishStatus() {
+        if (this.disposed) return;
         const counters = [...this.groups.values()].reduce(
             (result, group) => ({
                 errors: result.errors + group.failed.size,

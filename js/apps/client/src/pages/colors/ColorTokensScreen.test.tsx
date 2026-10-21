@@ -224,6 +224,16 @@ afterEach(() => {
 });
 
 describe('ColorTokensScreen', () => {
+    it('обновляет структуру при ошибке несвязанной очереди', async () => {
+        const session = colorTokenSession(context);
+        setDraftAutosaveActivity(context, 'tokens', 'error');
+        try {
+            await refreshStructure(session);
+            expect(session.groups).toEqual(GROUPS);
+        } finally {
+            setDraftAutosaveActivity(context, 'tokens', null);
+        }
+    });
     it('не применяет устаревшие группы и редакции из параллельного чтения', async () => {
         const session = colorTokenSession(context);
         let resolveOld!: (groups: TokenGroupDto[]) => void;
