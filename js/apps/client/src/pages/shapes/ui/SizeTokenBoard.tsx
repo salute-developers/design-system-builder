@@ -11,6 +11,7 @@ import {
     type SizeToken,
     type SizeTokenKind,
 } from '../../../modules/sizeTokens';
+import { rowValue } from './SizeTokenTree';
 
 interface BoardProps {
     kind: SizeTokenKind;
@@ -162,6 +163,7 @@ const SpacingBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
     );
 };
 
+/** Список теней по размерам: каждая тень на своей плашке, чтобы крупные тени не заходили на соседние. */
 const ShadowBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
     const byName = new Map(tokens.map((token) => [token.name, token]));
     return (
@@ -169,35 +171,38 @@ const ShadowBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
             <div className="st-shadow-board">
                 <header>
                     <strong>Тени</strong>
-                    <p>Размер × направление × жёсткость. Карточка — токен.</p>
+                    <p>Направление и жёсткость по размерам. Строка — токен.</p>
                 </header>
-                <div className="st-shadow-stage">
-                    <div className="st-shadow-grid" data-testid="shadow-grid">
-                        <span />
-                        {SHADOW_VARIANTS.map((variant) => (
-                            <b key={variant}>{variantLabel(variant)}</b>
-                        ))}
-                        {shadowSizes(tokens).flatMap((size) => [
-                            <span key={size}>{sizeLabel(size).toUpperCase()}</span>,
-                            ...SHADOW_VARIANTS.map((variant) => {
+                <div className="st-shadow-list" data-testid="shadow-grid">
+                    {shadowSizes(tokens).map((size) => (
+                        <section key={size} className="st-shadow-size">
+                            <h3>{sizeLabel(size).toUpperCase()}</h3>
+                            {SHADOW_VARIANTS.map((variant) => {
                                 const token = byName.get(`${variant}.${size}`);
-                                return token?.kind === 'shadow' ? (
+                                if (token?.kind !== 'shadow') return null;
+                                const selected = selectedId === token.tokenId;
+                                return (
                                     <button
                                         key={token.tokenId}
                                         type="button"
-                                        className={`st-shadow-card ${selectedId === token.tokenId ? 'is-selected' : ''}`}
-                                        style={{ boxShadow: boxShadow(token.layers) }}
-                                        aria-pressed={selectedId === token.tokenId}
+                                        className={`st-shadow-row ${selected ? 'is-selected' : ''}`}
+                                        aria-label={token.name}
+                                        aria-pressed={selected}
                                         onClick={() => onSelect(token)}
                                     >
-                                        {token.name}
+                                        <span className="st-shadow-meta">
+                                            <strong>{variantLabel(variant)}</strong>
+                                            <small>{token.name}</small>
+                                            <small>{rowValue(token)}</small>
+                                        </span>
+                                        <span className="st-shadow-tile" aria-hidden="true">
+                                            <i className="st-shadow-card" style={{ boxShadow: boxShadow(token.layers) }} />
+                                        </span>
                                     </button>
-                                ) : (
-                                    <span key={`${variant}.${size}`} />
                                 );
-                            }),
-                        ])}
-                    </div>
+                            })}
+                        </section>
+                    ))}
                 </div>
             </div>
         </div>
