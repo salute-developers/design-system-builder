@@ -20,6 +20,7 @@ object TrustedDsRequestContextMapper {
             projectScopes = headers[PROJECT_SCOPES_HEADER],
             systemAdmin = headers[SYSTEM_ADMIN_HEADER],
             policy = evaluator.policy,
+            composePreviewPublisher = headers[COMPOSE_PREVIEW_PUBLISHER_HEADER],
         ) ?: return null
         val correlationId = headers[CORRELATION_ID_HEADER]?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
         val rawBaseRevision = headers[BASE_REVISION_HEADER]
@@ -38,6 +39,7 @@ object TrustedDsRequestContextMapper {
     private const val PROJECT_ROLE_HEADER = "X-Project-Role"
     private const val PROJECT_SCOPES_HEADER = "X-Project-Scopes"
     private const val SYSTEM_ADMIN_HEADER = "X-System-Admin"
+    private const val COMPOSE_PREVIEW_PUBLISHER_HEADER = "X-Compose-Preview-Publisher"
     private const val CORRELATION_ID_HEADER = "X-Correlation-Id"
     private const val BASE_REVISION_HEADER = "X-DS-Base-Revision"
     private const val CLIENT_ID_HEADER = "X-DS-Client-Id"

@@ -8,6 +8,7 @@ dependencies {
     implementation("com.dsbuilder.authorization:authorization-core")
     implementation(project(":core"))
     implementation(libs.exposed.json)
+    implementation(libs.aws.s3)
 
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)

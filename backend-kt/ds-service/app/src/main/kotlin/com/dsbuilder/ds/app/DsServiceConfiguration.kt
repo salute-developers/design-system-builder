@@ -13,6 +13,7 @@ package com.dsbuilder.ds.app
  * @property runFlyway whether Flyway migration and validation run at startup
  * @property adoptExistingSchema whether the verified legacy schema is baselined
  * @property expectedSchemaFingerprint reviewed fingerprint required for adoption
+ * @property composePreviewPlugin storage and limits of Compose preview plugin publication
  */
 data class DsServiceConfiguration(
     val port: Int,
@@ -25,6 +26,7 @@ data class DsServiceConfiguration(
     val runFlyway: Boolean,
     val adoptExistingSchema: Boolean,
     val expectedSchemaFingerprint: String?,
+    val composePreviewPlugin: ComposePreviewPluginConfiguration = ComposePreviewPluginConfiguration(),
 ) {
     companion object {
         /** Reads and validates the service configuration from [environment]. */
@@ -41,6 +43,7 @@ data class DsServiceConfiguration(
                 runFlyway = environment["DS_FLYWAY_ENABLED"]?.toBooleanStrictOrNull() ?: true,
                 adoptExistingSchema = environment["DS_FLYWAY_ADOPT_EXISTING"]?.toBooleanStrictOrNull() ?: false,
                 expectedSchemaFingerprint = environment["DS_EXPECTED_SCHEMA_SHA256"],
+                composePreviewPlugin = ComposePreviewPluginConfiguration.fromEnvironment(environment),
             )
 
         private const val DEFAULT_PORT = 8085

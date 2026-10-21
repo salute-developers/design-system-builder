@@ -40,6 +40,7 @@ import com.dsbuilder.ds.components.application.DeleteVariationPropertyValueUseCa
 import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
+import com.dsbuilder.ds.components.application.GetActivePluginBuildUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
@@ -102,6 +103,9 @@ import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseC
 import com.dsbuilder.ds.components.application.ReorderAppearanceAxesUseCase
 import com.dsbuilder.ds.components.application.ReorderAppearanceAxisValuesUseCase
 import com.dsbuilder.ds.components.application.ReorderAppearanceStatesUseCase
+import com.dsbuilder.ds.components.application.PluginBuildSettings
+import com.dsbuilder.ds.components.application.PluginBuildStorage
+import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
 import com.dsbuilder.ds.components.application.ResolveStateSetUseCase
 import com.dsbuilder.ds.components.application.SetAppearancePropertyValueUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
@@ -122,6 +126,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCa
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.di.componentModelModule
 import com.dsbuilder.ds.components.di.componentsModule
+import com.dsbuilder.ds.components.presentation.activePluginBuildRoutes
 import com.dsbuilder.ds.components.presentation.apiMetaImportRoutes
 import com.dsbuilder.ds.components.presentation.appearanceEditorRoutes
 import com.dsbuilder.ds.components.presentation.appearanceRoutes
@@ -134,6 +139,7 @@ import com.dsbuilder.ds.components.presentation.componentRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPlatformParamAdjustmentRoutes
 import com.dsbuilder.ds.components.presentation.invariantPropertyValueRoutes
+import com.dsbuilder.ds.components.presentation.pluginBuildPublishRoutes
 import com.dsbuilder.ds.components.presentation.propertyPlatformParamRoutes
 import com.dsbuilder.ds.components.presentation.propertyRoutes
 import com.dsbuilder.ds.components.presentation.propertyVariationRoutes
@@ -270,7 +276,10 @@ fun main() {
 }
 
 /** Installs the DS runtime and HTTP endpoints. */
-fun Application.module(configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment()) {
+fun Application.module(
+    configuration: DsServiceConfiguration = DsServiceConfiguration.fromEnvironment(),
+    pluginStorage: PluginBuildStorage? = null,
+) {
     val runtime = createRuntime(configuration)
     monitor.subscribe(ApplicationStopped) {
         runtime.draftInvalidationResource.close()
@@ -280,17 +289,23 @@ fun Application.module(configuration: DsServiceConfiguration = DsServiceConfigur
         ignoreUnknownKeys = false
         explicitNulls = true
     }
-    installDependencyGraph(configuration, runtime)
+    installDependencyGraph(configuration, runtime, pluginStorage)
     installHttpPlugins(json, runtime.metrics)
     installServiceRoutes(runtime, json)
 }
 
-private fun Application.installDependencyGraph(configuration: DsServiceConfiguration, runtime: DsRuntime) {
+private fun Application.installDependencyGraph(
+    configuration: DsServiceConfiguration,
+    runtime: DsRuntime,
+    pluginStorage: PluginBuildStorage?,
+) {
     install(Koin) {
         slf4jLogger()
         modules(
             module {
                 single { configuration }
+                single<PluginBuildStorage> { pluginStorage ?: configuration.composePreviewPlugin.createStorage() }
+                single<PluginBuildSettings> { configuration.composePreviewPlugin.settings() }
                 single { runtime.database }
                 single { runtime.evaluator }
                 single { runtime.accessPolicy }
@@ -386,6 +401,12 @@ private fun Application.installServiceRoutes(runtime: DsRuntime, json: Json) {
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
     apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>(), json)
+    pluginBuildPublishRoutes(
+        runtime.evaluator,
+        koin.get<PublishPluginBuildUseCase>(),
+        koin.get<PluginBuildSettings>().limits.maxCompressedBytes,
+    )
+    activePluginBuildRoutes(runtime.evaluator, koin.get<GetActivePluginBuildUseCase>())
     componentConfigRoutes(
         runtime.evaluator,
         koin.get<GetComponentConfigUseCase>(),
