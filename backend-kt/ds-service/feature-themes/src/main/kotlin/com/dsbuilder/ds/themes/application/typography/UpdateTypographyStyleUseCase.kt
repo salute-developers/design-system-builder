@@ -13,7 +13,6 @@ import com.dsbuilder.ds.themes.domain.typography.TypographyPlatformValues
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleBuilder
 import com.dsbuilder.ds.themes.domain.typography.TypographyTokenChange
 import com.dsbuilder.ds.themes.domain.typography.TypographyTokenName
-import com.dsbuilder.ds.themes.domain.typography.TypographyUsage
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueRules
 import com.dsbuilder.ds.themes.domain.typography.TypographyValueViolation
 import kotlinx.serialization.json.JsonElement
@@ -28,7 +27,6 @@ class UpdateTypographyStyleUseCase(
     private val policy: DsAccessPolicy,
     private val transactions: TransactionRunner,
     private val repository: TypographyStyleRepository,
-    private val usage: TypographyUsageRepository,
 ) {
     /** Изменение стиля токена [tokenId] в теме [tenantId]. */
     @Suppress("ReturnCount")
@@ -79,6 +77,10 @@ class UpdateTypographyStyleUseCase(
         }
         // Значения перечитываются под блокировкой: параллельная правка другого поля того же значения не теряется.
         val tokens = repository.lockStyle(designSystemId, tenantId, target.style)
+        // Токен, которого касается правка, без значений в теме: ответ 200 без записи выглядел бы сохранённой правкой.
+        tokens.filter { it.values.isEmpty() && !change(it, target, command).isEmpty }
+            .takeIf { it.isNotEmpty() }
+            ?.let { missing -> return DsResult.Failure(typographyValuesMissing(missing.map { it.name.toString() })) }
         val bases = command.baseRevisions.associate { (it.tokenId to it.platform) to it.baseRevision }
         val written = tokens.mapNotNull { token -> write(token, target, command) }
         repository.writeValues(
@@ -95,12 +97,29 @@ class UpdateTypographyStyleUseCase(
         // Стиль ответа перечитывается после записи: значения и технические редакции — уже записанные.
         val members = repository.styles(designSystemId, tenantId, target.style)
             .filter { it.name.screen == target.screen }
-        val components = TypographyUsage.count(usage.references(designSystemId))[target.style].orEmpty()
+        // Использование в компонентах от правки стиля не меняется: клиент берёт его из чтения, а не пересчитывает
+        // проход по всем значениям свойств дизайн-системы на каждое сохранение.
         return DsResult.Success(
             UpdatedTypographyStyle(
-                style = TypographyStyleBuilder.style(target.screen, target.style, members, components),
+                style = TypographyStyleBuilder.style(target.screen, target.style, members, emptyList()),
                 tokens = written,
             ),
+        )
+    }
+
+    /** Часть правки [command], которая относится к токену [token]: размеры — только на экране токена [target]. */
+    private fun change(
+        token: StoredTypographyToken,
+        target: TypographyTokenName,
+        command: UpdateTypographyStyle,
+    ): TypographyTokenChange {
+        val sameScreen = token.name.screen == target.screen
+        return TypographyTokenChange(
+            sizePx = command.size.takeIf { sameScreen },
+            lineHeightPx = command.lineHeight.takeIf { sameScreen },
+            letterSpacingEm = command.letterSpacing.takeIf { sameScreen },
+            weight = command.weights[token.name.variant],
+            fontFamily = command.fontFamily,
         )
     }
 
@@ -110,14 +129,7 @@ class UpdateTypographyStyleUseCase(
         target: TypographyTokenName,
         command: UpdateTypographyStyle,
     ): WrittenTypographyToken? {
-        val sameScreen = token.name.screen == target.screen
-        val change = TypographyTokenChange(
-            sizePx = command.size.takeIf { sameScreen },
-            lineHeightPx = command.lineHeight.takeIf { sameScreen },
-            letterSpacingEm = command.letterSpacing.takeIf { sameScreen },
-            weight = command.weights[token.name.variant],
-            fontFamily = command.fontFamily,
-        )
+        val change = change(token, target, command)
         if (change.isEmpty) return null
         // Пишутся платформы, значения которых есть у токена: новая строка неполного значения не создаётся, а
         // значение, которое после перевода не изменилось, не получает лишней редакции.

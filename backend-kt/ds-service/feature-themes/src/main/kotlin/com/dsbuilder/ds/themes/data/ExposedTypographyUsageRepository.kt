@@ -35,7 +35,7 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
               JOIN components c ON c.id = vr.component_id
               LEFT JOIN typography_tokens t ON t.id = v.token_id AND t.type = 'typography'
              WHERE v.design_system_id = ?
-               AND (v.token_id IS NOT NULL OR v.value ~ '$REFERENCE')
+               AND $REFERENCE_FILTER
             UNION ALL
             SELECT c.name AS component,
                    CASE WHEN v.token_id IS NULL THEN v.value ELSE t.name END AS reference
@@ -43,7 +43,7 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
               JOIN components c ON c.id = v.component_id
               LEFT JOIN typography_tokens t ON t.id = v.token_id AND t.type = 'typography'
              WHERE v.design_system_id = ?
-               AND (v.token_id IS NOT NULL OR v.value ~ '$REFERENCE')
+               AND $REFERENCE_FILTER
         """.trimIndent()
         val id = UUIDColumnType() to designSystemId
         return TransactionManager.current().exec(
@@ -89,6 +89,13 @@ class ExposedTypographyUsageRepository : TypographyUsageRepository {
     private companion object {
         /** Предварительный отбор текста значений; точный разбор — в домене. */
         const val REFERENCE = """^(screen-[sml]\.)?[a-z]+\.[a-z0-9]+\.(normal|medium|bold)$"""
+
+        /**
+         * Значение — ссылка на стиль: текст по правилу [REFERENCE] или `token_id` токена типографии. Ссылки на токены
+         * других типов (цвета, формы) отсекаются до соединения с компонентами, а не после разбора.
+         */
+        const val REFERENCE_FILTER = "((v.token_id IS NULL AND v.value ~ '$REFERENCE') " +
+            "OR v.token_id IN (SELECT id FROM typography_tokens WHERE type = 'typography'))"
 
         /** Поля редакции значения свойства, которые нужны запросу использования. */
         const val VALUE_FIELDS = "latest.token_id, latest.value"

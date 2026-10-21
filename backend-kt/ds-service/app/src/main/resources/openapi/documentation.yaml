@@ -2342,7 +2342,9 @@ paths:
               $ref: "#/components/schemas/UpdateTypographyStyleRequest"
       responses:
         "200":
-          description: Changed style and written token values
+          description: >-
+            Changed style and written token values. The style has an empty components list: usage in components does
+            not change with a style edit, and the client keeps it from the read.
           headers:
             X-DS-Mutation-Metadata:
               $ref: '#/components/headers/MutationMetadata'
@@ -2369,6 +2371,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The theme has no values for the style tokens the edit concerns (TYPOGRAPHY_VALUES_MISSING)
           content:
             application/json:
               schema:
