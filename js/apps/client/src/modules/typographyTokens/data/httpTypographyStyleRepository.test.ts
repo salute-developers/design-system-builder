@@ -83,6 +83,17 @@ describe('HTTP-адаптер стилей типографии', () => {
             kind: 'network',
             retryable: true,
         });
+        patch.mockRejectedValueOnce(
+            axiosError(409, {
+                code: 'TYPOGRAPHY_VALUES_MISSING',
+                message: 'В теме нет значений стиля: screen-l.body.m.normal',
+            }),
+        );
+        await expect(repository.update(context, 'tok', { size: 18 }, [])).rejects.toMatchObject({
+            kind: 'missing-values',
+            retryable: false,
+            message: 'В теме нет значений стиля: screen-l.body.m.normal',
+        });
         patch.mockRejectedValueOnce(new Error('offline'));
         await expect(repository.update(context, 'tok', { size: 18 }, [])).rejects.toMatchObject({ kind: 'network' });
     });

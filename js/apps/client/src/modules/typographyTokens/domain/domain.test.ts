@@ -54,14 +54,15 @@ describe('домен стилей типографии', () => {
     });
 
     it('ответ изменения заменяет стиль экрана и переносит вес и семейство на другие экраны', () => {
-        const response = bodyM('screen-m', { sizePx: 17, fontFamily: 'display' });
+        const response = bodyM('screen-m', { sizePx: 17, fontFamily: 'display', components: [] });
         response.variants.bold = { tokenId: 'screen-m.body.m.bold', weight: 700 };
         const next = applyUpdatedStyle(typographyStyles(), response, {
             size: 17,
             fontFamily: 'display',
             weights: { bold: 700 },
         });
-        expect(screenStyles(next, 'screen-m').find((style) => style.group === 'body')).toBe(response);
+        const medium = screenStyles(next, 'screen-m').find((style) => style.group === 'body')!;
+        expect(medium).toEqual({ ...response, components: bodyM('screen-m').components });
         const large = screenStyles(next, 'screen-l').find((style) => style.group === 'body')!;
         expect(large.sizePx).toBe(16);
         expect(large.fontFamily).toBe('display');
