@@ -254,7 +254,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                             themeCount={styles.themeCount}
                             editable={!readOnly}
                             banners={banners}
-                            error={(field) => editor.fieldError(selected, field)}
+                            error={(field, platform) => editor.fieldError(selected, field, platform)}
                             onChange={(change) => editor.edit(selected, change)}
                             onOpenComponent={(name) =>
                                 navigate(

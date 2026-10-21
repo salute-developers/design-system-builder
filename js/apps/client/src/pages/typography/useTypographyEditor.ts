@@ -17,6 +17,7 @@ import {
     type TypographyAutosave,
     type TypographyContext,
     type TypographyField,
+    type TypographyOverridePlatform,
     type TypographyScreen,
     type TypographyStyle,
     type TypographyStyleChange,
@@ -29,7 +30,8 @@ import {
 const ACTIVITY_SOURCE = 'typography';
 
 /** Ключ правки в очереди: стиль на экране. */
-export const queueKey = (screen: TypographyScreen, key: string) => `${screen}|${key}`;
+export const queueKey = (screen: TypographyScreen, key: string, platform?: TypographyOverridePlatform) =>
+    platform ? `${screen}|${key}|${platform}` : `${screen}|${key}`;
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -211,16 +213,20 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         // Сессия меняется на месте, `version` отмечает её изменения.
     }, [session, version, session.saved]);
 
-    const fieldError = (style: TypographyStyle, field: TypographyField) =>
-        session.fieldErrors[`${queueKey(style.screen, styleKey(style))}|${field}`] ?? null;
+    const fieldError = (style: TypographyStyle, field: TypographyField, platform?: TypographyOverridePlatform) =>
+        session.fieldErrors[`${queueKey(style.screen, styleKey(style), platform)}|${field}`] ?? null;
 
     /** Правка стиля: недопустимое значение показывается у поля и не отправляется. */
     const edit = (style: TypographyStyle, change: TypographyStyleChange) => {
         if (readOnly || session.context.versionId) return;
-        const key = queueKey(style.screen, styleKey(style));
-        const fields = Object.keys(change).flatMap((field) =>
-            field === 'weights' ? Object.keys(change.weights ?? {}).map((variant) => `weights.${variant}`) : [field],
-        );
+        const key = queueKey(style.screen, styleKey(style), change.platform);
+        const fields = Object.keys(change)
+            .filter((field) => field !== 'platform')
+            .flatMap((field) =>
+                field === 'weights'
+                    ? Object.keys(change.weights ?? {}).map((variant) => `weights.${variant}`)
+                    : [field],
+            );
         const violation = validateChange(change);
         const next = { ...session.fieldErrors };
         fields.forEach((field) => delete next[`${key}|${field}`]);

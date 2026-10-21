@@ -69,6 +69,29 @@ describe('домен стилей типографии', () => {
         expect(large.variants.bold?.weight).toBe(700);
     });
 
+    it('своё значение платформы меняет только её, а значение, равное вебу, снимается', () => {
+        const ios = applyStyleChange(typographyStyles(), 'body.m', 'screen-l', {
+            platform: 'ios',
+            size: 17,
+            weights: { bold: 700 },
+        });
+        const large = screenStyles(ios, 'screen-l').find((style) => style.group === 'body')!;
+        expect(large.sizePx).toBe(16);
+        expect(large.overrides).toEqual({ ios: { sizePx: 17, weights: { bold: 700 } } });
+        const medium = screenStyles(ios, 'screen-m').find((style) => style.group === 'body')!;
+        expect(medium.overrides).toEqual({ ios: { weights: { bold: 700 } } });
+
+        // Правка веба не трогает своё значение iOS; совпавшее с вебом снова строится из веба.
+        const web = applyStyleChange(ios, 'body.m', 'screen-l', { size: 17 });
+        expect(screenStyles(web, 'screen-l').find((style) => style.group === 'body')!.overrides).toEqual({
+            ios: { weights: { bold: 700 } },
+        });
+        const reset = applyStyleChange(ios, 'body.m', 'screen-l', { platform: 'ios', weights: { bold: 600 } });
+        expect(screenStyles(reset, 'screen-l').find((style) => style.group === 'body')!.overrides).toEqual({
+            ios: { sizePx: 17 },
+        });
+    });
+
     it('проверяет значения по правилам прототипа и сервера', () => {
         expect(validateChange({ size: -5 })).toEqual({ field: 'size', message: TYPOGRAPHY_MESSAGES.size });
         expect(validateChange({ lineHeight: 0 })?.field).toBe('lineHeight');

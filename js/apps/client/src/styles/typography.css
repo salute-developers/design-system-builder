@@ -2025,6 +2025,89 @@
     margin-top: 4px;
 }
 
+/* Строка дерева: подложка выбранной строки отступает от краёв на 12 px, как в прототипе, а содержимое — ещё на
+ * 8 px внутрь, иначе «Aa» и значение стоят вплотную к скруглённым краям подложки. */
+.typography-screen .editor-fonts-workbench .typography-token-row {
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
+/* Свои значения iOS и Android: «+» у поля открывает выбор платформы, под полем — строки «↳ iOS» с «×».
+ * Как значения платформ у цветовых токенов в add-color-token-gradients (#122). */
+.typography-screen .editor-fonts-workbench .typography-overridable {
+    position: relative;
+    min-width: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add {
+    position: absolute;
+    /* По центру поля: отступ поля 4 px + половина высоты 24 px − половина кнопки 18 px. */
+    top: 7px;
+    right: 6px;
+    z-index: 3;
+}
+
+.typography-screen .editor-fonts-workbench .typography-overridable.is-select > .typography-override-add {
+    right: 28px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add > button {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: var(--builder-ui-surface-transparent-secondary);
+    color: var(--builder-ui-text-secondary);
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0;
+}
+
+.typography-screen .editor-fonts-workbench .typography-overridable:hover > .typography-override-add > button,
+.typography-screen .editor-fonts-workbench .typography-override-add > button:focus-visible,
+.typography-screen .editor-fonts-workbench .typography-override-add > button[aria-expanded='true'] {
+    opacity: 1;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-add > .typography-override-menu {
+    top: 22px;
+    left: auto;
+    right: 0;
+    min-width: 112px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-label {
+    flex: none;
+    color: var(--builder-ui-text-paragraph);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-remove {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--builder-ui-text-paragraph);
+}
+
+/* У списка «×» стоит слева от шеврона, в одной колонке с «+» строки выше; шевроны строк остаются на одном месте. */
+.typography-screen .editor-fonts-workbench .typography-property-field.has-trailing.is-select-field .typography-override-remove {
+    margin-right: 20px;
+}
+
+.typography-screen .editor-fonts-workbench .typography-override-remove .ui-glyph {
+    width: 12px;
+    height: 12px;
+}
+
 /* Ошибка значения у поля: сервер не сохранил значение. */
 .typography-screen .editor-fonts-workbench .typography-property-field.has-error {
     border-color: var(--builder-ui-negative, #ff6b5f);
