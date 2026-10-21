@@ -31,6 +31,7 @@ import {
     enrichApi,
     templateLookup,
     variationNamesByProperty,
+    composeParamsByProperty,
     webParamsByProperty,
     type ComponentDependencyDto,
     type PropertyPlatformParamDto,
@@ -125,12 +126,21 @@ export const componentRepository = {
             readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
         ]);
         const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+        // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
+        // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
+        const hasCompose = catalog.data.some(
+            (component) => component.platform === 'compose' && configured.has(component.id),
+        );
+        const pluginUrl = hasCompose
+            ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
+                  () => undefined,
+              )
+            : undefined;
         return catalog.data
             .filter(
                 (component) =>
                     configured.has(component.id) &&
-                    (component.platform === 'web' ||
-                        (component.platform === 'compose' && getComposePreviewPluginUrl())),
+                    (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
             )
             .map(
                 (component) =>
@@ -162,8 +172,10 @@ export const componentRepository = {
         // пары контраста и канвас. Флаг прячет раздел, а не данные, поэтому здесь не проверяется.
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
-        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose берёт имена из меты плагина.
+        // Web-параметры, панели вариаций и шаблоны нужны только web-превью; Compose-превью нужны только имена
+        // Compose-параметров свойств: без них сборка payload отвечает `missing_mapping`.
         const isWeb = platform === 'web';
+        const isCompose = platform === 'compose';
         const empty = <T>() => Promise.resolve({ data: [] as T[] });
         const [links, catalog, appearances, exported, params, propertyVariations, adapter, dependencies] =
             await Promise.all([
@@ -179,7 +191,7 @@ export const componentRepository = {
                         }),
                     ),
                 ),
-                isWeb
+                isWeb || isCompose
                     ? readEditor<PropertyPlatformParamDto[]>(`${root}/property-platform-params`, request)
                     : empty<PropertyPlatformParamDto>(),
                 isWeb
@@ -193,6 +205,7 @@ export const componentRepository = {
                 readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request),
             ]);
         const webParams = webParamsByProperty(params.data);
+        const composeParams = composeParamsByProperty(params.data);
         const adapterByName = new Map(adapter.data.map((entry) => [entry.name, entry]));
         const linkedIds = new Set(
             links.data.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
@@ -280,7 +293,12 @@ export const componentRepository = {
                                 type: property.type as Meta['sources']['api'][number]['type'],
                                 description: property.description ?? undefined,
                                 variations: null,
-                                platformMappings: { xml: null, compose: null, ios: null, web: null },
+                                platformMappings: {
+                                    xml: null,
+                                    compose: composeParams.get(property.id)?.join(',') ?? null,
+                                    ios: null,
+                                    web: null,
+                                },
                             })),
                             webParams,
                             variationNamesByProperty(

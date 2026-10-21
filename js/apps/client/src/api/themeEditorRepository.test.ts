@@ -77,6 +77,7 @@ const reply = (tenantId: string, color: string) => (url: string) => {
     if (url.endsWith('/design-system-components')) return { data: [] };
     if (url.endsWith('/components')) return { data: [] };
     if (url.endsWith('/appearances')) return { data: [] };
+    if (url.endsWith('/property-platform-params')) return { data: [] };
     if (url.endsWith('/design-system-versions/by-design-system/ds-1'))
         return {
             data: [
@@ -441,6 +442,45 @@ describe('Editor repositories', () => {
             },
         });
         expect(get.mock.calls.some(([url]) => String(url).includes('/legacy/'))).toBe(false);
+    });
+
+    it('maps Compose parameters of a property from property-platform-params', async () => {
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/design-system-components'))
+                return Promise.resolve({
+                    data: [{ id: 'link-1', designSystemId: 'ds-1', componentId: 'component-1' }],
+                });
+            if (url.endsWith('/components'))
+                return Promise.resolve({
+                    data: [{ id: 'component-1', name: 'Button', description: null, platform: 'compose' }],
+                });
+            if (url.endsWith('/appearances')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/property-platform-params'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'p-1', propertyId: 'property-1', platform: 'compose', name: 'color' },
+                        { id: 'p-2', propertyId: 'property-1', platform: 'compose', name: 'alpha' },
+                        { id: 'p-3', propertyId: 'property-1', platform: 'xml', name: 'sd_color' },
+                    ],
+                });
+            if (url.endsWith('/components/component-1/properties'))
+                return Promise.resolve({
+                    data: [
+                        { id: 'property-1', name: 'background', type: 'color', description: null },
+                        { id: 'property-2', name: 'shape', type: 'shape', description: null },
+                    ],
+                });
+            if (url.endsWith('/components/component-1/variations')) return Promise.resolve({ data: [] });
+            throw new Error(`Unexpected GET ${url}`);
+        });
+        post.mockResolvedValue({ data: { components: [] } });
+
+        const [meta] = await componentRepository.loadComponentData(context, undefined, 'compose');
+
+        expect(meta.sources.api.map((property) => property.platformMappings)).toEqual([
+            { xml: null, compose: 'color,alpha', ios: null, web: null },
+            { xml: null, compose: null, ios: null, web: null },
+        ]);
     });
 
     it('loads only values of the selected tenant and keeps tenant snapshots independent', async () => {

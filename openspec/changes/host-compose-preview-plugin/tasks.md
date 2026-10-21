@@ -39,7 +39,7 @@
 - [x] 4.4 Подключить полученный адрес к `ComposePreviewFrame`/сессии, сообщение о недоступности при ошибке запроса
 - [x] 4.5 Обновить `README.md` клиента: два источника адреса, приоритет прямого, локальная разработка, принятый риск общего origin; убрать прежнее требование отдельного origin
 - [x] 4.6 Переменные: прямой адрес по умолчанию в `docker-compose.dev.yml` сохраняется; в workflows выкладки клиента отдельных переменных не требуется
-- [ ] 4.7 Compose-свойства в редакторе на версионной модели: `componentRepository.loadComponentData` отдаёт `platformMappings.compose: null` для каждого свойства (так уже в `feature/ds-versions`), из-за чего Compose-preview пишет «Property … has no Compose mapping» и плагин не запрашивается; прокинуть маппинги из `property_platform_params` (1282 записи compose на локальном контуре) в `platformMappings`
+- [x] 4.7 Compose-свойства в редакторе на версионной модели: `componentRepository.loadComponentData` отдаёт `platformMappings.compose: null` для каждого свойства (так уже в `feature/ds-versions`), из-за чего Compose-preview пишет «Property … has no Compose mapping» и плагин не запрашивается; прокинуть маппинги из `property_platform_params` (1282 записи compose на локальном контуре) в `platformMappings`
 
 ## 5. Локальный контур и инфраструктура
 
