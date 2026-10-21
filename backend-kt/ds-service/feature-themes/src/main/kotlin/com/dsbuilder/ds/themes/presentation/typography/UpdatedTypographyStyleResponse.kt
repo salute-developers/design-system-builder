@@ -2,11 +2,9 @@ package com.dsbuilder.ds.themes.presentation.typography
 
 import kotlinx.serialization.Serializable
 
-/** Ответ изменения стиля. */
+/** Ответ изменения стиля; технические редакции записей — в заголовке `X-DS-Mutation-Metadata`. */
 @Serializable
 data class UpdatedTypographyStyleResponse(
-    /** Новая ревизия темы. */
-    val editRevision: Int,
     /** Стиль на экране токена из запроса. */
     val style: TypographyStyleDto,
     /** Записанные значения токенов. */

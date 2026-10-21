@@ -2,20 +2,14 @@ package com.dsbuilder.ds.themes.application.typography
 
 import java.util.UUID
 
-/** Итог блокировки темы перед изменением стиля. */
+/** Итог разделяемой блокировки дизайн-системы темы перед изменением стиля. */
 sealed interface TypographyStyleLock {
-    /** Тема заблокирована, ревизия совпала. */
+    /** Тема найдена в активном черновике, запись согласована с публикацией. */
     data class Locked(
         /** Дизайн-система темы. */
         val designSystemId: UUID,
     ) : TypographyStyleLock
 
-    /** Темы нет или она принадлежит другому проекту. */
+    /** Темы нет в активном черновике или она принадлежит другому проекту. */
     data object NotFound : TypographyStyleLock
-
-    /** Ревизия темы устарела. */
-    data class RevisionConflict(
-        /** Текущая ревизия темы. */
-        val editRevision: Int,
-    ) : TypographyStyleLock
 }

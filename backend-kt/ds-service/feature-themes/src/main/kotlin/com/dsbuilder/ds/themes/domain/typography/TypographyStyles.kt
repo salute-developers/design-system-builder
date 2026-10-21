@@ -2,9 +2,7 @@ package com.dsbuilder.ds.themes.domain.typography
 
 /** Стили типографии темы для раздела «Типографика». */
 data class TypographyStyles(
-    /** Текущая ревизия темы. */
-    val editRevision: Int,
-    /** Может ли пользователь менять стили. */
+    /** Может ли пользователь менять стили: право записи и активный черновик. */
     val canEdit: Boolean,
     /** Число тем дизайн-системы. */
     val themeCount: Int,

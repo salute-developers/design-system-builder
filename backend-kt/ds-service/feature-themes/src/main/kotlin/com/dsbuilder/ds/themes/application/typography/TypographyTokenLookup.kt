@@ -4,7 +4,7 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenType
 
 /** Результат поиска токена для изменения стиля. */
 sealed interface TypographyTokenLookup {
-    /** Токен найден: его имя и тип. */
+    /** Токен найден в активном черновике: его имя и тип. */
     data class Found(
         /** Полное имя токена. */
         val name: String,
@@ -12,6 +12,6 @@ sealed interface TypographyTokenLookup {
         val type: ThemeTokenType?,
     ) : TypographyTokenLookup
 
-    /** Токена нет в дизайн-системе. */
+    /** Токена нет в дизайн-системе на выбранной границе. */
     data object Missing : TypographyTokenLookup
 }
