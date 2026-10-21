@@ -3,6 +3,7 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.PluginBuildRepository
 import com.dsbuilder.ds.components.domain.NewPluginBuild
 import com.dsbuilder.ds.components.domain.PluginBuild
+import org.jetbrains.exposed.v1.core.LongColumnType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -11,11 +12,19 @@ import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 
 /** Реестр билдов плагина поверх Exposed; работает в транзакции вызывающего кода. */
 internal class ExposedPluginBuildRepository : PluginBuildRepository {
+    override suspend fun lockPublications() {
+        TransactionManager.current().exec(
+            "SELECT pg_advisory_xact_lock(?)",
+            listOf(LongColumnType() to PUBLICATION_LOCK_KEY),
+        )
+    }
+
     override suspend fun find(buildId: String): PluginBuild? =
         PluginBuildsTable.selectAll().where { PluginBuildsTable.buildId eq buildId }.singleOrNull()?.toBuild()
 
@@ -91,4 +100,9 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         publishedAt = this[PluginBuildsTable.publishedAt],
         active = this[PluginBuildsTable.active],
     )
+
+    private companion object {
+        /** Ключ advisory-блокировки реестра билдов плагина (ASCII `compprev`). */
+        const val PUBLICATION_LOCK_KEY = 0x636F6D7070726576L
+    }
 }

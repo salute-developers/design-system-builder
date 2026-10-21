@@ -5,6 +5,12 @@ import com.dsbuilder.ds.components.domain.PluginBuild
 
 /** Реестр билдов плагина в БД. */
 interface PluginBuildRepository {
+    /**
+     * Берёт эксклюзивную блокировку на время текущей транзакции: публикации, активации и очистки билдов
+     * выполняются строго по одной, поэтому файлы билда и его строка не расходятся при параллельных запросах.
+     */
+    suspend fun lockPublications()
+
     /** Билд по идентификатору. */
     suspend fun find(buildId: String): PluginBuild?
 

@@ -67,15 +67,22 @@ private suspend fun ApplicationCall.readPluginUpload(maxArchiveBytes: Long): Plu
     var archive: ByteArray? = null
     var meta: String? = null
     var tooLarge = false
-    receiveMultipart(formFieldLimit = META_LIMIT_BYTES).forEachPart { part ->
+    // Лимит парсера Ktor действует и на файловые части, поэтому он не ниже лимита архива; размер меты проверяется отдельно.
+    receiveMultipart(formFieldLimit = maxOf(maxArchiveBytes, META_LIMIT_BYTES) + 1).forEachPart { part ->
         when {
             part.name == "plugin" && part is PartData.FileItem -> {
                 val bytes = part.provider().readRemaining(maxArchiveBytes + 1).readByteArray()
                 if (bytes.size.toLong() > maxArchiveBytes) tooLarge = true else archive = bytes
             }
-            part.name == "meta" && part is PartData.FormItem -> meta = part.value
-            part.name == "meta" && part is PartData.FileItem ->
-                meta = part.provider().readRemaining(META_LIMIT_BYTES + 1).readByteArray().decodeToString()
+            part.name == "meta" -> {
+                val text = when (part) {
+                    is PartData.FormItem -> part.value
+                    is PartData.FileItem ->
+                        part.provider().readRemaining(META_LIMIT_BYTES + 1).readByteArray().decodeToString()
+                    else -> null
+                }
+                if (text != null && text.length > META_LIMIT_BYTES) tooLarge = true else meta = text
+            }
         }
         part.dispose()
     }

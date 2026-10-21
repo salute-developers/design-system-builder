@@ -48,28 +48,19 @@ class PublishPluginBuildUseCase(
             fileCount = archive.files.size,
             publishedBy = context.principal.actorId,
         )
-        val existing = when (val found = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }) {
-            is DsResult.Failure -> return found
-            is DsResult.Success -> found.value
-        }
-        if (existing != null && existing.zipSha256 != newBuild.zipSha256) {
-            return DsResult.Failure(
-                DsFailure.Conflict(
-                    code = BUILD_CONTENT_CHANGED,
-                    message = "Билд ${existing.buildId} уже опубликован с другим содержимым архива",
-                ),
-            )
-        }
-        val kind = when {
-            existing == null -> PublishKind.PUBLISHED
-            existing.active -> PublishKind.UNCHANGED
-            else -> PublishKind.ACTIVATED
-        }
-        return if (command.dryRun) {
-            dryRun(command, newBuild, existing, kind)
-        } else {
-            publish(command, archive, newBuild, existing, kind)
-        }
+        return if (command.dryRun) dryRun(command, newBuild) else publish(command, archive, newBuild)
+    }
+
+    private fun classify(existing: PluginBuild?, newBuild: NewPluginBuild): DsResult<PublishKind> = when {
+        existing != null && existing.zipSha256 != newBuild.zipSha256 -> DsResult.Failure(
+            DsFailure.Conflict(
+                code = BUILD_CONTENT_CHANGED,
+                message = "Билд ${existing.buildId} уже опубликован с другим содержимым архива",
+            ),
+        )
+        existing == null -> DsResult.Success(PublishKind.PUBLISHED)
+        existing.active -> DsResult.Success(PublishKind.UNCHANGED)
+        else -> DsResult.Success(PublishKind.ACTIVATED)
     }
 
     /** Архив и manifest, прошедшие проверки. */
@@ -91,14 +82,17 @@ class PublishPluginBuildUseCase(
     private fun invalidRequest(code: String, message: String): DsResult<Prepared> =
         DsResult.Failure(DsFailure.InvalidRequest(code = code, message = message))
 
-    private suspend fun dryRun(
-        command: PublishPluginBuild,
-        newBuild: NewPluginBuild,
-        existing: PluginBuild?,
-        kind: PublishKind,
-    ): DsResult<PublishResult> {
-        val reportResult = transactions.rollback { importMeta(command.meta.copy(dryRun = true)) }
-        return when (reportResult) {
+    @Suppress("ReturnCount")
+    private suspend fun dryRun(command: PublishPluginBuild, newBuild: NewPluginBuild): DsResult<PublishResult> {
+        val existing = when (val found = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }) {
+            is DsResult.Failure -> return found
+            is DsResult.Success -> found.value
+        }
+        val kind = when (val classified = classify(existing, newBuild)) {
+            is DsResult.Failure -> return classified
+            is DsResult.Success -> classified.value
+        }
+        return when (val reportResult = transactions.rollback { importMeta(command.meta.copy(dryRun = true)) }) {
             is DsResult.Failure -> reportResult
             is DsResult.Success -> DsResult.Success(
                 PublishResult(
@@ -111,7 +105,28 @@ class PublishPluginBuildUseCase(
         }
     }
 
+    /**
+     * Запись идёт под блокировкой реестра: существование билда проверяется и файлы заливаются уже внутри неё, поэтому
+     * параллельная публикация того же `buildId` с другим архивом не перезапишет принятые файлы.
+     */
     private suspend fun publish(
+        command: PublishPluginBuild,
+        archive: PluginArchive,
+        newBuild: NewPluginBuild,
+    ): DsResult<PublishResult> {
+        val written = transactions.required {
+            builds.lockPublications()
+            val existing = builds.find(newBuild.buildId)
+            when (val kind = classify(existing, newBuild)) {
+                is DsResult.Failure -> kind
+                is DsResult.Success -> register(command, archive, newBuild, existing, kind.value)
+            }
+        }
+        if (written is DsResult.Success) cleanup()
+        return written
+    }
+
+    private suspend fun register(
         command: PublishPluginBuild,
         archive: PluginArchive,
         newBuild: NewPluginBuild,
@@ -122,21 +137,13 @@ class PublishPluginBuildUseCase(
             val uploaded = upload(archive, newBuild.buildId)
             if (uploaded is DsResult.Failure) return uploaded
         }
-        val written = transactions.required {
-            when (val report = importMeta(command.meta.copy(dryRun = false))) {
-                is DsResult.Failure -> report
-                is DsResult.Success -> {
-                    val build = if (existing == null) {
-                        builds.insertActive(newBuild)
-                    } else {
-                        builds.activate(newBuild.buildId)
-                    }
-                    DsResult.Success(PublishResult(kind, build, settings.pluginUrl(build.buildId), report.value))
-                }
+        return when (val report = importMeta(command.meta.copy(dryRun = false))) {
+            is DsResult.Failure -> report
+            is DsResult.Success -> {
+                val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
+                DsResult.Success(PublishResult(kind, build, settings.pluginUrl(build.buildId), report.value))
             }
         }
-        if (written is DsResult.Success) cleanup()
-        return written
     }
 
     private suspend fun upload(archive: PluginArchive, buildId: String): DsResult<Unit> = try {
@@ -163,30 +170,46 @@ class PublishPluginBuildUseCase(
                 DsResult.Failure(DsFailure.Unprocessable("Import failed", attempt.reason))
         }
 
-    /** Удаляет лишние билды и осиротевшие каталоги; ошибки не влияют на результат публикации. */
+    /**
+     * Удаляет лишние билды и осиротевшие каталоги под той же блокировкой, что и публикация: билд, который в этот
+     * момент активируется откатом, не попадёт в удаление. Строка снимается раньше файлов, чтобы билд без файлов
+     * нельзя было активировать; ошибки не влияют на результат публикации.
+     */
     @Suppress("TooGenericExceptionCaught")
     private suspend fun cleanup() {
         try {
-            val listed = transactions.readOnly { DsResult.Success(builds.listByRecency(PLATFORM)) }
-            val recent = (listed as? DsResult.Success)?.value ?: return
-            val inactive = recent.filterNot(PluginBuild::active)
-            val keep = (recent.filter(PluginBuild::active) + inactive.take(settings.keepBuilds))
-                .map { it.buildId }.toSet()
-            recent.filter { it.buildId !in keep }.forEach { stale ->
-                storage.deleteBuild(stale.buildId)
-                transactions.required {
+            transactions.required {
+                builds.lockPublications()
+                val recent = builds.listByRecency(PLATFORM)
+                val inactive = recent.filterNot(PluginBuild::active)
+                val keep = (recent.filter(PluginBuild::active) + inactive.take(settings.keepBuilds))
+                    .map { it.buildId }.toSet()
+                recent.filter { it.buildId !in keep }.forEach { stale ->
                     builds.delete(stale.buildId)
-                    DsResult.Success(Unit)
+                    discard(stale.buildId)
                 }
+                val known = recent.map { it.buildId }.toSet()
+                val threshold = Instant.now().minus(settings.orphanGrace)
+                storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
+                    .forEach { discard(it.buildId) }
+                DsResult.Success(Unit)
             }
-            val known = recent.map { it.buildId }.toSet()
-            val threshold = Instant.now().minus(settings.orphanGrace)
-            storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
-                .forEach { storage.deleteBuild(it.buildId) }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
             // Следующая публикация повторит очистку.
+        }
+    }
+
+    /** Файлы без строки в реестре уже не используются: сбой удаления подберёт проверка осиротевших каталогов. */
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun discard(buildId: String) {
+        try {
+            storage.deleteBuild(buildId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Осиротевший каталог удалит следующая очистка после периода ожидания.
         }
     }
 

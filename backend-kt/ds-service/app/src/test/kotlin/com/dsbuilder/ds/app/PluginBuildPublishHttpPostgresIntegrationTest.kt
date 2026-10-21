@@ -20,6 +20,9 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -29,7 +32,9 @@ import java.sql.DriverManager
 import java.time.Instant
 import java.util.UUID
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -126,6 +131,55 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertEquals("BUILD_CONTENT_CHANGED", json.parseToJsonElement(response.bodyAsText()).jsonObject.string("code"))
         assertEquals(1, count("compose_preview_plugin_builds"))
         assertTrue("${COMMIT_A.take(12)}/extra.txt" !in storage.files)
+    }
+
+    @Test
+    fun `an archive above the meta limit but within the archive limit is accepted`() = withService {
+        val blob = Random(7).nextBytes(20 * 1024 * 1024)
+        val big = withBlob(archive(commit = COMMIT_A), blob)
+        assertTrue(big.size > 16 * 1024 * 1024, "the fixture must exceed the former 16 MiB parser limit")
+
+        assertEquals("published", publish(big, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals(1, count("compose_preview_plugin_builds WHERE active"))
+        assertTrue("${COMMIT_A.take(12)}/blob.bin" in storage.files)
+    }
+
+    @Test
+    fun `concurrent publications of one build with different archives keep the accepted files`() = withService {
+        val plain = archive(commit = COMMIT_A)
+        val changed = archive(commit = COMMIT_A, extra = mapOf("extra.txt" to "x"))
+
+        val statuses = coroutineScope {
+            listOf(plain, changed).map { async { publish(it, Actor.PUBLISHER, dryRun = false).status } }.awaitAll()
+        }
+
+        assertEquals(1, statuses.count { it == HttpStatusCode.OK }, statuses.toString())
+        assertEquals(1, statuses.count { it == HttpStatusCode.Conflict }, statuses.toString())
+        assertEquals(1, count("compose_preview_plugin_builds"))
+        val recordedHash = query("SELECT zip_sha256 FROM compose_preview_plugin_builds")
+        val winner = if (recordedHash == sha256Hex(changed)) changed else plain
+        assertEquals(recordedHash, sha256Hex(winner))
+        assertEquals(winner === changed, "${COMMIT_A.take(12)}/extra.txt" in storage.files)
+    }
+
+    @Test
+    fun `the old builds cleanup keeps the build a concurrent rollback activates`() = withService(keepBuilds = 1) {
+        val a = archive(commit = COMMIT_A)
+        publish(a, Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(commit = COMMIT_B), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(commit = COMMIT_C), Actor.PUBLISHER, dryRun = false).ok()
+
+        // A is the oldest and is already beyond keepBuilds; a rollback to it and a new publication race.
+        val statuses = coroutineScope {
+            listOf(a, archive(commit = COMMIT_D)).map { async { publish(it, Actor.PUBLISHER, dryRun = false).status } }
+                .awaitAll()
+        }
+
+        assertTrue(statuses.all { it == HttpStatusCode.OK }, statuses.toString())
+        assertEquals(1, count("compose_preview_plugin_builds WHERE active"))
+        val activeId = query("SELECT build_id FROM compose_preview_plugin_builds WHERE active")
+        assertTrue(storage.files.keys.any { it.startsWith("$activeId/") }, "the active build must keep its files")
+        assertEquals(buildIds(), storage.files.keys.map { it.substringBefore('/') }.toSet())
     }
 
     @Test
@@ -303,6 +357,23 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         )
     }
 
+    private fun withBlob(archive: ByteArray, blob: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            ZipInputStream(archive.inputStream()).use { input ->
+                generateSequence { input.nextEntry }.forEach { entry ->
+                    zip.putNextEntry(ZipEntry(entry.name))
+                    zip.write(input.readBytes())
+                    zip.closeEntry()
+                }
+            }
+            zip.putNextEntry(ZipEntry("blob.bin"))
+            zip.write(blob)
+            zip.closeEntry()
+        }
+        return out.toByteArray()
+    }
+
     private fun zip(files: Map<String, String>): ByteArray {
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
@@ -428,5 +499,6 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         const val COMMIT_A = "aaaaaaaaaaaa1111111111111111111111111111"
         const val COMMIT_B = "bbbbbbbbbbbb2222222222222222222222222222"
         const val COMMIT_C = "cccccccccccc3333333333333333333333333333"
+        const val COMMIT_D = "dddddddddddd4444444444444444444444444444"
     }
 }
