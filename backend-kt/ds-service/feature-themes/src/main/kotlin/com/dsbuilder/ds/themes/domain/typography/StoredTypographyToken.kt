@@ -12,4 +12,6 @@ data class StoredTypographyToken(
     val name: TypographyTokenName,
     /** Значения текущей темы по платформам. */
     val values: Map<ThemeTokenPlatform, JsonElement>,
+    /** Устойчивые идентификаторы и технические редакции значений по платформам. */
+    val revisions: List<TypographyValueRevision> = emptyList(),
 )

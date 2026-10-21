@@ -5,8 +5,6 @@ import kotlinx.serialization.Serializable
 /** Тело `PATCH /tenants/{tenantId}/typography-styles/{tokenId}`. */
 @Serializable
 data class UpdateTypographyStyleRequest(
-    /** Ожидаемая ревизия текущей темы. */
-    val editRevision: Int,
     /** Размер в px. */
     val size: Double? = null,
     /** Высота строки в px. */
@@ -17,4 +15,6 @@ data class UpdateTypographyStyleRequest(
     val weights: Map<String, Int>? = null,
     /** Семейство шрифта: имя токена `fontFamily`. */
     val fontFamily: String? = null,
+    /** Базовые редакции значений токенов стиля; приоритетнее заголовка `X-DS-Base-Revision`. */
+    val baseRevisions: List<TypographyBaseRevisionDto>? = null,
 )

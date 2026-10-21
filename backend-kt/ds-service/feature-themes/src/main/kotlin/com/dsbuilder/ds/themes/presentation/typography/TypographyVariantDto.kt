@@ -9,4 +9,6 @@ data class TypographyVariantDto(
     val tokenId: String,
     /** Вес числом. */
     val weight: Int,
+    /** Технические редакции значений токена по платформам. */
+    val valueRevisions: List<TypographyValueRevisionDto>,
 )

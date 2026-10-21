@@ -33,7 +33,11 @@ object TypographyStyleBuilder {
             letterSpacingEm = base.letterSpacingEm,
             fontFamily = base.fontFamily,
             variants = ordered.associate { token ->
-                token.name.variant to TypographyVariantView(token.id, metrics.getValue(token.name.variant).weight)
+                token.name.variant to TypographyVariantView(
+                    token.id,
+                    metrics.getValue(token.name.variant).weight,
+                    token.revisions.sortedBy { it.platform.ordinal },
+                )
             },
             components = components,
         )

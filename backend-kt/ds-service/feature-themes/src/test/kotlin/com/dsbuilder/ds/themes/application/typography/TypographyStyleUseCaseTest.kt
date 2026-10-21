@@ -37,7 +37,7 @@ class TypographyStyleUseCaseTest {
     private val outside = UUID.randomUUID()
     private val repository = FakeTypographyStyleRepository(
         designSystemId = UUID.randomUUID(),
-        revisions = mutableMapOf(tenantA to REVISION, tenantB to REVISION),
+        tenants = setOf(tenantA, tenantB),
         definitions = ids.entries.associate { (name, id) -> id to (name to ThemeTokenType.TYPOGRAPHY) } +
             (outside to ("text.default.primary" to ThemeTokenType.COLOR)),
         values = mutableMapOf(tenantA to initialValues(), tenantB to initialValues()),
@@ -70,15 +70,39 @@ class TypographyStyleUseCaseTest {
         )
         assertEquals(true, success(get.execute(context("editor"), tenantA)).canEdit)
         assertEquals(DsFailure.NotFound, failure(get.execute(context("viewer", "project-2"), tenantA)))
+        val normal = body.variants.getValue(TypographyVariant.NORMAL)
+        assertEquals(ThemeTokenPlatform.entries, normal.valueRevisions.map { it.platform })
+        assertEquals(
+            repository.valueId(tenantA, normal.tokenId, ThemeTokenPlatform.WEB),
+            normal.valueRevisions.first().valueId,
+        )
+        assertEquals(listOf(0L, 0L, 0L), normal.valueRevisions.map { it.revision })
+    }
+
+    @Test
+    fun `опубликованная версия читается только для чтения`() = runBlocking {
+        val historical = context("editor").copy(versionId = UUID.randomUUID())
+        assertEquals(false, success(get.execute(historical, tenantA)).canEdit)
     }
 
     @Test
     fun `размеры пишутся в три токена выбранного экрана`() = runBlocking {
         val token = ids.getValue("screen-l.body.m.normal")
-        val command = UpdateTypographyStyle(REVISION, size = 18.0)
+        val base = repository.valueId(tenantA, token, ThemeTokenPlatform.WEB)
+        val command = UpdateTypographyStyle(
+            size = 18.0,
+            baseRevisions = listOf(TypographyBaseRevision(token, ThemeTokenPlatform.WEB, 7)),
+        )
         val result = success(update.execute(context("editor"), tenantA, token, command))
-        assertEquals(REVISION + 1, result.editRevision)
         assertEquals(18.0, result.style.sizePx)
+        assertEquals(1, repository.locks)
+        assertEquals(9, repository.written.size)
+        assertEquals(7L, repository.written.single { it.valueId == base }.baseRevision)
+        assertEquals(listOf(null), repository.written.filter { it.valueId != base }.map { it.baseRevision }.distinct())
+        assertEquals(
+            listOf(1L, 1L, 1L),
+            result.style.variants.getValue(TypographyVariant.NORMAL).valueRevisions.map { it.revision },
+        )
         assertEquals(VARIANTS.map { "screen-l.body.m.$it" }.toSet(), result.tokens.map { it.name }.toSet())
         VARIANTS.forEach { variant ->
             assertEquals("1.125rem", field(tenantA, "screen-l.body.m.$variant", ThemeTokenPlatform.WEB, "fontSize"))
@@ -86,14 +110,25 @@ class TypographyStyleUseCaseTest {
             assertEquals("1rem", field(tenantA, "screen-m.body.m.$variant", ThemeTokenPlatform.WEB, "fontSize"))
             assertEquals("1rem", field(tenantB, "screen-l.body.m.$variant", ThemeTokenPlatform.WEB, "fontSize"))
         }
-        assertEquals(REVISION, repository.revisions[tenantB])
+        val tenantBValues = ids.values
+            .flatMap { id -> ThemeTokenPlatform.entries.map { repository.valueId(tenantB, id, it) } }
+            .toSet()
+        assertEquals(emptySet(), repository.written.map { it.valueId }.toSet() intersect tenantBValues)
+    }
+
+    @Test
+    fun `значение без изменений не получает редакцию`() = runBlocking {
+        val token = ids.getValue("screen-l.body.m.normal")
+        val same = UpdateTypographyStyle(size = 16.0, lineHeight = 20.0)
+        val result = success(update.execute(context("editor"), tenantA, token, same))
+        assertEquals(emptyList(), result.tokens)
+        assertEquals(0, repository.written.size)
     }
 
     @Test
     fun `вес начертания и семейство пишутся на всех экранах`() = runBlocking {
         val token = ids.getValue("screen-s.body.m.medium")
         val command = UpdateTypographyStyle(
-            REVISION,
             weights = mapOf(TypographyVariant.BOLD to 700),
             fontFamily = "display",
         )
@@ -120,29 +155,31 @@ class TypographyStyleUseCaseTest {
     fun `отказы не меняют данные`() = runBlocking {
         val token = ids.getValue("screen-l.body.m.normal")
         val editor = context("editor")
-        val resize = UpdateTypographyStyle(REVISION, size = 18.0)
+        val resize = UpdateTypographyStyle(size = 18.0)
         assertEquals(DsFailure.Forbidden, failure(update.execute(context("viewer"), tenantA, token, resize)))
 
-        val negative = invalid(update.execute(editor, tenantA, token, UpdateTypographyStyle(REVISION, size = -5.0)))
+        val negative = invalid(update.execute(editor, tenantA, token, UpdateTypographyStyle(size = -5.0)))
         assertEquals("INVALID_TYPOGRAPHY_VALUE", negative.code)
         assertEquals("size", negative.details["field"])
         assertEquals(TypographyValueRules.SIZE_MESSAGE, negative.message)
-        val weight = UpdateTypographyStyle(REVISION, weights = mapOf(TypographyVariant.BOLD to 450))
+        val weight = UpdateTypographyStyle(weights = mapOf(TypographyVariant.BOLD to 450))
         assertEquals("weights.bold", invalid(update.execute(editor, tenantA, token, weight)).details["field"])
-        val family = UpdateTypographyStyle(REVISION, fontFamily = "missing")
+        val family = UpdateTypographyStyle(fontFamily = "missing")
         assertEquals("fontFamily", invalid(update.execute(editor, tenantA, token, family)).details["field"])
 
         val color = invalid(update.execute(editor, tenantA, outside, resize))
         assertEquals("INVALID_TYPOGRAPHY_STYLE", color.code)
         assertEquals(DsFailure.NotFound, failure(update.execute(editor, tenantA, UUID.randomUUID(), resize)))
 
-        val outdated = UpdateTypographyStyle(REVISION - 1, size = 18.0)
-        val stale = assertIs<DsFailure.Conflict>(failure(update.execute(editor, tenantA, token, outdated)))
-        assertEquals("TENANT_EDIT_CONFLICT", stale.code)
-        assertEquals(REVISION, stale.editRevision)
+        val negativeBase = resize.copy(
+            baseRevisions = listOf(TypographyBaseRevision(token, ThemeTokenPlatform.WEB, -1)),
+        )
+        assertEquals("invalid_base_revision", invalid(update.execute(editor, tenantA, token, negativeBase)).code)
+        val foreign = update.execute(context("editor", "project-2"), tenantA, token, resize)
+        assertEquals(DsFailure.NotFound, failure(foreign))
 
-        assertEquals(0, repository.writes)
-        assertEquals(REVISION, repository.revisions[tenantA])
+        assertEquals(0, repository.written.size)
+        assertEquals(emptyMap(), repository.revisions)
     }
 
     private fun field(tenant: UUID, name: String, platform: ThemeTokenPlatform, key: String): String? =
@@ -186,7 +223,6 @@ class TypographyStyleUseCaseTest {
     )
 
     private companion object {
-        const val REVISION = 3
         val SCREENS = listOf("screen-l", "screen-m", "screen-s")
         val VARIANTS = listOf("normal", "medium", "bold")
         val WEIGHTS = mapOf("normal" to 400, "medium" to 500, "bold" to 600)

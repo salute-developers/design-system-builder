@@ -7,10 +7,10 @@ import com.dsbuilder.ds.themes.domain.typography.TypographyFamily
 import com.dsbuilder.ds.themes.domain.typography.TypographyScreenView
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleView
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyles
+import com.dsbuilder.ds.themes.domain.typography.TypographyValueRevision
 
 /** Ответ чтения стилей. */
 internal fun TypographyStyles.toResponse() = TypographyStylesResponse(
-    editRevision = editRevision,
     canEdit = canEdit,
     themeCount = themeCount,
     families = families.map { it.toDto() },
@@ -19,7 +19,6 @@ internal fun TypographyStyles.toResponse() = TypographyStylesResponse(
 
 /** Ответ изменения стиля. */
 internal fun UpdatedTypographyStyle.toResponse() = UpdatedTypographyStyleResponse(
-    editRevision = editRevision,
     style = style.toDto(),
     tokens = tokens.map { it.toDto() },
 )
@@ -37,10 +36,17 @@ private fun TypographyStyleView.toDto() = TypographyStyleDto(
     letterSpacingEm = letterSpacingEm,
     fontFamily = fontFamily,
     variants = variants.entries.associate { (variant, view) ->
-        variant.wireValue to TypographyVariantDto(view.tokenId.toString(), view.weight)
+        variant.wireValue to TypographyVariantDto(
+            view.tokenId.toString(),
+            view.weight,
+            view.valueRevisions.map { it.toDto() },
+        )
     },
     components = components.map { it.toDto() },
 )
+
+private fun TypographyValueRevision.toDto() =
+    TypographyValueRevisionDto(platform.wireValue, valueId.toString(), revision)
 
 private fun TypographyComponentUsage.toDto() = TypographyComponentDto(name, count)
 

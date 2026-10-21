@@ -5,9 +5,7 @@ import kotlinx.serialization.Serializable
 /** Ответ `GET /tenants/{tenantId}/typography-styles`. */
 @Serializable
 data class TypographyStylesResponse(
-    /** Текущая ревизия темы. */
-    val editRevision: Int,
-    /** Может ли пользователь менять стили. */
+    /** Может ли пользователь менять стили: право записи и активный черновик. */
     val canEdit: Boolean,
     /** Число тем дизайн-системы. */
     val themeCount: Int,

@@ -4,8 +4,6 @@ import com.dsbuilder.ds.themes.domain.typography.TypographyVariant
 
 /** Изменение стиля типографии; `null` — часть не меняется. */
 data class UpdateTypographyStyle(
-    /** Ожидаемая ревизия текущей темы. */
-    val editRevision: Int,
     /** Размер в px на экране токена. */
     val size: Double? = null,
     /** Высота строки в px на экране токена. */
@@ -16,6 +14,8 @@ data class UpdateTypographyStyle(
     val weights: Map<TypographyVariant, Int> = emptyMap(),
     /** Семейство шрифта на всех экранах: имя токена `fontFamily`. */
     val fontFamily: String? = null,
+    /** Базовые редакции значений; значение без элемента сравнивается с базовой редакцией запроса. */
+    val baseRevisions: List<TypographyBaseRevision> = emptyList(),
 ) {
     /** Запрос ничего не меняет. */
     val isEmpty: Boolean
