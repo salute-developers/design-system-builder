@@ -164,12 +164,6 @@ export const draftEntriesOfTypes = (dsName: string, dsVersion: string, types: re
         .filter(([, change]) => types.includes(change.type))
         .map(([name, change]) => ({ name, type: change.type }));
 
-/** Записи черновика токенов заданных типов со значениями платформ. */
-export const draftValuesOfTypes = (dsName: string, dsVersion: string, types: readonly VariationType[]) =>
-    Object.entries(loadDraftChanges(dsName, dsVersion))
-        .filter(([, change]) => types.includes(change.type))
-        .map(([name, change]) => ({ name, type: change.type, values: change.values }));
-
 /** Удаляет из черновика записи [names]; остальные записи сохраняются. */
 export const removeDraftEntries = (dsName: string, dsVersion: string, names: readonly string[]) => {
     const changes = loadDraftChanges(dsName, dsVersion);
@@ -328,12 +322,7 @@ export const createDraftToken = (dsName: string, dsVersion: string, token: Token
 };
 
 /** Удаляет только подтверждённый сервером запрос, не меняя предметные данные редактора. */
-export const confirmDraftToken = (
-    dsName: string,
-    dsVersion: string,
-    tokenName: string,
-    context?: DraftContext,
-) => {
+export const confirmDraftToken = (dsName: string, dsVersion: string, tokenName: string, context?: DraftContext) => {
     const changes = loadDraftChanges(dsName, dsVersion, context);
     delete changes[tokenName];
     saveDraftChanges(dsName, dsVersion, changes, context);

@@ -1,24 +1,24 @@
 import { useMemo } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import type { DesignSystem, Theme } from '../../controllers';
-import type { EditorContextKey } from '../../api/editorContracts';
 import { TypographyScreen } from './TypographyScreen';
 
 interface TypographyOutletContextProps {
     designSystem?: DesignSystem | null;
     theme?: Theme | null;
     rerender: () => void;
-    editorContext?: EditorContextKey;
 }
 
 /** Раздел «Типографика» темы: экран Typography по прототипу SDDS Portal с автосохранением правок. */
 export const Typography = () => {
     const outlet = useOutletContext<TypographyOutletContextProps>();
     const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    const versionId = searchParams.get('versionId') ?? undefined;
     const context = useMemo(
-        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId } : null),
-        [projectId, designSystemId, tenantId],
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
     );
 
     if (!context || !outlet.designSystem || !outlet.theme) {
@@ -33,7 +33,7 @@ export const Typography = () => {
 
     return (
         <TypographyScreen
-            key={`${context.projectId}:${context.designSystemId}:${context.tenantId}`}
+            key={`${context.projectId}:${context.designSystemId}:${context.tenantId}:${context.versionId ?? ''}`}
             context={context}
             designSystem={outlet.designSystem}
             theme={outlet.theme}

@@ -1,4 +1,21 @@
-import type { TypographyScreen, TypographyStyle, TypographyStyles, UpdatedTypographyStyle } from './domain';
+import type {
+    TypographyScreen,
+    TypographyStyle,
+    TypographyStyles,
+    TypographyVariantView,
+    UpdatedTypographyStyle,
+} from './domain';
+
+/** Начертание с токеном [tokenId], весом и значениями трёх платформ с технической редакцией [revision]. */
+export const variant = (tokenId: string, weight: number, revision = 0): TypographyVariantView => ({
+    tokenId,
+    weight,
+    valueRevisions: (['web', 'ios', 'android'] as const).map((platform) => ({
+        platform,
+        valueId: `${tokenId}:${platform}`,
+        revision,
+    })),
+});
 
 /** Стиль Body M на экране [screen] со значениями темы `base`. */
 export const bodyM = (screen: TypographyScreen, overrides: Partial<TypographyStyle> = {}): TypographyStyle => ({
@@ -10,9 +27,9 @@ export const bodyM = (screen: TypographyScreen, overrides: Partial<TypographySty
     letterSpacingEm: -0.02,
     fontFamily: 'body',
     variants: {
-        normal: { tokenId: `${screen}.body.m.normal`, weight: 400 },
-        medium: { tokenId: `${screen}.body.m.medium`, weight: 500 },
-        bold: { tokenId: `${screen}.body.m.bold`, weight: 600 },
+        normal: variant(`${screen}.body.m.normal`, 400),
+        medium: variant(`${screen}.body.m.medium`, 500),
+        bold: variant(`${screen}.body.m.bold`, 600),
     },
     components: [
         { name: 'Combobox', count: 6 },
@@ -29,16 +46,15 @@ const headerH1 = (screen: TypographyScreen, sizePx: number): TypographyStyle => 
     lineHeightPx: sizePx + 4,
     fontFamily: 'header',
     variants: {
-        normal: { tokenId: `${screen}.header.h1.normal`, weight: 400 },
-        medium: { tokenId: `${screen}.header.h1.medium`, weight: 500 },
-        bold: { tokenId: `${screen}.header.h1.bold`, weight: 600 },
+        normal: variant(`${screen}.header.h1.normal`, 400),
+        medium: variant(`${screen}.header.h1.medium`, 500),
+        bold: variant(`${screen}.header.h1.bold`, 600),
     },
     components: [],
 });
 
 /** Стили темы: Body M на трёх экранах, H1 — только на крупных и средних. */
 export const typographyStyles = (overrides: Partial<TypographyStyles> = {}): TypographyStyles => ({
-    editRevision: 3,
     canEdit: true,
     themeCount: 2,
     families: [
@@ -53,13 +69,12 @@ export const typographyStyles = (overrides: Partial<TypographyStyles> = {}): Typ
     ...overrides,
 });
 
-/** Ответ изменения стиля [style] с ревизией [editRevision]. */
-export const updated = (style: TypographyStyle, editRevision: number): UpdatedTypographyStyle => ({
-    editRevision,
+/** Ответ изменения стиля [style]. */
+export const updated = (style: TypographyStyle): UpdatedTypographyStyle => ({
     style,
-    tokens: Object.values(style.variants).map((variant) => ({
-        tokenId: variant!.tokenId,
-        name: variant!.tokenId,
+    tokens: Object.values(style.variants).map((item) => ({
+        tokenId: item!.tokenId,
+        name: item!.tokenId,
         values: [{ platform: 'web' as const, value: [{ fontSize: `${style.sizePx / 16}rem` }] }],
     })),
 });

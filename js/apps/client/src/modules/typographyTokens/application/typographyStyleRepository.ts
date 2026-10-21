@@ -1,24 +1,28 @@
-import type { TypographyField, TypographyStyleChange, TypographyStyles, UpdatedTypographyStyle } from '../domain';
+import type { EditorContextKey } from '../../../api/editorContracts';
+import type {
+    TypographyField,
+    TypographyStyleChange,
+    TypographyStyles,
+    TypographyValueAddress,
+    UpdatedTypographyStyle,
+} from '../domain';
 
-/** Тема, стили которой читаются и меняются. */
-export interface TypographyContext {
-    projectId: string;
-    designSystemId: string;
-    tenantId: string;
-}
+/** Тема, стили которой читаются и меняются; `versionId` — опубликованная версия только для чтения. */
+export type TypographyContext = EditorContextKey;
 
-/** Порт стилей типографии; изменение сверяет и увеличивает общую ревизию темы. */
+/** Порт стилей типографии; изменение пишет предметные редакции значений с базовыми редакциями из чтения. */
 export interface TypographyStyleRepository {
-    load(context: TypographyContext): Promise<TypographyStyles>;
+    load(context: TypographyContext, signal?: AbortSignal): Promise<TypographyStyles>;
+    /** Меняет стиль токена [tokenId]; [values] — значения стиля, базовые редакции которых передаются серверу. */
     update(
         context: TypographyContext,
         tokenId: string,
         change: TypographyStyleChange,
-        editRevision: number,
+        values: TypographyValueAddress[],
     ): Promise<UpdatedTypographyStyle>;
 }
 
-export type TypographyErrorKind = 'conflict' | 'forbidden' | 'invalid' | 'not-found' | 'network';
+export type TypographyErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'network';
 
 /** Отказ операции над стилем в терминах экрана. */
 export class TypographyOperationError extends Error {
@@ -26,21 +30,22 @@ export class TypographyOperationError extends Error {
     readonly code: string | null;
     /** Поле запроса у `INVALID_TYPOGRAPHY_VALUE`. */
     readonly field: TypographyField | null;
-    /** Актуальная ревизия темы у `TENANT_EDIT_CONFLICT`. */
-    readonly editRevision: number | null;
 
     constructor(
         kind: TypographyErrorKind,
         message: string,
         code: string | null = null,
         field: TypographyField | null = null,
-        editRevision: number | null = null,
     ) {
         super(message);
         this.name = 'TypographyOperationError';
         this.kind = kind;
         this.code = code;
         this.field = field;
-        this.editRevision = editRevision;
+    }
+
+    /** Ошибка сети или `5xx`: правку можно повторить автоматически. */
+    get retryable() {
+        return this.kind === 'network';
     }
 }
