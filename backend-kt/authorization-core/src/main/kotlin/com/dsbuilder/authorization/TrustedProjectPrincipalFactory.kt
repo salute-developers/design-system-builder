@@ -20,10 +20,9 @@ object TrustedProjectPrincipalFactory {
             "project_key" -> ProjectActorType.PROJECT_KEY
             else -> return null
         }
-        val admin = systemAdmin?.toBooleanStrictOrNull() ?: false
-        if (systemAdmin != null && systemAdmin.toBooleanStrictOrNull() == null) return null
-        val publisher = composePreviewPublisher?.toBooleanStrictOrNull() ?: false
-        if (composePreviewPublisher != null && composePreviewPublisher.toBooleanStrictOrNull() == null) return null
+        val admin = parseFlag(systemAdmin)
+        val publisher = parseFlag(composePreviewPublisher)
+        if (admin == null || publisher == null) return null
         val scopes = projectScopes.orEmpty().split(',').map(String::trim).filter(String::isNotBlank).toSet()
         val principal = when (type) {
             ProjectActorType.USER -> createUser(userId, projectId, projectKeyId, projectRole, scopes, admin, publisher)
@@ -38,6 +37,9 @@ object TrustedProjectPrincipalFactory {
         }
         return principal?.takeIf { it.isValid(policy) }
     }
+
+    /** An absent flag is false; a present but non-boolean value is malformed and yields null. */
+    private fun parseFlag(value: String?): Boolean? = if (value == null) false else value.toBooleanStrictOrNull()
 
     private fun createUser(
         userId: String?,
