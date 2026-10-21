@@ -2019,6 +2019,8 @@
 
 /* Начертание выбирается под семейством, вес ниже относится к выбранному начертанию. */
 .typography-screen .editor-fonts-workbench .typography-variant-control {
+    display: grid;
+    gap: 4px;
     padding: 0 12px;
     margin-top: 4px;
 }
