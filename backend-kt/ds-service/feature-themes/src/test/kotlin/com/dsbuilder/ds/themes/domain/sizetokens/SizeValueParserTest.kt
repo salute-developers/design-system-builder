@@ -88,6 +88,47 @@ class SizeValueParserTest {
     }
 
     @Test
+    fun `цвет слоя — HEX или ссылка на ступень палитры с прозрачностью`() {
+        val reference = LAYER.replace("#08080814", "[general.gray.900][0.16]")
+        val parsed = assertIs<SizeTokenValue.Shadow>(valid(shadow, """{"layers":[$reference]}"""))
+        assertEquals("[general.gray.900][0.16]", parsed.layers.single().color)
+        val opaque = LAYER.replace("#08080814", "[general.gray.900][1]")
+        assertEquals(
+            "[general.gray.900]",
+            assertIs<SizeTokenValue.Shadow>(valid(shadow, """{"layers":[$opaque]}""")).layers.single().color,
+        )
+        assertEquals(
+            "#000000FF",
+            assertIs<SizeTokenValue.Shadow>(
+                valid(
+                    shadow,
+                    """{"layers":[${
+                        LAYER.replace("#08080814", "#000000")
+                    }]}""",
+                ),
+            ).layers.single().color,
+        )
+        val noStep = LAYER.replace("#08080814", "[general.gray]")
+        assertEquals(violation("layers[0].color", SizeValueParser.NOT_HEX), invalid(shadow, """{"layers":[$noStep]}"""))
+        val tooOpaque = LAYER.replace("#08080814", "[general.gray.900][2]")
+        assertEquals(
+            violation("layers[0].color", SizeValueParser.NOT_HEX),
+            invalid(shadow, """{"layers":[$tooOpaque]}"""),
+        )
+
+        val value = valid(shadow, """{"layers":[$LAYER,$reference],"platforms":{"ios":{"layers":[$reference]}}}""")
+        assertEquals(
+            listOf("layers[1].color", "platforms.ios.layers[0].color"),
+            SizeValueParser.colorReferences(value).map { it.first },
+        )
+        assertEquals(
+            listOf("variants[3].layers[1].color", "variants[3].platforms.ios.layers[0].color"),
+            SizeValueParser.colorReferences(value, "variants[3].").map { it.first },
+        )
+        assertEquals(emptyList(), SizeValueParser.colorReferences(SizeTokenValue.Dimension(4)))
+    }
+
+    @Test
     fun `свои слои платформы у тени`() {
         val value = valid(shadow, """{"layers":[$LAYER],"platforms":{"ios":{"layers":[$LAYER,$LAYER]}}}""")
         assertEquals(2, assertIs<SizeTokenValue.Shadow>(value).platforms.getValue(NativePlatform.IOS).size)

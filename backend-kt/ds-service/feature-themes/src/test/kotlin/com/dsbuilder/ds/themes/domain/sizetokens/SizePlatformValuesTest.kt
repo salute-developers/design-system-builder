@@ -89,6 +89,28 @@ class SizePlatformValuesTest {
     }
 
     @Test
+    fun `ссылка цвета слоя пишется на месте цвета на всех платформах и читается обратно`() {
+        val layer = ShadowLayer(0, 2, 8, 0, "[general.gray.900][0.16]")
+        val written = SizePlatformValues.write(SizeTokenKind.SHADOW, SizeTokenValue.Shadow(listOf(layer), 4))
+        val web = written.value(ThemeTokenPlatform.WEB)
+        assertEquals(json("""["0rem 0.125rem 0.5rem 0rem [general.gray.900][0.16]"]"""), web)
+        assertEquals(
+            json(
+                """[{"color":"[general.gray.900][0.16]","offsetX":0,"offsetY":2,"blurRadius":8,"spreadRadius":0,""" +
+                    """"fallbackElevation":4}]""",
+            ),
+            written.value(ThemeTokenPlatform.ANDROID),
+        )
+        assertEquals(listOf(layer), SizePlatformValues.readShadow(ThemeTokenPlatform.WEB, web))
+        assertEquals(
+            listOf(layer),
+            SizePlatformValues.readShadow(ThemeTokenPlatform.IOS, written.value(ThemeTokenPlatform.IOS)),
+        )
+        assertEquals("[general.gray.900]", SizePlatformValues.normalizedColor("[general.gray.900][1]"))
+        assertEquals("[general.gray.900][0.5]", SizePlatformValues.normalizedColor(" [general.gray.900][0.50] "))
+    }
+
+    @Test
     fun `px читаются из значения веба`() {
         assertEquals(12, SizePlatformValues.readDimension(ThemeTokenPlatform.WEB, json("""["0.75rem"]""")))
         assertEquals(0, SizePlatformValues.readDimension(ThemeTokenPlatform.WEB, json("""["0rem"]""")))

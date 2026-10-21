@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.domain.sizetokens
 
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
+import com.dsbuilder.ds.themes.domain.palette.PaletteReference
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -16,8 +17,9 @@ import java.math.RoundingMode
  *
  * - радиус: `web` — `"<px/16>rem"`, `android` и `ios` — `{ kind: "round", cornerRadius }`;
  * - отступ: `web` — `"<px/16>rem"`, `android` и `ios` — `{ value }`;
- * - слой тени: `web` — `"<x>rem <y>rem <blur>rem <spread>rem <#RRGGBBAA>"`, `android` —
- *   `{ color, offsetX, offsetY, blurRadius, spreadRadius, fallbackElevation }`, `ios` — без `fallbackElevation`.
+ * - слой тени: `web` — `"<x>rem <y>rem <blur>rem <spread>rem <цвет>"`, `android` —
+ *   `{ color, offsetX, offsetY, blurRadius, spreadRadius, fallbackElevation }`, `ios` — без `fallbackElevation`;
+ *   цвет — `#RRGGBBAA` или ссылка на ступень палитры `[type.shade.step][opacity]` на всех платформах.
  *
  * Источник чтения в px — значение `web`.
  */
@@ -25,6 +27,7 @@ object SizePlatformValues {
     private val REM_PX = BigDecimal(16)
     private val LENGTH = Regex("""^([+-]?(?:\d+\.?\d*|\.\d+))(rem|px)?$""")
     private val HEX6 = Regex("^#[0-9A-Fa-f]{6}$")
+    private val HEX8 = Regex("^#[0-9A-Fa-f]{8}$")
     private const val OPAQUE = "FF"
     private const val SHADOW_PARTS = 5
     private val NATIVE_FIELDS = listOf("offsetX", "offsetY", "blurRadius", "spreadRadius")
@@ -95,9 +98,21 @@ object SizePlatformValues {
     /** Число `rem` без лишних нулей: 12 px → `0.75rem`, 0 px → `0rem`, 20 px → `1.25rem`. */
     fun rem(px: Int): String = BigDecimal(px).divide(REM_PX).stripTrailingZeros().toPlainString() + "rem"
 
-    /** Цвет `#RRGGBBAA` в верхнем регистре; `#RRGGBB` получает непрозрачность `FF`. */
-    fun normalizedColor(color: String): String =
-        if (HEX6.matches(color)) "${color.uppercase()}$OPAQUE" else color.uppercase()
+    /**
+     * Цвет `#RRGGBBAA` в верхнем регистре; `#RRGGBB` получает непрозрачность `FF`. Ссылка на ступень палитры
+     * приводится к форме клиента (`[general.gray.900][0.16]`, прозрачность 1 опускается).
+     */
+    fun normalizedColor(color: String): String {
+        val text = color.trim()
+        return when {
+            HEX6.matches(text) -> "${text.uppercase()}$OPAQUE"
+            HEX8.matches(text) -> text.uppercase()
+            else -> PaletteReference.parse(text)?.format() ?: text
+        }
+    }
+
+    /** Ссылка на ступень палитры в цвете слоя или `null`, если цвет — HEX. */
+    fun colorReference(color: String): PaletteReference? = PaletteReference.parse(color)
 
     /** Радиус или отступ в px из значения платформы [platform] или `null`, если значение не читается. */
     fun readDimension(platform: ThemeTokenPlatform, value: JsonElement?): Int? {
@@ -130,7 +145,8 @@ object SizePlatformValues {
     /** Совпадают ли слои с точностью до регистра и непрозрачности цвета. */
     fun sameLayers(left: List<ShadowLayer>, right: List<ShadowLayer>): Boolean = normalized(left) == normalized(right)
 
-    private fun normalized(layers: List<ShadowLayer>) = layers.map { it.copy(color = normalizedColor(it.color)) }
+    private fun normalized(layers: List<ShadowLayer>) =
+        layers.map { it.copy(color = normalizedColor(it.color), colorRef = null) }
 
     private fun cssLayer(css: String): ShadowLayer? {
         val parts = css.trim().split(Regex("\\s+"))

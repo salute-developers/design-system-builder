@@ -7,6 +7,6 @@ import com.dsbuilder.ds.themes.domain.sizetokens.SizeWrittenValue
 data class UpdatedSizeToken(
     /** Токен в формате чтения. */
     val token: SizeTokenView,
-    /** Записанные значения. */
+    /** Значения платформ после записи. */
     val values: List<SizeWrittenValue>,
 )

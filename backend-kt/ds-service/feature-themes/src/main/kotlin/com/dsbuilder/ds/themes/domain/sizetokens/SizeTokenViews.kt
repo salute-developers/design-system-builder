@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.themes.domain.sizetokens
 
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
+import com.dsbuilder.ds.themes.domain.palette.PaletteReference
 import java.util.UUID
 
 /** Токен размеров в формате чтения из записанных значений платформ, использования компонентами и смещений. */
@@ -45,12 +46,17 @@ object SizeTokenViews {
         )
     }
 
-    /** Вариант тени: слои веба, запасная высота из первого слоя Android, свои слои платформ и расхождение. */
+    /**
+     * Вариант тени: слои веба, запасная высота из первого слоя Android, свои слои платформ и расхождение. Ссылки цвета
+     * слоёв раскрываются [resolveColor] в `#RRGGBBAA`, исходная ссылка остаётся в `colorRef`; расхождение платформ
+     * сравнивается по записанным цветам, а не по раскрытым.
+     */
     fun shadow(
         tokenId: UUID,
         name: String,
         values: Map<ThemeTokenPlatform, SizeStoredValue>,
         components: List<ComponentUsage>,
+        resolveColor: (PaletteReference) -> String? = { null },
     ): ShadowTokenView {
         val native = NativePlatform.entries.associateWith {
             SizePlatformValues.readShadow(it.platform, values[it.platform]?.value)
@@ -66,7 +72,24 @@ object SizeTokenViews {
             val current = native[platform]
             platform !in own && current != null && !SizePlatformValues.sameLayers(current, layers)
         }
-        return ShadowTokenView(tokenId, name, layers, fallbackElevation, own, native, differ, sorted(components))
+        fun resolved(items: List<ShadowLayer>) = items.map { layer -> resolvedLayer(layer, resolveColor) }
+        return ShadowTokenView(
+            tokenId = tokenId,
+            name = name,
+            layers = resolved(layers),
+            fallbackElevation = fallbackElevation,
+            platforms = own.mapValues { (_, items) -> resolved(items) },
+            native = native.mapValues { (_, items) -> items?.let(::resolved) },
+            platformsDiffer = differ,
+            components = sorted(components),
+        )
+    }
+
+    /** Слой с раскрытым цветом: ссылка становится `#RRGGBBAA` и переходит в `colorRef`. */
+    private fun resolvedLayer(layer: ShadowLayer, resolveColor: (PaletteReference) -> String?): ShadowLayer {
+        val reference = PaletteReference.parse(layer.color) ?: return layer.copy(colorRef = null)
+        val hex = resolveColor(reference)?.let(SizePlatformValues::normalizedColor)
+        return layer.copy(color = hex ?: reference.format(), colorRef = reference.format())
     }
 
     /** Вычисляемые радиусы: пары «источник, смещение» без нулевых смещений, значение не меньше 0. */

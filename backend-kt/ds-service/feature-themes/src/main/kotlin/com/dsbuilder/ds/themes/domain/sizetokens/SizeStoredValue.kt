@@ -6,6 +6,6 @@ import kotlinx.serialization.json.JsonElement
 data class SizeStoredValue(
     /** Значение в формате платформы. */
     val value: JsonElement,
-    /** Своё значение платформы (`token_values.overridden`). */
+    /** Своё значение платформы (`token_value_revisions.overridden`). */
     val overridden: Boolean,
 )
