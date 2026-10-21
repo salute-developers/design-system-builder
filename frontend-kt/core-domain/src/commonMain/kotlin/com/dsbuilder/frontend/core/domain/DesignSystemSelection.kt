@@ -11,6 +11,9 @@ public enum class CredentialPolicy {
     AUTO,
     USER_SESSION,
     PROJECT_KEY_ENV,
+
+    /** Service account from `DSBUILDER_CLIENT_ID`/`DSBUILDER_CLIENT_SECRET`, otherwise the user session. */
+    SERVICE_ACCOUNT_OR_USER_SESSION,
 }
 
 /**

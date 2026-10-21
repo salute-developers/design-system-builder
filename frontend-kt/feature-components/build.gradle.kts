@@ -20,6 +20,7 @@ kotlin {
             // componentsApplicationModule(): Module is a public factory returning a Koin type.
             api(libs.koin.core)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.okio)
         }
 
         commonTest.dependencies {
@@ -27,6 +28,15 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
+
+        // The archive reader of the plugin publication is native-only on macOS and JVM-only on the JVM:
+        // the JS target (mcp-node) never publishes plugins.
+        val macosMain by creating {
+            dependsOn(commonMain.get())
+        }
+
+        getByName("macosArm64Main").dependsOn(macosMain)
+        getByName("macosX64Main").dependsOn(macosMain)
     }
 }
 
