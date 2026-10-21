@@ -7,6 +7,7 @@ import {
     SECTION_LABELS,
     sizeLabel,
     spacingNameFromValue,
+    type DeletedUsage,
     type SizeTokenKind,
 } from '../../../modules/sizeTokens';
 
@@ -136,7 +137,8 @@ interface DeleteDialogProps {
     title: string;
     /** Имена удаляемых токенов: у тени — четыре варианта размера. */
     names: string[];
-    components: string[];
+    /** Компоненты, которые используют удаляемые токены, с этими токенами. */
+    components: DeletedUsage[];
     busy: boolean;
     error: string | null;
     onCancel: () => void;
@@ -171,11 +173,17 @@ export const DeleteSizeTokenDialog = ({
             </header>
             <div className="custom-token-form">
                 <p data-testid="delete-size-token-names">
-                    {names.length > 1 ? `Удалятся токены ${names.join(', ')}` : 'Токен удалится из дизайн-системы'}{' '}
-                    вместе со значениями во всех темах. Удаление нельзя отменить.
+                    {names.length > 1
+                        ? `Удалятся токены ${names.join(', ')} из черновика дизайн-системы`
+                        : 'Токен удалится из черновика дизайн-системы'}{' '}
+                    вместе со значениями во всех темах. До публикации удаление можно отменить в журнале изменений.
                 </p>
                 <p data-testid="delete-size-token-components">
-                    Используется в компонентах: {components.join(', ')}. Ссылки компонентов на токен будут сброшены.
+                    Используется в компонентах:{' '}
+                    {components
+                        .map((usage) => (names.length > 1 ? `${usage.name} (${usage.tokens.join(', ')})` : usage.name))
+                        .join(', ')}
+                    . Ссылки компонентов на токен будут сброшены.
                 </p>
                 {error && (
                     <p className="custom-token-error" role="alert">

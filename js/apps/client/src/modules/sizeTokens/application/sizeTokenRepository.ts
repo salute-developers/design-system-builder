@@ -1,48 +1,76 @@
+import type { EditorContextKey } from '../../../api/editorContracts';
 import type { CreateSizeTokenRequest, SizeToken, SizeTokens, SizeTokenValue, WrittenValue } from '../domain';
 
-/** Тема, в которой выполняются операции над токенами размеров. */
-export interface SizeTokenContext {
-    projectId: string;
-    designSystemId: string;
-    tenantId: string;
+/** Тема, в которой читаются и меняются токены размеров; `versionId` — опубликованная версия только для чтения. */
+export type SizeTokenContext = EditorContextKey;
+
+/** Операция над токенами размеров в терминах экрана. */
+export type SizeTokenOperation =
+    | { type: 'update'; tokenId: string; value: SizeTokenValue }
+    | { type: 'create'; request: CreateSizeTokenRequest }
+    | { type: 'delete'; tokenId: string };
+
+/**
+ * Исходная команда операции `size-tokens`: метод, путь, тело с `platforms` и базовыми редакциями и ключ
+ * повторяемости. В таком виде неподтверждённая операция хранится в `localStorage` темы и повторяется при следующем
+ * открытии темы той же командой.
+ */
+export interface SizeTokenCommand {
+    /** Поколение команды: подтверждение старого поколения не снимает более новое. */
+    id: string;
+    operation: SizeTokenOperation['type'];
+    method: 'PUT' | 'POST' | 'DELETE';
+    /** Путь через gateway: `/api/projects/{projectId}/ds/tenants/{tenantId}/size-tokens…`. */
+    path: string;
+    body?: unknown;
+    /** `Idempotency-Key` создания: повтор возвращает сохранённый ответ, токен не создаётся дважды. */
+    idempotencyKey?: string;
+    /** Токен изменения или удаления. */
+    tokenId?: string;
 }
 
-/** Ответ изменения значения: новая ревизия темы, токен в формате чтения и записанные значения платформ. */
+/** Ответ изменения значения: токен в формате чтения и записанные значения платформ. */
 export interface UpdatedSizeToken {
-    editRevision: number;
+    type: 'update';
     token: SizeToken;
     values: WrittenValue[];
 }
 
 /** Ответ создания: у тени — четыре варианта размера. */
 export interface CreatedSizeTokens {
-    editRevision: number;
+    type: 'create';
     created: SizeToken[];
 }
 
+/** Ответ удаления: у тени — четыре варианта размера. */
 export interface DeletedSizeTokens {
-    editRevision: number;
+    type: 'delete';
     deletedTokenIds: string[];
 }
 
-/** Порт токенов размеров `ds-service`; каждая операция изменения сверяет и увеличивает ревизию темы. */
+export type SizeTokenResult = UpdatedSizeToken | CreatedSizeTokens | DeletedSizeTokens;
+
+/**
+ * Порт токенов размеров `ds-service`. Изменяющие операции идут общим механизмом предметных мутаций редактора:
+ * технические редакции ответа принимаются из `X-DS-Mutation-Metadata`, общего счётчика темы нет.
+ */
 export interface SizeTokenRepository {
-    load(context: SizeTokenContext): Promise<SizeTokens>;
-    updateValue(
-        context: SizeTokenContext,
-        tokenId: string,
-        value: SizeTokenValue,
-        editRevision: number,
-    ): Promise<UpdatedSizeToken>;
-    create(
-        context: SizeTokenContext,
-        request: CreateSizeTokenRequest,
-        editRevision: number,
-    ): Promise<CreatedSizeTokens>;
-    delete(context: SizeTokenContext, tokenId: string, editRevision: number): Promise<DeletedSizeTokens>;
+    load(context: SizeTokenContext, signal?: AbortSignal): Promise<SizeTokens>;
+    /** Команда операции с базовыми редакциями значений, известными клиенту в момент вызова. */
+    command(context: SizeTokenContext, operation: SizeTokenOperation): SizeTokenCommand;
+    /** Отправляет команду как есть: так же отправляется и команда, сохранённая до перезагрузки. */
+    send(context: SizeTokenContext, command: SizeTokenCommand): Promise<SizeTokenResult>;
 }
 
-export type SizeTokenErrorKind = 'conflict' | 'forbidden' | 'invalid' | 'not-found' | 'network';
+/** Неподтверждённые команды темы: переживают закрытие страницы и повторяются при следующем открытии темы. */
+export interface PendingSizeTokenCommands {
+    save(key: string, command: SizeTokenCommand): void;
+    /** Убирает команду [key]; с [commandId] — только если хранится это поколение. */
+    remove(key: string, commandId?: string): void;
+    list(): Array<{ key: string; command: SizeTokenCommand }>;
+}
+
+export type SizeTokenErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'network' | 'failed';
 
 /** Отказ операции над токеном размеров в терминах экрана. */
 export class SizeTokenOperationError extends Error {
@@ -50,21 +78,17 @@ export class SizeTokenOperationError extends Error {
     readonly code: string | null;
     /** Поле недопустимого значения у `INVALID_SIZE_VALUE`: `valuePx`, `layers[0].blur`, `platforms.android`. */
     readonly field: string | null;
-    /** Актуальная ревизия темы у `TENANT_EDIT_CONFLICT`. */
-    readonly editRevision: number | null;
 
-    constructor(
-        kind: SizeTokenErrorKind,
-        message: string,
-        code: string | null = null,
-        field: string | null = null,
-        editRevision: number | null = null,
-    ) {
+    constructor(kind: SizeTokenErrorKind, message: string, code: string | null = null, field: string | null = null) {
         super(message);
         this.name = 'SizeTokenOperationError';
         this.kind = kind;
         this.code = code;
         this.field = field;
-        this.editRevision = editRevision;
+    }
+
+    /** Ошибка сети или `5xx`: операцию повторяем автоматически с увеличивающейся задержкой. */
+    get retryable() {
+        return this.kind === 'network';
     }
 }

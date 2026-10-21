@@ -90,7 +90,7 @@ export const validateLayers = (layers: readonly ShadowLayer[]): string | null =>
             const message = validatePx(String(layer[key]), LAYER_RANGES[key]);
             if (message) return message;
         }
-        if (!/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(layer.color)) return SIZE_MESSAGES.hex;
+        if (!layer.colorRef && !/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(layer.color)) return SIZE_MESSAGES.hex;
     }
     return null;
 };

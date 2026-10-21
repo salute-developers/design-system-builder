@@ -14,8 +14,10 @@ import {
     type ShadowLayer,
     type ShadowToken,
     type SizeToken,
+    type SizeTokenOperationError,
     type SizeTokenValue,
 } from '../../../modules/sizeTokens';
+import type { ThemePalette } from '../../../modules/palette';
 import { derivedLabel, derivedValue } from './SizeTokenBoard';
 import { CommitInput, PlatformAdd } from './fields';
 import { ShadowLayers } from './ShadowLayers';
@@ -35,12 +37,14 @@ interface InspectorProps {
     /** Последнее сохранённое значение токена. */
     saved: SizeToken;
     editable: boolean;
+    /** Открыта опубликованная версия: только чтение. */
+    published: boolean;
     canDelete: boolean;
     save: SaveStatus;
-    /** Отметка конфликта ревизии темы. */
-    conflict: boolean;
-    /** У других токенов есть неотправленные из-за ошибки правки. */
-    otherError: boolean;
+    /** Ошибка операции другого токена, создания или удаления; такие операции повторяются автоматически. */
+    otherError: SizeTokenOperationError | null;
+    /** Палитра темы: ступени для цвета слоя тени. */
+    palette: ThemePalette | null;
     onChange: (change: (value: SizeTokenValue) => SizeTokenValue) => void;
     onDelete: () => void;
     onRetry: () => void;
@@ -51,22 +55,18 @@ const platformsOf = <T,>(platforms: Partial<Record<NativePlatform, T>>) =>
     PLATFORM_ORDER.filter((platform) => platforms[platform] !== undefined);
 
 /** Статус сохранения под заголовком инспектора: у экрана в прототипе нет панели инструментов. */
-const SaveLine = ({
-    save,
-    conflict,
-    otherError,
-    onRetry,
-}: Pick<InspectorProps, 'save' | 'conflict' | 'otherError' | 'onRetry'>) => {
-    const failed = conflict || save.state === 'error' || otherError;
-    const label = conflict
-        ? 'Тема изменена в другом месте'
-        : save.state === 'error'
-          ? 'Не сохранено'
-          : save.state === 'saved'
-            ? otherError
-                ? 'Не все правки сохранены'
-                : 'Сохранено'
-            : 'Сохранение…';
+const SaveLine = ({ save, otherError, onRetry }: Pick<InspectorProps, 'save' | 'otherError' | 'onRetry'>) => {
+    const failed = save.state === 'error' || otherError !== null;
+    // «Повторить» отправляет сразу операцию, которая иначе повторится автоматически; отказ проверки не повторяется.
+    const retryable = save.state === 'error' ? Boolean(save.error?.retryable) : otherError !== null;
+    const label =
+        save.state === 'error'
+            ? 'Не сохранено'
+            : save.state === 'saved'
+              ? otherError
+                  ? 'Не все правки сохранены'
+                  : 'Сохранено'
+              : 'Сохранение…';
     return (
         <div className="st-save-row">
             <span
@@ -75,7 +75,7 @@ const SaveLine = ({
                 data-testid="size-tokens-save-status"
             >
                 {label}
-                {failed && (
+                {failed && retryable && (
                     <button type="button" className="st-inline-action" onClick={onRetry}>
                         Повторить
                     </button>
@@ -471,13 +471,15 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                     {token.name} · {DESCRIPTION[token.kind]}
                 </p>
             </header>
-            <SaveLine save={save} conflict={props.conflict} otherError={props.otherError} onRetry={props.onRetry} />
+            {!props.published && <SaveLine save={save} otherError={props.otherError} onRetry={props.onRetry} />}
             {!editable && (
                 <div className="st-warning is-neutral" role="status" data-testid="size-tokens-viewer">
-                    Режим просмотра: у вас нет прав на изменение темы.
+                    {props.published
+                        ? 'Опубликованная версия: значения доступны только для чтения.'
+                        : 'Режим просмотра: у вас нет прав на изменение темы.'}
                 </div>
             )}
-            {unmatched && !props.conflict && (
+            {unmatched && (
                 <div className="st-warning is-error" role="alert">
                     Не сохранено: {unmatched.message}
                 </div>

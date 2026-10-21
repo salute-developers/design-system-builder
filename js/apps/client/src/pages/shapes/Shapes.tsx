@@ -1,28 +1,29 @@
 import { useMemo } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 
 import '../../styles/size-tokens.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
-import type { EditorContextKey } from '../../api/editorContracts';
+import type { ThemePalette } from '../../modules/palette';
 import { SizeTokensScreen } from './SizeTokensScreen';
 
 interface ShapesOutletContextProps {
     designSystem?: DesignSystem | null;
     theme?: Theme | null;
-    updated: object;
+    palette?: ThemePalette | null;
     rerender: () => void;
-    reload: () => void;
-    editorContext?: EditorContextKey;
 }
 
 /** Раздел «Отступы, радиусы и тени» темы по прототипу SDDS Portal с автосохранением правок. */
 export const Shapes = () => {
     const outlet = useOutletContext<ShapesOutletContextProps>();
     const { projectId, designSystemId, tenantId } = useParams();
+    const [searchParams] = useSearchParams();
+    // Опубликованная версия из адреса: раздел читает её значения и доступен только для чтения.
+    const versionId = searchParams.get('versionId') ?? undefined;
     const context = useMemo(
-        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId } : null),
-        [projectId, designSystemId, tenantId],
+        () => (projectId && designSystemId && tenantId ? { projectId, designSystemId, tenantId, versionId } : null),
+        [projectId, designSystemId, tenantId, versionId],
     );
 
     if (!context || !outlet.designSystem || !outlet.theme) {
@@ -37,11 +38,12 @@ export const Shapes = () => {
 
     return (
         <SizeTokensScreen
+            key={`${context.projectId}:${context.designSystemId}:${context.tenantId}:${context.versionId ?? ''}`}
             context={context}
             designSystem={outlet.designSystem}
             theme={outlet.theme}
+            palette={outlet.palette ?? null}
             rerender={outlet.rerender}
-            reload={outlet.reload}
         />
     );
 };

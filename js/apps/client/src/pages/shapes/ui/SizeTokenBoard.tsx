@@ -196,7 +196,10 @@ const ShadowBoard = ({ tokens, selectedId, onSelect }: BoardProps) => {
                                             <small>{rowValue(token)}</small>
                                         </span>
                                         <span className="st-shadow-tile" aria-hidden="true">
-                                            <i className="st-shadow-card" style={{ boxShadow: boxShadow(token.layers) }} />
+                                            <i
+                                                className="st-shadow-card"
+                                                style={{ boxShadow: boxShadow(token.layers) }}
+                                            />
                                         </span>
                                     </button>
                                 );

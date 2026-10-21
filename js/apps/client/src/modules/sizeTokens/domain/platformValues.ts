@@ -20,6 +20,15 @@ export const parseCssLayer = (css: string): ShadowLayer => {
 export const cssLayer = (layer: ShadowLayer) =>
     `${toRem(layer.offsetX)} ${toRem(layer.offsetY)} ${toRem(layer.blur)} ${toRem(layer.spread)} ${layer.color}`;
 
+/** Слой в теле запроса: цвет — ссылка на палитру, если она есть, иначе HEX. */
+export const requestLayer = ({ offsetX, offsetY, blur, spread, color, colorRef }: ShadowLayer) => ({
+    offsetX,
+    offsetY,
+    blur,
+    spread,
+    color: colorRef ?? color,
+});
+
 /** Цвет слоя для отображения. */
 export const rgba = (color: string) => {
     const hex = color.replace('#', '');
@@ -43,7 +52,8 @@ export const sameLayers = (a: readonly ShadowLayer[], b: readonly ShadowLayer[])
             layer.offsetY === b[index].offsetY &&
             layer.blur === b[index].blur &&
             layer.spread === b[index].spread &&
-            layer.color.toUpperCase() === b[index].color.toUpperCase(),
+            layer.color.toUpperCase() === b[index].color.toUpperCase() &&
+            (layer.colorRef ?? '') === (b[index].colorRef ?? ''),
     );
 
 /** Значение токена в форме операции изменения. */

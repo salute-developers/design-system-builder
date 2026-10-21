@@ -1,14 +1,12 @@
-import { useReducer } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('../../api/index', () => ({ http: { get, put: vi.fn() }, PROJECTS_URL: '/api/projects' }));
-
-import { ThemeEditorRepository } from '../../api/themeEditorRepository';
-import { DesignSystem } from '../../controllers';
+import type { DesignSystem, Theme } from '../../controllers';
+import { getDraftAutosaveStatus } from '../../api/draftAutosaveActivity';
 import {
+    createHttpSizeTokenRepository,
+    setSizeTokenRepository,
     SizeTokenOperationError,
     themeValuesFromToken,
     toRem,
@@ -16,13 +14,25 @@ import {
     type ShadowLayer,
     type ShadowToken,
     type SizeToken,
+    type SizeTokenCommand,
+    type SizeTokenContext,
     type SizeTokenRepository,
+    type SizeTokenResult,
     type SizeTokens,
-    type SizeTokenValue,
 } from '../../modules/sizeTokens';
-import { applyDraftChanges, setActiveDraftContext } from '../../utils/designSystemDraft';
-import { setSizeTokenRepository } from './sizeTokenEditor';
 import { SizeTokensScreen } from './SizeTokensScreen';
+
+vi.mock('../../api/tokenRepository', () => ({
+    tokenRepository: {
+        async listDefinitions() {
+            return [
+                { id: 'id-round.l', name: 'round.l' },
+                { id: 'id-down.hard.m', name: 'down.hard.m' },
+                { id: 'id-text.default.primary', name: 'text.default.primary' },
+            ];
+        },
+    },
+}));
 
 const dimension = (
     kind: 'radius' | 'spacing',
@@ -89,107 +99,75 @@ const fixture = (): SizeToken[] => [
     dimension('spacing', 'spacing.2x', 4),
     shadow('down.soft.s', [layer(4, 14), layer(1, 4)], { fallbackElevation: 2 }),
     shadow('down.soft.m', [layer(8, 24)]),
-    shadow('down.hard.m', [layer(6, 12, '#00000029')], { components: [{ name: 'Popover', count: 1 }] }),
+    shadow('down.hard.m', [layer(6, 12, '#00000029')], {
+        components: [
+            { name: 'Popover', count: 1 },
+            { name: 'Select', count: 2 },
+        ],
+    }),
     shadow('up.soft.m', [layer(-8, 24)], { fallbackElevation: 0 }),
-    shadow('up.hard.m', [layer(-6, 12)], { fallbackElevation: 0 }),
+    shadow('up.hard.m', [layer(-6, 12)], { fallbackElevation: 0, components: [{ name: 'Select', count: 1 }] }),
 ];
 
-const THEME_TYPE = { radius: 'shape', spacing: 'spacing', shadow: 'shadow' } as const;
+interface UpdateBody {
+    valuePx?: number;
+    layers?: ShadowLayer[];
+    fallbackElevation?: number;
+    platforms: Partial<Record<'ios' | 'android', number | { layers: ShadowLayer[] }>>;
+}
 
-const reply = (tokens: SizeToken[], role: string) => (url: string) => {
-    if (url.endsWith('/projects/project-1')) return { data: { name: 'Platform', effectiveRole: role } };
-    if (url.endsWith('/design-systems/ds-1')) return { data: { id: 'ds-1', name: 'System' } };
-    if (url.endsWith('/tenants/tenant-1'))
-        return { data: { id: 'tenant-1', designSystemId: 'ds-1', name: 'base_default', editRevision: 3 } };
-    if (url.endsWith('/design-systems/ds-1/tokens'))
-        return {
-            data: tokens.map((token) => ({
-                id: token.tokenId,
-                designSystemId: 'ds-1',
-                name: token.name,
-                type: THEME_TYPE[token.kind],
-                displayName: null,
-                description: null,
-                enabled: true,
-            })),
-        };
-    if (url.endsWith('/tenants/tenant-1/token-values'))
-        return {
-            data: tokens.flatMap((token) => {
-                const values = themeValuesFromToken(token) ?? {
-                    web: '625rem',
-                    ios: { kind: 'round', cornerRadius: 9999 },
-                    android: { kind: 'round', cornerRadius: 9999 },
-                };
-                return (['web', 'ios', 'android'] as const).map((platform) => ({
-                    tokenId: token.tokenId,
-                    tenantId: 'tenant-1',
-                    platform,
-                    mode: null,
-                    value: ([] as unknown[]).concat(values[platform]),
-                }));
-            }),
-        };
-    if (url.endsWith('/component-configs')) return { data: [] };
-    throw new Error(`Unexpected URL ${url}`);
-};
-
-/** Ответ изменения: токен в формате чтения с новым значением и записанные значения платформ. */
-const applyValue = (token: SizeToken, value: SizeTokenValue): SizeToken => {
-    if (token.kind === 'shadow' && value.kind === 'shadow') {
-        const own = (platform: 'ios' | 'android') => value.platforms[platform];
+/** Ответ изменения по телу команды: токен в формате чтения с новым значением. */
+const applyBody = (token: SizeToken, body: UpdateBody): SizeToken => {
+    if (token.kind === 'shadow') {
+        const own = (platform: 'ios' | 'android') =>
+            (body.platforms[platform] as { layers: ShadowLayer[] } | undefined)?.layers;
+        const layers = body.layers ?? token.layers;
         return {
             ...token,
-            layers: value.layers,
-            fallbackElevation: value.fallbackElevation,
+            layers,
+            fallbackElevation: body.fallbackElevation ?? token.fallbackElevation,
             platforms: Object.fromEntries(
                 (['ios', 'android'] as const).flatMap((platform) =>
                     own(platform) ? [[platform, { layers: own(platform)! }]] : [],
                 ),
             ),
-            native: {
-                ios: { layers: own('ios') ?? value.layers },
-                android: { layers: own('android') ?? value.layers },
-            },
+            native: { ios: { layers: own('ios') ?? layers }, android: { layers: own('android') ?? layers } },
             platformsDiffer: false,
         };
     }
-    if (token.kind !== 'shadow' && value.kind === 'dimension')
-        return {
-            ...token,
-            valuePx: value.valuePx,
-            platforms: value.platforms,
-            native: {
-                ios: value.platforms.ios ?? value.valuePx,
-                android: value.platforms.android ?? value.valuePx,
-            },
-            platformsDiffer: false,
-            derived: token.derived.map((item) => ({ ...item, valuePx: Math.max(0, value.valuePx + item.offsetPx) })),
-        };
-    return token;
+    const valuePx = body.valuePx ?? token.valuePx ?? 0;
+    const platforms = body.platforms as Partial<Record<'ios' | 'android', number>>;
+    return {
+        ...token,
+        valuePx,
+        platforms,
+        native: { ios: platforms.ios ?? valuePx, android: platforms.android ?? valuePx },
+        platformsDiffer: false,
+        derived: token.derived.map((item) => ({ ...item, valuePx: Math.max(0, valuePx + item.offsetPx) })),
+    };
 };
 
 let state: SizeTokens;
+const http = createHttpSizeTokenRepository();
 const repository = {
     load: vi.fn<SizeTokenRepository['load']>(),
-    updateValue: vi.fn<SizeTokenRepository['updateValue']>(),
-    create: vi.fn<SizeTokenRepository['create']>(),
-    delete: vi.fn<SizeTokenRepository['delete']>(),
+    command: vi.fn<SizeTokenRepository['command']>((context, operation) => http.command(context, operation)),
+    send: vi.fn<(context: SizeTokenContext, command: SizeTokenCommand) => Promise<SizeTokenResult>>(),
 };
+const sent = (operation: SizeTokenCommand['operation']) =>
+    repository.send.mock.calls.map(([, command]) => command).filter((command) => command.operation === operation);
+const updates = () => sent('update').map((command) => command.body as UpdateBody);
 
-const resetRepository = () => {
-    state = { editRevision: 3, canEdit: true, tokens: fixture() };
-    repository.load.mockReset().mockImplementation(async () => structuredClone(state));
-    repository.updateValue.mockReset().mockImplementation(async (_c, tokenId, value, editRevision) => {
-        const token = applyValue(state.tokens.find((item) => item.tokenId === tokenId)!, value);
-        state = {
-            ...state,
-            editRevision: editRevision + 1,
-            tokens: state.tokens.map((item) => (item.tokenId === tokenId ? token : item)),
-        };
+const respond = async (_: SizeTokenContext, command: SizeTokenCommand): Promise<SizeTokenResult> => {
+    if (command.operation === 'update') {
+        const token = applyBody(
+            state.tokens.find((item) => item.tokenId === command.tokenId)!,
+            command.body as UpdateBody,
+        );
+        state = { ...state, tokens: state.tokens.map((item) => (item.tokenId === token.tokenId ? token : item)) };
         const values = themeValuesFromToken(token)!;
         return {
-            editRevision: editRevision + 1,
+            type: 'update',
             token,
             values: (['web', 'ios', 'android'] as const).map((platform) => ({
                 platform,
@@ -197,48 +175,78 @@ const resetRepository = () => {
                 overridden: platform !== 'web' && token.platforms[platform] !== undefined,
             })),
         };
-    });
-    repository.create.mockReset();
-    repository.delete.mockReset();
-    setSizeTokenRepository(repository);
+    }
+    if (command.operation === 'delete') return { type: 'delete', deletedTokenIds: [command.tokenId!] };
+    const request = command.body as
+        | { kind: 'radius' | 'spacing'; name: string; valuePx: number }
+        | { kind: 'shadow'; name: string; variants: Array<{ variant: string; layers: ShadowLayer[] }> };
+    const created =
+        request.kind === 'shadow'
+            ? request.variants.map((variant) => shadow(`${variant.variant}.${request.name}`, variant.layers))
+            : [
+                  dimension(
+                      request.kind,
+                      `${request.kind === 'radius' ? 'round' : 'spacing'}.${request.name}`,
+                      request.valuePx,
+                  ),
+              ];
+    state = { ...state, tokens: [...state.tokens, ...created] };
+    return { type: 'create', created };
 };
+
+/** Модель темы: значения платформ по имени токена. */
+const themeModel = () => {
+    const values = new Map<string, Record<string, unknown>>();
+    const token = (name: string) => ({
+        setValue: (platform: string, value: unknown) =>
+            values.set(name, { ...(values.get(name) ?? {}), [platform]: value }),
+        getValue: (platform: string) => values.get(name)?.[platform],
+    });
+    const theme = {
+        getName: () => 'base_default',
+        getToken: (name: string) => (values.has(name) ? token(name) : undefined),
+        addToken: (_: string, added: { getName: () => string }) => values.set(added.getName(), {}),
+        removeToken: (name: string) => values.delete(name),
+    };
+    state.tokens.forEach((item) => values.set(item.name, {}));
+    return { theme: theme as unknown as Theme, values };
+};
+
+const LocationProbe = () => <output data-testid="location">{useLocation().search}</output>;
 
 let tenantSeq = 0;
 
-const renderScreen = async ({ role = 'maintainer' } = {}) => {
-    get.mockImplementation((url: string) => Promise.resolve(reply(state.tokens, role)(url)));
-    const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
-    const snapshot = await new ThemeEditorRepository().load(context);
-    const designSystem = DesignSystem.fromSnapshot({
-        name: snapshot.designSystem.name,
-        parameters: snapshot.parameters,
-        themeData: snapshot.themeData,
-        componentsData: snapshot.componentsData,
-    });
-    const theme = designSystem.createThemeInstance({ includeExtraTokens: true });
+interface MountOptions {
+    role?: string;
+    readOnly?: boolean;
+    versionId?: string;
+    route?: string;
+}
+
+const renderScreen = async ({ role = 'maintainer', readOnly = false, versionId, route = '/' }: MountOptions = {}) => {
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
-    const screenContext = { ...context, tenantId: `tenant-${++tenantSeq}` };
-    setActiveDraftContext(screenContext);
-    const reload = vi.fn();
-    const Host = () => {
-        const [, rerender] = useReducer((value: number) => value + 1, 0);
-        return (
+    const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: `tenant-${++tenantSeq}`, versionId };
+    const parameters = { readOnly, effectiveRole: role };
+    const designSystem = { getName: () => 'System', getParameters: () => parameters } as unknown as DesignSystem;
+    const model = themeModel();
+    const rerender = vi.fn();
+    const view = (theme: Theme) => (
+        <MemoryRouter initialEntries={[route]}>
             <SizeTokensScreen
-                context={screenContext}
+                context={context}
                 designSystem={designSystem}
                 theme={theme}
+                palette={null}
                 rerender={rerender}
-                reload={reload}
             />
-        );
-    };
-    render(
-        <MemoryRouter>
-            <Host />
-        </MemoryRouter>,
+            <LocationProbe />
+        </MemoryRouter>
     );
+    const result = render(view(model.theme));
     await screen.findByTestId('size-tokens-screen');
-    return { designSystem, theme, reload, context: screenContext };
+    /** Новая модель темы — как после сигнала об изменении черновика в другом месте. */
+    const replaceTheme = () => result.rerender(view(themeModel().theme));
+    return { context, values: model.values, rerender, replaceTheme };
 };
 
 const inspector = () => document.querySelector('.properties-panel') as HTMLElement;
@@ -254,13 +262,16 @@ const saveStatus = () => screen.getByTestId('size-tokens-save-status');
 
 beforeEach(() => {
     localStorage.clear();
-    resetRepository();
+    state = { canEdit: true, tokens: fixture() };
+    repository.load.mockReset().mockImplementation(async () => structuredClone(state));
+    repository.command.mockClear();
+    repository.send.mockReset().mockImplementation(respond);
+    setSizeTokenRepository(repository);
 });
 
 afterEach(() => {
     cleanup();
     vi.useRealTimers();
-    setActiveDraftContext(null);
 });
 
 describe('SizeTokensScreen', () => {
@@ -282,6 +293,18 @@ describe('SizeTokensScreen', () => {
         expect(radii).toEqual(['round.m', 'round.l', 'round.xxl', 'round.circle']);
         expect(within(inspector()).getByTestId('size-token-impact')).toHaveTextContent('Компоненты 2');
         expect(inspector()).toHaveTextContent('СПИСОК КОМПОНЕНТОВ · 5 ЭКЗЕМПЛЯРОВ');
+        expect(screen.queryByTestId('size-tokens-legacy-draft')).toBeNull();
+    });
+
+    it('выбирает токен в дереве и на борде', async () => {
+        await renderScreen();
+        fireEvent.click(row('spacing.4x'));
+        expect(within(inspector()).getByRole('heading')).toHaveTextContent('Отступы / 4x');
+        expect(valueField()).toHaveValue('8');
+        fireEvent.click(row('down.soft.m'));
+        fireEvent.click(within(board()).getByRole('button', { name: 'up.hard.m' }));
+        expect(within(inspector()).getByRole('heading')).toHaveTextContent('Тени / Up Hard M');
+        expect(row('up.hard.m')).toHaveClass('is-selected');
     });
 
     it('ищет токены по имени и сворачивает раздел', async () => {
@@ -298,20 +321,41 @@ describe('SizeTokensScreen', () => {
         expect(row('spacing.4x')).toBeInTheDocument();
     });
 
-    it('сохраняет правку значения одной операцией и обновляет модель темы и ревизию', async () => {
-        const { designSystem, theme } = await renderScreen();
+    it('открывает токен по ?tokenId, раскрывает его раздел и заменяет адрес при выборе', async () => {
+        localStorage.setItem('ds_size_tokens_collapsed', JSON.stringify({ shadow: true }));
+        await renderScreen({ route: '/?tokenId=id-down.hard.m&versionId=v1' });
+        await waitFor(() => expect(within(inspector()).getByRole('heading')).toHaveTextContent('Тени / Down Hard M'));
+        expect(row('down.hard.m')).toHaveClass('is-selected');
+        fireEvent.click(row('round.l'));
+        await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('tokenId=id-round.l'));
+        expect(screen.getByTestId('location')).toHaveTextContent('versionId=v1');
+    });
+
+    it('показывает «Точный источник токена недоступен» и не выбирает другой токен', async () => {
+        await renderScreen({ route: '/?tokenId=id-text.default.primary' });
+        await waitFor(() =>
+            expect(screen.getByTestId('size-tokens-unavailable')).toHaveTextContent(
+                'Точный источник токена недоступен.',
+            ),
+        );
+        expect(within(inspector()).queryByRole('heading')).toBeNull();
+        expect(tree().querySelector('.is-selected')).toBeNull();
+    });
+
+    it('сохраняет правку одной операцией с базовыми редакциями и обновляет модель темы', async () => {
+        const { values, context, rerender } = await renderScreen();
         commit(valueField(), '13');
         commit(valueField(), '14');
         expect(saveStatus()).toHaveTextContent('Сохранение…');
+        expect(getDraftAutosaveStatus(context)).toBe('pending');
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
-        expect(repository.updateValue).toHaveBeenCalledTimes(1);
-        expect(repository.updateValue.mock.calls[0].slice(1)).toEqual([
-            'id-round.m',
-            { kind: 'dimension', valuePx: 14, platforms: {} },
-            3,
-        ]);
-        expect(designSystem.getParameters()?.editRevision).toBe(4);
-        expect(theme.getTokenValue('round.m', 'shape', 'web')).toBe(toRem(14));
+        expect(updates()).toEqual([{ valuePx: 14, platforms: {}, baseRevisions: { web: 0, ios: 0, android: 0 } }]);
+        expect(sent('update')[0].path).toBe(
+            `/api/projects/project-1/ds/tenants/${context.tenantId}/size-tokens/id-round.m/value`,
+        );
+        expect(getDraftAutosaveStatus(context)).toBe('saved');
+        expect(values.get('round.m')?.web).toBe(toRem(14));
+        expect(rerender).toHaveBeenCalled();
         expect(row('round.m')).toHaveTextContent('14 px');
     });
 
@@ -324,23 +368,16 @@ describe('SizeTokensScreen', () => {
         expect(android).toHaveValue('16');
         expect(screen.getByTestId('override-android')).toHaveTextContent('↳ Android');
         commit(android, '18');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(1));
-        expect(repository.updateValue.mock.calls[0][2]).toEqual({
-            kind: 'dimension',
-            valuePx: 16,
-            platforms: { android: 18 },
-        });
+        await waitFor(() => expect(updates()).toHaveLength(1));
+        expect(updates()[0]).toMatchObject({ valuePx: 16, platforms: { android: 18 } });
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
 
         // Правка веба оставляет своё значение Android.
         commit(valueField(), '20');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(2));
-        expect(repository.updateValue.mock.calls[1][2]).toEqual({
-            kind: 'dimension',
-            valuePx: 20,
-            platforms: { android: 18 },
-        });
+        await waitFor(() => expect(updates()).toHaveLength(2));
+        expect(updates()[1]).toMatchObject({ valuePx: 20, platforms: { android: 18 } });
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
+        expect(screen.getByRole('textbox', { name: 'Значение Android, px' })).toHaveValue('18');
 
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Своё значение платформы' }));
         fireEvent.click(within(inspector()).getByRole('menuitem', { name: 'iOS' }));
@@ -348,12 +385,9 @@ describe('SizeTokensScreen', () => {
 
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Убрать своё значение Android' }));
         expect(screen.queryByTestId('override-android')).toBeNull();
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(3));
-        expect(repository.updateValue.mock.calls[2][2]).toEqual({
-            kind: 'dimension',
-            valuePx: 20,
-            platforms: { ios: 20 },
-        });
+        await waitFor(() => expect(updates()).toHaveLength(3));
+        expect(updates()[2]).toMatchObject({ valuePx: 20, platforms: { ios: 20 } });
+        expect(updates()[2].platforms).not.toHaveProperty('android');
     });
 
     it('предупреждает о расхождении платформ и сохраняет их как свои значения', async () => {
@@ -366,12 +400,8 @@ describe('SizeTokensScreen', () => {
         expect(screen.getByTestId('override-ios')).toBeInTheDocument();
         expect(screen.getByTestId('override-android')).toBeInTheDocument();
         expect(screen.queryByTestId('platforms-differ')).toBeNull();
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(1));
-        expect(repository.updateValue.mock.calls[0][2]).toEqual({
-            kind: 'dimension',
-            valuePx: 32,
-            platforms: { ios: 40, android: 40 },
-        });
+        await waitFor(() => expect(updates()).toHaveLength(1));
+        expect(updates()[0]).toMatchObject({ valuePx: 32, platforms: { ios: 40, android: 40 } });
     });
 
     it('показывает вычисляемые радиусы на борде и в инспекторе и пересчитывает их', async () => {
@@ -415,9 +445,9 @@ describe('SizeTokensScreen', () => {
         commit(valueField(), '12.5');
         expect(inspector()).toHaveTextContent('Размер должен быть целым числом.');
         await act(() => new Promise((done) => setTimeout(done, 450)));
-        expect(repository.updateValue).not.toHaveBeenCalled();
+        expect(repository.send).not.toHaveBeenCalled();
 
-        repository.updateValue.mockRejectedValueOnce(
+        repository.send.mockRejectedValueOnce(
             new SizeTokenOperationError(
                 'invalid',
                 'Значение должно быть в диапазоне 0–1000 px.',
@@ -427,6 +457,7 @@ describe('SizeTokensScreen', () => {
         );
         commit(valueField(), '999');
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Не сохранено'));
+        expect(within(saveStatus()).queryByRole('button', { name: 'Повторить' })).toBeNull();
         expect(inspector().querySelector('.st-field-error')).toHaveTextContent(
             'Значение должно быть в диапазоне 0–1000 px.',
         );
@@ -434,60 +465,63 @@ describe('SizeTokensScreen', () => {
         expect(row('round.m')).toHaveTextContent('12 px');
     });
 
-    it('при ошибке сети оставляет ввод и повторяет отправку', async () => {
+    it('при ошибке сети оставляет ввод, повторяет отправку и отправляет сразу по «Повторить»', async () => {
         await renderScreen();
-        repository.updateValue.mockRejectedValueOnce(new SizeTokenOperationError('network', 'Сервис недоступен'));
+        repository.send.mockRejectedValueOnce(new SizeTokenOperationError('network', 'Сервис недоступен'));
         commit(valueField(), '15');
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Не сохранено'));
-        expect(inspector()).toHaveTextContent('Не сохранено: Сервис недоступен');
         expect(valueField()).toHaveValue('15');
         fireEvent.click(within(saveStatus()).getByRole('button', { name: 'Повторить' }));
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
-        expect(repository.updateValue).toHaveBeenCalledTimes(2);
+        expect(repository.send).toHaveBeenCalledTimes(2);
+        // «Повторить» отправляет ту же правку, а автоматический повтор не отправляет её ещё раз.
+        await act(() => new Promise((done) => setTimeout(done, 1_100)));
+        expect(repository.send).toHaveBeenCalledTimes(2);
     });
 
-    it('после конфликта перечитывает раздел и отправляет правку только по «Повторить»', async () => {
-        await renderScreen();
-        repository.updateValue.mockRejectedValueOnce(
-            new SizeTokenOperationError('conflict', 'Тема изменена', 'TENANT_EDIT_CONFLICT', null, 9),
+    it('перечитывает раздел по новой модели темы только после отправки очереди', async () => {
+        const { replaceTheme } = await renderScreen();
+        expect(repository.load).toHaveBeenCalledTimes(1);
+        let finish: (result: SizeTokenResult) => void = () => undefined;
+        repository.send.mockImplementationOnce((context, command) =>
+            new Promise((resolve) => (finish = resolve)).then(() => respond(context, command)),
         );
-        state = { ...state, editRevision: 9 };
         commit(valueField(), '15');
-        await waitFor(() => expect(saveStatus()).toHaveTextContent('Тема изменена в другом месте'));
-        await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(2));
-        expect(inspector()).toHaveTextContent('Тема изменена в другом месте и перезагружена.');
-        expect(valueField()).toHaveValue('15');
+        state = {
+            ...state,
+            tokens: state.tokens.map((token) => (token.name === 'spacing.4x' ? { ...token, valuePx: 10 } : token)),
+        };
+        replaceTheme();
         await act(() => new Promise((done) => setTimeout(done, 450)));
-        expect(repository.updateValue).toHaveBeenCalledTimes(1);
-        fireEvent.click(within(saveStatus()).getByRole('button', { name: 'Повторить' }));
-        await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
-        expect(repository.updateValue.mock.calls[1][3]).toBe(9);
+        expect(repository.load).toHaveBeenCalledTimes(1);
+        // Локальный ввод не заменяется.
+        expect(valueField()).toHaveValue('15');
+        await act(async () => finish(undefined as never));
+        await waitFor(() => expect(repository.load).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(row('spacing.4x')).toHaveTextContent('10 px'));
+        expect(row('round.m')).toHaveTextContent('15 px');
     });
 
     it('правит слой тени, цвет и свои слои iOS', async () => {
         await renderScreen();
         fireEvent.click(row('down.hard.m'));
-        expect(within(board()).getByTestId('shadow-grid').querySelectorAll('.st-shadow-card')).toHaveLength(5);
-        expect(within(board()).getByRole('button', { name: 'down.hard.m' })).toHaveClass('is-selected');
         expect(within(inspector()).getByRole('heading')).toHaveTextContent('Тени / Down Hard M');
         // Один слой: удалить его нельзя.
         expect(within(inspector()).queryByRole('button', { name: 'Удалить слой 1' })).toBeNull();
 
         commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, Y' }), '10');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(1));
-        expect(repository.updateValue.mock.calls[0][2]).toEqual({
-            kind: 'shadow',
+        await waitFor(() => expect(updates()).toHaveLength(1));
+        expect(updates()[0]).toEqual({
             layers: [{ ...layer(6, 12, '#00000029'), offsetY: 10 }],
             fallbackElevation: 4,
             platforms: {},
+            baseRevisions: { web: 0, ios: 0, android: 0 },
         });
 
         commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' }), '#000000');
         commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, прозрачность' }), '24%');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(2));
-        expect((repository.updateValue.mock.calls[1][2] as { layers: ShadowLayer[] }).layers[0].color).toBe(
-            '#0000003D',
-        );
+        await waitFor(() => expect(updates()).toHaveLength(2));
+        expect(updates()[1].layers?.[0].color).toBe('#0000003D');
 
         commit(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, Blur' }), '-1');
         expect(inspector()).toHaveTextContent('Blur: Значение должно быть в диапазоне 0–200 px.');
@@ -497,37 +531,25 @@ describe('SizeTokensScreen', () => {
         const own = screen.getByTestId('override-layers-ios');
         expect(own).toHaveTextContent('↳ iOS · СВОИ СЛОИ');
         commit(within(own).getByRole('textbox', { name: 'iOS, слой 1, X' }), '3');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(3));
-        const sent = repository.updateValue.mock.calls[2][2] as Extract<SizeTokenValue, { kind: 'shadow' }>;
-        expect(sent.platforms.ios?.[0].offsetX).toBe(3);
-        expect(sent.layers[0].offsetX).toBe(0);
+        await waitFor(() => expect(updates()).toHaveLength(3));
+        const ios = updates()[2].platforms.ios as { layers: ShadowLayer[] };
+        expect(ios.layers[0].offsetX).toBe(3);
+        expect(updates()[2].layers?.[0].offsetX).toBe(0);
 
         fireEvent.click(within(inspector()).getAllByRole('button', { name: '+ Добавить слой' })[0]);
         expect(within(inspector()).getAllByRole('button', { name: 'Удалить слой 2' })).toHaveLength(1);
         commit(within(inspector()).getByRole('textbox', { name: 'Запасная высота Android' }), '6');
-        await waitFor(() => expect(repository.updateValue).toHaveBeenCalledTimes(4));
-        const last = repository.updateValue.mock.calls[3][2] as Extract<SizeTokenValue, { kind: 'shadow' }>;
-        expect(last.layers).toHaveLength(2);
-        expect(last.fallbackElevation).toBe(6);
+        await waitFor(() => expect(updates()).toHaveLength(4));
+        expect(updates()[3].layers).toHaveLength(2);
+        expect(updates()[3].fallbackElevation).toBe(6);
+
+        fireEvent.click(within(own).getByRole('button', { name: 'Убрать свои слои iOS' }));
+        await waitFor(() => expect(updates()).toHaveLength(5));
+        expect(updates()[4].platforms).toEqual({});
     });
 
     it('создаёт радиус, отступ и размер тени в окне «Новый токен»', async () => {
         await renderScreen();
-        repository.create.mockImplementation(async (_c, request, editRevision) => {
-            const created =
-                request.kind === 'shadow'
-                    ? request.variants.map((variant) => shadow(`${variant.variant}.${request.name}`, variant.layers))
-                    : [
-                          dimension(
-                              request.kind,
-                              `${request.kind === 'radius' ? 'round' : 'spacing'}.${request.name}`,
-                              request.valuePx,
-                          ),
-                      ];
-            state = { ...state, tokens: [...state.tokens, ...created] };
-            return { editRevision: editRevision + 1, created };
-        });
-
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
         let dialog = screen.getByRole('dialog');
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
@@ -536,11 +558,15 @@ describe('SizeTokensScreen', () => {
         fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '40' } });
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
         expect(dialog).toHaveTextContent('Токен round.m уже есть в теме.');
-        expect(repository.create).not.toHaveBeenCalled();
+        expect(sent('create')).toHaveLength(0);
         fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'XXXL' } });
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        expect(repository.create.mock.calls[0][1]).toEqual({ kind: 'radius', name: 'xxxl', valuePx: 40 });
+        expect(sent('create')[0]).toMatchObject({
+            method: 'POST',
+            body: { kind: 'radius', name: 'xxxl', valuePx: 40 },
+            idempotencyKey: expect.any(String),
+        });
         expect(within(inspector()).getByRole('heading')).toHaveTextContent('Радиусы / XXXL');
         expect(row('round.xxxl')).toHaveClass('is-selected');
 
@@ -553,7 +579,7 @@ describe('SizeTokensScreen', () => {
         fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '28' } });
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        expect(repository.create.mock.calls[1][1]).toEqual({ kind: 'spacing', name: '14x', valuePx: 28 });
+        expect(sent('create')[1].body).toEqual({ kind: 'spacing', name: '14x', valuePx: 28 });
 
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Тени' }));
         dialog = screen.getByRole('dialog');
@@ -563,9 +589,8 @@ describe('SizeTokensScreen', () => {
         );
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        const request = repository.create.mock.calls[2][1];
+        const request = sent('create')[2].body as { kind: string; name: string; variants: unknown[] };
         expect(request).toMatchObject({ kind: 'shadow', name: 'xl' });
-        if (request.kind !== 'shadow') throw new Error('ожидалась тень');
         expect(request.variants[2]).toEqual({ variant: 'up.soft', layers: [layer(-8, 24)], fallbackElevation: 0 });
         expect(row('down.soft.xl')).toHaveClass('is-selected');
     });
@@ -573,7 +598,7 @@ describe('SizeTokensScreen', () => {
     it('оставляет окно открытым с текстом отказа сервера', async () => {
         await renderScreen();
         let finish: (error: Error) => void = () => undefined;
-        repository.create.mockImplementation(() => new Promise((_, reject) => (finish = reject)));
+        repository.send.mockImplementationOnce(() => new Promise((_, reject) => (finish = reject)));
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
         const dialog = screen.getByRole('dialog');
         fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'xxxl' } });
@@ -586,49 +611,79 @@ describe('SizeTokensScreen', () => {
         expect(within(dialog).getByRole('button', { name: 'Создать токен' })).toBeEnabled();
     });
 
+    it('повторяет создание после сбоя сети тем же ключом и телом', async () => {
+        await renderScreen();
+        repository.send.mockRejectedValueOnce(new SizeTokenOperationError('network', 'Сервис недоступен'));
+        fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
+        const dialog = screen.getByRole('dialog');
+        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'xxxl' } });
+        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '40' } });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 3_000 });
+        const [first, second] = sent('create');
+        expect(second).toBe(first);
+        expect(row('round.xxxl')).toBeInTheDocument();
+    });
+
     it('удаляет используемый токен после подтверждения, а неиспользуемый — сразу', async () => {
-        const { theme } = await renderScreen();
-        repository.delete.mockImplementation(async (_c, tokenId, editRevision) => ({
-            editRevision: editRevision + 1,
-            deletedTokenIds: [tokenId],
-        }));
+        const { values } = await renderScreen();
+        commit(valueField(), '13');
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
         const dialog = screen.getByRole('dialog');
         expect(dialog).toHaveTextContent(
-            'Токен удалится из дизайн-системы вместе со значениями во всех темах. Удаление нельзя отменить.',
+            'Токен удалится из черновика дизайн-системы вместе со значениями во всех темах. До публикации удаление можно отменить в журнале изменений.',
         );
         expect(dialog).toHaveTextContent(
             'Используется в компонентах: Slider, EmptyState. Ссылки компонентов на токен будут сброшены.',
         );
-        expect(repository.delete).not.toHaveBeenCalled();
+        expect(sent('delete')).toHaveLength(0);
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        expect(repository.delete.mock.calls[0][1]).toBe('id-round.m');
+        // Сначала отправлена очередь автосохранения, затем удаление.
+        expect(repository.send.mock.calls.map(([, command]) => command.operation)).toEqual(['update', 'delete']);
+        expect(sent('delete')[0]).toMatchObject({ method: 'DELETE', tokenId: 'id-round.m' });
         expect(row('round.m')).toBeNull();
-        expect(theme.getToken('round.m', 'shape')).toBeUndefined();
+        expect(values.has('round.m')).toBe(false);
 
         fireEvent.click(row('spacing.4x'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
-        await waitFor(() => expect(repository.delete).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(sent('delete')).toHaveLength(2));
         expect(screen.queryByRole('dialog')).toBeNull();
-        expect(row('spacing.4x')).toBeNull();
+        await waitFor(() => expect(row('spacing.4x')).toBeNull());
     });
 
-    it('удаляет тень размером целиком', async () => {
+    it('подтверждает удаление тени по использованию всех четырёх вариантов размера', async () => {
         await renderScreen();
-        repository.delete.mockImplementation(async (_c, _t, editRevision) => ({
-            editRevision: editRevision + 1,
-            deletedTokenIds: ['id-down.soft.m', 'id-down.hard.m', 'id-up.soft.m', 'id-up.hard.m'],
-        }));
-        fireEvent.click(row('down.hard.m'));
+        repository.send.mockImplementation(async (context, command) =>
+            command.operation === 'delete'
+                ? {
+                      type: 'delete',
+                      deletedTokenIds: ['id-down.soft.m', 'id-down.hard.m', 'id-up.soft.m', 'id-up.hard.m'],
+                  }
+                : respond(context, command),
+        );
+        // `up.soft.m` не используют компоненты, но удаляется весь размер M.
+        fireEvent.click(row('up.soft.m'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
         expect(screen.getByTestId('delete-size-token-names')).toHaveTextContent(
-            'Удалятся токены down.soft.m, down.hard.m, up.soft.m, up.hard.m вместе со значениями во всех темах.',
+            'Удалятся токены down.soft.m, down.hard.m, up.soft.m, up.hard.m из черновика дизайн-системы вместе со значениями во всех темах.',
+        );
+        expect(screen.getByTestId('delete-size-token-components')).toHaveTextContent(
+            'Используется в компонентах: Popover (down.hard.m), Select (down.hard.m, up.hard.m). Ссылки компонентов на токен будут сброшены.',
         );
         fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить токен' }));
         await waitFor(() => expect(row('down.hard.m')).toBeNull());
         expect(row('up.soft.m')).toBeNull();
         expect(row('down.soft.s')).toBeInTheDocument();
+        expect(board().querySelector('[aria-label="down.hard.m"]')).toBeNull();
+    });
+
+    it('удаляет тень без подтверждения, если ни один вариант размера не используют компоненты', async () => {
+        await renderScreen();
+        fireEvent.click(row('down.soft.s'));
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Удалить токен' }));
+        await waitFor(() => expect(sent('delete')).toHaveLength(1));
+        expect(screen.queryByRole('dialog')).toBeNull();
     });
 
     it('не показывает удаление роли Editor', async () => {
@@ -660,67 +715,18 @@ describe('SizeTokensScreen', () => {
         expect(within(inspector()).queryByRole('button', { name: '+ Добавить слой' })).toBeNull();
         // Дерево, поиск и борд работают.
         expect(within(board()).getByRole('button', { name: 'down.soft.s' })).toHaveClass('is-selected');
-        expect(repository.updateValue).not.toHaveBeenCalled();
+        expect(repository.send).not.toHaveBeenCalled();
     });
 
-    it('сохраняет записи размеров прежнего черновика и оставляет остальные записи', async () => {
-        repository.create.mockImplementation(async (_c, request, editRevision) => ({
-            editRevision: editRevision + 1,
-            created: [dimension('radius', `round.${request.name}`, request.kind === 'shadow' ? 0 : request.valuePx)],
-        }));
-        const key = `ds_draft:project-1:ds-1:tenant-${tenantSeq + 1}`;
-        localStorage.setItem(
-            key,
-            JSON.stringify({
-                'round.m': { type: 'shape', values: { web: '1.25rem', ios: {}, android: {} }, enabled: true },
-                'round.xxxl': {
-                    type: 'shape',
-                    values: { web: '2.5rem', ios: {}, android: {} },
-                    enabled: true,
-                    meta: { name: 'round.xxxl', tags: ['round', 'xxxl'], displayName: 'round.xxxl' },
-                },
-                'dark.text.default.accent': {
-                    type: 'color',
-                    values: { web: '#fff', ios: '#fff', android: '#fff' },
-                    enabled: true,
-                },
-            }),
-        );
-        const { theme } = await renderScreen();
-        // Черновик накладывается на тему при загрузке, как в `useDesignSystem`.
-        applyDraftChanges(theme, 'System', '0.1.0');
-        const banner = screen.getByTestId('size-tokens-legacy-draft');
-        expect(banner).toHaveTextContent('В черновике есть несохранённые правки радиусов, отступов и теней: 2');
-        fireEvent.click(within(banner).getByRole('button', { name: 'Сохранить' }));
-        await waitFor(() => expect(screen.queryByTestId('size-tokens-legacy-draft')).toBeNull());
-        expect(repository.updateValue.mock.calls[0].slice(1, 3)).toEqual([
-            'id-round.m',
-            { kind: 'dimension', valuePx: 20, platforms: {} },
-        ]);
-        expect(repository.create.mock.calls[0][1]).toEqual({ kind: 'radius', name: 'xxxl', valuePx: 40 });
-        expect(Object.keys(JSON.parse(localStorage.getItem(key) ?? '{}'))).toEqual(['dark.text.default.accent']);
-    });
-
-    it('отбрасывает записи размеров прежнего черновика и перечитывает тему', async () => {
-        const key = `ds_draft:project-1:ds-1:tenant-${tenantSeq + 1}`;
-        localStorage.setItem(
-            key,
-            JSON.stringify({
-                'spacing.4x': { type: 'spacing', values: { web: '1rem', ios: {}, android: {} }, enabled: true },
-                'dark.text.default.accent': {
-                    type: 'color',
-                    values: { web: '#fff', ios: '#fff', android: '#fff' },
-                    enabled: true,
-                },
-            }),
-        );
-        const { reload } = await renderScreen();
-        fireEvent.click(
-            within(screen.getByTestId('size-tokens-legacy-draft')).getByRole('button', { name: 'Отбросить' }),
-        );
-        expect(screen.queryByTestId('size-tokens-legacy-draft')).toBeNull();
-        expect(reload).toHaveBeenCalled();
-        expect(Object.keys(JSON.parse(localStorage.getItem(key) ?? '{}'))).toEqual(['dark.text.default.accent']);
-        expect(repository.updateValue).not.toHaveBeenCalled();
+    it('читает опубликованную версию с versionId и не даёт её править', async () => {
+        const { context } = await renderScreen({ versionId: 'v1' });
+        expect(repository.load).toHaveBeenCalledWith(expect.objectContaining({ versionId: 'v1' }));
+        expect(context.versionId).toBe('v1');
+        expect(screen.getByTestId('size-tokens-viewer')).toHaveTextContent('Опубликованная версия');
+        expect(screen.queryByTestId('size-tokens-save-status')).toBeNull();
+        expect(valueField()).toBeDisabled();
+        expect(within(tree()).queryByRole('button', { name: /Добавить токен/ })).toBeNull();
+        expect(within(inspector()).queryByRole('button', { name: 'Удалить токен' })).toBeNull();
+        expect(repository.send).not.toHaveBeenCalled();
     });
 });

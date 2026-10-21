@@ -1,14 +1,17 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import '../../styles/size-tokens.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
+import { useAddressedToken } from '../../hooks/useAddressedToken';
+import type { ThemePalette } from '../../modules/palette';
 import {
     buildSections,
     compareTokens,
     defaultToken,
     deletedTogether,
+    deletionUsage,
     largestShadowSize,
     newTokenNames,
     newTokenRequest,
@@ -17,6 +20,7 @@ import {
     sizeLabel,
     SizeTokenOperationError,
     SIZE_MESSAGES,
+    type DeletedUsage,
     type SizeToken,
     type SizeTokenContext,
     type SizeTokenKind,
@@ -31,8 +35,9 @@ export interface SizeTokensScreenProps {
     context: SizeTokenContext;
     designSystem: DesignSystem;
     theme: Theme;
+    /** Палитра темы: ступени для цвета слоя тени. */
+    palette: ThemePalette | null;
     rerender: () => void;
-    reload: () => void;
 }
 
 const COLLAPSED_KEY = 'ds_size_tokens_collapsed';
@@ -69,25 +74,26 @@ interface Deleting {
     token: SizeToken;
     title: string;
     names: string[];
-    components: string[];
+    components: DeletedUsage[];
     busy: boolean;
     error: string | null;
 }
 
 /** Раздел «Отступы, радиусы и тени» по экрану «Отступы и радиусы» прототипа SDDS Portal. */
 export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
-    const { context, designSystem, theme } = props;
+    const { context, designSystem, theme, palette } = props;
     const navigate = useNavigate();
     const { session, editor, status } = useSizeTokenEditor(props);
     const parameters = designSystem.getParameters();
     const data = session.data;
-    const readOnly = parameters?.readOnly === true || data?.canEdit === false;
+    const published = Boolean(context.versionId);
+    const readOnly = published || parameters?.readOnly === true || data?.canEdit === false;
     const canDelete = !readOnly && ['maintainer', 'owner'].includes(parameters?.effectiveRole ?? '');
 
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(readCollapsed);
-    const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
+    const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}:${context.versionId ?? ''}`;
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
     useEffect(() => void lastSelection.set(selectionKey, selectedId), [selectionKey, selectedId]);
     useEffect(() => writeCollapsed(collapsed), [collapsed]);
@@ -95,18 +101,50 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const [deleting, setDeleting] = useState<Deleting | null>(null);
     const [removing, setRemoving] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
-    const [legacy, setLegacy] = useState(() => editor.legacyDraft());
-    const [legacyBusy, setLegacyBusy] = useState(false);
 
     const savedTokens = data?.tokens ?? [];
     const tokens = editor.tokens();
     const shown = editor.shownTokens();
     const sections = buildSections(shown, query);
-    const saved = savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens);
-    const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
-    const board = buildSections(shown).find((section) => section.kind === (selected?.kind ?? 'radius'))?.tokens ?? [];
 
-    const select = (token: SizeToken) => setSelectedId(token.tokenId);
+    // Адрес из журнала: `?tokenId` выбирает токен раздела; токена нет на выбранной границе — источник недоступен.
+    const addressed = useAddressedToken(context, (name) =>
+        data ? savedTokens.some((token) => token.name === name) : true,
+    );
+    const appliedAddress = useRef<string | null>(null);
+    const [picked, setPicked] = useState(false);
+    const [scrollTo, setScrollTo] = useState<string | null>(null);
+    useEffect(() => {
+        if (!data || !addressed.requestedTokenName || appliedAddress.current === addressed.tokenId) return;
+        const target = savedTokens.find((token) => token.name === addressed.requestedTokenName);
+        if (!target) return;
+        appliedAddress.current = addressed.tokenId ?? null;
+        setSelectedId(target.tokenId);
+        setCollapsed((current) => ({ ...current, [target.kind]: false }));
+        setScrollTo(target.tokenId);
+    }, [addressed.requestedTokenName, addressed.tokenId, data]);
+    useEffect(() => {
+        if (!scrollTo) return;
+        document.querySelector(`[data-token-id="${CSS.escape(scrollTo)}"]`)?.scrollIntoView?.({ block: 'nearest' });
+        setScrollTo(null);
+    }, [scrollTo]);
+
+    /** Пока источник адреса недоступен и пользователь ничего не выбрал, другой токен источником не выбирается. */
+    const unavailable = addressed.unavailable && !picked;
+    const saved = unavailable
+        ? null
+        : (savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens));
+    const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
+    const boardKind = selected?.kind ?? 'radius';
+    const board = buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? [];
+
+    const select = (token: SizeToken) => {
+        setSelectedId(token.tokenId);
+        setPicked(true);
+        // Выбор сохраняет адрес в маршруте, если раздел открыт по адресу.
+        appliedAddress.current = null;
+        addressed.selectTokenName(token.name);
+    };
 
     const create = async (input: { name: string; value: string }) => {
         if (!creating || creating.busy) return;
@@ -116,9 +154,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         try {
             const created = await editor.create(result.request);
             const first = [...created].sort(compareTokens)[0];
-            if (first) setSelectedId(first.tokenId);
+            if (first) {
+                setSelectedId(first.tokenId);
+                setPicked(true);
+            }
             setCreating(null);
-            props.rerender();
         } catch (error) {
             const name = normalizeTokenName(input.name);
             const message =
@@ -130,7 +170,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     };
 
     /**
-     * Удаление: с подтверждением ошибка остаётся в окне, без подтверждения (токен не используют компоненты) —
+     * Удаление: с подтверждением ошибка остаётся в окне, без подтверждения (токены не используют компоненты) —
      * показывается баннером инспектора.
      */
     const remove = async (token: SizeToken, confirmed: boolean) => {
@@ -142,7 +182,6 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             setDeleting(null);
             setSelectedId(null);
             setNotice(null);
-            props.rerender();
         } catch (error) {
             if (confirmed) setDeleting((current) => current && { ...current, busy: false, error: errorText(error) });
             else setNotice(`Не удалось удалить токен: ${errorText(error)}`);
@@ -151,21 +190,25 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         }
     };
 
-    /** Подтверждение нужно, только если токен (у тени — любой вариант размера) используют компоненты. */
+    /** Подтверждение нужно, только если удаляемые токены (у тени — четыре варианта размера) используют компоненты. */
     const requestDelete = (token: SizeToken) => {
-        const together = deletedTogether(savedTokens, token);
-        const components = [...new Set(together.flatMap((item) => item.components.map((usage) => usage.name)))];
+        const components = deletionUsage(savedTokens, token);
         if (!components.length) return void remove(token, false);
         setDeleting({
             token,
             title:
                 token.kind === 'shadow' ? `тень ${sizeLabel(shadowParts(token.name).size).toUpperCase()}` : token.name,
-            names: together.map((item) => item.name),
+            names: deletedTogether(savedTokens, token).map((item) => item.name),
             components,
             busy: false,
             error: null,
         });
     };
+
+    const openComponent = (name: string) =>
+        navigate(
+            `../components/${encodeURIComponent(name)}${context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : ''}`,
+        );
 
     if (!data) {
         return (
@@ -186,8 +229,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         );
     }
 
-    const otherError =
-        status.state === 'error' && (!selected || session.autosave.status(selected.tokenId).state !== 'error');
+    const save = selected ? editor.status(selected.tokenId) : { state: 'saved' as const, error: null };
+    /** Ошибка операции другого токена, создания или удаления, которая повторяется автоматически. */
+    const otherError = status.state === 'error' && save.state !== 'error' ? status.error : null;
 
     return (
         <div
@@ -213,53 +257,14 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onAdd={(kind) => setCreating({ kind, busy: false, error: null })}
                 />
                 <aside className="properties-panel">
-                    {session.conflict && (
-                        <div className="st-banner" role="alert">
-                            Тема изменена в другом месте и перезагружена. Ваши несохранённые правки сохранены в
-                            редакторе — нажмите «Повторить», чтобы отправить их.
-                        </div>
-                    )}
                     {notice && (
                         <div className="st-banner" role="status">
                             {notice}
                         </div>
                     )}
-                    {legacy.length > 0 && !readOnly && (
-                        <div className="st-banner" role="status" data-testid="size-tokens-legacy-draft">
-                            <span>
-                                В черновике есть несохранённые правки радиусов, отступов и теней: {legacy.length}
-                            </span>
-                            <button
-                                type="button"
-                                className="st-inline-action"
-                                disabled={legacyBusy}
-                                onClick={async () => {
-                                    if (legacyBusy) return;
-                                    setLegacyBusy(true);
-                                    try {
-                                        await editor.saveLegacyDraft();
-                                        setNotice('Правки из черновика сохранены.');
-                                    } catch (error) {
-                                        setNotice(`Не удалось сохранить черновик: ${errorText(error)}`);
-                                    }
-                                    setLegacyBusy(false);
-                                    setLegacy(editor.legacyDraft());
-                                    props.rerender();
-                                }}
-                            >
-                                Сохранить
-                            </button>
-                            <button
-                                type="button"
-                                className="st-inline-action"
-                                disabled={legacyBusy}
-                                onClick={() => {
-                                    editor.discardLegacyDraft();
-                                    setLegacy([]);
-                                }}
-                            >
-                                Отбросить
-                            </button>
+                    {unavailable && (
+                        <div className="st-banner" role="status" data-testid="size-tokens-unavailable">
+                            Точный источник токена недоступен.
                         </div>
                     )}
                     {selected && saved && (
@@ -268,20 +273,21 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                             token={selected}
                             saved={saved}
                             editable={!readOnly}
+                            published={published}
                             canDelete={canDelete}
-                            save={session.autosave.status(selected.tokenId)}
-                            conflict={session.conflict !== null}
+                            save={save}
                             otherError={otherError}
+                            palette={palette}
                             onChange={(change) => editor.update(selected.tokenId, change)}
                             onDelete={() => requestDelete(selected)}
-                            onRetry={() => editor.retry(session.conflict || otherError ? undefined : selected.tokenId)}
-                            onOpenComponent={(name) => navigate(`../components/${encodeURIComponent(name)}`)}
+                            onRetry={() => editor.retry(otherError ? undefined : selected.tokenId)}
+                            onOpenComponent={openComponent}
                         />
                     )}
                 </aside>
                 <main className="preview-canvas">
                     <SizeTokenBoard
-                        kind={selected?.kind ?? 'radius'}
+                        kind={boardKind}
                         tokens={board}
                         selectedId={selected?.tokenId ?? null}
                         themeName={theme.getName()}

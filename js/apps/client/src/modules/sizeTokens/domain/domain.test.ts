@@ -6,6 +6,7 @@ import {
     cssLayer,
     defaultToken,
     deletedTogether,
+    deletionUsage,
     differingPlatforms,
     kindOfThemeToken,
     newShadowVariants,
@@ -143,6 +144,27 @@ describe('дерево раздела', () => {
         expect(
             deletedTogether(all, all.find((token) => token.name === 'up.hard.s')!).map((token) => token.name),
         ).toEqual(['down.soft.s', 'down.hard.s', 'up.soft.s', 'up.hard.s']);
+    });
+
+    it('считает использование удаляемой тени по объединению четырёх вариантов размера', () => {
+        const all = [
+            ...TOKENS.filter((token) => token.name !== 'up.hard.s'),
+            shadow('down.hard.s', [], {
+                components: [
+                    { name: 'Popover', count: 1 },
+                    { name: 'Select', count: 2 },
+                ],
+            }),
+            shadow('up.soft.s', []),
+            shadow('up.hard.s', [], { components: [{ name: 'Select', count: 1 }] }),
+        ];
+        const upSoft = all.find((token) => token.name === 'up.soft.s')!;
+        expect(upSoft.components).toEqual([]);
+        expect(deletionUsage(all, upSoft)).toEqual([
+            { name: 'Popover', tokens: ['down.hard.s'] },
+            { name: 'Select', tokens: ['down.hard.s', 'up.hard.s'] },
+        ]);
+        expect(deletionUsage(all, all.find((token) => token.name === 'round.xxs')!)).toEqual([]);
     });
 });
 

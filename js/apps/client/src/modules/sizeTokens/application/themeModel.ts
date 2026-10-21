@@ -21,7 +21,8 @@ import {
     type WrittenValue,
 } from '../domain';
 
-type ThemeModel = Pick<Theme, 'getToken' | 'addToken' | 'removeToken'>;
+/** Модель темы, в которую переносятся значения подтверждённых операций. */
+export type ThemeModel = Pick<Theme, 'getToken' | 'addToken' | 'removeToken'>;
 type PlatformValues = Partial<Record<WrittenValue['platform'], unknown>>;
 
 const PLATFORMS = ['web', 'ios', 'android'] as const;
