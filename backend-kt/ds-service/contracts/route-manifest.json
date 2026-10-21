@@ -122,7 +122,7 @@
         ["GET", "/tenants/{tenantId}/size-tokens", null, "SizeTokens", 200, "tenants:read", null],
         ["POST", "/tenants/{tenantId}/size-tokens", "CreateSizeTokenRequest", "SizeTokenCreated", 201, "tenants:write", "tenant-edit-revision"],
         ["PUT", "/tenants/{tenantId}/size-tokens/{tokenId}/value", "UpdateSizeTokenValueRequest", "SizeTokenUpdated", 200, "tenants:write", "tenant-edit-revision"],
-        ["DELETE", "/tenants/{tenantId}/size-tokens/{tokenId}", "DeleteSizeTokenRequest", "SizeTokenDeleted", 200, "tenants:write", "tenant-edit-revision"]
+        ["DELETE", "/tenants/{tenantId}/size-tokens/{tokenId}", null, "SizeTokenDeleted", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
