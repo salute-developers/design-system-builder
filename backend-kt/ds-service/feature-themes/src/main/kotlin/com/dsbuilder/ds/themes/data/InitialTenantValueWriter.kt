@@ -13,7 +13,10 @@ internal data class InitialValueKey(val tokenId: UUID, val platform: ThemeTokenP
 /** Окончательное начальное значение с учётом профиля до первой записи в БД. */
 internal data class InitialValuePayload(val paletteId: UUID?, val value: JsonElement?)
 
-/** Пакетная запись новой темы сохраняет UUID, редакции и основу журнала в исходной транзакции создания. */
+/**
+ * Пакетная запись новой темы сохраняет UUID, редакции и основу журнала в исходной транзакции создания. Начальные
+ * значения строятся из канонического ресурса, поэтому своих значений платформ у них нет (`overridden = false`).
+ */
 internal fun insertInitialTenantValues(
     tenantId: UUID,
     owner: UUID,
@@ -41,6 +44,7 @@ internal fun insertInitialTenantValues(
             this[ThemeTokenValueRevisionsTable.versionSequenceNumber] = sequence
             this[ThemeTokenValueRevisionsTable.paletteId] = payload.paletteId
             this[ThemeTokenValueRevisionsTable.value] = payload.value
+            this[ThemeTokenValueRevisionsTable.overridden] = false
             this[ThemeTokenValueRevisionsTable.deleted] = false
             this[ThemeTokenValueRevisionsTable.updatedAt] = now
         }
@@ -53,6 +57,7 @@ internal fun insertInitialTenantValues(
             this[ThemeTokenValueCreationBaselinesTable.designSystemId] = owner
             this[ThemeTokenValueCreationBaselinesTable.paletteId] = payload.paletteId
             this[ThemeTokenValueCreationBaselinesTable.value] = payload.value
+            this[ThemeTokenValueCreationBaselinesTable.overridden] = false
         }
     }
 }

@@ -130,6 +130,8 @@ class ExposedTokenValueRepository : TokenValueRepository {
                     current[TokenValueRevisionsTable.paletteId]
                 }
                 it[value] = if (command.valuePresent) command.value else current[TokenValueRevisionsTable.value]
+                // Общая запись значения не знает о своём значении платформы и сохраняет признак.
+                it[overridden] = current[TokenValueRevisionsTable.overridden]
                 it[deleted] = false
             }
         }
@@ -155,6 +157,7 @@ class ExposedTokenValueRepository : TokenValueRepository {
                 it[versionSequenceNumber] = draft[TokenVersionBoundariesTable.sequenceNumber]
                 it[paletteId] = current[TokenValueRevisionsTable.paletteId]
                 it[value] = current[TokenValueRevisionsTable.value]
+                it[overridden] = current[TokenValueRevisionsTable.overridden]
                 it[deleted] = true
             }
         }

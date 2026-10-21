@@ -4,12 +4,14 @@ import com.dsbuilder.ds.core.data.SubjectMutationPaths
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.lockDraftSubjects
 import kotlinx.serialization.json.JsonElement
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.util.UUID
 
@@ -59,6 +61,11 @@ internal fun writeThemeTokenRevision(tokenId: UUID, owner: UUID, payload: ThemeT
     }
 }
 
+/**
+ * Записывает черновую редакцию значения. [overridden] — признак своего значения платформы; `null` сохраняет признак
+ * последней редакции значения, чтобы запись, которая его не меняет, не сбрасывала своё значение ios или android.
+ */
+@Suppress("LongParameterList")
 internal fun writeThemeValueRevision(
     entity: UUID,
     owner: UUID,
@@ -67,9 +74,11 @@ internal fun writeThemeValueRevision(
     removed: Boolean = false,
     paths: Set<String> = setOf("/palette_id", "/value"),
     baseRevision: Long? = null,
+    overridden: Boolean? = null,
 ) {
     lockDraftSubject(owner, "token-value", entity)
     val draft = requireNotNull(themeDraft(owner))
+    val flag = overridden ?: latestThemeValueOverridden(entity)
     ThemeTokenValueRevisionsTable.deleteWhere {
         (tokenValueId eq entity) and (designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
     }
@@ -82,11 +91,20 @@ internal fun writeThemeValueRevision(
             it[versionSequenceNumber] = draft[ThemeVersionBoundariesTable.sequenceNumber]
             it[paletteId] = palette
             it[value] = data
+            it[ThemeTokenValueRevisionsTable.overridden] = flag
             it[deleted] = removed
             it[updatedAt] = Instant.now()
         }
     }
 }
+
+/** Признак своего значения платформы последней редакции значения [entity]; без редакций — `false`. */
+internal fun latestThemeValueOverridden(entity: UUID): Boolean = ThemeTokenValueRevisionsTable.selectAll()
+    .where { ThemeTokenValueRevisionsTable.tokenValueId eq entity }
+    .orderBy(ThemeTokenValueRevisionsTable.versionSequenceNumber, SortOrder.DESC)
+    .limit(1)
+    .singleOrNull()
+    ?.get(ThemeTokenValueRevisionsTable.overridden) ?: false
 
 /** Удаляет значения семейства одной пакетной записью, сохраняя предметные блокировки и историю. */
 internal fun deleteThemeValues(tokenIds: Set<UUID>) {
