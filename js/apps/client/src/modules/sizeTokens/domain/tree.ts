@@ -91,11 +91,30 @@ export interface NewTokenInput {
     value: string;
 }
 
-/** Полные имена токенов, которые создаст ввод окна «Новый токен». */
+/** Полные имена токенов, которые создаст ввод имени нового токена. */
 export const newTokenNames = (kind: SizeTokenKind, name: string) =>
     kind === 'shadow' ? shadowVariantNames(name) : [`${NAME_PREFIX[kind]}${name}`];
 
-/** Тело операции создания по вводу окна или текст ошибки ввода. */
+/**
+ * Значение нового радиуса или отступа, созданного строкой в дереве: имя отступа вида `14x` даёт значение по правилу
+ * темы (N × 2 px), иначе копируется самое крупное значение раздела, как значения по умолчанию у «Цветов».
+ */
+export const defaultNewValue = (kind: 'radius' | 'spacing', name: string, tokens: readonly SizeToken[]) => {
+    const scale = normalizeTokenName(name).match(/^(\d+)x$/);
+    if (kind === 'spacing' && scale) return String(Number(scale[1]) * 2);
+    const values = tokens.flatMap((token) =>
+        (token.kind === 'radius' || token.kind === 'spacing') && token.kind === kind && token.valuePx !== null
+            ? [token.valuePx]
+            : [],
+    );
+    return String(values.length ? Math.max(...values) : 0);
+};
+
+/** Тело операции создания по имени из строки дерева: значение — по умолчанию раздела. */
+export const newTokenFromName = (kind: SizeTokenKind, name: string, tokens: readonly SizeToken[]) =>
+    newTokenRequest({ kind, name, value: kind === 'shadow' ? '' : defaultNewValue(kind, name, tokens) }, tokens);
+
+/** Тело операции создания по вводу или текст ошибки ввода. */
 export const newTokenRequest = (
     input: NewTokenInput,
     tokens: readonly SizeToken[],

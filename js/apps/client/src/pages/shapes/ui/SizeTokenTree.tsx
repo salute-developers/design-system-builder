@@ -5,7 +5,21 @@ import {
     type SizeTokenKind,
     type TreeSection,
 } from '../../../modules/sizeTokens';
+import { InlineInput } from '../../colors/ui/ColorTokenTree';
 import { StGlyph } from './StGlyph';
+
+/** Строка нового токена внизу раздела: открыта «+», как строка нового токена в группе «Цветов». */
+export interface CreatingRow {
+    kind: SizeTokenKind;
+    busy: boolean;
+    error: string | null;
+}
+
+const NEW_TOKEN_PLACEHOLDER: Record<SizeTokenKind, string> = {
+    radius: 'Например, xxxl',
+    spacing: 'Например, 14x',
+    shadow: 'Размер, например xl',
+};
 
 interface SizeTokenTreeProps {
     sections: TreeSection[];
@@ -19,6 +33,9 @@ interface SizeTokenTreeProps {
     onSearchOpen: (open: boolean) => void;
     onToggle: (kind: SizeTokenKind) => void;
     onAdd: (kind: SizeTokenKind) => void;
+    creating: CreatingRow | null;
+    onCreate: (kind: SizeTokenKind, name: string) => void;
+    onCancelCreate: () => void;
 }
 
 /** Значение строки: «12 px», «Full», у тени — «Y 4 · B 14 · 2 сл.». */
@@ -121,6 +138,16 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                                         <b className="token-row-value">{rowValue(token)}</b>
                                     </button>
                                 ))}
+                            {!closed && props.creating?.kind === section.kind && (
+                                <InlineInput
+                                    label="Имя нового токена"
+                                    placeholder={NEW_TOKEN_PLACEHOLDER[section.kind]}
+                                    busy={props.creating.busy}
+                                    error={props.creating.error}
+                                    onSubmit={(name) => props.onCreate(section.kind, name)}
+                                    onCancel={props.onCancelCreate}
+                                />
+                            )}
                         </div>
                     );
                 })}

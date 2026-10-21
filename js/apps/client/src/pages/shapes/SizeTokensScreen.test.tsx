@@ -608,82 +608,94 @@ describe('SizeTokensScreen', () => {
         expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('000000');
     });
 
-    it('создаёт радиус, отступ и размер тени в окне «Новый токен»', async () => {
+    it('создаёт радиус, отступ и размер тени строкой внизу раздела, как в «Цветах»', async () => {
         await renderScreen();
         // «+» раздела живёт в строке заголовка: правила показывают его при наведении и фокусе на эту строку.
         const add = within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' });
         expect(add.parentElement).toHaveClass('token-tree-heading-row');
         expect(add.parentElement).toContainElement(within(tree()).getByRole('button', { name: 'Радиусы' }));
         fireEvent.click(add);
-        let dialog = screen.getByRole('dialog');
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        expect(dialog).toHaveTextContent('Введите имя токена: латиница и цифры.');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'M' } });
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '40' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        expect(dialog).toHaveTextContent('Токен round.m уже есть в теме.');
+        expect(screen.queryByRole('dialog')).toBeNull();
+        const section = screen.getByTestId('size-section-radius');
+        let input = within(section).getByRole('textbox', { name: 'Имя нового токена' });
+        // Строка нового токена — последняя в разделе.
+        expect(section.lastElementChild).toContainElement(input);
+        fireEvent.change(input, { target: { value: 'M' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(section).toHaveTextContent('Токен round.m уже есть в теме.');
         expect(sent('create')).toHaveLength(0);
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'XXXL' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        fireEvent.change(input, { target: { value: 'XXXL' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(within(section).queryByRole('textbox', { name: 'Имя нового токена' })).toBeNull());
+        // Значение по умолчанию — самый крупный радиус шкалы; правится потом в инспекторе.
         expect(sent('create')[0]).toMatchObject({
             method: 'POST',
-            body: { kind: 'radius', name: 'xxxl', valuePx: 40 },
+            body: { kind: 'radius', name: 'xxxl', valuePx: 32 },
             idempotencyKey: expect.any(String),
         });
         expect(within(inspector()).getByRole('heading')).toHaveTextContent('Радиусы / XXXL');
         expect(row('round.xxxl')).toHaveClass('is-selected');
 
+        // Имя отступа по правилу темы задаёт значение: 14x → 28 px; другое имя — самый крупный отступ.
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Отступы' }));
-        dialog = screen.getByRole('dialog');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '28' } });
-        expect(within(dialog).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('14x');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '27' } });
-        expect(within(dialog).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '28' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        input = within(screen.getByTestId('size-section-spacing')).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: '14x' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(sent('create')).toHaveLength(2));
         expect(sent('create')[1].body).toEqual({ kind: 'spacing', name: '14x', valuePx: 28 });
+        fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Отступы' }));
+        input = within(screen.getByTestId('size-section-spacing')).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: 'wide' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(sent('create')).toHaveLength(3));
+        expect(sent('create')[2].body).toEqual({ kind: 'spacing', name: 'wide', valuePx: 28 });
 
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Тени' }));
-        dialog = screen.getByRole('dialog');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Размер' }), { target: { value: 'xl' } });
-        expect(screen.getByTestId('new-shadow-names')).toHaveTextContent(
-            'down.soft.xldown.hard.xlup.soft.xlup.hard.xl',
-        );
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-        const request = sent('create')[2].body as { kind: string; name: string; variants: unknown[] };
+        input = within(screen.getByTestId('size-section-shadow')).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: 'xl' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(sent('create')).toHaveLength(4));
+        const request = sent('create')[3].body as { kind: string; name: string; variants: unknown[] };
         expect(request).toMatchObject({ kind: 'shadow', name: 'xl' });
         expect(request.variants[2]).toEqual({ variant: 'up.soft', layers: [layer(-8, 24)], fallbackElevation: 0 });
-        expect(row('down.soft.xl')).toHaveClass('is-selected');
+        await waitFor(() => expect(row('down.soft.xl')).toHaveClass('is-selected'));
     });
 
-    it('оставляет окно открытым с текстом отказа сервера', async () => {
+    it('закрывает строку нового токена по Escape без запроса', async () => {
+        await renderScreen();
+        fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
+        const input = within(tree()).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: 'xxxl' } });
+        fireEvent.keyDown(input, { key: 'Escape' });
+        expect(within(tree()).queryByRole('textbox', { name: 'Имя нового токена' })).toBeNull();
+        expect(sent('create')).toHaveLength(0);
+    });
+
+    it('оставляет строку открытой с текстом отказа сервера', async () => {
         await renderScreen();
         let finish: (error: Error) => void = () => undefined;
         repository.send.mockImplementationOnce(() => new Promise((_, reject) => (finish = reject)));
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
-        const dialog = screen.getByRole('dialog');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'xxxl' } });
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '40' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Создать токен' })).toBeDisabled());
+        const input = within(tree()).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: 'xxxl' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(input).toBeDisabled());
         await act(async () => finish(new SizeTokenOperationError('invalid', 'conflict', 'TOKEN_NAME_CONFLICT')));
-        expect(dialog).toHaveTextContent('Токен round.xxxl уже есть в теме.');
-        expect(within(dialog).getByRole('textbox', { name: 'Имя токена' })).toHaveValue('xxxl');
-        expect(within(dialog).getByRole('button', { name: 'Создать токен' })).toBeEnabled();
+        expect(screen.getByTestId('size-section-radius')).toHaveTextContent('Токен round.xxxl уже есть в теме.');
+        expect(input).toHaveValue('xxxl');
+        expect(input).toBeEnabled();
     });
 
     it('повторяет создание после сбоя сети тем же ключом и телом', async () => {
         await renderScreen();
         repository.send.mockRejectedValueOnce(new SizeTokenOperationError('network', 'Сервис недоступен'));
         fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
-        const dialog = screen.getByRole('dialog');
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Имя токена' }), { target: { value: 'xxxl' } });
-        fireEvent.change(within(dialog).getByRole('textbox', { name: 'Значение, px' }), { target: { value: '40' } });
-        fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
-        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 3_000 });
+        const input = within(tree()).getByRole('textbox', { name: 'Имя нового токена' });
+        fireEvent.change(input, { target: { value: 'xxxl' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        await waitFor(() => expect(within(tree()).queryByRole('textbox', { name: 'Имя нового токена' })).toBeNull(), {
+            timeout: 3_000,
+        });
         const [first, second] = sent('create');
         expect(second).toBe(first);
         expect(row('round.xxxl')).toBeInTheDocument();

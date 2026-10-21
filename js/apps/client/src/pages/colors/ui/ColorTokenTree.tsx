@@ -44,7 +44,7 @@ interface InlineInputProps {
  * Строка ввода в дереве: Enter или уход фокуса (клик вне поля, выбор другого токена) сохраняют изменённое значение,
  * Escape, пустое или неизменённое значение закрывают строку без запроса. Текст при открытии выделен.
  */
-const InlineInput = ({
+export const InlineInput = ({
     label,
     initial = '',
     placeholder,

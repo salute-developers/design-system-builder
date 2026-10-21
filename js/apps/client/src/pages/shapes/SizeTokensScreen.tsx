@@ -18,12 +18,11 @@ import {
     defaultToken,
     deletedTogether,
     deletionUsage,
-    largestShadowSize,
     layerColorLabel,
     layerOpacity,
     layerWithColor,
+    newTokenFromName,
     newTokenNames,
-    newTokenRequest,
     normalizeTokenName,
     scopeLayers,
     shadowParts,
@@ -41,9 +40,9 @@ import {
 import { ColorPickerPopover } from '../colors/ui/ColorPickerPopover';
 import { useSizeTokenEditor } from './useSizeTokenEditor';
 import { SizeTokenBoard } from './ui/SizeTokenBoard';
-import { DeleteSizeTokenDialog, NewSizeTokenDialog } from './ui/SizeTokenDialogs';
+import { DeleteSizeTokenDialog } from './ui/SizeTokenDialogs';
 import { SizeTokenInspector } from './ui/SizeTokenInspector';
-import { SizeTokenTree } from './ui/SizeTokenTree';
+import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -78,12 +77,6 @@ const lastSelection = new Map<string, string | null>();
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-interface Creating {
-    kind: SizeTokenKind;
-    busy: boolean;
-    error: string | null;
-}
-
 interface Deleting {
     token: SizeToken;
     title: string;
@@ -111,7 +104,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const [selectedId, setSelectedId] = useState<string | null>(() => lastSelection.get(selectionKey) ?? null);
     useEffect(() => void lastSelection.set(selectionKey, selectedId), [selectionKey, selectedId]);
     useEffect(() => writeCollapsed(collapsed), [collapsed]);
-    const [creating, setCreating] = useState<Creating | null>(null);
+    const [creating, setCreating] = useState<CreatingRow | null>(null);
     const [deleting, setDeleting] = useState<Deleting | null>(null);
     const [removing, setRemoving] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
@@ -161,11 +154,18 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         addressed.selectTokenName(token.name);
     };
 
-    const create = async (input: { name: string; value: string }) => {
+    /** «+» у раздела открывает строку нового токена внизу раздела, как в «Цветах»; раздел разворачивается. */
+    const startCreating = (kind: SizeTokenKind) => {
+        setCollapsed((current) => ({ ...current, [kind]: false }));
+        setCreating({ kind, busy: false, error: null });
+    };
+
+    /** Имя из строки дерева создаёт токен со значением по умолчанию раздела; значение правится в инспекторе. */
+    const create = async (kind: SizeTokenKind, name: string) => {
         if (!creating || creating.busy) return;
-        const result = newTokenRequest({ kind: creating.kind, ...input }, savedTokens);
-        if ('error' in result) return setCreating({ ...creating, error: result.error });
-        setCreating({ ...creating, busy: true, error: null });
+        const result = newTokenFromName(kind, name, savedTokens);
+        if ('error' in result) return setCreating({ kind, busy: false, error: result.error });
+        setCreating({ kind, busy: true, error: null });
         try {
             const created = await editor.create(result.request);
             const first = [...created].sort(compareTokens)[0];
@@ -175,12 +175,11 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             }
             setCreating(null);
         } catch (error) {
-            const name = normalizeTokenName(input.name);
             const message =
                 error instanceof SizeTokenOperationError && error.code === 'TOKEN_NAME_CONFLICT'
-                    ? SIZE_MESSAGES.exists(newTokenNames(creating.kind, name)[0])
+                    ? SIZE_MESSAGES.exists(newTokenNames(kind, normalizeTokenName(name))[0])
                     : errorText(error);
-            setCreating({ ...creating, busy: false, error: message });
+            setCreating({ kind, busy: false, error: message });
         }
     };
 
@@ -276,7 +275,10 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onToggle={(kind) => setCollapsed((current) => ({ ...current, [kind]: !current[kind] }))}
-                    onAdd={(kind) => setCreating({ kind, busy: false, error: null })}
+                    onAdd={startCreating}
+                    creating={creating}
+                    onCreate={(kind, name) => void create(kind, name)}
+                    onCancelCreate={() => setCreating(null)}
                 />
                 <aside className="properties-panel">
                     {notice && (
@@ -356,16 +358,6 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     />
                 )}
             </section>
-            {creating && (
-                <NewSizeTokenDialog
-                    kind={creating.kind}
-                    shadowSource={largestShadowSize(savedTokens)}
-                    busy={creating.busy}
-                    error={creating.error}
-                    onCancel={() => setCreating(null)}
-                    onCreate={(input) => void create(input)}
-                />
-            )}
             {deleting && (
                 <DeleteSizeTokenDialog
                     title={deleting.title}
