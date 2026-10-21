@@ -1,5 +1,6 @@
 // Глифы `uiIcon` прототипа (app.js, UI_GLYPHS), которые нужны экрану Typography.
 const GLYPHS = {
+    add: <path d="M12 5v14M5 12h14" />,
     search: (
         <>
             <circle cx="11" cy="11" r="6" />
