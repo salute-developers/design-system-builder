@@ -13,6 +13,7 @@ object TrustedProjectPrincipalFactory {
         projectScopes: String?,
         systemAdmin: String?,
         policy: AuthorizationPolicy,
+        composePreviewPublisher: String? = null,
     ): ProjectPrincipal? {
         val type = when (actorType?.lowercase()) {
             "user" -> ProjectActorType.USER
@@ -21,16 +22,18 @@ object TrustedProjectPrincipalFactory {
         }
         val admin = systemAdmin?.toBooleanStrictOrNull() ?: false
         if (systemAdmin != null && systemAdmin.toBooleanStrictOrNull() == null) return null
+        val publisher = composePreviewPublisher?.toBooleanStrictOrNull() ?: false
+        if (composePreviewPublisher != null && composePreviewPublisher.toBooleanStrictOrNull() == null) return null
         val scopes = projectScopes.orEmpty().split(',').map(String::trim).filter(String::isNotBlank).toSet()
         val principal = when (type) {
-            ProjectActorType.USER -> createUser(userId, projectId, projectKeyId, projectRole, scopes, admin)
+            ProjectActorType.USER -> createUser(userId, projectId, projectKeyId, projectRole, scopes, admin, publisher)
             ProjectActorType.PROJECT_KEY -> createProjectKey(
                 userId,
                 projectId,
                 projectKeyId,
                 projectRole,
                 scopes,
-                admin,
+                admin || publisher,
             )
         }
         return principal?.takeIf { it.isValid(policy) }
@@ -43,6 +46,7 @@ object TrustedProjectPrincipalFactory {
         projectRole: String?,
         scopes: Set<String>,
         admin: Boolean,
+        publisher: Boolean,
     ): ProjectPrincipal? {
         if (!projectKeyId.isNullOrBlank() || scopes.isNotEmpty()) return null
         return ProjectPrincipal(
@@ -51,6 +55,7 @@ object TrustedProjectPrincipalFactory {
             projectId.orEmpty(),
             projectRole?.lowercase(),
             systemAdmin = admin,
+            composePreviewPublisher = publisher,
         )
     }
 
