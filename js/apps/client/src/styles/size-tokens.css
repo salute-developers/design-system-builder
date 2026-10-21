@@ -2369,45 +2369,80 @@
     font-size: 12px;
 }
 
-.size-tokens-screen .st-shadow-grid {
+.size-tokens-screen .st-shadow-list {
     display: grid;
-    grid-template-columns: 56px repeat(4, 1fr);
-    gap: 18px 14px;
-    align-items: center;
+    gap: 20px;
 }
 
-.size-tokens-screen .st-shadow-grid > span {
+.size-tokens-screen .st-shadow-size {
+    display: grid;
+    gap: 8px;
+}
+
+.size-tokens-screen .st-shadow-size h3 {
+    margin: 0;
     color: #9e9fa2;
     font-size: 12px;
-}
-
-.size-tokens-screen .st-shadow-grid > b {
-    color: #9e9fa2;
-    font-size: 11px;
     font-weight: 500;
-    text-align: center;
 }
 
-.size-tokens-screen .st-shadow-card {
-    position: relative;
-    height: 92px;
-    border: 0;
+.size-tokens-screen .st-shadow-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 8px 8px 8px 14px;
+    border: 1px solid var(--builder-ui-outline-primary, #343a43);
     border-radius: 12px;
-    background: #f6f6f7;
-    color: #3a3d42;
-    font: 500 11px/1.3 Inter, sans-serif;
+    background: transparent;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
 }
 
-.size-tokens-screen .st-shadow-card.is-selected {
-    outline: 2px solid #4a8cff;
-    outline-offset: 4px;
+.size-tokens-screen .st-shadow-row:hover {
+    background: #ffffff08;
 }
 
-.size-tokens-screen .st-shadow-stage {
-    padding: 28px 24px;
-    border-radius: 16px;
+.size-tokens-screen .st-shadow-row.is-selected {
+    border-color: #4a8cff;
+    box-shadow: 0 0 0 1px #4a8cff inset;
+}
+
+.size-tokens-screen .st-shadow-meta {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.size-tokens-screen .st-shadow-meta strong {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.size-tokens-screen .st-shadow-meta small {
+    color: #9e9fa2;
+    font-size: 11px;
+}
+
+/* Своя светлая плашка у каждой тени: тень обрезается её краем и не заходит на соседние строки. */
+.size-tokens-screen .st-shadow-tile {
+    position: relative;
+    height: 120px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    isolation: isolate;
+    border-radius: 10px;
     background: #e9eaec;
+}
+
+.size-tokens-screen .st-shadow-card {
+    width: 140px;
+    height: 52px;
+    border-radius: 10px;
+    background: #f6f6f7;
 }
 
 /* Инспектор: поля, слои, строки своих значений платформ — правила `<style>` макета раздела. */
@@ -2509,21 +2544,114 @@
 
 .size-tokens-screen .st-color {
     display: grid;
-    grid-template-columns: 52px 18px 1fr 56px;
+    grid-template-columns: 64px 1fr;
     align-items: center;
     gap: 6px;
+}
+
+/* Свотч внутри поля цвета — правила `colorInspectorField` прототипа, как в «Цветах». */
+.size-tokens-screen .st-color .figma-value-control {
+    height: 26px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid #474a51;
+    border-radius: 6px;
+    background: #383a40;
+}
+
+.size-tokens-screen .st-color .figma-value-main {
+    height: 24px;
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px 0 4px;
+}
+
+.size-tokens-screen .st-color .figma-value-main .swatch-button {
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    border: 1px solid rgba(15, 17, 20, 0.1);
+    border-radius: 3px;
+}
+
+.size-tokens-screen .st-color .figma-value-main input,
+.size-tokens-screen .st-color .figma-value-alpha input {
+    min-width: 0;
+    height: 22px;
+    margin: 0;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: #dfe2e7;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.size-tokens-screen .st-color .figma-value-main input {
+    flex: 1;
+}
+
+.size-tokens-screen .st-color .figma-value-alpha {
+    width: 52px;
+    height: 24px;
+    padding: 0 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-left: 1px solid #474a51;
+    color: #dfe2e7;
+    font-size: 12px;
+}
+
+.size-tokens-screen .st-color .figma-value-alpha input {
+    width: 28px;
+    text-align: right;
+}
+
+.size-tokens-screen .st-color .figma-value-alpha i {
+    color: #a8afb9;
+    font-style: normal;
+}
+
+.size-tokens-screen .st-color input:focus {
+    outline: 0;
+}
+
+.size-tokens-screen .alpha-swatch {
+    position: relative;
+    overflow: hidden;
+    background: var(--swatch-solid, var(--swatch-color, transparent));
+    background-origin: border-box;
+    background-repeat: no-repeat;
+}
+
+.size-tokens-screen .alpha-swatch::before,
+.size-tokens-screen .alpha-swatch::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 50%;
+    opacity: var(--swatch-alpha-preview, 0);
+    pointer-events: none;
+}
+
+.size-tokens-screen .alpha-swatch::before {
+    background-color: #f3f5f7;
+    background-image: conic-gradient(#f3f5f7 25%, #aeb5bf 0 50%, #f3f5f7 0 75%, #aeb5bf 0);
+    background-size: 8px 8px;
+}
+
+.size-tokens-screen .alpha-swatch::after {
+    background: var(--swatch-color, transparent);
 }
 
 .size-tokens-screen .st-color > span {
     color: #9e9fa2;
     font-size: 11px;
-}
-
-.size-tokens-screen .st-color i {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px #ffffff33;
 }
 
 .size-tokens-screen .st-override {

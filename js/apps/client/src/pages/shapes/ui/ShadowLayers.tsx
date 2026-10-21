@@ -9,12 +9,12 @@ import {
     parseHex,
     parseOpacity,
     parsePx,
-    rgba,
     SIZE_MESSAGES,
     validatePx,
     type LayerNumberKey,
     type ShadowLayer,
 } from '../../../modules/sizeTokens';
+import { alphaSwatchStyle } from '../../colors/ui/swatch';
 import { CommitInput } from './fields';
 
 const NUMBER_FIELDS: Array<[LayerNumberKey, string]> = [
@@ -87,29 +87,43 @@ export const ShadowLayers = ({ layers, editable, scope, fieldPrefix, serverError
                                 </label>
                             ))}
                         </div>
+                        {/* Поле цвета по `colorInspectorField` прототипа: свотч внутри поля HEX, прозрачность справа. */}
                         <div className="st-color">
                             <span>Цвет</span>
-                            <i style={{ background: rgba(layer.color) }} aria-hidden="true" />
-                            <CommitInput
-                                aria-label={`${scope}, слой ${index + 1}, HEX`}
-                                value={layer.color.slice(0, 7).toUpperCase()}
-                                disabled={!editable}
-                                validate={(raw) => (parseHex(raw) ? null : SIZE_MESSAGES.hex)}
-                                onIssue={(message) => setError(`${index}.hex`, message)}
-                                onCommit={(raw) =>
-                                    change(index, { color: colorWithOpacity(parseHex(raw)!, opacityOf(layer.color)) })
-                                }
-                            />
-                            <CommitInput
-                                aria-label={`${scope}, слой ${index + 1}, прозрачность`}
-                                value={`${opacityOf(layer.color)}%`}
-                                disabled={!editable}
-                                validate={(raw) => (parseOpacity(raw) === null ? SIZE_MESSAGES.opacity : null)}
-                                onIssue={(message) => setError(`${index}.opacity`, message)}
-                                onCommit={(raw) =>
-                                    change(index, { color: colorWithOpacity(layer.color, parseOpacity(raw)!) })
-                                }
-                            />
+                            <div className="figma-value-control">
+                                <div className="figma-value-main">
+                                    <span
+                                        className="swatch-button alpha-swatch"
+                                        style={alphaSwatchStyle(layer.color)}
+                                        aria-hidden="true"
+                                    />
+                                    <CommitInput
+                                        aria-label={`${scope}, слой ${index + 1}, HEX`}
+                                        value={layer.color.slice(1, 7).toUpperCase()}
+                                        disabled={!editable}
+                                        validate={(raw) => (parseHex(raw) ? null : SIZE_MESSAGES.hex)}
+                                        onIssue={(message) => setError(`${index}.hex`, message)}
+                                        onCommit={(raw) =>
+                                            change(index, {
+                                                color: colorWithOpacity(parseHex(raw)!, opacityOf(layer.color)),
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="figma-value-alpha">
+                                    <CommitInput
+                                        aria-label={`${scope}, слой ${index + 1}, прозрачность`}
+                                        value={String(opacityOf(layer.color))}
+                                        disabled={!editable}
+                                        validate={(raw) => (parseOpacity(raw) === null ? SIZE_MESSAGES.opacity : null)}
+                                        onIssue={(message) => setError(`${index}.opacity`, message)}
+                                        onCommit={(raw) =>
+                                            change(index, { color: colorWithOpacity(layer.color, parseOpacity(raw)!) })
+                                        }
+                                    />
+                                    <i>%</i>
+                                </div>
+                            </div>
                         </div>
                         {messages.map((message) => (
                             <p key={message} className="st-field-error" role="alert">
