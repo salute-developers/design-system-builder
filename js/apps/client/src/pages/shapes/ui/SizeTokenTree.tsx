@@ -80,28 +80,31 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                             className={`token-tree-group sizing-token-group ${closed ? 'is-collapsed' : 'is-open'}`}
                             data-testid={`size-section-${section.kind}`}
                         >
-                            <button
-                                type="button"
-                                className="token-tree-heading"
-                                aria-expanded={!closed}
-                                onClick={() => props.onToggle(section.kind)}
-                            >
-                                <span className="token-tree-chevron" aria-hidden="true">
-                                    {closed ? '›' : '⌄'}
-                                </span>
-                                <span>{section.label}</span>
-                            </button>
-                            {editable && (
+                            {/* «+» показывается при наведении и фокусе на строку заголовка раздела, как у групп «Цветов». */}
+                            <div className="token-tree-heading-row">
                                 <button
                                     type="button"
-                                    className="token-group-add"
-                                    title={`Добавить токен в ${section.label}`}
-                                    aria-label={`Добавить токен в ${section.label}`}
-                                    onClick={() => props.onAdd(section.kind)}
+                                    className="token-tree-heading"
+                                    aria-expanded={!closed}
+                                    onClick={() => props.onToggle(section.kind)}
                                 >
-                                    <StGlyph name="add" />
+                                    <span className="token-tree-chevron" aria-hidden="true">
+                                        {closed ? '›' : '⌄'}
+                                    </span>
+                                    <span>{section.label}</span>
                                 </button>
-                            )}
+                                {editable && (
+                                    <button
+                                        type="button"
+                                        className="token-group-add"
+                                        title={`Добавить токен в ${section.label}`}
+                                        aria-label={`Добавить токен в ${section.label}`}
+                                        onClick={() => props.onAdd(section.kind)}
+                                    >
+                                        <StGlyph name="add" />
+                                    </button>
+                                )}
+                            </div>
                             {!closed &&
                                 section.tokens.map((token) => (
                                     <button

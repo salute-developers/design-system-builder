@@ -1011,10 +1011,24 @@
     cursor: pointer;
 }
 
-.size-tokens-screen .token-tree-group:hover .token-group-add,
-.size-tokens-screen .token-tree-group:focus-within .token-group-add {
+.size-tokens-screen .token-tree-heading-row {
+    position: relative;
+}
+
+/* «+» раздела — при наведении и фокусе на строку его заголовка, а не на весь раздел, как у групп «Цветов». */
+.size-tokens-screen .token-tree-heading-row > .token-group-add {
+    top: 2px;
+}
+
+.size-tokens-screen .token-tree-heading-row:hover > .token-group-add,
+.size-tokens-screen .token-tree-heading-row:focus-within > .token-group-add {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Цвет заголовка свёрнутого раздела по правилу прототипа `.token-tree-group.is-collapsed>.token-tree-heading`. */
+.size-tokens-screen .token-tree-group.is-collapsed > .token-tree-heading-row > .token-tree-heading {
+    color: #dfe2e7;
 }
 
 .size-tokens-screen .token-group-add:hover {

@@ -610,7 +610,11 @@ describe('SizeTokensScreen', () => {
 
     it('создаёт радиус, отступ и размер тени в окне «Новый токен»', async () => {
         await renderScreen();
-        fireEvent.click(within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' }));
+        // «+» раздела живёт в строке заголовка: правила показывают его при наведении и фокусе на эту строку.
+        const add = within(tree()).getByRole('button', { name: 'Добавить токен в Радиусы' });
+        expect(add.parentElement).toHaveClass('token-tree-heading-row');
+        expect(add.parentElement).toContainElement(within(tree()).getByRole('button', { name: 'Радиусы' }));
+        fireEvent.click(add);
         let dialog = screen.getByRole('dialog');
         fireEvent.click(within(dialog).getByRole('button', { name: 'Создать токен' }));
         expect(dialog).toHaveTextContent('Введите имя токена: латиница и цифры.');
