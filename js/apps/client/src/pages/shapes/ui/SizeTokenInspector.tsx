@@ -14,10 +14,10 @@ import {
     type ShadowLayer,
     type ShadowToken,
     type SizeToken,
+    type LayerScope,
     type SizeTokenOperationError,
     type SizeTokenValue,
 } from '../../../modules/sizeTokens';
-import type { ThemePalette } from '../../../modules/palette';
 import { derivedLabel, derivedValue } from './SizeTokenBoard';
 import { CommitInput, PlatformAdd } from './fields';
 import { ShadowLayers } from './ShadowLayers';
@@ -43,8 +43,11 @@ interface InspectorProps {
     save: SaveStatus;
     /** Ошибка операции другого токена, создания или удаления; такие операции повторяются автоматически. */
     otherError: SizeTokenOperationError | null;
-    /** Палитра темы: ступени для цвета слоя тени. */
-    palette: ThemePalette | null;
+    /** Название ступени палитры цвета слоя тени («Gray 900») или `null` у HEX. */
+    colorLabel: (layer: ShadowLayer) => string | null;
+    /** Открытый выбор цвета слоя тени. */
+    picker: { scope: LayerScope; index: number } | null;
+    onOpenPicker: (scope: LayerScope, index: number) => void;
     onChange: (change: (value: SizeTokenValue) => SizeTokenValue) => void;
     onDelete: () => void;
     onRetry: () => void;
@@ -332,13 +335,22 @@ const ShadowBody = ({
     editable,
     save,
     onChange,
+    colorLabel,
+    picker,
+    onOpenPicker,
 }: {
     token: ShadowToken;
     saved: ShadowToken;
     editable: boolean;
     save: SaveStatus;
     onChange: InspectorProps['onChange'];
-}) => {
+} & Pick<InspectorProps, 'colorLabel' | 'picker' | 'onOpenPicker'>) => {
+    /** Свойства выбора цвета для слоёв набора [scope]. */
+    const colorProps = (scope: LayerScope) => ({
+        colorLabel,
+        pickerOpen: (index: number) => picker?.scope === scope && picker.index === index,
+        onOpenPicker: (index: number) => onOpenPicker(scope, index),
+    });
     const [elevationIssue, setElevationIssue] = useState<string | null>(null);
     const serverError = serverErrorOf(save);
     const overridden = platformsOf(token.platforms);
@@ -376,6 +388,7 @@ const ShadowBody = ({
                     scope="Веб"
                     fieldPrefix="layers"
                     serverError={serverError}
+                    {...colorProps('web')}
                     onChange={(layers) => setShadow((value) => ({ ...value, layers }))}
                 />
             </section>
@@ -404,6 +417,7 @@ const ShadowBody = ({
                         scope={PLATFORM_LABELS[platform]}
                         fieldPrefix={`platforms.${platform}.layers`}
                         serverError={serverError}
+                        {...colorProps(platform)}
                         onChange={(layers) => setPlatformLayers(platform, layers)}
                     />
                 </section>
@@ -485,7 +499,16 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                 </div>
             )}
             {token.kind === 'shadow' && saved.kind === 'shadow' ? (
-                <ShadowBody token={token} saved={saved} editable={editable} save={save} onChange={props.onChange} />
+                <ShadowBody
+                    token={token}
+                    saved={saved}
+                    editable={editable}
+                    save={save}
+                    onChange={props.onChange}
+                    colorLabel={props.colorLabel}
+                    picker={props.picker}
+                    onOpenPicker={props.onOpenPicker}
+                />
             ) : token.kind !== 'shadow' && saved.kind !== 'shadow' ? (
                 <DimensionBody token={token} saved={saved} editable={editable} save={save} onChange={props.onChange} />
             ) : null}

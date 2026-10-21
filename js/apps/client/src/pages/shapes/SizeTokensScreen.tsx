@@ -5,7 +5,13 @@ import '../../styles/size-tokens.css';
 
 import type { DesignSystem, Theme } from '../../controllers';
 import { useAddressedToken } from '../../hooks/useAddressedToken';
-import type { ThemePalette } from '../../modules/palette';
+import {
+    groupRampName,
+    resolvePaletteStep,
+    resolveTokenGroupId,
+    type PaletteRampRef,
+    type ThemePalette,
+} from '../../modules/palette';
 import {
     buildSections,
     compareTokens,
@@ -13,18 +19,26 @@ import {
     deletedTogether,
     deletionUsage,
     largestShadowSize,
+    layerColorLabel,
+    layerOpacity,
+    layerWithColor,
     newTokenNames,
     newTokenRequest,
     normalizeTokenName,
+    scopeLayers,
     shadowParts,
     sizeLabel,
     SizeTokenOperationError,
     SIZE_MESSAGES,
+    withLayer,
     type DeletedUsage,
+    type LayerScope,
+    type ShadowLayer,
     type SizeToken,
     type SizeTokenContext,
     type SizeTokenKind,
 } from '../../modules/sizeTokens';
+import { ColorPickerPopover } from '../colors/ui/ColorPickerPopover';
 import { useSizeTokenEditor } from './useSizeTokenEditor';
 import { SizeTokenBoard } from './ui/SizeTokenBoard';
 import { DeleteSizeTokenDialog, NewSizeTokenDialog } from './ui/SizeTokenDialogs';
@@ -101,6 +115,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const [deleting, setDeleting] = useState<Deleting | null>(null);
     const [removing, setRemoving] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
+    const [picker, setPicker] = useState<{ tokenId: string; scope: LayerScope; index: number } | null>(null);
 
     const savedTokens = data?.tokens ?? [];
     const tokens = editor.tokens();
@@ -210,6 +225,10 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             `../components/${encodeURIComponent(name)}${context.versionId ? `?versionId=${encodeURIComponent(context.versionId)}` : ''}`,
         );
 
+    /** Имя растяжки палитры в группе, к которой палитра относит токен тени, как во вкладке Library. */
+    const rampName = (tokenName: string) => (reference: PaletteRampRef) =>
+        palette ? groupRampName(palette, resolveTokenGroupId(palette, tokenName), reference) : undefined;
+
     if (!data) {
         return (
             <div className="size-tokens-screen st-shell st-theme-workspace" data-testid="size-tokens-loading">
@@ -230,6 +249,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     }
 
     const save = selected ? editor.status(selected.tokenId) : { state: 'saved' as const, error: null };
+    const openPicker = picker && selected?.tokenId === picker.tokenId && !readOnly ? picker : null;
+    const pickerLayer: ShadowLayer | null =
+        openPicker && selected ? (scopeLayers(selected, openPicker.scope)?.[openPicker.index] ?? null) : null;
     /** Ошибка операции другого токена, создания или удаления, которая повторяется автоматически. */
     const otherError = status.state === 'error' && save.state !== 'error' ? status.error : null;
 
@@ -277,7 +299,17 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                             canDelete={canDelete}
                             save={save}
                             otherError={otherError}
-                            palette={palette}
+                            colorLabel={(layer) => layerColorLabel(layer, rampName(selected.name))}
+                            picker={openPicker}
+                            onOpenPicker={(scope, index) =>
+                                setPicker((current) =>
+                                    current?.tokenId === selected.tokenId &&
+                                    current.scope === scope &&
+                                    current.index === index
+                                        ? null
+                                        : { tokenId: selected.tokenId, scope, index },
+                                )
+                            }
                             onChange={(change) => editor.update(selected.tokenId, change)}
                             onDelete={() => requestDelete(selected)}
                             onRetry={() => editor.retry(otherError ? undefined : selected.tokenId)}
@@ -294,6 +326,35 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                         onSelect={select}
                     />
                 </main>
+                {selected && openPicker && pickerLayer && (
+                    <ColorPickerPopover
+                        // Состояние выбора цвета принадлежит слою: другой слой открывает новый выбор.
+                        key={`${selected.tokenId}:${openPicker.scope}:${openPicker.index}`}
+                        label={`${selected.name}, слой ${openPicker.index + 1}`}
+                        type="color"
+                        value={{
+                            value: pickerLayer.colorRef ?? pickerLayer.color,
+                            resolved: pickerLayer.color,
+                            paletteLabel: layerColorLabel(pickerLayer, rampName(selected.name)),
+                            opacity: layerOpacity(pickerLayer) / 100,
+                        }}
+                        palette={palette}
+                        tokenName={selected.name}
+                        // Ступень Library отправляется ссылкой `[type.shade.step][opacity]`, цвет Custom — HEX.
+                        onCommit={(value) =>
+                            editor.update(selected.tokenId, (current) =>
+                                withLayer(current, openPicker.scope, openPicker.index, (layer) =>
+                                    layerWithColor(
+                                        layer,
+                                        value,
+                                        palette ? resolvePaletteStep(palette, value, selected.name)?.hex : null,
+                                    ),
+                                ),
+                            )
+                        }
+                        onClose={() => setPicker(null)}
+                    />
+                )}
             </section>
             {creating && (
                 <NewSizeTokenDialog
