@@ -1,17 +1,20 @@
 ## 1. Схема и домен (backend-kt/ds-service)
 
-- [ ] 1.1 После Apply change `add-versioned-multi-user-editing` сверить номера миграций с `V7` change `select-compose-preview-plugin-by-meta-version` и добавить Flyway-миграцию: `display_name text null` в `appearance_variation_revisions` и `appearance_variation_value_revisions`; отразить колонки в Exposed-таблицах и в `schema-fingerprint.json`, если он их охватывает
+- [ ] 1.1 Добавить Flyway-миграцию со следующим свободным номером после `V7__version_design_system_state` (согласовать переименование `V7` в change `select-compose-preview-plugin-by-meta-version`): `display_name text null` в `appearance_variation_revisions` и `appearance_variation_value_revisions`; отразить колонки в Exposed-таблицах и в `schema-fingerprint.json`, если он их охватывает
 - [ ] 1.2 Домен: `AppearanceEditorModel`, `AxisModel`, `AxisValueModel`, `PropertyValueModel`, `AppearanceEdit`, `AppearanceEditResult`, `PropertyValueInput`, `StyleReferenceInput`; функция действующего имени оси и значения
 - [ ] 1.3 Application: порт `AppearanceEditorRepository` и use case на чтение модели и на каждую операцию (оси, значения осей, значения свойств, порядок состояний, ссылки); проверка прав через `DsAccessPolicy`, транзакция через `TransactionRunner`
 
 ## 2. Данные (backend-kt/ds-service)
 
+- [ ] 2.0 Сверить контракты ветки `feature/ds-versions` (`DsRequestContext`, `EntityEditStateRepository`, `DraftChangeHandler`, `X-DS-Mutation-Metadata`) с design и при расхождении обновить design
 - [ ] 2.1 Реализация `AppearanceEditorRepository` в `data` на инфраструктуре #109: блокировка сущностей в устойчивом порядке, запись редакций изменённых путей, отдельное изменение журнала на сущность, откат при отказе
 - [ ] 2.2 Операции над осями и значениями осей: добавление с техническими `variations.name` и `styles.name`, переименование через `display_name`, перестановка, удаление с каскадом зависимых значений, роли и значение по умолчанию
 - [ ] 2.3 Запись значений свойств для области (база, стиль, сочетание) с набором состояний через `StateRepository.resolve`, порядок состояний; ссылка на токен хранится как `token_id` при пустом `value`; проверка совместимости типа значения и слота по правилу импорта (`compatible`, градиент в слоте `color`, `gradientOnlyProperties`) — вынести правило в общую функцию для импорта и операций
 - [ ] 2.4 Запись ссылок на стиль вложенного компонента: проверка цели, стилей, цикла, глубины 5; запись `component_style_references`, `component_style_reference_styles`, `component_deps`; общая функция записи, которую использует и импорт
 - [ ] 2.5 Пересборка `reference` и значения ссылок при переименовании значения и оси; удаление и `reference_in_use` при удалении
 - [ ] 2.6 `ComponentConfigBuilder`, экспорт и превью используют действующие имена; импорт сопоставляет оси по действующему имени и сохраняет `display_name`; импорт записывает ссылки значений с состояниями
+- [ ] 2.6a Добавить `displayName` в `describe` и `revertFields` обработчиков `appearance-variation` и `appearance-variation-value` в `ComponentDraftChangeHandlers`; для новых операций обеспечить `REVERT_DEPENDENCY_CONFLICT` при откате созданных осей и значений с зависимыми сущностями
+- [ ] 2.6b Операции: разделяемая блокировка дизайн-системы, ключ повторяемости для создающих запросов, сигнал области `component-configurations`, параметр `versionId` чтения модели
 - [ ] 2.7 Ограничить `PATCH /api/ds/variations/{id}` с изменением `name` системным администратором; убедиться, что прежние маршруты оси, значения оси, стиля и значений свойств идут через механизм согласования правок #109
 - [ ] 2.8 Инвентаризировать читателей `variations.name` и `styles.name` (в том числе `legacy/.../component-configs` в `js/services/db-service`) и перевести на действующие имена
 

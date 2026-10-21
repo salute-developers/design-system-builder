@@ -13,7 +13,8 @@
 - **Прежние маршруты.** Они подчиняются тому же согласованию правок, а `PATCH /variations/{id}` с новым `name` доступен только системному администратору.
 - **Значения свойств.** Ссылка на токен хранится как `token_id` (`value` пуст); тип значения проверяется по семейству типа слота, градиент допустим в слоте `color`.
 - **Чтение конфигурации** (`ComponentConfigBuilder`, экспорт, превью) использует действующее имя оси и значения.
-- **Зависимость:** реализация начинается после Apply change `add-versioned-multi-user-editing`.
+- **Журнал, откат, публикация.** Каждая изменяемая сущность получает обработчик журнала и отката; операции публикуют сигнал об изменении и принимают ключ повторяемости.
+- **Зависимость:** change строится на `add-versioned-multi-user-editing` (архивирован, ветка `feature/ds-versions`): редакции сущностей, журнал, версии.
 - **Не входит:** условия `instanceTarget` (булевы и строковые пропсы экземпляра), копирование оформления целиком, создание состояний и осей общего слоя вне оформления, серверное хранение черновика, изменение клиентского редактора.
 
 ## Capabilities
@@ -24,11 +25,12 @@
 
 ### Modified Capabilities
 - `component-appearance-model`: действующее имя оси и значения принадлежит оформлению и версионируется как поле объявления; конфигурация отдаётся с действующими именами.
+- `design-system-model-api`: перечень разрешённых предметных маршрутов дополняется маршрутами операций редактора.
 - `component-state-model`: набор состояний значения задаётся именами, порядок значим, неизвестное состояние отклоняется, редактор не создаёт состояния.
 
 ## Impact
 
-- `backend-kt/ds-service`: `feature-components` (use case, репозиторий, маршруты, DTO, `ComponentConfigBuilder`, `ComponentConfigImporter`), `app` (миграция после #109 и после `V7` change `select-compose-preview-plugin-by-meta-version`), `contracts` (манифест маршрутов, аудит потребителей), `openapi/documentation.yaml`.
+- `backend-kt/ds-service`: `feature-components` (use case, репозиторий, маршруты, DTO, `ComponentConfigBuilder`, `ComponentConfigImporter`), `app` (миграция со следующим свободным номером после `V7__version_design_system_state`; `V7` change `select-compose-preview-plugin-by-meta-version` придётся переименовать), `contracts` (манифест маршрутов, аудит потребителей), `openapi/documentation.yaml`.
 - `js/services/db-service`: схему не дублируем (таблицы принадлежат `ds-service`); проверить потребителей `legacy/.../component-configs`, читающих `variations.name`.
 - `js/apps/client`: контракт для будущего редактора; кода этого change здесь нет.
 - `frontend-kt`: `dsbuilder components` (импорт и экспорт) читает и пишет действующие имена; изменений интерфейса CLI нет.
