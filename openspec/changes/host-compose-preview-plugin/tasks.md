@@ -23,22 +23,22 @@
 
 ## 3. CLI (frontend-kt)
 
-- [ ] 3.1 Домен и application: чтение `preview-plugin.json` и `api-meta.json` из zip, расчёт sha256, проверка соответствия, нормализация меты нормализатором `compose`
-- [ ] 3.2 Port и HTTP-источник: multipart-отправка архива и меты, разбор итога и отчёта, обработка `409 BUILD_CONTENT_CHANGED`
-- [ ] 3.3 Вход служебной учёткой: `client_credentials` через `/auth/token` по `DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET` (расширить `TokenExchangeClient`); токен не сохранять на диск; запрет секрета в аргументах; иначе сессия пользователя
-- [ ] 3.4 Presentation: команда `preview-plugin publish` (`--platform`, `--from`, `--api-url`, `--apply`), печать итога, адреса, отчёта импорта; DI
-- [ ] 3.5 Обновить `frontend-kt/cli/USAGE.md`: команда, переменные окружения служебной учётки, пример для CI
-- [ ] 3.6 Gradle-задача JVM-дистрибутива CLI (архив со стартовыми скриптами `dsbuilder`, Java 17) в `frontend-kt/cli`
-- [ ] 3.7 Workflow публикации релиза CLI: сборка JVM-дистрибутива и вложение в GitHub Release по тегу `cli-vX.Y.Z`; согласовать доступ на чтение релиза для CI `plasma-android`
+- [x] 3.1 Домен и application: чтение `preview-plugin.json` и `api-meta.json` из zip, расчёт sha256, проверка соответствия, нормализация меты нормализатором `compose`
+- [x] 3.2 Port и HTTP-источник: multipart-отправка архива и меты, разбор итога и отчёта, обработка `409 BUILD_CONTENT_CHANGED`
+- [x] 3.3 Вход служебной учёткой: `client_credentials` через `/auth/token` по `DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET` (расширить `TokenExchangeClient`); токен не сохранять на диск; запрет секрета в аргументах; иначе сессия пользователя
+- [x] 3.4 Presentation: команда `preview-plugin publish` (`--platform`, `--from`, `--api-url`, `--apply`), печать итога, адреса, отчёта импорта; DI
+- [x] 3.5 Обновить `frontend-kt/cli/USAGE.md`: команда, переменные окружения служебной учётки, пример для CI
+- [x] 3.6 Gradle-задача JVM-дистрибутива CLI (архив со стартовыми скриптами `dsbuilder`, Java 17) в `frontend-kt/cli`
+- [x] 3.7 Workflow публикации релиза CLI: сборка JVM-дистрибутива и вложение в GitHub Release по тегу `cli-vX.Y.Z`; согласовать доступ на чтение релиза для CI `plasma-android`
 
 ## 4. Клиент (js/apps/client)
 
-- [ ] 4.1 API-клиент `GET .../compose-preview/plugin`: различие `404` и ошибок, кеш на время жизни страницы для проекта
-- [ ] 4.2 `resolveComposePreviewPluginUrl`: приоритет прямого адреса, запрос к бэкенду, возврат адреса или `undefined`
-- [ ] 4.3 Заменить условие включения (`getComposePreviewPluginUrl`) в `componentRepository.loadComposeComponentData` (`js/apps/client/src/api/componentRepository.ts`): при `404`/ошибке Compose-компоненты не запрашиваются, React-preview работает
-- [ ] 4.4 Подключить полученный адрес к `ComposePreviewFrame`/сессии, сообщение о недоступности при ошибке запроса
-- [ ] 4.5 Обновить `README.md` клиента: два источника адреса, приоритет прямого, локальная разработка, принятый риск общего origin; убрать прежнее требование отдельного origin
-- [ ] 4.6 Переменные: прямой адрес по умолчанию в `docker-compose.dev.yml` сохраняется; в workflows выкладки клиента отдельных переменных не требуется
+- [x] 4.1 API-клиент `GET .../compose-preview/plugin`: различие `404` и ошибок, кеш на время жизни страницы для проекта
+- [x] 4.2 `resolveComposePreviewPluginUrl`: приоритет прямого адреса, запрос к бэкенду, возврат адреса или `undefined`
+- [x] 4.3 Заменить условие включения (`getComposePreviewPluginUrl`) в `componentRepository.loadComposeComponentData` (`js/apps/client/src/api/componentRepository.ts`): при `404`/ошибке Compose-компоненты не запрашиваются, React-preview работает
+- [x] 4.4 Подключить полученный адрес к `ComposePreviewFrame`/сессии, сообщение о недоступности при ошибке запроса
+- [x] 4.5 Обновить `README.md` клиента: два источника адреса, приоритет прямого, локальная разработка, принятый риск общего origin; убрать прежнее требование отдельного origin
+- [x] 4.6 Переменные: прямой адрес по умолчанию в `docker-compose.dev.yml` сохраняется; в workflows выкладки клиента отдельных переменных не требуется
 
 ## 5. Локальный контур и инфраструктура
 
@@ -51,17 +51,17 @@
 
 - [x] 6.1 ds-service, домен и распаковка: проверки manifest, лимитов, небезопасных путей, обязательных файлов, типов содержимого
 - [x] 6.2 ds-service, репозиторий на PostgreSQL по образцу `ApiMetaImportHttpPostgresIntegrationTest`: публикация, активность одного билда, откат транзакции, идемпотентность, `activated`, конфликт, пробная отправка без записи, очистка
-- [ ] 6.3 ds-service, S3-адаптер на MinIO: ключи, `Content-Type`, `Cache-Control`, удаление префикса; сбой заливки не меняет БД
+- [x] 6.3 ds-service, S3-адаптер: ключи, `Content-Type`, `Cache-Control`, листинг постранично, удаление каталога (против встроенного HTTP-сервера с протоколом S3; сбой заливки не меняет БД проверяет интеграционный тест публикации); проверка на настоящем MinIO входит в сквозную проверку 6.8
 - [x] 6.4 ds-service, маршруты: роли публикации (служебная, сисадмин, обычный пользователь), ключ проекта, `503`, выдача адреса (успех, `404`, нет права)
 - [x] 6.5 identity-gateway: сопоставление роли, заголовок, подделка заголовка снаружи, токен служебной учётки принят и не открывает прочие маршруты (импорт меты, проектные)
-- [ ] 6.6 CLI: проверка архива, нормализация, пробная отправка и `--apply`, вход служебной учёткой и сессией, запрет секрета в аргументах, печать итога и конфликта
-- [ ] 6.7 Клиент: Vitest на приоритет прямого адреса, `404`, ошибки, кеш; тесты `ComposePreviewFrame`; обновить существующие тесты `manifest`, `session`, `environment` и `themeEditorRepository.test.ts` (мок `getComposePreviewPluginUrl`) при изменении конфигурации; запрос адреса не должен передавать `versionId`
+- [x] 6.6 CLI: проверка архива, нормализация, пробная отправка и `--apply`, вход служебной учёткой и сессией, запрет секрета в аргументах, печать итога и конфликта
+- [x] 6.7 Клиент: Vitest на приоритет прямого адреса, `404`, ошибки, кеш; тесты `ComposePreviewFrame`; обновить существующие тесты `manifest`, `session`, `environment` и `themeEditorRepository.test.ts` (мок `getComposePreviewPluginUrl`) при изменении конфигурации; запрос адреса не должен передавать `versionId`
 - [ ] 6.8 Сквозная проверка на локальном контуре: zip из `plasma-android` отправляется командой CLI с служебной учёткой, мета появляется в БД, клиент показывает плагин из MinIO
 
 ## 7. Проверка и завершение
 
-- [ ] 7.1 `cd backend-kt && ./gradlew build`; `spotlessApply` для затронутых модулей, если `spotlessCheck` падает
-- [ ] 7.2 `cd backend-kt/identity-gateway && ./gradlew build` и smoke-проверки gateway
-- [ ] 7.3 `cd frontend-kt && ./gradlew build`
-- [ ] 7.4 `cd js/apps/client && npm run build && npm test`
+- [x] 7.1 `cd backend-kt && ./gradlew build`; `spotlessApply` для затронутых модулей, если `spotlessCheck` падает
+- [x] 7.2 `cd backend-kt/identity-gateway && ./gradlew build` и smoke-проверки gateway
+- [x] 7.3 `cd frontend-kt && ./gradlew build`
+- [x] 7.4 `cd js/apps/client && npm run build && npm test`
 - [ ] 7.5 `./setup-local.sh`: применить `V8`, опубликовать плагин, открыть редактор и увидеть плагин; повторить публикацию того же билда (`unchanged`) и публикацию старого билда (`activated`)
