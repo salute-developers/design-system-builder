@@ -60,6 +60,8 @@ private fun replaceDraftRevision(versionId: UUID, entityId: UUID, revision: Resu
             it[versionSequenceNumber] = revision[TokenValueRevisionsTable.versionSequenceNumber]
             it[paletteId] = revision[TokenValueRevisionsTable.paletteId]
             it[value] = restored.takeUnless { value -> value == JsonNull }
+            // Частичный откат меняет только поле значения; признак своего значения платформы сохраняется.
+            it[overridden] = revision[TokenValueRevisionsTable.overridden]
             it[deleted] = false
         }
     }
