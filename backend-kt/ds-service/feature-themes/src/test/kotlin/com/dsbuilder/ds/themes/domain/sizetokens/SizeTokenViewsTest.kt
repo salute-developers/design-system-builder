@@ -88,6 +88,24 @@ class SizeTokenViewsTest {
         assertTrue(SizeTokenViews.shadow(id, "down.soft.s", changedIos, emptyList()).platformsDiffer)
     }
 
+    @Test
+    fun `ссылка цвета слоя раскрывается в HEX и остаётся в colorRef`() {
+        val layers = listOf(ShadowLayer(0, 2, 8, 0, "[general.gray.900][0.16]"), ShadowLayer(0, 1, 4, -1, "#0000000A"))
+        val written = SizePlatformValues.write(SizeTokenKind.SHADOW, SizeTokenValue.Shadow(layers, 2))
+            .associate { it.platform to SizeStoredValue(it.value, it.overridden) }
+        val view = SizeTokenViews.shadow(id, "down.hard.m", written, emptyList()) { reference ->
+            "#101010".takeIf { reference.format() == "[general.gray.900][0.16]" }?.let { "#10101029" }
+        }
+
+        assertEquals(ShadowLayer(0, 2, 8, 0, "#10101029", "[general.gray.900][0.16]"), view.layers[0])
+        assertEquals(ShadowLayer(0, 1, 4, -1, "#0000000A"), view.layers[1])
+        assertEquals(view.layers, view.native[NativePlatform.ANDROID])
+        assertFalse(view.platformsDiffer)
+        val unresolved = SizeTokenViews.shadow(id, "down.hard.m", written, emptyList())
+        assertEquals("[general.gray.900][0.16]", unresolved.layers[0].color)
+        assertEquals("[general.gray.900][0.16]", unresolved.layers[0].colorRef)
+    }
+
     private fun radius(web: String, ios: Int, android: Int, overridden: Boolean) = mapOf(
         ThemeTokenPlatform.WEB to stored("""["$web"]""", false),
         ThemeTokenPlatform.IOS to stored("""[{"kind":"round","cornerRadius":$ios}]""", overridden),

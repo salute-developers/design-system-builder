@@ -121,11 +121,11 @@ val themesModule = module {
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { DeleteTokenGroupUseCase(get(), get(), get(), get()) }
     factory { TokenGroupUseCases(get(), get(), get(), get()) }
-    single<SizeTokenRepository> { ExposedSizeTokenRepository() }
+    single<SizeTokenRepository> { ExposedSizeTokenRepository(getAll()) }
     single<SizeTokenUsageRepository> { ExposedSizeTokenUsageRepository() }
-    factory { GetSizeTokensUseCase(get(), get(), get(), get()) }
-    factory { UpdateSizeTokenValueUseCase(get(), get(), get(), get()) }
-    factory { CreateSizeTokenUseCase(get(), get(), get(), get()) }
+    factory { GetSizeTokensUseCase(get(), get(), get(), get(), get()) }
+    factory { UpdateSizeTokenValueUseCase(get(), get(), get(), get(), get()) }
+    factory { CreateSizeTokenUseCase(get(), get(), get(), get(), get(), get()) }
     factory { DeleteSizeTokenUseCase(get(), get(), get()) }
     factory { SizeTokenUseCases(get(), get(), get(), get()) }
 }

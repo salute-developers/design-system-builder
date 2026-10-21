@@ -5,8 +5,6 @@ import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueInput
 
 /** Создание радиуса, отступа или размера тени со значениями во всех темах дизайн-системы. */
 data class CreateSizeToken(
-    /** Ожидаемая ревизия текущей темы. */
-    val editRevision: Int,
     /** Раздел. */
     val kind: SizeTokenKind,
     /** Последний сегмент имени: `xxxl` для `round.xxxl`, `xl` для размера тени. */

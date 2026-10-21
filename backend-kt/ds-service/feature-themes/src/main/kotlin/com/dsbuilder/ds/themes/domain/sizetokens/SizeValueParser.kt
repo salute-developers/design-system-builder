@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.themes.domain.sizetokens
 
+import com.dsbuilder.ds.themes.domain.palette.PaletteReference
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -26,8 +27,11 @@ object SizeValueParser {
     /** У тени больше [MAX_LAYERS] слоёв. */
     const val TOO_MANY_LAYERS = "У тени не больше 4 слоёв."
 
-    /** Цвет слоя не `#RRGGBB` и не `#RRGGBBAA`. */
+    /** Цвет слоя не `#RRGGBB`, не `#RRGGBBAA` и не ссылка на ступень палитры. */
     const val NOT_HEX = "Цвет должен быть в формате Hex."
+
+    /** Ссылка цвета слоя указывает на ступень, которой нет в палитре темы. */
+    const val MISSING_STEP = "Ступени нет в палитре темы."
 
     /** Наибольшее число слоёв тени. */
     const val MAX_LAYERS = 4
@@ -71,6 +75,20 @@ object SizeValueParser {
     /** Значения четырёх вариантов нового размера тени из `variants` запроса [input]. */
     fun variants(input: SizeValueInput): SizeValueCheck<List<ShadowVariantValue>> = Reader().run {
         result(variantList(input))
+    }
+
+    /**
+     * Ссылки цветов слоёв значения [value] на ступени палитры с полем запроса: `layers[0].color`,
+     * `platforms.ios.layers[1].color`; [prefix] — префикс варианта нового размера, например `variants[2].`.
+     */
+    fun colorReferences(value: SizeTokenValue, prefix: String = ""): List<Pair<String, PaletteReference>> {
+        val shadow = value as? SizeTokenValue.Shadow ?: return emptyList()
+        fun layers(path: String, layers: List<ShadowLayer>) = layers.mapIndexedNotNull { index, layer ->
+            PaletteReference.parse(layer.color)?.let { "$path[$index].color" to it }
+        }
+        return layers("${prefix}layers", shadow.layers) + NativePlatform.entries.flatMap { platform ->
+            shadow.platforms[platform]?.let { layers("${prefix}platforms.${platform.wireValue}.layers", it) }.orEmpty()
+        }
     }
 
     /** Текст отказа для числа вне диапазона [range]. */
@@ -148,10 +166,10 @@ object SizeValueParser {
         val layer = item as? JsonObject ?: return fail(field, LAYER_OBJECT)
         val numbers = LAYER_NUMBERS.map { (name, range) -> integer("$field.$name", layer[name], range) }
         val color = (layer["color"] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content?.trim()
-            ?.takeIf(HEX::matches)
+            ?.takeIf { HEX.matches(it) || PaletteReference.parse(it) != null }
             ?: fail("$field.color", NOT_HEX)
         if (color == null || numbers.any { it == null }) return null
-        return SizePlatformValues.layer(numbers.filterNotNull(), color)
+        return SizePlatformValues.layer(numbers.filterNotNull(), SizePlatformValues.normalizedColor(color))
     }
 
     private fun <T> Reader.platforms(

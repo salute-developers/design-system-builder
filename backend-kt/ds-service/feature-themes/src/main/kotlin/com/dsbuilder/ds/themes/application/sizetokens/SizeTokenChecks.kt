@@ -1,10 +1,11 @@
 package com.dsbuilder.ds.themes.application.sizetokens
 
 import com.dsbuilder.ds.core.application.DsFailure
-import com.dsbuilder.ds.themes.application.colortokens.TENANT_EDIT_CONFLICT
+import com.dsbuilder.ds.themes.domain.palette.PaletteReference
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenView
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenViews
+import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueParser
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueViolation
 import java.util.UUID
 
@@ -18,24 +19,24 @@ internal fun invalidSizeToken(message: String) = DsFailure.InvalidRequest(INVALI
 internal fun SizeValueViolation.toFailure() =
     DsFailure.InvalidRequest(INVALID_SIZE_VALUE, details = mapOf("field" to field), message = message)
 
-/** Отказ блокировки или `null`, если темы заблокированы. */
-internal fun SizeTokenLock.failure(): DsFailure? = when (this) {
-    is SizeTokenLock.Locked -> null
-    SizeTokenLock.NotFound -> DsFailure.NotFound
-    is SizeTokenLock.RevisionConflict -> DsFailure.Conflict(TENANT_EDIT_CONFLICT, editRevision = editRevision)
-}
+/** Отказ для ссылки цвета слоя [field] на ступень, которой нет в палитре темы. */
+internal fun missingPaletteStep(field: String) = SizeValueViolation(field, SizeValueParser.MISSING_STEP).toFailure()
 
 /** Отказ для токена, который не относится к разделу. */
 internal fun outsideSection(tokenId: UUID) =
     invalidSizeToken("Токен $tokenId не является радиусом, отступом или тенью по правилам имён раздела")
 
+/** Раскрытие ссылки цвета слоя тени: имя токена и ссылка → `#RRGGBBAA` или `null`. */
+internal typealias ShadowColorResolver = (String, PaletteReference) -> String?
+
 /**
  * Токены [tokens] в формате чтения: только радиусы, отступы и тени по правилам имён, с использованием компонентами
- * дизайн-системы [designSystemId] и вычисляемыми радиусами.
+ * дизайн-системы [designSystemId], вычисляемыми радиусами и раскрытыми по палитре темы цветами слоёв тени.
  */
 internal suspend fun SizeTokenUsageRepository.views(
     designSystemId: UUID,
     tokens: List<StoredSizeToken>,
+    resolveColor: ShadowColorResolver,
 ): List<SizeTokenView> {
     val sized = tokens.filter { it.kind != null }
     if (sized.isEmpty()) return emptyList()
@@ -45,7 +46,9 @@ internal suspend fun SizeTokenUsageRepository.views(
     return sized.map { token ->
         val components = usage[token.name].orEmpty()
         when (val kind = requireNotNull(token.kind)) {
-            SizeTokenKind.SHADOW -> SizeTokenViews.shadow(token.id, token.name, token.values, components)
+            SizeTokenKind.SHADOW -> SizeTokenViews.shadow(token.id, token.name, token.values, components) {
+                resolveColor(token.name, it)
+            }
             else -> SizeTokenViews.dimension(
                 token.id,
                 token.name,

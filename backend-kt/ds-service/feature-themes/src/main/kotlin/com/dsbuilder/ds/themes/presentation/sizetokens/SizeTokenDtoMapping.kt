@@ -15,7 +15,6 @@ import kotlinx.serialization.json.JsonElement
 
 /** Ответ чтения раздела. */
 internal fun SizeTokens.toResponse() = SizeTokensResponse(
-    editRevision = editRevision,
     canEdit = canEdit,
     radii = radii.map(DimensionTokenView::toRadius),
     spacing = spacing.map(DimensionTokenView::toSpacing),
@@ -68,7 +67,7 @@ private fun ShadowTokenView.toDto() = ShadowTokenDto(
     components = components.map(ComponentUsage::toDto),
 )
 
-private fun ShadowLayer.toDto() = ShadowLayerDto(offsetX, offsetY, blur, spread, color)
+private fun ShadowLayer.toDto() = ShadowLayerDto(offsetX, offsetY, blur, spread, color, colorRef)
 
 private fun ComponentUsage.toDto() = ComponentUsageDto(name, count)
 

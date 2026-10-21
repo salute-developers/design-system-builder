@@ -1,9 +1,12 @@
 package com.dsbuilder.ds.themes.presentation.sizetokens
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
-/** Слой тени в px. */
+/** Слой тени в px в формате чтения раздела. */
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class ShadowLayerDto(
     /** Смещение по X. */
     val offsetX: Int,
@@ -13,6 +16,9 @@ data class ShadowLayerDto(
     val blur: Int,
     /** Растяжение. */
     val spread: Int,
-    /** Цвет `#RRGGBBAA` или `#RRGGBB`. */
+    /** Раскрытый цвет `#RRGGBBAA`. */
     val color: String,
+    /** Исходная ссылка на ступень палитры `[type.shade.step][opacity]`, если цвет слоя — ссылка; у HEX нет. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val colorRef: String? = null,
 )

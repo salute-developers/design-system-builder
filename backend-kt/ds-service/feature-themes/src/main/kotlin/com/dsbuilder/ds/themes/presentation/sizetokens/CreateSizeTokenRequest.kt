@@ -6,8 +6,6 @@ import kotlinx.serialization.json.JsonElement
 /** Тело `POST /tenants/{tenantId}/size-tokens`. */
 @Serializable
 data class CreateSizeTokenRequest(
-    /** Ожидаемая ревизия текущей темы. */
-    val editRevision: Int,
     /** Раздел: `radius`, `spacing` или `shadow`. */
     val kind: String,
     /** Последний сегмент имени: `xxxl` для `round.xxxl`, размер для тени. */

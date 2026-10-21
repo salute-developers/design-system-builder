@@ -1,190 +1,213 @@
 package com.dsbuilder.ds.themes.data
 
+import com.dsbuilder.ds.core.application.TokenReferenceCleaner
+import com.dsbuilder.ds.core.data.SubjectMutationPaths
+import com.dsbuilder.ds.core.data.lockDesignSystemMutation
+import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.core.domain.ProjectId
-import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenLock
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenRepository
 import com.dsbuilder.ds.themes.application.sizetokens.SizeTokenTenant
 import com.dsbuilder.ds.themes.application.sizetokens.StoredSizeToken
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeStoredValue
-import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenKind
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeTokenNaming
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeWrittenValue
-import kotlinx.serialization.json.JsonNull
 import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 import java.util.UUID
 
-/** Exposed-хранилище токенов размеров: определения `tokens`, значения `token_values` и ревизии `tenants`. */
-class ExposedSizeTokenRepository : SizeTokenRepository {
+/**
+ * Exposed-хранилище токенов размеров поверх предметных редакций: определения — `token_revisions`, значения —
+ * `token_value_revisions` с признаком `overridden`, чтение — на границе транзакции. Значения размеров хранятся без
+ * режима (`mode IS NULL`).
+ */
+class ExposedSizeTokenRepository(
+    private val referenceCleaners: List<TokenReferenceCleaner> = emptyList(),
+) : SizeTokenRepository {
     override suspend fun tenant(projectId: ProjectId, tenantId: UUID): SizeTokenTenant? =
-        TenantsTable.innerJoin(ThemeDesignSystemsTable)
-            .selectAll()
-            .where {
-                val owner = ThemeDesignSystemsTable.projectId
-                (TenantsTable.id eq tenantId) and ((owner eq projectId.value) or owner.isNull())
-            }
-            .limit(1)
-            .singleOrNull()
-            ?.let { row ->
-                SizeTokenTenant(
-                    designSystemId = row[TenantsTable.designSystemId],
-                    editRevision = row[TenantsTable.editRevision],
-                    owned = row[ThemeDesignSystemsTable.projectId] == projectId.value,
-                )
-            }
-
-    override suspend fun lock(
-        projectId: ProjectId,
-        tenantId: UUID,
-        editRevision: Int,
-        allThemes: Boolean,
-    ): SizeTokenLock {
-        val designSystemId = TenantsTable.innerJoin(ThemeDesignSystemsTable)
-            .selectAll()
-            .where { (TenantsTable.id eq tenantId) and (ThemeDesignSystemsTable.projectId eq projectId.value) }
-            .limit(1)
-            .singleOrNull()
-            ?.get(TenantsTable.designSystemId)
-            ?: return SizeTokenLock.NotFound
-        // Темы блокируются в порядке `id`, как в операциях цветового токена: одновременные создания и удаления
-        // в одной дизайн-системе не ждут друг друга по кругу.
-        val locked = TenantsTable.selectAll()
-            .where { if (allThemes) TenantsTable.designSystemId eq designSystemId else TenantsTable.id eq tenantId }
-            .orderBy(TenantsTable.id to SortOrder.ASC)
-            .forUpdate(ForUpdateOption.PostgreSQL.ForUpdate(null, TenantsTable))
-            .map { row -> row[TenantsTable.id] to row[TenantsTable.editRevision] }
-        val revision = locked.firstOrNull { (id, _) -> id == tenantId }?.second ?: return SizeTokenLock.NotFound
-        return if (revision == editRevision) {
-            SizeTokenLock.Locked(designSystemId, locked.map { (id, _) -> id }, revision)
-        } else {
-            SizeTokenLock.RevisionConflict(revision)
-        }
-    }
-
-    override suspend fun tokens(designSystemId: UUID, tenantId: UUID): List<StoredSizeToken> = withValues(
-        tenantId,
-        ThemeTokensTable.selectAll()
-            .where {
-                (ThemeTokensTable.designSystemId eq designSystemId) and (ThemeTokensTable.type inList SIZE_TYPES)
-            }
-            .toList(),
-    )
-
-    override suspend fun token(designSystemId: UUID, tenantId: UUID, tokenId: UUID): StoredSizeToken? = withValues(
-        tenantId,
-        ThemeTokensTable.selectAll()
-            .where { (ThemeTokensTable.id eq tokenId) and (ThemeTokensTable.designSystemId eq designSystemId) }
-            .limit(1)
-            .toList(),
-    ).singleOrNull()
-
-    override suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String> =
-        if (names.isEmpty()) {
-            emptySet()
-        } else {
-            ThemeTokensTable.selectAll()
-                .where { (ThemeTokensTable.designSystemId eq designSystemId) and (ThemeTokensTable.name inList names) }
-                .map { it[ThemeTokensTable.name] }
-                .toSet()
-        }
-
-    override suspend fun insert(designSystemId: UUID, type: ThemeTokenType, names: List<String>): Map<String, UUID> =
-        names.associateWith { name ->
-            ThemeTokensTable.insertReturning(listOf(ThemeTokensTable.id)) {
-                it[ThemeTokensTable.designSystemId] = designSystemId
-                it[ThemeTokensTable.name] = name
-                it[ThemeTokensTable.type] = type
-                it[displayName] = SizeTokenNaming.displayName(name)
-                it[description] = null
-                it[groupId] = null
-                it[position] = 0
-            }.single()[ThemeTokensTable.id]
-        }
-
-    override suspend fun replaceValues(tenantIds: Collection<UUID>, tokenId: UUID, values: List<SizeWrittenValue>) {
-        if (tenantIds.isEmpty()) return
-        ThemeTokenValuesTable.deleteWhere {
-            (ThemeTokenValuesTable.tenantId inList tenantIds) and (ThemeTokenValuesTable.tokenId eq tokenId)
-        }
-        tenantIds.forEach { tenant ->
-            values.forEach { item ->
-                ThemeTokenValuesTable.insert {
-                    it[ThemeTokenValuesTable.tokenId] = tokenId
-                    it[tenantId] = tenant
-                    it[paletteId] = null
-                    it[platform] = item.platform
-                    it[mode] = null
-                    it[value] = item.value
-                    it[overridden] = item.overridden
-                }
-            }
-        }
-    }
-
-    override suspend fun delete(tokenIds: Collection<UUID>) {
-        if (tokenIds.isNotEmpty()) ThemeTokensTable.deleteWhere { ThemeTokensTable.id inList tokenIds }
-    }
-
-    override suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int> {
-        if (tenantIds.isEmpty()) return emptyMap()
-        val current = TenantsTable.selectAll()
-            .where { TenantsTable.id inList tenantIds }
-            .associate { row -> row[TenantsTable.id] to row[TenantsTable.editRevision] }
-        return current.mapValues { (tenant, revision) ->
-            (revision + 1).also { next ->
-                TenantsTable.update({ TenantsTable.id eq tenant }) {
-                    it[editRevision] = next
-                    it[updatedAt] = Instant.now()
-                }
-            }
-        }
-    }
-
-    /** Определения [rows] со значениями темы [tenantId]; значение без режима важнее значения режима. */
-    private fun withValues(tenantId: UUID, rows: List<ResultRow>): List<StoredSizeToken> {
-        if (rows.isEmpty()) return emptyList()
-        val ids = rows.map { it[ThemeTokensTable.id] }
-        val values = ThemeTokenValuesTable.selectAll()
-            .where {
-                (ThemeTokenValuesTable.tenantId eq tenantId) and
-                    (ThemeTokenValuesTable.tokenId inList ids) and
-                    ThemeTokenValuesTable.platform.isNotNull()
-            }
-            .sortedBy { it[ThemeTokenValuesTable.mode] != null }
-            .groupBy { requireNotNull(it[ThemeTokenValuesTable.tokenId]) }
-        return rows.map { row ->
-            val id = row[ThemeTokensTable.id]
-            StoredSizeToken(
-                id = id,
-                name = row[ThemeTokensTable.name],
-                type = row[ThemeTokensTable.type],
-                values = values[id].orEmpty()
-                    .distinctBy { it[ThemeTokenValuesTable.platform] }
-                    .associate { value ->
-                        requireNotNull(value[ThemeTokenValuesTable.platform]) to SizeStoredValue(
-                            value[ThemeTokenValuesTable.value] ?: JsonNull,
-                            value[ThemeTokenValuesTable.overridden],
-                        )
-                    },
+        currentTenantRows(projectId, tenantId = tenantId).singleOrNull()?.let { row ->
+            SizeTokenTenant(
+                designSystemId = row[TenantsTable.designSystemId],
+                owned = row[ThemeDesignSystemsTable.projectId] == projectId.value,
             )
         }
+
+    override suspend fun lock(projectId: ProjectId, tenantId: UUID): UUID? {
+        val owner = currentTenantRows(projectId, tenantId = tenantId).singleOrNull()
+            ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value }
+            ?.get(TenantsTable.designSystemId)
+            ?: return null
+        lockDesignSystemMutation(owner)
+        return owner
     }
 
+    override suspend fun tokens(designSystemId: UUID, tenantId: UUID): List<StoredSizeToken> =
+        stored(currentThemeTokenRows(designSystemId), designSystemId, tenantId)
+
+    override suspend fun token(designSystemId: UUID, tenantId: UUID, tokenId: UUID): StoredSizeToken? =
+        stored(currentThemeTokenRows(designSystemId, setOf(tokenId)), designSystemId, tenantId).singleOrNull()
+
+    override suspend fun takenNames(designSystemId: UUID, names: Collection<String>): Set<String> {
+        if (names.isEmpty()) return emptySet()
+        val normalized = names.associateBy { it.trim().lowercase() }
+        return currentThemeTokenRows(designSystemId)
+            .mapNotNull { normalized[it[ThemeTokenRevisionsTable.name].trim().lowercase()] }
+            .toSet()
+    }
+
+    override suspend fun writeValues(
+        designSystemId: UUID,
+        tenantId: UUID,
+        tokenId: UUID,
+        values: List<SizeWrittenValue>,
+        baseRevisions: Map<ThemeTokenPlatform, Long>,
+    ) {
+        val entities = values.associate { it.platform to stableValue(designSystemId, tenantId, tokenId, it.platform) }
+        check(lockDraftSubjects(designSystemId, TOKEN_VALUE, entities.values))
+        // Повторное чтение после предметной блокировки: сравнение идёт с последней зафиксированной редакцией.
+        val current = currentValues(designSystemId, setOf(tenantId), setOf(tokenId))
+        values.sortedBy { entities.getValue(it.platform) }.forEach { value ->
+            val entity = entities.getValue(value.platform)
+            val before = current[entity]
+            val paths = buildSet {
+                if (before?.get(ThemeTokenValueRevisionsTable.value) != value.value) add("/value")
+                if (before?.get(ThemeTokenValueRevisionsTable.overridden) != value.overridden) add("/overridden")
+                if (before?.get(ThemeTokenValueRevisionsTable.paletteId) != null) add("/palette_id")
+            }
+            if (paths.isNotEmpty()) {
+                writeThemeValueRevision(
+                    entity = entity,
+                    owner = designSystemId,
+                    palette = null,
+                    data = value.value,
+                    paths = if (before == null) setOf("/value", "/overridden") else paths,
+                    baseRevision = baseRevisions[value.platform],
+                    overridden = value.overridden,
+                )
+            }
+        }
+    }
+
+    override suspend fun create(
+        designSystemId: UUID,
+        type: ThemeTokenType,
+        values: Map<String, List<SizeWrittenValue>>,
+    ): Map<String, UUID> {
+        val tenants = currentTenantRows(designSystemId = designSystemId).map { it[TenantsTable.id] }.sorted()
+        // Новые адреса не имеют путей, поэтому базовая редакция запроса не даёт предупреждений, а метаданные изменения
+        // перечисляют созданные определения и значения, как у создания цветового токена.
+        return values.mapValues { (name, written) ->
+            val entity = UUID.randomUUID()
+            ThemeTokensTable.insert {
+                it[id] = entity
+                it[ThemeTokensTable.designSystemId] = designSystemId
+                it[createdAt] = Instant.now()
+            }
+            writeThemeTokenRevision(
+                entity,
+                designSystemId,
+                ThemeTokenPayload(
+                    name = name,
+                    type = type,
+                    displayName = SizeTokenNaming.displayName(name),
+                    description = null,
+                    enabled = true,
+                    groupId = null,
+                    position = 0,
+                ),
+                setOf("/"),
+            )
+            tenants.forEach { tenant ->
+                written.sortedBy { it.platform }.forEach { value ->
+                    val valueId = stableValue(designSystemId, tenant, entity, value.platform)
+                    writeThemeValueRevision(
+                        entity = valueId,
+                        owner = designSystemId,
+                        palette = null,
+                        data = value.value,
+                        paths = setOf("/"),
+                        overridden = value.overridden,
+                    )
+                }
+            }
+            entity
+        }
+    }
+
+    override suspend fun delete(designSystemId: UUID, tokenIds: List<UUID>) {
+        if (tokenIds.isEmpty()) return
+        val ids = tokenIds.toSet()
+        // Редакция удаляемого определения не является базовой редакцией каждого зависимого значения и ссылки
+        // компонента; надгробия определений сравниваются с базовой редакцией запроса и попадают в метаданные.
+        SubjectMutationPaths.withoutBaseComparison {
+            referenceCleaners.forEach { it.clear(designSystemId, ids) }
+            deleteThemeValues(ids)
+        }
+        tokenIds.sorted().forEach { token ->
+            reviseThemeToken(token, setOf("/deleted")) { it.copy(deleted = true) }
+        }
+    }
+
+    /**
+     * Определения [rows] со значениями темы [tenantId] без режима. Значения читаются только у токенов размеров по
+     * правилам имён: остальным разделу они не нужны.
+     */
+    private fun stored(rows: List<ResultRow>, designSystemId: UUID, tenantId: UUID): List<StoredSizeToken> {
+        if (rows.isEmpty()) return emptyList()
+        val ids = rows.filter { row ->
+            SizeTokenNaming.kindOf(row[ThemeTokenRevisionsTable.type], row[ThemeTokenRevisionsTable.name]) != null
+        }.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
+        if (ids.isEmpty()) return rows.map { row -> definition(row, emptyMap()) }
+        val values = currentValues(designSystemId, setOf(tenantId), ids).values
+            .filter { it[ThemeTokenValuesTable.platform] != null }
+            .groupBy { it[ThemeTokenValuesTable.tokenId] }
+        return rows.map { row ->
+            val platforms = values[row[ThemeTokensTable.id]].orEmpty().mapNotNull { value ->
+                val data = value[ThemeTokenValueRevisionsTable.value] ?: return@mapNotNull null
+                requireNotNull(value[ThemeTokenValuesTable.platform]) to
+                    SizeStoredValue(data, value[ThemeTokenValueRevisionsTable.overridden])
+            }.toMap()
+            definition(row, platforms)
+        }
+    }
+
+    private fun definition(row: ResultRow, values: Map<ThemeTokenPlatform, SizeStoredValue>) = StoredSizeToken(
+        id = row[ThemeTokensTable.id],
+        name = row[ThemeTokenRevisionsTable.name],
+        type = row[ThemeTokenRevisionsTable.type],
+        values = values,
+    )
+
+    /** Действующие значения без режима: идентификатор значения → строка значения с редакцией. */
+    private fun currentValues(designSystemId: UUID, tenantIds: Set<UUID>, tokenIds: Set<UUID>): Map<UUID, ResultRow> =
+        currentThemeTokenValueRows(designSystemId, tenantIds, tokenIds)
+            .filter { it[ThemeTokenValuesTable.mode] == null }
+            .associateBy { it[ThemeTokenValuesTable.id] }
+
+    /** Устойчивая строка значения токена в теме и платформе без режима; создаётся, если её нет. */
+    private fun stableValue(designSystemId: UUID, tenantId: UUID, tokenId: UUID, platform: ThemeTokenPlatform): UUID =
+        ThemeTokenValuesTable.selectAll().where {
+            (ThemeTokenValuesTable.tenantId eq tenantId) and (ThemeTokenValuesTable.tokenId eq tokenId) and
+                (ThemeTokenValuesTable.platform eq platform) and ThemeTokenValuesTable.mode.isNull()
+        }.singleOrNull()?.get(ThemeTokenValuesTable.id) ?: UUID.randomUUID().also { id ->
+            ThemeTokenValuesTable.insert {
+                it[ThemeTokenValuesTable.id] = id
+                it[ThemeTokenValuesTable.designSystemId] = designSystemId
+                it[ThemeTokenValuesTable.tokenId] = tokenId
+                it[ThemeTokenValuesTable.tenantId] = tenantId
+                it[ThemeTokenValuesTable.platform] = platform
+                it[ThemeTokenValuesTable.mode] = null
+                it[createdAt] = Instant.now()
+            }
+        }
+
     private companion object {
-        val SIZE_TYPES = SizeTokenKind.entries.map(SizeTokenKind::type)
+        const val TOKEN_VALUE = "token-value"
     }
 }
