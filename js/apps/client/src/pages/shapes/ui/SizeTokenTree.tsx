@@ -110,6 +110,7 @@ export const SizeTokenTree = (props: SizeTokenTreeProps) => {
                                         className={`token-row sizing-token-row ${selectedId === token.tokenId ? 'is-selected' : ''}`}
                                         aria-current={selectedId === token.tokenId ? 'true' : undefined}
                                         data-token-name={token.name}
+                                        data-token-id={token.tokenId}
                                         onClick={() => props.onSelect(token)}
                                     >
                                         {glyph(token)}

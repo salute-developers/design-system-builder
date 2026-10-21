@@ -41,6 +41,24 @@ export const deletedTogether = (tokens: readonly SizeToken[], token: SizeToken) 
     return tokens.filter((item) => item.kind === 'shadow' && names.has(item.name)).sort(compareTokens);
 };
 
+/** Компонент, который использует удаляемые токены, и имена этих токенов. */
+export interface DeletedUsage {
+    name: string;
+    tokens: string[];
+}
+
+/**
+ * Использование удаляемых токенов компонентами: у тени — объединение использований четырёх вариантов размера,
+ * у компонента перечислены варианты, которые он использует.
+ */
+export const deletionUsage = (tokens: readonly SizeToken[], token: SizeToken): DeletedUsage[] => {
+    const byComponent = new Map<string, string[]>();
+    deletedTogether(tokens, token).forEach((item) =>
+        item.components.forEach(({ name }) => byComponent.set(name, [...(byComponent.get(name) ?? []), item.name])),
+    );
+    return [...byComponent].map(([name, used]) => ({ name, tokens: used }));
+};
+
 /** Слой новой тени, если в варианте ещё нет ни одного размера. */
 export const DEFAULT_SHADOW_LAYER: ShadowLayer = { offsetX: 0, offsetY: 2, blur: 4, spread: 0, color: '#0000001F' };
 

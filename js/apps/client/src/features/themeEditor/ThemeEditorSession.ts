@@ -24,6 +24,7 @@ import {
     setDraftAutosaveActivity,
 } from '../../api/draftAutosaveActivity';
 import { confirmDraftToken, pendingDraftTokens, setPendingMutationListener } from '../../utils/designSystemDraft';
+import { restorePendingSizeTokenCommands } from '../../modules/sizeTokens/sessions';
 
 type PendingTokenSave = AutosaveOperation & {
     /** Устойчивая идентичность предметной сущности; tokenKey используется только для порядка очереди. */
@@ -126,6 +127,8 @@ export class ThemeEditorSession {
         setDraftAutosaveActivity(this.context, 'tokens', 'saved');
         setPendingMutationListener(this.handleMutation.bind(this));
         this.restorePending();
+        // Команды раздела «Отступы, радиусы и тени» повторяются своими операциями, а не общей записью значений.
+        restorePendingSizeTokenCommands(this.context);
         if (this.snapshot.designSystem.draftId && this.snapshot.designSystem.draftRevision != null) {
             void subscribeToDraftInvalidations({
                 context: this.context,

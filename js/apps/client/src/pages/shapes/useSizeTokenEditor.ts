@@ -1,39 +1,43 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 
-import type { DesignSystem, Theme } from '../../controllers';
-import type { SizeTokenContext } from '../../modules/sizeTokens';
-import { createSizeTokenEditor, loadSizeTokens, sizeTokenSession } from './sizeTokenEditor';
+import { reloadWhenDraftAutosaveIsIdle } from '../../api/draftAutosaveActivity';
+import type { Theme } from '../../controllers';
+import { reloadSizeTokens, sizeTokenSession, type SizeTokenContext } from '../../modules/sizeTokens';
+import { createSizeTokenEditor } from './sizeTokenEditor';
 
 interface EditorInput {
     context: SizeTokenContext;
-    designSystem: DesignSystem;
     theme: Theme;
     rerender: () => void;
-    reload: () => void;
 }
 
-/** Раздел «Отступы, радиусы и тени»: сессия темы, редактор с автосохранением и его состояние. */
-export const useSizeTokenEditor = ({ context, designSystem, theme, rerender, reload }: EditorInput) => {
+/** Раздел «Отступы, радиусы и тени»: сессия темы, редактор с автосохранением и перечитывание по сигналу. */
+export const useSizeTokenEditor = ({ context, theme, rerender }: EditorInput) => {
     const session = useMemo(
         () => sizeTokenSession(context),
-        [context.projectId, context.designSystemId, context.tenantId],
+        [context.projectId, context.designSystemId, context.tenantId, context.versionId],
     );
     const [version, refresh] = useReducer((value: number) => value + 1, 0);
 
-    // Сессия видит текущую тему и дизайн-систему: после перезагрузки темы ответы операций пишутся в новую модель.
-    session.theme = theme;
-    session.designSystem = designSystem;
-    session.onModelChange = rerender;
-    session.reloadTheme = reload;
+    // Ответы операций пишутся в текущую модель темы: после перечитывания темы — в новую.
+    session.live = { theme, onModelChange: rerender };
 
     useEffect(() => {
         session.listeners.add(refresh);
         // Раздел перечитывается при каждом открытии: значения могли измениться в другом месте.
-        void loadSizeTokens(session);
+        void reloadSizeTokens(session);
         return () => {
             session.listeners.delete(refresh);
         };
     }, [session]);
+
+    // Новая модель темы — сигнал об изменении черновика в другом месте: раздел перечитывается после локальных очередей.
+    const loadedTheme = useRef(theme);
+    useEffect(() => {
+        if (loadedTheme.current === theme) return;
+        loadedTheme.current = theme;
+        return reloadWhenDraftAutosaveIsIdle(session.context, () => void reloadSizeTokens(session));
+    }, [session, theme]);
 
     // Уход со страницы: очередь отправляется сразу, а несохранённые правки предупреждают браузер.
     useEffect(() => {

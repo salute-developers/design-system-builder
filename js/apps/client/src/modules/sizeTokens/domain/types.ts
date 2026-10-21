@@ -23,13 +23,16 @@ export interface ComponentUsage {
     count: number;
 }
 
-/** Слой тени в px; цвет — `#RRGGBB` или `#RRGGBBAA`. */
+/** Слой тени в px. */
 export interface ShadowLayer {
     offsetX: number;
     offsetY: number;
     blur: number;
     spread: number;
+    /** Цвет для показа: `#RRGGBB` или `#RRGGBBAA`; у ссылки на палитру — раскрытый сервером цвет ступени. */
     color: string;
+    /** Ссылка на ступень палитры темы `[type.shade.step][opacity]`; без неё цвет слоя — HEX. */
+    colorRef?: string;
 }
 
 /** Компонент, платформа и параметр, где у ссылки на радиус задано смещение. */
@@ -85,9 +88,8 @@ export interface ShadowToken {
 
 export type SizeToken = DimensionToken | ShadowToken;
 
-/** Раздел темы: токены, ревизия темы и право изменения. */
+/** Раздел темы на выбранной границе (черновик или опубликованная версия) и право изменения. */
 export interface SizeTokens {
-    editRevision: number;
     canEdit: boolean;
     tokens: SizeToken[];
 }

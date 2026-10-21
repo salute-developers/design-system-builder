@@ -85,6 +85,7 @@ import { reportIncompleteMutationMetadata } from '../api/incompleteMutationMetad
 import { paletteRepository } from '../palette/paletteSession';
 import { getActivePalette } from '../palette/activePalette';
 import type { ThemePalette } from '../modules/palette';
+import { http } from '../api/http';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
 const token = {
@@ -426,6 +427,30 @@ describe('useDesignSystem server autosave', () => {
             false,
             expect.any(AbortSignal),
         );
+        expect(localStorage.getItem(getDraftKey('System', '0.1.0'))).toBeNull();
+    });
+
+    it('повторяет при открытии темы неподтверждённую команду токенов размеров той же командой', async () => {
+        const path = '/api/projects/project-1/ds/tenants/tenant-1/size-tokens/round-l/value';
+        const body = { valuePx: 16, platforms: { android: 18 }, baseRevisions: { web: 2, ios: 3, android: 4 } };
+        localStorage.setItem(
+            'ds_pending_size_tokens:project-1:ds-1:tenant-1:round-l',
+            JSON.stringify({ id: 'c1', operation: 'update', method: 'PUT', path, body, tokenId: 'round-l' }),
+        );
+        const put = vi.spyOn(http, 'put').mockResolvedValue({
+            data: { kind: 'radius', token: { tokenId: 'round-l', name: 'round.l', valuePx: 16 }, values: [] },
+            headers: {},
+        });
+
+        render(<Probe />);
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        // Раздел не открыт: команду повторяет старт сессии редактора, а не общая запись значений токена.
+        expect(put).toHaveBeenCalledWith(path, body, { headers: undefined });
+        expect(saveTokenMutation).not.toHaveBeenCalled();
+        expect(localStorage.getItem('ds_pending_size_tokens:project-1:ds-1:tenant-1:round-l')).toBeNull();
         expect(localStorage.getItem(getDraftKey('System', '0.1.0'))).toBeNull();
     });
 
