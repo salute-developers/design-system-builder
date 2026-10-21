@@ -145,7 +145,8 @@ export const applyUpdatedStyle = (
             ...item,
             styles: item.styles.map((style) => {
                 if (styleKey(style) !== key) return style;
-                if (style.screen === updated.screen) return updated;
+                // Использование в компонентах ответ изменения не несёт: оно от правки не меняется.
+                if (style.screen === updated.screen) return { ...updated, components: style.components };
                 return applyChange(style, { weights, fontFamily }, updated.screen);
             }),
         })),

@@ -33,7 +33,16 @@ const toError = (error: unknown) => {
         `Ошибка API (${status})`;
     const code = typeof body.code === 'string' ? body.code : null;
     const field = typeof body.details?.field === 'string' ? (body.details.field as TypographyField) : null;
-    const kind = status === 403 ? 'forbidden' : status === 404 ? 'not-found' : status >= 500 ? 'network' : 'invalid';
+    const kind =
+        status === 403
+            ? 'forbidden'
+            : status === 404
+              ? 'not-found'
+              : status === 409 && code === 'TYPOGRAPHY_VALUES_MISSING'
+                ? 'missing-values'
+                : status >= 500
+                  ? 'network'
+                  : 'invalid';
     return new TypographyOperationError(kind, message, code, field);
 };
 

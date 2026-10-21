@@ -22,7 +22,7 @@ export interface TypographyStyleRepository {
     ): Promise<UpdatedTypographyStyle>;
 }
 
-export type TypographyErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'network';
+export type TypographyErrorKind = 'forbidden' | 'invalid' | 'not-found' | 'missing-values' | 'network';
 
 /** Отказ операции над стилем в терминах экрана. */
 export class TypographyOperationError extends Error {
