@@ -1,5 +1,7 @@
 import {
     TYPOGRAPHY_SCREENS,
+    type TypographyOverride,
+    type TypographyOverridePlatform,
     type TypographyScreen,
     type TypographyStyle,
     type TypographyStyleChange,
@@ -86,19 +88,61 @@ export const mergeChanges = (first: TypographyStyleChange, next: TypographyStyle
     ...(first.weights || next.weights ? { weights: { ...first.weights, ...next.weights } } : {}),
 });
 
+/** Свои значения без полей, которые совпадают с вебом: такое поле снова строится из веба. */
+const normalizeOverrides = (style: TypographyStyle): TypographyStyle => {
+    const overrides: NonNullable<TypographyStyle['overrides']> = {};
+    definedEntries(style.overrides).forEach(([platform, override]) => {
+        const differs = (value: number | undefined, base: number) =>
+            value !== undefined && value !== base ? value : undefined;
+        const weights = Object.fromEntries(
+            definedEntries(override.weights).filter(([variant, weight]) => weight !== style.variants[variant]?.weight),
+        ) as Partial<Record<TypographyVariant, number>>;
+        const next: TypographyOverride = Object.fromEntries(
+            Object.entries({
+                sizePx: differs(override.sizePx, style.sizePx),
+                lineHeightPx: differs(override.lineHeightPx, style.lineHeightPx),
+                letterSpacingEm: differs(override.letterSpacingEm, style.letterSpacingEm),
+                weights: Object.keys(weights).length ? weights : undefined,
+            }).filter(([, value]) => value !== undefined),
+        );
+        if (Object.keys(next).length) overrides[platform] = next;
+    });
+    return { ...style, overrides };
+};
+
+/** Стиль после правки своего значения платформы: размеры — на экране правки, веса — на всех экранах. */
+const applyPlatformChange = (
+    style: TypographyStyle,
+    change: TypographyStyleChange & { platform: TypographyOverridePlatform },
+    screen: TypographyScreen,
+): TypographyStyle => {
+    const sameScreen = style.screen === screen;
+    const current = style.overrides?.[change.platform] ?? {};
+    const next: TypographyOverride = {
+        ...current,
+        ...(sameScreen && change.size !== undefined ? { sizePx: change.size } : {}),
+        ...(sameScreen && change.lineHeight !== undefined ? { lineHeightPx: change.lineHeight } : {}),
+        ...(sameScreen && change.letterSpacing !== undefined ? { letterSpacingEm: change.letterSpacing } : {}),
+        ...(change.weights ? { weights: { ...current.weights, ...change.weights } } : {}),
+    };
+    return normalizeOverrides({ ...style, overrides: { ...style.overrides, [change.platform]: next } });
+};
+
 /** Стиль после правки [change] на экране [screen]: размеры меняются только на нём, веса и семейство — везде. */
 export const applyChange = (
     style: TypographyStyle,
     change: TypographyStyleChange,
     screen: TypographyScreen,
 ): TypographyStyle => {
+    if (change.platform) return applyPlatformChange(style, { ...change, platform: change.platform }, screen);
     const sameScreen = style.screen === screen;
     const variants = { ...style.variants };
     definedEntries(change.weights).forEach(([variant, weight]) => {
         const current = variants[variant];
         if (current) variants[variant] = { ...current, weight };
     });
-    return {
+    // Своё значение платформы правка веба не меняет; совпавшее с новым вебом снова строится из веба.
+    return normalizeOverrides({
         ...style,
         sizePx: sameScreen && change.size !== undefined ? change.size : style.sizePx,
         lineHeightPx: sameScreen && change.lineHeight !== undefined ? change.lineHeight : style.lineHeightPx,
@@ -106,7 +150,7 @@ export const applyChange = (
             sameScreen && change.letterSpacing !== undefined ? change.letterSpacing : style.letterSpacingEm,
         fontFamily: change.fontFamily ?? style.fontFamily,
         variants,
-    };
+    });
 };
 
 /** Стили темы после правки стиля [key] на экране [screen]. */
@@ -133,11 +177,13 @@ export const applyUpdatedStyle = (
     change: TypographyStyleChange,
 ): TypographyStyles => {
     const key = styleKey(updated);
-    const weights = Object.fromEntries(
-        definedEntries(updated.variants)
-            .filter(([variant]) => change.weights?.[variant] !== undefined)
-            .map(([variant, view]) => [variant, view.weight]),
-    ) as Partial<Record<TypographyVariant, number>>;
+    const weights = change.platform
+        ? change.weights
+        : (Object.fromEntries(
+              definedEntries(updated.variants)
+                  .filter(([variant]) => change.weights?.[variant] !== undefined)
+                  .map(([variant, view]) => [variant, view.weight]),
+          ) as Partial<Record<TypographyVariant, number>>);
     const fontFamily = change.fontFamily !== undefined ? updated.fontFamily : undefined;
     return {
         ...styles,
@@ -147,7 +193,7 @@ export const applyUpdatedStyle = (
                 if (styleKey(style) !== key) return style;
                 // Использование в компонентах ответ изменения не несёт: оно от правки не меняется.
                 if (style.screen === updated.screen) return { ...updated, components: style.components };
-                return applyChange(style, { weights, fontFamily }, updated.screen);
+                return applyChange(style, { weights, fontFamily, platform: change.platform }, updated.screen);
             }),
         })),
     };

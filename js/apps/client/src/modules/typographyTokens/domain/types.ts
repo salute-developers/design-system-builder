@@ -40,6 +40,22 @@ export interface TypographyComponentUsage {
 }
 
 /** Стиль типографии на экране в единицах редактора. */
+/** Платформа, которая может задать своё значение вместо построенного из веба. */
+export type TypographyOverridePlatform = 'ios' | 'android';
+
+export const TYPOGRAPHY_OVERRIDE_PLATFORMS: ReadonlyArray<{ id: TypographyOverridePlatform; label: string }> = [
+    { id: 'ios', label: 'iOS' },
+    { id: 'android', label: 'Android' },
+];
+
+/** Свои значения платформы у стиля: только поля, которые отличаются от веба. */
+export interface TypographyOverride {
+    sizePx?: number;
+    lineHeightPx?: number;
+    letterSpacingEm?: number;
+    weights?: Partial<Record<TypographyVariant, number>>;
+}
+
 export interface TypographyStyle {
     screen: TypographyScreen;
     group: string;
@@ -51,6 +67,8 @@ export interface TypographyStyle {
     fontFamily: string;
     variants: Partial<Record<TypographyVariant, TypographyVariantView>>;
     components: TypographyComponentUsage[];
+    /** Свои значения iOS и Android; нет платформы — все её поля строятся из веба. */
+    overrides?: Partial<Record<TypographyOverridePlatform, TypographyOverride>>;
 }
 
 /** Семейство шрифта дизайн-системы. */
@@ -70,6 +88,8 @@ export interface TypographyStyles {
 
 /** Правка стиля: размеры — на экране токена, веса и семейство — на всех экранах. */
 export interface TypographyStyleChange {
+    /** Своё значение платформы: размеры и веса пишутся только в неё. */
+    platform?: TypographyOverridePlatform;
     size?: number;
     lineHeight?: number;
     letterSpacing?: number;

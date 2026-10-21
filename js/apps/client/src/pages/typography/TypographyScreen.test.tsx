@@ -174,6 +174,46 @@ describe('экран «Типографика»', () => {
         });
     });
 
+    it('задаёт и снимает своё значение платформы у поля', async () => {
+        const { repository } = setup();
+        await screen.findByRole('heading', { name: 'Body / Body M' });
+        // «+» есть у веса, размера, высоты строки и трекинга.
+        const add = inspector().getAllByRole('button', { name: 'Своё значение платформы' });
+        expect(add).toHaveLength(4);
+        fireEvent.click(add[1]);
+        fireEvent.click(inspector().getByRole('menuitem', { name: 'iOS' }));
+        const ios = inspector().getByLabelText('Size iOS') as HTMLInputElement;
+        expect(ios.value).toBe('16');
+        expect(inspector().getByText('↳ iOS')).toBeTruthy();
+        fireEvent.change(ios, { target: { value: '17' } });
+        fireEvent.blur(ios);
+        await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
+        expect(vi.mocked(repository.update).mock.calls[0].slice(1, 3)).toEqual([
+            'screen-l.body.m.normal',
+            { platform: 'ios', size: 17 },
+        ]);
+        // У размера осталась одна платформа для «+»: Android.
+        fireEvent.click(inspector().getAllByRole('button', { name: 'Своё значение платформы' })[1]);
+        expect(
+            inspector()
+                .getAllByRole('menuitem')
+                .map((item) => item.textContent),
+        ).toEqual(['Android']);
+    });
+
+    it('снимает сохранённое своё значение платформы значением веба', async () => {
+        const styles = typographyStyles();
+        const body = styles.screens[0].styles.find((style) => style.group === 'body')!;
+        body.overrides = { android: { lineHeightPx: 22 } };
+        const { repository } = setup(styles);
+        await screen.findByRole('heading', { name: 'Body / Body M' });
+        expect((inspector().getByLabelText('Line Height Android') as HTMLInputElement).value).toBe('22');
+        fireEvent.click(inspector().getByRole('button', { name: 'Убрать своё значение Android' }));
+        await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
+        expect(vi.mocked(repository.update).mock.calls[0][2]).toEqual({ platform: 'android', lineHeight: 20 });
+        expect(inspector().queryByLabelText('Line Height Android')).toBeNull();
+    });
+
     it('показывает ошибку значения у поля и не отправляет его', async () => {
         const { repository } = setup();
         await screen.findByRole('heading', { name: 'Body / Body M' });
