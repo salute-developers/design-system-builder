@@ -256,8 +256,6 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         }))}
                         onChange={(value) => setVariantId(value as TypographyVariant)}
                     />
-                </div>
-                <div className="typography-field-row">
                     <SelectField
                         icon="weight"
                         label={`Weight ${variantLabel}`}
@@ -270,6 +268,8 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         }))}
                         onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
                     />
+                </div>
+                <div className="typography-field-row">
                     <NumberField
                         key={`size:${style.screen}:${style.group}.${style.size}`}
                         icon="size"
@@ -279,8 +279,6 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         disabled={disabled}
                         onCommit={(size) => onChange({ size })}
                     />
-                </div>
-                <div className="typography-field-row">
                     <NumberField
                         key={`lineHeight:${style.screen}:${style.group}.${style.size}`}
                         icon="lineHeight"
@@ -290,6 +288,8 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         disabled={disabled}
                         onCommit={(lineHeight) => onChange({ lineHeight })}
                     />
+                </div>
+                <div className="typography-field-row">
                     <NumberField
                         key={`letterSpacing:${style.screen}:${style.group}.${style.size}`}
                         icon="letterSpacing"
