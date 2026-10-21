@@ -27,4 +27,8 @@ data class TenantTokenValue(
     val updatedAt: Instant,
     /** Исходная ссылка на палитру, если [valueJson] вычислен по палитре темы. */
     val paletteRef: String? = null,
+    /**
+     * Исходное значение JSON, если в [valueJson] ссылки цветов слоёв тени заменены раскрытым по палитре темы HEX.
+     */
+    val sourceValue: String? = null,
 )

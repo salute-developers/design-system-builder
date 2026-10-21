@@ -33,6 +33,7 @@ internal fun writeThemeValueRevisions(owner: UUID, values: Map<UUID, ThemeValueP
                     draft[ThemeVersionBoundariesTable.sequenceNumber]
                 this[ThemeTokenValueRevisionsTable.paletteId] = payload.paletteId
                 this[ThemeTokenValueRevisionsTable.value] = payload.value
+                this[ThemeTokenValueRevisionsTable.overridden] = payload.overridden
                 this[ThemeTokenValueRevisionsTable.deleted] = false
                 this[ThemeTokenValueRevisionsTable.updatedAt] = now
             }

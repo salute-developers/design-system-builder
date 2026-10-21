@@ -7,7 +7,6 @@ import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.palette.ThemePalette
-import com.dsbuilder.ds.themes.domain.palette.ThemePaletteBuilder
 import java.util.UUID
 
 /** Палитра темы: группы, состав, значения, привязки токенов и копия шаблона. */
@@ -27,13 +26,7 @@ class GetTenantPaletteUseCase(
                     policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
                 repository.snapshot(context.projectId, tenantId, includeSubjectRevisions = true)?.let { snapshot ->
                     if (!snapshot.hasSystemGroups()) return@readOnly DsResult.Failure(DsFailure.NotFound)
-                    val palette = ThemePaletteBuilder.build(
-                        tenantId.toString(),
-                        writable && snapshot.owned,
-                        snapshot.state,
-                        snapshot.tokens,
-                        snapshot.values,
-                    )
+                    val palette = snapshot.palette(tenantId.toString(), writable && snapshot.owned)
                     DsResult.Success(palette.copy(subjectRevisions = snapshot.subjectRevisions))
                 } ?: DsResult.Failure(DsFailure.NotFound)
             }
