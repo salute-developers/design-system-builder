@@ -12,6 +12,7 @@ vi.mock('./index', () => ({ http: { get, put, post, patch, delete: remove }, PRO
 vi.mock('../composePreview', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../composePreview')>()),
     getComposePreviewPluginUrl: () => pluginUrl.value,
+    resolveComposePreviewPluginUrl: async () => pluginUrl.value,
 }));
 vi.mock('./http', () => ({ http: { get, put, post, patch, delete: remove } }));
 // Контракты репозиториев не зависят от реального времени сетевого планировщика;

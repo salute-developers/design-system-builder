@@ -23,7 +23,8 @@ import type {
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
-import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
+import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
+import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
 import {
     collectDependencies,
@@ -314,8 +315,15 @@ export const componentRepository = {
     },
 
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
-        if (!isComponentEditorEnabled() || !getComposePreviewPluginUrl()) return [];
+        if (!isComponentEditorEnabled()) return [];
         try {
+            // Без активного билда (и без прямого адреса) Compose-preview не предлагается: React-preview не меняется.
+            const pluginUrl = await resolveComposePreviewPluginUrl(
+                context.projectId,
+                fetchComposePreviewPluginDescriptor,
+            );
+            if (!pluginUrl) return [];
+
             return markComposeComponents(
                 (await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration),
             );
