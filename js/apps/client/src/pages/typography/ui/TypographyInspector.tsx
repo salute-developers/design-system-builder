@@ -12,6 +12,7 @@ import {
     type TypographyFamily,
     type TypographyStyle,
     type TypographyStyleChange,
+    type TypographyVariant,
 } from '../../../modules/typographyTokens';
 import { TyGlyph } from './TyGlyph';
 
@@ -30,6 +31,7 @@ interface TypographyInspectorProps {
 const ICONS = {
     family: <span className="typography-property-letters">Tt</span>,
     weight: <span className="typography-property-letters is-weight">B</span>,
+    variant: <span className="typography-property-letters">Aa</span>,
     size: (
         <svg viewBox="0 0 16 16" aria-hidden="true">
             <path d="M3 3.5h10M8 3.5v9M5.5 12.5h5" />
@@ -102,10 +104,64 @@ const NumberField = ({ icon, label, value, error, disabled, onCommit }: NumberFi
     );
 };
 
+interface SelectFieldProps {
+    icon: keyof typeof ICONS;
+    label: string;
+    value: string;
+    options: Array<{ value: string; label: string }>;
+    error: string | null;
+    disabled: boolean;
+    onChange: (value: string) => void;
+}
+
+/** Поле выбора `typographyPropertyField` прототипа: значок, список и шеврон. */
+const SelectField = ({ icon, label, value, options, error, disabled, onChange }: SelectFieldProps) => (
+    <div>
+        <div className={`typography-property-field ${error ? 'has-error' : ''}`}>
+            <PropertyIcon name={icon} />
+            <div className="typography-property-value">
+                <select
+                    aria-label={label}
+                    value={value}
+                    disabled={disabled}
+                    onChange={(event) => onChange(event.target.value)}
+                >
+                    {options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                    ))}
+                </select>
+                <span className="typography-property-chevron">
+                    <TyGlyph name="chevron-down" />
+                </span>
+            </div>
+        </div>
+        {error && (
+            <p className="typography-field-error" role="alert">
+                {error}
+            </p>
+        )}
+    </div>
+);
+
+/** Веса прототипа; вес темы вне списка добавляется, чтобы поле показывало текущее значение. */
+const weightOptions = (weight: number | undefined) =>
+    weight === undefined || TYPOGRAPHY_WEIGHTS.some((option) => option.value === weight)
+        ? TYPOGRAPHY_WEIGHTS
+        : [...TYPOGRAPHY_WEIGHTS, { value: weight, label: String(weight) }].sort((a, b) => a.value - b.value);
+
 /** Инспектор стиля по ветке `fonts` функции `tokenInspector` прототипа: «Стиль», «Начертания», «Влияние». */
 export const TypographyInspector = (props: TypographyInspectorProps) => {
     const { style, families, themeCount, editable, error, onChange } = props;
     const [menuOpen, setMenuOpen] = useState(false);
+    // Начертание выбирается в инспекторе и остаётся при выборе другого стиля; нет его у стиля — первое из есть.
+    const [variantId, setVariantId] = useState<TypographyVariant>('normal');
+    const variant = style.variants[variantId]
+        ? variantId
+        : (TYPOGRAPHY_VARIANTS.find(({ id }) => style.variants[id])?.id ?? 'normal');
+    const variantLabel = TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant;
+    const weight = style.variants[variant]?.weight;
     const familyRef = useRef<HTMLDivElement>(null);
     const disabled = !editable;
     const family = families.find((item) => item.name === style.fontFamily);
@@ -187,7 +243,33 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         </p>
                     )}
                 </div>
+                <div className="typography-variant-control">
+                    <SelectField
+                        icon="variant"
+                        label="Начертание"
+                        value={variant}
+                        disabled={false}
+                        error={null}
+                        options={TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => ({
+                            value: id,
+                            label,
+                        }))}
+                        onChange={(value) => setVariantId(value as TypographyVariant)}
+                    />
+                </div>
                 <div className="typography-field-row">
+                    <SelectField
+                        icon="weight"
+                        label={`Weight ${variantLabel}`}
+                        value={String(weight ?? '')}
+                        disabled={disabled || weight === undefined}
+                        error={error(`weights.${variant}`)}
+                        options={weightOptions(weight).map((option) => ({
+                            value: String(option.value),
+                            label: option.label,
+                        }))}
+                        onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
+                    />
                     <NumberField
                         key={`size:${style.screen}:${style.group}.${style.size}`}
                         icon="size"
@@ -197,6 +279,8 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         disabled={disabled}
                         onCommit={(size) => onChange({ size })}
                     />
+                </div>
+                <div className="typography-field-row">
                     <NumberField
                         key={`lineHeight:${style.screen}:${style.group}.${style.size}`}
                         icon="lineHeight"
@@ -206,8 +290,6 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         disabled={disabled}
                         onCommit={(lineHeight) => onChange({ lineHeight })}
                     />
-                </div>
-                <div className="typography-field-row">
                     <NumberField
                         key={`letterSpacing:${style.screen}:${style.group}.${style.size}`}
                         icon="letterSpacing"
@@ -217,55 +299,6 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         disabled={disabled}
                         onCommit={(letterSpacing) => onChange({ letterSpacing })}
                     />
-                </div>
-            </section>
-            <section className="inspector-section figma-inspector-group typography-style-inspector">
-                <span className="inspector-heading">НАЧЕРТАНИЯ</span>
-                <div className="typography-weights">
-                    {TYPOGRAPHY_VARIANTS.map(({ id, label }) => {
-                        const variant = style.variants[id];
-                        if (!variant) return null;
-                        const options = TYPOGRAPHY_WEIGHTS.some((option) => option.value === variant.weight)
-                            ? TYPOGRAPHY_WEIGHTS
-                            : [...TYPOGRAPHY_WEIGHTS, { value: variant.weight, label: String(variant.weight) }].sort(
-                                  (a, b) => a.value - b.value,
-                              );
-                        const fieldError = error(`weights.${id}`);
-                        return (
-                            <div key={id}>
-                                <div className="typography-weight-row">
-                                    <span>{label}</span>
-                                    <div className={`typography-property-field ${fieldError ? 'has-error' : ''}`}>
-                                        <PropertyIcon name="weight" />
-                                        <div className="typography-property-value">
-                                            <select
-                                                aria-label={`Weight ${label}`}
-                                                value={variant.weight}
-                                                disabled={disabled}
-                                                onChange={(event) =>
-                                                    onChange({ weights: { [id]: Number(event.target.value) } })
-                                                }
-                                            >
-                                                {options.map((option) => (
-                                                    <option key={option.value} value={option.value}>
-                                                        {option.label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <span className="typography-property-chevron">
-                                                <TyGlyph name="chevron-down" />
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                {fieldError && (
-                                    <p className="typography-field-error" role="alert">
-                                        {fieldError}
-                                    </p>
-                                )}
-                            </div>
-                        );
-                    })}
                 </div>
             </section>
             <section className="inspector-section typography-impact">

@@ -2007,25 +2007,20 @@
 
 .typography-screen .editor-fonts-workbench .typography-canvas-row {
     width: 100%;
-    grid-template-columns: 64px minmax(0, 1fr) 99px;
+    grid-template-columns: 104px minmax(0, 1fr) 99px;
 }
 
-/* Начертания: вес у каждого из трёх токенов стиля вместо одного поля «Вес» прототипа. */
-.typography-screen .typography-weights {
-    display: grid;
+/* Имя шрифта на борде видно целиком: в прототипе колонка 64 px и «SB Sans Display» обрезается. Длинное имя
+ * переносится, а не обрезается. */
+.typography-screen .editor-fonts-workbench .typography-canvas-meta small {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* Начертание выбирается под семейством, вес ниже относится к выбранному начертанию. */
+.typography-screen .editor-fonts-workbench .typography-variant-control {
     padding: 0 12px;
-}
-
-.typography-screen .typography-weight-row {
-    display: grid;
-    grid-template-columns: 64px minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-}
-
-.typography-screen .typography-weight-row > span {
-    color: var(--builder-ui-text-paragraph);
-    font-size: 12px;
+    margin-top: 4px;
 }
 
 /* Ошибка значения у поля: сервер не сохранил значение. */
@@ -2038,10 +2033,6 @@
     color: var(--builder-ui-negative, #ff6b5f);
     font-size: 11px;
     line-height: 1.35;
-}
-
-.typography-screen .typography-weights .typography-field-error {
-    margin-left: 72px;
 }
 
 /* Состояние сохранения и баннеры — как у раздела «Цвета». */

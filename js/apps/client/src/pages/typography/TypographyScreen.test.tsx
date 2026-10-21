@@ -128,6 +128,11 @@ describe('экран «Типографика»', () => {
         const options = within(inspector().getByRole('listbox', { name: 'Семейства' })).getAllByRole('option');
         expect(options.map((option) => option.textContent)).toEqual(['Display SB Sans Display', 'Body SB Sans Text']);
         fireEvent.click(options[0]);
+        const variant = inspector().getByLabelText('Начертание') as HTMLSelectElement;
+        expect([...variant.options].map((option) => option.textContent)).toEqual(['Regular', 'Medium', 'Bold']);
+        expect((inspector().getByLabelText('Weight Regular') as HTMLSelectElement).value).toBe('400');
+        fireEvent.change(variant, { target: { value: 'bold' } });
+        expect((inspector().getByLabelText('Weight Bold') as HTMLSelectElement).value).toBe('600');
         fireEvent.change(inspector().getByLabelText('Weight Bold'), { target: { value: '700' } });
         await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
         expect(vi.mocked(repository.update).mock.calls[0][2]).toEqual({
@@ -214,7 +219,8 @@ describe('экран «Типографика»', () => {
         expect(screen.getByText('Read-only access')).toBeTruthy();
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
-        expect((inspector().getByLabelText('Weight Bold') as HTMLSelectElement).disabled).toBe(true);
+        expect((inspector().getByLabelText('Weight Regular') as HTMLSelectElement).disabled).toBe(true);
+        expect((inspector().getByLabelText('Начертание') as HTMLSelectElement).disabled).toBe(false);
         fireEvent.click(screen.getByRole('tab', { name: 'Мелкие' }));
         fireEvent.click(tree().getByText('Body M'));
         expect(screen.getByRole('heading', { name: 'Body / Body M' })).toBeTruthy();

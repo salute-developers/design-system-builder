@@ -28,13 +28,9 @@ const HEADER_LAYOUT: Record<string, [number, number, number]> = {
     h6: [49, 46, 2],
 };
 
-/** Доля размера шрифта, которую занимают буквы образца от верха прописных до низа строчных. */
-const INK_RATIO = 0.75;
-const INK_PADDING = 8;
-
 /**
- * Высоты строки и образца прототипа. Если буквы образца в них не помещаются (стиль увеличили), строка и образец
- * растут на недостающую высоту: прототип рассчитан на значения темы по умолчанию и обрезает крупный образец.
+ * Высоты строки и образца прототипа. Образец показывается одной строкой высотой в высоту строки стиля и обрезается
+ * по ней; если строка стиля выше образца прототипа, строка борда и образец растут на недостающую высоту.
  */
 export const rowLayout = (style: TypographyStyle): [number, number, number] => {
     const fallback = Math.min(Math.max(style.lineHeightPx + 20, 48), 76);
@@ -42,7 +38,7 @@ export const rowLayout = (style: TypographyStyle): [number, number, number] => {
         style.group === 'display'
             ? [76, style.size === 's' ? 63 : 76, 0]
             : (style.group === 'header' && HEADER_LAYOUT[style.size]) || [fallback, fallback, 0];
-    const grow = Math.max(0, Math.ceil(style.sizePx * INK_RATIO) + INK_PADDING - sample);
+    const grow = Math.max(0, Math.ceil(style.lineHeightPx) - sample);
     return [row + grow, sample + grow, offset];
 };
 
@@ -51,13 +47,14 @@ export const fontNameOf = (families: TypographyFamily[], family: string) =>
     families.find((item) => item.name === family)?.fontName || family;
 
 /**
- * Образец текста стилем: семейство, размер, вес начертания и трекинг. Образец — одна строка, поэтому высота строки
- * не меньше размера: при меньшей браузер выталкивает буквы за строку, и их срезает граница образца.
+ * Образец текста стилем: семейство, размер, высота строки, вес начертания и трекинг. Образец обрезается по высоте
+ * строки: уменьшение высоты строки видно на борде.
  */
 export const sampleStyle = (families: TypographyFamily[], style: TypographyStyle): CSSProperties => ({
     fontFamily: `'${fontNameOf(families, style.fontFamily)}', sans-serif`,
     fontSize: `${style.sizePx}px`,
-    lineHeight: `${Math.max(style.lineHeightPx, style.sizePx)}px`,
+    lineHeight: `${style.lineHeightPx}px`,
+    height: `${style.lineHeightPx}px`,
     fontWeight: style.variants.normal?.weight ?? 400,
     letterSpacing: `${style.letterSpacingEm}em`,
 });
