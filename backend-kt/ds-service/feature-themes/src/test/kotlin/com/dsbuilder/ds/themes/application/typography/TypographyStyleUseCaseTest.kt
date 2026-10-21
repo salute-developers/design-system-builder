@@ -44,7 +44,7 @@ class TypographyStyleUseCaseTest {
         families = listOf(TypographyFamily("display", "SB Sans Display"), TypographyFamily("body", "SB Sans Text")),
     )
     private val get = GetTypographyStylesUseCase(policy, transactions, repository, repository)
-    private val update = UpdateTypographyStyleUseCase(policy, transactions, repository, repository)
+    private val update = UpdateTypographyStyleUseCase(policy, transactions, repository)
 
     @Test
     fun `чтение отдаёт стили по экранам в px, семейства и компоненты`() = runBlocking {
@@ -95,6 +95,8 @@ class TypographyStyleUseCaseTest {
         )
         val result = success(update.execute(context("editor"), tenantA, token, command))
         assertEquals(18.0, result.style.sizePx)
+        // Использование в компонентах изменение не пересчитывает: клиент берёт его из чтения.
+        assertEquals(emptyList(), result.style.components)
         assertEquals(1, repository.locks)
         assertEquals(9, repository.written.size)
         assertEquals(7L, repository.written.single { it.valueId == base }.baseRevision)
@@ -149,6 +151,26 @@ class TypographyStyleUseCaseTest {
             }
             assertEquals("600", field(tenantB, "$screen.body.m.bold", ThemeTokenPlatform.WEB, "fontWeight"))
         }
+    }
+
+    @Test
+    fun `правка стиля без значений в теме отклоняется, а не сохраняется пустой`() = runBlocking {
+        VARIANTS.forEach { variant ->
+            repository.values.getValue(
+                tenantA,
+            ).remove(ids.getValue("screen-l.body.m.$variant"))
+        }
+        val token = ids.getValue("screen-l.body.m.normal")
+        val missing = assertIs<DsFailure.Conflict>(
+            failure(update.execute(context("editor"), tenantA, token, UpdateTypographyStyle(size = 18.0))),
+        )
+        assertEquals("TYPOGRAPHY_VALUES_MISSING", missing.code)
+        assertEquals(0, repository.written.size)
+
+        // Правка, которая касается только экранов со значениями, проходит.
+        val other = ids.getValue("screen-m.body.m.normal")
+        val resized = success(update.execute(context("editor"), tenantA, other, UpdateTypographyStyle(size = 18.0)))
+        assertEquals(VARIANTS.map { "screen-m.body.m.$it" }.toSet(), resized.tokens.map { it.name }.toSet())
     }
 
     @Test

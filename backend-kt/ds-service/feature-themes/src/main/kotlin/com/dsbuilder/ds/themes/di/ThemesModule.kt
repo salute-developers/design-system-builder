@@ -122,6 +122,6 @@ val themesModule = module {
     single<TypographyStyleRepository> { ExposedTypographyStyleRepository() }
     single<TypographyUsageRepository> { ExposedTypographyUsageRepository() }
     factory { GetTypographyStylesUseCase(get(), get(), get(), get()) }
-    factory { UpdateTypographyStyleUseCase(get(), get(), get(), get()) }
+    factory { UpdateTypographyStyleUseCase(get(), get(), get()) }
     factory { TypographyStyleUseCases(get(), get()) }
 }
