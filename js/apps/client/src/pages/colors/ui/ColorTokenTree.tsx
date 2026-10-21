@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import {
+    byDisplayName,
     groupCode,
+    treeTokens,
     type ColorTokenView,
     type SaveStatus,
     type TokenGroupDto,
@@ -13,19 +15,14 @@ import { CtGlyph } from './CtGlyph';
 import { alphaSwatchStyle, rowPreview } from './swatch';
 
 /** Подсказка у опубликованного токена, имя которого меняется. */
-const publishedWarning = (version: string) =>
-    `Токен опубликован в версии ${version}. Новое имя изменит переменную в пакете дизайн-системы`;
-
-const PublishedWarning = ({ version }: { version: string }) => (
-    <span
-        className="ct-published-warning"
-        role="img"
-        aria-label={publishedWarning(version)}
-        title={publishedWarning(version)}
-    >
-        !
-    </span>
-);
+const PublishedWarning = ({ version }: { version: string }) => {
+    const text = `Токен опубликован в версии ${version}. Новое имя изменит переменную в пакете дизайн-системы`;
+    return (
+        <span className="ct-published-warning" role="img" aria-label={text} title={text}>
+            !
+        </span>
+    );
+};
 
 interface InlineInputProps {
     label: string;
@@ -34,8 +31,11 @@ interface InlineInputProps {
     error: string | null;
     busy: boolean;
     warning?: string | null;
-    /** Квадрат цвета строки токена: с ним строка ввода выглядит как строка токена, без поля с рамкой. */
-    swatch?: ReactNode;
+    /**
+     * Строка дерева, в которой вводится имя: класс строки (токена или заголовка) и то, что стоит перед именем
+     * (квадрат цвета или стрелка). Строка ввода выглядит как сама строка, без поля с рамкой.
+     */
+    row: { className: string; leading: ReactNode };
     onSubmit: (value: string) => void;
     onCancel: () => void;
 }
@@ -51,7 +51,7 @@ const InlineInput = ({
     error,
     busy,
     warning,
-    swatch,
+    row,
     onSubmit,
     onCancel,
 }: InlineInputProps) => {
@@ -81,9 +81,9 @@ const InlineInput = ({
         }
     };
     return (
-        <div className={`token-tree-input ${swatch ? 'is-token' : ''} ${error ? 'is-error' : ''}`}>
-            <span className={swatch ? 'token-row token-tree-input-field' : 'token-tree-input-field'}>
-                {swatch}
+        <div className={`token-tree-input is-row ${error ? 'is-error' : ''}`}>
+            <span className={`${row.className} token-tree-input-field`}>
+                {row.leading}
                 <input
                     ref={field}
                     autoFocus
@@ -160,6 +160,12 @@ interface TreeProps {
     onMoveGroup: (group: TokenGroupDto, parentId: string | null, position: number) => void;
 }
 
+/** Служебный узел результатов поиска: как «Без группы», он не принимает перенос, а строки поиска не перетаскиваются. */
+const SEARCH_RESULTS = {
+    group: { id: 'ungrouped:search', parentId: null, code: null, label: '', position: 0, kind: 'color' },
+    tokens: [],
+} satisfies { group: TokenGroupDto; tokens: ColorTokenView[] };
+
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** Токены узла в хранимом порядке без перетаскиваемого: от них считается позиция вставки. */
@@ -174,6 +180,8 @@ export const ColorTokenTree = (props: TreeProps) => {
     const { tree, groups, selectedId, sort, query, searchOpen, issuesOnly, collapsed, editable, canDelete, status } =
         props;
     const searching = searchOpen || Boolean(query);
+    // Поиск показывает только найденные токены по алфавиту, без групп и подгрупп.
+    const found = query.trim() ? tree.flatMap(treeTokens).sort(byDisplayName) : null;
     const [editing, setEditing] = useState<Editing | null>(null);
     const [menu, setMenu] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -359,6 +367,11 @@ export const ColorTokenTree = (props: TreeProps) => {
     const swatch = (paint: string, severity = '') => (
         <i className={`token-status token-color-preview alpha-swatch ${severity}`} style={alphaSwatchStyle(paint)} />
     );
+    // Строка ввода названия группы или подгруппы — как её заголовок: стрелка и название.
+    const headingLine = (level: 'group' | 'subgroup') => ({
+        className: level === 'group' ? 'token-tree-heading' : 'token-tree-heading token-tree-subheading',
+        leading: <span className="token-tree-chevron">⌄</span>,
+    });
 
     const tokenRow = (container: { group: TokenGroupDto; tokens: ColorTokenView[] }, token: ColorTokenView) => {
         if (editing?.kind === 'rename-token' && editing.id === token.id) {
@@ -369,7 +382,10 @@ export const ColorTokenTree = (props: TreeProps) => {
                         initial: token.key.name,
                         placeholder: 'Имя токена',
                         warning: token.publishedIn,
-                        swatch: swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved)),
+                        row: {
+                            className: 'token-row',
+                            leading: swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved)),
+                        },
                         onSubmit: (value) => void submit(() => props.onRenameToken(token, value)),
                     })}
                 </div>
@@ -388,7 +404,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                     type="button"
                     className={`token-row ${selectedId === token.id ? 'is-selected' : ''}`}
                     data-testid={`color-token-row-${token.id}`}
-                    draggable={editable}
+                    draggable={editable && !found}
                     onDragStart={(event) => {
                         event.dataTransfer.setData('text/plain', token.id);
                         setDragged({ kind: 'token', view: token });
@@ -419,6 +435,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                 label: `Новое название ${group.label}`,
                 initial: group.label,
                 placeholder: 'Название',
+                row: headingLine(level),
                 onSubmit: (value) => void submit(() => props.onRenameGroup(group.id, value)),
             });
         }
@@ -434,7 +451,7 @@ export const ColorTokenTree = (props: TreeProps) => {
                 {dropHint(group.id)}
                 <button
                     type="button"
-                    className={level === 'group' ? 'token-tree-heading' : 'token-tree-heading token-tree-subheading'}
+                    className={headingLine(level).className}
                     aria-expanded={!closed}
                     draggable={editable && !node.synthetic}
                     onDragStart={(event) => {
@@ -495,7 +512,7 @@ export const ColorTokenTree = (props: TreeProps) => {
         input({
             label: 'Имя нового токена',
             placeholder: 'Например, Highlight',
-            swatch: swatch('', 'is-placeholder'),
+            row: { className: 'token-row', leading: swatch('', 'is-placeholder') },
             onSubmit: (value) => void submit(() => props.onCreateToken(groupId, value)),
         });
 
@@ -582,36 +599,42 @@ export const ColorTokenTree = (props: TreeProps) => {
                 </div>
             </div>
             <div className="token-tree">
-                {tree.length === 0 && editing?.kind !== 'new-group' && (
+                {(found ?? tree).length === 0 && editing?.kind !== 'new-group' && (
                     <div className="ct-tree-empty">Ничего не найдено</div>
                 )}
-                {tree.map((node) => {
-                    const closed = Boolean(collapsed[node.group.id]);
-                    return (
-                        <div
-                            key={node.group.id}
-                            className={`token-tree-group ${closed ? 'is-collapsed' : 'is-open'}`}
-                            data-testid={`token-group-${node.group.label}`}
-                        >
-                            {heading(node, 'group')}
-                            {!closed && node.tokens.map((token) => tokenRow(node, token))}
-                            {!closed && newToken(node.group.id)}
-                            {!closed && node.subgroups.map(subgroup)}
-                            {!closed &&
-                                editing?.kind === 'new-subgroup' &&
-                                editing.parentId === node.group.id &&
-                                input({
-                                    label: 'Название новой подгруппы',
-                                    placeholder: 'Например, Brand',
-                                    onSubmit: (value) => void submit(() => props.onCreateGroup(node.group.id, value)),
-                                })}
-                        </div>
-                    );
-                })}
-                {editing?.kind === 'new-group' &&
+                {found
+                    ? found.map((token) => tokenRow(SEARCH_RESULTS, token))
+                    : tree.map((node) => {
+                          const closed = Boolean(collapsed[node.group.id]);
+                          return (
+                              <div
+                                  key={node.group.id}
+                                  className={`token-tree-group ${closed ? 'is-collapsed' : 'is-open'}`}
+                                  data-testid={`token-group-${node.group.label}`}
+                              >
+                                  {heading(node, 'group')}
+                                  {!closed && node.tokens.map((token) => tokenRow(node, token))}
+                                  {!closed && newToken(node.group.id)}
+                                  {!closed && node.subgroups.map(subgroup)}
+                                  {!closed &&
+                                      editing?.kind === 'new-subgroup' &&
+                                      editing.parentId === node.group.id &&
+                                      input({
+                                          label: 'Название новой подгруппы',
+                                          placeholder: 'Например, Brand',
+                                          row: headingLine('subgroup'),
+                                          onSubmit: (value) =>
+                                              void submit(() => props.onCreateGroup(node.group.id, value)),
+                                      })}
+                              </div>
+                          );
+                      })}
+                {!found &&
+                    editing?.kind === 'new-group' &&
                     input({
                         label: 'Название новой группы',
                         placeholder: 'Например, Brand',
+                        row: headingLine('group'),
                         onSubmit: (value) => void submit(() => props.onCreateGroup(null, value)),
                     })}
             </div>

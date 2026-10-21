@@ -46,6 +46,9 @@ const matches = (token: ColorTokenView, query: string) => {
     );
 };
 
+/** Порядок токенов по отображаемому имени: «А–Я» дерева и результаты поиска. */
+export const byDisplayName = (a: ColorTokenView, b: ColorTokenView) => a.displayName.localeCompare(b.displayName);
+
 const byPosition = (a: TokenGroupDto, b: TokenGroupDto) => a.position - b.position || a.label.localeCompare(b.label);
 
 /** Код группы узла: свой у группы, родителя — у подгруппы. */
@@ -66,9 +69,8 @@ export const buildTree = (groups: TokenGroupDto[], views: ColorTokenView[], opti
     );
     const compare =
         options.sort === 'az'
-            ? (a: ColorTokenView, b: ColorTokenView) => a.displayName.localeCompare(b.displayName)
-            : (a: ColorTokenView, b: ColorTokenView) =>
-                  a.position - b.position || a.displayName.localeCompare(b.displayName);
+            ? byDisplayName
+            : (a: ColorTokenView, b: ColorTokenView) => a.position - b.position || byDisplayName(a, b);
     const known = new Set(groups.map((group) => group.id));
     const ungrouped = visible.filter((token) => !token.groupId || !known.has(token.groupId));
     const tops = groups.filter((group) => group.parentId === null).sort(byPosition);

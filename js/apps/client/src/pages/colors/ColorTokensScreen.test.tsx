@@ -21,6 +21,8 @@ const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
 let published: string | null = null;
 /** Токены группы `text` сверх `textAccent`: имя, группа и позиция в хранимом порядке. */
 let extraTokens: { name: string; groupId: string; position: number }[] = [];
+/** Токены, значения которых не проходят проверку: их показывает фильтр «Только токены с ошибками». */
+let invalidTokens: string[] = [];
 const family = (name: string, groupId: string, position: number) =>
     SUBGROUPS.map((subgroup, index) => ({
         id: `${name}-${index}`,
@@ -82,7 +84,9 @@ const reply =
                                 tenantId: 'tenant-1',
                                 platform,
                                 mode,
-                                value: INHERITED[token.name.split('.')[1]][mode],
+                                value: invalidTokens.includes(token.name.split('.')[2])
+                                    ? 'not-a-color'
+                                    : INHERITED[token.name.split('.')[1]][mode],
                             })),
                         ),
                     ),
@@ -186,6 +190,7 @@ beforeEach(() => {
     localStorage.clear();
     published = null;
     extraTokens = [];
+    invalidTokens = [];
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
@@ -385,6 +390,9 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить группу' }));
         const field = screen.getByRole('textbox', { name: 'Название новой группы' });
+        // Строка ввода группы выглядит как её заголовок: стрелка и название без поля с рамкой.
+        expect(field.closest('.token-tree-input')).toHaveClass('is-row');
+        expect(field.closest('.token-tree-heading')?.querySelector('.token-tree-chevron')).not.toBeNull();
         fireEvent.change(field, { target: { value: 'Brand' } });
         fireEvent.keyDown(field, { key: 'Enter' });
 
@@ -424,7 +432,7 @@ describe('ColorTokensScreen', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Добавить токен в Status' }));
         const field = screen.getByRole('textbox', { name: 'Имя нового токена' });
         // Строка нового токена выглядит как строка токена: заглушка цвета и ввод имени без поля с рамкой.
-        expect(field.closest('.token-tree-input')).toHaveClass('is-token');
+        expect(field.closest('.token-tree-input')).toHaveClass('is-row');
         expect(field.closest('.token-row')?.querySelector('.token-color-preview')).not.toBeNull();
         fireEvent.change(field, { target: { value: 'Accent' } });
         fireEvent.keyDown(field, { key: 'Enter' });
@@ -523,7 +531,7 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.doubleClick(screen.getByTestId('color-token-row-color:text.accent'));
         const row = screen.getByRole('textbox', { name: 'Новое имя textAccent' }).closest('.token-tree-input');
-        expect(row).toHaveClass('is-token');
+        expect(row).toHaveClass('is-row');
         expect(row?.querySelector('.token-color-preview')).not.toBeNull();
         expect(
             within(row as HTMLElement).getByRole('img', {
@@ -549,6 +557,9 @@ describe('ColorTokensScreen', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Добавить в Text & Icons' }));
         fireEvent.click(screen.getByRole('menuitem', { name: 'Добавить подгруппу' }));
         expect(text).toHaveClass('is-open');
+        expect(
+            within(text).getByRole('textbox', { name: 'Название новой подгруппы' }).closest('.token-tree-subheading'),
+        ).not.toBeNull();
         expect(within(text).getByRole('textbox', { name: 'Название новой подгруппы' })).toBeInTheDocument();
     });
 
@@ -664,10 +675,10 @@ describe('ColorTokensScreen', () => {
             await waitFor(() => expect(statusRows()).toEqual(['textAccent', 'textBeta', 'textZeta']));
         });
 
-        it('при поиске считает позицию по всем токенам получателя, а не только по видимым', async () => {
+        it('с фильтром ошибок считает позицию по всем токенам получателя, а не только по видимым', async () => {
+            invalidTokens = ['accent', 'zeta', 'beta'];
             await renderWithStatus([...STATUS, { name: 'mint', groupId: 'g-status', position: 2 }]);
-            fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
-            fireEvent.change(screen.getByRole('textbox', { name: 'Найти токен' }), { target: { value: 'a' } });
+            fireEvent.click(screen.getByRole('button', { name: 'Только токены с ошибками' }));
             await waitFor(() => expect(screen.queryByTestId('color-token-row-color:text.mint')).toBeNull());
 
             fireEvent.dragStart(row('accent'), { dataTransfer });
@@ -682,6 +693,20 @@ describe('ColorTokensScreen', () => {
                     3,
                 ),
             );
+        });
+
+        it('при поиске показывает только найденные токены без групп и не даёт их перетаскивать', async () => {
+            await renderWithStatus([...STATUS, { name: 'mint', groupId: 'g-status', position: 2 }]);
+            fireEvent.click(screen.getByRole('button', { name: 'Поиск' }));
+            fireEvent.change(screen.getByRole('textbox', { name: 'Найти токен' }), { target: { value: 'eta' } });
+
+            await waitFor(() => expect(screen.queryByTestId('token-subgroup-Status')).toBeNull());
+            expect(screen.queryByTestId('token-group-Text & Icons')).toBeNull();
+            const rows = [...document.querySelectorAll('.token-tree .token-row > span')].map(
+                (item) => item.textContent,
+            );
+            expect(rows).toEqual(['textBeta', 'textZeta']);
+            expect(row('beta')).toHaveAttribute('draggable', 'false');
         });
 
         it('в режиме «А–Я» заголовок группы подсвечивает группу и её токены без подгрупп', async () => {

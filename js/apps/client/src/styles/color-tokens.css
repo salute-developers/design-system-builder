@@ -4214,23 +4214,6 @@
     align-items: center;
 }
 
-.color-tokens-screen .token-tree-input input {
-    width: 100%;
-    height: 30px;
-    padding: 0 30px 0 10px;
-    border: 1px solid #4284ff;
-    border-radius: 6px;
-    background: #20252c;
-    color: #e8ebf0;
-    font: inherit;
-    font-size: 12px;
-    outline: none;
-}
-
-.color-tokens-screen .token-tree-input.is-error input {
-    border-color: #ff6b6b;
-}
-
 .color-tokens-screen .token-tree-input-error {
     color: #ff8a8a;
     font-size: 11px;
@@ -4318,20 +4301,20 @@
     background: rgba(66, 132, 255, 0.16);
 }
 
-/* Строка ввода нового токена и переименования токена выглядит как строка токена: квадрат цвета и имя прямо в
- * строке, без поля с рамкой — как переименование в Xcode. */
-.color-tokens-screen .token-tree-input.is-token {
+/* Строки ввода дерева выглядят как сами строки — как переименование в Xcode: у токена квадрат цвета и имя, у
+ * группы и подгруппы стрелка и название, без поля с рамкой. */
+.color-tokens-screen .token-tree-input.is-row {
     margin: 0;
 }
 
-.color-tokens-screen .token-tree-input.is-token .token-row {
+.color-tokens-screen .token-tree-input.is-row .token-tree-input-field {
     cursor: text;
 }
 
 /* Специфичность — как у поля поиска дерева: общее правило полей экрана задаёт фон и скругление. */
 .color-tokens-screen.ct-theme-workspace
     .token-browser
-    .token-tree-input.is-token
+    .token-tree-input.is-row
     input:not([type='checkbox']):not([type='radio']):not([type='range']) {
     flex: 1;
     min-width: 0;
@@ -4339,14 +4322,39 @@
     padding: 4px;
     border: 0;
     border-radius: 0;
+    outline: none;
     background: transparent;
     color: #dfe2e7;
+    font: inherit;
     font-size: 12px;
     letter-spacing: -0.18px;
 }
 
+/* У заголовка название стоит сразу за стрелкой и своего цвета: поле без отступа и цвета, без подсветки строки при
+ * наведении. */
+.color-tokens-screen.ct-theme-workspace
+    .token-browser
+    .token-tree-input.is-row
+    .token-tree-heading
+    input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+    padding-inline: 0;
+    color: inherit;
+}
+
+.color-tokens-screen .token-tree-input.is-row .token-tree-heading:hover {
+    background: transparent;
+}
+
+/* Стрелка строки переименования свёрнутой группы или подгруппы — как у её заголовка. */
+.color-tokens-screen .token-tree-group.is-collapsed > .token-tree-input .token-tree-chevron::before,
+.color-tokens-screen .token-tree-subgroup.is-collapsed > .token-tree-input .token-tree-chevron::before {
+    left: 2px;
+    top: 3px;
+    transform: rotate(-45deg);
+}
+
 /* Предупреждение об опубликованном имени — не текст строки: правило `.token-row > span` к нему не относится. */
-.color-tokens-screen .token-tree-input.is-token .token-row > .ct-published-warning {
+.color-tokens-screen .token-tree-input.is-row .token-row > .ct-published-warning {
     position: static;
     flex: none;
     padding: 0;
@@ -4355,11 +4363,37 @@
     font-weight: 700;
 }
 
-.color-tokens-screen .token-tree-input.is-token .token-tree-input-error {
+.color-tokens-screen .token-tree-input.is-row .token-tree-input-error {
     padding: 0 16px 4px;
 }
 
-.color-tokens-screen .token-tree-input.is-token .token-color-preview.is-placeholder {
+.color-tokens-screen .token-tree-input.is-row .token-color-preview.is-placeholder {
     border: 1px solid #6b7380;
     background: transparent;
+}
+
+/* Поля значения в инспекторе: фон и скругление задаёт общий контейнер `.figma-value-control`, а общее правило
+ * полей экрана рисовало у HEX и прозрачности вторую подложку внутри него. */
+.color-tokens-screen.ct-theme-workspace
+    .properties-panel
+    .figma-value-control
+    input:not([type='checkbox']):not([type='radio']):not([type='range']) {
+    border-radius: 0;
+    background-color: transparent;
+}
+
+/* Формат цвета в выборе цвета: в Safari нативная стрелка списка занимает место, и «Hex» в колонке 44px
+ * обрезался до «He». Колонка формата — по ширине содержимого. */
+.color-tokens-screen .cp-format-row:has(.cp-hex-field) {
+    grid-template-columns: max-content 1fr 50px;
+}
+
+.color-tokens-screen .cp-format-row select {
+    width: max-content;
+}
+
+/* Без собственной подложки у полей значения фокус отмечается рамкой всего поля. */
+.color-tokens-screen .properties-panel .figma-value-control:has(input:focus-visible) {
+    outline: 1px solid #4284ff;
+    outline-offset: -1px;
 }
