@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.application
 
+import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DesignSystemTokenInitializer
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsRequestContext
@@ -16,6 +17,7 @@ class CreateDesignSystemUseCase(
     private val repository: DesignSystemRepository,
     private val versionBoundaries: VersionBoundaryRepository,
     private val tokenInitializer: DesignSystemTokenInitializer,
+    private val componentInitializer: DesignSystemComponentInitializer,
     private val repeatedCreates: IdempotentCreateExecutor,
 ) {
     /** Performs the execute operation. */
@@ -37,6 +39,7 @@ class CreateDesignSystemUseCase(
                         repository.createOwned(context.projectId, command).also {
                             versionBoundaries.initializeBaseline(it)
                             tokenInitializer.initialize(it.id.value)
+                            componentInitializer.initialize(it.id.value)
                             versionBoundaries.initializeDraft(it.id)
                         }
                     },

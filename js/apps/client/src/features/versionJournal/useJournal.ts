@@ -51,7 +51,7 @@ export const useJournal = (
     const [status, setStatus] = useState<{ key: string; pending: boolean; error?: string }>();
     const request = useRef<{ generation: number; controller: AbortController }>();
     const generation = useRef(0);
-    const reload = useCallback(async () => {
+    const reloadData = useCallback(async (propagateFailure: boolean) => {
         if (!enabled) return;
         request.current?.controller.abort();
         const controller = new AbortController();
@@ -80,8 +80,11 @@ export const useJournal = (
                             : 'Не удалось загрузить журнал',
                 });
             }
+            if (propagateFailure) throw cause;
         }
     }, [contextKey, enabled]);
+    const reload = useCallback(() => reloadData(false), [reloadData]);
+    const reloadChecked = useCallback(() => reloadData(true), [reloadData]);
     useEffect(() => {
         void reload();
         return () => request.current?.controller.abort();
@@ -95,7 +98,7 @@ export const useJournal = (
         () => (context ? presentJournal({ ...data, components, context, readOnly }) : []),
         [components, context, data, readOnly],
     );
-    return { ...data, actions, loading, error, reload };
+    return { ...data, actions, loading, error, reload, reloadChecked };
 };
 
 export const useReloadAfterAutosave = (status: AutosaveStatus | undefined, reload: () => Promise<void>) => {

@@ -109,8 +109,8 @@ class DsServiceHttpPostgresIntegrationTest {
                     verifyEmptyDesignSystemPatch(client, designSystemId)
                     assertEquals(1, versionBoundaryCount(postgres, designSystemId, "baseline"))
                     assertEquals(1, versionBoundaryCount(postgres, designSystemId, "draft"))
-                    assertEquals(0, rowCount(postgres, "design_system_components"))
-                    assertEquals(0, rowCount(postgres, "appearances"))
+                    assertTrue(rowCount(postgres, "design_system_components") > 0)
+                    assertTrue(rowCount(postgres, "appearances") > 0)
 
                     val changes = client.get("/api/ds/design-systems/$designSystemId/changes") {
                         trusted("project-a", "viewer")

@@ -102,11 +102,6 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
                         "VALUES ('$id', 'baseline', 0, 0, NULL)",
                 )
                 runBlocking { GeneratedTokenDefinitionInitializer().initialize(id) }
-                exec(
-                    "INSERT INTO design_system_versions(" +
-                        "design_system_id, status, sequence_number, revision, published_at) " +
-                        "VALUES ('$id', 'draft', 1, 0, NULL)",
-                )
             }
             block(database, id)
         }

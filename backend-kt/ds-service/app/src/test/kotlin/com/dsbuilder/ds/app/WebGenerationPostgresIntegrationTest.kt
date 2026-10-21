@@ -48,11 +48,12 @@ class WebGenerationPostgresIntegrationTest {
             seedFixture(postgres, designSystemId)
             testApplication {
                 application { module(configuration(postgres)) }
-                publish(client, designSystemId)
+                val publishedId = publish(client, designSystemId)
 
                 verifyWebAdapter(client, designSystemId)
                 verifyWebAdapterAccess(client, designSystemId)
                 verifyExportOffsets(client, designSystemId)
+                verifySelectedBoundary(client, designSystemId, publishedId)
             }
         }
     }
@@ -150,7 +151,7 @@ class WebGenerationPostgresIntegrationTest {
         return id
     }
 
-    private suspend fun publish(client: HttpClient, id: String) {
+    private suspend fun publish(client: HttpClient, id: String): String {
         val changed = client.patch("/api/ds/design-systems/$id") {
             trusted("project-a", "owner")
             header("X-DS-Base-Revision", "0")
@@ -169,6 +170,50 @@ class WebGenerationPostgresIntegrationTest {
             )
         }
         assertEquals(HttpStatusCode.Created, version.status, version.bodyAsText())
+        return json.parseToJsonElement(version.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+    }
+
+    private suspend fun verifySelectedBoundary(client: HttpClient, system: String, version: String) {
+        val adjustments = client.get("/api/ds/invariant-platform-param-adjustments") {
+            trusted("project-a", "viewer")
+        }
+        assertEquals(HttpStatusCode.OK, adjustments.status, adjustments.bodyAsText())
+        val id = json.parseToJsonElement(adjustments.bodyAsText()).jsonArray.single {
+            it.jsonObject["template"]?.jsonPrimitive?.content == "0 $1"
+        }.jsonObject.getValue("id").jsonPrimitive.content
+        val changed = client.patch("/api/ds/invariant-platform-param-adjustments/$id") {
+            trusted("project-a", "owner")
+            jsonBody("""{"template":"99 $1"}""")
+        }
+        assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
+
+        fun template(body: String): String = json.parseToJsonElement(body).jsonArray.single {
+            it.jsonObject.getValue("name").jsonPrimitive.content == "Tabs"
+        }.jsonObject.getValue("styles").jsonObject.getValue("default").jsonObject
+            .getValue("templates").jsonObject.getValue("shape").jsonObject
+            .getValue("tabsRadius").jsonPrimitive.content
+        assertEquals("99 $1", template(client.webAdapter("project-a", "viewer", system).bodyAsText()))
+        val historical = client.post("$WEB_ADAPTER_PATH?versionId=$version") {
+            trusted("project-a", "viewer")
+            jsonBody("""{"designSystemId":"$system"}""")
+        }
+        assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
+        assertEquals("0 $1", template(historical.bodyAsText()))
+        listOf(null to "draft", version to "1.0.0").forEach { (boundary, expected) ->
+            val suffix = boundary?.let { "?versionId=$it" }.orEmpty()
+            val exported = client.post("/api/ds/component-config/export$suffix") {
+                trusted("project-a", "viewer")
+                jsonBody("""{"designSystemId":"$system","platform":"web"}""")
+            }
+            assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
+            val metadata = json.parseToJsonElement(exported.bodyAsText()).jsonObject.getValue("meta").jsonObject
+            assertEquals(expected, metadata.getValue("version").jsonPrimitive.content)
+        }
+        val inaccessible = client.post("$WEB_ADAPTER_PATH?versionId=$version") {
+            trusted("project-b", "viewer")
+            jsonBody("""{"designSystemId":"$system"}""")
+        }
+        assertEquals(HttpStatusCode.NotFound, inaccessible.status)
     }
 
     /**
@@ -224,6 +269,13 @@ class WebGenerationPostgresIntegrationTest {
             val tabItem = component("TabItem", "")
             val iconTabItem = component("IconTabItem", null)
             val orphan = component("Orphan", null)
+            listOf(tabs, tabItem, iconTabItem, orphan).forEach { componentId ->
+                insert(
+                    "INSERT INTO design_system_components (design_system_id, component_id) VALUES (?, ?)",
+                    ds,
+                    componentId,
+                )
+            }
             val tabsAppearance = appearance(tabs)
             appearance(tabItem)
             appearance(iconTabItem)

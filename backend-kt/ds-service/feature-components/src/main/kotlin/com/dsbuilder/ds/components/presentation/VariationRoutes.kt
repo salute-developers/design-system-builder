@@ -13,6 +13,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -127,7 +128,13 @@ fun Route.variationRoutes(
                 request.description?.trim(),
                 "description" in payload,
             )
-            when (val result = update.execute(context, id, command)) {
+            val mutation = call.repeatableMutation(
+                context,
+                payload,
+                json = json,
+                response = ComponentVariationSummaryResponse::from,
+            )
+            when (val result = update.execute(mutation, id, command)) {
                 is DsResult.Success -> call.respondSuccess(result, ComponentVariationSummaryResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

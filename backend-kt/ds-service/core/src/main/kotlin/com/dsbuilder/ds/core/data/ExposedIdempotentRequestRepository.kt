@@ -24,7 +24,7 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
             "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
             listOf(TextColumnType() to lockKey),
         )
-        val sql = "SELECT operation, request_hash, response_status, response_body " +
+        val sql = "SELECT operation, request_hash, response_status, response_body, response_mutation_metadata " +
             "FROM idempotent_requests WHERE project_id = ? AND idempotency_key = ?"
         return TransactionManager.current().exec(
             sql,
@@ -35,7 +35,12 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
                 IdempotentRequestLookup.PayloadMismatch
             } else {
                 IdempotentRequestLookup.Replayed(
-                    IdempotentResponse(rows.getInt("response_status"), rows.getString("response_body")),
+                    IdempotentResponse(
+                        rows.getInt("response_status"),
+                        rows.getString("response_body"),
+                        rows.getString("response_mutation_metadata")?.takeIf(String::isNotEmpty),
+                        rows.getString("response_mutation_metadata") != null,
+                    ),
                 )
             }
         } ?: IdempotentRequestLookup.New
@@ -53,8 +58,9 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
         TransactionManager.current().exec(
             """
                 INSERT INTO idempotent_requests(
-                    project_id, idempotency_key, actor_id, operation, request_hash, response_status, response_body
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    project_id, idempotency_key, actor_id, operation, request_hash, response_status, response_body,
+                    response_mutation_metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, NULLIF(current_setting('ds.mutation_metadata', true), ''), ''))
             """.trimIndent(),
             listOf(
                 TextColumnType() to projectId.value,
@@ -64,6 +70,7 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
                 TextColumnType() to requestHash,
                 IntegerColumnType() to response.status,
                 TextColumnType() to response.body,
+                TextColumnType() to response.mutationMetadata,
             ),
         )
     }

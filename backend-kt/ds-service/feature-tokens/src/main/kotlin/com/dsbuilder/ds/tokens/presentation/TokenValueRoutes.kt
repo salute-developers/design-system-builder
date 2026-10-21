@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.tokens.application.CreateTokenValue
@@ -109,7 +110,8 @@ fun Route.tokenValueRoutes(
             }.getOrNull() ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand(payload)
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = update.execute(context, id, command)) {
+            val mutation = call.repeatableMutation(context, payload, json = json, response = TokenValueResponse::from)
+            when (val result = update.execute(mutation, id, command)) {
                 is DsResult.Success -> call.respondSuccess(result, TokenValueResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
@@ -123,7 +125,8 @@ fun Route.tokenValueRoutes(
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.tokenValueUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
                 is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

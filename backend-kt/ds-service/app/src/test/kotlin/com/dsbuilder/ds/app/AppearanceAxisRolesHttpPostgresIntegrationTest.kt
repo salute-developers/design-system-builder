@@ -74,6 +74,7 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         val ds = designSystem()
         val body = config(root = "shape", scheme = "view", "shape", "size", "view")
         importConfig(ds, "default", body)
+        val initialState = componentImportState(includeRevisions = true)
         val again = importConfig(ds, "default", body)
         assertEquals(HttpStatusCode.OK, again.status, again.bodyAsText())
         assertEquals(
@@ -81,6 +82,49 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
             json.parseToJsonElement(again.bodyAsText()).jsonObject.getValue("unchanged").jsonPrimitive.content,
         )
         assertEquals("shape", exported(ds, "default").string("rootVariationId"))
+        assertEquals(initialState, componentImportState(includeRevisions = true))
+    }
+
+    @Test
+    fun `changing axis order preserves the identities of all imported children`() = withService {
+        val ds = designSystem()
+        val first = importConfig(ds, "default", config(root = "shape", scheme = "view", "shape", "size", "view"))
+        assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+        val identities = componentImportState(includeRevisions = false)
+        val changed = importConfig(ds, "default", config(root = "shape", scheme = "view", "size", "shape", "view"))
+        assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
+        assertEquals("1", json.parseToJsonElement(changed.bodyAsText()).jsonObject["updated"]?.jsonPrimitive?.content)
+        assertEquals(identities, componentImportState(includeRevisions = false))
+        val after = componentImportState(includeRevisions = true)
+        val repeated = importConfig(ds, "default", config(root = "shape", scheme = "view", "size", "shape", "view"))
+        assertEquals(HttpStatusCode.OK, repeated.status, repeated.bodyAsText())
+        assertEquals(after, componentImportState(includeRevisions = true))
+    }
+
+    private fun componentImportState(includeRevisions: Boolean): List<String> {
+        val tables = listOf(
+            "appearances", "appearance_variations", "appearance_variation_values", "styles",
+            "appearance_combinations", "appearance_combination_members", "invariant_property_values",
+            "variation_property_values", "style_combinations", "style_combination_members",
+            "component_style_references", "component_style_reference_styles",
+        ) + if (includeRevisions) {
+            listOf(
+                "appearance_revisions", "appearance_variation_revisions", "appearance_variation_value_revisions",
+                "style_revisions", "appearance_combination_revisions", "appearance_combination_member_revisions",
+                "invariant_property_value_revisions", "variation_property_value_revisions",
+                "style_combination_revisions", "style_combination_member_revisions",
+                "component_style_reference_revisions", "component_style_reference_style_revisions",
+                "entity_edit_states", "entity_edit_paths", "draft_transaction_markers",
+            )
+        } else {
+            emptyList()
+        }
+        return tables.map { table ->
+            query(
+                "SELECT COALESCE(string_agg(to_jsonb(row)::text, ';' ORDER BY to_jsonb(row)::text), '') " +
+                    "FROM $table row",
+            )
+        }
     }
 
     @Test

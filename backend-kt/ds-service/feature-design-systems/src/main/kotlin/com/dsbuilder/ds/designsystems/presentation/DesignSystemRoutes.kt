@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystem
@@ -115,7 +116,8 @@ fun Route.designSystemRoutes(
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand("description" in payload)
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = update.execute(context, DesignSystemId(id), command)) {
+            val mutation = call.repeatableMutation(context, payload, json = json, response = DesignSystemResponse::from)
+            when (val result = update.execute(mutation, DesignSystemId(id), command)) {
                 is DsResult.Success -> call.respondSuccess(result, DesignSystemResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
@@ -129,7 +131,8 @@ fun Route.designSystemRoutes(
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, DesignSystemId(id))) {
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, DesignSystemId(id))) {
                 is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

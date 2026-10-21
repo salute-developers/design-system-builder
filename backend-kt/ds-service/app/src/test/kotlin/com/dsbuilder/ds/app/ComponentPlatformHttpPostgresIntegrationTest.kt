@@ -321,6 +321,177 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         )
     }
 
+    @Test
+    fun `import preserves values references states and platform parameters`() = withService {
+        val ds = id(
+            post(
+                "/api/ds/design-systems",
+                """{"name":"identity","projectName":"identity"}""",
+                owner = true,
+            ).bodyAsText(),
+        )
+        val button = id(
+            post(
+                "/api/ds/components",
+                """{"name":"Button","platform":"compose"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post("/api/ds/components", """{"name":"Icon","platform":"compose"}""", admin = true)
+        val gap = id(
+            post(
+                "/api/ds/properties",
+                """{"componentId":"$button","name":"gap","type":"value"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        post(
+            "/api/ds/properties",
+            """{"componentId":"$button","name":"content","type":"component_style"}""",
+            admin = true,
+        )
+        val alias = id(
+            post(
+                "/api/ds/property-platform-params",
+                """{"propertyId":"$gap","platform":"compose","name":"gapAlias"}""",
+                admin = true,
+            ).bodyAsText(),
+        )
+        fun entry(values: String, reversed: Boolean): String {
+            val hover = """{"state":["hovered"],"value":3}"""
+            val pressed = """{"state":["pressed"],"value":4}"""
+            val states = if (reversed) "$pressed,$hover" else "$hover,$pressed"
+            val property = """{"type":"value","value":$values,"states":[$states]}"""
+            return """{"componentName":"button","styleName":"default","config":{"invariants":{
+                "gap":$property,"content":{"type":"component_style","value":"icon.small"}},
+                "variations":[{"id":"size","name":"size","values":[{"name":"l","properties":{"gap":$property}}]},
+                {"id":"view","name":"view","values":[{"name":"default","targets":[{"properties":[
+                {"id":"size","value":"l"}]}],"properties":{"gap":$property}}]}]}}""".replace("\n", "")
+        }
+        val icon = """{"componentName":"icon","styleName":"icon","config":{"variations":[
+            {"id":"size","name":"size","values":[{"name":"small"}]}]}}""".replace("\n", "")
+        fun body(vararg entries: String) = """{"designSystemId":"$ds","platform":"compose","dryRun":false,
+            "meta":{"name":"fixture","source":"test"},"components":[${entries.joinToString(",")}] }"""
+        suspend fun load(value: String) = post("/api/ds/component-config/import", value, editor = true).also {
+            assertEquals(HttpStatusCode.OK, it.status, it.bodyAsText())
+        }
+        val initial = body(entry("[1,2]", false), icon)
+        val report = load(initial)
+        assertEquals("2", field(report.bodyAsText(), "created"), report.bodyAsText())
+        assertEquals(
+            "[]",
+            json.parseToJsonElement(report.bodyAsText()).jsonObject["unresolvedComponentStyles"].toString(),
+        )
+        val values = get("/api/ds/invariant-property-values")
+        val stateValue = requireNotNull(
+            json.parseToJsonElement(values.bodyAsText()).jsonArray.firstOrNull {
+                it.jsonObject["value"]?.jsonPrimitive?.content == "3"
+            },
+        ) { values.bodyAsText() + " report=" + report.bodyAsText() }.jsonObject.getValue("id").jsonPrimitive.content
+        val adjustment = post(
+            "/api/ds/invariant-platform-param-adjustments",
+            """{"ipvId":"$stateValue","platformParamId":"$alias","template":"a ${'$'}1"}""",
+            editor = true,
+        )
+        assertEquals(HttpStatusCode.Created, adjustment.status, adjustment.bodyAsText())
+        val draft = json.parseToJsonElement(get("/api/ds/design-systems/$ds").bodyAsText()).jsonObject
+        val published = post(
+            "/api/ds/design-system-versions",
+            """{"designSystemId":"$ds","draftId":${draft.getValue("draftId")},""" +
+                """"draftRevision":${draft.getValue("draftRevision")},"version":"1.0.0"}""",
+            owner = true,
+            idempotencyKey = "identity-publication",
+        )
+        assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
+        val versionId = id(published.bodyAsText())
+        val before = importedState(includeRevisions = true)
+        load(initial)
+        assertEquals(before, importedState(includeRevisions = true))
+        val identities = importedState(includeRevisions = false)
+        val changed = body(entry("[2,3]", true), icon)
+        load(changed)
+        assertEquals(identities, importedState(includeRevisions = false))
+        val adjustmentPath = "/api/ds/invariant-platform-param-adjustments/${id(adjustment.bodyAsText())}"
+        assertEquals(HttpStatusCode.OK, get(adjustmentPath).status)
+        val valuePath = "/api/ds/invariant-property-values/$stateValue"
+        assertEquals("1", field(get("$valuePath?versionId=$versionId").bodyAsText(), "position"))
+        assertEquals("2", field(get(valuePath).bodyAsText(), "position"))
+        val after = importedState(includeRevisions = true)
+        load(changed)
+        assertEquals(after, importedState(includeRevisions = true))
+        execute(
+            """
+            CREATE FUNCTION fail_identity_import() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+            BEGIN
+                IF NEW.value::jsonb = '[9,9]'::jsonb THEN RAISE EXCEPTION 'injected_import_failure'; END IF;
+                RETURN NEW;
+            END; ${'$'}${'$'};
+            CREATE TRIGGER fail_identity_import BEFORE INSERT ON variation_property_value_revisions
+            FOR EACH ROW EXECUTE FUNCTION fail_identity_import();
+            """.trimIndent(),
+        )
+        val failed = post("/api/ds/component-config/import", body(entry("[9,9]", false), icon), editor = true)
+        assertTrue(failed.status.value >= 400, failed.bodyAsText())
+        assertEquals(after, importedState(includeRevisions = true))
+        execute("DROP TRIGGER fail_identity_import ON variation_property_value_revisions")
+        execute("DROP FUNCTION fail_identity_import()")
+        val empty = """{"componentName":"button","styleName":"default","config":{}}"""
+        load(body(entry("[2,3]", true), empty, icon))
+        assertEquals("[]", get("/api/ds/invariant-property-values").bodyAsText())
+        assertEquals(
+            "0",
+            query(
+                "SELECT count(*) FROM (SELECT DISTINCT ON (component_style_reference_id) deleted " +
+                    "FROM component_style_reference_revisions " +
+                    "ORDER BY component_style_reference_id, version_sequence_number DESC) latest WHERE NOT deleted",
+            ),
+        )
+        assertEquals(HttpStatusCode.OK, get("$valuePath?versionId=$versionId").status)
+        assertEquals(HttpStatusCode.OK, get("$adjustmentPath?versionId=$versionId").status)
+    }
+
+    private fun importedState(includeRevisions: Boolean): List<String> {
+        val stable = listOf(
+            "appearances",
+            "appearance_variations",
+            "appearance_variation_values",
+            "styles",
+            "appearance_combinations",
+            "appearance_combination_members",
+            "invariant_property_values",
+            "variation_property_values",
+            "style_combinations",
+            "style_combination_members",
+            "component_style_references",
+            "component_style_reference_styles",
+            "invariant_platform_param_adjustments",
+        )
+        val revisions = listOf(
+            "appearance_revisions",
+            "appearance_variation_revisions",
+            "appearance_variation_value_revisions",
+            "style_revisions",
+            "appearance_combination_revisions",
+            "appearance_combination_member_revisions",
+            "invariant_property_value_revisions",
+            "variation_property_value_revisions",
+            "style_combination_revisions",
+            "style_combination_member_revisions",
+            "component_style_reference_revisions",
+            "component_style_reference_style_revisions",
+            "invariant_platform_param_adjustment_revisions",
+            "entity_edit_states",
+            "entity_edit_paths",
+            "draft_transaction_markers",
+        )
+        return (stable + if (includeRevisions) revisions else emptyList()).map { table ->
+            query(
+                "SELECT COALESCE(string_agg(to_jsonb(row)::text, ';' ORDER BY to_jsonb(row)::text), '') " +
+                    "FROM $table row",
+            )
+        }
+    }
+
     private suspend fun io.ktor.client.statement.HttpResponse.entries(): Int =
         json.parseToJsonElement(bodyAsText()).jsonObject.getValue("components").jsonArray.size
 

@@ -107,6 +107,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('DesignSystemChangesPage', () => {
+    it('при отказе журнала после неизвестного результата блокирует отмену и повторяет только чтения', async () => {
+        operations.revertChange.mockRejectedValueOnce(new Error('response lost after commit'));
+        operations.listChanges.mockResolvedValueOnce([change]).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]);
+        renderPage('changes');
+        fireEvent.click(await screen.findByRole('button', { name: /^Отменить изменение:/ }));
+        const retry = await screen.findByRole('button', { name: 'Повторить загрузку данных' });
+        expect(screen.getByRole('button', { name: /^Отменить изменение:/ })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Перейти к источнику' })).toBeDisabled();
+        fireEvent.click(retry);
+        await screen.findByText(/Неопубликованных изменений нет/);
+        expect(operations.revertChange).toHaveBeenCalledTimes(1);
+        expect(operations.listChanges).toHaveBeenCalledTimes(3);
+        expect(operations.refreshChanges).toHaveBeenCalledTimes(2);
+    });
+
     it('ждёт обновления предметных данных после отмены, не разрешая переход к старому источнику', async () => {
         let finish!: () => void;
         operations.refreshChanges.mockReturnValue(

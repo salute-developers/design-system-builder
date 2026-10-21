@@ -13,7 +13,7 @@ import java.util.UUID
 
 /** Глобальный слой компонентов для интеграционных тестов: компоненты, свойства и параметры платформ из сида. */
 internal object ComponentSeedFixture {
-    /** Глобальные компоненты web и их свойства из сида: без них тема не получает компоненты дизайн-системы. */
+    /** Глобальные компоненты web и их свойства: каталог должен быть загружен до создания ДС. */
     fun seed(postgres: PostgreSQLContainer<Nothing>): Map<String, UUID> =
         seed(postgres.jdbcUrl, postgres.username, postgres.password)
 

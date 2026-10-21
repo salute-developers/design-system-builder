@@ -6,4 +6,8 @@ data class IdempotentResponse(
     val status: Int,
     /** Сериализованное тело исходного ответа. */
     val body: String,
+    /** Полные технические метаданные до ограничения транспортного заголовка. */
+    val mutationMetadata: String? = null,
+    /** Прежний результат до миграции требует сверки вместо выдумывания исходных редакций. */
+    val mutationMetadataCaptured: Boolean = true,
 )

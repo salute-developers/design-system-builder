@@ -13,6 +13,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -129,7 +130,13 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
                 request.template?.trim(),
                 "template" in payload,
             )
-            when (val result = update.execute(context, id, command)) {
+            val mutation = call.repeatableMutation(
+                context,
+                payload,
+                json = json,
+                response = InvariantPlatformParamAdjustmentResponse::from,
+            )
+            when (val result = update.execute(mutation, id, command)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     InvariantPlatformParamAdjustmentResponse.from(result.value),
@@ -146,7 +153,8 @@ fun Route.invariantPlatformParamAdjustmentRoutes(
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"].toUuidOrNull()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
                 is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

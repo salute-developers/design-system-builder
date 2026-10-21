@@ -16,8 +16,8 @@ import java.util.UUID
 /** Заполняет новую дизайн-систему компонентными конфигурациями из ресурса ds-service. */
 class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializer {
     override suspend fun initialize(designSystemId: UUID) {
-        if (DesignSystemComponentsTable.selectAll().where {
-                DesignSystemComponentsTable.designSystemId eq designSystemId
+        if (StableDesignSystemComponentsTable.selectAll().where {
+                StableDesignSystemComponentsTable.designSystemId eq designSystemId
             }.limit(1).any()
         ) {
             return
@@ -47,9 +47,7 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
                 PropertyKey(componentId, row[PropertiesTable.name]) to row[PropertiesTable.id]
             }
         }.toMap()
-        val tokens = ComponentTokensTable.selectAll().where {
-            ComponentTokensTable.designSystemId eq designSystemId
-        }.associate { it[ComponentTokensTable.name] to it[ComponentTokensTable.id] }
+        val tokens = componentSeedTokens(designSystemId)
         val states = ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }
             .associate { it[ComponentStatesTable.name] to it[ComponentStatesTable.id] }
         val params = PropertyPlatformParamsTable.selectAll().associate { row ->

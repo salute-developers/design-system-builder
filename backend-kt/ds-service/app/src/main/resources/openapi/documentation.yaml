@@ -30,6 +30,10 @@ paths:
       tags:
         - Design Systems
       summary: Create design system
+      description: >-
+        Creates initial tokens and component configurations in the baseline before opening the first draft.
+        Component configurations require the system administrator to have imported the complete global API metadata.
+        Creating a theme later does not initialize missing component configurations; use the normal configuration import.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -6805,9 +6809,8 @@ paths:
         Зеркало /import: тот же путь, POST, адресация телом. Существующий
         GET /ds/component-config отдаёт один конфиг за запрос и адресует дизайн-систему именем.
 
-        meta.version берётся из последней опубликованной версии. Дизайн-система без версий
-        отклоняется статусом 422: поле обязательно в модели плагина, и заглушка уехала бы
-        в собранную тему.
+        meta.version соответствует выбранной предметной границе: номер опубликованной версии
+        при versionId, иначе draft для активного черновика. Архивные снимки не используются.
 
         Тип значения не хранится, а выводится по каждой строке отдельно: gradient, если токен
         значения градиентный, иначе тип свойства. properties.type описывает слот API компонента,
@@ -6856,7 +6859,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Нет опубликованной версии или имя компонента не восстанавливается обратно
+          description: Имя компонента не восстанавливается обратно
           content:
             application/json:
               schema:
@@ -6877,6 +6880,8 @@ paths:
         Временная ручка для локальной web-генерации: CLI сохраняет ответ как есть в
         .sdds/web/web-adapter.json. В ответ /export эти данные не входят: формат конфигураций
         общий для платформ.
+
+        versionId выбирает ту же опубликованную границу, что /export; без него читается черновик.
 
         Требует scope components:read, если запрос пришёл с ключом проекта.
       requestBody:
@@ -10231,7 +10236,7 @@ components:
       name: Idempotency-Key
       in: header
       required: false
-      description: Точный повтор POST-команды возвращает прежний ответ; другой запрос с тем же ключом даёт 409 IDEMPOTENCY_KEY_REUSED. Без ключа запрос выполняется как новая команда. При preview=true ключ не сохраняется. PUT/PATCH/DELETE не сохраняют результат запроса.
+      description: Точный повтор мутации POST/PUT/PATCH/DELETE возвращает прежние статус, тело и технические метаданные; другой запрос с тем же ключом даёт 409 IDEMPOTENCY_KEY_REUSED. Без ключа запрос выполняется как новая команда. GET/HEAD/OPTIONS и preview=true не сохраняют результат запроса. Прежний результат без сохранённых метаданных требует сверки через X-DS-Mutation-Metadata-Truncated.
       schema:
         type: string
         minLength: 1

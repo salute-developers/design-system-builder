@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
+import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import com.dsbuilder.ds.themes.application.CreateTenant
@@ -16,6 +17,7 @@ import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValues
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
+import com.dsbuilder.ds.themes.application.TenantTokenValuesSaveOutcome
 import com.dsbuilder.ds.themes.application.UpdateTenant
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
 import com.dsbuilder.ds.themes.domain.ColorConfiguration
@@ -104,7 +106,11 @@ fun Route.tenantRoutes(
                 ?: return@put call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val command = request.toCommand()
                 ?: return@put call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = saveTokenValues.execute(context, id, command)) {
+            val mutation = call.repeatableMutation(context, request, json = json) {
+                    value: TenantTokenValuesSaveOutcome.Saved ->
+                TenantTokenValuesSaveResponse(value.editRevision, value.values.map(TenantTokenValueResponse::from))
+            }
+            when (val result = saveTokenValues.execute(mutation, id, command)) {
                 is DsResult.Success -> call.respondSuccess(
                     result,
                     TenantTokenValuesSaveResponse(
@@ -173,7 +179,8 @@ fun Route.tenantRoutes(
                 request.colorConfig?.toDomain(),
                 "colorConfig" in payload,
             )
-            when (val result = update.execute(context, id, command)) {
+            val mutation = call.repeatableMutation(context, payload, json = json, response = TenantResponse::from)
+            when (val result = update.execute(mutation, id, command)) {
                 is DsResult.Success -> call.respondSuccess(result, TenantResponse.from(result.value))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
@@ -187,7 +194,8 @@ fun Route.tenantRoutes(
                 ?: return@delete call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@delete call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = delete.execute(context, id)) {
+            val mutation = call.repeatableMutation(context, null, json = json) { _: Unit -> OkResponse() }
+            when (val result = delete.execute(mutation, id)) {
                 is DsResult.Success -> call.respondSuccess(result, OkResponse())
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

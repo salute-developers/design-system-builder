@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 
 import type { DesignSystem } from '../../controllers';
@@ -6,6 +6,7 @@ import type { DesignSystemVersionDto, DraftChangeDto, EditorContextKey } from '.
 import { versionJournalRepository as repository } from '../../api/versionJournalRepository';
 import { nextPatchVersion } from '../../api/versionNumbers';
 import { useVersionList } from '../../features/versionJournal/useVersionList';
+import { useJournalRevert } from '../../features/versionJournal/useJournalRevert';
 import { VirtualJournalRows } from '../../features/versionJournal/VirtualJournalRows';
 import type { AutosaveStatus } from '../../api/tokenAutosaveQueue';
 import { hasPersistedComponentMutation, waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
@@ -200,72 +201,6 @@ const ChangePreview = ({ action }: { action: JournalActionViewModel }) => {
 
 const nextVersion = (versions: DesignSystemVersionDto[]) => nextPatchVersion(versions.map(({ version }) => version));
 
-const useJournalRevert = (
-    context: EditorContextKey | undefined,
-    onReload: () => Promise<void>,
-    refreshChanges?: (changes: DraftChangeDto[]) => Promise<void>,
-) => {
-    const [operationError, setOperationError] = useState<string>();
-    const [reverting, setReverting] = useState<string>();
-    const [refreshFailed, setRefreshFailed] = useState(false);
-    const pendingRefresh = useRef<JournalActionViewModel>();
-    const running = useRef(false);
-    const refresh = async (action: JournalActionViewModel) => {
-        if (context) await waitForDraftAutosaveIdle(context, 10_000);
-        await Promise.all([refreshChanges?.(action.changes), onReload()]);
-        setRefreshFailed(false);
-    };
-    const revert = async (action: JournalActionViewModel) => {
-        if (!action.canRevert || running.current || refreshFailed) return;
-        running.current = true;
-        setReverting(action.key);
-        setOperationError(undefined);
-        let committed = false;
-        try {
-            if (!context) throw new Error('Контекст журнала недоступен');
-            for (const change of action.changes) {
-                if (action.revertPaths) await repository.revertChange(context, change, action.revertPaths);
-                else await repository.revertChange(context, change);
-            }
-            committed = true;
-            pendingRefresh.current = action;
-            await refresh(action);
-        } catch (cause) {
-            const code = errorCode(cause);
-            setRefreshFailed(committed);
-            setOperationError(
-                committed
-                    ? 'Изменение отменено, но данные редактора не обновлены. Повторите загрузку данных.'
-                    : code === 'DRAFT_CHANGE_STALE'
-                      ? 'Черновик уже изменился. Журнал обновлён; выберите изменение ещё раз.'
-                      : code === 'REVERT_DEPENDENCY_CONFLICT'
-                        ? 'Изменение нельзя отменить из-за зависимых изменений. Журнал обновлён.'
-                        : 'Не удалось полностью отменить изменение. Журнал обновлён.',
-            );
-            await onReload();
-        } finally {
-            running.current = false;
-            setReverting(undefined);
-        }
-    };
-    const retryRefresh = async () => {
-        const action = pendingRefresh.current;
-        if (!action || running.current) return;
-        running.current = true;
-        setReverting(action.key);
-        try {
-            await refresh(action);
-            setOperationError(undefined);
-        } catch {
-            setOperationError('Не удалось обновить данные редактора. Повторите загрузку данных.');
-        } finally {
-            running.current = false;
-            setReverting(undefined);
-        }
-    };
-    return { revert, reverting, operationError, refreshFailed, retryRefresh };
-};
-
 const JournalDetails = ({
     action,
     context,
@@ -408,7 +343,7 @@ export const DesignSystemChangesPage = () => {
     const journal = editorJournal ?? ownJournal;
     const [filter, setFilter] = useState<JournalSource | 'all'>('all');
     const filtered = filter === 'all' ? journal.actions : journal.actions.filter(({ source }) => source === filter);
-    const revertState = useJournalRevert(editorContext, journal.reload, refreshChanges);
+    const revertState = useJournalRevert(editorContext, journal.reloadChecked, refreshChanges);
     const [selectedKey, setSelectedKey] = useState<string>();
     const selected = filtered.find(({ key }) => key === selectedKey) ?? filtered[0];
     useEffect(() => {
@@ -571,7 +506,7 @@ export const DesignSystemChangesPage = () => {
             <JournalDetails
                 action={selected}
                 context={editorContext}
-                onReload={journal.reload}
+                onReload={journal.reloadChecked}
                 revertState={revertState}
             />
         </Page>
@@ -904,7 +839,7 @@ export const DesignSystemVersionsPage = () => {
                 <JournalDetails
                     action={selectedHistoryAction}
                     context={historicalContext}
-                    onReload={journal.reload}
+                    onReload={journal.reloadChecked}
                     allowSourceNavigation={false}
                     onClose={() => setSelectedHistoryActionKey(undefined)}
                 />

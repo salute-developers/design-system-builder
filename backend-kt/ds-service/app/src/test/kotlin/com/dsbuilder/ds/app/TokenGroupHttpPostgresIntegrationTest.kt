@@ -40,13 +40,12 @@ class TokenGroupHttpPostgresIntegrationTest {
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
+                ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
                     "/api/ds/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
-                // Схема создаётся при старте приложения; компоненты дизайн-системы сидятся при создании первой темы.
-                ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val tenantA = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "a"))
                 val tenantB = api.create("/api/ds/tenants", EDITOR, tenantBody(designSystemId, "b"))
                 val db = Db(postgres)

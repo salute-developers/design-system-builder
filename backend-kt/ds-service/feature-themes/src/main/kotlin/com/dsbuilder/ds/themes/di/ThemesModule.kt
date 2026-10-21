@@ -67,11 +67,16 @@ val themesModule = module {
     factory { GetTenantUseCase(get(), get(), get()) }
     factory {
         CreateTenantUseCase(
-            get(), get(), get(), get(), get(), get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
             IdempotentCreateExecutor(
                 get(),
             ),
-            get(), get(),
+            get(),
+            get(),
         )
     }
     factory { UpdateTenantUseCase(get(), get(), get(), get()) }

@@ -153,6 +153,7 @@ import com.dsbuilder.ds.core.data.PostgresUniqueKeyLockRepository
 import com.dsbuilder.ds.core.presentation.ErrorResponse
 import com.dsbuilder.ds.core.presentation.installLegacyValidationError
 import com.dsbuilder.ds.core.presentation.markDsFailureOutcome
+import com.dsbuilder.ds.core.presentation.respondIdempotentReplay
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemUseCase
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystemVersionUseCase
 import com.dsbuilder.ds.designsystems.application.DeleteDesignSystemUseCase
@@ -339,11 +340,7 @@ private fun Application.installHttpPlugins(json: Json, metrics: DsMetrics) {
     }
     install(StatusPages) {
         exception<IdempotentReplayException> { call, cause ->
-            call.respondText(
-                text = cause.response.body,
-                contentType = ContentType.Application.Json,
-                status = HttpStatusCode.fromValue(cause.response.status),
-            )
+            call.respondIdempotentReplay(cause.response)
         }
         exception<BadRequestException> { call, cause ->
             call.markDsFailureOutcome("invalid_request")

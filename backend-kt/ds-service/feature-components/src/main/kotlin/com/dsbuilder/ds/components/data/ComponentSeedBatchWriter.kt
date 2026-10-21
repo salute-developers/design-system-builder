@@ -2,14 +2,29 @@ package com.dsbuilder.ds.components.data
 
 import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.time.Instant
 import java.util.UUID
 
-/** Пакетно записывает только новые конфигурации внутри транзакции создания первой темы. */
+/** Пакетно записывает исходные конфигурации при создании ДС до открытия первого черновика. */
 internal class ComponentSeedBatchWriter(private val designSystemId: UUID) {
-    private val draft = componentDraft(designSystemId)
+    private val baseline = ComponentVersionBoundariesTable.selectAll().where {
+        (ComponentVersionBoundariesTable.designSystemId eq designSystemId) and
+            (ComponentVersionBoundariesTable.status eq ComponentVersionBoundaryStatus.BASELINE)
+    }.single()
+
+    init {
+        check(
+            !ComponentVersionBoundariesTable.selectAll().where {
+                (ComponentVersionBoundariesTable.designSystemId eq designSystemId) and
+                    (ComponentVersionBoundariesTable.status eq ComponentVersionBoundaryStatus.DRAFT)
+            }.limit(1).any(),
+        ) { "Component initialization must precede the first draft" }
+    }
     private val stableRows = linkedMapOf<Table, MutableList<BatchInsertStatement.() -> Unit>>()
     private val revisionRows = linkedMapOf<Table, MutableList<BatchInsertStatement.() -> Unit>>()
 
@@ -38,8 +53,8 @@ internal class ComponentSeedBatchWriter(private val designSystemId: UUID) {
             this[table.id] = UUID.randomUUID()
             this[entityColumn] = entityId
             this[table.designSystemId] = designSystemId
-            this[table.designSystemVersionId] = draft[ComponentVersionBoundariesTable.id]
-            this[table.versionSequenceNumber] = draft[ComponentVersionBoundariesTable.sequenceNumber]
+            this[table.designSystemVersionId] = baseline[ComponentVersionBoundariesTable.id]
+            this[table.versionSequenceNumber] = baseline[ComponentVersionBoundariesTable.sequenceNumber]
             this[table.deleted] = false
             this[table.updatedAt] = Instant.now()
             table.body(this)
