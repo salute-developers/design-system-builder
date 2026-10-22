@@ -22,7 +22,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
 import kotlin.test.Test
@@ -39,19 +38,18 @@ class TypographyStyleHttpPostgresIntegrationTest {
 
     @Test
     fun `typography style is read in px and edited per screen and per style`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             testApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val db = Db(postgres)
+                // Компоненты дизайн-системы сидятся при её создании, поэтому каталог загружается раньше.
+                ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                 val designSystemId = api.create(
                     "/api/ds/design-systems",
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
-                // Компоненты дизайн-системы сидятся при создании первой темы.
-                ComponentSeedFixture.seed(postgres)
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
                 val base = "/api/ds/tenants/$tenantA/typography-styles"
@@ -399,7 +397,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
         }
     }
 
-    private class Db(private val postgres: PostgreSQLContainer<Nothing>) {
+    private class Db(private val postgres: IsolatedPostgresDatabase) {
         fun text(sql: String): String = query(sql) { rows -> rows.next().let { rows.getString(1) } }
 
         /** Поле объекта действующего значения токена в теме как текст. */
@@ -502,7 +500,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
 
     private data class Actor(val projectId: String, val role: String)
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,
