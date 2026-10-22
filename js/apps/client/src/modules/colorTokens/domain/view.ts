@@ -1,6 +1,7 @@
 import type { PaletteRampRef } from '../../palette';
-import { colorField, sameValue, type PaletteColorResolver } from './field';
+import { colorField, emptyField, sameValue, type PaletteColorResolver } from './field';
 import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
+import { NATIVE_PLATFORMS, type NativePlatform } from './nativeGradient';
 import { validateColorValue } from './validation';
 import type {
     ColorContext,
@@ -12,7 +13,7 @@ import type {
     TokenPlacement,
 } from './types';
 
-/** Определение темы, из которого строится экран: имя с режимом и web-значение. */
+/** Определение темы, из которого строится экран: имя с режимом и значения платформ. */
 export interface ThemeTokenSource {
     name: string;
     type: ColorTokenType;
@@ -20,6 +21,10 @@ export interface ThemeTokenSource {
     description?: string;
     enabled: boolean;
     web: unknown;
+    ios?: unknown;
+    android?: unknown;
+    /** Свои значения платформ: `true` — значение задано отдельно, а не построено из web. */
+    overridden?: Partial<Record<NativePlatform, boolean>>;
 }
 
 export interface ViewDeps {
@@ -39,14 +44,17 @@ const camelName = (key: ColorTokenKey) =>
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join('');
 
-/** Токены экрана из определений темы: состояния `-hover`, `-active`, `-brightness` в строки не попадают. */
+/**
+ * Токены экрана из определений темы: семейство — группа и имя независимо от типа; состояния `-hover`, `-active`,
+ * `-brightness` в строки не попадают.
+ */
 export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps): ColorTokenView[] => {
     const byName = new Map(tokens.map((token) => [token.name, token]));
     const families = new Map<string, ColorTokenKey>();
     tokens.forEach((token) => {
         const parsed = parseMemberName(token.name);
         if (!parsed || parsed.state) return;
-        const key: ColorTokenKey = { type: token.type, group: parsed.group, name: parsed.name };
+        const key: ColorTokenKey = { group: parsed.group, name: parsed.name };
         const id = tokenId(key);
         if (!families.has(id)) families.set(id, key);
     });
@@ -55,11 +63,19 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         const field = (mode: ColorMode, subgroup: string): ColorFieldValue | null => {
             const name = `${mode}.${key.group}.${subgroup}.${key.name}`;
             const token = byName.get(name);
-            return token ? colorField(token.web, key.type, name, deps.resolve, deps.rampName) : null;
+            if (!token) return null;
+            // Строки своих значений есть только у платформ с признаком `overridden`.
+            const platforms = NATIVE_PLATFORMS.filter((platform) => token.overridden?.[platform]).map((platform) => [
+                platform,
+                colorField(token[platform], name, deps.resolve, deps.rampName, platform),
+            ]);
+            return {
+                ...colorField(token.web, name, deps.resolve, deps.rampName),
+                platforms: Object.fromEntries(platforms),
+            };
         };
-        const empty = (): ColorFieldValue => ({ value: '', resolved: 'transparent', paletteLabel: null, opacity: 1 });
         const modes = Object.fromEntries(
-            COLOR_MODES.map((mode) => [mode, field(mode, 'default') ?? empty()]),
+            COLOR_MODES.map((mode) => [mode, field(mode, 'default') ?? emptyField()]),
         ) as Record<ColorMode, ColorFieldValue>;
         const contexts = Object.fromEntries(
             COLOR_CONTEXTS.map((context) => {
@@ -91,13 +107,14 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
             ),
         ];
         const issues = fields.flatMap(({ name, value }) => {
-            const message = validateColorValue(value, key.type);
+            const message = validateColorValue(value);
             return message ? [{ field: name, message }] : [];
         });
 
         const view: ColorTokenView = {
             key,
             id: tokenId(key),
+            type: source?.type ?? 'color',
             displayName:
                 source?.displayName && source.displayName !== source.name ? source.displayName : camelName(key),
             description: source?.description ?? '',

@@ -108,7 +108,7 @@ const PreviewValue = ({ value, fieldLabel }: { value: JournalValue; fieldLabel?:
     const truncate = typeof value === 'string' && /^\[(?:general|additional)\./.test(value);
     return (
         <ValueChip $truncate={truncate} title={label}>
-            {color && <i aria-hidden="true" style={{ backgroundColor: color }} />}
+            {color && <i aria-hidden="true" style={{ background: color }} />}
             <b>{label}</b>
         </ValueChip>
     );

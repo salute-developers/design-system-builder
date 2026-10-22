@@ -44,8 +44,14 @@ export const parseMemberName = (fullName: string): ParsedMemberName | null => {
     return { mode, group, subgroup, name, state };
 };
 
-/** Ключ строки дерева. */
-export const tokenId = (key: ColorTokenKey) => `${key.type}:${key.group}.${key.name}`;
+/** Ключ строки дерева, очереди автосохранения и выбора: `text.accent`, без типа семейства. */
+export const tokenId = (key: ColorTokenKey) => `${key.group}.${key.name}`;
+
+/** Ключ токена по ключу строки дерева `text.accent`. */
+export const keyOfId = (id: string): ColorTokenKey | null => {
+    const match = /^([^.:]+)\.([^.:]+)$/.exec(id);
+    return match ? { group: match[1], name: match[2] } : null;
+};
 
 /** Имя определения без режима: `text.on-dark.accent-hover`. */
 export const memberName = (key: ColorTokenKey, subgroup: string, state: ColorState | null = null) =>

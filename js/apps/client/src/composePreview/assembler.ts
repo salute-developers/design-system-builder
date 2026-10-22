@@ -455,7 +455,24 @@ const normalizeShadow = (token: PreviewThemeTokenDraft, raw: JsonValue): Preview
 };
 
 const normalizeGradient = (token: PreviewThemeTokenDraft, raw: JsonValue): PreviewThemeValue | AssemblyDiagnostic => {
-    const layers = objectsOf(raw).map((layer) => {
+    // Сплошное значение платформы градиентного семейства хранится строкой: оно разбирается как слой `color`.
+    const solid = Array.isArray(raw) && raw.length === 1 ? raw[0] : raw;
+    const source = typeof solid === 'string' ? [{ kind: 'color', background: solid }] : objectsOf(raw);
+    const layers = source.map((layer) => {
+        if (layer.kind === 'color') {
+            // Сплошной слой протокол превью передаёт линейным градиентом из двух одинаковых стопов.
+            const color = colorFrom(layer.background);
+            return color
+                ? {
+                      kind: 'linear' as const,
+                      angle: 0,
+                      stops: [
+                          { color, position: 0 },
+                          { color, position: 1 },
+                      ],
+                  }
+                : undefined;
+        }
         if (layer.kind !== 'linear') return undefined;
         const colors = Array.isArray(layer.colors) ? layer.colors.map(colorFrom) : [];
         const locations = Array.isArray(layer.locations) ? layer.locations.map(numberFrom) : [];

@@ -41,9 +41,12 @@ export const parseGradientsByLayer = (value: string) => {
     return value.match(regex);
 };
 
+/** Стоп `<цвет> <позиция>%`: позиция из одной и более цифр, с дробной частью или без. */
+const STOP = /^(.*?)\s+(\d+(?:\.\d+)?)%$/;
+
 const getColors = (restParams: string[]) =>
     restParams.reduce((colors: string[], item: string) => {
-        const [, color] = item.match(/(.*) (\d+\.?\d+%)?/) || [];
+        const [, color = item.trim()] = item.trim().match(STOP) || [];
         colors.push(color);
 
         return colors;
@@ -51,8 +54,8 @@ const getColors = (restParams: string[]) =>
 
 const getLocations = (restParams: string[]) =>
     restParams.reduce((locations: number[], item: string) => {
-        const [, , location = '0'] = item.match(/(.*) (\d+\.?\d+%)?/) || [];
-        const locationNumber = Number((Number(location.replace('%', '')) / 100).toFixed(2));
+        const [, , location = '0'] = item.trim().match(STOP) || [];
+        const locationNumber = Number((Number(location) / 100).toFixed(2));
 
         locations.push(locationNumber);
 
@@ -75,6 +78,18 @@ const parseRadialParams = (shapeAndPosition: string) => {
     }
 
     return { centerX, centerY, radius };
+};
+
+/** `from <угол>deg at <x>% <y>%` слоя Conic; без указанного — 0° и центр. */
+const parseConicParams = (fromAndPosition: string) => {
+    const fromMatch = fromAndPosition.match(/from\s+(-?[\d.]+)deg/);
+    const atMatch = fromAndPosition.match(/at\s+([\d.]+)%\s+([\d.]+)%/);
+
+    return {
+        from: fromMatch ? Number(fromMatch[1]) : 0,
+        centerX: atMatch ? Number(atMatch[1]) / 100 : 0.5,
+        centerY: atMatch ? Number(atMatch[2]) / 100 : 0.5,
+    };
 };
 
 export const parseGradient = (gradientArray: string[], platform: 'ios' | 'android') => {
@@ -112,6 +127,23 @@ export const parseGradient = (gradientArray: string[], platform: 'ios' | 'androi
                     : {
                           radius,
                       }),
+            });
+
+            return result;
+        }
+
+        if (type === 'conic-gradient') {
+            const [fromAndPosition, ...restParams] = getGradientParts(gradient);
+            const { from, centerX, centerY } = parseConicParams(fromAndPosition);
+
+            // В слое `angular` Android угла нет: legacy-экраны передают слой без начального угла.
+            result.push({
+                kind: 'angular',
+                locations: getLocations(restParams),
+                colors: getColors(restParams).map(getHEXAColor),
+                ...(platform === 'ios' ? { startAngle: from, endAngle: from + 360 } : {}),
+                centerX,
+                centerY,
             });
 
             return result;

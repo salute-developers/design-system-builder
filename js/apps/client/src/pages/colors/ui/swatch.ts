@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 
+import { webLayers } from '../../../modules/colorTokens';
 import { swatchLabelColor } from '../../../modules/palette';
 
 /** Непрозрачная основа цвета с альфой (`transparentSwatchBase` прототипа) или `null` для непрозрачного. */
@@ -22,12 +23,24 @@ export const alphaSwatchStyle = (value: string, fallback = '#2b3038'): CSSProper
     } as CSSProperties;
 };
 
+const GRADIENT = /gradient\(/i;
+
+/** Слои половины чипа: цвет — однотонный слой, градиент — его слои; каждый занимает свою половину. */
+const halfLayers = (paint: string, side: 'top' | 'bottom') =>
+    (GRADIENT.test(paint) ? webLayers(paint) : [paint || 'transparent'])
+        .map(
+            (layer) =>
+                `${GRADIENT.test(layer) ? layer : `linear-gradient(${layer}, ${layer})`} ${side} / 100% 50% no-repeat`,
+        )
+        .join(', ');
+
 /**
- * Чип строки дерева: верхняя половина — Light, нижняя — Dark (`linkedColorTokenTree`). Градиент нельзя
- * вложить в остановку другого градиента, поэтому для градиентных токенов чип показывает Light.
+ * Чип строки дерева: верхняя половина — Light, нижняя — Dark (`linkedColorTokenTree`). Половина с градиентом
+ * заливается этим градиентом.
  */
 export const rowPreview = (light: string, dark: string) => {
-    if (/gradient\(/i.test(light) || /gradient\(/i.test(dark)) return light || dark;
+    if (GRADIENT.test(light) || GRADIENT.test(dark))
+        return `${halfLayers(light, 'top')}, ${halfLayers(dark, 'bottom')}`;
     return dark && dark !== light ? `linear-gradient(180deg, ${light} 0 50%, ${dark} 50% 100%)` : light;
 };
 

@@ -182,11 +182,34 @@ const collectProperties = (
 };
 
 const asJsonValue = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;
+
+/** Ссылка на ступень палитры `[type.shade.step][o]` раскрывается по палитре темы с учётом группы токена. */
+const resolvePaletteReference = (color: unknown, tokenName: string): unknown =>
+    typeof color === 'string' && color.startsWith('[') ? restorePaletteColor(color, -1, tokenName) || color : color;
+
 const projectThemeValue = (type: string, value: unknown, tokenName: string): JsonValue => {
     if (type === 'color' && typeof value === 'string') {
         return restorePaletteColor(value, -1, tokenName) || value;
     }
-    return asJsonValue(value);
+    if (type !== 'gradient') return asJsonValue(value);
+    // Сплошное значение платформы градиентного семейства (строка или массив из одной строки, не CSS-функция
+    // градиента) становится слоем `color`.
+    const solid = Array.isArray(value) && value.length === 1 ? value[0] : value;
+    if (typeof solid === 'string' && !/gradient\(/.test(solid))
+        return [{ kind: 'color', background: String(resolvePaletteReference(solid, tokenName)) }];
+    if (!Array.isArray(value)) return asJsonValue(value);
+    // Ссылки на палитру в стопах и в фоне слоя раскрываются, как у цветового токена.
+    return asJsonValue(
+        value.map((layer: unknown) => {
+            if (!layer || typeof layer !== 'object' || Array.isArray(layer)) return layer;
+            const next = { ...(layer as Record<string, unknown>) };
+            if (Array.isArray(next.colors)) {
+                next.colors = next.colors.map((color: unknown) => resolvePaletteReference(color, tokenName));
+            }
+            if (next.background !== undefined) next.background = resolvePaletteReference(next.background, tokenName);
+            return next;
+        }),
+    );
 };
 
 export interface CreateComponentPreviewDraftOptions {
