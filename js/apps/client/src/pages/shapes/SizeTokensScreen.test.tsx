@@ -188,7 +188,23 @@ const respond = async (_: SizeTokenContext, command: SizeTokenCommand): Promise<
             command.body as UpdateBody,
         );
         state = { ...state, tokens: state.tokens.map((item) => (item.tokenId === token.tokenId ? token : item)) };
-        const values = themeValuesFromToken(token)!;
+        // Как `ds-service`: в записанных значениях цвет слоя — исходная ссылка на палитру, раскрытый HEX — в `token`.
+        const stored = (layers: ShadowLayer[]) =>
+            layers.map((layer) => ({ ...layer, color: layer.colorRef ?? layer.color }));
+        const values = themeValuesFromToken(
+            token.kind === 'shadow'
+                ? {
+                      ...token,
+                      layers: stored(token.layers),
+                      platforms: Object.fromEntries(
+                          Object.entries(token.platforms).map(([platform, item]) => [
+                              platform,
+                              item && { layers: stored(item.layers) },
+                          ]),
+                      ),
+                  }
+                : token,
+        )!;
         return {
             type: 'update',
             token,
@@ -579,7 +595,7 @@ describe('SizeTokensScreen', () => {
     });
 
     it('выбирает цвет слоя из палитры ссылкой на ступень и заменяет ссылку HEX-цветом', async () => {
-        await renderScreen({ palette: PALETTE });
+        const { values } = await renderScreen({ palette: PALETTE });
         fireEvent.click(row('down.hard.m'));
         fireEvent.click(within(inspector()).getByRole('button', { name: 'Веб, слой 1, выбор цвета' }));
         const picker = screen.getByRole('dialog', { name: 'Color picker: down.hard.m, слой 1' });
@@ -591,6 +607,9 @@ describe('SizeTokensScreen', () => {
         await waitFor(() => expect(updates()).toHaveLength(1));
         expect(updates()[0].layers?.[0].color).toBe('[general.gray.900][0.16]');
         await waitFor(() => expect(saveStatus()).toHaveTextContent('Сохранено'));
+        // Модель темы для других разделов получает раскрытый цвет: ссылка невалидна в CSS `box-shadow`.
+        expect(JSON.stringify(values.get('down.hard.m'))).not.toContain('[general');
+        expect(JSON.stringify(values.get('down.hard.m')?.web)).toContain('#1A1A1A29');
         expect(within(inspector()).getByRole('textbox', { name: 'Веб, слой 1, HEX' })).toHaveValue('Gray 900');
         expect(
             within(inspector())

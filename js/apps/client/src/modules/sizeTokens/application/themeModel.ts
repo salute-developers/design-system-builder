@@ -65,10 +65,14 @@ const writeValues = (theme: ThemeModel, token: SizeToken, values: PlatformValues
 
 /**
  * Значения токена в модели темы после изменения: другие разделы видят новое значение без перезагрузки темы.
- * Без записанных значений они строятся по токену в формате чтения.
+ * Без записанных значений они строятся по токену в формате чтения. У тени значения всегда строятся по токену: в
+ * записанных значениях цвет слоя может быть ссылкой на палитру, а модели темы нужен раскрытый цвет для CSS.
  */
 export const applyToTheme = (theme: ThemeModel, token: SizeToken, written?: readonly WrittenValue[]) => {
-    const values = written?.length ? themeValuesFromWritten(token.kind, written) : themeValuesFromToken(token);
+    const values =
+        token.kind !== 'shadow' && written?.length
+            ? themeValuesFromWritten(token.kind, written)
+            : themeValuesFromToken(token);
     if (values) writeValues(theme, token, values);
 };
 
