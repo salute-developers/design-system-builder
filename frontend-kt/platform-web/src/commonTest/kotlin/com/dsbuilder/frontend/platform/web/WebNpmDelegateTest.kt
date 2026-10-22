@@ -42,10 +42,22 @@ class WebNpmDelegateTest {
         delegate.run(invocation(Capability.COMPONENTS))
         delegate.run(invocation(Capability.DESIGN_SYSTEM))
 
-        assertEquals(listOf("run", "generate:theme", "--", "--sdds", "/project/.sdds"), requests[0].args)
-        assertEquals(listOf("run", "generate:components", "--", "--sdds", "/project/.sdds"), requests[1].args)
+        // Без --output результат идёт в рабочую копию, а не в каталог генератора, из которого запускается npm.
+        val arguments = { script: String ->
+            listOf(
+                "run",
+                script,
+                "--",
+                "--sdds",
+                "/project/.sdds",
+                "--out",
+                "/project/output",
+            )
+        }
+        assertEquals(arguments("generate:theme"), requests[0].args)
+        assertEquals(arguments("generate:components"), requests[1].args)
         // Дизайн-система — один запуск: с `--package` он даёт один пакет с темой и компонентами.
-        assertEquals(listOf("run", "generate:ds", "--", "--sdds", "/project/.sdds"), requests[2].args)
+        assertEquals(arguments("generate:ds"), requests[2].args)
         assertEquals(npm, requests[0].executable)
         // Скрипты разрешают код генератора относительно каталога пакета.
         assertEquals(tool, requests[0].workingDirectory)

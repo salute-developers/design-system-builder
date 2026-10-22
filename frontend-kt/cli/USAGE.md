@@ -548,7 +548,8 @@ dsbuilder theme generate -- --standalone --components
 Web-генератор — npm-пакет `js/cli` внутри репозитория DS Builder, установщика у него нет. Путь к
 каталогу задаётся переменной `DSBUILDER_WEB_TOOL` или `--tool`; нужны Node.js и `npm` в `PATH`.
 Тема и компоненты генерируются раздельно (`npm run generate:theme` и `npm run generate:components`),
-`--output` становится `--out` генератора, остальное после `--` передаётся как есть:
+`--output` становится `--out` генератора, остальное после `--` передаётся как есть. Без `--output`
+результат пишется в `output` рядом с `.sdds` проекта:
 
 ```bash
 export DSBUILDER_WEB_TOOL=<путь к репозиторию>/design-system-builder/js/cli
