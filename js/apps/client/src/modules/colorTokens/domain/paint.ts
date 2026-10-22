@@ -1,11 +1,11 @@
-import { parsePaletteReference } from '../../palette';
 import {
     GRADIENT_DEFAULTS,
     formatWebLayer,
-    hex8,
-    parseWebLayer,
     isColorString,
+    parseWebLayer,
+    stopOpacity,
     webLayers,
+    withStopOpacity,
     type GradientModel,
     type ValueKind,
 } from './gradient';
@@ -24,26 +24,32 @@ export type Paint =
 const isLayerObject = (value: unknown): value is NativeLayer =>
     Boolean(value) && typeof value === 'object' && typeof (value as NativeLayer).kind === 'string';
 
-/** Цвет или градиент значения платформы; `null`, если значение не цвет и не градиент. */
+/**
+ * Модель слоя-градиента, `null` у слоя-цвета, `undefined` у слоя неизвестного вида или без полей своего вида:
+ * значение с таким слоем не редактируется, чтобы его не потерять.
+ */
+const readLayer = (layer: unknown, platform: PaintPlatform): GradientModel | null | undefined => {
+    if (platform !== 'web' && !isLayerObject(layer)) return undefined;
+    if (nativeSolidColor([layer])) return null;
+    return (
+        (platform === 'web' ? parseWebLayer(String(layer)) : parseNativeLayer(layer as NativeLayer, platform)) ??
+        undefined
+    );
+};
+
+/**
+ * Цвет или градиент значения платформы; `null`, если значение не цвет и не градиент. Градиент — хотя бы один
+ * слой-градиент при остальных слоях-цветах.
+ */
 export const readPaint = (raw: unknown, platform: PaintPlatform): Paint | null => {
-    if (platform === 'web') {
-        const layers = webLayers(raw);
-        if (layers.length === 1 && isColorString(layers[0])) return { kind: 'color', color: layers[0] };
-        // Градиент — хотя бы один слой-градиент по грамматике при остальных слоях-цветах.
-        const models = layers.map(parseWebLayer);
-        const index = models.findIndex(Boolean);
-        if (index < 0 || layers.some((layer, i) => !models[i] && !isColorString(layer))) return null;
-        return { kind: 'gradient', model: models[index]!, layers, index };
-    }
-    const solid = nativeSolidColor(raw);
+    const layers = platform === 'web' ? webLayers(raw) : raw;
+    const solid = nativeSolidColor(layers);
     if (solid) return { kind: 'color', color: solid };
-    if (!Array.isArray(raw) || !raw.length || !raw.every(isLayerObject)) return null;
-    const models = raw.map((layer) => (layer.kind === 'color' ? null : parseNativeLayer(layer, platform)));
-    // Слой неизвестного вида или без полей своего вида: значение не редактируется, чтобы его не потерять.
-    if (raw.some((layer, index) => layer.kind !== 'color' && !models[index])) return null;
-    if (raw.some((layer) => layer.kind === 'color' && !nativeSolidColor([layer]))) return null;
+    const models = Array.isArray(layers) ? layers.map((layer) => readLayer(layer, platform)) : [];
     const index = models.findIndex(Boolean);
-    return index < 0 ? null : { kind: 'gradient', model: models[index]!, layers: raw, index };
+    return index < 0 || models.includes(undefined)
+        ? null
+        : { kind: 'gradient', model: models[index]!, layers: layers as unknown[], index };
 };
 
 /** Хранимое значение платформы: цвет — строка, градиент — слои с заменённым редактируемым слоем. */
@@ -66,13 +72,9 @@ export const withKind = (paint: Paint, kind: ValueKind): Paint => {
     // Стопы «цвет» 0 % и `#F5F5F5` 100 %. Стопы web принимают только `#RRGGBB` и `#RRGGBBAA`: непрозрачный цвет
     // записывается без альфы.
     const color = paint.color.trim();
-    const first = parsePaletteReference(paint.color)
-        ? color
-        : /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
-          ? hex8(color)
-          : '#000000FF';
+    const first = isColorString(color) ? withStopOpacity(color, stopOpacity(color)) : '#000000';
     const stops = [
-        { color: first.startsWith('#') && first.endsWith('FF') ? first.slice(0, 7) : first, position: 0 },
+        { color: first, position: 0 },
         { color: '#F5F5F5', position: 100 },
     ];
     return {

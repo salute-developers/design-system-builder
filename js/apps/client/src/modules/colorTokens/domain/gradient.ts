@@ -45,46 +45,51 @@ export const isColorString = (value: string) => HEX.test(value.trim()) || parseP
 export const isGradientFunction = (layer: string) => FUNCTION.test(layer);
 
 /**
+ * Заголовок web-слоя по типу: шаблон и поля модели по группам шаблона. У Radial радиус записан дважды и должен
+ * совпадать, иначе слой не строится для iOS и Android однозначно.
+ */
+const WEB_GEOMETRY: Record<GradientType, { pattern: RegExp; fields: (keyof typeof GRADIENT_DEFAULTS)[] }> = {
+    linear: { pattern: LINEAR, fields: ['angle'] },
+    radial: { pattern: RADIAL, fields: ['radius', 'radius', 'centerX', 'centerY'] },
+    conic: { pattern: CONIC, fields: ['from', 'centerX', 'centerY'] },
+};
+
+/** Стопы web-слоя: HEX или ссылка с позицией до 100 %, не меньше двух, позиции не убывают; иначе `null`. */
+const webStops = (parts: string[]): GradientStopModel[] | null => {
+    const stops = parts.map((part) => {
+        const [, color = '', position = 'NaN'] = STOP.exec(part) ?? [];
+        return { color: color.startsWith('#') ? color.toUpperCase() : color, position: Number(position) };
+    });
+    const ordered = stops.every(
+        (stop, index) =>
+            (STOP_HEX.test(stop.color) || parsePaletteReference(stop.color) !== null) &&
+            stop.position <= 100 &&
+            (index === 0 || stop.position >= stops[index - 1].position),
+    );
+    return ordered && stops.length >= 2 ? stops : null;
+};
+
+/**
  * Разбор web-слоя по грамматике `ds-service`: `linear-gradient(<a>deg, …)`, `radial-gradient(<r>% <r>% at <x>%
  * <y>%, …)` и `conic-gradient(from <a>deg at <x>% <y>%, …)` со стопами `#RRGGBB`, `#RRGGBBAA` или ссылкой и
  * позицией `N%`; стопов не меньше двух, позиции не убывают и лежат от 0 до 100. `null` — слой не градиент.
  */
 export const parseWebLayer = (layer: string): GradientModel | null => {
-    const match = FUNCTION.exec(layer);
-    if (!match) return null;
+    const [, type, body = ''] = FUNCTION.exec(layer) ?? [];
+    const geometry = WEB_GEOMETRY[type as GradientType];
     // Как на сервере: стопы не содержат запятых, поэтому делятся по каждой запятой.
-    const parts = match[2].split(',').map((part) => part.trim());
-    const stops: GradientStopModel[] = [];
-    for (const part of parts.slice(1)) {
-        const stop = STOP.exec(part);
-        if (!stop) return null;
-        const color = stop[1];
-        if (!STOP_HEX.test(color) && !parsePaletteReference(color)) return null;
-        const position = Number(stop[2]);
-        if (position > 100) return null;
-        stops.push({ color: color.startsWith('#') ? color.toUpperCase() : color, position });
-    }
-    if (stops.length < 2 || stops.some((stop, index) => index > 0 && stop.position < stops[index - 1].position))
-        return null;
-    const head = parts[0];
-    const model = { ...GRADIENT_DEFAULTS, stops };
-    if (match[1] === 'linear') {
-        const linear = LINEAR.exec(head);
-        return linear ? { ...model, type: 'linear', angle: Number(linear[1]) } : null;
-    }
-    if (match[1] === 'radial') {
-        const radial = RADIAL.exec(head);
-        if (!radial) return null;
-        const [radius, second, centerX, centerY] = radial.slice(1).map(Number);
-        // Один радиус: иначе слой не строится для iOS и Android однозначно.
-        if (radius !== second || centerX > 100 || centerY > 100) return null;
-        return { ...model, type: 'radial', radius, centerX, centerY };
-    }
-    const conic = CONIC.exec(head);
-    if (!conic) return null;
-    const [from, centerX, centerY] = conic.slice(1).map(Number);
-    if (centerX > 100 || centerY > 100) return null;
-    return { ...model, type: 'conic', from, centerX, centerY };
+    const [head, ...parts] = body.split(',').map((part) => part.trim());
+    const values = geometry?.pattern.exec(head)?.slice(1).map(Number) ?? [];
+    const stops = values.length ? webStops(parts) : null;
+    if (!stops) return null;
+    const model: GradientModel = {
+        ...GRADIENT_DEFAULTS,
+        ...Object.fromEntries(geometry.fields.map((field, index) => [field, values[index]])),
+        type: type as GradientType,
+        stops,
+    };
+    const consistent = geometry.fields.every((field, index) => model[field] === values[index]);
+    return consistent && model.centerX <= 100 && model.centerY <= 100 ? model : null;
 };
 
 /** CSS-слой модели в грамматике `ds-service`; стопы упорядочены по позиции. */
@@ -100,10 +105,14 @@ export const formatWebLayer = (model: GradientModel): string => {
         model.centerY,
         model.radius,
     ].map((value) => Number(value.toFixed(3)));
-    if (model.type === 'radial') return `radial-gradient(${radius}% ${radius}% at ${centerX}% ${centerY}%, ${stops})`;
-    if (model.type === 'conic') return `conic-gradient(from ${from}deg at ${centerX}% ${centerY}%, ${stops})`;
-    return `linear-gradient(${angle}deg, ${stops})`;
+    return {
+        linear: `linear-gradient(${angle}deg, ${stops})`,
+        radial: `radial-gradient(${radius}% ${radius}% at ${centerX}% ${centerY}%, ${stops})`,
+        conic: `conic-gradient(from ${from}deg at ${centerX}% ${centerY}%, ${stops})`,
+    }[model.type];
 };
+
+const LAYER_SEPARATOR = '\u0000';
 
 /**
  * Слои web-значения: массив строк или строка, которая делится по запятым верхнего уровня (запятые внутри
@@ -111,22 +120,16 @@ export const formatWebLayer = (model: GradientModel): string => {
  */
 export const webLayers = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
-    if (value === undefined || value === null) return [];
-    const text = String(value);
-    const parts: string[] = [];
     let depth = 0;
-    let start = 0;
-    for (let index = 0; index < text.length; index += 1) {
-        const char = text[index];
-        if (char === '(') depth += 1;
-        else if (char === ')') depth = Math.max(0, depth - 1);
-        else if (char === ',' && depth === 0) {
-            parts.push(text.slice(start, index).trim());
-            start = index + 1;
-        }
-    }
-    parts.push(text.slice(start).trim());
-    return parts.filter(Boolean);
+    // Запятые верхнего уровня заменяются разделителем слоёв, запятые внутри скобок остаются.
+    const marked = String(value ?? '').replace(/[(),]/g, (char) => {
+        depth = Math.max(0, depth + ({ '(': 1, ')': -1 }[char] ?? 0));
+        return char === ',' && depth === 0 ? LAYER_SEPARATOR : char;
+    });
+    return marked
+        .split(LAYER_SEPARATOR)
+        .map((part) => part.trim())
+        .filter(Boolean);
 };
 
 /**
@@ -135,10 +138,8 @@ export const webLayers = (value: unknown): string[] => {
  */
 export const valueKind = (web: string[]): ValueKind | null => {
     if (web.length === 1 && isColorString(web[0])) return 'color';
-    if (!web.length) return null;
-    const gradients = web.filter((layer) => parseWebLayer(layer) !== null);
-    if (!gradients.length) return null;
-    return web.every((layer) => parseWebLayer(layer) !== null || isColorString(layer)) ? 'gradient' : null;
+    const kinds = web.map((layer) => (parseWebLayer(layer) ? 'gradient' : isColorString(layer) ? 'color' : null));
+    return kinds.includes('gradient') && !kinds.includes(null) ? 'gradient' : null;
 };
 
 /** Цвет стопа в HEX для вычислений: HEX как есть, ссылка — через [resolve]. */
@@ -146,10 +147,11 @@ export type StopColorResolver = (color: string) => string | null;
 
 /** `#RRGGBBAA` цвета: HEX дополняется альфой, ссылка остаётся ссылкой. */
 export const hex8 = (color: string) => {
-    let digits = color.slice(1);
-    if (digits.length === 3 || digits.length === 4) digits = [...digits].map((char) => char + char).join('');
-    if (digits.length === 6) digits += 'FF';
-    return color.startsWith('#') && /^[0-9a-f]{8}$/i.test(digits) ? `#${digits.toUpperCase()}` : color;
+    const long = color.replace(
+        /^#([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?$/i,
+        (_, r: string, g: string, b: string, a = 'F') => `#${r}${r}${g}${g}${b}${b}${a}${a}`,
+    );
+    return /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(long) ? `${long}FF`.slice(0, 9).toUpperCase() : color;
 };
 
 /** Прозрачность цвета стопа 0–1: у ссылки — прозрачность ссылки, у HEX — альфа-канал. */
@@ -207,12 +209,11 @@ export const gradientColorAt = (
 
 /** Подпись поля градиентного значения: «Linear · 45°», «Radial», «Conic · 90°» и «+ ещё N» при нескольких слоях. */
 export const gradientLabel = (model: GradientModel, layers = 1) => {
-    const base =
-        model.type === 'linear'
-            ? `Linear · ${Number(model.angle.toFixed(3))}°`
-            : model.type === 'radial'
-              ? 'Radial'
-              : `Conic · ${Number(model.from.toFixed(3))}°`;
+    const base = {
+        linear: `Linear · ${Number(model.angle.toFixed(3))}°`,
+        radial: 'Radial',
+        conic: `Conic · ${Number(model.from.toFixed(3))}°`,
+    }[model.type];
     return layers > 1 ? `${base} + ещё ${layers - 1}` : base;
 };
 

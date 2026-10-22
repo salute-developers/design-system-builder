@@ -244,7 +244,7 @@ export function formatNativeLayer(model: GradientModel, platform: 'ios' | 'andro
 
 - `ColorFieldValue` получает `kind`, модель первого слоя и значения платформ с признаком `overridden`. Исходное значение берётся из `sourceValue`.
 - `colorTokenEditor` при правке web перестраивает нативные значения без `overridden`. Значения отправляются с `baseRevision` из `subjectRevisions`.
-- `utils/gradient.ts` у legacy-экранов исправляется по позициям из одной цифры и Conic, но экран «Цвета» использует новые функции.
+- `colorTokenActions`, `gradientTokenActions` и `parseGradient` из `utils/gradient.ts` удаляются: экран «Цвета» строит значения функциями домена `colorTokens`, других потребителей у них нет.
 
 ## Миграция и совместимость
 

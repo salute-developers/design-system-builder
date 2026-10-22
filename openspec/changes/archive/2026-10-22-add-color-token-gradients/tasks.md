@@ -55,7 +55,7 @@
 - [x] 8.3 `ColorFieldValue`: вид значения, модель первого слоя, значения платформ и `overridden`; загрузка из `sourceValue` и `overridden` (`api/tokenRepository.ts`, `editorContracts.ts`)
 - [x] 8.4 Проверка значения в редакторе (`domain/validation.ts`) по грамматике вида значения
 - [x] 8.5 `colorTokenEditor`: перестроение нативных значений без `overridden` при правке web, добавление и удаление строки платформы, копирование в `-hover` и `-active` и связанные подтемы; отправка `overridden`
-- [x] 8.6 Исправить `utils/gradient.ts` для legacy-экранов: позиции из одной цифры, Conic
+- [x] 8.6 Удалить `colorTokenActions`, `gradientTokenActions` и `parseGradient` из `utils/gradient.ts`: после перехода экрана «Цвета» на домен `colorTokens` у них нет потребителей
 - [x] 8.7 Unit-тесты: разбор и формат трёх типов, построение iOS и Android по сценариям спецификации, сдвиг стопов, вид значения, проверка значения, перестроение и своё значение в `colorTokenEditor`
 - [x] 8.8 Превью Compose (`composePreview/draft.ts`, `assembler.ts`): ссылки на палитру в стопах и слоях градиентного токена раскрываются, сплошное значение платформы градиентного семейства передаётся слоем `color`, `normalizeGradient` принимает слой `color`; тесты сборщика и черновика
 

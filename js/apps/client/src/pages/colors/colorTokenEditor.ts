@@ -30,14 +30,17 @@ import {
     fieldsInheritingFrom,
     findColorToken,
     inheritedMode,
+    isColorString,
     keyOfId,
     legacyDraftFamilies,
     newTokenMembers,
     parseMemberName,
     readPaint,
+    stopOpacity,
     tokenId,
     valueKind,
     webLayers,
+    withStopOpacity,
     writePaint,
     type ColorContext,
     type ColorMode,
@@ -60,9 +63,7 @@ import {
     type TokenPlacement,
     type UpdateTokenGroupInput,
 } from '../../modules/colorTokens';
-import { formatPaletteReference, parsePaletteReference } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
-import { getNormalizedColor } from '../../utils/color';
 import { draftEntriesOfTypes, removeDraftEntries } from '../../utils/designSystemDraft';
 
 export { keyOfId };
@@ -111,17 +112,10 @@ export const stopResolver =
  */
 const webValue = (value: string): unknown => {
     const layers = webLayers(value);
-    if (valueKind(layers) === 'gradient') return layers;
     const trimmed = value.trim();
-    const reference = parsePaletteReference(trimmed);
-    if (reference) {
-        const opacity = Math.round((reference.opacity ?? 1) * 100) / 100;
-        return formatPaletteReference({ ...reference, opacity: opacity === 1 ? null : opacity });
-    }
-    const hex = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(trimmed);
-    if (!hex && !/^#[0-9a-f]{3,4}$/i.test(trimmed)) return trimmed;
-    const opacity = hex?.[2] ? parseInt(hex[2], 16) / 255 : 1;
-    return getNormalizedColor(hex ? `#${hex[1]}` : trimmed, Math.round(opacity * 100) / 100);
+    if (valueKind(layers) === 'gradient') return layers;
+    if (!isColorString(trimmed)) return trimmed;
+    return withStopOpacity(trimmed, Math.round(stopOpacity(trimmed) * 100) / 100);
 };
 
 /** Сессия цветовых токенов темы: живёт дольше экрана, чтобы пережить перезагрузку темы после конфликта. */
@@ -216,15 +210,15 @@ const retyped = (token: Token, type: ColorTokenType): Token => {
 export const adoptFamilyType = (session: ColorTokenSession, key: ColorTokenKey, type: ColorTokenType) => {
     const theme = session.theme;
     if (!theme) return;
-    for (const token of familyTokens(theme, key)) {
-        if (token.getType() === type) continue;
+    const moved = familyTokens(theme, key).filter((token) => token.getType() !== type);
+    moved.forEach((token) => {
         theme.removeToken(token.getName(), token.getType() as ColorTokenType);
         theme.addToken(type, retyped(token, type) as never);
-    }
-    for (const [name, definition] of session.definitions) {
+    });
+    session.definitions.forEach((definition, name) => {
         const parsed = parseMemberName(name);
         if (parsed?.group === key.group && parsed.name === key.name) definition.type = type;
-    }
+    });
 };
 
 /** Сессия темы; создаётся при первом открытии раздела и переиспользуется до смены темы. */
@@ -507,8 +501,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         token.setValue('web' as never, web as never);
         for (const platform of NATIVE_PLATFORMS) {
             const ownValue = own[platform];
-            const value =
-                ownValue !== undefined ? ownValue : deriveNative(web, platform, stopResolver(token.getName()));
+            const value = ownValue ?? deriveNative(web, platform, stopResolver(token.getName()));
             token.setValue(platform as never, value as never);
             // Неподтверждённым остаётся только признак, который отличается от прочитанного состояния: без
             // неподтверждённого признака `isOverridden` возвращает прочитанный.
@@ -571,11 +564,9 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             const { context, mode } = parseField(field);
             const token = memberToken(view.key, mode, context);
             if (!token) return;
-            const current = paintOf(token);
-            const own = { ...current.own };
-            if (platform !== 'web' && value === undefined) delete own[platform];
-            else if (platform !== 'web') own[platform] = value;
-            const next = { web: platform === 'web' ? value : current.web, own };
+            // `undefined` у платформы — своего значения нет, оно строится из web.
+            const { web, own } = paintOf(token);
+            const next = platform === 'web' ? { web: value, own } : { web, own: { ...own, [platform]: value } };
             writeField(view.key, mode, token, next);
             if (!context)
                 for (const target of fieldsInheritingFrom(mode)) {
@@ -625,18 +616,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             const current = platform === 'web' ? base : base.platforms[platform];
             if (!current) return;
             const opacity = Math.max(0, Math.min(100, Math.round(percent))) / 100;
-            const reference = parsePaletteReference(current.value);
-            const alpha =
-                opacity === 1
-                    ? ''
-                    : Math.round(opacity * 255)
-                          .toString(16)
-                          .padStart(2, '0')
-                          .toUpperCase();
-            const next = reference
-                ? formatPaletteReference({ ...reference, opacity: opacity === 1 ? null : opacity })
-                : `${rgbHex(current.value)}${alpha}`;
-            this.setValue(view, field, platform, webValue(next));
+            this.setValue(view, field, platform, webValue(withStopOpacity(current.value, opacity)));
         },
 
         /** Восстанавливает наследование подтемы от значений режимов вместе со своими значениями платформ. */
@@ -712,7 +692,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 ),
             );
             const { theme: current } = theme();
-            const type: ColorTokenType = family.type === 'gradient' ? 'gradient' : 'color';
+            const type: ColorTokenType = family.type ?? 'color';
             for (const member of members) {
                 const id = family.members.find((item) => item.name === member.name)?.tokenId;
                 if (id) session.definitions.set(member.name, { id, type });
@@ -727,7 +707,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                         },
                         { web: new WebColor(value), ios: new IOSColor(value), android: new AndroidColor(value) },
                     );
-                    current.addToken(type, (type === 'color' ? token : retyped(token, type)) as never);
+                    current.addToken(type, retyped(token, type) as never);
                 }
             }
             await refreshStructure(session).catch(() => notify(session));

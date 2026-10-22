@@ -187,7 +187,7 @@ export const journalPaintChange = (
     valuePaths: string[] = [],
 ): JournalChangedField[] | null => {
     const [before, after] = [previous, current].map((source) => source && readPaint(source.value, source.platform));
-    if (before === null || after === null) return null;
+    if ([before, after].includes(null)) return null;
     if (before?.kind === 'gradient' && after?.kind === 'gradient') {
         const [was, now] = [before, after].map(gradientParameters);
         const labels = [...new Set([...was.keys(), ...now.keys()])].filter(
@@ -227,11 +227,7 @@ export const journalPaintChange = (
         return { text: fieldText(field), swatch: field.resolved };
     });
     if (JSON.stringify(was) === JSON.stringify(now)) return [];
-    const label =
-        before && after && before.kind !== after.kind
-            ? 'Вид значения'
-            : (before ?? after)?.kind === 'color'
-              ? 'Цвет'
-              : 'Значение';
+    const kinds = new Set([before?.kind, after?.kind].filter(Boolean));
+    const label = kinds.size > 1 ? 'Вид значения' : kinds.has('color') ? 'Цвет' : 'Значение';
     return [{ path: '/value', label, before: was, after: now, revertPaths: valuePaths }];
 };
