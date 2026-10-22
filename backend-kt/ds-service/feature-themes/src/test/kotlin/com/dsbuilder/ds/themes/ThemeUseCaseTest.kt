@@ -206,7 +206,11 @@ private class RecordingTenantRepository : TenantRepository {
 
     override suspend fun deleteOwned(projectId: ProjectId, id: UUID): Boolean = false
 
-    override suspend fun tokenValues(projectId: ProjectId, id: UUID): List<TenantTokenValue>? = null
+    override suspend fun tokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType>,
+    ): List<TenantTokenValue>? = null
 
     override suspend fun saveTokenValues(
         projectId: ProjectId,

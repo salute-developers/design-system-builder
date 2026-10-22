@@ -31,7 +31,11 @@ interface TenantRepository {
     suspend fun deleteOwned(projectId: ProjectId, id: UUID): Boolean
 
     /** Performs the tokenvalues operation. */
-    suspend fun tokenValues(projectId: ProjectId, id: UUID): List<TenantTokenValue>?
+    suspend fun tokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<com.dsbuilder.ds.themes.domain.ThemeTokenType> = emptySet(),
+    ): List<TenantTokenValue>?
 
     /** Атомарно заменяет platform-specific значения доступной темы. */
     suspend fun saveTokenValues(

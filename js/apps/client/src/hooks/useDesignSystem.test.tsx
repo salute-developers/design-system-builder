@@ -1,13 +1,16 @@
 import { act, cleanup, render, renderHook, screen } from '@testing-library/react';
+import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, loadDesignSystemCursor, loadTokenData, loadComponentData, saveTokenMutation } = vi.hoisted(() => ({
-    load: vi.fn(),
-    loadDesignSystemCursor: vi.fn(),
-    loadTokenData: vi.fn(),
-    loadComponentData: vi.fn(),
-    saveTokenMutation: vi.fn(),
-}));
+const { load, loadDesignSystemCursor, loadTokenData, loadComponentData, loadComponentIndex, saveTokenMutation } =
+    vi.hoisted(() => ({
+        load: vi.fn(),
+        loadDesignSystemCursor: vi.fn(),
+        loadTokenData: vi.fn(),
+        loadComponentData: vi.fn(),
+        loadComponentIndex: vi.fn(),
+        saveTokenMutation: vi.fn(),
+    }));
 const { subscribeToDraftInvalidations, emitDraftInvalidation } = vi.hoisted(() => {
     let received: ((event: Record<string, unknown>) => void) | undefined;
     return {
@@ -22,10 +25,16 @@ const { applyDraftChanges } = vi.hoisted(() => ({
     applyDraftChanges: vi.fn(),
 }));
 
-vi.mock('../api/themeEditorRepository', () => ({ loadThemeEditor: load, loadDesignSystemCursor }));
-vi.mock('../api/tokenRepository', () => ({ tokenRepository: { loadTokenData, saveTokenMutation } }));
+vi.mock('../api/themeEditorRepository', () => ({
+    loadThemeEditor: load,
+    loadThemeShell: load,
+    loadDesignSystemCursor,
+}));
+vi.mock('../api/tokenRepository', () => ({
+    tokenRepository: { loadTokenData, loadColorGroups: async () => [], saveTokenMutation },
+}));
 vi.mock('../api/componentRepository', () => ({
-    componentRepository: { loadComponentData, loadComposeComponentData: async () => [] },
+    componentRepository: { loadComponentData, loadComponentIndex, loadComposeComponentData: async () => [] },
 }));
 vi.mock('../api/draftInvalidationStream', () => ({ subscribeToDraftInvalidations }));
 vi.mock('../utils', async (importOriginal) => ({
@@ -80,13 +89,204 @@ import {
 } from '../utils/designSystemDraft';
 import type { Token } from '../controllers';
 import type { DraftChangeDto } from '../api/editorContracts';
-import { setDraftAutosaveActivity } from '../api/draftAutosaveActivity';
+import { recordDraftSave, setDraftAutosaveActivity } from '../api/draftAutosaveActivity';
 import { reportIncompleteMutationMetadata } from '../api/incompleteMutationMetadata';
-import { paletteRepository } from '../palette/paletteSession';
+import { getPaletteSession, paletteRepository } from '../palette/paletteSession';
 import { getActivePalette } from '../palette/activePalette';
 import type { ThemePalette } from '../modules/palette';
+import type { EditorSection } from '../features/themeEditor/editorSections';
 
 const context = { projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'tenant-1' };
+
+describe('согласованная загрузка целых разделов', () => {
+    it('первое чтение не застревает из-за цветовой очереди, оставшейся с ошибкой', async () => {
+        setDraftAutosaveActivity(context, 'color-tokens', 'error');
+        try {
+            const { result } = renderHook(() =>
+                useDesignSystem(context, undefined, undefined, true, { section: 'colors' }),
+            );
+            await act(async () => Promise.resolve());
+            expect(result.current.sectionLoading).toBe(false);
+            expect(loadTokenData).toHaveBeenCalledTimes(1);
+            expect(applyDraftChanges).toHaveBeenCalledTimes(2); // shell + initial typed snapshot for session recovery
+        } finally {
+            setDraftAutosaveActivity(context, 'color-tokens', null);
+        }
+    });
+    it.each(['colors', 'palette'] as const)(
+        'строит local-палитру из применённых цветов при прямом открытии %s',
+        async (section) => {
+            const source = paletteRepository.source;
+            const palette = { tenantId: context.tenantId, groups: [] } as unknown as ThemePalette;
+            const loadPalette = vi.spyOn(paletteRepository, 'load').mockImplementation(async () => {
+                expect(getPaletteSession()?.tokens).toContainEqual({
+                    id: 'token-1',
+                    name: 'accent',
+                    displayName: 'Accent',
+                });
+                return palette;
+            });
+            Object.assign(paletteRepository, { source: 'local' });
+            try {
+                const { result } = renderHook(() => useDesignSystem(context, undefined, undefined, true, { section }));
+                await act(async () => Promise.resolve());
+                expect(result.current.palette).toBe(palette);
+                expect(getActivePalette()).toBe(palette);
+                expect(loadPalette).toHaveBeenCalledTimes(1);
+                expect(loadTokenData).toHaveBeenCalledExactlyOnceWith(context, expect.any(AbortSignal), '0.1.0', [
+                    'color',
+                    'gradient',
+                ]);
+                act(() => updateDraftToken('System', '0.1.0', token));
+                await act(async () => vi.advanceTimersByTimeAsync(400));
+                expect(saveTokenMutation).toHaveBeenCalledTimes(1);
+                expect(saveTokenMutation.mock.calls[0][1]).toBe('token-1');
+            } finally {
+                Object.assign(paletteRepository, { source });
+                loadPalette.mockRestore();
+            }
+        },
+    );
+    it('не пересоздаёт компонентный снимок по saved/cleanup уведомлениям эффекта автосохранения', async () => {
+        let subscriptions = 0;
+        const Probe = () => {
+            const state = useDesignSystem(context, undefined, undefined, true, { section: 'components' });
+            useEffect(() => {
+                if (!state.designSystem) return;
+                subscriptions++;
+                if (subscriptions > 5) throw new Error('Component autosave feedback loop');
+                setDraftAutosaveActivity(context, 'component:A', 'saved');
+                return () => setDraftAutosaveActivity(context, 'component:A', null);
+            }, [state.designSystem, state.components]);
+            return null;
+        };
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+        const settled = subscriptions;
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'component:A', null);
+            setDraftAutosaveActivity(context, 'component:A', 'saved');
+        });
+        expect(subscriptions).toBe(settled);
+        expect(loadComponentIndex).toHaveBeenCalledTimes(1);
+    });
+    it('подтверждение собственной записи инвалидирует кэш, но не читает скрытые разделы', async () => {
+        const { rerender } = renderHook(
+            ({ section }: { section: EditorSection }) =>
+                useDesignSystem(context, undefined, undefined, true, { section }),
+            { initialProps: { section: 'colors' as EditorSection } },
+        );
+        await act(async () => Promise.resolve());
+        rerender({ section: 'settings' });
+        await act(async () => Promise.resolve());
+        loadTokenData.mockClear();
+        await act(async () => recordDraftSave(context));
+        expect(loadTokenData).not.toHaveBeenCalled();
+        rerender({ section: 'colors' });
+        await act(async () => Promise.resolve());
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+    });
+
+    it('не применяет позднее чтение, если запись целиком завершилась за время GET', async () => {
+        let release!: (value: unknown) => void;
+        const fresh = await loadTokenData();
+        loadTokenData.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve;
+                }),
+        );
+        const { result } = renderHook(() =>
+            useDesignSystem(context, undefined, undefined, true, { section: 'colors' }),
+        );
+        await act(async () => Promise.resolve());
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'color-tokens', 'saving');
+            setDraftAutosaveActivity(context, 'color-tokens', 'saved');
+            release(fresh);
+        });
+        expect(result.current.sectionLoading).toBe(false);
+        expect(loadTokenData).toHaveBeenCalledTimes(3); // fixture + discarded read + fresh read
+        setDraftAutosaveActivity(context, 'color-tokens', null);
+    });
+
+    it('восстанавливает реальные скрытые правки с серверными идентификаторами при входе в настройки', async () => {
+        setActiveDraftContext(context);
+        updateDraftToken('System', '0.1.0', token);
+        renderHook(() => useDesignSystem(context, undefined, undefined, true, { section: 'settings' }));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0', ['color', 'gradient']);
+        expect(saveTokenMutation).toHaveBeenCalledTimes(1);
+        expect(saveTokenMutation.mock.calls[0][1]).toBe('token-1');
+    });
+    it('открывает цвета без компонентов и меняет раздел без пересоздания сессии', async () => {
+        const { result, rerender } = renderHook(
+            ({ section }: { section: EditorSection }) =>
+                useDesignSystem(context, undefined, undefined, true, { section }),
+            { initialProps: { section: 'colors' as EditorSection } },
+        );
+        await act(async () => Promise.resolve());
+        expect(result.current.sectionLoading).toBe(false);
+        expect(loadTokenData).toHaveBeenCalledWith(context, expect.any(AbortSignal), '0.1.0', ['color', 'gradient']);
+        expect(loadComponentData).not.toHaveBeenCalled();
+        rerender({ section: 'shapes' });
+        await act(async () => Promise.resolve());
+        expect(loadTokenData).toHaveBeenLastCalledWith(context, expect.any(AbortSignal), '0.1.0', [
+            'shape',
+            'spacing',
+            'shadow',
+        ]);
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(subscribeToDraftInvalidations).toHaveBeenCalledTimes(1);
+        rerender({ section: 'colors' });
+        await act(async () => Promise.resolve());
+        expect(loadTokenData).toHaveBeenCalledTimes(2);
+    });
+
+    it('не читает скрытые цвета по SSE, но обновляет их при возвращении', async () => {
+        const { rerender } = renderHook(
+            ({ section }: { section: EditorSection }) =>
+                useDesignSystem(context, undefined, undefined, true, { section }),
+            { initialProps: { section: 'colors' as EditorSection } },
+        );
+        await act(async () => Promise.resolve());
+        rerender({ section: 'settings' });
+        await act(async () => Promise.resolve());
+        loadTokenData.mockClear();
+        await act(async () => emitDraftInvalidation({ draftId: 'draft-1', scopes: ['theme-tokens'] }));
+        expect(loadTokenData).not.toHaveBeenCalled();
+        expect(loadComponentData).not.toHaveBeenCalled();
+        rerender({ section: 'colors' });
+        await act(async () => Promise.resolve());
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+    });
+
+    it('ошибка независимой компонентной очереди не блокирует обновление цветов', async () => {
+        renderHook(() => useDesignSystem(context, undefined, undefined, true, { section: 'colors' }));
+        await act(async () => Promise.resolve());
+        loadTokenData.mockClear();
+        await act(async () => {
+            setDraftAutosaveActivity(context, 'component:Other', 'error');
+            emitDraftInvalidation({ draftId: 'draft-1', scopes: ['theme-tokens'] });
+        });
+        expect(loadTokenData).toHaveBeenCalledTimes(1);
+        setDraftAutosaveActivity(context, 'component:Other', null);
+    });
+
+    it('уход в настройки сохраняет очередь и серверную идентичность отложенной цветовой правки', async () => {
+        const { rerender } = renderHook(
+            ({ section }: { section: EditorSection }) =>
+                useDesignSystem(context, undefined, undefined, true, { section }),
+            { initialProps: { section: 'colors' as EditorSection } },
+        );
+        await act(async () => Promise.resolve());
+        act(() => updateDraftToken('System', '0.1.0', token));
+        rerender({ section: 'settings' });
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(saveTokenMutation).toHaveBeenCalledTimes(1);
+        expect(saveTokenMutation.mock.calls[0][1]).toBe('token-1');
+    });
+});
 const token = {
     getName: () => 'accent',
     getTags: () => ['accent'],
@@ -145,6 +345,7 @@ beforeEach(() => {
         .mockReset()
         .mockResolvedValue({ id: 'ds-1', name: 'System', draftId: 'draft-1', draftRevision: 2 });
     loadComponentData.mockReset().mockResolvedValue([]);
+    loadComponentIndex.mockReset().mockResolvedValue([]);
     subscribeToDraftInvalidations.mockClear();
     saveTokenMutation.mockReset().mockResolvedValue({
         tokenId: 'token-1',
@@ -372,6 +573,35 @@ describe('useDesignSystem server autosave', () => {
             'token-1:ios:': 3,
             'token-1:android:': 4,
         });
+    });
+
+    it('восстанавливает точные параметры первого запроса после потери ответа и чужого сохранения', async () => {
+        saveTokenMutation.mockRejectedValueOnce({ code: 'ERR_NETWORK' });
+        const editor = render(<Probe />);
+        await act(async () => Promise.resolve());
+        act(() => updateDraftToken('System', '0.1.0', token));
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(saveTokenMutation).toHaveBeenCalledOnce();
+        const original = structuredClone(saveTokenMutation.mock.calls[0].slice(1, 7));
+        const metadata = JSON.parse(localStorage.getItem('ds_pending_meta:project-1:ds-1:tenant-1:accent')!);
+        expect(metadata.request).toMatchObject({ tokenId: 'token-1', editRevision: 3 });
+        editor.unmount();
+
+        const snapshot = await load();
+        load.mockResolvedValue({
+            ...snapshot,
+            editRevision: 90,
+            tokenValueRevisionsByKey: { 'token-1:web:': 80, 'token-1:ios:': 81, 'token-1:android:': 82 },
+            tokenDefinitionsByName: {
+                ...snapshot.tokenDefinitionsByName,
+                accent: { ...snapshot.tokenDefinitionsByName.accent, description: 'Изменено другим пользователем' },
+            },
+        });
+        render(<Probe />);
+        await act(async () => Promise.resolve());
+        await act(async () => vi.advanceTimersByTimeAsync(400));
+        expect(saveTokenMutation).toHaveBeenCalledTimes(2);
+        expect(saveTokenMutation.mock.calls[1].slice(1, 7)).toEqual(original);
     });
 
     it('loads and saves from memory when request metadata exceeds the storage quota', async () => {
@@ -789,7 +1019,9 @@ describe('useDesignSystem server autosave', () => {
             await Promise.resolve();
             await vi.advanceTimersByTimeAsync(400);
         });
-        expect(saveTokenMutation).toHaveBeenCalledOnce();
+        expect(saveTokenMutation).toHaveBeenCalledTimes(2);
+        // Повторяется исходное DELETE по id и ключу, а не удаление новой сущности с тем же именем.
+        expect(saveTokenMutation.mock.calls[1].slice(1, 7)).toEqual(saveTokenMutation.mock.calls[0].slice(1, 7));
         expect(localStorage.getItem(getDraftKey('System', '0.1.0', context))).toBeNull();
         await act(async () => {
             finish({ tokenId: 'token-1', editRevision: 4, baseRevision: 5, valueBaseRevisions: {} });

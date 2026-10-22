@@ -44,6 +44,15 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
         this.retryMaxMs = options.retryMaxMs ?? 30_000;
     }
 
+    /** Неподтверждённые операции, включая ошибочные, для защиты соответствующего раздела при чтении. */
+    hasPendingWhere(predicate: (operation: T) => boolean): boolean {
+        return [...this.groups.values()].some((group) =>
+            [...group.pending.values(), ...group.failed.values(), group.inFlight, group.retryPending].some(
+                (operation) => operation !== undefined && predicate(operation),
+            ),
+        );
+    }
+
     enqueue(operation: T, immediate = false) {
         if (this.disposed) return;
         const group = this.group(operation.tokenKey);

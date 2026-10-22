@@ -102,6 +102,15 @@ afterEach(() => {
 });
 
 describe('раздел «Палитра»', () => {
+    it('использует палитру оболочки без повторного чтения при монтировании экрана', async () => {
+        const load = vi.spyOn(paletteRepository, 'load');
+        try {
+            await renderPalette();
+            expect(load).toHaveBeenCalledTimes(1); // Единственный запрос делает Host.
+        } finally {
+            load.mockRestore();
+        }
+    });
     it('загрузка палитры: индикатор по центру холста, как у загрузки темы', () => {
         renderLoading({ getParameters: () => ({}) });
         expect(screen.getByRole('status')).toHaveTextContent('Загружаем палитру…');

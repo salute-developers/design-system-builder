@@ -13,6 +13,7 @@ interface ColorsOutletContextProps {
     palette?: ThemePalette | null;
     setPalette?: (palette: ThemePalette) => void;
     tokenDefinitions?: TokenDefinitionDto[];
+    colorTokenGroups?: import('../../modules/colorTokens/domain/types').TokenGroupDto[];
     incompleteTokenIds?: string[];
     updated: object;
     rerender: () => void;
@@ -49,6 +50,7 @@ export const Colors = () => {
             palette={outlet.palette ?? null}
             setPalette={outlet.setPalette}
             tokenDefinitions={outlet.tokenDefinitions ?? []}
+            colorTokenGroups={outlet.colorTokenGroups}
             incompleteTokenIds={outlet.incompleteTokenIds ?? []}
             updated={outlet.updated}
             rerender={outlet.rerender}

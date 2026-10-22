@@ -22,7 +22,7 @@ import { PlatformSwitch } from './Components.styles';
 
 import { AutosaveIndicator } from '../../components/AutosaveIndicator';
 import { isRetryableAutosaveError } from '../../api/autosaveHttp';
-import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { registerDraftAutosaveSource } from '../../api/draftAutosaveActivity';
 interface ComponentsOutletContextProps {
     designSystem?: DesignSystem;
     theme?: Theme;
@@ -181,10 +181,11 @@ export const Components = () => {
 
     useEffect(() => {
         if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
-        confirmedConfig.current = { componentName: config.getName(), value: config.getMeta() };
+        confirmedConfig.current = { componentName: config.getName(), value: structuredClone(config.getMeta()) };
         let mounted = true;
         const componentName = config.getName();
-        const activitySource = `component:${componentName}`;
+        const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
+        const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
         let latestActivityStatus: AutosaveStatus = 'saved';
         const requestKey = `${storagePrefix}:${componentName}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
@@ -202,7 +203,7 @@ export const Components = () => {
                 const meta = designSystem.getComponentDataByName(operation.componentName);
                 if (!operation.prepared) {
                     if (confirmedConfig.current?.componentName === operation.componentName)
-                        operation.before = confirmedConfig.current.value;
+                        operation.before = structuredClone(confirmedConfig.current.value);
                     delete operation.predecessor;
                 }
                 operation.prepared = true;
@@ -232,7 +233,10 @@ export const Components = () => {
                 if (mounted) setLastSave({ key: storagePrefix, time: Date.now() });
                 persistStoredJson(revisionKey, revisions);
                 if (confirmedConfig.current?.componentName === operation.componentName) {
-                    confirmedConfig.current = { componentName: operation.componentName, value: operation.after };
+                    confirmedConfig.current = {
+                        componentName: operation.componentName,
+                        value: structuredClone(operation.after),
+                    };
                 }
                 const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (stored?.generation === operation.generation) {
@@ -246,15 +250,13 @@ export const Components = () => {
             retryable: isRetryableAutosaveError,
             statusChanged: (status) => {
                 latestActivityStatus = status;
-                setDraftAutosaveActivity(editorContext, activitySource, status);
+                setActivity(!mounted && status === 'saved' ? null : status);
                 if (mounted) {
                     setAutosaveStatus(status);
-                } else if (status === 'saved') {
-                    setDraftAutosaveActivity(editorContext, activitySource, null);
                 }
             },
         });
-        setDraftAutosaveActivity(editorContext, activitySource, 'saved');
+        setActivity('saved');
         autosaveQueue.current = queue;
         const stored = readStoredJson<(Partial<PendingComponentSave> & PendingComponentMutation) | null>(
             requestKey,
@@ -282,6 +284,7 @@ export const Components = () => {
                     );
                 }
                 queue.enqueue(operation, true);
+                setActivity.adoptFailed();
             } catch {
                 removeStoredValue(requestKey);
             }
@@ -290,8 +293,8 @@ export const Components = () => {
             mounted = false;
             queue.flushAll();
             if (latestActivityStatus === 'saved') {
-                setDraftAutosaveActivity(editorContext, activitySource, null);
-            }
+                setActivity(null);
+            } else setActivity.detach();
             if (autosaveQueue.current === queue) autosaveQueue.current = null;
         };
     }, [config, designSystem, editorContext, parameters?.readOnly, reload, storagePrefix]);
@@ -306,8 +309,8 @@ export const Components = () => {
         const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
         const pending: PendingComponentSave = {
             componentName: config.getName(),
-            before,
-            after: config.getMeta(),
+            before: structuredClone(before),
+            after: structuredClone(config.getMeta()),
             idempotencyKeys: {},
             requestBodies: {},
             predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,

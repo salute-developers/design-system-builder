@@ -472,6 +472,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:variations:read
+  /api/ds/design-systems/{id}/changes/summary:
+    get:
+      tags: [Design Systems]
+      summary: Число отображаемых изменений без полного журнала
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/VersionId'
+      responses:
+        '200':
+          description: Число строк с учётом отдельных параметров значения токена
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total]
+                properties:
+                  total: { type: integer, minimum: 0 }
+        '403':
+          description: Нет права чтения
+        '404':
+          description: ДС или версия недоступна
+        '422':
+          description: Превышен поддерживаемый предел журнала
+      x-permission: design-systems:read
   /api/ds/design-systems/{id}/changes:
     get:
       tags:
@@ -823,8 +850,20 @@ paths:
       description: >-
         Ссылки цветовых значений заменены HEX по палитре темы и группе токена (paletteId = null), исходная
         ссылка — в paletteRef. Ссылка, которую палитра темы не раскрывает, возвращается как есть.
+        Необязательный types ограничивает чтение типами текущего раздела; без него сохраняется полный ответ.
       parameters:
         - $ref: '#/components/parameters/VersionId'
+        - name: types
+          in: query
+          required: false
+          description: Типы токенов через запятую. Неизвестные или пустые значения отклоняются с 400.
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [color, gradient, typography, fontFamily, shape, spacing, shadow]
+          style: form
+          explode: false
         - schema:
             type: string
             format: uuid

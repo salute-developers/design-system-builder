@@ -15,7 +15,11 @@ const mocks = vi.hoisted(() => ({
     post: vi.fn(),
     patch: vi.fn(),
     remove: vi.fn(),
-    config: { getName: () => 'Button', getMeta: () => structuredClone(mocks.currentMeta) },
+    config: {
+        getName: () => 'Button',
+        getPlatform: () => 'web' as const,
+        getMeta: () => structuredClone(mocks.currentMeta),
+    },
 }));
 vi.mock('../../api/http', () => ({
     http: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.remove },

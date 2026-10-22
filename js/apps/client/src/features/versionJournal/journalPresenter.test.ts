@@ -31,6 +31,28 @@ const change = (overrides: Partial<DraftChangeDto> = {}): DraftChangeDto => ({
 });
 
 describe('presentJournal', () => {
+    it('холодный журнал разрешает имя и точный переход без посещения редактора компонентов', () => {
+        const [result] = presentJournal({
+            changes: [
+                change({
+                    entityType: 'invariant-property-value',
+                    entityId: 'value',
+                    changedPaths: ['/value'],
+                    previousValue: { appearance_id: 'appearance', value: 'old' },
+                    currentValue: { appearance_id: 'appearance', value: 'new' },
+                }),
+            ],
+            tokens: [],
+            components: [],
+            actorLabels: {},
+            context,
+            componentMetadata: { componentNames: { appearance: 'Button' }, referenceNames: {} },
+        });
+        expect(result.title).toContain('Button');
+        expect(result.navigation.pathname).toBe(
+            '/projects/project-1/design-systems/ds-1/themes/tenant-1/components/Button',
+        );
+    });
     it('показывает изменение ступени палитры и ведёт к её источнику в выбранной версии', () => {
         const [result] = presentJournal({
             changes: [

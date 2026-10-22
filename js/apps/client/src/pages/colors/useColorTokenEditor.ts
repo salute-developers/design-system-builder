@@ -7,6 +7,7 @@ import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../mod
 import { restorePaletteColor } from '../../palette/activePalette';
 import {
     adoptTheme,
+    adoptGroups,
     colorTokenSession,
     createColorTokenEditor,
     refreshStructure,
@@ -20,6 +21,7 @@ interface EditorInput {
     components: Config[];
     palette: ThemePalette | null;
     tokenDefinitions: TokenDefinitionDto[];
+    colorTokenGroups?: import('../../modules/colorTokens/domain/types').TokenGroupDto[];
     incompleteTokenIds: string[];
     updated: object;
     reload: () => void;
@@ -39,7 +41,17 @@ const themeTokens = (theme: Theme): ThemeTokenSource[] =>
 
 /** Экран цветовых токенов: модель строк из темы и палитры, редактор с автосохранением и его состояние. */
 export const useColorTokenEditor = (input: EditorInput) => {
-    const { context, designSystem, theme, palette, tokenDefinitions, incompleteTokenIds, updated, reload } = input;
+    const {
+        context,
+        designSystem,
+        theme,
+        palette,
+        tokenDefinitions,
+        colorTokenGroups,
+        incompleteTokenIds,
+        updated,
+        reload,
+    } = input;
     const session = useMemo(
         () => colorTokenSession(context),
         [context.projectId, context.designSystemId, context.tenantId, context.versionId],
@@ -74,13 +86,21 @@ export const useColorTokenEditor = (input: EditorInput) => {
         );
     }, [session, tokenDefinitions]);
 
+    useMemo(() => {
+        if (colorTokenGroups !== undefined) adoptGroups(session, colorTokenGroups);
+    }, [session, colorTokenGroups]);
+
     // Группы общие для тем дизайн-системы и читаются отдельно от темы; места определений приходят с ними.
     const [groupsError, setGroupsError] = useReducer((_: string | null, value: string | null) => value, null);
     useEffect(() => {
+        if (colorTokenGroups !== undefined) {
+            setGroupsError(null);
+            return;
+        }
         refreshStructure(session)
             .then(() => setGroupsError(null))
             .catch((error: unknown) => setGroupsError(error instanceof Error ? error.message : String(error)));
-    }, [session, tokenDefinitions]);
+    }, [session, tokenDefinitions, colorTokenGroups]);
 
     useEffect(() => {
         session.listeners.add(refresh);

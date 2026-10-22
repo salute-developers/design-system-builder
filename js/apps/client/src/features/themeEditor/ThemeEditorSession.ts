@@ -1,6 +1,8 @@
 import { loadThemeEditor, loadDesignSystemCursor } from '../../api/themeEditorRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import { componentRepository } from '../../api/componentRepository';
+import type { EditorSectionData } from './EditorSectionData';
+import type { EditorSection } from './editorSections';
 import { invalidateEditorReads } from '../../api/editorReads';
 import { subscribeIncompleteMutationMetadata } from '../../api/incompleteMutationMetadata';
 import type {
@@ -44,6 +46,14 @@ type PendingTokenSave = AutosaveOperation & {
     tokenBaseRevision: number;
     valueBaseRevisions: Record<string, number>;
     metadataKey: string;
+    /** Зафиксированные параметры HTTP-команды: повтор не подхватывает чужие свежие ревизии. */
+    request?: {
+        tokenId?: string;
+        editRevision: number;
+        tokenBaseRevision: number;
+        valueBaseRevisions: Record<string, number>;
+        definitionPatch?: PendingTokenSave['definitionPatch'];
+    };
 };
 
 type TokenSaveResult = Awaited<ReturnType<typeof tokenRepository.saveTokenMutation>>;
@@ -67,6 +77,7 @@ interface SessionOptions {
     onStatus: (status: AutosaveStatus) => void;
     onSnapshot: (snapshot: ThemeEditorSnapshot, tokensChanged: boolean, componentsChanged: boolean) => void;
     onDisposed: () => void;
+    sections?: EditorSectionData;
 }
 type PendingMutationEvent = Parameters<NonNullable<Parameters<typeof setPendingMutationListener>[0]>>[0];
 
@@ -94,6 +105,7 @@ export class ThemeEditorSession {
     private reloadChain: Promise<void> = Promise.resolve();
     private latestRemoteEvent: DraftInvalidationEvent | undefined;
     private readonly pendingRemoteScopes = new Set<DraftInvalidationScope>();
+    private lastAppliedSectionSnapshot?: ThemeEditorSnapshot;
 
     constructor(options: SessionOptions) {
         this.options = options;
@@ -147,6 +159,29 @@ export class ThemeEditorSession {
         this.queue.retryFailed();
     }
 
+    /** Меняет только активную единицу чтения; сессия и очереди скрытых разделов остаются живы. */
+    async activateSection(section: EditorSection, component?: string): Promise<void> {
+        const sections = this.options.sections;
+        if (!sections) return;
+        const result = await sections.activate(section, component, (type) =>
+            this.queue.hasPendingWhere((operation) => operation.change.type === type),
+        );
+        if (result) {
+            this.applyRemoteSnapshot(
+                result.snapshot,
+                result.tokensChanged,
+                result.componentsChanged,
+                result.tokenTypes,
+            );
+        }
+    }
+
+    /** После подтверждения скрытой очереди можно завершить отложенное обновление открытой зоны. */
+    refreshActiveSection(): Promise<void> {
+        const sections = this.options.sections;
+        return sections ? this.activateSection(sections.activeSection, sections.activeComponent) : Promise.resolve();
+    }
+
     private flushOnPageHide() {
         this.queue.flushAll(true);
     }
@@ -164,10 +199,56 @@ export class ThemeEditorSession {
         this.options.onDisposed();
     }
 
-    private applyRemoteSnapshot(next: ThemeEditorSnapshot, tokensChanged: boolean, componentsChanged: boolean) {
+    private applyRemoteSnapshot(
+        next: ThemeEditorSnapshot,
+        tokensChanged: boolean,
+        componentsChanged: boolean,
+        types?: TokenDefinitionDto['type'][],
+    ) {
+        if (this.options.sections && this.lastAppliedSectionSnapshot === next) return;
+        this.lastAppliedSectionSnapshot = next;
         this.snapshot = next;
-        if (tokensChanged) this.replaceTokenRuntimeState(next);
+        if (tokensChanged) {
+            if (types && this.options.sections) this.replaceSectionRuntimeState(next, types);
+            else this.replaceTokenRuntimeState(next);
+        }
         this.options.onSnapshot(next, tokensChanged, componentsChanged);
+    }
+
+    private replaceSectionRuntimeState(next: ThemeEditorSnapshot, types: TokenDefinitionDto['type'][]) {
+        const affected = new Set<string>();
+        for (const [logicalKey, definition] of this.definitionByLogicalKey) {
+            if (!types.includes(definition.type)) continue;
+            affected.add(definition.id);
+            this.definitionByLogicalKey.delete(logicalKey);
+            this.tokenIdByLogicalKey.delete(logicalKey);
+            this.baseRevisions.delete(logicalKey);
+            for (const [name, key] of this.logicalKeyByName) {
+                if (key === logicalKey) {
+                    this.logicalKeyByName.delete(name);
+                    delete this.tokenIds[name];
+                    this.baseRevisions.delete(name);
+                    this.renamedAwayNames.delete(name);
+                }
+            }
+        }
+        for (const key of this.valueBaseRevisions.keys()) {
+            if (affected.has(key.split(':')[0])) this.valueBaseRevisions.delete(key);
+        }
+        for (const definition of Object.values(next.tokenDefinitionsByName ?? {})) {
+            if (!types.includes(definition.type)) continue;
+            const key = `token:${definition.id}`;
+            affected.add(definition.id);
+            this.tokenIds[definition.name] = definition.id;
+            this.logicalKeyByName.set(definition.name, key);
+            this.tokenIdByLogicalKey.set(key, definition.id);
+            this.definitionByLogicalKey.set(key, definition);
+            this.renamedAwayNames.delete(definition.name);
+        }
+        for (const [key, revision] of Object.entries(next.tokenValueRevisionsByKey)) {
+            if (affected.has(key.split(':')[0])) this.valueBaseRevisions.set(key, revision);
+        }
+        this.editRevision = Math.max(this.editRevision, next.editRevision);
     }
     private metadataKey(operationKey: string) {
         return `ds_pending_meta:${this.context.projectId}:${this.context.designSystemId}:${this.context.tenantId}:${operationKey}`;
@@ -280,7 +361,7 @@ export class ThemeEditorSession {
             {
                 tokenName,
                 previousTokenName,
-                change,
+                change: structuredClone(change),
                 kind,
                 definitionPatch,
                 fingerprint,
@@ -325,7 +406,8 @@ export class ThemeEditorSession {
             this.retryRemoteReload = undefined;
         }
         this.cancelDeferredReload();
-        this.cancelDeferredReload = reloadWhenDraftAutosaveIsIdle(this.context, () => void this.runRemoteReload());
+        if (this.options.sections) void this.runRemoteReload();
+        else this.cancelDeferredReload = reloadWhenDraftAutosaveIsIdle(this.context, () => void this.runRemoteReload());
     }
 
     private async runRemoteReload() {
@@ -368,6 +450,11 @@ export class ThemeEditorSession {
     }
 
     private refreshSnapshot(scopes: Set<DraftInvalidationScope>, event?: DraftInvalidationEvent) {
+        if (this.options.sections) {
+            this.options.sections.invalidate(scopes);
+            invalidateEditorReads();
+            return this.refreshActiveSection();
+        }
         const refresh = this.reloadChain
             .catch(() => undefined)
             .then(async () => {
@@ -438,7 +525,7 @@ export class ThemeEditorSession {
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');
         const tokenId = this.tokenIdByLogicalKey.get(operation.entityKey);
-        if (operation.kind === 'delete' && !tokenId) {
+        if (operation.kind === 'delete' && !tokenId && !operation.request) {
             // После потери ответа удалённая сущность уже отсутствует в подтверждённом снимке.
             return Promise.resolve({
                 tokenId: operation.entityKey.replace(/^token:/, ''),
@@ -447,23 +534,35 @@ export class ThemeEditorSession {
                 valueBaseRevisions: operation.valueBaseRevisions,
             });
         }
-        const currentValueRevisions = {
-            ...operation.valueBaseRevisions,
-            ...this.relevantValueRevisions(this.tokenIdByLogicalKey.get(operation.entityKey), operation.tokenName),
+        operation.request ??= {
+            tokenId,
+            editRevision: Math.max(this.editRevision, operation.editRevision),
+            tokenBaseRevision: Math.max(
+                operation.tokenBaseRevision,
+                this.baseRevisions.get(previousBaseName ?? baseName) ?? 0,
+            ),
+            valueBaseRevisions: {
+                ...operation.valueBaseRevisions,
+                ...this.relevantValueRevisions(tokenId, operation.tokenName),
+            },
+            definitionPatch: structuredClone(operation.definitionPatch),
         };
+        if (this.latestGenerationByMetadataKey.get(operation.metadataKey) === operation.generation)
+            this.persistMetadata(operation);
+        const request = operation.request;
         return tokenRepository.saveTokenMutation(
             this.context,
-            this.tokenIdByLogicalKey.get(operation.entityKey),
+            request.tokenId,
             {
                 tokenName: operation.tokenName,
                 previousTokenName: operation.previousTokenName,
                 change: operation.change,
                 kind: operation.kind,
-                definitionPatch: operation.definitionPatch,
+                definitionPatch: request.definitionPatch,
             },
-            Math.max(this.editRevision, operation.editRevision),
-            Math.max(operation.tokenBaseRevision, this.baseRevisions.get(previousBaseName ?? baseName) ?? 0),
-            currentValueRevisions,
+            request.editRevision,
+            request.tokenBaseRevision,
+            request.valueBaseRevisions,
             operation.idempotencyKey,
             keepalive,
             this.signal,
@@ -472,6 +571,7 @@ export class ThemeEditorSession {
 
     private confirmed(operation: PendingTokenSave, result: TokenSaveResult) {
         if (!this.mounted || this.signal.aborted) return;
+        this.options.sections?.invalidate(new Set(['theme-tokens']));
         if (this.mounted) this.options.onSaved();
         const baseName = operation.tokenName.replace(/^(light|dark)\./, '');
         const previousBaseName = operation.previousTokenName?.replace(/^(light|dark)\./, '');

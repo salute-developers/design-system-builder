@@ -56,6 +56,6 @@ val designSystemsModule = module {
     factory { ListDesignSystemComponentStylesUseCase(get(), get(), get()) }
     factory { ListDesignSystemTenantsUseCase(get(), get(), get()) }
     factory { ListDesignSystemAppearancesUseCase(get(), get(), get()) }
-    factory { ListDraftChangesUseCase(get(), get(), get()) }
+    factory { ListDraftChangesUseCase(get(), get(), get(), get()) }
     factory { RevertDraftChangeUseCase(get(), get(), get(), get()) }
 }

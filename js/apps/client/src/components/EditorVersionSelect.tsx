@@ -7,15 +7,24 @@ import { hasPersistedComponentMutation, waitForDraftAutosaveIdle } from '../api/
 import { StyledSelect } from './Overlay/Overlay';
 
 /** Единственный переключатель временной границы всего редактора. История версий имеет отдельный выбор. */
-export const EditorVersionSelect = ({ context, draftId }: { context: EditorContextKey; draftId?: string }) => {
+export const EditorVersionSelect = ({
+    context,
+    draftId,
+    selectedVersion,
+}: {
+    context: EditorContextKey;
+    draftId?: string;
+    selectedVersion?: string;
+}) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const location = useLocation();
     const [switching, setSwitching] = useState(false);
     const [error, setError] = useState<string>();
+    const [opened, setOpened] = useState(false);
     const { versionId } = context;
 
-    const { versions, loading, error: loadError, reload } = useVersionList(context, draftId, true);
+    const { versions, loading, error: loadError, reload } = useVersionList(context, draftId, true, opened);
 
     const selectVersion = async (selected: string) => {
         if (selected === (versionId ?? 'draft')) return;
@@ -48,7 +57,17 @@ export const EditorVersionSelect = ({ context, draftId }: { context: EditorConte
             .map((version) => ({ value: version.id, label: `v${version.version}` })),
     ];
     if (versionId && !versions.some(({ id }) => id === versionId)) {
-        options.push({ value: versionId, label: loading ? 'Загрузка версии…' : 'Версия недоступна' });
+        options.push({
+            value: versionId,
+            label:
+                !opened && selectedVersion
+                    ? `v${selectedVersion}`
+                    : !opened
+                      ? 'Опубликованная версия'
+                      : loading
+                        ? 'Загрузка версии…'
+                        : 'Версия недоступна',
+        });
     }
     return (
         <div className="editor-version-selector">
@@ -57,7 +76,8 @@ export const EditorVersionSelect = ({ context, draftId }: { context: EditorConte
                 label="Версия редактора"
                 value={versionId ?? 'draft'}
                 options={options}
-                disabled={switching || loading}
+                disabled={switching}
+                onOpen={() => setOpened(true)}
                 popoverWidth="content"
                 onChange={(selected) => void selectVersion(selected)}
             />

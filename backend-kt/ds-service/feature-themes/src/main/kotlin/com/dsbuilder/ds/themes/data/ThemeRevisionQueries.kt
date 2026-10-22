@@ -4,6 +4,7 @@ import com.dsbuilder.ds.core.data.latestRevision
 import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
 import com.dsbuilder.ds.core.domain.ProjectId
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -48,6 +49,7 @@ internal fun currentTenantRows(
 internal fun currentThemeTokenRows(
     designSystemId: UUID? = null,
     tokenIds: Set<UUID>? = null,
+    types: Set<ThemeTokenType> = emptySet(),
 ): List<ResultRow> = ThemeTokensTable
     .join(ThemeTokenRevisionsTable, JoinType.INNER, ThemeTokensTable.id, ThemeTokenRevisionsTable.tokenId)
     .join(
@@ -64,6 +66,7 @@ internal fun currentThemeTokenRows(
             (ThemeTokenRevisionsTable.deleted eq false)
         designSystemId?.let { predicate = predicate and (ThemeTokensTable.designSystemId eq it) }
         tokenIds?.takeIf { it.isNotEmpty() }?.let { predicate = predicate and (ThemeTokensTable.id inList it) }
+        if (types.isNotEmpty()) predicate = predicate and (ThemeTokenRevisionsTable.type inList types)
         predicate
     }
     .toList()

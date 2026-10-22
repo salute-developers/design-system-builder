@@ -33,7 +33,25 @@ fun Route.designSystemChangeRoutes(
     json: Json,
 ) {
     listChangeRoute(evaluator, list)
+    summaryChangeRoute(evaluator, list)
     revertChangeRoute(evaluator, revert, json)
+}
+
+private fun Route.summaryChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {
+    get("/api/ds/design-systems/{id}/changes/summary") {
+        val context = TrustedDsRequestContextMapper.map(
+            call.request.headers, evaluator, call.request.queryParameters["versionId"],
+        ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+        val id = call.parameters["id"]?.uuid()
+            ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
+        val rawVersion = call.request.queryParameters["versionId"]
+        val version = rawVersion?.uuid()
+            ?: rawVersion?.let { return@get call.respondFailure(DsFailure.InvalidRequest("invalid_version_id")) }
+        when (val result = list.summary(context, DesignSystemId(id), version?.let(::DesignSystemVersionId))) {
+            is DsResult.Success -> call.respondSuccess(result, DraftChangeSummaryResponse(result.value))
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
 }
 
 private fun Route.listChangeRoute(evaluator: PolicyEvaluator, list: ListDraftChangesUseCase) {

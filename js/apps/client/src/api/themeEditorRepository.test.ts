@@ -598,7 +598,7 @@ describe('Editor repositories', () => {
         expect(put).toHaveBeenCalledWith(
             '/api/projects/project-1/ds/tenants/tenant-1/token-values',
             { editRevision: 3, values },
-            { headers: { 'X-DS-Base-Revision': '0' } },
+            { headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': expect.any(String) } },
         );
         expect(put.mock.calls[0][1]).not.toHaveProperty('values.0.tenantId');
     });
@@ -660,7 +660,7 @@ describe('Editor repositories', () => {
                     expect.objectContaining({ tokenId: 'token-created', platform: 'android', mode: 'light' }),
                 ]),
             }),
-            { headers: { 'X-DS-Base-Revision': '0' } },
+            { headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': 'request-key:values' } },
         );
         expect(result).toEqual({
             tokenId: 'token-created',
@@ -668,6 +668,47 @@ describe('Editor repositories', () => {
             baseRevision: 1,
             valueBaseRevisions: { 'token-created:web:light': 2 },
         });
+    });
+
+    it('повторяет шаги с прежними ключами и не перезаписывает чужое значение после потерянного ответа', async () => {
+        const replies = new Map<string, unknown>();
+        let value = 'initial';
+        let writes = 0;
+        let loseResponse = true;
+        patch.mockResolvedValue({ data: {}, headers: {} });
+        put.mockImplementation(async (_url, body, config) => {
+            const key = config.headers['Idempotency-Key'];
+            if (replies.has(key)) return replies.get(key);
+            value = body.values[0].value;
+            writes += 1;
+            const response = { data: { editRevision: 5, values: [] }, headers: {} };
+            replies.set(key, response);
+            if (loseResponse) {
+                loseResponse = false;
+                throw new Error('lost response');
+            }
+            return response;
+        });
+        const mutation = {
+            tokenName: 'accent',
+            kind: 'update' as const,
+            definitionPatch: { description: 'Mine' },
+            change: {
+                type: 'color' as const,
+                values: { web: '#111111', ios: undefined, android: undefined },
+                enabled: true,
+            },
+        };
+        const save = () => tokenRepository.saveTokenMutation(context, 'token-1', mutation, 4, 1, {}, 'stable');
+        await expect(save()).rejects.toThrow('lost response');
+        value = 'foreign fresh value';
+        await save();
+        expect(value).toBe('foreign fresh value');
+        expect(writes).toBe(1);
+        expect(put.mock.calls[0]).toEqual(put.mock.calls[1]);
+        expect(patch.mock.calls[0]).toEqual(patch.mock.calls[1]);
+        expect(patch.mock.calls[0][2].headers['Idempotency-Key']).toBe('stable:definition');
+        expect(put.mock.calls[0][2].headers['Idempotency-Key']).toBe('stable:values');
     });
 
     it('does not send absent platform values but preserves an explicit null', async () => {
@@ -725,7 +766,7 @@ describe('Editor repositories', () => {
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/ds/tokens/token-1',
             { description: 'Changed deliberately' },
-            { headers: { 'X-DS-Base-Revision': '8' } },
+            { headers: { 'X-DS-Base-Revision': '8', 'Idempotency-Key': 'request-key:definition' } },
         );
         expect(put).not.toHaveBeenCalled();
     });
@@ -760,7 +801,7 @@ describe('Editor repositories', () => {
         );
 
         expect(remove).toHaveBeenCalledWith('/api/projects/project-1/ds/tokens/token-1', {
-            headers: { 'X-DS-Base-Revision': '6' },
+            headers: { 'X-DS-Base-Revision': '6', 'Idempotency-Key': 'unused-for-delete:delete' },
         });
         expect(result).toEqual({ tokenId: 'token-1', editRevision: 4, baseRevision: 7, valueBaseRevisions: {} });
         expect(put).not.toHaveBeenCalled();

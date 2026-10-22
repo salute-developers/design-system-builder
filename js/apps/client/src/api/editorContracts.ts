@@ -142,6 +142,8 @@ export interface ThemeEditorTokenSnapshot {
 }
 
 export interface ThemeEditorSnapshot extends ThemeEditorTokenSnapshot {
+    colorTokenGroups?: import('../modules/colorTokens/domain/types').TokenGroupDto[];
+    hasComponents?: boolean;
     designSystem: DesignSystemDto;
     componentsData: Meta[];
     composeComponentsData?: Meta[];

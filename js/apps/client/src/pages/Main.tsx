@@ -20,6 +20,8 @@ import { AutosaveIndicator } from '../components/AutosaveIndicator';
 import { EditorVersionSelect } from '../components/EditorVersionSelect';
 import { useJournal, useReloadAfterAutosave } from '../features/versionJournal/useJournal';
 import { Button as JournalButton } from './versionJournal/VersionJournalPages.styles';
+import { editorSection as toEditorSection } from '../features/themeEditor/editorSections';
+import { useJournalSummary } from '../features/versionJournal/useJournalSummary';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
     'not-found': 'Theme не найдена',
@@ -73,6 +75,13 @@ export const Main = () => {
     );
     const editorSection = currentPath[editorContext ? 6 : 3];
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
+    const sectionSelection = useMemo(
+        () => ({
+            section: toEditorSection(editorSection),
+            component: editorSection === 'components' ? currentPath[7] : undefined,
+        }),
+        [editorSection, currentPath[7]],
+    );
     const themeEditorPath = `/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/colors`;
     const themeEditorSearch = editorVersionId
         ? `?${new URLSearchParams({
@@ -86,7 +95,11 @@ export const Main = () => {
         composeComponents,
         incompleteTokenIds,
         tokenDefinitions,
+        colorTokenGroups,
         loadError,
+        sectionLoading,
+        sectionError,
+        hasConfiguredComponents,
         reload,
         palette,
         paletteError,
@@ -99,13 +112,15 @@ export const Main = () => {
         Boolean(editorContext) ? editorContext! : designSystemProjectId,
         designSystemName,
         designSystemVersion,
+        true,
+        sectionSelection,
     );
 
     // Режим редактирования ДС — когда в URL выбрана конкретная дизайн-система (есть name + version)
     const isEditingDesignSystem = Boolean(editorContext || Boolean(designSystemName && designSystemVersion));
     const isReadOnly = designSystem?.getParameters()?.readOnly === true;
     // Раздел «Компоненты» показываем только если к ДС привязан хотя бы один компонент в базе
-    const hasComponents = isComponentEditorEnabled() && Boolean(components?.length || composeComponents.length);
+    const hasComponents = isComponentEditorEnabled() && hasConfiguredComponents;
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = Boolean(!isPopupOpen && !isEditingDesignSystem);
     const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
@@ -115,9 +130,12 @@ export const Main = () => {
         journalComponents,
         designSystem,
         designSystem?.getParameters()?.readOnly !== false,
-        Boolean(designSystem),
+        Boolean(designSystem) && (editorSection === 'changes' || editorSection === 'versions'),
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
+    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}`;
+    const journalSummary = useJournalSummary(editorContext, summaryCursor, Boolean(designSystem));
+    useReloadAfterAutosave(autosaveStatus, journalSummary.reload);
     const onChangeParameters = (name: keyof Parameters, value: Parameters[keyof Parameters]) => {
         setParameters((prev) => ({
             ...prev,
@@ -387,6 +405,7 @@ export const Main = () => {
                                             <EditorVersionSelect
                                                 context={editorContext}
                                                 draftId={designSystem?.getParameters()?.draftId}
+                                                selectedVersion={designSystem?.getVersion()}
                                             />
                                         )}
                                         <JournalButton
@@ -398,14 +417,12 @@ export const Main = () => {
                                             onClick={() => onClickPanelButton('changes')}
                                         >
                                             Изменения
-                                            {!editorJournal.loading &&
-                                                !editorJournal.error &&
-                                                editorJournal.actions.length > 0 && (
-                                                    <>
-                                                        <span aria-hidden="true">·</span>
-                                                        <span>{editorJournal.actions.length}</span>
-                                                    </>
-                                                )}
+                                            {!journalSummary.error && journalSummary.total > 0 && (
+                                                <>
+                                                    <span aria-hidden="true">·</span>
+                                                    <span>{journalSummary.total}</span>
+                                                </>
+                                            )}
                                         </JournalButton>
                                     </div>
                                 )
@@ -414,13 +431,20 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {isSectionSwitching || isEditorLoading ? (
+                    {isSectionSwitching || isEditorLoading || sectionLoading ? (
                         <div
                             className="editor-section-loading"
                             role="status"
                             aria-label={isEditorLoading ? 'Загружаем тему…' : 'Открываем раздел'}
                         >
                             <EditorLoadingSpinner aria-hidden="true" />
+                        </div>
+                    ) : sectionError ? (
+                        <div role="alert">
+                            Не удалось загрузить раздел{' '}
+                            <button type="button" onClick={reload}>
+                                Повторить
+                            </button>
                         </div>
                     ) : (
                         <Outlet
@@ -438,6 +462,7 @@ export const Main = () => {
                                 paletteError,
                                 setPalette,
                                 tokenDefinitions,
+                                colorTokenGroups,
                                 incompleteTokenIds,
                                 editorContext,
                                 autosaveStatus,

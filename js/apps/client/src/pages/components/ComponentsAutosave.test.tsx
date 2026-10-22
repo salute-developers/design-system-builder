@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,11 +7,13 @@ const mocks = vi.hoisted(() => ({
     currentMeta: { enabled: true } as Record<string, unknown>,
     config: {
         getName: () => 'Button',
+        getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
     },
     inputMeta: { enabled: true, kind: 'input' } as Record<string, unknown>,
     inputConfig: {
         getName: () => 'Input',
+        getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.inputMeta),
     },
     saveComponentMutation: vi.fn(async () => ({ style: 1 })),
@@ -53,9 +55,116 @@ vi.mock('../../api/componentRepository', () => ({
 }));
 
 import { Components } from './Components';
-import { waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
+import { getDraftAutosaveStatus, waitForDraftAutosaveIdle } from '../../api/draftAutosaveActivity';
+
+const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
+const renderEditor = () => {
+    const context = {
+        designSystem: { getParameters: () => editorContext, getComponentDataByName: () => ({}) },
+        theme: {},
+        components: [mocks.config, mocks.inputConfig],
+        updated: {},
+        rerender: vi.fn(),
+        reload: vi.fn(),
+    };
+    const Parent = () => {
+        const navigate = useNavigate();
+        return (
+            <>
+                <button onClick={() => navigate('/components/Input')}>input</button>
+                <button onClick={() => navigate('/components/Button')}>button</button>
+                <Outlet context={context} />
+            </>
+        );
+    };
+    return render(
+        <MemoryRouter initialEntries={['/components/Button']}>
+            <Routes>
+                <Route element={<Parent />}>
+                    <Route path="components/:componentName" element={<Components />} />
+                </Route>
+            </Routes>
+        </MemoryRouter>,
+    );
+};
 
 describe('Components autosave', () => {
+    it('успешное восстановление после 429 освобождает неработающую старую очередь', async () => {
+        mocks.saveComponentMutation.mockRejectedValueOnce({ isAxiosError: true, response: { status: 429 } });
+        renderEditor();
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(getDraftAutosaveStatus(editorContext)).toBe('error'));
+        fireEvent.click(screen.getByText('input'));
+        fireEvent.click(screen.getByText('button'));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+        await waitForDraftAutosaveIdle(editorContext, 1000);
+        expect(getDraftAutosaveStatus(editorContext)).toBe('saved');
+    });
+    it('отделяет baseline и отправленный снимок от изменяемых массивов states', async () => {
+        const states = [{ state: ['hovered'], value: 'old' }];
+        mocks.currentMeta = { invariantProps: [{ id: 'color', value: 'base', states }] };
+        vi.spyOn(mocks.config, 'getMeta').mockImplementation(() => ({ ...mocks.currentMeta }));
+        let finish!: (value: Record<string, number>) => void;
+        mocks.saveComponentMutation.mockReturnValueOnce(
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+        );
+        renderEditor();
+        const edit = await screen.findByRole('button', { name: 'изменить' });
+        states[0].value = 'new';
+        fireEvent.click(edit);
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        const operation = mocks.saveComponentMutation.mock.calls[0][2];
+        states[0].value = 'newer';
+        try {
+            expect(operation.before.invariantProps[0].states[0].value).toBe('old');
+            expect(operation.after.invariantProps[0].states[0].value).toBe('new');
+        } finally {
+            await act(async () => {
+                finish({ style: 1 });
+            });
+        }
+    });
+
+    it('старая Button-очередь не снимает барьер восстановленной очереди после Button → Input → Button', async () => {
+        let finishOld!: (value: Record<string, number>) => void;
+        let finishNew!: (value: Record<string, number>) => void;
+        mocks.saveComponentMutation
+            .mockReturnValueOnce(
+                new Promise((resolve) => {
+                    finishOld = resolve;
+                }),
+            )
+            .mockReturnValueOnce(
+                new Promise((resolve) => {
+                    finishNew = resolve;
+                }),
+            );
+        renderEditor();
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        fireEvent.click(screen.getByRole('button', { name: 'input' }));
+        fireEvent.click(screen.getByRole('button', { name: 'button' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+        let idle = false;
+        const barrier = waitForDraftAutosaveIdle(editorContext, 5000).then(() => {
+            idle = true;
+        });
+        await act(async () => {
+            finishOld({ style: 1 });
+        });
+        try {
+            expect(idle).toBe(false);
+        } finally {
+            await act(async () => {
+                finishNew({ style: 1 });
+                await barrier;
+            });
+        }
+    });
     beforeEach(() => {
         localStorage.clear();
         mocks.currentMeta = { enabled: true };

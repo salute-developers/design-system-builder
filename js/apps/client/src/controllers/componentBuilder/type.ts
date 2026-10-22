@@ -168,9 +168,10 @@ export interface Meta {
     serverBinding?: {
         componentId: string;
         appearanceId: string;
+        /** Краткие имена оформлений для разрешения вложенного компонента без чтения всего каталога. */
+        appearanceNames?: string[];
     };
 }
-
 
 export interface ThemeValues {
     getTokenValue(name: string, type: 'color' | 'shape' | 'shadow' | 'typography' | 'fontFamily', platform: 'web'): any;

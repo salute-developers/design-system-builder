@@ -247,17 +247,21 @@ export const refreshStructure = async (session: ColorTokenSession, sync = false)
         if (structureReads.get(session) !== read || sessions.get(sessionKey(session.context)) !== session) return;
         if (getDraftAutosaveRevision(session.context) !== revision) continue;
         if (read.sync) syncTheme(session, definitions);
-        session.groups = groups;
-        observeSubjectAddresses(
-            session.context,
-            'token-group',
-            Object.fromEntries(groups.map((group) => [group.id, group.editRevision ?? 0])),
-        );
+        adoptGroups(session, groups);
         setPlacements(session, definitions);
         read.sync = false;
         notify(session);
         return;
     }
+};
+
+export const adoptGroups = (session: ColorTokenSession, groups: TokenGroupDto[]) => {
+    session.groups = groups;
+    observeSubjectAddresses(
+        session.context,
+        'token-group',
+        Object.fromEntries(groups.map((group) => [group.id, group.editRevision ?? 0])),
+    );
 };
 
 /** Значения определений токенов с несохранёнными правками: имя с режимом → значения платформ. */

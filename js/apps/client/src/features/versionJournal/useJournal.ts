@@ -5,12 +5,14 @@ import type { DraftChangeDto, EditorContextKey, TokenDefinitionDto } from '../..
 import { versionJournalRepository as repository } from '../../api/versionJournalRepository';
 import { tokenRepository } from '../../api/tokenRepository';
 import type { AutosaveStatus } from '../../api/tokenAutosaveQueue';
-import { presentJournal } from './journalPresenter';
+import { presentJournal, isComponentJournalChange } from './journalPresenter';
+import { loadJournalComponentMetadata, type JournalComponentMetadata } from '../../api/journalComponentMetadata';
 
 interface JournalData {
     changes: DraftChangeDto[];
     tokens: TokenDefinitionDto[];
     actorLabels: Record<string, string>;
+    componentMetadata?: JournalComponentMetadata;
 }
 
 const emptyJournal: JournalData = { changes: [], tokens: [], actorLabels: {} };
@@ -34,7 +36,10 @@ const loadJournal = async (context: EditorContextKey, signal?: AbortSignal): Pro
         tokenRepository.listDefinitions(context, signal),
         repository.listProjectActorLabels(context.projectId, signal),
     ]);
-    return { changes, tokens, actorLabels };
+    const componentMetadata = changes.some(isComponentJournalChange)
+        ? await loadJournalComponentMetadata(context, signal)
+        : undefined;
+    return { changes, tokens, actorLabels, componentMetadata };
 };
 
 export const useJournal = (
@@ -51,38 +56,41 @@ export const useJournal = (
     const [status, setStatus] = useState<{ key: string; pending: boolean; error?: string }>();
     const request = useRef<{ generation: number; controller: AbortController }>();
     const generation = useRef(0);
-    const reloadData = useCallback(async (propagateFailure: boolean) => {
-        if (!enabled) return;
-        request.current?.controller.abort();
-        const controller = new AbortController();
-        const currentGeneration = ++generation.current;
-        request.current = { generation: currentGeneration, controller };
-        if (!context) {
-            setSnapshot(undefined);
-            setStatus({ key: contextKey, pending: false });
-            return;
-        }
-        setStatus({ key: contextKey, pending: true });
-        try {
-            const loaded = await loadJournal(context, controller.signal);
-            if (!controller.signal.aborted && request.current?.generation === currentGeneration) {
-                setSnapshot({ key: contextKey, data: loaded });
+    const reloadData = useCallback(
+        async (propagateFailure: boolean) => {
+            if (!enabled) return;
+            request.current?.controller.abort();
+            const controller = new AbortController();
+            const currentGeneration = ++generation.current;
+            request.current = { generation: currentGeneration, controller };
+            if (!context) {
+                setSnapshot(undefined);
                 setStatus({ key: contextKey, pending: false });
+                return;
             }
-        } catch (cause) {
-            if (!controller.signal.aborted && request.current?.generation === currentGeneration) {
-                setStatus({
-                    key: contextKey,
-                    pending: false,
-                    error:
-                        errorCode(cause) === 'JOURNAL_LIMIT_EXCEEDED'
-                            ? 'Журнал слишком велик для загрузки целиком'
-                            : 'Не удалось загрузить журнал',
-                });
+            setStatus({ key: contextKey, pending: true });
+            try {
+                const loaded = await loadJournal(context, controller.signal);
+                if (!controller.signal.aborted && request.current?.generation === currentGeneration) {
+                    setSnapshot({ key: contextKey, data: loaded });
+                    setStatus({ key: contextKey, pending: false });
+                }
+            } catch (cause) {
+                if (!controller.signal.aborted && request.current?.generation === currentGeneration) {
+                    setStatus({
+                        key: contextKey,
+                        pending: false,
+                        error:
+                            errorCode(cause) === 'JOURNAL_LIMIT_EXCEEDED'
+                                ? 'Журнал слишком велик для загрузки целиком'
+                                : 'Не удалось загрузить журнал',
+                    });
+                }
+                if (propagateFailure) throw cause;
             }
-            if (propagateFailure) throw cause;
-        }
-    }, [contextKey, enabled]);
+        },
+        [contextKey, enabled],
+    );
     const reload = useCallback(() => reloadData(false), [reloadData]);
     const reloadChecked = useCallback(() => reloadData(true), [reloadData]);
     useEffect(() => {

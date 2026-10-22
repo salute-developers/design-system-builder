@@ -88,7 +88,12 @@ fun Route.tenantRoutes(
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
             val id = call.parameters["id"]?.toUuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-            when (val result = getTokenValues.execute(context, id)) {
+            val typeNames = call.request.queryParameters["types"]?.split(',')
+            val types = typeNames.orEmpty().mapNotNull(com.dsbuilder.ds.themes.domain.ThemeTokenType::fromWire).toSet()
+            if (typeNames != null && (typeNames.any(String::isBlank) || types.size != typeNames.distinct().size)) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_token_types"))
+            }
+            when (val result = getTokenValues.execute(context, id, types)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TenantTokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }

@@ -3,7 +3,12 @@ import type { DesignSystemVersionDto, EditorContextKey } from '../../api/editorC
 import { versionJournalRepository } from '../../api/versionJournalRepository';
 
 /** Общий жизненный цикл загрузки версий для истории и переключателя редактора. */
-export const useVersionList = (context: EditorContextKey | undefined, refreshKey?: unknown, clearOnReload = false) => {
+export const useVersionList = (
+    context: EditorContextKey | undefined,
+    refreshKey?: unknown,
+    clearOnReload = false,
+    enabled = true,
+) => {
     const projectId = context?.projectId;
     const designSystemId = context?.designSystemId;
     const tenantId = context?.tenantId;
@@ -19,7 +24,7 @@ export const useVersionList = (context: EditorContextKey | undefined, refreshKey
         request.current?.abort();
         const controller = new AbortController();
         request.current = controller;
-        if (!projectId || !designSystemId || !tenantId) {
+        if (!projectId || !designSystemId || !tenantId || !enabled) {
             setState({ key, versions: [], loading: false });
             return;
         }
@@ -43,7 +48,7 @@ export const useVersionList = (context: EditorContextKey | undefined, refreshKey
                     error: 'Не удалось загрузить версии',
                 }));
         }
-    }, [projectId, designSystemId, tenantId, key, clearOnReload]);
+    }, [projectId, designSystemId, tenantId, key, clearOnReload, enabled]);
     useEffect(() => {
         void reload();
         return () => request.current?.abort();

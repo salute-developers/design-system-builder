@@ -8,7 +8,12 @@ const activityRevisions = new Map<string, number>();
 const savedAtByContext = new Map<string, number>();
 const statusListeners = new Map<string, Set<(status: AutosaveStatus, savedAt?: number) => void>>();
 let activityRevision = 0;
+type SourceOwner = { status: AutosaveStatus; detached: boolean; transferred: boolean; released: boolean };
+const sourceOwners = new Map<string, Map<string, Map<symbol, SourceOwner>>>();
+let sessionGeneration = 0;
 authService.onSessionReset(() => {
+    sessionGeneration += 1;
+    sourceOwners.clear();
     statuses.clear();
     idleListeners.clear();
     activityRevisions.clear();
@@ -17,6 +22,53 @@ authService.onSessionReset(() => {
 });
 
 const contextKey = (context: EditorContextKey) => `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
+
+/** Каждая живая очередь владеет своим статусом, включая очередь, завершающуюся после ухода со страницы. */
+export const registerDraftAutosaveSource = (context: EditorContextKey, source: string) => {
+    const key = contextKey(context);
+    const generation = sessionGeneration;
+    const owner = Symbol(source);
+    const state: SourceOwner = { status: 'saved', detached: false, transferred: false, released: false };
+    const update = (status: AutosaveStatus | null) => {
+        if (state.released || generation !== sessionGeneration) return;
+        const sources = sourceOwners.get(key) ?? new Map<string, Map<symbol, SourceOwner>>();
+        const owners = sources.get(source) ?? new Map<symbol, SourceOwner>();
+        if (status === null) {
+            state.released = true;
+            owners.delete(owner);
+        } else {
+            state.status = status;
+            owners.set(owner, state);
+        }
+        for (const [id, current] of owners) {
+            if (current.detached && current.transferred && current.status === 'error') {
+                current.released = true;
+                owners.delete(id);
+            }
+        }
+        if (owners.size) sources.set(source, owners);
+        else sources.delete(source);
+        if (sources.size) sourceOwners.set(key, sources);
+        else sourceOwners.delete(key);
+        const values = [...owners.values()].map((current) => current.status);
+        const aggregate = (['error', 'saving', 'pending'] as const).find((value) => values.includes(value)) ?? 'saved';
+        setDraftAutosaveActivity(context, source, owners.size ? aggregate : null);
+    };
+    return Object.assign(update, {
+        detach: () => {
+            state.detached = true;
+            update(state.status);
+        },
+        /** Вызывается только после восстановления сохранённой операции в новой очереди. */
+        adoptFailed: () => {
+            if (state.released || generation !== sessionGeneration) return;
+            for (const current of sourceOwners.get(key)?.get(source)?.values() ?? []) {
+                if (current.detached) current.transferred = true;
+            }
+            update(state.status);
+        },
+    });
+};
 
 const isIdle = (key: string) => [...(statuses.get(key)?.values() ?? [])].every((status) => status === 'saved');
 
@@ -32,6 +84,10 @@ const notifyStatus = (key: string) =>
     statusListeners.get(key)?.forEach((listener) => listener(statusOf(key), savedAtByContext.get(key)));
 
 export const getDraftAutosaveStatus = (context: EditorContextKey) => statusOf(contextKey(context));
+
+/** Состояние одной компонентной очереди, без блокировки из-за ошибок независимых разделов. */
+export const getDraftAutosaveSourceStatus = (context: EditorContextKey, source: string) =>
+    statuses.get(contextKey(context))?.get(source) ?? 'saved';
 
 /** Фиксирует только подтверждённое сервером сохранение, не завершение неуспешного запроса. */
 export const recordDraftSave = (context: EditorContextKey) => {
@@ -66,7 +122,9 @@ export const getDraftAutosaveRevision = (context: EditorContextKey) => activityR
 export const setDraftAutosaveActivity = (context: EditorContextKey, source: string, status: AutosaveStatus | null) => {
     const key = contextKey(context);
     const contextStatuses = statuses.get(key) ?? new Map<string, AutosaveStatus>();
-    if (contextStatuses.get(source) !== (status ?? undefined)) {
+    const previous = contextStatuses.get(source);
+    const isActive = (value: AutosaveStatus | null | undefined) => value != null && value !== 'saved';
+    if (previous !== (status ?? undefined) && (isActive(previous) || isActive(status))) {
         activityRevisions.delete(key);
         activityRevisions.set(key, ++activityRevision);
     }

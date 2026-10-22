@@ -184,12 +184,23 @@ class ExposedTenantRepository : TenantRepository {
         return TenantsTable.deleteWhere { TenantsTable.id eq tenantId } == 1
     }
 
-    override suspend fun tokenValues(projectId: ProjectId, id: UUID): List<TenantTokenValue>? {
-        if (findAccessible(projectId, id) == null) return null
+    override suspend fun tokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<ThemeTokenType>,
+    ): List<TenantTokenValue>? {
         val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull() ?: return null
+        val tokenIds = if (types.isEmpty()) {
+            null
+        } else {
+            currentThemeTokenRows(tenant[TenantsTable.designSystemId], types = types)
+                .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
+                .also { if (it.isEmpty()) return emptyList() }
+        }
         val rows = currentThemeTokenValueRows(
             designSystemId = tenant[TenantsTable.designSystemId],
             tenantIds = setOf(id),
+            tokenIds = tokenIds,
         )
         val revisions = rows.firstOrNull()?.let { row ->
             entityEditRevisions(

@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const { hookState, reload, mainUtils, retryAutosave } = vi.hoisted(() => ({
-    hookState: { loading: false, components: [] as unknown[], autosaveStatus: 'saved' as 'saved' | 'saving' | 'error' },
+    hookState: {
+        loading: false,
+        components: [] as unknown[],
+        hasComponents: false,
+        autosaveStatus: 'saved' as 'saved' | 'saving' | 'error',
+    },
     reload: vi.fn(),
     retryAutosave: vi.fn(),
     mainUtils: { designSystemSave: vi.fn() },
@@ -33,6 +38,7 @@ vi.mock('../hooks', () => ({
         theme: hookState.loading ? null : { getName: () => 'Brand' },
         components: hookState.loading ? null : hookState.components,
         composeComponents: [],
+        hasConfiguredComponents: hookState.hasComponents,
         incompleteTokenIds: [],
         loadError: null,
         autosaveStatus: hookState.autosaveStatus,
@@ -45,6 +51,9 @@ vi.mock('../hooks', () => ({
 vi.mock('../features/versionJournal/useJournal', () => ({
     useJournal: () => ({ actions: [], loading: false, error: undefined, reload: vi.fn() }),
     useReloadAfterAutosave: vi.fn(),
+}));
+vi.mock('../features/versionJournal/useJournalSummary', () => ({
+    useJournalSummary: () => ({ total: 0, error: undefined, reload: vi.fn() }),
 }));
 vi.mock('../components/EditorVersionSelect', () => ({
     EditorVersionSelect: () => <span>Выбор версии</span>,
@@ -75,6 +84,7 @@ afterEach(() => {
     setActiveDraftContext(null);
     hookState.loading = false;
     hookState.components = [];
+    hookState.hasComponents = false;
     hookState.autosaveStatus = 'saved';
     localStorage.clear();
     vi.clearAllMocks();
@@ -289,7 +299,8 @@ describe('Theme editor shell', () => {
 
         it('offers the section when it is enabled and the design system has components', () => {
             vi.stubEnv('VITE_COMPONENT_EDITOR_ENABLED', 'true');
-            hookState.components = [{}];
+            hookState.hasComponents = true;
+            hookState.components = [];
 
             renderShell();
 

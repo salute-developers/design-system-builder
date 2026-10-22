@@ -147,7 +147,12 @@ const componentUsing = (name: string, token: string) =>
         }),
     }) as unknown as Config;
 
-const renderScreen = async (role = 'maintainer', missing: string[] = [], components: Config[] = []) => {
+const renderScreen = async (
+    role = 'maintainer',
+    missing: string[] = [],
+    components: Config[] = [],
+    cachedGroups = false,
+) => {
     get.mockImplementation((url: string) => Promise.resolve(reply(role, missing)(url)));
     const snapshot = await loadThemeEditor(context);
     const designSystem = DesignSystem.fromSnapshot({
@@ -175,6 +180,7 @@ const renderScreen = async (role = 'maintainer', missing: string[] = [], compone
                 theme={current}
                 components={components}
                 palette={null}
+                colorTokenGroups={cachedGroups ? GROUPS : undefined}
                 tokenDefinitions={Object.values(snapshot.tokenDefinitionsByName)}
                 incompleteTokenIds={snapshot.incompleteTokenIds}
                 updated={{ updated }}
@@ -224,6 +230,14 @@ afterEach(() => {
 });
 
 describe('ColorTokensScreen', () => {
+    it('использует группы раздела без повторного чтения групп и определений', async () => {
+        const groupReads = groupRepository.list.mock.calls.length;
+        const definitionReads = groupRepository.definitions.mock.calls.length;
+        await renderScreen('maintainer', [], [], true);
+        expect(await screen.findByTestId('token-subgroup-Status')).toBeInTheDocument();
+        expect(groupRepository.list.mock.calls.length).toBe(groupReads);
+        expect(groupRepository.definitions.mock.calls.length).toBe(definitionReads);
+    });
     it('обновляет структуру при ошибке несвязанной очереди', async () => {
         const session = colorTokenSession(context);
         setDraftAutosaveActivity(context, 'tokens', 'error');

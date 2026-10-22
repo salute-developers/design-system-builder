@@ -23,15 +23,25 @@ const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.
 
 /** Предметный клиент с ограниченным набором операций. */
 export const tokenRepository = {
+    async loadColorGroups(context: EditorContextKey, signal?: AbortSignal) {
+        const request = readRequest(context, signal);
+        const response = await readEditor<import('../modules/colorTokens/domain/types').TokenGroupDto[]>(
+            `${apiRoot(context.projectId)}/design-systems/${context.designSystemId}/token-groups`,
+            { ...request, params: { ...request.params, kind: 'color' } },
+        );
+        return response.data;
+    },
     async loadTokenData(
         context: EditorContextKey,
         signal?: AbortSignal,
         knownPublicationVersion?: string,
+        types?: TokenDefinitionDto['type'][],
     ): Promise<ThemeEditorTokenSnapshot> {
         const root = apiRoot(context.projectId);
         const request = readRequest(context, signal);
         const themePalette =
-            paletteSourceFromEnv() === 'api'
+            paletteSourceFromEnv() === 'api' &&
+            (!types || types.some((type) => type === 'color' || type === 'gradient' || type === 'shadow'))
                 ? createHttpPaletteRepository()
                       .load(context, signal)
                       .then(
@@ -44,8 +54,20 @@ export const tokenRepository = {
                 : Promise.resolve({ palette: undefined, paletteError: undefined });
         const [tenant, tokens, values, versions] = await Promise.all([
             readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
-            readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
-            readEditor<TenantTokenValueDto[]>(`${root}/tenants/${context.tenantId}/token-values`, request),
+            types
+                ? Promise.all(
+                      types.map((type) =>
+                          readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, {
+                              ...request,
+                              params: { ...request.params, type },
+                          }),
+                      ),
+                  ).then((responses) => ({ data: responses.flatMap((response) => response.data) }))
+                : readEditor<TokenDefinitionDto[]>(`${root}/design-systems/${context.designSystemId}/tokens`, request),
+            readEditor<TenantTokenValueDto[]>(
+                `${root}/tenants/${context.tenantId}/token-values`,
+                types ? { ...request, params: { ...request.params, types: types.join(',') } } : request,
+            ),
             context.versionId || knownPublicationVersion
                 ? Promise.resolve({ data: [] as DesignSystemVersionDto[] })
                 : readEditor<DesignSystemVersionDto[]>(
@@ -180,12 +202,13 @@ export const tokenRepository = {
         values: TenantTokenValueInputDto[],
         keepalive = false,
         signal?: AbortSignal,
+        idempotencyKey: string = crypto.randomUUID(),
     ) {
         const response = await http.put<{ editRevision: number; values: TenantTokenValueDto[] }>(
             `${apiRoot(context.projectId)}/tenants/${context.tenantId}/token-values`,
             { editRevision, values },
             {
-                headers: { 'X-DS-Base-Revision': '0' },
+                headers: { 'X-DS-Base-Revision': '0', 'Idempotency-Key': idempotencyKey },
                 ...(signal ? { signal } : {}),
                 ...keepaliveRequest(keepalive),
             },
@@ -221,7 +244,7 @@ export const tokenRepository = {
         if (mutation.kind === 'delete') {
             if (!stableTokenId) throw new Error('TOKEN_ID_REQUIRED_FOR_DELETE');
             const deleted = await http.delete(`${root}/tokens/${stableTokenId}`, {
-                headers,
+                headers: { ...headers, 'Idempotency-Key': `${idempotencyKey}:delete` },
                 ...transport,
             });
             const metadata = parseMutationMetadata(deleted.headers?.['x-ds-mutation-metadata']);
@@ -256,7 +279,7 @@ export const tokenRepository = {
             tokenMutationMetadata = parseMutationMetadata(created.headers?.['x-ds-mutation-metadata']);
         } else if (mutation.definitionPatch && Object.keys(mutation.definitionPatch).length > 0) {
             const updated = await http.patch(`${root}/tokens/${stableTokenId}`, mutation.definitionPatch, {
-                headers,
+                headers: { ...headers, 'Idempotency-Key': `${idempotencyKey}:definition` },
                 ...transport,
             });
             tokenMutationMetadata = parseMutationMetadata(updated.headers?.['x-ds-mutation-metadata']);
@@ -275,7 +298,7 @@ export const tokenRepository = {
                 baseRevision: valueBaseRevisions[tokenValueKey(stableTokenId!, platform, mode)] ?? 0,
             }));
         const saved = values.length
-            ? await this.saveTenantValues(context, editRevision, values, keepalive, signal)
+            ? await this.saveTenantValues(context, editRevision, values, keepalive, signal, `${idempotencyKey}:values`)
             : { editRevision, values: [] as TenantTokenValueDto[], mutationMetadata: [] };
         const tokenRevision = tokenMutationMetadata.reduce(
             (latest, item) => Math.max(latest, item.revision),

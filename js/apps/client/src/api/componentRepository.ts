@@ -24,6 +24,7 @@ import type {
 import { apiRoot, parseMutationMetadata, readRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { getComposePreviewPluginUrl, hasConfiguration, markComposeComponents } from '../composePreview';
+import { camelToKebab } from '../utils/text';
 
 const unwrapValue = (value: unknown): unknown => (Array.isArray(value) && value.length === 1 ? value[0] : value);
 
@@ -102,10 +103,48 @@ const COMPONENT_LOAD_CONCURRENCY = 4;
 
 /** Предметный клиент с ограниченным набором операций. */
 export const componentRepository = {
+    /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей. */
+    async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
+        if (!isComponentEditorEnabled()) return [];
+        const root = apiRoot(context.projectId);
+        const request = readRequest(context, signal);
+        const [catalog, appearances] = await Promise.all([
+            readEditor<ComponentDto[]>(`${root}/components`, request),
+            readEditor<AppearanceDto[]>(`${root}/design-systems/${context.designSystemId}/appearances`, request),
+        ]);
+        const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
+        return catalog.data
+            .filter(
+                (component) =>
+                    configured.has(component.id) &&
+                    (component.platform === 'web' ||
+                        (component.platform === 'compose' && getComposePreviewPluginUrl())),
+            )
+            .map(
+                (component) =>
+                    ({
+                        name: component.name,
+                        description: component.description ?? '',
+                        platform: component.platform,
+                        serverBinding: {
+                            componentId: component.id,
+                            appearanceId:
+                                appearances.data.find((appearance) => appearance.componentId === component.id)?.id ??
+                                '',
+                            appearanceNames: appearances.data
+                                .filter((appearance) => appearance.componentId === component.id)
+                                .map((appearance) => appearance.name ?? 'default'),
+                        },
+                        sources: { api: [], variations: [], configs: [] },
+                    }) as Meta,
+            );
+    },
+
     async loadComponentData(
         context: EditorContextKey,
         signal?: AbortSignal,
         platform: ComponentDto['platform'] = 'web',
+        componentName?: string,
     ): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
         const root = apiRoot(context.projectId);
@@ -119,6 +158,7 @@ export const componentRepository = {
                     readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
                         designSystemId: context.designSystemId,
                         platform,
+                        ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
                     }),
                 ),
             ),
@@ -132,6 +172,7 @@ export const componentRepository = {
             (component) =>
                 linkedIds.has(component.id) &&
                 component.platform === platform &&
+                (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
                 configuredNames.has(normalizeComponentName(component.name)),
         );
         const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
@@ -145,15 +186,25 @@ export const componentRepository = {
                         readEditor<ComponentVariationDto[]>(`${root}/components/${component.id}/variations`, request),
                     ),
                 ]);
-                const styles = (
-                    await Promise.all(
-                        variations.data.map((variation) =>
-                            limitedRequest(() =>
-                                readEditor<ComponentStyleDto[]>(`${root}/variations/${variation.id}/styles`, request),
-                            ),
-                        ),
-                    )
-                ).flatMap((response) => response.data);
+                const styles = componentName
+                    ? (
+                          await readEditor<ComponentStyleDto[]>(
+                              `${root}/design-systems/${context.designSystemId}/components/${component.id}/styles`,
+                              request,
+                          )
+                      ).data
+                    : (
+                          await Promise.all(
+                              variations.data.map((variation) =>
+                                  limitedRequest(() =>
+                                      readEditor<ComponentStyleDto[]>(
+                                          `${root}/variations/${variation.id}/styles`,
+                                          request,
+                                      ),
+                                  ),
+                              ),
+                          )
+                      ).flatMap((response) => response.data);
                 const propertyByName = new Map(properties.data.map((property) => [property.name, property]));
                 const variationByName = new Map(variations.data.map((variation) => [variation.name, variation]));
                 const stylesByVariation = new Map<string, ComponentStyleDto[]>();

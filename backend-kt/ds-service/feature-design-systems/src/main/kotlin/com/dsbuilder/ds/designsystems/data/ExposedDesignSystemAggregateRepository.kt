@@ -17,7 +17,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.castTo
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNull
@@ -73,7 +75,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
     ): List<DesignSystemTokenSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateTokensTable.designSystemId eq designSystemId.value
-        type?.let { condition = condition and (AggregateTokensTable.type eq it) }
+        type?.let { condition = condition and (AggregateTokensTable.type.castTo<String>(TextColumnType()) eq it) }
         query?.takeIf(String::isNotBlank)?.let { raw ->
             val pattern = "%${raw.trim().lowercase()}%"
             condition = condition and (

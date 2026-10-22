@@ -68,6 +68,7 @@ export interface JournalActionViewModel {
     canRevert: boolean;
 }
 export interface JournalPresenterInput {
+    componentMetadata?: { componentNames: Record<string, string>; referenceNames: Record<string, string> };
     changes: DraftChangeDto[];
     tokens: TokenDefinitionDto[];
     components: Meta[];
@@ -115,6 +116,7 @@ const componentEntityTypes = new Set([
     'variation-platform-param-adjustment',
     'variation-property-value',
 ]);
+export const isComponentJournalChange = (change: DraftChangeDto) => componentEntityTypes.has(change.entityType);
 const field = (change: DraftChangeDto, ...names: string[]) => {
     for (const name of names) {
         const value = change.currentValue?.[name] ?? change.previousValue?.[name];
@@ -316,10 +318,13 @@ export const presentJournal = ({
     actorLabels,
     context,
     readOnly = false,
+    componentMetadata,
 }: JournalPresenterInput): JournalActionViewModel[] => {
     const tokensById = new Map(tokens.map((token) => [token.id, token]));
     const componentIndex = buildComponentEntityIndex(components);
+    Object.entries(componentMetadata?.componentNames ?? {}).forEach(([id, name]) => componentIndex.set(id, name));
     const namesById = new Map(tokens.map((token) => [token.id, token.displayName ?? token.name]));
+    Object.entries(componentMetadata?.referenceNames ?? {}).forEach(([id, name]) => namesById.set(id, name));
     changes
         .filter((change) => change.entityType === 'palette-group' || change.entityType === 'token-group')
         .forEach((change) => {

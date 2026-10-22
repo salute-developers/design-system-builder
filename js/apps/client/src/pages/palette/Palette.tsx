@@ -122,12 +122,6 @@ const PaletteScreen = ({
         else editor.setPopover(null);
     };
 
-    // При открытии раздела палитра перечитывается: связи могли измениться в разделе цветов.
-    const { refresh } = editor;
-    useEffect(() => {
-        refresh().catch(() => undefined);
-    }, [refresh]);
-
     // Как в прототипе: при открытии выбрана первая растяжка первой непустой группы.
     useEffect(() => {
         const requestedGroup = searchParams.get('groupId');
