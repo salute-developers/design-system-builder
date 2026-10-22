@@ -27,6 +27,12 @@ internal class EffectiveNameSnapshot private constructor(
     /** Значение вариации [variationId] с действующим именем [name] либо `null`. */
     fun value(variationId: UUID, name: String): ValueName? = values[variationId to name.trim().lowercase()]
 
+    /** Ось [variationId] входит в оформление. */
+    fun hasAxis(variationId: UUID): Boolean = axes.values.any { it.variationId == variationId }
+
+    /** Стиль [styleId] входит в значения оформления. */
+    fun hasValue(styleId: UUID): Boolean = values.values.any { it.styleId == styleId }
+
     companion object {
         /** Пустой снимок для нового оформления. */
         val EMPTY = EffectiveNameSnapshot(emptyMap(), emptyMap())

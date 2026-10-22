@@ -593,6 +593,45 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertTrue(references.values.all { it !is JsonNull })
     }
 
+    @Test
+    fun `an import resolves references by the display names of the target`() = withService {
+        val fixture = fixture()
+        val child = importChild(fixture.ds)
+        val nested = property("buttonStyle", "component_style")
+        val xValue = valueOf(model(child), "size", "x")
+        patch("/api/ds/appearance-variation-values/$xValue", """{"displayName":"xl"}""")
+        val body = """{"colorSchemeVariationId":"view","invariants":{},"variations":[
+            {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
+            {"id":"size","name":"size","values":[
+              {"name":"a","properties":{"buttonStyle":{"type":"component_style","value":"Child.xl"}}},
+              {"name":"b","properties":{}}]}]}"""
+        val imported = importConfig(fixture.ds, "default", body)
+        assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        val stored = valuesOf(fixture.appearance, nested, styleA).single()
+        assertEquals("Child.xl", stored.getValue("reference").jsonObject.string("reference"))
+    }
+
+    @Test
+    fun `an import with names that point to different axes after a swap is rejected`() = withService {
+        val fixture = fixture()
+        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"kind","values":["p"]}""")
+        val kind = axisOf(model(fixture.appearance), "kind")
+        val size = axisOf(model(fixture.appearance), "size")
+        patch("/api/ds/appearance-variations/$kind", """{"displayName":"tmp"}""")
+        patch("/api/ds/appearance-variations/$size", """{"displayName":"kind"}""")
+        patch("/api/ds/appearance-variations/$kind", """{"displayName":"size"}""")
+        val before = axisNames(model(fixture.appearance))
+
+        val body = """{"colorSchemeVariationId":"view","invariants":{},"variations":[
+            {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
+            {"id":"kind","name":"kind","values":[{"name":"p","properties":{}}]},
+            {"id":"size","name":"size","values":[{"name":"a","properties":{}}]}]}"""
+        val rejected = importConfig(fixture.ds, "default", body)
+        assertTrue(rejected.bodyAsText().contains("display name of one axis"), rejected.bodyAsText())
+        assertEquals(before, axisNames(model(fixture.appearance)))
+    }
+
     // ── фикстуры ───────────────────────────────────────────────────────────────────────────────────
 
     private class Fixture(val ds: String, val component: String, val appearance: String)

@@ -48,6 +48,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
+    @Suppress("LongMethod", "ReturnCount")
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
         invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
         unknownRoot(entry.config)?.let {
@@ -84,8 +85,15 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             entry.styleName,
         )
         val before = old?.let { builder.build(descriptor, true, linkedSetOf()) }
-        context.appearances += appearanceId
         val names = if (old != null) EffectiveNameSnapshot.capture(appearanceId) else EffectiveNameSnapshot.EMPTY
+        ambiguousName(ds, componentId, entry.config, names)?.let {
+            return context.report.reject(
+                entry,
+                "Name '$it' is the display name of one axis or value and the catalog name of another; " +
+                    "import the configuration exported from this design system",
+            )
+        }
+        context.appearances += appearanceId
         val axes = upsertAxes(componentId, entry.config, names)
         val styles = upsertStyles(ds, entry.config, axes, names)
         declareAxes(appearanceId, entry.config, axes, styles, names, context)
@@ -106,6 +114,38 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 else -> context.report.updated++
             }
         }
+    }
+
+    /**
+     * Имя конфигурации, которое по действующему имени указывает на одну ось или значение оформления, а по имени
+     * каталога на другое: после перестановки имён такая запись склеила бы вариации, поэтому она отклоняется.
+     */
+    private fun ambiguousName(
+        ds: UUID,
+        component: UUID,
+        config: ComponentConfig,
+        names: EffectiveNameSnapshot,
+    ): String? {
+        val catalogAxes = VariationsTable.selectAll().where { VariationsTable.componentId eq component }
+            .associate { it[VariationsTable.name] to it[VariationsTable.id] }
+        axes(config).forEach { (_, name) ->
+            val effective = names.axis(name)?.variationId
+            val catalog = catalogAxes[name]
+            val differs = effective != null && catalog != null && effective != catalog
+            if (differs && names.hasAxis(requireNotNull(catalog))) return name
+        }
+        val axisNames = axes(config).toMap()
+        axisValues(config).forEach { (axisId, value) ->
+            val axisName = axisNames[axisId] ?: return@forEach
+            val variation = names.axis(axisName)?.variationId ?: catalogAxes[axisName] ?: return@forEach
+            val effective = names.value(variation, value)?.styleId ?: return@forEach
+            val catalog = ComponentStylesTable.selectAll().where {
+                (ComponentStylesTable.designSystemId eq ds) and (ComponentStylesTable.variationId eq variation) and
+                    (ComponentStylesTable.name eq value)
+            }.singleOrNull()?.get(ComponentStylesTable.id)
+            if (catalog != null && catalog != effective && names.hasValue(catalog)) return value
+        }
+        return null
     }
 
     private fun component(name: String, context: ComponentConfigImportContext): ResultRow? {
@@ -773,7 +813,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val target = component?.let { appearance(ds, it, styleName) }
             val available = component?.let { referenceStyles(ds, it) }.orEmpty()
-            val targetStyles = parts.drop(1).mapNotNull(available::get)
+            val effective = target?.let { effectiveStyles(ds, it[ComponentAppearancesTable.id]) }.orEmpty()
+            val targetStyles = parts.drop(1).mapNotNull { effective[it.trim().lowercase()] ?: available[it] }
             if (target == null || targetStyles.size != parts.size - 1) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
@@ -820,6 +861,11 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }
             }
         }
+
+    /** Значения оси целевого оформления по действующему имени: ссылки экспорта написаны этими именами. */
+    private fun effectiveStyles(ds: UUID, appearanceId: UUID): Map<String, UUID> =
+        AppearanceEditorModelReader.axes(appearanceId, ds, null).flatMap { it.values }
+            .associate { it.name.trim().lowercase() to it.styleId }
 
     private fun referenceStyles(ds: UUID, component: UUID): Map<String, UUID> = ComponentStylesTable.join(
         VariationsTable,
