@@ -62,7 +62,7 @@
   - `contracts/route-manifest.json` и `openapi/documentation.yaml` — новые операции; контрактные тесты.
   - Своих миграций нет: данные — редакции `token_revisions` и `token_value_revisions` версионирования #109;
     признак своего значения платформы — колонка `token_value_revisions.overridden` миграции
-    `V11__token_value_overridden.sql` этого change (её планировал и `add-color-token-gradients`, #122); ссылки компонентов на удалённый токен чистит общий механизм #109.
+    `V13__token_value_overridden.sql` этого change (её планировал и `add-color-token-gradients`, #122); ссылки компонентов на удалённый токен чистит общий механизм #109.
   - Чтение использования и вычисляемых радиусов — по редакциям конфигураций компонентов на границе версии.
   - Журнал и откат — общие обработчики `token` и `token-value` #109, своих не добавляется.
 - **Зависимости:** версионирование дизайн-системы #109 (`feature/ds-versions`). Колонку `overridden` вводит этот

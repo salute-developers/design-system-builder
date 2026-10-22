@@ -24,7 +24,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
-import org.testcontainers.containers.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
 import kotlin.test.Test
@@ -46,19 +45,18 @@ class SizeTokenHttpPostgresIntegrationTest {
 
     @Test
     fun `size tokens are read and edited on subject revisions and published boundaries`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             runTestWithRealTime(timeout = TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
                     val api = Api(client)
+                    // Компоненты дизайн-системы сидятся при её создании из каталога компонентов.
+                    ComponentSeedFixture.seed(postgres.jdbcUrl, postgres.username, postgres.password)
                     val designSystemId = api.create(
                         "/api/ds/design-systems",
                         OWNER,
                         """{"name":"alpha","projectName":"alpha"}""",
                     )
-                    // Компоненты дизайн-системы сидятся при создании первой темы.
-                    ComponentSeedFixture.seed(postgres)
                     val tenantA = api.createTenant(designSystemId, "a")
                     val tenantB = api.createTenant(designSystemId, "b")
                     val scope = Scope(api, Db(postgres), designSystemId, tenantA, tenantB)
@@ -75,8 +73,7 @@ class SizeTokenHttpPostgresIntegrationTest {
 
     @Test
     fun `size tokens are created repeatably, deleted logically and shadow layers reference the palette`() {
-        PostgreSQLContainer<Nothing>("postgres:16-alpine").use { postgres ->
-            postgres.start()
+        IsolatedPostgresDatabase.create().use { postgres ->
             runTestWithRealTime(timeout = TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
@@ -650,7 +647,7 @@ class SizeTokenHttpPostgresIntegrationTest {
         }
     }
 
-    private class Db(private val postgres: PostgreSQLContainer<Nothing>) {
+    private class Db(private val postgres: IsolatedPostgresDatabase) {
         /** Действующее значение токена темы как текст `jsonb` или `null`. */
         fun value(tenantId: String, tokenId: String, platform: String): String? = nullable(
             activeRevisionTestSql(
@@ -704,7 +701,7 @@ class SizeTokenHttpPostgresIntegrationTest {
     private fun tokenCount(designSystemId: String, name: String) =
         "SELECT count(*) FROM tokens WHERE design_system_id = '$designSystemId' AND name = '$name'"
 
-    private fun configuration(postgres: PostgreSQLContainer<Nothing>) = DsServiceConfiguration(
+    private fun configuration(postgres: IsolatedPostgresDatabase) = DsServiceConfiguration(
         port = 0,
         databaseUrl = postgres.jdbcUrl,
         databaseUser = postgres.username,
