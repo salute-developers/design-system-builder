@@ -134,7 +134,10 @@ export const tokenRepository = {
                 const group = variations[token.type] as unknown as Record<string, Record<string, unknown>>;
                 const paletteEntry = value.paletteId ? paletteById.get(value.paletteId) : undefined;
                 const preservesArrayShape = ['gradient', 'shadow'].includes(token.type);
-                const storedValue = [unwrapValue(value.value), ([] as unknown[]).concat(value.value as never)][
+                // Редактор работает с хранимым значением: ссылки стопов и строка сплошного цвета платформы.
+                const source =
+                    value.sourceValue !== undefined && value.sourceValue !== null ? value.sourceValue : value.value;
+                const storedValue = [unwrapValue(source), ([] as unknown[]).concat(source as never)][
                     Number(preservesArrayShape)
                 ];
                 const rawOpacity = paletteEntry ? unwrapValue(value.value) : undefined;
@@ -192,6 +195,11 @@ export const tokenRepository = {
             publicationVersion,
             tokenValueEntityIdsByKey: Object.fromEntries(
                 values.data.map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), value.id]),
+            ),
+            tokenValueOverriddenByKey: Object.fromEntries(
+                values.data
+                    .filter((value) => value.overridden === true)
+                    .map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), true]),
             ),
         };
     },
@@ -315,6 +323,11 @@ export const tokenRepository = {
                 ]),
             ),
         };
+    },
+
+    /** Ступени палитры, на которые ссылаются значения токенов полем `palette_id`. */
+    async listPalette(context: EditorContextKey, signal?: AbortSignal) {
+        return (await readEditor<PaletteDto[]>(`${apiRoot(context.projectId)}/palette`, { signal })).data;
     },
 
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {

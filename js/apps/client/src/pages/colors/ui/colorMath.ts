@@ -1,5 +1,3 @@
-import { splitTopLevel } from '../../../modules/colorTokens';
-
 /** Преобразования цвета для выбора цвета: HSV — модель поля, HEX с альфой — значение токена. */
 export interface Hsva {
     h: number;
@@ -82,53 +80,3 @@ export const hexToHsva = (value: string): Hsva => {
 export const hsvaToHex = (hsva: Hsva) => rgbaToHex(hsvToRgb(hsva), hsva.a);
 
 export const clamp01 = (value: number) => clamp(value);
-
-/** Стоп градиента: цвет HEX с альфой и позиция 0–100; `source` — исходная запись цвета, пока её не меняли. */
-export interface GradientStop {
-    color: string;
-    position: number;
-    source?: string;
-}
-
-export interface LinearGradient {
-    angle: number;
-    stops: GradientStop[];
-}
-
-/** HEX с альфой из `#HEX`, `rgb(...)` или `rgba(...)` стопа; `null` для других записей. */
-const stopColor = (value: string): string | null => {
-    if (hexToRgba(value)) return value.toUpperCase();
-    const rgb = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)(%?)\s*)?\)$/i.exec(value);
-    if (!rgb) return null;
-    const alpha = rgb[4] === undefined ? 1 : Number(rgb[4]) / (rgb[5] ? 100 : 1);
-    return rgbaToHex({ r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) }, clamp(alpha));
-};
-
-/**
- * Разбор `linear-gradient(<deg>deg, <цвет> p%, …)` с цветами `#HEX`, `rgb()` и `rgba()`; `null`, если слой не в
- * этом виде — тогда градиент нельзя менять в выборе цвета, чтобы не потерять значение.
- */
-export const parseLinearGradient = (value: string): LinearGradient | null => {
-    const match = /^linear-gradient\((.*)\)$/is.exec(value.trim());
-    if (!match) return null;
-    const parts = splitTopLevel(match[1]);
-    const angleMatch = /^(-?\d+(?:\.\d+)?)deg$/.exec(parts[0] ?? '');
-    const angle = angleMatch ? Number(angleMatch[1]) : 180;
-    const stops: GradientStop[] = [];
-    for (const part of angleMatch ? parts.slice(1) : parts) {
-        const stop = /^(.+?)\s+(-?\d+(?:\.\d+)?)%$/.exec(part);
-        const color = stop ? stopColor(stop[1].trim()) : null;
-        if (!stop || !color) return null;
-        stops.push({ color, position: Number(stop[2]), source: stop[1].trim() });
-    }
-    return stops.length >= 2 ? { angle, stops } : null;
-};
-
-const decimal = (value: number) => String(Number(value.toFixed(3)));
-
-/** CSS градиента: дробные угол и позиции сохраняются, неизменённые стопы — в исходной записи. */
-export const gradientToCss = ({ angle, stops }: LinearGradient) =>
-    `linear-gradient(${decimal(angle)}deg, ${[...stops]
-        .sort((a, b) => a.position - b.position)
-        .map((stop) => `${stop.source ?? stop.color} ${decimal(stop.position)}%`)
-        .join(', ')})`;

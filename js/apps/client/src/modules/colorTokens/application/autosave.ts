@@ -4,6 +4,7 @@ import {
     type ColorTokenMembersUpdate,
     type ColorTokenRepository,
 } from './colorTokenRepository';
+import type { ColorTokenType } from '../domain';
 
 export type SaveState = 'saved' | 'pending' | 'saving' | 'error';
 
@@ -25,8 +26,11 @@ export interface AutosaveDeps {
     revision: { get(): number; set(value: number): void };
     /** Изменилось состояние сохранения. */
     onChange?: () => void;
-    /** Подтверждены только переданные значения; используется как основа следующего адресного изменения. */
-    onConfirmed?: (payload: PendingUpdate) => void;
+    /**
+     * Подтверждены только переданные значения; используется как основа следующего адресного изменения. [result] —
+     * ответ сервера с типом семейства.
+     */
+    onConfirmed?: (payload: PendingUpdate, result: { editRevision: number; type?: ColorTokenType }) => void;
     onSaved?: () => void;
     /** Сервер вернул `TENANT_EDIT_CONFLICT`: очередь остановлена до `retry`. */
     onConflict?: (error: ColorTokenOperationError) => void;
@@ -107,7 +111,7 @@ export const createColorTokenAutosave = ({
             const result = await repository.updateValues(context, payload.tokenId, payload.update, revision.get());
             if (disposed) return;
             revision.set(result.editRevision);
-            onConfirmed(payload);
+            onConfirmed(payload, result);
             onSaved();
             if (entry.version === version) entries.delete(key);
         } catch (raw) {
