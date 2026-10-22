@@ -12,6 +12,7 @@ import com.dsbuilder.ds.themes.application.colortokens.valueRule
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.domain.TenantTokenValueInput
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
 import java.util.UUID
 
 /** Атомарно сохраняет полный набор platform-specific значений темы. */
@@ -38,7 +39,7 @@ class SaveTenantTokenValuesUseCase(
             DsResult.Failure(DsFailure.InvalidRequest("invalid_body"))
         } else {
             transactions.required(context) {
-                when (val outcome = repository.saveTokenValues(context.projectId, id, command)) {
+                when (val outcome = repository.saveTokenValues(context.projectId, id, storedForm(command))) {
                     // Тема уже заблокирована сохранением; отказ проверки откатывает транзакцию целиком.
                     is TenantTokenValuesSaveOutcome.Saved -> colorViolation(context, id, command.values)
                         ?.let { DsResult.Failure(it) }
@@ -53,6 +54,25 @@ class SaveTenantTokenValuesUseCase(
                 }
             }
         }
+    }
+
+    /**
+     * Сплошные значения iOS и Android цветовых и градиентных токенов хранятся строкой: слой `color` из запроса
+     * записывается как `[<цвет>]`. Тип токенов пакетная запись не меняет.
+     */
+    private suspend fun storedForm(command: SaveTenantTokenValues): SaveTenantTokenValues {
+        val colorTokens = tokens.tokenTypes(command.values.map { it.tokenId }.distinct())
+            .filterValues { it in ColorTokenFamily.TYPES }.keys
+        if (colorTokens.isEmpty()) return command
+        return command.copy(
+            values = command.values.map { value ->
+                if (value.tokenId in colorTokens) {
+                    value.copy(value = ColorValueShape.storedForm(value.platform, value.value))
+                } else {
+                    value
+                }
+            },
+        )
     }
 
     /** Первое недопустимое значение цветового или градиентного токена или `null`. */

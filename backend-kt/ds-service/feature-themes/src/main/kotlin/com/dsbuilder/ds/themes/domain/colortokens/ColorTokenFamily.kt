@@ -17,8 +17,13 @@ data class ColorTokenFamily(
     /** Полное имя обязательного члена семейства `<group>.default.<name>`. */
     fun defaultMember(): String = "$group.$DEFAULT_SUBGROUP.$name"
 
-    /** Входит ли определение типа [definitionType] с полным именем [fullName] в семейство. */
-    fun memberOf(definitionType: ThemeTokenType, fullName: String): Boolean = of(definitionType, fullName) == this
+    /**
+     * Входит ли определение типа [definitionType] с полным именем [fullName] в семейство. Членство определяется
+     * правилом имени независимо от текущего типа: тип производный, и после отката одного определения члены
+     * семейства могут временно иметь разные типы из [TYPES].
+     */
+    fun memberOf(definitionType: ThemeTokenType, fullName: String): Boolean =
+        of(definitionType, fullName)?.let { it.group == group && it.name == name } == true
 
     companion object {
         /** Суффиксы состояний членов семейства. */

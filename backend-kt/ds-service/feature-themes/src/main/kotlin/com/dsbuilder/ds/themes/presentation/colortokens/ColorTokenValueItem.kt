@@ -12,8 +12,10 @@ data class ColorTokenValueItem(
     val mode: String,
     /** Ссылка на запись общей палитры. */
     val paletteId: String? = null,
-    /** JSON-значение. */
+    /** JSON-значение: цвет, web-градиент или слои iOS и Android. */
     val value: JsonElement,
     /** Базовая редакция этой пары платформа/режим. */
     val baseRevision: Long? = null,
+    /** Своё значение iOS или Android, а не построенное из web; у web допустимо только `false`. */
+    val overridden: Boolean = false,
 )

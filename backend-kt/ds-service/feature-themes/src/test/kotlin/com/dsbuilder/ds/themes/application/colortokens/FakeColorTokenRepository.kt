@@ -4,6 +4,9 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenNaming
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueKind
+import com.dsbuilder.ds.themes.domain.colortokens.ColorValueShape
+import com.dsbuilder.ds.themes.domain.colortokens.FamilyValue
 import java.util.UUID
 
 /**
@@ -27,6 +30,15 @@ internal class FakeColorTokenRepository(
     )
 
     val revisions: MutableMap<UUID, Int> = tenantIds.associateWith { 0 }.toMutableMap()
+
+    /** Заблокированные определения в порядке блокировки. */
+    val lockedDefinitions = mutableListOf<List<UUID>>()
+
+    /** Блокировка определений отклоняется, как при чужой дизайн-системе или без черновика. */
+    var lockRefused = false
+
+    /** Определения, получившие редакцию `/type`. */
+    val revisedTypes = mutableListOf<Pair<UUID, ThemeTokenType>>()
     val definitions = mutableListOf<Definition>()
     val values = mutableMapOf<Pair<UUID, UUID>, List<ColorTokenValue>>()
     var lockedAllThemes: Boolean? = null
@@ -93,6 +105,9 @@ internal class FakeColorTokenRepository(
         }
     }
 
+    /** Меняет имя определения [id] без пересчёта типа, как откат записи журнала. */
+    fun rename(id: UUID, name: String) = update(listOf(id)) { it.copy(name = name) }
+
     /** Определение по полному имени. */
     fun named(name: String): Definition = definitions.single { it.name == name }
 
@@ -122,4 +137,53 @@ internal class FakeColorTokenRepository(
 
     override suspend fun bumpRevisions(tenantIds: Collection<UUID>): Map<UUID, Int> =
         tenantIds.associateWith { tenant -> revisions.getValue(tenant).plus(1).also { revisions[tenant] = it } }
+
+    override fun familyInDraft(designSystemId: UUID, tokenId: UUID): StoredColorTokenFamily? {
+        val token = definitions.firstOrNull { it.id == tokenId } ?: return null
+        val family = ColorTokenFamily.of(token.type, token.name) ?: return null
+        val members = definitions.filter { family.memberOf(it.type, it.name) }
+        return StoredColorTokenFamily(
+            family,
+            members.associate { it.name to it.id },
+            members.associate { it.id to it.type },
+        )
+    }
+
+    override fun familiesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): Map<UUID, StoredColorTokenFamily> =
+        tokenIds.distinct().mapNotNull { id -> familyInDraft(designSystemId, id)?.let { id to it } }.toMap()
+
+    override fun lockFamilyDefinitions(designSystemId: UUID, tokenIds: Collection<UUID>): Boolean {
+        if (lockRefused) return false
+        lockedDefinitions += tokenIds.sorted()
+        return true
+    }
+
+    override fun familyValuesInDraft(designSystemId: UUID, tokenIds: Collection<UUID>): List<FamilyValue> =
+        values.filterKeys { (_, token) -> token in tokenIds }.values.flatten().map {
+            FamilyValue(
+                it.platform,
+                it.value,
+            )
+        }
+
+    override fun designSystemOf(tokenId: UUID): UUID? = designSystemId.takeIf { definitions.any { it.id == tokenId } }
+
+    override fun familyTypeCandidates(designSystemId: UUID, tenantId: UUID): List<StoredColorTokenFamily> {
+        val withGradient = values.filterKeys { (tenant, _) -> tenant == tenantId }
+            .filterValues { items ->
+                items.any { ColorValueShape.kind(it.platform, it.value) == ColorValueKind.GRADIENT }
+            }
+            .keys.map { it.second }
+        val gradients = definitions.filter { it.type == ThemeTokenType.GRADIENT }.map { it.id }
+        return (gradients + withGradient).distinct().sorted()
+            .mapNotNull { familyInDraft(designSystemId, it) }
+            .distinctBy { it.members.values.toSet() }
+    }
+
+    override fun reviseFamilyType(tokenIds: Collection<UUID>, type: ThemeTokenType) {
+        // Как в хранилище: редакция пишется только определению, у которого тип отличается.
+        tokenIds.sorted().filter { id -> definitions.single { it.id == id }.type != type }
+            .forEach { id -> revisedTypes += id to type }
+        update(tokenIds) { it.copy(type = type) }
+    }
 }
