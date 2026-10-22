@@ -93,49 +93,64 @@ export const deriveNative = (
 };
 
 /**
- * Модель слоя платформы или `null`, если слой не градиент или в нём нет полей своего вида. У Conic Android
- * начального угла нет: модель получает 0°.
+ * Поля геометрии слоя платформы по виду и платформе: поле слоя → поле модели (`null` — поле обязательно, но в модель
+ * не попадает). У Conic Android начального угла нет: модель получает 0°.
  */
-export const parseNativeLayer = (layer: NativeLayer, platform: NativePlatform): GradientModel | null => {
-    if (!layer || typeof layer !== 'object') return null;
-    const locations = Array.isArray(layer.locations) ? (layer.locations as unknown[]) : null;
-    const colors = Array.isArray(layer.colors) ? (layer.colors as unknown[]) : null;
-    if (!locations || !colors || locations.length !== colors.length || locations.length < 2) return null;
-    if (locations.some((item) => typeof item !== 'number') || colors.some((item) => typeof item !== 'string'))
-        return null;
+const NATIVE_GEOMETRY: Record<
+    string,
+    { type: GradientModel['type']; fields: Record<string, keyof GradientModel | null> }
+> = {
+    'linear:ios': { type: 'linear', fields: { angle: 'angle' } },
+    'linear:android': { type: 'linear', fields: { angle: 'angle' } },
+    'radial:ios': {
+        type: 'radial',
+        fields: { centerX: 'centerX', centerY: 'centerY', startRadius: null, endRadius: 'radius' },
+    },
+    'radial:android': { type: 'radial', fields: { centerX: 'centerX', centerY: 'centerY', radius: 'radius' } },
+    'angular:ios': {
+        type: 'conic',
+        fields: { centerX: 'centerX', centerY: 'centerY', startAngle: 'from', endAngle: null },
+    },
+    'angular:android': { type: 'conic', fields: { centerX: 'centerX', centerY: 'centerY' } },
+};
+/** Поля модели в процентах: в слое платформы они хранятся долями 0–1. */
+const PERCENT_FIELDS = new Set<string>(['centerX', 'centerY', 'radius']);
+
+/** Стопы слоя платформы: `locations` и `colors` одной длины, не меньше двух, позиции 0–1 не убывают. */
+const nativeStops = ({ locations, colors }: NativeLayer): GradientStopModel[] | null => {
+    if (!Array.isArray(locations) || !Array.isArray(colors) || locations.length !== colors.length) return null;
     const stops = locations.map((location, index) => ({
         color: colors[index] as string,
-        position: Number(((location as number) * 100).toFixed(6)),
+        position: typeof location === 'number' ? Number((location * 100).toFixed(6)) : NaN,
     }));
-    if (stops.some((stop) => !isColorString(stop.color) || stop.position < 0 || stop.position > 100)) return null;
-    if (stops.some((stop, index) => index > 0 && stop.position < stops[index - 1].position)) return null;
-    const { angle, startAngle, endAngle, startRadius } = layer;
-    // Центр и радиус — в процентах.
-    const [centerX, centerY, radius] = [
-        layer.centerX,
-        layer.centerY,
-        platform === 'ios' ? layer.endRadius : layer.radius,
-    ].map((value) => (typeof value === 'number' ? Number((value * 100).toFixed(6)) : null));
-    const base = { ...GRADIENT_DEFAULTS, stops };
-    if (layer.kind === 'linear') return typeof angle === 'number' ? { ...base, type: 'linear', angle } : null;
-    if (layer.kind === 'radial') {
-        if (radius === null || centerX === null || centerY === null) return null;
-        if (platform === 'ios' && typeof startRadius !== 'number') return null;
-        return { ...base, type: 'radial', radius, centerX, centerY };
-    }
-    if (layer.kind !== 'angular' || centerX === null || centerY === null) return null;
-    if (platform === 'android') return { ...base, type: 'conic', from: 0, centerX, centerY };
-    if (typeof startAngle !== 'number' || typeof endAngle !== 'number') return null;
-    return { ...base, type: 'conic', from: startAngle, centerX, centerY };
+    const ordered = stops.every(
+        (stop, index) =>
+            typeof stop.color === 'string' &&
+            isColorString(stop.color) &&
+            stop.position >= 0 &&
+            stop.position <= 100 &&
+            (index === 0 || stop.position >= stops[index - 1].position),
+    );
+    return ordered && stops.length >= 2 ? stops : null;
+};
+
+/** Модель слоя платформы или `null`, если слой не градиент или в нём нет полей своего вида. */
+export const parseNativeLayer = (layer: NativeLayer, platform: NativePlatform): GradientModel | null => {
+    const geometry = NATIVE_GEOMETRY[`${layer?.kind}:${platform}`];
+    const stops = geometry ? nativeStops(layer) : null;
+    const fields = Object.entries(geometry?.fields ?? {});
+    if (!stops || fields.some(([field]) => typeof layer[field] !== 'number')) return null;
+    const values = fields.flatMap(([field, target]) => {
+        const value = layer[field] as number;
+        return target ? [[target, PERCENT_FIELDS.has(target) ? Number((value * 100).toFixed(6)) : value]] : [];
+    });
+    return { ...GRADIENT_DEFAULTS, ...Object.fromEntries(values), type: geometry.type, stops };
 };
 
 /** Цвет сплошного значения платформы: строка, массив из одной строки или один слой `color`; иначе `null`. */
 export const nativeSolidColor = (value: unknown): string | null => {
     const single = Array.isArray(value) && value.length === 1 ? value[0] : value;
-    if (typeof single === 'string') return isColorString(single) ? single.trim() : null;
-    if (single && typeof single === 'object' && (single as NativeLayer).kind === 'color') {
-        const background = (single as NativeLayer).background;
-        return typeof background === 'string' && isColorString(background) ? background : null;
-    }
-    return null;
+    const layer = single as NativeLayer | null | undefined;
+    const color = typeof single === 'string' ? single.trim() : layer?.kind === 'color' ? layer.background : null;
+    return typeof color === 'string' && isColorString(color) ? color : null;
 };

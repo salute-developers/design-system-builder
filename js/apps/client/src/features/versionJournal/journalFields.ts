@@ -229,6 +229,9 @@ const referenceLabel = (value: JournalValue, namesById: Map<string, string>): Jo
     return isIdentifier(value) ? 'Связанный элемент' : value;
 };
 
+/** Тип цветового токена: его значения показываются в терминах выбора цвета. */
+const isColorTokenType = (type?: VariationType) => type === 'color' || type === 'gradient';
+
 /** Значение цветового токена из записи: ссылка формы `palette_id` — ступенью палитры с прозрачностью из значения. */
 const paintSource = (
     state: Record<string, unknown> | null,
@@ -250,7 +253,7 @@ export const tokenValueHasStructuralChanges = (change: DraftChangeDto, tokenType
         journalTokenValue(decoded(change.previousValue?.value), tokenType),
         journalTokenValue(decoded(change.currentValue?.value), tokenType),
     ) ||
-    ((tokenType === 'color' || tokenType === 'gradient') &&
+    (isColorTokenType(tokenType) &&
         journalPaintStructureChanged(
             paintSource(change.previousValue, new Map()),
             paintSource(change.currentValue, new Map()),
@@ -281,7 +284,7 @@ export const presentChangedFields = (
             // Значение цвета или градиента — строками параметров редактора; пути хранимого значения — для их отмены.
             const valuePaths = fields.map(({ path }) => path).filter((path) => /^\/value(?:\/|$)/.test(path));
             const paint =
-                change.entityType === 'token-value' && (tokenType === 'color' || tokenType === 'gradient')
+                change.entityType === 'token-value' && isColorTokenType(tokenType)
                     ? journalPaintChange(
                           paintSource(change.previousValue, namesById),
                           paintSource(change.currentValue, namesById),

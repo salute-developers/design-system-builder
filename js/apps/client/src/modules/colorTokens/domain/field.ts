@@ -1,5 +1,5 @@
 import { parsePaletteReference, templateRampName, type PaletteRampRef, type PaletteReference } from '../../palette';
-import { formatWebLayer, gradientLabel } from './gradient';
+import { formatWebLayer, gradientLabel, stopOpacity } from './gradient';
 import { parseNativeLayer, type NativeLayer } from './nativeGradient';
 import { readPaint, type PaintPlatform } from './paint';
 import type { ColorFieldValue } from './types';
@@ -85,14 +85,13 @@ export const colorField = (
         };
     }
     const resolved = HEX.test(raw) ? raw : 'transparent';
-    const alpha = raw.replace('#', '');
     return {
         ...base,
         value: raw,
         resolved,
         baseColor: resolved,
         paletteLabel: null,
-        opacity: alpha.length === 8 ? Math.round((parseInt(alpha.slice(6), 16) / 255) * 100) / 100 : 1,
+        opacity: Math.round(stopOpacity(raw) * 100) / 100,
     };
 };
 

@@ -72,9 +72,7 @@ export interface AssemblyDiagnostic {
     path?: string;
     details?: Record<string, JsonValue>;
 }
-export type DraftResult =
-    | { ok: true; draft: ComponentPreviewDraft }
-    | { ok: false; diagnostics: AssemblyDiagnostic[] };
+export type DraftResult = { ok: true; draft: ComponentPreviewDraft } | { ok: false; diagnostics: AssemblyDiagnostic[] };
 
 const splitComposeMapping = (mapping?: string | null) =>
     mapping
@@ -99,9 +97,7 @@ const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
     type: prop.getType()!,
     composeParameters: splitComposeMapping(prop.getPlatformMappings()?.compose),
     hasNonComposeMappings: Boolean(
-        prop.getPlatformMappings()?.web?.length ||
-            prop.getPlatformMappings()?.xml ||
-            prop.getPlatformMappings()?.ios,
+        prop.getPlatformMappings()?.web?.length || prop.getPlatformMappings()?.xml || prop.getPlatformMappings()?.ios,
     ),
     value: prop.getValue(),
     states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value, alpha: state.alpha })),
@@ -158,8 +154,7 @@ const collectProperties = (
     context: CollectContext,
     trail: string[],
 ) => {
-    const project = (list: PropUnion[]) =>
-        list.flatMap((prop) => projectWithReferences(prop, context, trail) ?? []);
+    const project = (list: PropUnion[]) => list.flatMap((prop) => projectWithReferences(prop, context, trail) ?? []);
 
     const byID = new Map<string, PropUnion>();
     for (const variation of config.getVariations()) {
@@ -183,33 +178,23 @@ const collectProperties = (
 
 const asJsonValue = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;
 
-/** Ссылка на ступень палитры `[type.shade.step][o]` раскрывается по палитре темы с учётом группы токена. */
-const resolvePaletteReference = (color: unknown, tokenName: string): unknown =>
-    typeof color === 'string' && color.startsWith('[') ? restorePaletteColor(color, -1, tokenName) || color : color;
-
+/**
+ * Значение темы для превью. Ссылки на ступени палитры `[type.shade.step][o]` раскрываются по палитре темы с учётом
+ * группы токена: у цвета — само значение, у градиента — стопы и фон слоёв. Сплошное значение платформы
+ * градиентного семейства (строка или массив из одной строки, не CSS-функция градиента) становится слоем `color`.
+ */
 const projectThemeValue = (type: string, value: unknown, tokenName: string): JsonValue => {
-    if (type === 'color' && typeof value === 'string') {
-        return restorePaletteColor(value, -1, tokenName) || value;
-    }
-    if (type !== 'gradient') return asJsonValue(value);
-    // Сплошное значение платформы градиентного семейства (строка или массив из одной строки, не CSS-функция
-    // градиента) становится слоем `color`.
+    if (type === 'color' && typeof value === 'string') return restorePaletteColor(value, -1, tokenName) || value;
     const solid = Array.isArray(value) && value.length === 1 ? value[0] : value;
-    if (typeof solid === 'string' && !/gradient\(/.test(solid))
-        return [{ kind: 'color', background: String(resolvePaletteReference(solid, tokenName)) }];
-    if (!Array.isArray(value)) return asJsonValue(value);
-    // Ссылки на палитру в стопах и в фоне слоя раскрываются, как у цветового токена.
-    return asJsonValue(
-        value.map((layer: unknown) => {
-            if (!layer || typeof layer !== 'object' || Array.isArray(layer)) return layer;
-            const next = { ...(layer as Record<string, unknown>) };
-            if (Array.isArray(next.colors)) {
-                next.colors = next.colors.map((color: unknown) => resolvePaletteReference(color, tokenName));
-            }
-            if (next.background !== undefined) next.background = resolvePaletteReference(next.background, tokenName);
-            return next;
-        }),
-    );
+    const layers =
+        type === 'gradient' && typeof solid === 'string' && !/gradient\(/.test(solid)
+            ? [{ kind: 'color', background: solid }]
+            : value;
+    return JSON.parse(JSON.stringify(layers), (_, item: unknown) =>
+        type === 'gradient' && typeof item === 'string' && item.startsWith('[')
+            ? restorePaletteColor(item, -1, tokenName) || item
+            : item,
+    ) as JsonValue;
 };
 
 export interface CreateComponentPreviewDraftOptions {
@@ -265,7 +250,10 @@ export const createComponentPreviewDraft = ({
                 : typeof args[variation.getName()] === 'string'
                   ? args[variation.getName()]
                   : undefined) ??
-            config.getDefaults().find((item) => item.getVariationID() === variation.getID())?.getStyleID();
+            config
+                .getDefaults()
+                .find((item) => item.getVariationID() === variation.getID())
+                ?.getStyleID();
         if (typeof selected !== 'string') continue;
         // Выключенный флаг (`pilled`) в редакторе — отсутствие аргумента: при явном наборе выбранных вариаций
         // его нельзя возвращать к стилю по умолчанию.
@@ -277,7 +265,12 @@ export const createComponentPreviewDraft = ({
         variationSelections[variation.getID()] = selected;
     }
     const context: CollectContext = { resolveStyleReference, styles: new Map() };
-    const { invariants, selected: selectedStyleProperties } = collectProperties(config, variationSelections, context, []);
+    const { invariants, selected: selectedStyleProperties } = collectProperties(
+        config,
+        variationSelections,
+        context,
+        [],
+    );
     // Стили по умолчанию, которые не разворачиваются (нет конфигурации в дизайн-системе), просто не передаются.
     const requestedStyles = Object.entries(hostDefaults?.styles ?? {}) as Array<[string, string | undefined]>;
     const defaultStyles = Object.fromEntries(

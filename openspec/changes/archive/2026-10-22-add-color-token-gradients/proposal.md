@@ -49,7 +49,7 @@
 - **js / `apps/client`:**
   - экран «Цвета»: ключ токена и очереди автосохранения без типа, вид значения, редактор градиента, построение iOS и Android из web, строки своих значений платформ с `overridden` и `baseRevision`, переименование на месте;
   - контракты `TenantTokenValueDto` и `ColorTokenValueItem`: `overridden`, `sourceValue`;
-  - утилиты `utils/gradient.ts`: Conic, позиции стопов из одной цифры, ссылки на палитру.
+  - удаление `colorTokenActions`, `gradientTokenActions` и `parseGradient` из `utils/gradient.ts`: после перехода экрана на домен `colorTokens` у них нет потребителей.
 - **js / `cli`:** код не меняется; тест на то, что градиент из выгрузки `theme fetch` проходит генерацию без изменений.
 - **js / `services/db-service`:** не затрагивается.
 - **frontend-kt:** код не меняется. `theme fetch` и плагин читают раскрытые `token-values`, а градиентные токены приходят с типом `gradient`.
