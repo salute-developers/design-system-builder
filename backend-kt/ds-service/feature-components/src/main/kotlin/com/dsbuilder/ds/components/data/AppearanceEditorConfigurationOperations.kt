@@ -29,17 +29,25 @@ internal object AppearanceEditorConfigurationOperations {
         val designSystemId = command.designSystemId
         val componentId = command.componentId
         val componentName = component[ComponentsTable.name]
-        val first = AppearanceNaming.names(designSystemId, componentId).isEmpty()
+        val first = !hasDefault(designSystemId, componentId)
         val name = command.name?.let { AppearanceNaming.requireFree(designSystemId, componentId, it) }
-            ?: if (first) {
-                componentName
-            } else {
-                AppearanceNaming.freeName(designSystemId, componentId, "$componentName new")
-            }
+            ?: AppearanceNaming.freeName(
+                designSystemId,
+                componentId,
+                if (first) componentName else "$componentName new",
+            )
         val appearanceId = newAppearance(designSystemId, componentId, name, first, null, null)
         addColorSchemeAxis(designSystemId, componentId, appearanceId)
         return AppearanceEditorModelReader.appearance(requireNotNull(appearanceRow(appearanceId)))
     }
+
+    /** У компонента уже есть конфигурация по умолчанию, в том числе без имени. */
+    private fun hasDefault(designSystemId: UUID, componentId: UUID): Boolean =
+        ComponentAppearancesTable.selectAll().where {
+            (ComponentAppearancesTable.designSystemId eq designSystemId) and
+                (ComponentAppearancesTable.componentId eq componentId) and
+                (ComponentAppearancesTable.isDefault eq true)
+        }.any()
 
     fun duplicateAppearance(
         projectId: ProjectId,

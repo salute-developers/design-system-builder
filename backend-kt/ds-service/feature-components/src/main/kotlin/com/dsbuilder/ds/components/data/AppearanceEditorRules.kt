@@ -25,14 +25,12 @@ internal object AppearanceEditorRules {
         }
     }
 
-    /** Прежние маршруты удаления не каскадируют: при зависимых значениях или ссылках они отказывают. */
+    /**
+     * Прежние маршруты удаления не каскадируют и не отказывают из-за собственных значений оформления: клиент
+     * очищает их своим порядком. Отказ `reference_in_use` остаётся только для ссылок из других оформлений.
+     */
     fun checkNoDependents(designSystemId: UUID, appearanceId: UUID, styleIds: Collection<UUID>) {
-        if (StyleDependents.collect(designSystemId, appearanceId, styleIds, confirmCascade = false).count > 0) {
-            throw EditorRuleViolationException(
-                "dependent_values_exist",
-                "The axis or value carries property values; remove it with the editor operation",
-            )
-        }
+        StyleDependents.collect(designSystemId, appearanceId, styleIds, confirmCascade = false)
     }
 
     /** Отклоняет переименование заблокированной оси и совпадение имени с другой осью оформления. */

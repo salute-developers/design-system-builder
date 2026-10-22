@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.sql.DriverManager
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -268,6 +269,8 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val texts = valuesOf(fixture.appearance, nested, styleA)
             .map { it.getValue("reference").jsonObject.string("reference") }
         assertEquals(setOf("Child.xl"), texts.toSet())
+        // Экспорт читает текст ссылки из самого значения-владельца.
+        assertEquals(setOf("Child.xl"), valuesOf(fixture.appearance, nested, styleA).map { it.string("value") }.toSet())
 
         val childSize = axisOf(model(child), "size")
         assertEquals("reference_in_use", code(delete("/api/ds/appearances/$child")))
@@ -462,7 +465,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `axis creation repeats the saved result and a legacy delete refuses dependent values`() = withService {
+    fun `axis creation repeats the saved result and a legacy delete leaves own values to the client`() = withService {
         val fixture = fixture()
         val path = "/api/ds/appearances/${fixture.appearance}/axes"
         val first = post(path, """{"name":"shape","values":["square"]}""", key = "axis-1")
@@ -474,11 +477,54 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val padding = property("padding", "dimension")
         val square = styleOf(model(fixture.appearance), "shape", "square")
         setValue(fixture.appearance, padding, listOf(square), value = "4")
-        val shape = axisOf(model(fixture.appearance), "shape")
-        assertEquals("dependent_values_exist", code(delete("/api/ds/appearance-variations/$shape")))
         val squareValue = valueOf(model(fixture.appearance), "shape", "square")
-        assertEquals("dependent_values_exist", code(delete("/api/ds/appearance-variation-values/$squareValue")))
-        assertEquals(listOf("view", "size", "shape"), axisNames(model(fixture.appearance)))
+        val removed = delete("/api/ds/appearance-variation-values/$squareValue")
+        assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
+        assertTrue(valueNames(model(fixture.appearance), "shape").isEmpty())
+    }
+
+    @Test
+    fun `removals and reorders repeat the saved result for the same key`() = withService {
+        val fixture = fixture()
+        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"shape","values":["square"]}""")
+        val shape = axisOf(model(fixture.appearance), "shape")
+        val path = "/api/ds/appearances/${fixture.appearance}/axes/$shape"
+        val first = delete(path, key = "remove-1")
+        val replay = delete(path, key = "remove-1")
+        assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+        assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
+        assertEquals(first.bodyAsText(), replay.bodyAsText())
+        assertEquals(HttpStatusCode.NotFound, delete(path, key = "remove-2").status)
+    }
+
+    @Test
+    fun `a combination is found by its styles and written in the key order of the import`() = withService {
+        val fixture = fixture()
+        val values = """["a","b","c","d","e","f"]"""
+        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"shape","values":$values}""")
+        post("/api/ds/appearances/${fixture.appearance}/axes", """{"name":"tone","values":$values}""")
+        val padding = property("padding", "dimension")
+        val model = model(fixture.appearance)
+        val shapes = valueNames(model, "shape").map { styleOf(model, "shape", it) }
+        val tones = valueNames(model, "tone").map { styleOf(model, "tone", it) }
+        val pair = shapes.flatMap { left -> tones.map { right -> left to right } }.first { (left, right) ->
+            (left < right) != (UUID.fromString(left) < UUID.fromString(right))
+        }.toList()
+        val key = pair.map(UUID::fromString).sorted().joinToString(",")
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, padding, pair, value = "1").status)
+        assertEquals(HttpStatusCode.OK, setValue(fixture.appearance, padding, pair, value = "2").status)
+        assertEquals(
+            "1",
+            query("SELECT count(*) FROM style_combination_revisions WHERE combination_key = '$key' AND NOT deleted"),
+        )
+        val stored = propertyValues(fixture.appearance).filter { value ->
+            value.string("propertyId") == padding &&
+                value.getValue("styleIds").jsonArray.map { it.jsonPrimitive.content }.toSet() == pair.toSet()
+        }
+        assertEquals("2", stored.single().string("value"))
+        val scope = "propertyId=$padding&styleIds=${pair.joinToString(",")}"
+        val removed = delete("/api/ds/appearances/${fixture.appearance}/property-values?$scope")
+        assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
     }
 
     @Test
@@ -762,7 +808,10 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         setBody(body)
     }
 
-    private suspend fun delete(path: String) = service.builder.client.delete(path) { actor() }
+    private suspend fun delete(path: String, key: String? = null) = service.builder.client.delete(path) {
+        actor()
+        key?.let { header("Idempotency-Key", it) }
+    }
 
     private suspend fun get(path: String) = service.builder.client.get(path) { actor() }
 

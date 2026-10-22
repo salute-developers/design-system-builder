@@ -182,6 +182,66 @@ internal object StyleReferenceWriter {
                     it[reference] = text
                 }
             }
+            syncOwnerText(designSystemId, row, text)
+        }
+    }
+
+    /** Экспорт берёт текст ссылки из значения-владельца, поэтому он обновляется вместе с таблицей ссылок. */
+    private fun syncOwnerText(designSystemId: UUID, reference: ResultRow, text: String) {
+        reference[ComponentStyleReferencesTable.invariantPropertyValueId]?.let { id ->
+            val current = InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }
+                .singleOrNull()?.takeIf { it[InvariantPropertyValuesTable.value] != text } ?: return@let
+            lock(designSystemId, "invariant-property-value", listOf(id))
+            InvariantPropertyValueRevisionsTable.replaceRevision(
+                InvariantPropertyValueRevisionsTable.entityId,
+                id,
+                designSystemId,
+                changedPaths = setOf("/value"),
+            ) {
+                it[tokenId] = current[InvariantPropertyValuesTable.tokenId]
+                it[value] = text
+                it[alpha] = current[InvariantPropertyValuesTable.alpha]
+                it[adjustment] = current[InvariantPropertyValuesTable.adjustment]
+                it[position] = current[InvariantPropertyValuesTable.position]
+                it[stateSetId] = current[InvariantPropertyValuesTable.stateSetId]
+            }
+        }
+        reference[ComponentStyleReferencesTable.variationPropertyValueId]?.let { id ->
+            val current = VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
+                .singleOrNull()?.takeIf { it[VariationPropertyValuesTable.value] != text } ?: return@let
+            lock(designSystemId, "variation-property-value", listOf(id))
+            VariationPropertyValueRevisionsTable.replaceRevision(
+                VariationPropertyValueRevisionsTable.entityId,
+                id,
+                designSystemId,
+                changedPaths = setOf("/value"),
+            ) {
+                it[tokenId] = current[VariationPropertyValuesTable.tokenId]
+                it[value] = text
+                it[alpha] = current[VariationPropertyValuesTable.alpha]
+                it[adjustment] = current[VariationPropertyValuesTable.adjustment]
+                it[position] = current[VariationPropertyValuesTable.position]
+                it[stateSetId] = current[VariationPropertyValuesTable.stateSetId]
+            }
+        }
+        reference[ComponentStyleReferencesTable.styleCombinationId]?.let { id ->
+            val current = StyleCombinationsTable.selectAll().where { StyleCombinationsTable.id eq id }
+                .singleOrNull()?.takeIf { it[StyleCombinationsTable.value] != text } ?: return@let
+            lock(designSystemId, "style-combination", listOf(id))
+            StyleCombinationRevisionsTable.replaceRevision(
+                StyleCombinationRevisionsTable.entityId,
+                id,
+                designSystemId,
+                changedPaths = setOf("/value"),
+            ) {
+                it[combinationKey] = current[StyleCombinationsTable.combinationKey]
+                it[value] = text
+                it[tokenId] = current[StyleCombinationsTable.tokenId]
+                it[alpha] = current[StyleCombinationsTable.alpha]
+                it[adjustment] = current[StyleCombinationsTable.adjustment]
+                it[position] = current[StyleCombinationsTable.position]
+                it[stateSetId] = current[StyleCombinationsTable.stateSetId]
+            }
         }
     }
 

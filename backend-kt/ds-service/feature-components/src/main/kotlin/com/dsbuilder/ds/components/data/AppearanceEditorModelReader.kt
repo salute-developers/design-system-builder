@@ -182,7 +182,7 @@ internal object AppearanceEditorModelReader {
             EditorPropertyValue(
                 id, EditorValueKind.COMBINATION, it[StyleCombinationsTable.propertyId],
                 lookups.properties[it[StyleCombinationsTable.propertyId]].orEmpty(),
-                members[id].orEmpty().sortedBy(UUID::toString),
+                members[id].orEmpty().sorted(),
                 lookups.stateNames[setId].orEmpty(), setId, token,
                 it[StyleCombinationsTable.value].takeIf { token == null },
                 it[StyleCombinationsTable.alpha], it[StyleCombinationsTable.adjustment],

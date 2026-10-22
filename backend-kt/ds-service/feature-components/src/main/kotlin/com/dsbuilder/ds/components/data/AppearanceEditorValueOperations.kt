@@ -222,11 +222,21 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
             Row(EditorValueKind.VARIATION, it[VariationPropertyValuesTable.id]) to
                 it[VariationPropertyValuesTable.stateSetId]
         }
-        EditorValueKind.COMBINATION -> StyleCombinationsTable.selectAll().where {
+        EditorValueKind.COMBINATION -> combinationRows(appearanceId, scope)
+    }
+
+    /** Сочетания области находятся по составу стилей, а не по ключу: ключ мог быть записан другим порядком. */
+    private fun combinationRows(appearanceId: UUID, scope: Scope): List<Pair<Row, UUID>> {
+        val rows = StyleCombinationsTable.selectAll().where {
             (StyleCombinationsTable.appearanceId eq appearanceId) and
-                (StyleCombinationsTable.propertyId eq scope.propertyId) and
-                (StyleCombinationsTable.combinationKey eq EditorSupport.combinationKey(scope.styleIds))
-        }.map {
+                (StyleCombinationsTable.propertyId eq scope.propertyId)
+        }.toList()
+        if (rows.isEmpty()) return emptyList()
+        val members = StyleCombinationMembersTable.selectAll()
+            .where { StyleCombinationMembersTable.combinationId inList rows.map { it[StyleCombinationsTable.id] } }
+            .groupBy({ it[StyleCombinationMembersTable.combinationId] }, { it[StyleCombinationMembersTable.styleId] })
+        val wanted = scope.styleIds.toSet()
+        return rows.filter { members[it[StyleCombinationsTable.id]].orEmpty().toSet() == wanted }.map {
             Row(EditorValueKind.COMBINATION, it[StyleCombinationsTable.id]) to it[StyleCombinationsTable.stateSetId]
         }
     }
@@ -366,7 +376,7 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
             it[StyleCombinationRevisionsTable.position] = position
             it[StyleCombinationRevisionsTable.stateSetId] = stateSetId
         }
-        scope.styleIds.sortedBy(UUID::toString).forEach { styleId ->
+        scope.styleIds.sorted().forEach { styleId ->
             val memberId = StableStyleCombinationMembersTable.insertReturning {
                 it[combinationId] = id
                 it[StableStyleCombinationMembersTable.designSystemId] = designSystemId

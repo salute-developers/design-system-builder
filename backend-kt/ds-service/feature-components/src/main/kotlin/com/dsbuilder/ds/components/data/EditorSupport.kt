@@ -105,6 +105,6 @@ internal object EditorSupport {
             .where { AppearanceVariationsTable.appearanceId eq appearanceId }
             .associate { it[AppearanceVariationValuesTable.styleId] to it[AppearanceVariationsTable.id] }
 
-    /** Канонический ключ сочетания: отсортированные идентификаторы стилей через запятую. */
-    fun combinationKey(styleIds: Collection<UUID>): String = styleIds.map(UUID::toString).sorted().joinToString(",")
+    /** Ключ сочетания: идентификаторы стилей в порядке UUID через запятую, как у импорта и начального заполнения. */
+    fun combinationKey(styleIds: Collection<UUID>): String = styleIds.sorted().joinToString(",")
 }
