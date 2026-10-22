@@ -15,6 +15,8 @@ data class AppearanceVariationValue(
     val position: Int,
     /** Authored id carried by this contract. */
     val authoredId: String?,
+    /** Отображаемое имя значения в этом оформлении; `null`, если действует имя стиля. */
+    val displayName: String?,
     /** Created at carried by this contract. */
     val createdAt: Instant,
     /** Updated at carried by this contract. */

@@ -48,6 +48,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
+    @Suppress("LongMethod", "ReturnCount")
     private fun importOne(ds: UUID, entry: ImportComponentConfig.Entry, context: ComponentConfigImportContext) {
         invalidType(entry)?.let { return context.report.reject(entry, "Unsupported property type '$it'") }
         unknownRoot(entry.config)?.let {
@@ -67,10 +68,12 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 it[designSystemId] = ds
                 it[StableAppearancesTable.componentId] = componentId
             }.single()[StableAppearancesTable.id]
+            val first = isFirstAppearanceOfComponent(ds, componentId, id)
             AppearanceRevisionsTable.replaceRevision(AppearanceRevisionsTable.entityId, id, ds) { statement ->
                 statement[name] = entry.styleName
                 statement[rootVariationId] = null
                 statement[colorSchemeVariationId] = null
+                statement[isDefault] = first
             }
             id
         }
@@ -82,10 +85,18 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             entry.styleName,
         )
         val before = old?.let { builder.build(descriptor, true, linkedSetOf()) }
+        val names = if (old != null) EffectiveNameSnapshot.capture(appearanceId) else EffectiveNameSnapshot.EMPTY
+        ambiguousName(ds, componentId, entry.config, names)?.let {
+            return context.report.reject(
+                entry,
+                "Name '$it' is the display name of one axis or value and the catalog name of another; " +
+                    "import the configuration exported from this design system",
+            )
+        }
         context.appearances += appearanceId
-        val axes = upsertAxes(componentId, entry.config)
-        val styles = upsertStyles(ds, entry.config, axes)
-        declareAxes(appearanceId, entry.config, axes, styles, context)
+        val axes = upsertAxes(componentId, entry.config, names)
+        val styles = upsertStyles(ds, entry.config, axes, names)
+        declareAxes(appearanceId, entry.config, axes, styles, names, context)
         val properties = properties(componentId, entry, context)
         writeInvariants(ds, componentId, appearanceId, entry.config, properties, context)
         writeVariations(appearanceId, entry.config, axes, styles, properties, context)
@@ -103,6 +114,38 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 else -> context.report.updated++
             }
         }
+    }
+
+    /**
+     * Имя конфигурации, которое по действующему имени указывает на одну ось или значение оформления, а по имени
+     * каталога на другое: после перестановки имён такая запись склеила бы вариации, поэтому она отклоняется.
+     */
+    private fun ambiguousName(
+        ds: UUID,
+        component: UUID,
+        config: ComponentConfig,
+        names: EffectiveNameSnapshot,
+    ): String? {
+        val catalogAxes = VariationsTable.selectAll().where { VariationsTable.componentId eq component }
+            .associate { it[VariationsTable.name] to it[VariationsTable.id] }
+        axes(config).forEach { (_, name) ->
+            val effective = names.axis(name)?.variationId
+            val catalog = catalogAxes[name]
+            val differs = effective != null && catalog != null && effective != catalog
+            if (differs && names.hasAxis(requireNotNull(catalog))) return name
+        }
+        val axisNames = axes(config).toMap()
+        axisValues(config).forEach { (axisId, value) ->
+            val axisName = axisNames[axisId] ?: return@forEach
+            val variation = names.axis(axisName)?.variationId ?: catalogAxes[axisName] ?: return@forEach
+            val effective = names.value(variation, value)?.styleId ?: return@forEach
+            val catalog = ComponentStylesTable.selectAll().where {
+                (ComponentStylesTable.designSystemId eq ds) and (ComponentStylesTable.variationId eq variation) and
+                    (ComponentStylesTable.name eq value)
+            }.singleOrNull()?.get(ComponentStylesTable.id)
+            if (catalog != null && catalog != effective && names.hasValue(catalog)) return value
+        }
+        return null
     }
 
     private fun component(name: String, context: ComponentConfigImportContext): ResultRow? {
@@ -325,9 +368,13 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         }
     }
 
-    private fun upsertAxes(component: UUID, config: ComponentConfig) = axes(config).associate { (key, name) ->
+    private fun upsertAxes(
+        component: UUID,
+        config: ComponentConfig,
+        names: EffectiveNameSnapshot,
+    ) = axes(config).associate { (key, name) ->
         key to (
-            VariationsTable.selectAll().where {
+            names.axis(name)?.variationId ?: VariationsTable.selectAll().where {
                 (VariationsTable.componentId eq component) and (VariationsTable.name eq name)
             }.singleOrNull()?.get(VariationsTable.id) ?: VariationsTable.insertReturning {
                 it[componentId] = component
@@ -337,11 +384,16 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             )
     }
 
-    private fun upsertStyles(ds: UUID, config: ComponentConfig, axes: Map<String, UUID>) =
+    private fun upsertStyles(
+        ds: UUID,
+        config: ComponentConfig,
+        axes: Map<String, UUID>,
+        names: EffectiveNameSnapshot,
+    ) =
         axisValues(config).associate { (axis, value) ->
             val variation = axes.getValue(axis)
             styleKey(axis, value) to (
-                ComponentStylesTable.selectAll().where {
+                names.value(variation, value)?.styleId ?: ComponentStylesTable.selectAll().where {
                     (ComponentStylesTable.designSystemId eq ds) and
                         (ComponentStylesTable.variationId eq variation) and (ComponentStylesTable.name eq value)
                 }.singleOrNull()?.get(ComponentStylesTable.id) ?: run {
@@ -358,16 +410,18 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 )
         }
 
+    @Suppress("LongMethod")
     private fun declareAxes(
         id: UUID,
         config: ComponentConfig,
         axes: Map<String, UUID>,
         styles: Map<String, UUID>,
+        names: EffectiveNameSnapshot,
         context: ComponentConfigImportContext,
     ) {
         val values = axisValues(config).groupBy({ it.first }, { it.second })
         val defaults = config.defaults.associate { it.id to it.value.text() }
-        axes(config).forEachIndexed { position, (axisId, _) ->
+        axes(config).forEachIndexed { position, (axisId, axisName) ->
             val declared = config.variations.firstOrNull { it.id == axisId }
             val existing = StableAppearanceVariationsTable.selectAll().where {
                 (StableAppearanceVariationsTable.appearanceId eq id) and
@@ -391,6 +445,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 statement[AppearanceVariationRevisionsTable.position] = position
                 statement[defaultStyleId] = defaults[axisId]?.let { value -> styles[styleKey(axisId, value)] }
                 statement[declaredType] = declared?.declaredType
+                statement[AppearanceVariationRevisionsTable.displayName] =
+                    names.axis(axisName)?.takeIf { it.variationId == axes.getValue(axisId) }?.displayName
             }
             val ordered = declared?.values?.map { it.name }.orEmpty() + values[axisId].orEmpty()
             ordered.distinct().forEachIndexed { valuePosition, value ->
@@ -415,6 +471,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                     statement[authoredId] = declared?.values?.firstOrNull {
                         it.name == value && it.targets.isNullOrEmpty()
                     }?.authoredId
+                    statement[AppearanceVariationValueRevisionsTable.displayName] =
+                        names.value(axes.getValue(axisId), value)?.displayName
                 }
             }
         }
@@ -742,7 +800,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         source: ComponentStyleSource,
         context: ComponentConfigImportContext,
     ) {
-        if (property.type == componentStyle && value.states.isEmpty() && value.value != null) {
+        if (property.type == componentStyle && value.value != null) {
             context.pendingReferences += PendingComponentStyleReference(value.value, source)
         }
     }
@@ -755,7 +813,8 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
             val component = component(componentName, context)?.get(ComponentsTable.id)
             val target = component?.let { appearance(ds, it, styleName) }
             val available = component?.let { referenceStyles(ds, it) }.orEmpty()
-            val targetStyles = parts.drop(1).mapNotNull(available::get)
+            val effective = target?.let { effectiveStyles(ds, it[ComponentAppearancesTable.id]) }.orEmpty()
+            val targetStyles = parts.drop(1).mapNotNull { effective[it.trim().lowercase()] ?: available[it] }
             if (target == null || targetStyles.size != parts.size - 1) {
                 context.report.unresolvedComponentStyles += pending.reference
             } else {
@@ -802,6 +861,11 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 }
             }
         }
+
+    /** Значения оси целевого оформления по действующему имени: ссылки экспорта написаны этими именами. */
+    private fun effectiveStyles(ds: UUID, appearanceId: UUID): Map<String, UUID> =
+        AppearanceEditorModelReader.axes(appearanceId, ds, null).flatMap { it.values }
+            .associate { it.name.trim().lowercase() to it.styleId }
 
     private fun referenceStyles(ds: UUID, component: UUID): Map<String, UUID> = ComponentStylesTable.join(
         VariationsTable,

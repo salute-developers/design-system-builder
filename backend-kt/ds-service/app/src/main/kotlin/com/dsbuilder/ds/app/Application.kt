@@ -2,7 +2,10 @@ package com.dsbuilder.ds.app
 
 import com.dsbuilder.authorization.AuthorizationPolicyLoader
 import com.dsbuilder.authorization.PolicyEvaluator
+import com.dsbuilder.ds.components.application.AddAppearanceAxisUseCase
+import com.dsbuilder.ds.components.application.AddAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.AddStyleCombinationMemberUseCase
+import com.dsbuilder.ds.components.application.CreateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceVariationValueUseCase
@@ -34,7 +37,9 @@ import com.dsbuilder.ds.components.application.DeleteStyleCombinationUseCase
 import com.dsbuilder.ds.components.application.DeleteStyleUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPropertyValueUseCase
+import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.ExportComponentConfigUseCase
+import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
@@ -91,7 +96,14 @@ import com.dsbuilder.ds.components.application.ListVariationPropertyValuesByStyl
 import com.dsbuilder.ds.components.application.ListVariationPropertyValuesUseCase
 import com.dsbuilder.ds.components.application.ListVariationStylesUseCase
 import com.dsbuilder.ds.components.application.ListVariationsUseCase
+import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
+import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
+import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceAxesUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceAxisValuesUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceStatesUseCase
 import com.dsbuilder.ds.components.application.ResolveStateSetUseCase
+import com.dsbuilder.ds.components.application.SetAppearancePropertyValueUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceVariationValueUseCase
@@ -111,6 +123,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.di.componentModelModule
 import com.dsbuilder.ds.components.di.componentsModule
 import com.dsbuilder.ds.components.presentation.apiMetaImportRoutes
+import com.dsbuilder.ds.components.presentation.appearanceEditorRoutes
 import com.dsbuilder.ds.components.presentation.appearanceRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationRoutes
 import com.dsbuilder.ds.components.presentation.appearanceVariationValueRoutes
@@ -487,6 +500,22 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<UpdateAppearanceUseCase>(),
         koin.get<DeleteAppearanceUseCase>(),
         koin.get<ListAppearanceVariationAxesUseCase>(),
+        json,
+    )
+    appearanceEditorRoutes(
+        runtime.evaluator,
+        koin.get<GetAppearanceEditorModelUseCase>(),
+        koin.get<AddAppearanceAxisUseCase>(),
+        koin.get<RemoveAppearanceAxisUseCase>(),
+        koin.get<ReorderAppearanceAxesUseCase>(),
+        koin.get<AddAppearanceAxisValueUseCase>(),
+        koin.get<RemoveAppearanceAxisValueUseCase>(),
+        koin.get<ReorderAppearanceAxisValuesUseCase>(),
+        koin.get<SetAppearancePropertyValueUseCase>(),
+        koin.get<RemoveAppearancePropertyValueUseCase>(),
+        koin.get<ReorderAppearanceStatesUseCase>(),
+        koin.get<CreateAppearanceConfigurationUseCase>(),
+        koin.get<DuplicateAppearanceConfigurationUseCase>(),
         json,
     )
     appearanceVariationRoutes(

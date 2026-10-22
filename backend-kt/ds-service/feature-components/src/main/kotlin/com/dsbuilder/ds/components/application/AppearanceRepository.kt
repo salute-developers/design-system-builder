@@ -132,6 +132,10 @@ interface AppearanceRepository {
         val declaredType: String?,
         /** Declared type present carried by this contract. */
         val declaredTypePresent: Boolean,
+        /** Новое отображаемое имя оси; `null` вместе с [displayNamePresent] сбрасывает имя. */
+        val displayName: String? = null,
+        /** Передано ли поле отображаемого имени. */
+        val displayNamePresent: Boolean = false,
     )
 
     /** Public model for value create. */
@@ -154,5 +158,9 @@ interface AppearanceRepository {
         val authoredId: String?,
         /** Authored id present carried by this contract. */
         val authoredIdPresent: Boolean,
+        /** Новое отображаемое имя значения; `null` вместе с [displayNamePresent] сбрасывает имя. */
+        val displayName: String? = null,
+        /** Передано ли поле отображаемого имени. */
+        val displayNamePresent: Boolean = false,
     )
 }

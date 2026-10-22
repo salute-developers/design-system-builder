@@ -16,6 +16,8 @@ data class AppearanceVariationValueResponse(
     val position: Int,
     /** Authored id carried by this contract. */
     val authoredId: String?,
+    /** Отображаемое имя значения в оформлении. */
+    val displayName: String?,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -29,6 +31,7 @@ data class AppearanceVariationValueResponse(
             value.styleId.toString(),
             value.position,
             value.authoredId,
+            value.displayName,
             value.createdAt.toString(),
             value.updatedAt.toString(),
         )

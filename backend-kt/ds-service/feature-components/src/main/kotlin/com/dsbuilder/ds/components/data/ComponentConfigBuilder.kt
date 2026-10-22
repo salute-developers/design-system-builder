@@ -86,7 +86,10 @@ internal class ComponentConfigBuilder(
                 val axisId = row[AppearanceVariationsTable.id]
                 ConfigAxis(
                     row[AppearanceVariationsTable.variationId],
-                    row[VariationsTable.name],
+                    AppearanceEditorRules.axisName(
+                        row[AppearanceVariationsTable.displayName],
+                        row[VariationsTable.name],
+                    ),
                     row[AppearanceVariationsTable.defaultStyleId],
                     row[AppearanceVariationsTable.variationId] == colorScheme,
                     row[AppearanceVariationsTable.declaredType],
@@ -96,7 +99,10 @@ internal class ComponentConfigBuilder(
                         .map {
                             ConfigAxisValue(
                                 it[AppearanceVariationValuesTable.styleId],
-                                it[ComponentStylesTable.name],
+                                AppearanceEditorRules.axisName(
+                                    it[AppearanceVariationValuesTable.displayName],
+                                    it[ComponentStylesTable.name],
+                                ),
                                 it[AppearanceVariationValuesTable.authoredId],
                             )
                         },
@@ -217,7 +223,7 @@ internal class ComponentConfigBuilder(
         val keys = (declared.map { it.first } + byKey.keys.sorted()).distinct()
         return keys.mapNotNull { key ->
             val declaration = declared.firstOrNull { it.first == key }
-            val stored = declaration?.third ?: storedMembers[key].orEmpty()
+            val stored = effectiveNames(declaration?.third ?: storedMembers[key].orEmpty(), axes)
             // Stored member order follows random style ids; the export orders them by axis, then by name,
             // so that the same configuration is exported identically whatever ids the rows received.
             val members = if (exported) {
@@ -246,6 +252,12 @@ internal class ComponentConfigBuilder(
                 declaration?.second,
             )
         }
+    }
+
+    /** Подставляет действующие имена значений оформления вместо имён стилей каталога. */
+    private fun effectiveNames(members: List<ConfigMember>, axes: List<ConfigAxis>): List<ConfigMember> {
+        val names = axes.flatMap { axis -> axis.values.map { it.styleId to it.name } }.toMap()
+        return members.map { it.copy(styleName = names[it.styleId] ?: it.styleName) }
     }
 
     private fun combinationMember(row: ResultRow) = ConfigMember(

@@ -118,13 +118,15 @@ fun Route.appearanceVariationValueRoutes(
             val request = runCatching {
                 json.decodeFromJsonElement(UpdateAppearanceVariationValueRequest.serializer(), payload)
             }.getOrNull() ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            if ((request.authoredId?.trim()?.length ?: 0) > 255) {
+            if ((request.authoredId?.trim()?.length ?: 0) > 255 || (request.displayName?.trim()?.length ?: 0) > 255) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
             val command = AppearanceRepository.ValueUpdate(
                 request.position,
                 request.authoredId?.trim(),
                 "authoredId" in payload,
+                request.displayName?.trim()?.takeIf { it.isNotEmpty() },
+                "displayName" in payload,
             )
             val mutation = call.repeatableMutation(
                 context,

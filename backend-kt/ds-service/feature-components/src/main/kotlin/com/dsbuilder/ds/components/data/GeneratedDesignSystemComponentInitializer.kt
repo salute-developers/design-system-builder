@@ -280,8 +280,27 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
             }
         }.toMap()
 
+        insertAppearances(designSystemId, seed, componentId, variations, styles, context, writer)
+    }
+
+    /** Конфигурация по умолчанию — оформление с именем компонента, а при его отсутствии первое. */
+    @Suppress("LongParameterList")
+    private fun insertAppearances(
+        designSystemId: UUID,
+        seed: ComponentSeed,
+        componentId: UUID,
+        variations: Map<String, UUID>,
+        styles: Map<StyleKey, UUID>,
+        context: SeedContext,
+        writer: ComponentSeedBatchWriter,
+    ) {
+        val defaultAppearance = seed.appearances.firstOrNull { it.name.equals(seed.name, ignoreCase = true) }
+            ?: seed.appearances.firstOrNull()
         seed.appearances.forEach { appearance ->
-            insertAppearance(designSystemId, seed, appearance, componentId, variations, styles, context, writer)
+            insertAppearance(
+                designSystemId, seed, appearance, componentId, variations, styles, context, writer,
+                isDefault = appearance === defaultAppearance,
+            )
         }
     }
 
@@ -295,6 +314,7 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         styles: Map<StyleKey, UUID>,
         context: SeedContext,
         writer: ComponentSeedBatchWriter,
+        isDefault: Boolean,
     ) {
         val appearanceId = writer.stable(
             StableAppearancesTable,
@@ -308,6 +328,7 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
             statement[name] = appearance.name
             statement[rootVariationId] = null
             statement[colorSchemeVariationId] = null
+            statement[AppearanceRevisionsTable.isDefault] = isDefault
         }
         val declared = appearance.variations ?: seed.variations.map(VariationSeed::name)
         declared.forEachIndexed { position, axis ->

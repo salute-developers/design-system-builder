@@ -123,7 +123,8 @@ fun Route.appearanceVariationRoutes(
             val defaultStyleId = request.defaultStyleId?.toUuidOrNull()
             if (
                 (request.defaultStyleId != null && defaultStyleId == null) ||
-                (request.declaredType?.trim()?.length ?: 0) > 255
+                (request.declaredType?.trim()?.length ?: 0) > 255 ||
+                (request.displayName?.trim()?.length ?: 0) > 255
             ) {
                 return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             }
@@ -135,6 +136,8 @@ fun Route.appearanceVariationRoutes(
                 request.isRoot,
                 request.declaredType?.trim(),
                 "declaredType" in payload,
+                request.displayName?.trim()?.takeIf { it.isNotEmpty() },
+                "displayName" in payload,
             )
             val mutation = call.repeatableMutation(
                 context,

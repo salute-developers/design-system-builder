@@ -22,6 +22,8 @@ data class AppearanceVariationResponse(
     val isRoot: Boolean,
     /** Declared type carried by this contract. */
     val declaredType: String?,
+    /** Отображаемое имя оси в оформлении. */
+    val displayName: String?,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -32,7 +34,7 @@ data class AppearanceVariationResponse(
         fun from(value: AppearanceVariation) = AppearanceVariationResponse(
             value.id.toString(), value.appearanceId.toString(), value.variationId.toString(), value.position,
             value.defaultStyleId?.toString(), value.isColorScheme, value.isRoot, value.declaredType,
-            value.createdAt.toString(), value.updatedAt.toString(),
+            value.displayName, value.createdAt.toString(), value.updatedAt.toString(),
         )
     }
 }

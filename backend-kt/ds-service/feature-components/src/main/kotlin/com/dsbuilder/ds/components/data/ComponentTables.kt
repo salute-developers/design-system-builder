@@ -144,13 +144,14 @@ internal object ComponentAppearancesTable : ResolvedRevisionTable(
         "appearance_revisions",
         "appearance_id",
         listOf("id", "design_system_id", "component_id", "created_at"),
-        listOf("name", "root_variation_id", "color_scheme_variation_id"),
+        listOf("name", "root_variation_id", "color_scheme_variation_id", "is_default"),
     ),
 ) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id)
     val componentId = reference("component_id", ComponentsTable.id)
     val name = text("name").nullable()
+    val isDefault = bool("is_default")
     val rootVariationId = uuid("root_variation_id").nullable()
     val colorSchemeVariationId = uuid("color_scheme_variation_id").nullable()
     val createdAt = timestamp("created_at")
@@ -184,7 +185,7 @@ internal object AppearanceVariationsTable : ResolvedRevisionTable(
         "appearance_variation_revisions",
         "appearance_variation_id",
         listOf("id", "appearance_id", "variation_id", "design_system_id", "created_at"),
-        listOf("position", "default_style_id", "declared_type"),
+        listOf("position", "default_style_id", "declared_type", "display_name"),
         listOf(
             "coalesce((SELECT ar.color_scheme_variation_id = entity.variation_id " +
                 "FROM appearance_revisions ar WHERE ar.appearance_id = entity.appearance_id " +
@@ -201,6 +202,7 @@ internal object AppearanceVariationsTable : ResolvedRevisionTable(
     val defaultStyleId = reference("default_style_id", ComponentStylesTable.id).nullable()
     val isColorScheme = bool("is_color_scheme")
     val declaredType = text("declared_type").nullable()
+    val displayName = text("display_name").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)
@@ -213,7 +215,7 @@ internal object AppearanceVariationValuesTable : ResolvedRevisionTable(
         "appearance_variation_value_revisions",
         "appearance_variation_value_id",
         listOf("id", "appearance_variation_id", "design_system_id", "created_at"),
-        listOf("style_id", "position", "authored_id"),
+        listOf("style_id", "position", "authored_id", "display_name"),
     ),
 ) {
     val id = uuid("id")
@@ -221,6 +223,7 @@ internal object AppearanceVariationValuesTable : ResolvedRevisionTable(
     val styleId = reference("style_id", ComponentStylesTable.id)
     val position = integer("position").default(0)
     val authoredId = text("authored_id").nullable()
+    val displayName = text("display_name").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(id)

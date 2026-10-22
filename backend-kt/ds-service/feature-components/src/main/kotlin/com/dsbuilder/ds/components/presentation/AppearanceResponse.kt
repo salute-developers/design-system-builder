@@ -14,6 +14,8 @@ data class AppearanceResponse(
     val componentId: String,
     /** Name carried by this contract. */
     val name: String?,
+    /** Является ли оформление конфигурацией по умолчанию. */
+    val isDefault: Boolean,
     /** Created at carried by this contract. */
     val createdAt: String,
     /** Updated at carried by this contract. */
@@ -26,6 +28,7 @@ data class AppearanceResponse(
             value.designSystemId.toString(),
             value.componentId.toString(),
             value.name,
+            value.isDefault,
             value.createdAt.toString(),
             value.updatedAt.toString(),
         )

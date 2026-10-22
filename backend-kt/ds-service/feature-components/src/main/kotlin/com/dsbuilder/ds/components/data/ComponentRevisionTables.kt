@@ -73,6 +73,7 @@ internal object AppearanceRevisionsTable : ComponentRevisionTable("appearance_re
     val name = text("name").nullable()
     val rootVariationId = uuid("root_variation_id").nullable()
     val colorSchemeVariationId = uuid("color_scheme_variation_id").nullable()
+    val isDefault = bool("is_default").default(false)
 }
 
 internal object StableStylesTable : Table("styles") {
@@ -115,6 +116,7 @@ internal object AppearanceVariationRevisionsTable : ComponentRevisionTable("appe
     val position = integer("position")
     val defaultStyleId = uuid("default_style_id").nullable()
     val declaredType = text("declared_type").nullable()
+    val displayName = text("display_name").nullable()
 }
 
 internal object StableAppearanceVariationValuesTable : Table("appearance_variation_values") {
@@ -130,6 +132,7 @@ internal object AppearanceVariationValueRevisionsTable :
     val styleId = uuid("style_id")
     val position = integer("position")
     val authoredId = text("authored_id").nullable()
+    val displayName = text("display_name").nullable()
 }
 
 internal object StableAppearanceCombinationsTable : Table("appearance_combinations") {

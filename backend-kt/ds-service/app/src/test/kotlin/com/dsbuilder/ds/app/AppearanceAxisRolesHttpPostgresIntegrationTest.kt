@@ -224,9 +224,10 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(setOf("shape"), axes(appearance).rootNames())
         assertEquals(setOf("view"), axes(appearance).schemeNames())
 
+        // Ось цветовой схемы заблокирована: её нельзя удалить, роли остаются как были.
         val viewAxis = axes(appearance).axisId("view")
-        delete("/api/ds/appearance-variations/$viewAxis")
-        assertEquals(emptySet(), axes(appearance).schemeNames())
+        assertEquals(HttpStatusCode.UnprocessableEntity, delete("/api/ds/appearance-variations/$viewAxis").status)
+        assertEquals(setOf("view"), axes(appearance).schemeNames())
         assertEquals(
             "shape",
             query(

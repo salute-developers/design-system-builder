@@ -100,6 +100,7 @@ internal object AppearanceAxisRoleStore {
             it[name] = current[ComponentAppearancesTable.name]
             it[rootVariationId] = root
             it[colorSchemeVariationId] = colorScheme
+            it[isDefault] = current[ComponentAppearancesTable.isDefault]
         }
     }
 

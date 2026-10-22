@@ -1,8 +1,12 @@
 package com.dsbuilder.ds.components.di
 
+import com.dsbuilder.ds.components.application.AddAppearanceAxisUseCase
+import com.dsbuilder.ds.components.application.AddAppearanceAxisValueUseCase
 import com.dsbuilder.ds.components.application.AddStyleCombinationMemberUseCase
+import com.dsbuilder.ds.components.application.AppearanceEditorRepository
 import com.dsbuilder.ds.components.application.AppearanceRepository
 import com.dsbuilder.ds.components.application.ComponentModelRepository
+import com.dsbuilder.ds.components.application.CreateAppearanceConfigurationUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.CreateAppearanceVariationValueUseCase
@@ -33,6 +37,8 @@ import com.dsbuilder.ds.components.application.DeleteStyleUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPlatformParamAdjustmentUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.DeleteVariationUseCase
+import com.dsbuilder.ds.components.application.DuplicateAppearanceConfigurationUseCase
+import com.dsbuilder.ds.components.application.GetAppearanceEditorModelUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationUseCase
 import com.dsbuilder.ds.components.application.GetAppearanceVariationValueUseCase
@@ -75,7 +81,14 @@ import com.dsbuilder.ds.components.application.ListVariationPropertyValuesUseCas
 import com.dsbuilder.ds.components.application.ListVariationStylesUseCase
 import com.dsbuilder.ds.components.application.ListVariationsUseCase
 import com.dsbuilder.ds.components.application.PropertyValueRepository
+import com.dsbuilder.ds.components.application.RemoveAppearanceAxisUseCase
+import com.dsbuilder.ds.components.application.RemoveAppearanceAxisValueUseCase
+import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceAxesUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceAxisValuesUseCase
+import com.dsbuilder.ds.components.application.ReorderAppearanceStatesUseCase
 import com.dsbuilder.ds.components.application.ResolveStateSetUseCase
+import com.dsbuilder.ds.components.application.SetAppearancePropertyValueUseCase
 import com.dsbuilder.ds.components.application.StateRepository
 import com.dsbuilder.ds.components.application.StyleCombinationRepository
 import com.dsbuilder.ds.components.application.StyleRepository
@@ -93,6 +106,7 @@ import com.dsbuilder.ds.components.application.UpdateVariationPlatformParamAdjus
 import com.dsbuilder.ds.components.application.UpdateVariationPropertyValueUseCase
 import com.dsbuilder.ds.components.application.UpdateVariationUseCase
 import com.dsbuilder.ds.components.data.ComponentTokenRevertDependencyValidator
+import com.dsbuilder.ds.components.data.ExposedAppearanceEditorRepository
 import com.dsbuilder.ds.components.data.ExposedAppearanceRepository
 import com.dsbuilder.ds.components.data.ExposedComponentModelRepository
 import com.dsbuilder.ds.components.data.ExposedPropertyValueRepository
@@ -115,7 +129,20 @@ val componentModelModule = module {
         named("component-token-revert"),
     ) { ComponentTokenRevertDependencyValidator() }
     single<StateRepository> { ExposedStateRepository() }
+    single<AppearanceEditorRepository> { ExposedAppearanceEditorRepository(get()) }
     single<StyleCombinationRepository> { ExposedStyleCombinationRepository() }
+    factory { GetAppearanceEditorModelUseCase(get(), get(), get()) }
+    factory { AddAppearanceAxisUseCase(get(), get(), get(), get()) }
+    factory { RemoveAppearanceAxisUseCase(get(), get(), get()) }
+    factory { ReorderAppearanceAxesUseCase(get(), get(), get()) }
+    factory { AddAppearanceAxisValueUseCase(get(), get(), get(), get()) }
+    factory { RemoveAppearanceAxisValueUseCase(get(), get(), get()) }
+    factory { ReorderAppearanceAxisValuesUseCase(get(), get(), get()) }
+    factory { SetAppearancePropertyValueUseCase(get(), get(), get()) }
+    factory { RemoveAppearancePropertyValueUseCase(get(), get(), get()) }
+    factory { ReorderAppearanceStatesUseCase(get(), get(), get()) }
+    factory { CreateAppearanceConfigurationUseCase(get(), get(), get(), get(), get()) }
+    factory { DuplicateAppearanceConfigurationUseCase(get(), get(), get(), get(), get()) }
     factory { ListVariationsUseCase(get(), get(), get()) }
     factory { GetVariationUseCase(get(), get(), get()) }
     factory { CreateVariationUseCase(get(), get(), get(), get()) }

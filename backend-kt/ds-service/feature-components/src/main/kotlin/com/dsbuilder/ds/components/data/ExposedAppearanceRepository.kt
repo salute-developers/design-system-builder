@@ -11,6 +11,7 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
@@ -76,10 +77,12 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[designSystemId] = command.designSystemId
             it[componentId] = command.componentId
         }.single()[StableAppearancesTable.id]
+        val first = isFirstAppearanceOfComponent(command.designSystemId, command.componentId, id)
         AppearanceRevisionsTable.replaceRevision(AppearanceRevisionsTable.entityId, id, command.designSystemId) {
             it[name] = command.name
             it[rootVariationId] = null
             it[colorSchemeVariationId] = null
+            it[isDefault] = first
         }
         return requireNotNull(appearanceRow(id)).let(::appearance)
     }
@@ -123,7 +126,9 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[name] = command.name ?: current[ComponentAppearancesTable.name]
             it[rootVariationId] = current[ComponentAppearancesTable.rootVariationId]
             it[colorSchemeVariationId] = current[ComponentAppearancesTable.colorSchemeVariationId]
+            it[isDefault] = current[ComponentAppearancesTable.isDefault]
         }
+        StyleReferenceWriter.rebuildTexts(current[ComponentAppearancesTable.designSystemId], id)
         return appearanceRow(id)?.let(::appearance)
     }
 
@@ -150,6 +155,8 @@ class ExposedAppearanceRepository : AppearanceRepository {
                     systemAdmin,
                 )
         }.singleOrNull() ?: return false
+        AppearanceEditorRules.checkAppearanceRemovable(current)
+        AppearanceNaming.checkNotReferenced(id)
         AppearanceRevisionsTable.replaceRevision(
             AppearanceRevisionsTable.entityId,
             id,
@@ -159,6 +166,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[name] = current[ComponentAppearancesTable.name]
             it[rootVariationId] = current[ComponentAppearancesTable.rootVariationId]
             it[colorSchemeVariationId] = current[ComponentAppearancesTable.colorSchemeVariationId]
+            it[isDefault] = current[ComponentAppearancesTable.isDefault]
         }
         return true
     }
@@ -256,7 +264,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
         return appearanceVariation(requireNotNull(appearanceVariationRow(id)))
     }
 
-    @Suppress("LongMethod", "ReturnCount")
+    @Suppress("CyclomaticComplexMethod", "LongMethod", "ReturnCount")
     override suspend fun updateVariation(
         projectId: ProjectId,
         systemAdmin: Boolean,
@@ -292,6 +300,10 @@ class ExposedAppearanceRepository : AppearanceRepository {
             if (command.position != null) add("/position")
             if (command.defaultStyleIdPresent) add("/default_style_id")
             if (command.declaredTypePresent) add("/declared_type")
+            if (command.displayNamePresent) add("/display_name")
+        }
+        if (command.displayNamePresent) {
+            AppearanceEditorRules.checkAxisRename(current, command.displayName)
         }
         if (localPaths.isNotEmpty()) {
             AppearanceVariationRevisionsTable.replaceRevision(
@@ -311,7 +323,18 @@ class ExposedAppearanceRepository : AppearanceRepository {
                 } else {
                     current[AppearanceVariationsTable.declaredType]
                 }
+                it[displayName] = if (command.displayNamePresent) {
+                    command.displayName
+                } else {
+                    current[AppearanceVariationsTable.displayName]
+                }
             }
+        }
+        if (command.displayNamePresent || command.position != null) {
+            StyleReferenceWriter.rebuildTexts(
+                appearance[ComponentAppearancesTable.designSystemId],
+                current[AppearanceVariationsTable.appearanceId],
+            )
         }
         if (command.isRoot != null || command.isColorScheme != null) {
             AppearanceAxisRoleStore.apply(
@@ -339,6 +362,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
         val row = appearanceVariationRow(id)
         val appearanceId = row?.get(AppearanceVariationsTable.appearanceId)
         val variationId = row?.get(AppearanceVariationsTable.variationId)
+        if (row != null) checkAxisDeletable(row)
         if (appearanceId != null && variationId != null) {
             val roles = AppearanceAxisRoleStore.load(listOf(appearanceId))[appearanceId]
             if (roles?.root == variationId || roles?.colorScheme == variationId) {
@@ -369,6 +393,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[position] = current[AppearanceVariationsTable.position]
             it[defaultStyleId] = current[AppearanceVariationsTable.defaultStyleId]
             it[declaredType] = current[AppearanceVariationsTable.declaredType]
+            it[displayName] = current[AppearanceVariationsTable.displayName]
         }
         return true
     }
@@ -453,6 +478,10 @@ class ExposedAppearanceRepository : AppearanceRepository {
         val changedPaths = buildSet {
             if (command.position != null) add("/position")
             if (command.authoredIdPresent) add("/authored_id")
+            if (command.displayNamePresent) add("/display_name")
+        }
+        if (command.displayNamePresent) {
+            AppearanceEditorRules.checkValueRename(current, command.displayName)
         }
         if (changedPaths.isEmpty()) return appearanceVariationValue(current)
         AppearanceVariationValueRevisionsTable.replaceRevision(
@@ -468,6 +497,17 @@ class ExposedAppearanceRepository : AppearanceRepository {
             } else {
                 current[AppearanceVariationValuesTable.authoredId]
             }
+            it[displayName] = if (command.displayNamePresent) {
+                command.displayName
+            } else {
+                current[AppearanceVariationValuesTable.displayName]
+            }
+        }
+        if (command.displayNamePresent) {
+            StyleReferenceWriter.rebuildTexts(
+                appearance[ComponentAppearancesTable.designSystemId],
+                variation[AppearanceVariationsTable.appearanceId],
+            )
         }
         return appearanceVariationValueRow(id)?.let(::appearanceVariationValue)
     }
@@ -496,6 +536,12 @@ class ExposedAppearanceRepository : AppearanceRepository {
             appearanceVariationRow(current[AppearanceVariationValuesTable.appearanceVariationId]),
         )
         val appearance = requireNotNull(appearanceRow(variation[AppearanceVariationsTable.appearanceId]))
+        AppearanceEditorRules.checkValueRemovable(variation)
+        AppearanceEditorRules.checkNoDependents(
+            appearance[ComponentAppearancesTable.designSystemId],
+            variation[AppearanceVariationsTable.appearanceId],
+            listOf(current[AppearanceVariationValuesTable.styleId]),
+        )
         AppearanceVariationValueRevisionsTable.replaceRevision(
             AppearanceVariationValueRevisionsTable.entityId,
             id,
@@ -505,6 +551,7 @@ class ExposedAppearanceRepository : AppearanceRepository {
             it[styleId] = current[AppearanceVariationValuesTable.styleId]
             it[position] = current[AppearanceVariationValuesTable.position]
             it[authoredId] = current[AppearanceVariationValuesTable.authoredId]
+            it[displayName] = current[AppearanceVariationValuesTable.displayName]
         }
         return true
     }
@@ -522,6 +569,7 @@ private fun appearance(row: ResultRow) = Appearance(
     row[ComponentAppearancesTable.designSystemId],
     row[ComponentAppearancesTable.componentId],
     row[ComponentAppearancesTable.name],
+    row[ComponentAppearancesTable.isDefault],
     row[ComponentAppearancesTable.createdAt],
     row[ComponentAppearancesTable.updatedAt],
 )
@@ -537,7 +585,8 @@ private fun appearanceVariations(rows: Iterable<ResultRow>): List<AppearanceVari
             variationId, row[AppearanceVariationsTable.position],
             row[AppearanceVariationsTable.defaultStyleId], appearanceRoles?.colorScheme == variationId,
             appearanceRoles?.root == variationId,
-            row[AppearanceVariationsTable.declaredType], row[AppearanceVariationsTable.createdAt],
+            row[AppearanceVariationsTable.declaredType], row[AppearanceVariationsTable.displayName],
+            row[AppearanceVariationsTable.createdAt],
             row[AppearanceVariationsTable.updatedAt],
         )
     }
@@ -551,6 +600,7 @@ private fun appearanceVariationValue(row: ResultRow) = AppearanceVariationValue(
     row[AppearanceVariationValuesTable.styleId],
     row[AppearanceVariationValuesTable.position],
     row[AppearanceVariationValuesTable.authoredId],
+    row[AppearanceVariationValuesTable.displayName],
     row[AppearanceVariationValuesTable.createdAt],
     row[AppearanceVariationValuesTable.updatedAt],
 )
@@ -582,3 +632,25 @@ private fun canWriteStyle(projectId: ProjectId, systemAdmin: Boolean, id: UUID):
         ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, it.designSystemId) &&
             ComponentOwnership.canWriteVariation(projectId, systemAdmin, it.variationId)
     } == true
+
+/** Первое оформление пары (дизайн-система, компонент) становится конфигурацией по умолчанию. */
+internal fun isFirstAppearanceOfComponent(designSystemId: UUID, componentId: UUID, excluding: UUID): Boolean =
+    ComponentAppearancesTable.selectAll().where {
+        (ComponentAppearancesTable.designSystemId eq designSystemId) and
+            (ComponentAppearancesTable.componentId eq componentId) and
+            (ComponentAppearancesTable.id neq excluding)
+    }.empty()
+
+/** Ось не удаляется прежним маршрутом, если она заблокирована или на её значения опираются другие данные. */
+private fun checkAxisDeletable(axis: ResultRow) {
+    AppearanceEditorRules.checkAxisRemovable(axis)
+    val styleIds = AppearanceVariationValuesTable.selectAll()
+        .where { AppearanceVariationValuesTable.appearanceVariationId eq axis[AppearanceVariationsTable.id] }
+        .map { it[AppearanceVariationValuesTable.styleId] }
+    val appearance = requireNotNull(appearanceRow(axis[AppearanceVariationsTable.appearanceId]))
+    AppearanceEditorRules.checkNoDependents(
+        appearance[ComponentAppearancesTable.designSystemId],
+        axis[AppearanceVariationsTable.appearanceId],
+        styleIds,
+    )
+}
