@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import type { Breakpoint } from './generator/themeBuilder/types/constants.ts';
 import type { ThemeSource as GeneratorThemeSource } from './generator/themeBuilder/types/theme.ts';
 import type { LocalThemePaths, LocalThemeSet } from './local-theme-source.ts';
 
@@ -21,6 +22,8 @@ export interface ThemeSetSource {
     themes: ThemeSource[];
     /** Имя темы (из её meta.json), из которой берутся запасные значения токенов. */
     defaultThemeName: string;
+    /** Экраны адаптивной типографики в порядке вывода. */
+    breakpoints: Breakpoint[];
 }
 
 /** Имя темы становится идентификатором в коде: `export { <имя>__dark }`. */
@@ -173,5 +176,6 @@ export async function readThemeSetSource(paths: LocalThemeSet): Promise<ThemeSet
         palette,
         themes: named,
         defaultThemeName: named[paths.themes.indexOf(paths.defaultTheme)].meta.name,
+        breakpoints: paths.breakpoints,
     };
 }

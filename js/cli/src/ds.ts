@@ -47,6 +47,9 @@ Usage: npm run generate:ds -- [options]
   --core-version <version> Plasma core version (default: ${CORE_VERSION})
   --package                Build the full package and write a .tgz instead of the sources
 
+Typography media queries follow "breakpoints" in .sdds/config.json when it is set: screens from narrow to wide,
+e.g. [{"name":"screenS","to":959},{"name":"screenM","from":960,"to":1280},{"name":"screenL","from":1281}]
+("from" is min-width, "to" is max-width); only the listed screens are generated.
 Combines generate:theme and generate:components: every theme from .sdds/tenants, the components from
 the components directory and web-adapter.json, web token mappings from ${COMPONENTS_PACKAGE}.
 Replaces src/theme, src/components and src/index.ts in the output directory, or writes
