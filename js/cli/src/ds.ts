@@ -10,8 +10,8 @@ import { resolveLocalThemes } from './local-theme-source.ts';
 
 /**
  * Генерирует дизайн-систему целиком: тему и компоненты из .sdds одним запуском.
- * Без `--package` в `output` заменяются `src/theme` и `src/components`; с `--package` собирается один
- * полный пакет. К бэкенду CLI не обращается.
+ * Без `--package` в `output` заменяются `src/theme` и `src/components`; с `--package` в `output` пишется
+ * папка полного пакета без сборки. К бэкенду CLI не обращается.
  */
 async function main() {
     const { values } = parseArgs({
@@ -45,15 +45,15 @@ Usage: npm run generate:ds -- [options]
   --name <name>            Package name; required with --package
   --ds-version <version>   Package version (default: 0.1.0)
   --core-version <version> Plasma core version (default: ${CORE_VERSION})
-  --package                Build the full package and write a .tgz instead of the sources
+  --package                Write the whole package (package.json, build configs, src), not built
 
 Typography media queries follow "breakpoints" in .sdds/config.json when it is set: screens from narrow to wide,
 e.g. [{"name":"screenS","to":959},{"name":"screenM","from":960,"to":1280},{"name":"screenL","from":1281}]
 ("from" is min-width, "to" is max-width); only the listed screens are generated.
 Combines generate:theme and generate:components: every theme from .sdds/tenants, the components from
 the components directory and web-adapter.json, web token mappings from ${COMPONENTS_PACKAGE}.
-Replaces src/theme, src/components and src/index.ts in the output directory, or writes
-<scope>-<name>-<version>.tgz with --package.`);
+Replaces src/theme, src/components and src/index.ts in the output directory; with --package writes
+the package files and replaces src. Build it with npm install && npm run build, pack it with npm pack.`);
         return;
     }
 

@@ -1,8 +1,6 @@
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import pacote from 'pacote';
 
 import { generateBaseFileStructure } from './generator/generate.ts';
 import { CORE_VERSION } from './generator/utils/index.ts';
@@ -26,18 +24,19 @@ export interface PackagePartOptions {
     packageName?: string;
     packageVersion: string;
     coreVersion: string;
-    /** Собрать пакет и записать `.tgz` вместо исходников. */
+    /** Записать всю папку пакета (`package.json`, конфиги сборки, `src`) вместо исходников частей. */
     pack: boolean;
     /** Пишет свои части в `src` временного пакета. */
     fill: (pathToDir: string) => Promise<void>;
 }
 
 /**
- * Генерирует части пакета и кладёт результат в `output`, не трогая остальные части.
+ * Генерирует части пакета и кладёт результат в `output`.
  *
- * Пакет целиком собирается во временном каталоге: в `output` попадают только исходники частей
- * (`src/theme`, `src/components` и корневой индекс) или архив. Каталог `result-*` лежит внутри `js/cli`:
- * скрипты пакета берут eslint из `../node_modules`, а его конфиг — из заготовки пакета.
+ * Пакет целиком собирается во временном каталоге `result-*` внутри `js/cli`. Без `pack` в `output`
+ * попадают только исходники частей (`src/theme`, `src/components` и корневой индекс), остальные части
+ * не трогаются. С `pack` — вся папка пакета без сборки: файлы заготовки и `package.json` перезаписываются,
+ * `src` заменяется целиком, прочее содержимое `output` (например, `node_modules`) остаётся.
  */
 export async function writePackagePart(options: PackagePartOptions): Promise<string> {
     const { parts, outputDirectory, pack } = options;
@@ -60,11 +59,11 @@ export async function writePackagePart(options: PackagePartOptions): Promise<str
         await writeRootIndex(join(pathToDir, 'src'));
 
         if (pack) {
-            const { fileName, tarball } = await packTarball(pathToDir, parts);
-            const tarballPath = join(outputDirectory, fileName);
             await mkdir(outputDirectory, { recursive: true });
-            await writeFile(tarballPath, tarball);
-            return tarballPath;
+            // `src` пакета — ровно сгенерированные части: старые части рядом с новым package.json не нужны.
+            await rm(join(outputDirectory, 'src'), { recursive: true, force: true });
+            await cp(pathToDir, outputDirectory, { recursive: true });
+            return outputDirectory;
         }
 
         const sourceDirectory = join(outputDirectory, 'src');
@@ -102,28 +101,4 @@ async function writeRootIndex(sourceDirectory: string): Promise<void> {
         hasTheme ? "export * from './theme';" : '',
     ].filter(Boolean);
     await writeFile(join(sourceDirectory, 'index.ts'), blocks.length > 0 ? `${blocks.join('\n\n')}\n` : '');
-}
-
-/**
- * Собирает пакет и упаковывает его: pacote запускает только `prepare`
- * (`npm run build`; зависимости берутся из `js/cli/node_modules`) и складывает файлы из `files` package.json.
- * Имя архива — как у `npm pack`: `@scope/name@1.0.0` → `scope-name-1.0.0.tgz`; у пакета из одной части —
- * с её суффиксом (`…-theme.tgz`). Имя самого пакета не меняется, суффикс нужен, чтобы архивы частей не
- * перезаписывали друг друга и полный пакет.
- */
-async function packTarball(pathToDir: string, parts: PackagePart[]): Promise<{ fileName: string; tarball: Buffer }> {
-    const { name, version } = JSON.parse(await readFile(join(pathToDir, 'package.json'), 'utf8')) as {
-        name: string;
-        version: string;
-    };
-    try {
-        const tarball = await pacote.tarball(pathToDir);
-        const suffix = parts.length === 1 ? `-${parts[0]}` : '';
-        return { fileName: `${name.replace(/^@/, '').replace('/', '-')}-${version}${suffix}.tgz`, tarball };
-    } catch (error) {
-        // pacote гасит вывод `npm run build`; без stderr причина сборки не видна.
-        const { stdout, stderr } = error as { stdout?: string; stderr?: string };
-        console.error(stderr || stdout || '');
-        throw error;
-    }
 }

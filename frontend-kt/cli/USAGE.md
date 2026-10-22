@@ -558,8 +558,10 @@ dsbuilder components generate --platform react --output ./web
 dsbuilder components generate --platform react -- --package --name base
 ```
 
-Без `--package` каждая команда заменяет только свою часть `src`; с `--package` собирается архив
-одной части. Подробности — в README `js/cli`.
+Без `--package` каждая команда заменяет только свою часть `src`. С `--package` в `--output` пишется
+папка пакета одной части без сборки и архива: `package.json`, конфиги сборки, `scripts` и `src`;
+`src` заменяется целиком, `node_modules` и остальное содержимое каталога остаются. Собрать и
+упаковать папку — `npm install && npm pack` в ней. Подробности — в README `js/cli`.
 
 ### Дизайн-система целиком
 
@@ -574,7 +576,7 @@ dsbuilder ds generate --platform react -- --package --name base
 загрузилась, компоненты не загружаются, код возврата 1.
 
 `ds generate` одним вызовом делегата генерирует дизайн-систему целиком: тему и компоненты. Для React это `npm run generate:ds` — с `--package` он
-собирает один пакет с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
+пишет папку одного пакета с темой и компонентами; имя пакета задаёт `--name` (обязательно с `--package`). Для Android запускаются таски темы и компонентов одним
 вызовом `gradlew`, для iOS — `theme generate`, затем `components generate`: общей команды у
 инструмента нет, при неудаче темы компоненты не запускаются.
 
