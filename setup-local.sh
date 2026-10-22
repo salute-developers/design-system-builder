@@ -21,7 +21,8 @@ The setup starts the Kotlin backend, whose ds-service creates the schema of its 
 with Flyway, fills the design system 'base' through the gateway (backend-kt/bootstrap-base.sh)
 and starts the client.
 
-To list the Compose components in the component editor, run ./import-compose-components.sh afterwards.
+To list the Compose components in the component editor, run ./import-compose-components.sh and then
+`dsbuilder components push --platform compose --apply` with a component package afterwards.
 USAGE
 }
 

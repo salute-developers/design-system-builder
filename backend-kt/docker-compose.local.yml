@@ -202,6 +202,9 @@ services:
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
+    # Without a volume the buckets are lost on a Docker restart, while the registry still lists the plugin builds.
+    volumes:
+      - minio-data:/data
     # The browser loads Compose preview plugin builds straight from the bucket.
     ports:
       - "${MINIO_PUBLIC_PORT:-9000}:9000"
@@ -286,3 +289,4 @@ services:
 
 volumes:
   ds_db_data:
+  minio-data:
