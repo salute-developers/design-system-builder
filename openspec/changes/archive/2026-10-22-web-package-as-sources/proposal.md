@@ -9,7 +9,9 @@
 - С `--package` в `--out` пишется вся папка пакета без сборки и без архива: файлы заготовки и
   `package.json` перезаписываются, `src` заменяется целиком, прочее содержимое каталога остаётся.
 - Сборка папки остаётся в окружении `js/cli`: скрипты пакета, как и раньше, берут инструменты
-  из `js/cli/node_modules`.
+  из `js/cli/node_modules`; `lint` вызывает `eslint` из `PATH`, а не по пути `../node_modules`.
+- Пакет из одной темы собирается из терминала: `copy-linaria-components.sh` не ищет компоненты
+  без `src/components` и не вызывает `perl` без файлов.
 - Зависимость `pacote` и `@types/pacote` из `js/cli` удаляется.
 
 ## Возможности
@@ -24,6 +26,8 @@
 
 ## Влияние
 
-- `js/cli`: `src/package-output.ts`, справка `theme.ts`/`components.ts`/`ds.ts`, `package.json`,
+- `js/cli`: `src/package-output.ts`, справка `theme.ts`/`components.ts`/`ds.ts`,
+  `generator/creators/createPackageJSON.ts`, `generator/constants/scripts/copy-linaria-components.sh`,
+  `package.json`,
   `package-lock.json`, новый тест `src/package-output.test.ts`.
 - `frontend-kt`: не меняется, `--package` по-прежнему передаётся после `--`.

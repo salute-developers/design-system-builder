@@ -28,6 +28,12 @@ separately. Each command SHALL replace only its own part of the output directory
 - **WHEN** the package has no theme
 - **THEN** the package build MUST skip copying theme CSS and MUST NOT export the theme
 
+#### Scenario: Пакет без компонентов
+
+- **WHEN** a package without components (`generate:theme --package`) is built from a terminal, for example with `npm pack`
+- **THEN** `scripts/copy-linaria-components.sh` MUST finish without reading stdin and with exit code 0
+- **THEN** it MUST NOT search `src/components` when the directory is missing
+
 ### Requirement: Local web design system generation
 
 `npm run generate:ds` SHALL generate the theme and the components in one run, combining `generate:theme` and

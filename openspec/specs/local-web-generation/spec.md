@@ -70,18 +70,24 @@ separately. Each command SHALL replace only its own part of the output directory
 #### Scenario: Пакет части с --package
 
 - **WHEN** developer runs either command with `--package`
-- **THEN** CLI MUST build a package of that part only with pacote, which runs only `prepare` (`npm run build` of the package) with tools resolved from `js/cli/node_modules`
+- **THEN** CLI MUST write the whole package of that part to the output directory without building or packing it: `package.json`, the build configuration files, `scripts` and `src`
+- **THEN** CLI MUST replace `src` entirely and MUST keep other existing content of the output directory, such as `node_modules`
+- **THEN** CLI MUST NOT write a `.tgz` archive
 - **THEN** the package name MUST be given by `--name`; without `--name` CLI MUST fail before generating anything
 - **WHEN** a command runs without `--package`
 - **THEN** `--name` MUST NOT be required, because the package name does not affect `src`
-- **THEN** the archive MUST be written as `<scope>-<name>-<version>-theme.tgz` or `…-components.tgz`, so that archives of the parts do not overwrite each other
-- **THEN** the temporary build directory MUST be removed, also when the build fails
+- **THEN** the temporary directory MUST be removed, also when generation fails
 
 #### Scenario: Пакет без темы
 
 - **WHEN** the package has no theme
-- **THEN** the build MUST skip copying theme CSS and MUST NOT export the theme
-- **THEN** the full package built by `generate:ds --package` MUST build as before
+- **THEN** the package build MUST skip copying theme CSS and MUST NOT export the theme
+
+#### Scenario: Пакет без компонентов
+
+- **WHEN** a package without components (`generate:theme --package`) is built from a terminal, for example with `npm pack`
+- **THEN** `scripts/copy-linaria-components.sh` MUST finish without reading stdin and with exit code 0
+- **THEN** it MUST NOT search `src/components` when the directory is missing
 
 ### Requirement: Local web design system generation
 
@@ -97,8 +103,7 @@ separately. Each command SHALL replace only its own part of the output directory
 #### Scenario: Полный пакет с --package
 
 - **WHEN** developer runs `generate:ds --package`
-- **THEN** CLI MUST build one package with the theme and the components with pacote, the same way as a part package
-- **THEN** the archive MUST be written as `<scope>-<name>-<version>.tgz` without a part suffix
+- **THEN** CLI MUST write one package directory with the theme and the components, the same way as a part package
 
 ### Requirement: Local web generation includes every theme
 
