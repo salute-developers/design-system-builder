@@ -2258,6 +2258,136 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:write
+  /api/ds/tenants/{tenantId}/typography-styles:
+    get:
+      tags:
+        - Typography styles
+      summary: Typography styles of the theme by screen in px
+      description: >-
+        Requires tenants:read. Returns styles of screen-l, screen-m and screen-s with variant tokens and
+        technical revisions of their values, font families of the design system and components that use each
+        style, resolved on the selected published version (versionId) or the active draft. canEdit reflects
+        tenants:write and is false for a published version.
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+      responses:
+        "200":
+          description: Typography styles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TypographyStyles"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or published version not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:read
+  /api/ds/tenants/{tenantId}/typography-styles/{tokenId}:
+    patch:
+      tags:
+        - Typography styles
+      summary: Change a typography style in the theme
+      description: >-
+        Requires tenants:write. tokenId is any of the nine style tokens. size, lineHeight and letterSpacing are
+        written to the three style tokens on the token screen, weights to the variant token on every screen,
+        fontFamily to every style token. Values of other themes are not changed. Every changed value of the
+        active draft gets its own subject revision of path /value; the base revision of a value comes from
+        baseRevisions, otherwise from X-DS-Base-Revision. A concurrent write of the same path is applied (last
+        write wins) and reported in warnings of X-DS-Mutation-Metadata; the operation never answers 409.
+      parameters:
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTypographyStyleRequest"
+      responses:
+        "200":
+          description: >-
+            Changed style and written token values. The style has an empty components list: usage in components does
+            not change with a style edit, and the client keeps it from the read.
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdatedTypographyStyle"
+        "400":
+          description: >-
+            Invalid request, negative base revision (invalid_base_revision), published version selected
+            (historical_version_read_only), token outside the style rule (INVALID_TYPOGRAPHY_STYLE) or style value
+            (INVALID_TYPOGRAPHY_VALUE, details.field)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The theme has no values for the style tokens the edit concerns (TYPOGRAPHY_VALUES_MISSING)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      x-permission: tenants:write
   /api/ds/tokens:
     get:
       tags:
@@ -11344,6 +11474,264 @@ components:
             pattern: ^/value(?:/|$)
           example:
             - /value/fontSize
+    TypographyStyles:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        themeCount:
+          type: integer
+          minimum: 0
+        families:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyFamily"
+        screens:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyScreen"
+      required:
+        - canEdit
+        - themeCount
+        - families
+        - screens
+    TypographyFamily:
+      type: object
+      properties:
+        name:
+          type: string
+        fontName:
+          type: string
+      required:
+        - name
+        - fontName
+    TypographyScreen:
+      type: object
+      properties:
+        screen:
+          type: string
+          enum:
+            - screen-l
+            - screen-m
+            - screen-s
+        styles:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyStyle"
+      required:
+        - screen
+        - styles
+    TypographyStyle:
+      type: object
+      properties:
+        screen:
+          type: string
+          enum:
+            - screen-l
+            - screen-m
+            - screen-s
+        group:
+          type: string
+        size:
+          type: string
+        sizePx:
+          type: number
+        lineHeightPx:
+          type: number
+        letterSpacingEm:
+          type: number
+        fontFamily:
+          type: string
+        variants:
+          type: object
+          properties:
+            normal:
+              $ref: "#/components/schemas/TypographyVariant"
+            medium:
+              $ref: "#/components/schemas/TypographyVariant"
+            bold:
+              $ref: "#/components/schemas/TypographyVariant"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyComponentUsage"
+        overrides:
+          type: object
+          description: Own iOS and Android values; only fields that differ from web
+          additionalProperties:
+            $ref: "#/components/schemas/TypographyOverride"
+      required:
+        - screen
+        - group
+        - size
+        - sizePx
+        - lineHeightPx
+        - letterSpacingEm
+        - fontFamily
+        - variants
+        - components
+        - overrides
+    TypographyOverride:
+      type: object
+      properties:
+        sizePx:
+          type: number
+        lineHeightPx:
+          type: number
+        letterSpacingEm:
+          type: number
+        weights:
+          type: object
+          additionalProperties:
+            type: integer
+    TypographyVariant:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        weight:
+          type: integer
+        valueRevisions:
+          type: array
+          description: Technical revisions of the token values of the theme by platform
+          items:
+            $ref: "#/components/schemas/TypographyValueRevision"
+      required:
+        - tokenId
+        - weight
+        - valueRevisions
+    TypographyValueRevision:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum:
+            - web
+            - ios
+            - android
+        valueId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Technical revision of the value on the selected boundary; base revision of the next change
+      required:
+        - platform
+        - valueId
+        - revision
+    TypographyBaseRevision:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        platform:
+          type: string
+          enum:
+            - web
+            - ios
+            - android
+        baseRevision:
+          type: integer
+          format: int64
+          minimum: 0
+      required:
+        - tokenId
+        - platform
+        - baseRevision
+    TypographyComponentUsage:
+      type: object
+      properties:
+        name:
+          type: string
+        count:
+          type: integer
+          minimum: 1
+      required:
+        - name
+        - count
+    UpdateTypographyStyleRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        size:
+          type: number
+          description: Size in px on the token screen; greater than 0
+        lineHeight:
+          type: number
+          description: Line height in px on the token screen; greater than 0
+        letterSpacing:
+          type: number
+          description: Letter spacing in em on the token screen; from -0.2 to 1
+        weights:
+          type: object
+          description: Variant weights on every screen; 100 to 900 in steps of 100
+          properties:
+            normal:
+              type: integer
+            medium:
+              type: integer
+            bold:
+              type: integer
+          additionalProperties: false
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+          description: >-
+            Own value of the platform. With it size, line height, letter spacing and weights are written only to
+            this platform; without it they go to web and to platforms whose field is not overridden
+        fontFamily:
+          type: string
+          description: Name of a fontFamily token of the design system
+        baseRevisions:
+          type: array
+          description: Base revisions of style token values; take precedence over X-DS-Base-Revision
+          items:
+            $ref: "#/components/schemas/TypographyBaseRevision"
+    UpdatedTypographyStyle:
+      type: object
+      properties:
+        style:
+          $ref: "#/components/schemas/TypographyStyle"
+        tokens:
+          type: array
+          items:
+            $ref: "#/components/schemas/TypographyTokenValues"
+      required:
+        - style
+        - tokens
+    TypographyTokenValues:
+      type: object
+      properties:
+        tokenId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        values:
+          type: array
+          items:
+            type: object
+            properties:
+              platform:
+                type: string
+                enum:
+                  - web
+                  - ios
+                  - android
+              value: {}
+            required:
+              - platform
+              - value
+      required:
+        - tokenId
+        - name
+        - values
   parameters:
     OptionalBaseRevision:
       name: X-DS-Base-Revision
